@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
+import { executeAdvancement, handleEliminations } from '@/lib/tournament/advancementEngine'
 
-export async function openBubblePhase(tournamentId: string): Promise<void> {
+export async function openBubblePhase(tournamentId: string, fromRoundId: string): Promise<void> {
   const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
   if (!shell) throw new Error('Tournament not found')
   if (!shell.bubbleEnabled) return
@@ -10,35 +11,50 @@ export async function openBubblePhase(tournamentId: string): Promise<void> {
     data: { status: 'bubble' },
   })
 
-  const bubbleParticipants = await prisma.tournamentLeagueParticipant.findMany({
-    where: { advancementStatus: 'bubble', league: { tournamentId } },
+  const bubbleRows = await prisma.tournamentLeagueParticipant.findMany({
+    where: {
+      advancementStatus: 'bubble',
+      league: { tournamentId, roundId: fromRoundId },
+    },
+    include: { league: { select: { conferenceId: true } } },
   })
 
-  const snapshot: Record<string, number> = {}
-  for (const p of bubbleParticipants) {
-    snapshot[p.participantId] = p.pointsFor
+  const byConf = new Map<string | null, typeof bubbleRows>()
+  for (const row of bubbleRows) {
+    const cid = row.league.conferenceId
+    const list = byConf.get(cid) ?? []
+    list.push(row)
+    byConf.set(cid, list)
   }
 
-  await prisma.tournamentAdvancementGroup.create({
-    data: {
-      tournamentId,
-      fromRoundId: 'bubble',
-      groupType: 'bubble',
-      participantIds: bubbleParticipants.map((b) => b.participantId),
-      maxSize: shell.bubbleSize,
-      isBubbleGroup: true,
-      bubbleScoringSnapshot: snapshot,
-      bubbleWinnerIds: [],
-    },
-  })
+  for (const [conferenceId, rows] of byConf) {
+    if (!rows.length) continue
+    const snapshot: Record<string, number> = {}
+    for (const p of rows) {
+      snapshot[p.participantId] = p.pointsFor
+    }
+    await prisma.tournamentAdvancementGroup.create({
+      data: {
+        tournamentId,
+        conferenceId: conferenceId ?? undefined,
+        fromRoundId,
+        groupType: 'bubble',
+        participantIds: rows.map((r) => r.participantId),
+        maxSize: shell.bubbleSize,
+        isBubbleGroup: true,
+        bubbleScoringSnapshot: snapshot,
+        bubbleWinnerIds: [],
+      },
+    })
+  }
 
   const advanceN = Math.max(1, Math.floor(shell.bubbleSize / 2))
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       type: 'bubble_opened',
       title: 'Bubble phase',
-      content: `${bubbleParticipants.length} teams are in the bubble. Top ${advanceN} advance after the bubble scoring window.`,
+      content: `${bubbleRows.length} teams are in the bubble. Up to ${advanceN} per conference advance after the bubble scoring window.`,
       targetAudience: 'bubble',
     },
   })
@@ -48,55 +64,89 @@ export async function resolveBubble(tournamentId: string): Promise<void> {
   const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
   if (!shell) throw new Error('Tournament not found')
 
-  const group = await prisma.tournamentAdvancementGroup.findFirst({
+  const groups = await prisma.tournamentAdvancementGroup.findMany({
     where: { tournamentId, isBubbleGroup: true, isLocked: false },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
   })
-  if (!group) return
+  if (!groups.length) return
 
-  const mode = shell.bubbleScoringMode
-  let winners: string[] = []
+  const openingRound = await prisma.tournamentRound.findFirst({
+    where: { id: groups[0]!.fromRoundId, tournamentId },
+  })
+  if (!openingRound) throw new Error('Opening round not found for bubble resolution')
 
-  if (mode === 'cumulative_points') {
-    const snap = (group.bubbleScoringSnapshot as Record<string, number> | null) ?? {}
-    const sorted = [...group.participantIds].sort((a, b) => (snap[b] ?? 0) - (snap[a] ?? 0))
-    const half = Math.max(1, Math.floor(shell.bubbleSize / 2))
-    winners = sorted.slice(0, half)
-  } else {
-    const half = Math.max(1, Math.floor(group.participantIds.length / 2))
-    winners = group.participantIds.slice(0, half)
-  }
+  const bubbleEliminated: string[] = []
 
-  for (const pid of winners) {
-    await prisma.tournamentLeagueParticipant.updateMany({
-      where: { participantId: pid, league: { tournamentId } },
-      data: { advancementStatus: 'wildcard_eligible' },
+  for (const group of groups) {
+    const leagueWhere: { tournamentId: string; roundId: string; conferenceId?: string } = {
+      tournamentId,
+      roundId: group.fromRoundId,
+    }
+    if (group.conferenceId) leagueWhere.conferenceId = group.conferenceId
+
+    const leagueIds = (
+      await prisma.tournamentLeague.findMany({
+        where: leagueWhere,
+        select: { id: true },
+      })
+    ).map((l) => l.id)
+
+    const mode = shell.bubbleScoringMode
+    let winners: string[] = []
+    if (mode === 'cumulative_points') {
+      const snap = (group.bubbleScoringSnapshot as Record<string, number> | null) ?? {}
+      const sorted = [...group.participantIds].sort((a, b) => (snap[b] ?? 0) - (snap[a] ?? 0))
+      const half = Math.max(1, Math.floor(group.participantIds.length / 2))
+      winners = sorted.slice(0, half)
+    } else {
+      const half = Math.max(1, Math.floor(group.participantIds.length / 2))
+      winners = group.participantIds.slice(0, half)
+    }
+
+    for (const pid of winners) {
+      await prisma.tournamentLeagueParticipant.updateMany({
+        where: {
+          participantId: pid,
+          tournamentLeagueId: { in: leagueIds },
+        },
+        data: { advancementStatus: 'wildcard_eligible' },
+      })
+    }
+    for (const pid of group.participantIds) {
+      if (winners.includes(pid)) continue
+      bubbleEliminated.push(pid)
+      await prisma.tournamentLeagueParticipant.updateMany({
+        where: {
+          participantId: pid,
+          tournamentLeagueId: { in: leagueIds },
+        },
+        data: { advancementStatus: 'eliminated' },
+      })
+    }
+
+    await prisma.tournamentAdvancementGroup.update({
+      where: { id: group.id },
+      data: {
+        bubbleWinnerIds: winners,
+        isLocked: true,
+        resolvedAt: new Date(),
+      },
     })
   }
-  for (const pid of group.participantIds) {
-    if (winners.includes(pid)) continue
-    await prisma.tournamentLeagueParticipant.updateMany({
-      where: { participantId: pid, league: { tournamentId } },
-      data: { advancementStatus: 'eliminated' },
-    })
+
+  if (bubbleEliminated.length) {
+    await handleEliminations(tournamentId, [...new Set(bubbleEliminated)])
   }
 
-  await prisma.tournamentAdvancementGroup.update({
-    where: { id: group.id },
-    data: {
-      bubbleWinnerIds: winners,
-      isLocked: true,
-      resolvedAt: new Date(),
-    },
-  })
-
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       type: 'bubble_closed',
       title: 'Bubble resolved',
-      content: `${winners.length} teams survived the bubble.`,
+      content: 'Bubble groups are locked. Advancing qualifiers into the next round.',
       targetAudience: 'all',
     },
   })
+
+  await executeAdvancement(tournamentId, openingRound.roundNumber)
 }

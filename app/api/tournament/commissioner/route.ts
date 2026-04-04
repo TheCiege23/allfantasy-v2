@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertTournamentCommissioner } from '@/lib/tournament/shellAccess'
 import { handleRoundTransition } from '@/lib/tournament/redraftScheduler'
+import { executeAdvancement, handleEliminations } from '@/lib/tournament/advancementEngine'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
         where: { id: body.participantId },
         data: { currentLeagueId: body.toLeagueId, status: 'active' },
       })
-      await prisma.tournamentShellAuditLog.create({
+      await prisma.tournamentAuditLog.create({
         data: {
           tournamentId,
           action: 'commissioner_override',
@@ -60,16 +61,45 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === 'skip_bubble') {
+      await prisma.tournamentAdvancementGroup.updateMany({
+        where: { tournamentId, isBubbleGroup: true, isLocked: false },
+        data: { isLocked: true, resolvedAt: new Date() },
+      })
+      const bubbleRows = await prisma.tournamentLeagueParticipant.findMany({
+        where: {
+          advancementStatus: 'bubble',
+          league: { tournamentId },
+        },
+        select: { participantId: true },
+      })
+      const bubbleParticipantIds = [...new Set(bubbleRows.map((r) => r.participantId))]
+      if (bubbleParticipantIds.length) {
+        await prisma.tournamentLeagueParticipant.updateMany({
+          where: {
+            participantId: { in: bubbleParticipantIds },
+            league: { tournamentId },
+          },
+          data: { advancementStatus: 'eliminated' },
+        })
+        await handleEliminations(tournamentId, bubbleParticipantIds)
+      }
       await prisma.tournamentShell.update({
         where: { id: tournamentId },
         data: { bubbleEnabled: false, status: 'advancing' },
       })
-      await prisma.tournamentShellAuditLog.create({
+      const opening = await prisma.tournamentRound.findFirst({
+        where: { tournamentId, roundNumber: 1 },
+      })
+      if (opening) {
+        await executeAdvancement(tournamentId, opening.roundNumber)
+      }
+      await prisma.tournamentAuditLog.create({
         data: {
           tournamentId,
           action: 'bubble_skipped',
           actorType: 'commissioner',
           actorId: userId,
+          data: { reason: body.reason },
         },
       })
       return NextResponse.json({ ok: true })
@@ -82,7 +112,7 @@ export async function POST(req: NextRequest) {
       })
       if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
       await handleRoundTransition(tournamentId, round.roundNumber)
-      await prisma.tournamentShellAuditLog.create({
+      await prisma.tournamentAuditLog.create({
         data: {
           tournamentId,
           roundNumber: round.roundNumber,
@@ -121,7 +151,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const logs = await prisma.tournamentShellAuditLog.findMany({
+  const logs = await prisma.tournamentAuditLog.findMany({
     where: { tournamentId },
     orderBy: { createdAt: 'desc' },
     take: 500,

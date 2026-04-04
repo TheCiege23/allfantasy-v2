@@ -1,77 +1,16 @@
 import { prisma } from '@/lib/prisma'
-import { getOrCreateDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
 import {
   calculateConferenceStandings,
   calculateLeagueStandings,
   executeAdvancement,
   identifyQualifiers,
 } from '@/lib/tournament/advancementEngine'
-import { openBubblePhase } from '@/lib/tournament/bubbleEngine'
+import { openBubblePhase, resolveBubble } from '@/lib/tournament/bubbleEngine'
+import { applyRoundRosterRules } from '@/lib/tournament/rosterRules'
+import { scheduleRoundDraft } from '@/lib/tournament/scheduleRoundDraft'
 
-export async function scheduleRoundDraft(
-  tournamentId: string,
-  roundNumber: number,
-  draftDateTime: Date,
-): Promise<void> {
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) throw new Error('Tournament not found')
-
-  const round = await prisma.tournamentRound.findFirst({
-    where: { tournamentId, roundNumber },
-  })
-  if (!round) throw new Error('Round not found')
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-    orderBy: { leagueNumber: 'asc' },
-  })
-
-  let offset = 0
-  for (const tl of leagues) {
-    if (!tl.leagueId) continue
-    const when = shell.simultaneousDrafts
-      ? draftDateTime
-      : new Date(draftDateTime.getTime() + offset * 30 * 60 * 1000)
-    offset++
-
-    await prisma.tournamentLeague.update({
-      where: { id: tl.id },
-      data: { draftScheduledAt: when, status: 'draft_scheduled' },
-    })
-
-    await getOrCreateDraftSession(tl.leagueId)
-    const dt =
-      shell.draftType === 'auction' ? 'auction' : shell.draftType === 'linear' ? 'linear' : 'snake'
-    await prisma.draftSession.update({
-      where: { leagueId: tl.leagueId },
-      data: {
-        timerSeconds: shell.draftClockSeconds,
-        draftType: dt,
-      },
-    })
-  }
-
-  await prisma.tournamentShellAnnouncement.create({
-    data: {
-      tournamentId,
-      roundNumber,
-      type: 'draft_scheduled',
-      title: `Round ${roundNumber} draft scheduled`,
-      content: `Draft windows are set for ${leagues.length} leagues.`,
-      targetAudience: 'all',
-    },
-  })
-
-  await prisma.tournamentShellAuditLog.create({
-    data: {
-      tournamentId,
-      roundNumber,
-      action: 'draft_scheduled',
-      actorType: 'system',
-      data: { at: draftDateTime.toISOString() },
-    },
-  })
-}
+export { scheduleRoundDraft } from '@/lib/tournament/scheduleRoundDraft'
+export { applyRoundRosterRules } from '@/lib/tournament/rosterRules'
 
 export async function handleRoundTransition(
   tournamentId: string,
@@ -86,23 +25,44 @@ export async function handleRoundTransition(
   const completed = shell.rounds.find((r) => r.roundNumber === completedRoundNumber)
   if (!completed) throw new Error('Round not found')
 
+  const openingRound = shell.rounds.find((r) => r.roundNumber === 1)
+  const standingsRoundId =
+    completed.roundType === 'bubble' && openingRound ? openingRound.id : completed.id
+
   const tls = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: completed.id },
+    where: { tournamentId, roundId: standingsRoundId },
   })
   for (const tl of tls) {
-    await calculateLeagueStandings(tl.id)
+    if (tl.leagueId) {
+      await calculateLeagueStandings(tl.id)
+    }
   }
+
   const conferences = await prisma.tournamentConference.findMany({ where: { tournamentId } })
   for (const c of conferences) {
-    await calculateConferenceStandings(c.id)
+    await calculateConferenceStandings(c.id, standingsRoundId)
   }
 
-  await identifyQualifiers(tournamentId, completed.id)
-
-  if (shell.bubbleEnabled) {
-    await openBubblePhase(tournamentId)
+  if (completed.roundType === 'opening') {
+    await identifyQualifiers(tournamentId, completed.id)
+    if (shell.bubbleEnabled) {
+      await openBubblePhase(tournamentId, completed.id)
+      const bubbleRound = shell.rounds.find((r) => r.roundType === 'bubble')
+      await prisma.tournamentShell.update({
+        where: { id: tournamentId },
+        data: {
+          status: 'bubble',
+          currentRoundNumber: bubbleRound?.roundNumber ?? completed.roundNumber + 1,
+        },
+      })
+    } else {
+      await executeAdvancement(tournamentId, completed.roundNumber)
+    }
+  } else if (completed.roundType === 'bubble') {
+    await resolveBubble(tournamentId)
   } else {
-    await executeAdvancement(tournamentId, completedRoundNumber)
+    await identifyQualifiers(tournamentId, completed.id)
+    await executeAdvancement(tournamentId, completed.roundNumber)
   }
 
   await prisma.tournamentRound.update({
@@ -110,7 +70,7 @@ export async function handleRoundTransition(
     data: { status: 'complete', roundCompletedAt: new Date() },
   })
 
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       roundNumber: completedRoundNumber,
@@ -120,36 +80,4 @@ export async function handleRoundTransition(
       targetAudience: 'all',
     },
   })
-}
-
-export async function applyRoundRosterRules(tournamentId: string, roundNumber: number): Promise<void> {
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) throw new Error('Tournament not found')
-
-  const round = await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber } })
-  if (!round) throw new Error('Round not found')
-
-  let size = shell.tournamentRosterSize
-  if (roundNumber === 1) size = shell.openingRosterSize
-  if (round.roundType === 'elite' || round.roundType === 'final') size = shell.eliteRosterSize
-  if (round.rosterSizeOverride != null) size = round.rosterSizeOverride
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-  })
-  for (const tl of leagues) {
-    if (!tl.leagueId) continue
-    await prisma.league.update({
-      where: { id: tl.leagueId },
-      data: { rosterSize: size },
-    })
-  }
-
-  if (shell.faabResetOnRedraft) {
-    const tlIds = leagues.map((l) => l.id)
-    await prisma.tournamentLeagueParticipant.updateMany({
-      where: { tournamentLeagueId: { in: tlIds } },
-      data: { faabBalance: 100 },
-    })
-  }
 }

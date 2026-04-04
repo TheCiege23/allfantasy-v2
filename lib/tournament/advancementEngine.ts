@@ -1,4 +1,8 @@
 import { prisma } from '@/lib/prisma'
+import { provisionTournamentLeagueWithManagers } from '@/lib/tournament/setupEngine'
+import { generateLeagueNamesForConference, recordName, slugify } from '@/lib/tournament/namingEngine'
+import { applyRoundRosterRules } from '@/lib/tournament/rosterRules'
+import { scheduleRoundDraft } from '@/lib/tournament/scheduleRoundDraft'
 
 export type StandingRow = {
   tournamentLeagueParticipantId: string
@@ -23,6 +27,9 @@ export type AdvancementResult = {
   eliminated: string[]
 }
 
+/** After opening, consolidate into leagues of this size when possible. */
+const POST_OPENING_LEAGUE_SLOT_TARGET = 8
+
 function compareStandings(
   a: { wins: number; pointsFor: number; pointsAgainst: number },
   b: { wins: number; pointsFor: number; pointsAgainst: number },
@@ -34,6 +41,22 @@ function compareStandings(
     if (a.pointsAgainst !== b.pointsAgainst) return a.pointsAgainst - b.pointsAgainst
   }
   return 0
+}
+
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[arr[i], arr[j]] = [arr[j]!, arr[i]!]
+  }
+}
+
+function resolveNextPlayRound(
+  rounds: Array<{ roundNumber: number; roundType: string }>,
+  fromRound: { roundNumber: number },
+) {
+  return rounds
+    .filter((r) => r.roundNumber > fromRound.roundNumber && r.roundType !== 'bubble')
+    .sort((a, b) => a.roundNumber - b.roundNumber)[0]
 }
 
 export async function calculateLeagueStandings(tournamentLeagueId: string): Promise<LeagueStandingsResult> {
@@ -112,24 +135,38 @@ export async function calculateLeagueStandings(tournamentLeagueId: string): Prom
   }
 
   if (tl.conferenceId) {
-    await calculateConferenceStandings(tl.conferenceId)
+    await calculateConferenceStandings(tl.conferenceId, tl.roundId)
   }
 
   return { leagueId: tournamentLeagueId, rows }
 }
 
-export async function calculateConferenceStandings(conferenceId: string): Promise<ConferenceStandingsResult> {
+export async function calculateConferenceStandings(
+  conferenceId: string,
+  roundId?: string | null,
+): Promise<ConferenceStandingsResult> {
   const conference = await prisma.tournamentConference.findUnique({
     where: { id: conferenceId },
     include: { tournament: true },
   })
   if (!conference) throw new Error('Conference not found')
 
+  const leagueWhere: { conferenceId: string; roundId?: string } = { conferenceId }
+  if (roundId) leagueWhere.roundId = roundId
+
   const leagues = await prisma.tournamentLeague.findMany({
-    where: { conferenceId },
+    where: leagueWhere,
     select: { id: true },
   })
   const leagueIds = leagues.map((l) => l.id)
+  if (leagueIds.length === 0) {
+    await prisma.tournamentConference.update({
+      where: { id: conferenceId },
+      data: { standingsCache: [] },
+    })
+    return { conferenceId, rows: [] }
+  }
+
   const tlpRows = await prisma.tournamentLeagueParticipant.findMany({
     where: { tournamentLeagueId: { in: leagueIds } },
   })
@@ -180,20 +217,30 @@ export async function identifyQualifiers(
   const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
   if (!shell) throw new Error('Tournament not found')
 
+  const fromRound = await prisma.tournamentRound.findFirst({
+    where: { id: fromRoundId, tournamentId },
+  })
+  if (!fromRound) throw new Error('Round not found')
+  const isOpeningRound = fromRound.roundNumber === 1
+
   const tls = await prisma.tournamentLeague.findMany({ where: { tournamentId, roundId: fromRoundId } })
   for (const tl of tls) {
-    await calculateLeagueStandings(tl.id)
+    if (tl.leagueId) {
+      await calculateLeagueStandings(tl.id)
+    }
   }
 
   const conferences = await prisma.tournamentConference.findMany({ where: { tournamentId } })
   for (const c of conferences) {
-    await calculateConferenceStandings(c.id)
+    await calculateConferenceStandings(c.id, fromRoundId)
   }
 
   const directQualifiers: string[] = []
   const wildcards: string[] = []
   const bubble: string[] = []
   const eliminated: string[] = []
+
+  const directByConference = new Map<string, string[]>()
 
   for (const tl of tls) {
     const top = await prisma.tournamentLeagueParticipant.findMany({
@@ -207,7 +254,26 @@ export async function identifyQualifiers(
         where: { id: t.id },
         data: { advancementStatus: 'qualified' },
       })
+      if (tl.conferenceId) {
+        const arr = directByConference.get(tl.conferenceId) ?? []
+        arr.push(t.participantId)
+        directByConference.set(tl.conferenceId, arr)
+      }
     }
+  }
+
+  for (const [cid, pids] of directByConference) {
+    await prisma.tournamentAdvancementGroup.create({
+      data: {
+        tournamentId,
+        conferenceId: cid,
+        fromRoundId,
+        groupType: 'direct_qualifier',
+        participantIds: pids,
+        maxSize: pids.length,
+        bubbleWinnerIds: [],
+      },
+    })
   }
 
   for (const conf of conferences) {
@@ -225,8 +291,10 @@ export async function identifyQualifiers(
     })
 
     const wc = shell.wildcardCount
+    const wcPids: string[] = []
     for (let i = 0; i < wc && i < nonQual.length; i++) {
       const row = nonQual[i]!
+      wcPids.push(row.participantId)
       wildcards.push(row.participantId)
       await prisma.tournamentLeagueParticipant.update({
         where: { id: row.id },
@@ -234,48 +302,88 @@ export async function identifyQualifiers(
       })
     }
 
+    if (wcPids.length) {
+      await prisma.tournamentAdvancementGroup.create({
+        data: {
+          tournamentId,
+          conferenceId: conf.id,
+          fromRoundId,
+          groupType: 'wildcard',
+          participantIds: wcPids,
+          maxSize: wcPids.length,
+          bubbleWinnerIds: [],
+        },
+      })
+    }
+
     const rest = nonQual.slice(wc)
-    if (shell.bubbleEnabled) {
+    if (shell.bubbleEnabled && isOpeningRound) {
       const half = Math.min(shell.bubbleSize, rest.length)
+      const bubblePids: string[] = []
       for (let i = 0; i < half; i++) {
         const row = rest[i]!
+        bubblePids.push(row.participantId)
         bubble.push(row.participantId)
         await prisma.tournamentLeagueParticipant.update({
           where: { id: row.id },
           data: { advancementStatus: 'bubble' },
         })
       }
+      const elimAfterBubble: string[] = []
       for (let i = half; i < rest.length; i++) {
         const row = rest[i]!
+        elimAfterBubble.push(row.participantId)
         eliminated.push(row.participantId)
         await prisma.tournamentLeagueParticipant.update({
           where: { id: row.id },
           data: { advancementStatus: 'eliminated' },
         })
       }
+      if (elimAfterBubble.length) {
+        await prisma.tournamentAdvancementGroup.create({
+          data: {
+            tournamentId,
+            conferenceId: conf.id,
+            fromRoundId,
+            groupType: 'eliminated',
+            participantIds: elimAfterBubble,
+            maxSize: elimAfterBubble.length,
+            bubbleWinnerIds: [],
+          },
+        })
+      }
     } else {
+      const elimPids: string[] = []
       for (const row of rest) {
+        elimPids.push(row.participantId)
         eliminated.push(row.participantId)
         await prisma.tournamentLeagueParticipant.update({
           where: { id: row.id },
           data: { advancementStatus: 'eliminated' },
+        })
+      }
+      if (elimPids.length) {
+        await prisma.tournamentAdvancementGroup.create({
+          data: {
+            tournamentId,
+            conferenceId: conf.id,
+            fromRoundId,
+            groupType: 'eliminated',
+            participantIds: elimPids,
+            maxSize: elimPids.length,
+            bubbleWinnerIds: [],
+          },
         })
       }
     }
   }
 
-  await prisma.tournamentAdvancementGroup.create({
-    data: {
-      tournamentId,
-      fromRoundId,
-      groupType: 'direct_qualifier',
-      participantIds: directQualifiers,
-      maxSize: directQualifiers.length,
-      bubbleWinnerIds: [],
-    },
-  })
+  const uniqElim = [...new Set(eliminated)]
+  if (uniqElim.length) {
+    await handleEliminations(tournamentId, uniqElim)
+  }
 
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       type: 'qualifier_announced',
@@ -285,7 +393,7 @@ export async function identifyQualifiers(
     },
   })
 
-  return { directQualifiers, wildcards, bubble, eliminated }
+  return { directQualifiers, wildcards, bubble, eliminated: uniqElim }
 }
 
 export async function executeAdvancement(tournamentId: string, fromRoundNumber: number): Promise<void> {
@@ -294,54 +402,190 @@ export async function executeAdvancement(tournamentId: string, fromRoundNumber: 
     include: { rounds: { orderBy: { roundNumber: 'asc' } } },
   })
   if (!shell) throw new Error('Tournament not found')
-  const fromRound = shell.rounds.find((r) => r.roundNumber === fromRoundNumber)
-  const toRound = shell.rounds.find((r) => r.roundNumber === fromRoundNumber + 1)
-  if (!fromRound || !toRound) throw new Error('Invalid round transition')
 
-  const advancing = await prisma.tournamentLeagueParticipant.findMany({
+  const fromRound = shell.rounds.find((r) => r.roundNumber === fromRoundNumber)
+  if (!fromRound) throw new Error('Invalid from round')
+
+  const toRound = resolveNextPlayRound(shell.rounds, fromRound)
+  if (!toRound) {
+    await prisma.tournamentShell.update({
+      where: { id: tournamentId },
+      data: { status: 'complete' },
+    })
+    return
+  }
+
+  const fromTls = await prisma.tournamentLeague.findMany({
+    where: { tournamentId, roundId: fromRound.id },
+  })
+
+  const advancingRows = await prisma.tournamentLeagueParticipant.findMany({
     where: {
       advancementStatus: { in: ['qualified', 'wildcard_eligible'] },
-      league: { tournamentId, roundId: fromRound.id },
+      tournamentLeagueId: { in: fromTls.map((t) => t.id) },
     },
-    select: { participantId: true },
+    include: { participant: true },
   })
-  const movers = await prisma.tournamentParticipant.findMany({
-    where: {
-      tournamentId,
-      id: { in: advancing.map((a) => a.participantId) },
+
+  const seen = new Set<string>()
+  const advancers = advancingRows.filter((r) => {
+    if (seen.has(r.participantId)) return false
+    seen.add(r.participantId)
+    return true
+  })
+
+  if (advancers.length === 0) {
+    throw new Error('No participants qualified to advance')
+  }
+
+  shuffleInPlace(advancers)
+
+  const now = new Date()
+  await prisma.tournamentLeagueParticipant.updateMany({
+    where: { tournamentLeagueId: { in: fromTls.map((t) => t.id) } },
+    data: { completedAt: now },
+  })
+
+  await prisma.tournamentLeague.updateMany({
+    where: { tournamentId, roundId: fromRound.id },
+    data: { status: 'archived' },
+  })
+
+  const slotTarget = Math.min(POST_OPENING_LEAGUE_SLOT_TARGET, Math.max(shell.teamsPerLeague, 4))
+  const numLeagues = Math.max(1, Math.ceil(advancers.length / slotTarget))
+  const buckets: typeof advancers[] = Array.from({ length: numLeagues }, () => [])
+  for (let i = 0; i < advancers.length; i++) {
+    buckets[i % numLeagues]!.push(advancers[i]!)
+  }
+
+  const conferences = await prisma.tournamentConference.findMany({
+    where: { tournamentId },
+    orderBy: { conferenceNumber: 'asc' },
+  })
+  if (!conferences.length) throw new Error('No conferences configured')
+
+  const existingNames = (
+    await prisma.tournamentLeague.findMany({
+      where: { tournamentId },
+      select: { name: true },
+    })
+  ).map((x) => x.name)
+
+  let li = 0
+  for (const bucket of buckets) {
+    if (!bucket.length) continue
+    const conf = conferences[li % conferences.length]!
+    li++
+
+    const lastNum =
+      (
+        await prisma.tournamentLeague.findFirst({
+          where: { tournamentId, conferenceId: conf.id },
+          orderBy: { leagueNumber: 'desc' },
+          select: { leagueNumber: true },
+        })
+      )?.leagueNumber ?? 0
+
+    const names = generateLeagueNamesForConference(conf.id, 1, existingNames, conf.theme ?? undefined)
+    const name = names[0] ?? `League ${lastNum + 1}`
+    existingNames.push(name)
+    const slug = slugify(`${name}-${conf.id}-${toRound.id}-${Date.now()}-${li}`)
+
+    const teamSlots = bucket.length
+    const tl = await prisma.tournamentLeague.create({
+      data: {
+        tournamentId,
+        conferenceId: conf.id,
+        roundId: toRound.id,
+        name,
+        slug,
+        leagueNumber: lastNum + 1,
+        teamSlots,
+        advancersCount: shell.advancersPerLeague,
+        status: 'forming',
+      },
+    })
+
+    await recordName(tournamentId, 'league', tl.id, name, name, shell.namingMode)
+
+    let rosterSize = shell.tournamentRosterSize
+    if (toRound.roundNumber === 1) rosterSize = shell.openingRosterSize
+    if (toRound.roundType === 'elite' || toRound.roundType === 'final') rosterSize = shell.eliteRosterSize
+    if (toRound.rosterSizeOverride != null) rosterSize = toRound.rosterSizeOverride
+
+    await provisionTournamentLeagueWithManagers(
+      shell,
+      { id: tl.id, name: tl.name, conferenceId: conf.id },
+      toRound.roundNumber,
+      teamSlots,
+      rosterSize,
+      bucket.map((row) => ({
+        id: row.participant.id,
+        userId: row.participant.userId,
+        displayName: row.participant.displayName,
+        avatarUrl: row.participant.avatarUrl,
+      })),
+    )
+
+    for (const row of bucket) {
+      const p = row.participant
+      const hist = Array.isArray(p.advancementHistory) ? [...(p.advancementHistory as object[])] : []
+      hist.push({
+        round: fromRound.roundNumber,
+        toRound: toRound.roundNumber,
+        fromLeagueId: row.tournamentLeagueId,
+        rank: row.leagueRank,
+        wins: row.wins,
+        losses: row.losses,
+        pointsFor: row.pointsFor,
+        advanced: true,
+      })
+      await prisma.tournamentParticipant.update({
+        where: { id: p.id },
+        data: {
+          currentRoundNumber: toRound.roundNumber,
+          furthestRoundReached: Math.max(p.furthestRoundReached, toRound.roundNumber),
+          totalRoundsPlayed: p.totalRoundsPlayed + 1,
+          status: 'active',
+          advancementHistory: hist,
+        },
+      })
+    }
+  }
+
+  await prisma.tournamentShell.update({
+    where: { id: tournamentId },
+    data: {
+      currentRoundNumber: toRound.roundNumber,
+      status: 'redrafting',
     },
   })
 
-  const ids = movers.map((m) => m.id)
-  shuffleInPlace(ids)
+  await applyRoundRosterRules(tournamentId, toRound.roundNumber)
 
-  await prisma.tournamentShellAuditLog.create({
+  const draftAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  await scheduleRoundDraft(tournamentId, toRound.roundNumber, draftAt)
+
+  await prisma.tournamentAuditLog.create({
     data: {
       tournamentId,
       roundNumber: fromRoundNumber,
       action: 'advancement_calculated',
       actorType: 'system',
-      data: { advanced: ids.length, toRound: toRound.roundNumber },
+      data: {
+        advanced: advancers.length,
+        toRound: toRound.roundNumber,
+        newLeagues: numLeagues,
+      },
     },
   })
-
-  await prisma.tournamentShell.update({
-    where: { id: tournamentId },
-    data: { currentRoundNumber: toRound.roundNumber, status: 'redrafting' },
-  })
-}
-
-function shuffleInPlace(arr: string[]): void {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j]!, arr[i]!]
-  }
 }
 
 export async function handleEliminations(
   tournamentId: string,
   eliminatedParticipantIds: string[],
 ): Promise<void> {
+  if (!eliminatedParticipantIds.length) return
   await prisma.tournamentParticipant.updateMany({
     where: { tournamentId, id: { in: eliminatedParticipantIds } },
     data: { status: 'eliminated' },

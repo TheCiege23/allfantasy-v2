@@ -41,23 +41,32 @@ async function runAutomation() {
   for (const shell of shells) {
     try {
       const activeRound = shell.rounds.find((r) => r.roundNumber === shell.currentRoundNumber) ?? shell.rounds[0]
-      if (activeRound) {
-        const tls = await prisma.tournamentLeague.findMany({
-          where: { tournamentId: shell.id, roundId: activeRound.id, leagueId: { not: null } },
-        })
-        for (const tl of tls) {
+      const tls = await prisma.tournamentLeague.findMany({
+        where: {
+          tournamentId: shell.id,
+          leagueId: { not: null },
+          status: { not: 'archived' },
+        },
+      })
+      for (const tl of tls) {
+        try {
           await calculateLeagueStandings(tl.id)
+        } catch {
+          // Bubble / transition windows may briefly lack underlying leagues
         }
       }
       processed.push(shell.id)
 
       if (Number.isFinite(currentWeek) && activeRound) {
-        if (currentWeek > activeRound.weekEnd && shell.status === 'active') {
+        if (
+          currentWeek > activeRound.weekEnd &&
+          (shell.status === 'active' || shell.status === 'bubble')
+        ) {
           await handleRoundTransition(shell.id, activeRound.roundNumber)
         }
       }
 
-      await prisma.tournamentShellAnnouncement.updateMany({
+      await prisma.tournamentAnnouncement.updateMany({
         where: {
           tournamentId: shell.id,
           isPosted: false,

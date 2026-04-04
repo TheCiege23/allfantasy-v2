@@ -1,23 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { openaiChatText } from '@/lib/openai-client'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { requireAfSubUserIdOrThrow } from '@/lib/redraft/ai/requireAfSub'
 
-async function assertAfCommissionerSub(userId: string): Promise<void> {
-  const profile = await prisma.userProfile.findFirst({
-    where: { userId },
-    select: { afCommissionerSub: true },
-  })
-  if (!profile?.afCommissionerSub) {
-    throw new Error('AF Commissioner Subscription required for AI tournament host features.')
-  }
-}
-
-export async function generateRoundSummary(
-  userId: string,
-  tournamentId: string,
-  roundNumber: number,
-): Promise<string> {
-  await assertAfCommissionerSub(userId)
+export async function generateRoundSummary(tournamentId: string, roundNumber: number): Promise<string> {
+  await requireAfSubUserIdOrThrow()
   const shell = await prisma.tournamentShell.findUnique({
     where: { id: tournamentId },
     include: { rounds: true },
@@ -47,7 +34,7 @@ Tone: premium, dramatic but factual. Length: 3-4 short paragraphs.`,
   })
   if (!res.ok) throw new Error(res.details || 'AI unavailable')
   const text = res.text.trim()
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       roundNumber,
@@ -63,11 +50,10 @@ Tone: premium, dramatic but factual. Length: 3-4 short paragraphs.`,
 }
 
 export async function generateConferenceTheme(
-  userId: string,
   sport: string,
   existingThemes: string[],
 ): Promise<{ name: string; theme: string; color: string }> {
-  await assertAfCommissionerSub(userId)
+  await requireAfSubUserIdOrThrow()
   const s = normalizeToSupportedSport(sport)
   const res = await openaiChatText({
     messages: [
@@ -92,18 +78,15 @@ COLOR: #RRGGBB`,
   return { name, theme, color }
 }
 
-export async function generateAdvancementMessage(
-  userId: string,
-  args: {
-    participantName: string
-    fromLeague: string
-    toLeague: string
-    record: string
-    roundNumber: number
-    draftDate?: string
-  },
-): Promise<string> {
-  await assertAfCommissionerSub(userId)
+export async function generateAdvancementMessage(args: {
+  participantName: string
+  fromLeague: string
+  toLeague: string
+  record: string
+  roundNumber: number
+  draftDate?: string
+}): Promise<string> {
+  await requireAfSubUserIdOrThrow()
   const res = await openaiChatText({
     messages: [
       {
@@ -120,11 +103,12 @@ Draft begins ${args.draftDate ?? 'soon'}. Congratulate briefly; one paragraph; n
   return res.text.trim()
 }
 
-export async function generateEliminationMessage(
-  userId: string,
-  args: { participantName: string; league: string; record: string },
-): Promise<string> {
-  await assertAfCommissionerSub(userId)
+export async function generateEliminationMessage(args: {
+  participantName: string
+  league: string
+  record: string
+}): Promise<string> {
+  await requireAfSubUserIdOrThrow()
   const res = await openaiChatText({
     messages: [
       {

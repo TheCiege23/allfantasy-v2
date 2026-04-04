@@ -23,3 +23,19 @@ export async function requireAfSub(): Promise<string | NextResponse> {
   }
   return session.user.id
 }
+
+/** Same subscription gate as `requireAfSub`, but throws for use in lib/services (not Route handlers). */
+export async function requireAfSubUserIdOrThrow(): Promise<string> {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
+    throw new Error('Not authenticated')
+  }
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: session.user.id },
+    select: { afCommissionerSub: true },
+  })
+  if (!profile?.afCommissionerSub) {
+    throw new Error('AF Commissioner Subscription required for AI features.')
+  }
+  return session.user.id
+}

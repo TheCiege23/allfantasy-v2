@@ -57,6 +57,118 @@ function shuffleInPlace<T>(arr: T[]): void {
   }
 }
 
+export type TournamentLeagueManagerInput = {
+  id: string
+  userId: string
+  displayName: string
+  avatarUrl: string | null
+}
+
+/** Creates the underlying redraft `League`, teams, shell participants wiring, and `TournamentLeagueParticipant` rows. */
+export async function provisionTournamentLeagueWithManagers(
+  shell: {
+    id: string
+    commissionerId: string
+    sport: string
+    scoringSystem: string | null
+    waiverType: string | null
+    faabResetOnRedraft: boolean
+  },
+  tl: { id: string; name: string; conferenceId: string | null },
+  roundNumber: number,
+  teamSlots: number,
+  rosterSize: number,
+  managers: TournamentLeagueManagerInput[],
+  opts?: { fillOriginalConference?: boolean },
+): Promise<string> {
+  const sport = normalizeToSupportedSport(shell.sport) as LeagueSport
+  const league = await prisma.league.create({
+    data: {
+      userId: shell.commissionerId,
+      platform: 'manual',
+      platformLeagueId: `tournament-shell-${tl.id}-${Date.now()}`,
+      name: tl.name,
+      sport,
+      season: new Date().getFullYear(),
+      leagueSize: teamSlots,
+      leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
+      leagueType: 'redraft',
+      survivorMode: false,
+      scoring: shell.scoringSystem?.toUpperCase() ?? 'PPR',
+      rosterSize,
+      waiverType: shell.waiverType ?? 'faab',
+      status: 'pre_draft',
+      settings: {
+        tournamentShellId: shell.id,
+        tournamentLeagueId: tl.id,
+        roundNumber,
+      },
+      syncStatus: 'manual',
+    },
+  })
+
+  await prisma.tournamentLeague.update({
+    where: { id: tl.id },
+    data: { leagueId: league.id, status: 'draft_scheduled', currentTeamCount: managers.length },
+  })
+
+  const faab = shell.faabResetOnRedraft ? 100 : 100
+  let slot = 1
+  for (const p of managers) {
+    const externalId = `ts-${p.userId}-${tl.id}`
+    await prisma.leagueTeam.create({
+      data: {
+        leagueId: league.id,
+        externalId,
+        ownerName: p.displayName,
+        teamName: p.displayName,
+        avatarUrl: p.avatarUrl ?? undefined,
+        claimedByUserId: p.userId,
+        isCommissioner: false,
+      },
+    })
+
+    await prisma.tournamentLeagueParticipant.create({
+      data: {
+        tournamentLeagueId: tl.id,
+        participantId: p.id,
+        userId: p.userId,
+        draftSlot: slot,
+        faabBalance: faab,
+        advancementStatus: 'competing',
+      },
+    })
+
+    await prisma.tournamentParticipant.update({
+      where: { id: p.id },
+      data: {
+        currentLeagueId: tl.id,
+        currentConferenceId: tl.conferenceId,
+      },
+    })
+    slot++
+  }
+
+  if (opts?.fillOriginalConference && tl.conferenceId) {
+    await prisma.tournamentParticipant.updateMany({
+      where: {
+        id: { in: managers.map((m) => m.id) },
+        tournamentId: shell.id,
+        originalConferenceId: null,
+      },
+      data: { originalConferenceId: tl.conferenceId },
+    })
+  }
+
+  try {
+    await runPostCreateInitialization(league.id, sport, TOURNAMENT_LEAGUE_VARIANT)
+  } catch (e) {
+    console.warn('[tournament/setupEngine] league bootstrap non-fatal', league.id, e)
+  }
+
+  return league.id
+}
+
 function validateStructure(config: TournamentConfig): void {
   if (!POOL_SIZES.has(config.maxParticipants)) {
     throw new Error('maxParticipants must be 60, 120, 180, or 240')
@@ -132,7 +244,7 @@ export async function createTournamentShell(
       })
     }
 
-    await tx.tournamentShellAuditLog.create({
+    await tx.tournamentAuditLog.create({
       data: {
         tournamentId: s.id,
         action: 'shell_created',
@@ -208,7 +320,7 @@ export async function buildConferencesAndLeagues(tournamentId: string, namingMod
   }
 
   if (namingMode === 'hybrid') {
-    await prisma.tournamentShellAnnouncement.create({
+    await prisma.tournamentAnnouncement.create({
       data: {
         tournamentId: shell.id,
         type: 'welcome',
@@ -220,7 +332,7 @@ export async function buildConferencesAndLeagues(tournamentId: string, namingMod
     })
   }
 
-  await prisma.tournamentShellAuditLog.create({
+  await prisma.tournamentAuditLog.create({
     data: {
       tournamentId: shell.id,
       action: 'league_created',
@@ -237,7 +349,7 @@ export async function openRegistration(tournamentId: string): Promise<void> {
     where: { id: tournamentId },
     data: { status: 'registering' },
   })
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       type: 'welcome',
@@ -270,8 +382,6 @@ export async function assignParticipantsToLeagues(tournamentId: string): Promise
   shuffleInPlace(parts)
 
   let idx = 0
-  const sport = normalizeToSupportedSport(shell.sport) as LeagueSport
-
   for (const tl of tournamentLeagues) {
     const chunk: typeof parts = []
     while (chunk.length < shell.teamsPerLeague && idx < parts.length) {
@@ -280,80 +390,23 @@ export async function assignParticipantsToLeagues(tournamentId: string): Promise
     }
     if (chunk.length === 0) continue
 
-    const league = await prisma.league.create({
-      data: {
-        userId: shell.commissionerId,
-        platform: 'manual',
-        platformLeagueId: `tournament-shell-${tl.id}-${Date.now()}`,
-        name: tl.name,
-        sport,
-        season: new Date().getFullYear(),
-        leagueSize: shell.teamsPerLeague,
-        leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
-        leagueType: 'redraft',
-        survivorMode: false,
-        scoring: shell.scoringSystem?.toUpperCase() ?? 'PPR',
-        rosterSize: shell.openingRosterSize,
-        waiverType: shell.waiverType ?? 'faab',
-        status: 'pre_draft',
-        settings: {
-          tournamentShellId: shell.id,
-          tournamentLeagueId: tl.id,
-          roundNumber: 1,
-        },
-        syncStatus: 'manual',
-      },
-    })
-
-    await prisma.tournamentLeague.update({
-      where: { id: tl.id },
-      data: { leagueId: league.id, status: 'draft_scheduled', currentTeamCount: chunk.length },
-    })
-
-    let slot = 1
-    for (const p of chunk) {
-      const externalId = `ts-${p.userId}-${tl.id}`
-      await prisma.leagueTeam.create({
-        data: {
-          leagueId: league.id,
-          externalId,
-          ownerName: p.displayName,
-          teamName: p.displayName,
-          avatarUrl: p.avatarUrl ?? undefined,
-          claimedByUserId: p.userId,
-          isCommissioner: false,
-        },
-      })
-
-      await prisma.tournamentLeagueParticipant.create({
-        data: {
-          tournamentLeagueId: tl.id,
-          participantId: p.id,
-          userId: p.userId,
-          draftSlot: slot,
-          faabBalance: shell.faabResetOnRedraft ? 100 : 100,
-        },
-      })
-
-      await prisma.tournamentParticipant.update({
-        where: { id: p.id },
-        data: {
-          currentLeagueId: tl.id,
-          currentConferenceId: tl.conferenceId,
-          originalConferenceId: p.originalConferenceId ?? tl.conferenceId,
-        },
-      })
-      slot++
-    }
-
-    try {
-      await runPostCreateInitialization(league.id, sport, TOURNAMENT_LEAGUE_VARIANT)
-    } catch (e) {
-      console.warn('[tournament/setupEngine] league bootstrap non-fatal', league.id, e)
-    }
+    await provisionTournamentLeagueWithManagers(
+      shell,
+      { id: tl.id, name: tl.name, conferenceId: tl.conferenceId },
+      1,
+      shell.teamsPerLeague,
+      shell.openingRosterSize,
+      chunk.map((p) => ({
+        id: p.id,
+        userId: p.userId,
+        displayName: p.displayName,
+        avatarUrl: p.avatarUrl,
+      })),
+      { fillOriginalConference: true },
+    )
   }
 
-  await prisma.tournamentShellAuditLog.create({
+  await prisma.tournamentAuditLog.create({
     data: {
       tournamentId: shell.id,
       roundNumber: 1,
@@ -382,7 +435,7 @@ export async function launchTournamentShell(tournamentId: string): Promise<void>
     where: { id: tournamentId },
     data: { status: 'active' },
   })
-  await prisma.tournamentShellAnnouncement.create({
+  await prisma.tournamentAnnouncement.create({
     data: {
       tournamentId,
       type: 'round_started',
