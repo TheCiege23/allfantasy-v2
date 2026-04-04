@@ -14,6 +14,8 @@ import type {
   WaiverStrategyTrend,
 } from '@/lib/strategy-meta-engine'
 import type { DynastyProjectionOutput } from '@/lib/dynasty-engine/types'
+import type { WeatherImpactResult } from '@/lib/weather/weatherImpactEngine'
+import type { NormalizedWeather } from '@/lib/weather/weatherService'
 
 export interface GlobalFantasyInsightsInput {
   sport?: string
@@ -23,6 +25,13 @@ export interface GlobalFantasyInsightsInput {
   trendLimit?: number
   metaWindowDays?: number
   leagueFormat?: string | null
+  /** Optional precomputed weather + impact for AI narrative (start/sit, waivers). */
+  weatherForAI?: {
+    sport: string
+    position: string
+    weather: NormalizedWeather | null
+    impact: WeatherImpactResult | null
+  } | null
 }
 
 export interface TrendInsightLeader {
@@ -192,4 +201,6 @@ export interface GlobalFantasyInsights {
   systemScores: GlobalFantasySystemScores
   sourceStatus: GlobalFantasySourceStatus
   generatedAt: string
+  /** Ready-to-paste line for LLM prompts when weather materially moves projections. */
+  weatherContextForAI?: string
 }

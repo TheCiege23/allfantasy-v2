@@ -7,6 +7,7 @@ import {
   getVenueForTeam,
   isTeamDome,
 } from '@/lib/openweathermap';
+import { getWeatherForEvent } from '@/lib/weather/weatherService';
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,25 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
     const city = searchParams.get('city');
     const lat = searchParams.get('lat');
     const lon = searchParams.get('lon');
+    const gameTime = searchParams.get('gameTime');
+    const forecast = searchParams.get('forecast');
+
+    if (lat && lon && gameTime && (forecast === '1' || forecast === 'true')) {
+      const normalized = await getWeatherForEvent({
+        lat: parseFloat(lat),
+        lng: parseFloat(lon),
+        gameTime: new Date(gameTime),
+        sport: searchParams.get('sport') ?? undefined,
+        eventId: searchParams.get('eventId') ?? undefined,
+        isIndoor: searchParams.get('isIndoor') === '1' || searchParams.get('isIndoor') === 'true',
+        isDome: searchParams.get('isDome') === '1' || searchParams.get('isDome') === 'true',
+        roofClosed: searchParams.get('roofClosed') === '1' || searchParams.get('roofClosed') === 'true',
+      });
+      return NextResponse.json({
+        normalized,
+        source: normalized?.cacheHit ? 'weather-cache' : 'openweathermap-forecast',
+      });
+    }
 
     if (team) {
       const normalized = normalizeTeamAbbrev(team) || team.toUpperCase();
@@ -87,7 +107,8 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
     );
 
     return NextResponse.json({
-      message: 'Weather API ready. Use ?team=KC or ?city=Chicago or ?lat=39&lon=-94',
+      message:
+        'Weather API ready. Use ?team=KC or ?city=Chicago or ?lat=39&lon=-94. Forecast + normalized: ?lat=&lon=&gameTime=ISO8601&forecast=1',
       sample: results.filter(Boolean).slice(0, 3),
       source: 'openweathermap',
     });

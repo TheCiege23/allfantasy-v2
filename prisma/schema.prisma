@@ -11399,3 +11399,72 @@ model GuillotineAIInsight {
   @@index([rosterId, type])
   @@map("guillotine_ai_insights")
 }
+
+model WeatherCache {
+  id              String   @id @default(cuid())
+  cacheKey        String   @unique
+  latitude        Float
+  longitude       Float
+  forecastForTime DateTime
+  fetchedAt       DateTime @default(now())
+  expiresAt       DateTime
+
+  temperatureF     Float?
+  feelsLikeF       Float?
+  windSpeedMph     Float?
+  windGustsMph     Float?
+  windDirectionDeg Float?
+  precipChancePct  Float?
+  rainInches       Float?
+  snowInches       Float?
+  humidityPct      Float?
+  visibilityMiles  Float?
+  conditionCode    String?
+  conditionLabel   String?
+  cloudCoverPct    Float?
+
+  isIndoor   Boolean @default(false)
+  isDome     Boolean @default(false)
+  roofClosed Boolean @default(false)
+  sport      String?
+  eventId    String?
+
+  dataSource     String @default("openweathermap")
+  apiResponseRaw Json?
+
+  @@index([cacheKey])
+  @@index([fetchedAt])
+  @@index([forecastForTime])
+}
+
+model AFProjectionSnapshot {
+  id                 String   @id @default(cuid())
+  playerId           String
+  playerName         String
+  sport              String
+  position           String
+  week               Int?
+  season             Int
+  eventId            String?
+
+  baselineProjection Float
+  weatherAdjustment  Float    @default(0)
+  afProjection       Float
+
+  weatherCacheId    String?
+  adjustmentFactors Json?
+  adjustmentReason  String?
+  confidenceLevel   String   @default("medium")
+
+  isOutdoorGame Boolean @default(true)
+  venueOverride Boolean @default(false)
+
+  computedAt DateTime  @default(now())
+  validUntil DateTime?
+
+  /// Stable key: `${playerId}|${season}|${week ?? 'w'}|${eventId ?? 'none'}`
+  snapshotLookupKey String @unique
+
+  @@index([playerId, week, season])
+  @@index([sport, week, season])
+}

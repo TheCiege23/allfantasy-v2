@@ -32,7 +32,8 @@ export interface GameWeather {
   isDome: boolean;
 }
 
-const NFL_VENUE_COORDS: Record<string, { lat: number; lon: number; dome: boolean }> = {
+/** NFL stadium coordinates + dome flag (used by weather + projections). */
+export const NFL_VENUE_COORDS: Record<string, { lat: number; lon: number; dome: boolean }> = {
   'State Farm Stadium': { lat: 33.5276, lon: -112.2626, dome: true },
   'Mercedes-Benz Stadium': { lat: 33.7554, lon: -84.4010, dome: true },
   'M&T Bank Stadium': { lat: 39.2780, lon: -76.6227, dome: false },
@@ -66,7 +67,7 @@ const NFL_VENUE_COORDS: Record<string, { lat: number; lon: number; dome: boolean
   'Northwest Stadium': { lat: 38.9076, lon: -76.8645, dome: false },
 };
 
-const NFL_TEAM_VENUES: Record<string, string> = {
+export const NFL_TEAM_VENUES: Record<string, string> = {
   'ARI': 'State Farm Stadium', 'ATL': 'Mercedes-Benz Stadium',
   'BAL': 'M&T Bank Stadium', 'BUF': 'Highmark Stadium',
   'CAR': 'Bank of America Stadium', 'CHI': 'Soldier Field',
@@ -151,6 +152,104 @@ function assessFantasyImpact(weather: {
   }
 
   return { impact: dominated.join('. '), level };
+}
+
+/** Single 3h slot from OWM 5-day forecast, closest to `targetTime`. */
+export interface ForecastWeatherAtTime {
+  temp: number
+  feelsLike: number
+  windSpeed: number
+  windGust: number | null
+  windDeg: number
+  humidity: number
+  visibilityMeters: number
+  clouds: number
+  rainInches3h: number
+  snowInches3h: number
+  conditionMain: string
+  conditionCode: string
+  description: string
+  /** 0–1 probability of precipitation */
+  pop: number
+  forecastDt: Date
+}
+
+function mmToInches(mm: number): number {
+  return mm * 0.0393701
+}
+
+/**
+ * 5-day / 3-hour OpenWeatherMap forecast; picks the list item whose time is closest to `targetTime`.
+ */
+export async function fetchForecastWeatherAtTime(
+  lat: number,
+  lon: number,
+  targetTime: Date
+): Promise<ForecastWeatherAtTime | null> {
+  const apiKey = process.env.OPENWEATHERMAP_API_KEY
+  if (!apiKey) {
+    console.warn('[Weather] OPENWEATHERMAP_API_KEY not set')
+    return null
+  }
+
+  try {
+    const url = `${OWM_BASE_URL}/forecast?lat=${lat}&lon=${lon}&units=imperial&appid=${apiKey}`
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) {
+      console.error('[Weather] Forecast API error:', response.status)
+      return null
+    }
+    const data = await response.json()
+    const list = data.list as Array<{
+      dt: number
+      main?: { temp?: number; feels_like?: number; humidity?: number }
+      wind?: { speed?: number; gust?: number; deg?: number }
+      clouds?: { all?: number }
+      visibility?: number
+      pop?: number
+      rain?: { '3h'?: number }
+      snow?: { '3h'?: number }
+      weather?: Array<{ main?: string; id?: number; description?: string }>
+    }>
+    if (!Array.isArray(list) || list.length === 0) return null
+
+    const targetMs = targetTime.getTime()
+    let best = list[0]!
+    let bestDelta = Math.abs(best.dt * 1000 - targetMs)
+    for (const item of list) {
+      const d = Math.abs(item.dt * 1000 - targetMs)
+      if (d < bestDelta) {
+        best = item
+        bestDelta = d
+      }
+    }
+
+    const rainMm = best.rain?.['3h'] ?? 0
+    const snowMm = best.snow?.['3h'] ?? 0
+    const windSpeed = best.wind?.speed ?? 0
+    const windGust = best.wind?.gust ?? null
+
+    return {
+      temp: best.main?.temp ?? 0,
+      feelsLike: best.main?.feels_like ?? best.main?.temp ?? 0,
+      windSpeed,
+      windGust,
+      windDeg: best.wind?.deg ?? 0,
+      humidity: best.main?.humidity ?? 0,
+      visibilityMeters: best.visibility ?? 10000,
+      clouds: best.clouds?.all ?? 0,
+      rainInches3h: mmToInches(rainMm),
+      snowInches3h: mmToInches(snowMm),
+      conditionMain: best.weather?.[0]?.main ?? 'Clear',
+      conditionCode: String(best.weather?.[0]?.id ?? ''),
+      description: best.weather?.[0]?.description ?? '',
+      pop: typeof best.pop === 'number' ? best.pop : 0,
+      forecastDt: new Date(best.dt * 1000),
+    }
+  } catch (error) {
+    console.error('[Weather] Forecast fetch failed:', error)
+    return null
+  }
 }
 
 export async function fetchWeatherByCoords(lat: number, lon: number): Promise<WeatherData | null> {

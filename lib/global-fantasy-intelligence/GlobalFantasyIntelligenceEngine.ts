@@ -18,6 +18,7 @@ import type {
   PositionValueChange,
   WaiverStrategyTrend,
 } from '@/lib/strategy-meta-engine'
+import { buildWeatherContextForAI } from '@/lib/weather/weatherContextForAI'
 import type {
   DynastyInsights,
   GlobalFantasyActionItem,
@@ -35,6 +36,8 @@ import type {
   TrendInsightLeader,
   TrendInsights,
 } from './types'
+
+export { buildWeatherContextForAI }
 
 const TREND_FEED_TYPES: TrendFeedType[] = [
   'hot_streak',
@@ -731,6 +734,7 @@ export function buildUnifiedGlobalFantasyInsights(args: {
   season: number | null
   weekOrPeriod: number | null
   generatedAt?: string
+  weatherContextForAI?: string | null
 }): GlobalFantasyInsights {
   const hasLeagueContext = Boolean(args.leagueId)
   const systemScores = buildSystemScores(args.trend, args.meta, args.dynasty, args.simulation)
@@ -751,7 +755,7 @@ export function buildUnifiedGlobalFantasyInsights(args: {
     args.simulation,
     hasLeagueContext
   )
-  const summary = buildSummary(
+  const baseSummary = buildSummary(
     args.sport,
     args.trend,
     args.meta,
@@ -759,6 +763,8 @@ export function buildUnifiedGlobalFantasyInsights(args: {
     args.simulation,
     hasLeagueContext
   )
+  const wx = args.weatherContextForAI?.trim()
+  const summary = wx ? `${baseSummary} ${wx}` : baseSummary
 
   return {
     trend: args.trend,
@@ -776,6 +782,7 @@ export function buildUnifiedGlobalFantasyInsights(args: {
     systemScores,
     sourceStatus,
     generatedAt: args.generatedAt ?? new Date().toISOString(),
+    weatherContextForAI: wx || undefined,
   }
 }
 
@@ -1068,6 +1075,16 @@ export async function getGlobalFantasyInsights(
     fetchSimulationInsights(leagueId, sport, leagueId ? season : null, leagueId ? weekOrPeriod : null),
   ])
 
+  let weatherContextForAI: string | undefined
+  if (input.weatherForAI) {
+    weatherContextForAI = await buildWeatherContextForAI(
+      input.weatherForAI.sport,
+      input.weatherForAI.position,
+      input.weatherForAI.weather,
+      input.weatherForAI.impact
+    )
+  }
+
   return buildUnifiedGlobalFantasyInsights({
     trend,
     meta,
@@ -1077,6 +1094,7 @@ export async function getGlobalFantasyInsights(
     leagueId,
     season: leagueId ? season : null,
     weekOrPeriod: leagueId ? weekOrPeriod : null,
+    weatherContextForAI,
   })
 }
 

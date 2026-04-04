@@ -38,6 +38,13 @@ export interface TeamDynastyInputs {
   futurePicks: FuturePickAsset[]
 }
 
+/** Optional weather-aware layer; does not replace core dynasty math. */
+export type DynastyProjectTeamOptions = {
+  weatherAwareProjections?: boolean
+  /** Per-player AF vs baseline fantasy points; used for a small roster-level blend when weather-aware. */
+  afProjectionByPlayerId?: Record<string, { afProjection: number; baselineProjection: number }>
+}
+
 export interface RosterFutureValueBreakdown {
   nextYearStrength: number
   threeYearStrength: number
@@ -77,5 +84,7 @@ export interface DynastyProjectionSnapshotPayload {
   windowEndYear: number | null
   volatilityScore: number
   confidenceScore: number
+  /** Present when `weatherAwareProjections` + per-player AF overrides were applied. */
+  weatherAwareBlendFactor?: number
 }
 

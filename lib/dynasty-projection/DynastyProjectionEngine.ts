@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type {
   DynastyLeagueContext,
+  DynastyProjectTeamOptions,
   TeamDynastyInputs,
   DynastyProjectionSnapshotPayload,
 } from './types'
@@ -16,7 +17,10 @@ export class DynastyProjectionEngine {
     return String(this.ctx.sport || 'NFL').toUpperCase()
   }
 
-  projectTeam(inputs: TeamDynastyInputs): DynastyProjectionSnapshotPayload {
+  projectTeam(
+    inputs: TeamDynastyInputs,
+    options?: DynastyProjectTeamOptions
+  ): DynastyProjectionSnapshotPayload {
     const rosterValue = calculateRosterFutureValue(inputs.players, this.ctx)
     const pickValue = valueFuturePicks(inputs.futurePicks, this.ctx)
     const longTerm = estimateLongTermStrength(rosterValue, pickValue, this.ctx)
@@ -26,7 +30,7 @@ export class DynastyProjectionEngine {
       leagueContext: this.ctx,
     })
 
-    return {
+    let payload: DynastyProjectionSnapshotPayload = {
       leagueId: inputs.leagueId,
       sportType: this.getSportType(),
       teamId: inputs.teamId,
@@ -41,6 +45,29 @@ export class DynastyProjectionEngine {
       volatilityScore: longTerm.volatilityScore,
       confidenceScore: confidence,
     }
+
+    if (options?.weatherAwareProjections && options.afProjectionByPlayerId) {
+      const rel: number[] = []
+      for (const pl of inputs.players) {
+        const o = options.afProjectionByPlayerId[pl.playerId]
+        if (o && o.baselineProjection > 0) {
+          rel.push((o.afProjection - o.baselineProjection) / o.baselineProjection)
+        }
+      }
+      if (rel.length > 0) {
+        const avg = rel.reduce((a, b) => a + b, 0) / rel.length
+        const blend = 1 + Math.max(-0.05, Math.min(0.05, avg * 0.25))
+        payload = {
+          ...payload,
+          projectedStrengthNextYear: payload.projectedStrengthNextYear * blend,
+          projectedStrength3Years: payload.projectedStrength3Years * blend,
+          projectedStrength5Years: payload.projectedStrength5Years * blend,
+          weatherAwareBlendFactor: blend,
+        }
+      }
+    }
+
+    return payload
   }
 
   async persistSnapshot(payload: DynastyProjectionSnapshotPayload) {
@@ -82,8 +109,8 @@ export class DynastyProjectionEngine {
     })
   }
 
-  async projectAndPersist(inputs: TeamDynastyInputs) {
-    const snapshot = this.projectTeam(inputs)
+  async projectAndPersist(inputs: TeamDynastyInputs, options?: DynastyProjectTeamOptions) {
+    const snapshot = this.projectTeam(inputs, options)
     await this.persistSnapshot(snapshot)
     return snapshot
   }
