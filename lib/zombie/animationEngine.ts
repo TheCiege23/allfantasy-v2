@@ -1,5 +1,20 @@
 import { prisma } from '@/lib/prisma'
 
+/**
+ * Queue a client-visible animation row. Consumers: SSE (`zombie_event_animation`), league home, universe hub.
+ *
+ * ## Placement (where UX should react)
+ * - **zombie_turn**: League home card + event feed + league chat system line + push (spoiler-safe).
+ * - **mauling**: Home banner ~5s, matchup overlay, chat red alert, feed, universe hub, push (spoiler-safe).
+ * - **player_revived**: Home gold flash, feed top, chat, push (spoiler-safe).
+ * - **weapon_acquired / weapon_stolen**: Chat-only anonymous emoji; no push.
+ * - **bomb_detonated**: Full-screen overlay ~6s home + matchup, chat explosion card, universe hub, push allowed.
+ * - **serum_used**: Chat teal flash only; no push.
+ * - **ambush_triggered**: Chat cryptic card; whisperer push optional; commissioner notified elsewhere.
+ * - **whisperer_replaced**: Fullscreen ~7s home, chat drama, universe hub, push.
+ * - **horde_grows**: Home horde bar + feed milestone; no push.
+ * - **last_survivor**: Home persistent urgent banner, universe flag, push with counts only.
+ */
 export async function queueAnimation(
   leagueId: string,
   week: number,
@@ -24,4 +39,21 @@ export async function queueAnimation(
       reducedMotion: reducedMotion ?? false,
     },
   })
+}
+
+/**
+ * Cron hook: mark stale pending animations as delivered so dashboards do not grow unbounded.
+ * Live SSE clients already received rows while `isDelivered` was false; this is housekeeping.
+ */
+export async function deliverPendingAnimations(leagueId: string, maxAgeMs = 86_400_000): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeMs)
+  const res = await prisma.zombieEventAnimation.updateMany({
+    where: {
+      leagueId,
+      isDelivered: false,
+      createdAt: { lt: cutoff },
+    },
+    data: { isDelivered: true, deliveredAt: new Date() },
+  })
+  return res.count
 }

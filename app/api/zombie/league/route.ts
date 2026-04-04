@@ -52,6 +52,7 @@ export async function GET(req: Request) {
       teams: true,
       whispererRecord: true,
       weeklyResolutions: { orderBy: { week: 'desc' }, take: 4 },
+      announcements: { orderBy: { createdAt: 'desc' }, take: 24 },
     },
   })
   if (!z) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -59,9 +60,16 @@ export async function GET(req: Request) {
   const horde = z.teams.filter((t) => t.status === 'Zombie').length
   const surv = z.teams.filter((t) => t.status === 'Survivor').length
 
+  const roster = await prisma.roster.findFirst({
+    where: { leagueId, platformUserId: session.user.id },
+    select: { id: true },
+  })
+  const myTeam = roster ? (z.teams.find((t) => t.rosterId === roster.id) ?? null) : null
+
   return NextResponse.json({
     league: z,
     hordeSize: horde,
     survivorCount: surv,
+    myTeam,
   })
 }

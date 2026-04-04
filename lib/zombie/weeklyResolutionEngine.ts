@@ -4,6 +4,7 @@ import { finalizePendingSerumsForWeek } from '@/lib/zombie/serumEngine'
 import { detectAndProcessBashings } from '@/lib/zombie/bashingEngine'
 import { detectAndProcessMaulings } from '@/lib/zombie/maulingEngine'
 import { checkAndAwardWeapons } from '@/lib/zombie/weaponEngine'
+import { tryPostWeeklyUpdateAfterResolution } from '@/lib/zombie/weeklyUpdateEngine'
 
 export type WeeklyResolutionOptions = {
   /** Re-run infections + recap even if this week already resolved (stat corrections / commissioner). */
@@ -93,6 +94,8 @@ export async function runWeeklyResolution(
       week,
     },
   })
+
+  await tryPostWeeklyUpdateAfterResolution(z.leagueId, week, zombieLeagueId)
 
   return res
 }

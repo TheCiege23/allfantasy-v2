@@ -69,6 +69,23 @@
   --tournament-text-mid: rgba(255, 255, 255, 0.7);
   --tournament-text-full: rgba(255, 255, 255, 0.95);
 
+  /* Zombie mode — Sleeper-hybrid dark island */
+  --zombie-bg: #050508;
+  --zombie-panel: #0a0b10;
+  --zombie-border: rgba(255, 255, 255, 0.06);
+  --zombie-red: #dc2626;
+  --zombie-green: #16a34a;
+  --zombie-purple: #7c3aed;
+  --zombie-crimson: #9b1c1c;
+  --zombie-gold: #d97706;
+  --zombie-gray: #4b5563;
+  --zombie-text-dim: rgba(255, 255, 255, 0.4);
+  --zombie-text-mid: rgba(255, 255, 255, 0.65);
+  --zombie-text-full: rgba(255, 255, 255, 0.92);
+  --zombie-glow-red: 0 0 12px rgba(220, 38, 38, 0.4);
+  --zombie-glow-green: 0 0 12px rgba(22, 163, 74, 0.4);
+  --zombie-glow-purple: 0 0 12px rgba(124, 58, 237, 0.4);
+
   color-scheme: light;
 }
 

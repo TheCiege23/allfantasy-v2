@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
 import { syncUniverseStats } from '@/lib/zombie/universeStatEngine'
 import { processExpiredBashingDecisionsForAll } from '@/lib/zombie/bashingEngine'
+import { scheduleWeeklyUpdate } from '@/lib/zombie/weeklyUpdateEngine'
+import { deliverPendingAnimations } from '@/lib/zombie/animationEngine'
 
 /**
  * Called from score-sync cron or `/api/zombie/automation` to advance weekly horde state.
@@ -40,6 +42,12 @@ export async function runZombieAutomationTick(opts?: { force?: boolean }): Promi
       if (z.universeId) {
         await syncUniverseStats(z.universeId, week)
       }
+      await scheduleWeeklyUpdate(z.leagueId).catch((e) =>
+        errors.push(`${z.id} weekly-update: ${e instanceof Error ? e.message : String(e)}`),
+      )
+      await deliverPendingAnimations(z.leagueId).catch((e) =>
+        errors.push(`${z.id} animations: ${e instanceof Error ? e.message : String(e)}`),
+      )
       leaguesProcessed += 1
     } catch (e) {
       errors.push(`${z.id}: ${e instanceof Error ? e.message : String(e)}`)

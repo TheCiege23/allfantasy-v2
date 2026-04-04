@@ -25,6 +25,14 @@ export type SettingsNavTabId =
   | 'survivor_chat'
   | 'survivor_ai'
   | 'survivor_advanced'
+  | 'zombie_setup'
+  | 'zombie_whisperer'
+  | 'zombie_combat'
+  | 'zombie_items'
+  | 'zombie_paid'
+  | 'zombie_universe'
+  | 'zombie_updates'
+  | 'zombie_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'league', label: 'League' },
@@ -38,6 +46,17 @@ const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'commissioner', label: 'Commissioner' },
   { id: 'previous', label: 'Previous' },
   { id: 'delete', label: 'Delete' },
+]
+
+const ZOMBIE_NAV: { id: SettingsNavTabId; label: string }[] = [
+  { id: 'zombie_setup', label: '🧟 Zombie Setup' },
+  { id: 'zombie_whisperer', label: '🎭 Whisperer' },
+  { id: 'zombie_combat', label: '⚔️ Combat Rules' },
+  { id: 'zombie_items', label: '🧪 Serums & Weapons' },
+  { id: 'zombie_paid', label: '💰 Paid / Free' },
+  { id: 'zombie_universe', label: '🌍 Universe' },
+  { id: 'zombie_updates', label: '📋 Weekly Updates' },
+  { id: 'zombie_ai', label: '🤖 AI Host' },
 ]
 
 const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [
@@ -64,21 +83,31 @@ export function isSurvivorSettingsTab(id: SettingsNavTabId): boolean {
   return id.startsWith('survivor_')
 }
 
+export function isZombieSettingsTab(id: SettingsNavTabId): boolean {
+  return id.startsWith('zombie_')
+}
+
 export function SettingsNav({
   activeTab,
   onSelect,
   saveStatus,
   showSurvivorTabs,
+  showZombieTabs,
   className,
 }: {
   activeTab: SettingsNavTabId
   onSelect: (id: SettingsNavTabId) => void
   saveStatus: AutosaveStatus
   showSurvivorTabs?: boolean
+  showZombieTabs?: boolean
   className?: string
 }) {
   const hint = statusLabel(saveStatus)
-  const items = showSurvivorTabs ? [...BASE_NAV, ...SURVIVOR_NAV] : BASE_NAV
+  const items = [
+    ...BASE_NAV,
+    ...(showSurvivorTabs ? SURVIVOR_NAV : []),
+    ...(showZombieTabs ? ZOMBIE_NAV : []),
+  ]
 
   return (
     <nav

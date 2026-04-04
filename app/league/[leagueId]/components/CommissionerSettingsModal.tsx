@@ -6,7 +6,12 @@ import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-lea
 import { useAutosave } from '@/lib/hooks/useAutosave'
 import { LeagueSettingsPanel } from './settings/LeagueSettingsPanel'
 import { PlaceholderPanel } from './settings/PlaceholderPanel'
-import { SettingsNav, type SettingsNavTabId, isSurvivorSettingsTab } from './settings/SettingsNav'
+import {
+  SettingsNav,
+  type SettingsNavTabId,
+  isSurvivorSettingsTab,
+  isZombieSettingsTab,
+} from './settings/SettingsNav'
 import { KeeperCommissionerDashboard } from './KeeperCommissionerDashboard'
 import { SurvivorSetupPanel } from './settings/survivor/SurvivorSetupPanel'
 import { SurvivorTribesPanel } from './settings/survivor/SurvivorTribesPanel'
@@ -18,6 +23,14 @@ import { SurvivorMergeJuryPanel } from './settings/survivor/SurvivorMergeJuryPan
 import { SurvivorChatPanel } from './settings/survivor/SurvivorChatPanel'
 import { SurvivorAIHostPanel } from './settings/survivor/SurvivorAIHostPanel'
 import { SurvivorAdvancedPanel } from './settings/survivor/SurvivorAdvancedPanel'
+import { ZombieSetupPanel } from '@/app/zombie/components/commissioner/ZombieSetupPanel'
+import { ZombieWhispererPanel } from '@/app/zombie/components/commissioner/ZombieWhispererPanel'
+import { ZombieCombatPanel } from '@/app/zombie/components/commissioner/ZombieCombatPanel'
+import { ZombieItemsPanel } from '@/app/zombie/components/commissioner/ZombieItemsPanel'
+import { ZombiePaidPanel } from '@/app/zombie/components/commissioner/ZombiePaidPanel'
+import { ZombieUniversePanel } from '@/app/zombie/components/commissioner/ZombieUniversePanel'
+import { ZombieUpdatesPanel } from '@/app/zombie/components/commissioner/ZombieUpdatesPanel'
+import { ZombieAIPanel } from '@/app/zombie/components/commissioner/ZombieAIPanel'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -41,6 +54,7 @@ export function CommissionerSettingsModal({
   const [payload, setPayload] = useState<ApiGet | null>(null)
   const [survivorMode, setSurvivorMode] = useState(false)
   const [tournamentShellId, setTournamentShellId] = useState<string | null>(null)
+  const [zombieMode, setZombieMode] = useState(false)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
 
@@ -61,6 +75,13 @@ export function CommissionerSettingsModal({
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { mode?: boolean } | null) => setSurvivorMode(Boolean(d?.mode)))
       .catch(() => setSurvivorMode(false))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
+    if (!isOpen || !leagueId) return
+    fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => setZombieMode(r.ok))
+      .catch(() => setZombieMode(false))
   }, [isOpen, leagueId])
 
   useEffect(() => {
@@ -85,6 +106,12 @@ export function CommissionerSettingsModal({
       setActiveTab('league')
     }
   }, [survivorMode, activeTab])
+
+  useEffect(() => {
+    if (!zombieMode && isZombieSettingsTab(activeTab)) {
+      setActiveTab('league')
+    }
+  }, [zombieMode, activeTab])
 
   if (!isOpen) return null
 
@@ -120,6 +147,7 @@ export function CommissionerSettingsModal({
           onSelect={setActiveTab}
           saveStatus={status}
           showSurvivorTabs={survivorMode}
+          showZombieTabs={zombieMode}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -207,6 +235,22 @@ export function CommissionerSettingsModal({
             <SurvivorAIHostPanel {...survivorProps} initialData={initialData} debouncedSave={debouncedSave} />
           ) : activeTab === 'survivor_advanced' ? (
             <SurvivorAdvancedPanel {...survivorProps} />
+          ) : activeTab === 'zombie_setup' ? (
+            <ZombieSetupPanel leagueId={leagueId} canEdit={canEdit} />
+          ) : activeTab === 'zombie_whisperer' ? (
+            <ZombieWhispererPanel canEdit={canEdit} />
+          ) : activeTab === 'zombie_combat' ? (
+            <ZombieCombatPanel canEdit={canEdit} />
+          ) : activeTab === 'zombie_items' ? (
+            <ZombieItemsPanel canEdit={canEdit} />
+          ) : activeTab === 'zombie_paid' ? (
+            <ZombiePaidPanel canEdit={canEdit} />
+          ) : activeTab === 'zombie_universe' ? (
+            <ZombieUniversePanel canEdit={canEdit} />
+          ) : activeTab === 'zombie_updates' ? (
+            <ZombieUpdatesPanel leagueId={leagueId} canEdit={canEdit} />
+          ) : activeTab === 'zombie_ai' ? (
+            <ZombieAIPanel hasAfSub={hasSub} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

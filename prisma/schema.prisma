@@ -6601,6 +6601,17 @@ model ZombieLeague {
   commissionerId String?
   namingMode     String  @default("hybrid")
 
+  /// 0=Sun … 6=Sat (UTC). Null = no scheduled weekly post.
+  weeklyUpdateDay          Int?
+  weeklyUpdateHour         Int? // 0–23 UTC
+  weeklyUpdateAutoPost     Boolean @default(true)
+  weeklyUpdateApproval     Boolean @default(false)
+  updateIncludeProjections Boolean @default(true)
+  updateIncludeMoney       Boolean @default(true)
+  updateIncludeInventory   Boolean @default(true)
+  updateIncludeUniverse    Boolean @default(true)
+  updateIncludeDanger      Boolean @default(true)
+
   orderInLevel Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
