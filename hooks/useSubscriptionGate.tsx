@@ -9,17 +9,20 @@ import {
   type ReactNode,
 } from 'react'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
-import type { FeatureKey } from '@/lib/monetization/entitlements'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 type GateState = {
   isOpen: boolean
-  featureKey: FeatureKey | null
+  featureId: SubscriptionFeatureId | null
   featureLabel: string | undefined
   highlightFeature: string | undefined
 }
 
 type SubscriptionGateContextValue = {
-  gate: (featureKey: FeatureKey, opts?: { featureLabel?: string; highlightFeature?: string }) => void
+  gate: (
+    featureId: SubscriptionFeatureId,
+    opts?: { featureLabel?: string; highlightFeature?: string }
+  ) => void
   close: () => void
   state: GateState
 }
@@ -29,16 +32,16 @@ const SubscriptionGateContext = createContext<SubscriptionGateContextValue | nul
 export function SubscriptionGateProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>({
     isOpen: false,
-    featureKey: null,
+    featureId: null,
     featureLabel: undefined,
     highlightFeature: undefined,
   })
 
   const gate = useCallback(
-    (featureKey: FeatureKey, opts?: { featureLabel?: string; highlightFeature?: string }) => {
+    (featureId: SubscriptionFeatureId, opts?: { featureLabel?: string; highlightFeature?: string }) => {
       setState({
         isOpen: true,
-        featureKey,
+        featureId,
         featureLabel: opts?.featureLabel,
         highlightFeature: opts?.highlightFeature,
       })
@@ -58,7 +61,7 @@ export function SubscriptionGateProvider({ children }: { children: ReactNode }) 
       <SubscriptionGateModal
         isOpen={state.isOpen}
         onClose={close}
-        featureKey={state.featureKey ?? 'commissioner_ai_tools'}
+        featureId={state.featureId ?? 'commissioner_ai_tools'}
         featureLabel={state.featureLabel}
         highlightFeature={state.highlightFeature}
       />

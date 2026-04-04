@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-league-patch'
 import { COMMON_TIMEZONES } from '@/lib/timezone'
+import { PremiumGate } from '@/components/subscription/PremiumGate'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 
 export function LeagueSettingsPanel({
@@ -57,7 +59,10 @@ export function LeagueSettingsPanel({
   }, [initialData])
 
   const disabled = !canEdit
-  const subHint = !hasAfCommissionerSub
+  const { hasCommissioner } = useEntitlements()
+  const hasCommissionerAccess = hasCommissioner || hasAfCommissionerSub
+  /** Show upgrade hints when user lacks commissioner access (resolver + profile). */
+  const subHint = !hasCommissionerAccess
   const showKeeper = initialData.leagueType === 'keeper'
   const subscriptionGate = useSubscriptionGateOptional()
 
@@ -116,15 +121,21 @@ export function LeagueSettingsPanel({
           }}
         />
         {subHint ? (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] text-amber-400/90">
-              7- and 9-team brackets require an AF Commissioner subscription (server-enforced).
-            </p>
-            <SubscriptionGateBadge
-              featureKey="commissioner_ai_tools"
-              onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
-            />
-          </div>
+          <PremiumGate
+            featureId="commissioner_ai_tools"
+            hasAccess={hasCommissionerAccess}
+            mode="overlay"
+          >
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-[11px] text-amber-400/90">
+                7- and 9-team brackets require an AF Commissioner subscription (server-enforced).
+              </p>
+              <SubscriptionGateBadge
+                featureId="commissioner_ai_tools"
+                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+              />
+            </div>
+          </PremiumGate>
         ) : null}
       </div>
 
@@ -351,15 +362,21 @@ export function LeagueSettingsPanel({
           </div>
 
           {subHint ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] text-amber-400/90">
-                AF Commissioner subscription unlocks AI keeper recommendations (server-gated).
-              </p>
-              <SubscriptionGateBadge
-                featureKey="commissioner_ai_tools"
-                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
-              />
-            </div>
+            <PremiumGate
+              featureId="commissioner_ai_tools"
+              hasAccess={hasCommissionerAccess}
+              mode="overlay"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] text-amber-400/90">
+                  AF Commissioner subscription unlocks AI keeper recommendations (server-gated).
+                </p>
+                <SubscriptionGateBadge
+                  featureId="commissioner_ai_tools"
+                  onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+                />
+              </div>
+            </PremiumGate>
           ) : null}
         </div>
       ) : null}

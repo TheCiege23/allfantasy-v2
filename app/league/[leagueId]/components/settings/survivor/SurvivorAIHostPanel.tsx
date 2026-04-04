@@ -82,7 +82,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_tools"
+                  featureId="commissioner_ai_tools"
                   onClick={() => subscriptionGate?.gate('commissioner_ai_tools')}
                 />
               ) : null}
@@ -112,7 +112,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_recap"
+                  featureId="commissioner_ai_recap"
                   onClick={() =>
                     subscriptionGate?.gate('commissioner_ai_recap', { highlightFeature: 'ai_recap' })
                   }
@@ -151,7 +151,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_narration"
+                  featureId="commissioner_ai_narration"
                   onClick={() =>
                     subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
                   }
@@ -177,7 +177,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_narration"
+                  featureId="commissioner_ai_narration"
                   onClick={() =>
                     subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
                   }
@@ -203,7 +203,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_narration"
+                  featureId="commissioner_ai_narration"
                   onClick={() =>
                     subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
                   }
@@ -231,7 +231,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_copilot"
+                  featureId="commissioner_ai_copilot"
                   onClick={() => subscriptionGate?.gate('commissioner_ai_copilot')}
                 />
               ) : null}
@@ -255,7 +255,7 @@ export function SurvivorAIHostPanel({
               />
               {!sub ? (
                 <SubscriptionGateBadge
-                  featureKey="commissioner_ai_copilot"
+                  featureId="commissioner_ai_copilot"
                   onClick={() => subscriptionGate?.gate('commissioner_ai_copilot')}
                 />
               ) : null}

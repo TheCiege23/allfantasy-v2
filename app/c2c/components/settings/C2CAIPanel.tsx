@@ -104,7 +104,7 @@ export function C2CAIPanel({
             active.
           </span>
           <SubscriptionGateBadge
-            featureKey="commissioner_c2c_scouting"
+            featureId="commissioner_c2c_scouting"
             onClick={() => gate('commissioner_c2c_scouting')}
           />
         </div>

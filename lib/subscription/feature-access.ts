@@ -3,6 +3,8 @@ import type {
   SubscriptionFeatureId,
   SubscriptionPlanId,
 } from "@/lib/subscription/types"
+import type { SubscriptionPlanFamily } from "@/lib/monetization/catalog"
+import { ENTITLEMENTS } from "@/lib/monetization/entitlements"
 import {
   buildMonetizationUpgradePathForFeature,
   getPremiumMonetizationForFeature,
@@ -27,6 +29,25 @@ const SUBSCRIPTION_FEATURE_ID_SET = new Set<SubscriptionFeatureId>(
   PREMIUM_MONETIZATION_FEATURES.map((entry) => entry.key)
 )
 
+const ENTITLEMENT_CATALOG_ID_SET = new Set<string>(Object.keys(ENTITLEMENTS))
+
+function planFamilyToSubscriptionPlanId(
+  family: SubscriptionPlanFamily
+): SubscriptionPlanId | null {
+  switch (family) {
+    case "af_pro":
+      return "pro"
+    case "af_commissioner":
+      return "commissioner"
+    case "af_war_room":
+      return "war_room"
+    case "af_all_access":
+      return "all_access"
+    default:
+      return null
+  }
+}
+
 export const ALL_ACCESS_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
   "pro",
   "commissioner",
@@ -40,7 +61,11 @@ export function isActiveOrGraceStatus(status: EntitlementStatus): boolean {
 export function getRequiredPlanForFeature(
   featureId: SubscriptionFeatureId
 ): SubscriptionPlanId | null {
-  return getPremiumMonetizationForFeature(featureId)?.requiredPlanId ?? null
+  const fromMatrix = getPremiumMonetizationForFeature(featureId)
+  if (fromMatrix) return fromMatrix.requiredPlanId
+  const cat = ENTITLEMENTS[featureId as keyof typeof ENTITLEMENTS]
+  if (!cat?.requiredPlan?.length) return null
+  return planFamilyToSubscriptionPlanId(cat.requiredPlan[0])
 }
 
 export function getDisplayPlanName(planId: SubscriptionPlanId): string {
@@ -92,10 +117,13 @@ export function hasFeatureAccessForPlans(
 }
 
 export function buildFeatureUpgradePath(featureId: SubscriptionFeatureId): string {
+  const cat = ENTITLEMENTS[featureId as keyof typeof ENTITLEMENTS]
+  if (cat?.upgradeUrl) return cat.upgradeUrl
   return buildMonetizationUpgradePathForFeature(featureId)
 }
 
 export function isSubscriptionFeatureId(value: unknown): value is SubscriptionFeatureId {
   if (typeof value !== "string") return false
-  return SUBSCRIPTION_FEATURE_ID_SET.has(value as SubscriptionFeatureId)
+  if (SUBSCRIPTION_FEATURE_ID_SET.has(value as SubscriptionFeatureId)) return true
+  return ENTITLEMENT_CATALOG_ID_SET.has(value)
 }

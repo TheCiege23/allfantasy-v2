@@ -43,18 +43,17 @@ export function mapStripeSubscriptionStatus(stripeStatus: Stripe.Subscription.St
   }
 }
 
-type SubscriptionPeriodFields = {
-  current_period_start?: number
-  current_period_end?: number
-}
-
+/**
+ * Stripe API 2024+ typings may omit legacy top-level period fields on Subscription.
+ * Read via loose record access (runtime still sends unix seconds on webhooks).
+ */
 function subscriptionPeriods(sub: Stripe.Subscription): { start: Date | null; end: Date | null } {
-  const s = sub as Stripe.Subscription & SubscriptionPeriodFields
-  const startSec = s.current_period_start
-  const endSec = s.current_period_end
+  const raw = sub as unknown as Record<string, unknown>
+  const startSec = raw.current_period_start
+  const endSec = raw.current_period_end
   return {
-    start: startSec != null ? new Date(startSec * 1000) : null,
-    end: endSec != null ? new Date(endSec * 1000) : null,
+    start: typeof startSec === "number" ? new Date(startSec * 1000) : null,
+    end: typeof endSec === "number" ? new Date(endSec * 1000) : null,
   }
 }
 
@@ -127,10 +126,17 @@ export async function markSubscriptionAsExpired(
 ): Promise<void> {
   const now = new Date()
   const stripeSubscriptionId = sub.id
+  const raw = sub as unknown as Record<string, unknown>
+  const endedSec = raw.ended_at
+  const canceledSec = raw.canceled_at
   const ended =
-    sub.ended_at != null ? new Date(sub.ended_at * 1000) : sub.canceled_at != null
-      ? new Date(sub.canceled_at * 1000)
-      : now
+    typeof endedSec === "number"
+      ? new Date(endedSec * 1000)
+      : typeof canceledSec === "number"
+        ? new Date(canceledSec * 1000)
+        : now
+  const canceledAt =
+    typeof canceledSec === "number" ? new Date(canceledSec * 1000) : now
 
   const res = await prisma.userSubscription.updateMany({
     where: {
@@ -139,7 +145,7 @@ export async function markSubscriptionAsExpired(
     },
     data: {
       status: "canceled",
-      canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : now,
+      canceledAt,
       expiresAt: ended,
       currentPeriodEnd: subscriptionPeriods(sub).end ?? ended,
       metadata: { lastStripeEvent: "customer.subscription.deleted" },
@@ -154,7 +160,7 @@ export async function markSubscriptionAsExpired(
       },
       data: {
         status: "canceled",
-        canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : now,
+        canceledAt,
         expiresAt: ended,
         metadata: { lastStripeEvent: "customer.subscription.deleted" },
       },
@@ -202,7 +208,9 @@ export async function refreshSubscriptionPeriod(
 ): Promise<void> {
   const subId = invoiceSubscriptionId(invoice)
 
-  const periodEndSec = invoice.period_end ?? null
+  const inv = invoice as unknown as Record<string, unknown>
+  const periodEndRaw = inv.period_end
+  const periodEndSec = typeof periodEndRaw === "number" ? periodEndRaw : null
   const currentPeriodEnd =
     periodEndSec != null ? new Date(periodEndSec * 1000) : null
 

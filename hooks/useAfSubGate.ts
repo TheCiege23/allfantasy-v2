@@ -2,25 +2,25 @@
 
 import { useCallback, useMemo } from 'react'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
-import { getUpgradeUrl, type FeatureKey } from '@/lib/monetization/entitlements'
+import { getUpgradeUrl } from '@/lib/monetization/entitlements'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
-export function useAfSubGate(defaultFeatureKey: FeatureKey) {
+export function useAfSubGate(defaultFeatureId: SubscriptionFeatureId) {
   const ctx = useSubscriptionGateOptional()
 
   const handleApiResponse = useCallback(
-    async (response: Response, featureKeyOverride?: FeatureKey): Promise<boolean> => {
-      const key = featureKeyOverride ?? defaultFeatureKey
+    async (response: Response, featureIdOverride?: SubscriptionFeatureId): Promise<boolean> => {
+      const fid = featureIdOverride ?? defaultFeatureId
 
       if (response.status === 402) {
         if (ctx) {
-          ctx.gate(key)
+          ctx.gate(fid)
         } else if (typeof window !== 'undefined') {
-          window.location.assign(getUpgradeUrl(key))
+          window.location.assign(getUpgradeUrl(fid))
         }
         return false
       }
 
-      // FeatureGateService — premium features return 403 + feature_not_entitled (see lib/subscription/FeatureGateService)
       if (response.status === 403) {
         try {
           const payload = (await response.clone().json()) as {
@@ -29,12 +29,12 @@ export function useAfSubGate(defaultFeatureKey: FeatureKey) {
           }
           if (payload.code === 'feature_not_entitled') {
             if (ctx) {
-              ctx.gate(key)
+              ctx.gate(fid)
             } else if (typeof window !== 'undefined') {
               const path =
                 typeof payload.upgradePath === 'string' && payload.upgradePath.startsWith('/')
                   ? payload.upgradePath
-                  : getUpgradeUrl(key)
+                  : getUpgradeUrl(fid)
               window.location.assign(path)
             }
             return false
@@ -46,18 +46,18 @@ export function useAfSubGate(defaultFeatureKey: FeatureKey) {
 
       return true
     },
-    [ctx, defaultFeatureKey]
+    [ctx, defaultFeatureId]
   )
 
   return useMemo(
     () => ({
       handleApiResponse,
-      gate: ctx?.gate ?? ((k: FeatureKey) => window.location.assign(getUpgradeUrl(k))),
+      gate: ctx?.gate ?? ((k: SubscriptionFeatureId) => window.location.assign(getUpgradeUrl(k))),
       close: ctx?.close ?? (() => {}),
       state:
         ctx?.state ?? {
           isOpen: false,
-          featureKey: null,
+          featureId: null,
           featureLabel: undefined,
           highlightFeature: undefined,
         },

@@ -14,7 +14,7 @@ export function ZombieAIPanel({ hasAfSub }: { hasAfSub: boolean }) {
         </p>
         {!hasAfSub ? (
           <SubscriptionGateBadge
-            featureKey="commissioner_ai_tools"
+            featureId="commissioner_ai_tools"
             onClick={() => subscriptionGate?.gate('commissioner_ai_tools')}
           />
         ) : null}

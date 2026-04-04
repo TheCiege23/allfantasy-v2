@@ -2,30 +2,22 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { getEntitlement } from '@/lib/monetization/entitlements'
-import type { FeatureKey } from '@/lib/monetization/entitlements'
-
-const PLAN_DISPLAY: Record<string, string> = {
-  af_pro: 'AF Pro',
-  af_commissioner: 'AF Commissioner',
-  af_war_room: 'AF War Room',
-  af_all_access: 'All-Access',
-}
+import { getGateDef } from '@/lib/subscription/featureGating'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 export function SubscriptionGateModal({
   isOpen,
   onClose,
-  featureKey,
+  featureId,
   featureLabel,
   highlightFeature,
 }: {
   isOpen: boolean
   onClose: () => void
-  featureKey: FeatureKey
+  featureId: SubscriptionFeatureId
   featureLabel?: string
   highlightFeature?: string
 }) {
-  // Close on Escape
   useEffect(() => {
     if (!isOpen) return
     const handler = (e: KeyboardEvent) => {
@@ -35,7 +27,6 @@ export function SubscriptionGateModal({
     return () => document.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
-  // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -49,15 +40,12 @@ export function SubscriptionGateModal({
 
   if (!isOpen) return null
 
-  const def = getEntitlement(featureKey)
-  const hash = highlightFeature ?? def.highlightFeature
+  const def = getGateDef(featureId)
+  const hash = highlightFeature ?? def.highlightParam
   const upgradeUrl =
     def.upgradeUrl + (hash ? `?highlight=${encodeURIComponent(hash)}` : '')
 
-  const rawNames = def.requiredPlan
-    .filter((p) => p !== 'af_all_access')
-    .map((p) => PLAN_DISPLAY[p] ?? p)
-  const planNames = rawNames.length > 0 ? rawNames : [PLAN_DISPLAY.af_all_access]
+  const planNames = def.requiredPlanDisplay
 
   return (
     <>

@@ -1,39 +1,13 @@
 import type { SubscriptionPlanFamily } from '@/lib/monetization/catalog'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
-export type FeatureKey =
-  | 'commissioner_ai_tools'
-  | 'commissioner_ai_narration'
-  | 'commissioner_ai_recap'
-  | 'commissioner_ai_copilot'
-  | 'commissioner_ai_jury_briefing'
-  | 'commissioner_nomination_analysis'
-  | 'commissioner_pov_analysis'
-  | 'commissioner_power_rankings'
-  | 'commissioner_fairness_audit'
-  | 'commissioner_constitution_generator'
-  | 'commissioner_devy_scouting'
-  | 'commissioner_idp_analysis'
-  | 'commissioner_cap_advice'
-  | 'commissioner_c2c_scouting'
-  | 'commissioner_weather_projections'
-  | 'pro_draft_ai'
-  | 'pro_waiver_ai'
-  | 'pro_trade_ai'
-  | 'pro_lineup_optimizer'
-  | 'pro_start_sit'
-  | 'pro_matchup_analysis'
-  | 'pro_player_comparison'
-  | 'pro_af_projections'
-  | 'pro_snap_analysis'
-  | 'war_room_dynasty_projections'
-  | 'war_room_devy_rankings'
-  | 'war_room_draft_strategy'
-  | 'war_room_pipeline_analysis'
+/** @deprecated Import SubscriptionFeatureId from @/lib/subscription/types — same union. */
+export type FeatureKey = SubscriptionFeatureId
 
 export type PlanFamily = 'free' | SubscriptionPlanFamily
 
 export type EntitlementDef = {
-  key: FeatureKey
+  key: SubscriptionFeatureId
   label: string
   description: string
   requiredPlan: SubscriptionPlanFamily[]
@@ -42,7 +16,7 @@ export type EntitlementDef = {
   highlightFeature?: string
 }
 
-export const ENTITLEMENTS: Record<FeatureKey, EntitlementDef> = {
+export const ENTITLEMENTS = {
   commissioner_ai_tools: {
     key: 'commissioner_ai_tools',
     label: 'Commissioner AI Tools',
@@ -288,27 +262,29 @@ export const ENTITLEMENTS: Record<FeatureKey, EntitlementDef> = {
     upgradeUrl: '/war-room',
     upgradeLabel: 'Get AF War Room',
   },
-}
+} as const satisfies Record<string, EntitlementDef>
 
-export function getEntitlement(key: FeatureKey): EntitlementDef {
-  return ENTITLEMENTS[key]
+export function getEntitlement(key: SubscriptionFeatureId): EntitlementDef {
+  const def = (ENTITLEMENTS as Record<string, EntitlementDef | undefined>)[key]
+  if (def) return def
+  throw new Error(`Unknown entitlement catalog entry: ${key}`)
 }
 
 export function canUseFeature(
-  featureKey: FeatureKey,
+  featureKey: SubscriptionFeatureId,
   userPlan: PlanFamily | null | undefined
 ): boolean {
   if (!userPlan || userPlan === 'free') return false
-  const def = ENTITLEMENTS[featureKey]
+  const def = (ENTITLEMENTS as Record<string, EntitlementDef | undefined>)[featureKey]
   return def?.requiredPlan.includes(userPlan as SubscriptionPlanFamily) ?? false
 }
 
-export function getUpgradeUrl(featureKey: FeatureKey): string {
-  return ENTITLEMENTS[featureKey]?.upgradeUrl ?? '/upgrade'
+export function getUpgradeUrl(featureKey: SubscriptionFeatureId): string {
+  return (ENTITLEMENTS as Record<string, EntitlementDef | undefined>)[featureKey]?.upgradeUrl ?? '/upgrade'
 }
 
 /** League settings modal AI tab / sub-panel id → entitlement key (402 + upgrade UX). */
-export const LEAGUE_SETTINGS_AI_PANEL_FEATURE: Record<string, FeatureKey> = {
+export const LEAGUE_SETTINGS_AI_PANEL_FEATURE: Record<string, SubscriptionFeatureId> = {
   'ai-chimmy-setup': 'commissioner_ai_tools',
   'ai-power-rankings': 'commissioner_power_rankings',
   'ai-trade': 'pro_trade_ai',

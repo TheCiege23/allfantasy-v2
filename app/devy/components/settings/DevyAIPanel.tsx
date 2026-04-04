@@ -100,7 +100,7 @@ export function DevyAIPanel({
             active.
           </span>
           <SubscriptionGateBadge
-            featureKey="commissioner_devy_scouting"
+            featureId="commissioner_devy_scouting"
             onClick={() => gate('commissioner_devy_scouting')}
           />
         </div>

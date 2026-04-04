@@ -1,26 +1,19 @@
 'use client'
 
-import { getEntitlement } from '@/lib/monetization/entitlements'
-import type { FeatureKey } from '@/lib/monetization/entitlements'
-
-const PLAN_SHORT_LABELS: Record<string, string> = {
-  af_commissioner: 'Commissioner',
-  af_pro: 'AF Pro',
-  af_war_room: 'War Room',
-  af_all_access: 'All-Access',
-}
+import { getGateDef } from '@/lib/subscription/featureGating'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 export function SubscriptionGateBadge({
-  featureKey,
+  featureId,
   onClick,
   size = 'xs',
 }: {
-  featureKey: FeatureKey
+  featureId: SubscriptionFeatureId
   onClick?: () => void
   size?: 'xs' | 'sm'
 }) {
-  const def = getEntitlement(featureKey)
-  const planLabel = PLAN_SHORT_LABELS[def.requiredPlan[0] ?? ''] ?? 'Subscription'
+  const def = getGateDef(featureId)
+  const planLabel = def.requiredPlanDisplay[0] ?? 'Subscription'
 
   return (
     <button

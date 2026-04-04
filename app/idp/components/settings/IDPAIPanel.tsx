@@ -105,7 +105,7 @@ export function IDPAIPanel({
           <Lock className="h-4 w-4 shrink-0" />
           <span>AF Commissioner Subscription gates IDP AI execution — preview below requires AfSub.</span>
           <SubscriptionGateBadge
-            featureKey="commissioner_idp_analysis"
+            featureId="commissioner_idp_analysis"
             onClick={() => gate('commissioner_idp_analysis')}
           />
         </div>
