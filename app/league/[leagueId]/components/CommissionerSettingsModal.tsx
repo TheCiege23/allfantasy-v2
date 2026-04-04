@@ -57,6 +57,7 @@ import { C2CDraftsPanel } from '@/app/c2c/components/settings/C2CDraftsPanel'
 import { C2CAIPanel } from '@/app/c2c/components/settings/C2CAIPanel'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { SportConfigSettingsPanel } from './settings/SportConfigSettingsPanel'
+import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -217,6 +218,7 @@ export function CommissionerSettingsModal({
   const survivorProps = { leagueId, canEdit, hasAfCommissionerSub: hasSub }
 
   return (
+    <SubscriptionGateProvider>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-0 backdrop-blur-sm md:p-4"
       role="dialog"
@@ -404,5 +406,6 @@ export function CommissionerSettingsModal({
         </div>
       </div>
     </div>
+    </SubscriptionGateProvider>
   )
 }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { SettingsSection, SettingsRow } from '@/app/league/[leagueId]/components/settings/ui'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 type Prefs = {
   startSitRecommendations: boolean
@@ -34,6 +36,7 @@ export function IDPAIPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [out, setOut] = useState<string | null>(null)
   const [locked, setLocked] = useState(false)
+  const { handleApiResponse, gate } = useAfSubGate('commissioner_idp_analysis')
 
   useEffect(() => {
     try {
@@ -73,9 +76,12 @@ export function IDPAIPanel({
           },
         }),
       })
-      if (res.status === 402) setLocked(true)
+      if (!(await handleApiResponse(res))) {
+        setLocked(true)
+        return
+      }
     },
-    [hasAfSub, isCommissioner, leagueId],
+    [hasAfSub, isCommissioner, leagueId, handleApiResponse],
   )
 
   const run = async (action: string) => {
@@ -89,7 +95,7 @@ export function IDPAIPanel({
         credentials: 'include',
         body: JSON.stringify({ leagueId, week, action }),
       })
-      if (res.status === 402) {
+      if (!(await handleApiResponse(res))) {
         setLocked(true)
         return
       }
@@ -103,9 +109,13 @@ export function IDPAIPanel({
   return (
     <div className="pb-8">
       {!hasAfSub ? (
-        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
+        <div className="mx-4 mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
           <Lock className="h-4 w-4 shrink-0" />
-          AF Commissioner Subscription gates IDP AI execution — preview below requires AfSub.
+          <span>AF Commissioner Subscription gates IDP AI execution — preview below requires AfSub.</span>
+          <SubscriptionGateBadge
+            featureKey="commissioner_idp_analysis"
+            onClick={() => gate('commissioner_idp_analysis')}
+          />
         </div>
       ) : null}
 

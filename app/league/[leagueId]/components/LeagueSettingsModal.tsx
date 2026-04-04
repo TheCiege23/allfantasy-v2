@@ -41,6 +41,7 @@ import {
   SettingsSubPanelBody,
   type SubPanelContext,
 } from './LeagueSettingsSubPanels'
+import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
 import {
   initialsFromName,
   leagueAvatarSrc,
@@ -486,5 +487,5 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     </AnimatePresence>
   )
 
-  return content
+  return <SubscriptionGateProvider>{content}</SubscriptionGateProvider>
 }

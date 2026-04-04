@@ -1,0 +1,341 @@
+import type { SubscriptionPlanFamily } from '@/lib/monetization/catalog'
+
+export type FeatureKey =
+  | 'commissioner_ai_tools'
+  | 'commissioner_ai_narration'
+  | 'commissioner_ai_recap'
+  | 'commissioner_ai_copilot'
+  | 'commissioner_ai_jury_briefing'
+  | 'commissioner_nomination_analysis'
+  | 'commissioner_pov_analysis'
+  | 'commissioner_power_rankings'
+  | 'commissioner_fairness_audit'
+  | 'commissioner_constitution_generator'
+  | 'commissioner_devy_scouting'
+  | 'commissioner_idp_analysis'
+  | 'commissioner_cap_advice'
+  | 'commissioner_c2c_scouting'
+  | 'commissioner_weather_projections'
+  | 'pro_draft_ai'
+  | 'pro_waiver_ai'
+  | 'pro_trade_ai'
+  | 'pro_lineup_optimizer'
+  | 'pro_start_sit'
+  | 'pro_matchup_analysis'
+  | 'pro_player_comparison'
+  | 'pro_af_projections'
+  | 'pro_snap_analysis'
+  | 'war_room_dynasty_projections'
+  | 'war_room_devy_rankings'
+  | 'war_room_draft_strategy'
+  | 'war_room_pipeline_analysis'
+
+export type PlanFamily = 'free' | SubscriptionPlanFamily
+
+export type EntitlementDef = {
+  key: FeatureKey
+  label: string
+  description: string
+  requiredPlan: SubscriptionPlanFamily[]
+  upgradeUrl: string
+  upgradeLabel: string
+  highlightFeature?: string
+}
+
+export const ENTITLEMENTS: Record<FeatureKey, EntitlementDef> = {
+  commissioner_ai_tools: {
+    key: 'commissioner_ai_tools',
+    label: 'Commissioner AI Tools',
+    description:
+      'AI-powered league management tools including ceremony narration, weekly recaps, and commissioner copilot.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'ai_tools',
+  },
+  commissioner_ai_narration: {
+    key: 'commissioner_ai_narration',
+    label: 'AI Ceremony Narration',
+    description:
+      'Chimmy writes dramatic HOH, eviction, and finale ceremonies for your Big Brother league.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'ai_narration',
+  },
+  commissioner_ai_recap: {
+    key: 'commissioner_ai_recap',
+    label: 'AI Weekly Recaps',
+    description: 'Automated episode and weekly league recaps with commissioner tone controls.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'ai_recap',
+  },
+  commissioner_ai_copilot: {
+    key: 'commissioner_ai_copilot',
+    label: 'Commissioner Copilot',
+    description: 'Context-aware suggestions for league decisions, settings, and member communication.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'ai_copilot',
+  },
+  commissioner_ai_jury_briefing: {
+    key: 'commissioner_ai_jury_briefing',
+    label: 'Jury Briefing AI',
+    description: 'Structured jury-phase analysis and narrative support for finale voting context.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_nomination_analysis: {
+    key: 'commissioner_nomination_analysis',
+    label: 'HOH Nomination Analysis',
+    description: 'Private AI analysis of who to nominate based on threat level and jury implications.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_pov_analysis: {
+    key: 'commissioner_pov_analysis',
+    label: 'POV Strategy Analysis',
+    description: 'AI-assisted veto week planning and backdoor risk assessment.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_devy_scouting: {
+    key: 'commissioner_devy_scouting',
+    label: 'Devy Scouting AI',
+    description: 'Prospect evaluation, declaration-year projections, and pipeline health analysis.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_cap_advice: {
+    key: 'commissioner_cap_advice',
+    label: 'Cap Space AI Advice',
+    description:
+      'AI-powered salary cap recommendations including cut candidates, extension targets, and cap burden warnings.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_weather_projections: {
+    key: 'commissioner_weather_projections',
+    label: 'AF Weather Projections',
+    description: 'AI-adjusted projections based on live weather data for outdoor sports.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'weather',
+  },
+  commissioner_power_rankings: {
+    key: 'commissioner_power_rankings',
+    label: 'AI Power Rankings',
+    description: 'Chimmy generates league-wide power rankings with per-team reasoning each week.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'power_rankings',
+  },
+  commissioner_fairness_audit: {
+    key: 'commissioner_fairness_audit',
+    label: 'League Fairness Audit',
+    description: 'AI monitors voting patterns and nomination trends to flag potential fairness issues.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_constitution_generator: {
+    key: 'commissioner_constitution_generator',
+    label: 'Constitution Generator',
+    description: 'AI writes a full league constitution based on your current settings.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+  },
+  commissioner_idp_analysis: {
+    key: 'commissioner_idp_analysis',
+    label: 'IDP AI Analysis',
+    description: 'Chimmy-powered IDP start/sit, waiver, and matchup tools for your league.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'idp_ai',
+  },
+  commissioner_c2c_scouting: {
+    key: 'commissioner_c2c_scouting',
+    label: 'C2C Scouting AI',
+    description: 'Campus-to-campus scouting, taxi transition advice, and combined NFL/CFB context.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightFeature: 'c2c_ai',
+  },
+  pro_draft_ai: {
+    key: 'pro_draft_ai',
+    label: 'AI Draft Assistant',
+    description: 'Chimmy-powered draft board help with tier breaks and positional scarcity.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'draft_ai',
+  },
+  pro_waiver_ai: {
+    key: 'pro_waiver_ai',
+    label: 'AI Waiver Targets',
+    description: 'AI-ranked waiver wire targets based on your league scoring and roster needs.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'waiver_ai',
+  },
+  pro_trade_ai: {
+    key: 'pro_trade_ai',
+    label: 'AI Trade Analyzer',
+    description: 'Evaluate trade offers with AI-powered win-now vs future value analysis.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'trade_ai',
+  },
+  pro_lineup_optimizer: {
+    key: 'pro_lineup_optimizer',
+    label: 'AI Lineup Optimizer',
+    description:
+      'Chimmy sets your optimal starting lineup based on projections, matchups, and injury news.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'lineup_optimizer',
+  },
+  pro_start_sit: {
+    key: 'pro_start_sit',
+    label: 'AI Start/Sit',
+    description: 'Chimmy gives you personalized start/sit recommendations based on your roster and matchup.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'start_sit',
+  },
+  pro_matchup_analysis: {
+    key: 'pro_matchup_analysis',
+    label: 'Matchup Analysis',
+    description: 'AI analysis of your weekly matchup including threat assessment and scoring projections.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'matchup',
+  },
+  pro_player_comparison: {
+    key: 'pro_player_comparison',
+    label: 'AI Player Comparison',
+    description: 'Side-by-side player outlooks with rest-of-season and weekly context.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+  },
+  pro_af_projections: {
+    key: 'pro_af_projections',
+    label: 'AF Crest Projections',
+    description: 'AI-adjusted projections including weather and contextual factors shown on player cards.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightFeature: 'af_projections',
+  },
+  pro_snap_analysis: {
+    key: 'pro_snap_analysis',
+    label: 'Snap & Usage Analysis',
+    description: 'Trend-based snap and usage explanations tied to your scoring format.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+  },
+  war_room_dynasty_projections: {
+    key: 'war_room_dynasty_projections',
+    label: 'Dynasty Projections',
+    description: 'Multi-year dynasty value projections with confidence scoring.',
+    requiredPlan: ['af_war_room', 'af_all_access'],
+    upgradeUrl: '/war-room',
+    upgradeLabel: 'Get AF War Room',
+    highlightFeature: 'dynasty_projections',
+  },
+  war_room_devy_rankings: {
+    key: 'war_room_devy_rankings',
+    label: 'Devy Rankings',
+    description: 'AI-generated college player rankings with campus scoring and pro projection scores.',
+    requiredPlan: ['af_war_room', 'af_all_access'],
+    upgradeUrl: '/war-room',
+    upgradeLabel: 'Get AF War Room',
+  },
+  war_room_draft_strategy: {
+    key: 'war_room_draft_strategy',
+    label: 'Draft Strategy AI',
+    description: 'Real-time draft board advice with tier-break alerts and positional scarcity callouts.',
+    requiredPlan: ['af_war_room', 'af_all_access'],
+    upgradeUrl: '/war-room',
+    upgradeLabel: 'Get AF War Room',
+    highlightFeature: 'draft_strategy',
+  },
+  war_room_pipeline_analysis: {
+    key: 'war_room_pipeline_analysis',
+    label: 'Pipeline Health Analysis',
+    description: "AI assessment of your dynasty roster's campus/taxi/active pipeline health.",
+    requiredPlan: ['af_war_room', 'af_all_access'],
+    upgradeUrl: '/war-room',
+    upgradeLabel: 'Get AF War Room',
+  },
+}
+
+export function getEntitlement(key: FeatureKey): EntitlementDef {
+  return ENTITLEMENTS[key]
+}
+
+export function canUseFeature(
+  featureKey: FeatureKey,
+  userPlan: PlanFamily | null | undefined
+): boolean {
+  if (!userPlan || userPlan === 'free') return false
+  const def = ENTITLEMENTS[featureKey]
+  return def?.requiredPlan.includes(userPlan as SubscriptionPlanFamily) ?? false
+}
+
+export function getUpgradeUrl(featureKey: FeatureKey): string {
+  return ENTITLEMENTS[featureKey]?.upgradeUrl ?? '/upgrade'
+}
+
+/** League settings modal AI tab / sub-panel id → entitlement key (402 + upgrade UX). */
+export const LEAGUE_SETTINGS_AI_PANEL_FEATURE: Record<string, FeatureKey> = {
+  'ai-chimmy-setup': 'commissioner_ai_tools',
+  'ai-power-rankings': 'commissioner_power_rankings',
+  'ai-trade': 'pro_trade_ai',
+  'ai-waiver': 'pro_waiver_ai',
+  'ai-recap': 'commissioner_ai_recap',
+  'ai-draft-help': 'pro_draft_ai',
+  'ai-matchup': 'pro_matchup_analysis',
+  'ai-trash': 'pro_start_sit',
+}
+
+/** Maps `?highlight=` query keys to plan cards on pricing surfaces (scroll + ring). */
+export const HIGHLIGHT_TO_PLAN_FAMILY: Record<string, SubscriptionPlanFamily> = {
+  ai_tools: 'af_commissioner',
+  ai_narration: 'af_commissioner',
+  ai_recap: 'af_commissioner',
+  ai_copilot: 'af_commissioner',
+  weather: 'af_commissioner',
+  power_rankings: 'af_commissioner',
+  idp_ai: 'af_commissioner',
+  c2c_ai: 'af_commissioner',
+  draft_ai: 'af_pro',
+  waiver_ai: 'af_pro',
+  trade_ai: 'af_pro',
+  lineup_optimizer: 'af_pro',
+  start_sit: 'af_pro',
+  matchup: 'af_pro',
+  af_projections: 'af_pro',
+  dynasty_projections: 'af_war_room',
+  draft_strategy: 'af_war_room',
+}

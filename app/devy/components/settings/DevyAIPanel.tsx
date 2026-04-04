@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Lock, Loader2 } from 'lucide-react'
 import { SettingsRow, SettingsSection } from '@/app/league/[leagueId]/tabs/settings/components'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 type DevyPrefs = {
   scouting: boolean
@@ -40,6 +42,7 @@ export function DevyAIPanel({
   const [chatMsg, setChatMsg] = useState('')
   const [seasonY, setSeasonY] = useState(new Date().getFullYear())
   const [locked, setLocked] = useState(false)
+  const { handleApiResponse, gate } = useAfSubGate('commissioner_devy_scouting')
 
   useEffect(() => {
     try {
@@ -76,7 +79,7 @@ export function DevyAIPanel({
         credentials: 'include',
         body: JSON.stringify({ leagueId, action, ...extra }),
       })
-      if (res.status === 402) {
+      if (!(await handleApiResponse(res))) {
         setLocked(true)
         return
       }
@@ -90,9 +93,16 @@ export function DevyAIPanel({
   return (
     <div className="space-y-5 px-4 py-5 text-[13px] text-white/85 md:px-6">
       {!hasAfSub ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
           <Lock className="h-4 w-4 shrink-0" />
-          AF Commissioner Subscription gates Devy AI execution — toggles are local preferences only until AfSub is active.
+          <span>
+            AF Commissioner Subscription gates Devy AI execution — toggles are local preferences only until AfSub is
+            active.
+          </span>
+          <SubscriptionGateBadge
+            featureKey="commissioner_devy_scouting"
+            onClick={() => gate('commissioner_devy_scouting')}
+          />
         </div>
       ) : null}
 

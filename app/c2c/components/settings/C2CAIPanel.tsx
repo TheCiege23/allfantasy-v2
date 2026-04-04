@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, Lock } from 'lucide-react'
 import { SettingsRow, SettingsSection } from '@/app/league/[leagueId]/tabs/settings/components'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 
 type C2cAiPrefs = {
@@ -38,6 +40,7 @@ export function C2CAIPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [out, setOut] = useState<string | null>(null)
   const [locked, setLocked] = useState(false)
+  const { handleApiResponse, gate } = useAfSubGate('commissioner_c2c_scouting')
   const [teamCount, setTeamCount] = useState(12)
   const [experience, setExperience] = useState('mixed')
   const [chatMsg, setChatMsg] = useState('')
@@ -78,7 +81,7 @@ export function C2CAIPanel({
         credentials: 'include',
         body: JSON.stringify({ leagueId, action, ...extra }),
       })
-      if (res.status === 402) {
+      if (!(await handleApiResponse(res))) {
         setLocked(true)
         return
       }
@@ -94,9 +97,16 @@ export function C2CAIPanel({
   return (
     <div className="space-y-5 px-4 py-5 text-[13px] text-white/85 md:px-6" data-testid="c2c-ai-panel">
       {!hasAfSub ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-950/30 px-3 py-2 text-[12px] text-amber-100">
           <Lock className="h-4 w-4 shrink-0" />
-          AF Commissioner Subscription gates C2C AI execution — toggles are local preferences only until AfSub is active.
+          <span>
+            AF Commissioner Subscription gates C2C AI execution — toggles are local preferences only until AfSub is
+            active.
+          </span>
+          <SubscriptionGateBadge
+            featureKey="commissioner_c2c_scouting"
+            onClick={() => gate('commissioner_c2c_scouting')}
+          />
         </div>
       ) : null}
 

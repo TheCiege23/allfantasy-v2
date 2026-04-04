@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-league-patch'
 import { COMMON_TIMEZONES } from '@/lib/timezone'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 
 export function LeagueSettingsPanel({
   leagueId,
@@ -57,6 +59,7 @@ export function LeagueSettingsPanel({
   const disabled = !canEdit
   const subHint = !hasAfCommissionerSub
   const showKeeper = initialData.leagueType === 'keeper'
+  const subscriptionGate = useSubscriptionGateOptional()
 
   return (
     <div className="space-y-6 px-6 py-6 text-[13px] text-white/85" data-league-id={leagueId}>
@@ -113,9 +116,15 @@ export function LeagueSettingsPanel({
           }}
         />
         {subHint ? (
-          <p className="mt-1 text-[11px] text-amber-400/90">
-            7- and 9-team brackets require an AF Commissioner subscription (server-enforced).
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-amber-400/90">
+              7- and 9-team brackets require an AF Commissioner subscription (server-enforced).
+            </p>
+            <SubscriptionGateBadge
+              featureKey="commissioner_ai_tools"
+              onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -342,9 +351,15 @@ export function LeagueSettingsPanel({
           </div>
 
           {subHint ? (
-            <p className="text-[11px] text-amber-400/90">
-              AF Commissioner subscription unlocks AI keeper recommendations (server-gated).
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] text-amber-400/90">
+                AF Commissioner subscription unlocks AI keeper recommendations (server-gated).
+              </p>
+              <SubscriptionGateBadge
+                featureKey="commissioner_ai_tools"
+                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+              />
+            </div>
           ) : null}
         </div>
       ) : null}

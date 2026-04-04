@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { HIGHLIGHT_TO_PLAN_FAMILY } from "@/lib/monetization/entitlements";
 import { usePostPurchaseSync } from "@/hooks/usePostPurchaseSync";
 import { TokenBalanceWidget } from "@/components/tokens/TokenBalanceWidget";
 import { resolveCheckoutUrl } from "@/lib/monetization/checkout-client";
@@ -144,6 +146,26 @@ export default function MonetizationPurchaseSurface({
   const postPurchaseSync = usePostPurchaseSync({
     successMessage: "Purchase complete. We refreshed your access and token balance.",
   });
+
+  const searchParams = useSearchParams();
+  const highlightParam = searchParams.get("highlight");
+
+  useEffect(() => {
+    if (!highlightParam) return;
+    const family = HIGHLIGHT_TO_PLAN_FAMILY[highlightParam];
+    if (!family) return;
+    const id = `plan-card-${family}`;
+    const t0 = window.setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-cyan-400/70", "ring-offset-2", "ring-offset-[#05060a]");
+      window.setTimeout(() => {
+        el.classList.remove("ring-2", "ring-cyan-400/70", "ring-offset-2", "ring-offset-[#05060a]");
+      }, 3000);
+    }, 400);
+    return () => window.clearTimeout(t0);
+  }, [highlightParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -378,6 +400,7 @@ export default function MonetizationPurchaseSurface({
                 return (
                   <article
                     key={family}
+                    id={`plan-card-${family}`}
                     className={`rounded-2xl border bg-gradient-to-br from-[#0a0f1d] via-[#0b1326] to-[#080d19] p-4 ${
                       focused ? "border-cyan-300/40 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]" : "border-white/10"
                     }`}
