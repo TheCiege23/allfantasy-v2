@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
 export type IdpCapSummaryJson = {
-  season: number
+  season?: number
   totalCap: number
   activeSalary: number
   deadMoney: number

@@ -12,6 +12,8 @@ import {
   mockOffensePoints,
   mockIdpPoints,
 } from './idpPositionUtils'
+import { useIdpContractsMap, useRedraftRosterId, mockContractUi } from '@/app/idp/hooks/useIdpTeamCap'
+import type { IdpContractChip } from './IDPPlayerCard'
 
 function partitionIds(ids: string[], players: PlayerMap) {
   const off: string[] = []
@@ -107,6 +109,30 @@ export function IDPTeamDashboard({
   slotLabels,
   onOffensePlayerClick,
 }: IDPTeamDashboardProps) {
+  const { rosterId: redraftRosterId } = useRedraftRosterId(leagueId)
+  const { byPlayerId: contractsByPlayer } = useIdpContractsMap(leagueId, redraftRosterId)
+
+  const contractDisplay = (playerId: string) => {
+    const c = contractsByPlayer[playerId]
+    if (c) {
+      let contractChip: IdpContractChip = 'ACTIVE'
+      if (c.status === 'cut') contractChip = 'DEAD_CAP'
+      else if (c.isFranchiseTagged || c.status === 'franchise_tagged') contractChip = 'TAGGED'
+      else if (c.yearsRemaining <= 1) contractChip = 'EXPIRING'
+      return {
+        salaryM: c.salary,
+        yearsRemaining: c.yearsRemaining,
+        contractChip,
+      }
+    }
+    const m = mockContractUi(playerId)
+    return {
+      salaryM: m.salaryM,
+      yearsRemaining: m.yearsRemaining,
+      contractChip: 'ACTIVE' as const,
+    }
+  }
+
   const [modalId, setModalId] = useState<string | null>(null)
   const [offBenchOpen, setOffBenchOpen] = useState(false)
   const [defBenchOpen, setDefBenchOpen] = useState(false)
@@ -270,6 +296,7 @@ export function IDPTeamDashboard({
                         maxPills={maxPills}
                         onOpen={() => setModalId(id)}
                         onToggleStart={() => {}}
+                        {...contractDisplay(id)}
                       />
                     </div>
                   ))}
@@ -297,6 +324,7 @@ export function IDPTeamDashboard({
                         maxPills={maxPills}
                         onOpen={() => setModalId(id)}
                         onToggleStart={() => {}}
+                        {...contractDisplay(id)}
                       />
                     ))}
                   </div>
@@ -312,6 +340,7 @@ export function IDPTeamDashboard({
           open={Boolean(modalId)}
           onOpenChange={(o) => !o && setModalId(null)}
           leagueId={leagueId}
+          rosterId={redraftRosterId}
           playerId={modalId}
           name={modalPlayer.name}
           position={modalPlayer.position || 'LB'}
@@ -319,6 +348,7 @@ export function IDPTeamDashboard({
           sport={sport}
           week={week}
           players={players}
+          contract={contractsByPlayer[modalId] ?? null}
         />
       ) : null}
     </div>

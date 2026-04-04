@@ -39,6 +39,7 @@ export type SettingsNavTabId =
   | 'idp_scoring'
   | 'idp_display'
   | 'idp_ai'
+  | 'idp_cap'
   | 'devy_format'
   | 'devy_roster'
   | 'devy_rules'
@@ -79,6 +80,7 @@ const IDP_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'idp_scoring', label: '📊 IDP Scoring' },
   { id: 'idp_display', label: '🎨 IDP Display' },
   { id: 'idp_ai', label: '🤖 IDP AI' },
+  { id: 'idp_cap', label: '💰 IDP Cap' },
 ]
 
 const DEVY_NAV: { id: SettingsNavTabId; label: string }[] = [

@@ -32,6 +32,20 @@ export function mockIdpPoints(playerId: string, week: number): { pts: number; pr
   return { pts: Math.round((base + wobble) * 10) / 10, proj: Math.round((base + 1.2) * 10) / 10 }
 }
 
+/** Deterministic mock annual salary (millions) for UI-only cap previews. */
+export function mockContractSalaryM(playerId: string): number {
+  let s = 0
+  for (let i = 0; i < playerId.length; i++) s = (s * 19 + playerId.charCodeAt(i)) | 0
+  return Math.round((1.2 + (Math.abs(s) % 2600) / 100) * 10) / 10
+}
+
+/** Mock years remaining on contract (1–4) for UI previews. */
+export function mockYearsRemaining(playerId: string): number {
+  let s = 0
+  for (let i = 0; i < playerId.length; i++) s = (s * 7 + playerId.charCodeAt(i)) | 0
+  return 1 + (Math.abs(s) % 4)
+}
+
 export function mockStatPills(playerId: string) {
   let s = 0
   for (let i = 0; i < playerId.length; i++) s = (s * 17 + playerId.charCodeAt(i)) | 0

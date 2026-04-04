@@ -18,6 +18,7 @@ import { IDPRosterPanel } from '@/app/idp/components/settings/IDPRosterPanel'
 import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
 import { IDPDisplayPanel } from '@/app/idp/components/settings/IDPDisplayPanel'
 import { IDPAIPanel } from '@/app/idp/components/settings/IDPAIPanel'
+import { IDPCapPanel } from '@/app/idp/components/settings/IDPCapPanel'
 import { KeeperCommissionerDashboard } from './KeeperCommissionerDashboard'
 import { SurvivorSetupPanel } from './settings/survivor/SurvivorSetupPanel'
 import { SurvivorTribesPanel } from './settings/survivor/SurvivorTribesPanel'
@@ -322,6 +323,8 @@ export function CommissionerSettingsModal({
             <IDPDisplayPanel />
           ) : activeTab === 'idp_ai' ? (
             <IDPAIPanel leagueId={leagueId} hasAfSub={hasSub} isCommissioner={payload?.canEdit ?? false} />
+          ) : activeTab === 'idp_cap' ? (
+            <IDPCapPanel />
           ) : activeTab === 'devy_format' ? (
             <DevyFormatPanel config={devyConfig} />
           ) : activeTab === 'devy_roster' ? (

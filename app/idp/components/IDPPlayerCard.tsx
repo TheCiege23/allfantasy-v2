@@ -15,6 +15,12 @@ const PILL_STYLES: Record<string, string> = {
   TD: 'border-[color:var(--idp-td)]/60 bg-[color:var(--idp-td)]/20 text-[color:var(--idp-td)]',
 }
 
+export type IdpContractChip =
+  | 'ACTIVE'
+  | 'EXPIRING'
+  | 'TAGGED'
+  | 'DEAD_CAP'
+
 export type IDPPlayerCardProps = {
   playerId: string
   name: string
@@ -28,6 +34,9 @@ export type IDPPlayerCardProps = {
   onToggleStart?: () => void
   /** Mobile: cap visible pills */
   maxPills?: number
+  salaryM?: number
+  yearsRemaining?: number
+  contractChip?: IdpContractChip
 }
 
 export function IDPPlayerCard({
@@ -42,6 +51,9 @@ export function IDPPlayerCard({
   onOpen,
   onToggleStart,
   maxPills = 8,
+  salaryM,
+  yearsRemaining,
+  contractChip = 'ACTIVE',
 }: IDPPlayerCardProps) {
   const { pts, proj } = mockIdpPoints(playerId, week)
   const stats = mockStatPills(playerId)
@@ -72,6 +84,13 @@ export function IDPPlayerCard({
   const displayPills = sorted.slice(0, maxPills)
 
   const p = players[playerId]
+
+  const chipStyles: Record<IdpContractChip, string> = {
+    ACTIVE: 'border-[color:var(--cap-contract)]/45 bg-[color:var(--cap-contract)]/15 text-blue-100',
+    EXPIRING: 'border-[color:var(--cap-amber)]/45 bg-[color:var(--cap-amber)]/12 text-amber-100',
+    TAGGED: 'border-amber-400/50 bg-amber-500/15 text-amber-50',
+    DEAD_CAP: 'border-[color:var(--cap-dead)]/40 bg-white/[0.04] text-white/45',
+  }
 
   return (
     <div
@@ -124,6 +143,24 @@ export function IDPPlayerCard({
               </span>
             ))}
           </div>
+          {salaryM != null && yearsRemaining != null ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] text-white/55">
+                💰 ${salaryM.toFixed(1)}M · {yearsRemaining}yr
+              </span>
+              <span
+                className={`rounded-full border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${chipStyles[contractChip]}`}
+              >
+                {contractChip === 'TAGGED'
+                  ? 'TAGGED'
+                  : contractChip === 'DEAD_CAP'
+                    ? 'DEAD CAP'
+                    : contractChip === 'EXPIRING'
+                      ? 'EXPIRING'
+                      : 'ACTIVE'}
+              </span>
+            </div>
+          ) : null}
         </div>
         <div className="shrink-0 text-right">
           <p className="text-lg font-bold text-[color:var(--idp-defense)]">{pts}</p>

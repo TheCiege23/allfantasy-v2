@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Lock, Loader2, Sparkles } from 'lucide-react'
 import { IDPPlayerCard } from './IDPPlayerCard'
-import { mockIdpPoints } from './idpPositionUtils'
+import { mockContractSalaryM, mockIdpPoints, mockYearsRemaining } from './idpPositionUtils'
 import type { PlayerMap } from '@/lib/hooks/useSleeperPlayers'
 import { resolvePlayerName } from '@/lib/hooks/useSleeperPlayers'
 import type { IDPMatchupReport } from '@/lib/idp/ai/idpChimmy'
@@ -82,6 +82,20 @@ export function IDPMatchupView({
   const oDef = oppDefenseIds.reduce((s, id) => s + mockIdpPoints(id, week).pts, 0)
   const yTot = yOff + yDef
   const oTot = oOff + oDef
+
+  const sumSal = (ids: string[]) => ids.reduce((s, id) => s + mockContractSalaryM(id), 0)
+  const yourActiveSalM = sumSal([...yourOffenseIds, ...yourDefenseIds])
+  const oppActiveSalM = sumSal([...oppOffenseIds, ...oppDefenseIds])
+  const ptsPerM = (pts: number, sal: number) => (sal > 0.01 ? pts / sal : 0)
+  const yPpm = ptsPerM(yTot, yourActiveSalM)
+  const oPpm = ptsPerM(oTot, oppActiveSalM)
+  const betterYou = yPpm >= oPpm
+
+  const effLabel = (ppm: number): 'Good value' | 'Average' | 'Underperforming' => {
+    if (ppm >= 2.2) return 'Good value'
+    if (ppm >= 1.2) return 'Average'
+    return 'Underperforming'
+  }
 
   useEffect(() => {
     if (!live) return
@@ -173,6 +187,38 @@ export function IDPMatchupView({
           </div>
           {splitBar(yTot, oTot)}
         </div>
+
+        <div className="mt-4 border-t border-white/[0.06] pt-4">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/45">Salary efficiency this week</p>
+          <div className="grid grid-cols-2 gap-3 text-[11px]">
+            <div className="rounded-lg border border-white/[0.06] bg-black/25 p-2.5">
+              <p className="text-[10px] font-semibold text-white/50">{yourTeamName}</p>
+              <p className="mt-1 text-white/80">
+                Active salary:{' '}
+                <span className="font-mono text-[color:var(--cap-contract)]">${yourActiveSalM.toFixed(1)}M</span>
+              </p>
+              <p className="text-white/80">
+                Points: <span className="font-mono">{yTot.toFixed(1)}</span>
+              </p>
+              <p className={betterYou ? 'font-semibold text-[color:var(--cap-green)]' : 'text-white/70'}>
+                Pts / $1M: <span className="font-mono">{yPpm.toFixed(2)}</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/[0.06] bg-black/25 p-2.5">
+              <p className="text-[10px] font-semibold text-white/50">{oppTeamName}</p>
+              <p className="mt-1 text-white/80">
+                Active salary:{' '}
+                <span className="font-mono text-[color:var(--cap-contract)]">${oppActiveSalM.toFixed(1)}M</span>
+              </p>
+              <p className="text-white/80">
+                Points: <span className="font-mono">{oTot.toFixed(1)}</span>
+              </p>
+              <p className={!betterYou ? 'font-semibold text-[color:var(--cap-green)]' : 'text-white/70'}>
+                Pts / $1M: <span className="font-mono">{oPpm.toFixed(2)}</span>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {chimmyLocked ? (
@@ -220,6 +266,10 @@ export function IDPMatchupView({
             const yPts = mockIdpPoints(id, week).pts
             const oPts = mockIdpPoints(oid, week).pts
             const leadYou = yPts >= oPts
+            const ySal = mockContractSalaryM(id)
+            const oSal = mockContractSalaryM(oid)
+            const yEff = effLabel(ptsPerM(yPts, ySal))
+            const oEff = effLabel(ptsPerM(oPts, oSal))
             return (
               <div
                 key={`${id}-${oid}`}
@@ -238,8 +288,26 @@ export function IDPMatchupView({
                     week={week}
                     isStarter
                     maxPills={3}
+                    salaryM={ySal}
+                    yearsRemaining={mockYearsRemaining(id)}
                     onOpen={() => {}}
                   />
+                  <div className="mt-1 flex flex-wrap items-center gap-1 pl-1">
+                    <span className="text-[9px] text-white/40">
+                      ${ySal.toFixed(1)}M · {yPts.toFixed(1)} pts
+                    </span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                        yEff === 'Good value'
+                          ? 'bg-[color:var(--cap-green)]/20 text-emerald-200'
+                          : yEff === 'Average'
+                            ? 'bg-[color:var(--cap-amber)]/20 text-amber-100'
+                            : 'bg-red-500/15 text-red-200/90'
+                      }`}
+                    >
+                      {yEff}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-col items-center gap-0.5 text-center">
                   <span className="text-lg font-bold text-white">{yPts.toFixed(1)}</span>
@@ -257,8 +325,26 @@ export function IDPMatchupView({
                     week={week}
                     isStarter
                     maxPills={3}
+                    salaryM={oSal}
+                    yearsRemaining={mockYearsRemaining(oid)}
                     onOpen={() => {}}
                   />
+                  <div className="mt-1 flex flex-wrap items-center justify-end gap-1 pr-1">
+                    <span className="text-[9px] text-white/40">
+                      ${oSal.toFixed(1)}M · {oPts.toFixed(1)} pts
+                    </span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                        oEff === 'Good value'
+                          ? 'bg-[color:var(--cap-green)]/20 text-emerald-200'
+                          : oEff === 'Average'
+                            ? 'bg-[color:var(--cap-amber)]/20 text-amber-100'
+                            : 'bg-red-500/15 text-red-200/90'
+                      }`}
+                    >
+                      {oEff}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
