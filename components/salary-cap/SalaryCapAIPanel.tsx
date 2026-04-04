@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { Sparkles, ArrowLeft, Loader2, AlertCircle } from 'lucide-react'
 import type { SalaryCapSummary } from './types'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 export type SalaryCapAIPanelType =
   | 'startup_auction'
@@ -41,6 +42,7 @@ export function SalaryCapAIPanel({
     explanation: string
     type: string
   } | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_cap_advice')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -52,6 +54,7 @@ export function SalaryCapAIPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       })
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.message ?? data.error ?? `Error ${res.status}`)
@@ -67,7 +70,7 @@ export function SalaryCapAIPanel({
     } finally {
       setLoading(false)
     }
-  }, [leagueId, type])
+  }, [handleApiResponse, leagueId, type])
 
   return (
     <div className="space-y-6">

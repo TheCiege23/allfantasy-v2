@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 type ZombieUniverseAIType =
   | 'promotion_relegation_outlook'
@@ -35,6 +36,7 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
     movementProjections: { rosterId: string; reason: string }[]
     rosterDisplayNames: Record<string, string>
   } | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_ai_tools')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -47,6 +49,7 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       })
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError((data as { error?: string }).error ?? `Error ${res.status}`)
@@ -66,7 +69,7 @@ export function ZombieUniverseAIPanel({ universeId }: ZombieUniverseAIPanelProps
     } finally {
       setLoading(false)
     }
-  }, [universeId, type])
+  }, [handleApiResponse, universeId, type])
 
   return (
     <div className="space-y-6">

@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import type { ZombieSummary } from './types'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 /** League Zombie AI types — must match API VALID_TYPES. */
 type ZombieAIType =
@@ -68,6 +69,7 @@ export function ZombieAIPanel({ leagueId, summary }: ZombieAIPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<string | null>(null)
   const [deterministic, setDeterministic] = useState<DeterministicSnapshot | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_ai_tools')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -80,6 +82,7 @@ export function ZombieAIPanel({ leagueId, summary }: ZombieAIPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       })
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError((data as { error?: string }).error ?? `Error ${res.status}`)
@@ -106,7 +109,7 @@ export function ZombieAIPanel({ leagueId, summary }: ZombieAIPanelProps) {
     } finally {
       setLoading(false)
     }
-  }, [leagueId, type])
+  }, [handleApiResponse, leagueId, type])
 
   return (
     <div className="space-y-6">

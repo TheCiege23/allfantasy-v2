@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Sparkles, Loader2, AlertCircle } from 'lucide-react'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 export type GuillotineAIPanelType = 'draft' | 'survival' | 'waiver' | 'recap' | 'orphan'
 
@@ -79,6 +80,7 @@ export function GuillotineAIPanel({
     explanation: string
     type: string
   } | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_ai_tools')
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -90,6 +92,7 @@ export function GuillotineAIPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, week: weekOrPeriod }),
       })
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.message ?? data.error ?? `Error ${res.status}`)
@@ -105,7 +108,7 @@ export function GuillotineAIPanel({
     } finally {
       setLoading(false)
     }
-  }, [leagueId, type, weekOrPeriod])
+  }, [handleApiResponse, leagueId, type, weekOrPeriod])
 
   if (deterministicSummaryProp == null && isGuillotineLeague === false) return null
 

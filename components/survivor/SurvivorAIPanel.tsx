@@ -6,6 +6,7 @@ import { Sparkles, MessageSquare, HelpCircle, Loader2, AlertCircle } from 'lucid
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 type SurvivorAIPanelType =
   | 'host_intro'
@@ -68,6 +69,7 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     narrative: string
     type: string
   } | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_ai_narration')
 
   const chatHref = summary.myTribeSource
     ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
@@ -83,13 +85,10 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, week: summary.currentWeek }),
       })
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (res.status === 403) {
-          setError(data.message ?? 'Survivor AI is a premium feature. Upgrade to access.')
-        } else {
-          setError(data.message ?? data.error ?? `Error ${res.status}`)
-        }
+        setError(data.message ?? data.error ?? `Error ${res.status}`)
         return
       }
       setResult({
@@ -102,7 +101,7 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     } finally {
       setLoading(false)
     }
-  }, [leagueId, type, summary.currentWeek])
+  }, [handleApiResponse, leagueId, type, summary.currentWeek])
 
   return (
     <div className="space-y-6">
