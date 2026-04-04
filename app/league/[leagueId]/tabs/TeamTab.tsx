@@ -10,6 +10,7 @@ import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
 import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
+import { IDPTeamDashboard } from '@/app/idp/components/IDPTeamDashboard'
 
 export type TeamTabProps = {
   league: UserLeague
@@ -18,6 +19,10 @@ export type TeamTabProps = {
   inviteToken?: string | null
   /** When set, overrides `league.sport` for Sleeper hooks / position labels */
   sport?: string
+  /** IDP split roster dashboard when league has `IdpLeagueConfig`. */
+  idpLeagueUi?: boolean
+  idpViewMode?: 'offense' | 'defense' | 'full'
+  idpPositionMode?: string
 }
 
 type DbRosterPayload = {
@@ -280,7 +285,16 @@ function SkeletonRows() {
   )
 }
 
-export function TeamTab({ league, userTeam, onPlayerClick, inviteToken, sport }: TeamTabProps) {
+export function TeamTab({
+  league,
+  userTeam,
+  onPlayerClick,
+  inviteToken,
+  sport,
+  idpLeagueUi = false,
+  idpViewMode = 'full',
+  idpPositionMode = 'standard',
+}: TeamTabProps) {
   const resolvedSport = sport ?? league.sport
   const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
   const isSleeper = league.platform === 'sleeper'
@@ -413,6 +427,13 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken, sport }:
         ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} · Trade hub (soon)`
         : 'FAAB: — · Trade hub (soon)'
 
+  const showIdpDashboard =
+    idpLeagueUi &&
+    !loading &&
+    !error &&
+    ((payload?.source === 'sleeper' && sleeperParts) ||
+      (payload && payload.source !== 'sleeper' && dbParts))
+
   return (
     <div className="space-y-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -472,7 +493,38 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken, sport }:
         <p className="rounded-xl border border-white/[0.07] bg-[#0c0c1e] px-4 py-3 text-sm text-white/50">{error}</p>
       ) : null}
 
-      {!loading && !error && payload?.source === 'sleeper' && payload.roster && sleeperParts ? (
+      {!loading && !error && showIdpDashboard && payload?.source === 'sleeper' && sleeperParts ? (
+        <IDPTeamDashboard
+          leagueId={league.id}
+          week={week}
+          sport={resolvedSport}
+          players={players}
+          playersLoading={playersLoading}
+          idpViewMode={idpViewMode}
+          positionMode={idpPositionMode}
+          starterIds={sleeperParts.starters}
+          benchIds={[...sleeperParts.bench, ...sleeperParts.taxi, ...sleeperParts.ir]}
+          slotLabels={sleeperStarterLabels}
+          onOffensePlayerClick={onPlayerClick}
+        />
+      ) : null}
+
+      {!loading && !error && showIdpDashboard && payload && payload.source !== 'sleeper' && dbParts ? (
+        <IDPTeamDashboard
+          leagueId={league.id}
+          week={week}
+          sport={resolvedSport}
+          players={players}
+          playersLoading={playersLoading}
+          idpViewMode={idpViewMode}
+          positionMode={idpPositionMode}
+          starterIds={dbParts.starters}
+          benchIds={[...dbParts.bench, ...dbParts.taxi, ...dbParts.ir]}
+          onOffensePlayerClick={onPlayerClick}
+        />
+      ) : null}
+
+      {!loading && !error && !showIdpDashboard && payload?.source === 'sleeper' && payload.roster && sleeperParts ? (
         <>
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
@@ -570,7 +622,7 @@ export function TeamTab({ league, userTeam, onPlayerClick, inviteToken, sport }:
         </>
       ) : null}
 
-      {!loading && !error && payload && payload.source !== 'sleeper' && dbParts ? (
+      {!loading && !error && !showIdpDashboard && payload && payload.source !== 'sleeper' && dbParts ? (
         <>
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">

@@ -16,6 +16,10 @@ import {
   sleeperAvatarUrl,
   waiverTypeLabel,
 } from './league-settings-modal-utils'
+import { IDPRosterPanel } from '@/app/idp/components/settings/IDPRosterPanel'
+import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
+import { IDPDisplayPanel } from '@/app/idp/components/settings/IDPDisplayPanel'
+import { IDPAIPanel } from '@/app/idp/components/settings/IDPAIPanel'
 
 /** Matches `LeagueShellLeague` without importing `LeagueShell` (avoid circular imports). */
 export type LeagueSettingsModalLeague = League & {
@@ -36,6 +40,8 @@ export type SubPanelContext = {
   isHeadCommissioner: boolean
   sleeperMemberMap: SleeperMemberMap
   onGoToDraftTab: () => void
+  /** From `/api/league/settings` when available — powers IDP AI panel gating. */
+  hasAfCommissionerSub?: boolean
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -214,6 +220,14 @@ export function SettingsSubPanelBody({
     case 'ai-matchup':
     case 'ai-trash':
       return <AiFeaturePanel panelId={panelId} ctx={ctx} />
+    case 'idp_roster':
+      return <IDPRosterPanel />
+    case 'idp_scoring':
+      return <IDPScoringPanel />
+    case 'idp_display':
+      return <IDPDisplayPanel />
+    case 'idp_ai':
+      return <IDPAIPanel hasAfSub={ctx.hasAfCommissionerSub ?? false} />
     default:
       return <p className="text-[13px] text-white/45">Unknown panel.</p>
   }

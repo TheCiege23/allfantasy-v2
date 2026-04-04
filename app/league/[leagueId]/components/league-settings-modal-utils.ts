@@ -73,7 +73,7 @@ export function initialsFromName(name: string): string {
 
 export const SETTINGS_TAB_STORAGE_PREFIX = 'af-league-settings-tab-'
 
-export type SettingsTabKey = 'general' | 'commish' | 'ai'
+export type SettingsTabKey = 'general' | 'commish' | 'ai' | 'idp'
 
 export function readStoredTab(leagueId: string, isCommissioner: boolean): SettingsTabKey {
   if (typeof window === 'undefined') return 'general'
@@ -81,6 +81,7 @@ export function readStoredTab(leagueId: string, isCommissioner: boolean): Settin
     const v = window.localStorage.getItem(`${SETTINGS_TAB_STORAGE_PREFIX}${leagueId}`) as SettingsTabKey | null
     if (v === 'ai' || v === 'general') return v
     if (v === 'commish' && isCommissioner) return 'commish'
+    if (v === 'idp') return 'idp'
   } catch {
     /* ignore */
   }

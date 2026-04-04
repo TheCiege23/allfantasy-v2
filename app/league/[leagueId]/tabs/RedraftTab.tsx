@@ -7,8 +7,9 @@ import { RosterManager } from './redraft/RosterManager'
 import { StandingsView } from './redraft/StandingsView'
 import { TradeCenter } from './redraft/TradeCenter'
 import { WaiverCenter } from './redraft/WaiverCenter'
+import { IDPWaiverSection } from '@/app/idp/components/IDPWaiverSection'
 
-export function RedraftTab({ leagueId }: { leagueId: string }) {
+export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string; idpLeagueUi?: boolean }) {
   const [seasonId, setSeasonId] = useState<string | null>(null)
   const [standings, setStandings] = useState<
     { id: string; teamName: string | null; wins: number; losses: number; pointsFor: number }[]
@@ -66,7 +67,10 @@ export function RedraftTab({ leagueId }: { leagueId: string }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <RosterManager seasonId={seasonId} />
-        <WaiverCenter seasonId={seasonId} />
+        <div className="space-y-3">
+          <WaiverCenter seasonId={seasonId} />
+          {idpLeagueUi ? <IDPWaiverSection leagueId={leagueId} week={1} /> : null}
+        </div>
       </div>
 
       <TradeCenter leagueId={leagueId} />

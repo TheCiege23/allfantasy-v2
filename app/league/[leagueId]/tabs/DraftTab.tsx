@@ -6,12 +6,14 @@ import { Globe, Settings } from 'lucide-react'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
 import { getDraftIdFromSettings } from '@/app/league/[leagueId]/components/league-settings-modal-utils'
+import { IDPDraftFilters } from '@/app/idp/components/IDPDraftFilters'
 
 export type DraftTabProps = {
   league: UserLeague
   teams: UserLeagueTeam[]
   isOwner: boolean
   inviteToken?: string
+  idpLeagueUi?: boolean
 }
 
 function sortTeamsForDisplay(teams: UserLeagueTeam[]): UserLeagueTeam[] {
@@ -83,7 +85,7 @@ function useDraftCountdown(draftDateIso: string | null | undefined): TimerParts 
   return parts
 }
 
-export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps) {
+export function DraftTab({ league, teams, isOwner, inviteToken, idpLeagueUi = false }: DraftTabProps) {
   const router = useRouter()
   const sorted = useMemo(() => sortTeamsForDisplay(teams), [teams])
   const filled = teams.length
@@ -152,6 +154,7 @@ export function DraftTab({ league, teams, isOwner, inviteToken }: DraftTabProps)
 
   return (
     <div className="space-y-4 p-5">
+      {idpLeagueUi ? <IDPDraftFilters /> : null}
       {showInvite ? (
         <section
           className="rounded-2xl border border-white/[0.08] bg-[#0c0c1e] p-4"

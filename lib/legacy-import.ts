@@ -1,4 +1,5 @@
 // lib/legacy-import.ts
+import { computeAndSaveRank } from '@/lib/ranking/computeAndSaveRank';
 import { prisma } from './prisma';
 import {
   getUserLeagues,
@@ -183,6 +184,17 @@ const CURRENT_YEAR = new Date().getFullYear();
 const MIN_YEAR = CURRENT_YEAR - 20;
 const MAX_EMPTY_YEARS = 3;
 
+async function refreshAfRankAfterLegacyImportComplete(legacyUserId: string): Promise<void> {
+  const appUser = await prisma.appUser.findFirst({
+    where: { legacyUserId },
+    select: { id: true },
+  })
+  if (!appUser) return
+  await computeAndSaveRank(appUser.id).catch((err) => {
+    console.error('[legacy-import] computeAndSaveRank after job complete:', err)
+  })
+}
+
 export async function runLegacyImportStep(
   jobId: string,
   userId: string,
@@ -228,6 +240,7 @@ export async function runLegacyImportStep(
         completedAt: new Date(),
       },
     });
+    await refreshAfRankAfterLegacyImportComplete(userId);
     return { done: true, progress: 100 };
   }
 
@@ -266,6 +279,7 @@ export async function runLegacyImportStep(
           emptyYears: newEmptyYears,
         },
       });
+      await refreshAfRankAfterLegacyImportComplete(userId);
       return { done: true, progress: 100 };
     }
 
@@ -297,6 +311,7 @@ export async function runLegacyImportStep(
         emptyYears: 0,
       },
     });
+    await refreshAfRankAfterLegacyImportComplete(userId);
     return { done: true, progress: 100 };
   }
 

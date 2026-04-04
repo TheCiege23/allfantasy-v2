@@ -11,7 +11,12 @@ import {
   type SettingsNavTabId,
   isSurvivorSettingsTab,
   isZombieSettingsTab,
+  isIdpSettingsTab,
 } from './settings/SettingsNav'
+import { IDPRosterPanel } from '@/app/idp/components/settings/IDPRosterPanel'
+import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
+import { IDPDisplayPanel } from '@/app/idp/components/settings/IDPDisplayPanel'
+import { IDPAIPanel } from '@/app/idp/components/settings/IDPAIPanel'
 import { KeeperCommissionerDashboard } from './KeeperCommissionerDashboard'
 import { SurvivorSetupPanel } from './settings/survivor/SurvivorSetupPanel'
 import { SurvivorTribesPanel } from './settings/survivor/SurvivorTribesPanel'
@@ -57,6 +62,7 @@ export function CommissionerSettingsModal({
   const [survivorMode, setSurvivorMode] = useState(false)
   const [tournamentShellId, setTournamentShellId] = useState<string | null>(null)
   const [zombieMode, setZombieMode] = useState(false)
+  const [idpLeague, setIdpLeague] = useState(false)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
 
@@ -87,6 +93,14 @@ export function CommissionerSettingsModal({
   }, [isOpen, leagueId])
 
   useEffect(() => {
+    if (!isOpen) return
+    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/idp/config`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: unknown } | null) => setIdpLeague(Boolean(d?.config)))
+      .catch(() => setIdpLeague(false))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
     if (!isOpen) {
       setTournamentShellId(null)
       return
@@ -114,6 +128,12 @@ export function CommissionerSettingsModal({
       setActiveTab('league')
     }
   }, [zombieMode, activeTab])
+
+  useEffect(() => {
+    if (!idpLeague && isIdpSettingsTab(activeTab)) {
+      setActiveTab('league')
+    }
+  }, [idpLeague, activeTab])
 
   if (!isOpen) return null
 
@@ -150,6 +170,7 @@ export function CommissionerSettingsModal({
           saveStatus={status}
           showSurvivorTabs={survivorMode}
           showZombieTabs={zombieMode}
+          showIdpTabs={idpLeague}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -257,6 +278,14 @@ export function CommissionerSettingsModal({
             <ZombieAdvancedPanel leagueId={leagueId} canEdit={canEdit} />
           ) : activeTab === 'zombie_ai' ? (
             <ZombieAIPanel hasAfSub={hasSub} />
+          ) : activeTab === 'idp_roster' ? (
+            <IDPRosterPanel />
+          ) : activeTab === 'idp_scoring' ? (
+            <IDPScoringPanel />
+          ) : activeTab === 'idp_display' ? (
+            <IDPDisplayPanel />
+          ) : activeTab === 'idp_ai' ? (
+            <IDPAIPanel hasAfSub={hasSub} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

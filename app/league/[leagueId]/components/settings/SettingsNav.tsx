@@ -35,6 +35,10 @@ export type SettingsNavTabId =
   | 'zombie_animations'
   | 'zombie_advanced'
   | 'zombie_ai'
+  | 'idp_roster'
+  | 'idp_scoring'
+  | 'idp_display'
+  | 'idp_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'league', label: 'League' },
@@ -61,6 +65,13 @@ const ZOMBIE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'zombie_animations', label: '🎬 Animations' },
   { id: 'zombie_advanced', label: '⚙️ Advanced Rules' },
   { id: 'zombie_ai', label: '🤖 AI Host' },
+]
+
+const IDP_NAV: { id: SettingsNavTabId; label: string }[] = [
+  { id: 'idp_roster', label: '🛡️ IDP Roster' },
+  { id: 'idp_scoring', label: '📊 IDP Scoring' },
+  { id: 'idp_display', label: '🎨 IDP Display' },
+  { id: 'idp_ai', label: '🤖 IDP AI' },
 ]
 
 const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [
@@ -91,12 +102,17 @@ export function isZombieSettingsTab(id: SettingsNavTabId): boolean {
   return id.startsWith('zombie_')
 }
 
+export function isIdpSettingsTab(id: SettingsNavTabId): boolean {
+  return id.startsWith('idp_')
+}
+
 export function SettingsNav({
   activeTab,
   onSelect,
   saveStatus,
   showSurvivorTabs,
   showZombieTabs,
+  showIdpTabs,
   className,
 }: {
   activeTab: SettingsNavTabId
@@ -104,6 +120,7 @@ export function SettingsNav({
   saveStatus: AutosaveStatus
   showSurvivorTabs?: boolean
   showZombieTabs?: boolean
+  showIdpTabs?: boolean
   className?: string
 }) {
   const hint = statusLabel(saveStatus)
@@ -111,6 +128,7 @@ export function SettingsNav({
     ...BASE_NAV,
     ...(showSurvivorTabs ? SURVIVOR_NAV : []),
     ...(showZombieTabs ? ZOMBIE_NAV : []),
+    ...(showIdpTabs ? IDP_NAV : []),
   ]
 
   return (

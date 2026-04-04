@@ -86,7 +86,60 @@
   --zombie-glow-green: 0 0 12px rgba(22, 163, 74, 0.4);
   --zombie-glow-purple: 0 0 12px rgba(124, 58, 237, 0.4);
 
+  /* IDP League — split roster / matchup UI */
+  --idp-defense: #dc2626;
+  --idp-offense: #2563eb;
+  --idp-combined: #7c3aed;
+  --idp-tackle: #f59e0b;
+  --idp-sack: #ef4444;
+  --idp-int: #10b981;
+  --idp-td: #f5b800;
+  --idp-panel: #0b0d14;
+  --idp-border: rgba(255, 255, 255, 0.06);
+  --idp-creator-glow: 0 0 8px rgba(99, 102, 241, 0.6), 0 0 20px rgba(99, 102, 241, 0.3);
+
   color-scheme: light;
+}
+
+@keyframes idp-creator-pulse {
+  0%,
+  100% {
+    opacity: 0.88;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.12);
+  }
+}
+
+@keyframes idp-score-tick {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.idp-score-tick-pulse {
+  animation: idp-score-tick 0.6s ease-out;
+}
+
+.idp-creator-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #a5b4fc, #8b5cf6, #c4b5fd);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: var(--idp-creator-glow);
+  animation: idp-creator-pulse 3s ease-in-out infinite;
 }
 
 .mode-surface {

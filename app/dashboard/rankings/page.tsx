@@ -35,6 +35,22 @@ interface ImportState {
   username: string
   loading: boolean
   error: string | null
+  successMessage: string | null
+}
+
+function mapLegacyImportError(payload: Record<string, unknown>, status: number): string {
+  const code = typeof payload.error === 'string' ? payload.error : ''
+  if (status === 401 || code === 'UNAUTHENTICATED') return 'Sign in to import your legacy profile.'
+  if (code === 'VERIFICATION_REQUIRED')
+    return 'Verify your email or phone in Settings before importing.'
+  if (code === 'AGE_REQUIRED') return 'Confirm you are 18+ in Settings before importing.'
+  if (status === 409)
+    return typeof payload.error === 'string'
+      ? payload.error
+      : 'This Sleeper account is linked to another AllFantasy user.'
+  if (status === 429) return 'Too many attempts. Try again in a minute.'
+  if (status === 404) return 'Sleeper username not found. Check spelling (e.g. TheCiege24).'
+  return typeof payload.error === 'string' ? payload.error : 'Import failed'
 }
 
 const TIERS = [
@@ -152,6 +168,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     username: '',
     loading: false,
     error: null,
+    successMessage: null,
   })
 
   const selectedPlatform = useMemo(
@@ -171,18 +188,29 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
       return
     }
 
-    setState((current) => ({ ...current, loading: true, error: null }))
+    setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
     try {
       const response = await fetch('/api/legacy/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ sleeper_username: state.username.trim().toLowerCase() }),
       })
-      const data = await response.json().catch(() => ({}))
+      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
       if (!response.ok) {
-        throw new Error(typeof data?.error === 'string' ? data.error : 'Import failed')
+        throw new Error(mapLegacyImportError(data, response.status))
       }
+      const msg =
+        typeof data.message === 'string'
+          ? data.message
+          : 'Import queued. Your rank and history update as the sync runs (usually a few minutes). This does not add leagues to My Leagues on the dashboard — only full league import or leagues you create here do.'
+      setState((current) => ({
+        ...current,
+        loading: false,
+        successMessage: msg,
+        error: null,
+      }))
       onImportSuccess()
     } catch (error: unknown) {
       setState((current) => ({
@@ -192,8 +220,6 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
       }))
       return
     }
-
-    setState((current) => ({ ...current, loading: false }))
   }, [onImportSuccess, router, selectedPlatform.label, state.platform, state.username])
 
   return (
@@ -212,7 +238,9 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
             <button
               key={platform.id}
               type="button"
-              onClick={() => setState((current) => ({ ...current, platform: platform.id, error: null }))}
+              onClick={() =>
+                setState((current) => ({ ...current, platform: platform.id, error: null, successMessage: null }))
+              }
               className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border transition-all text-xs font-semibold ${
                 isSelected
                   ? 'border-cyan-500/60 bg-cyan-500/10 text-white'
@@ -241,7 +269,16 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         <p className="text-[11px] text-white/30 mt-2">
           Sleeper is wired directly here. Other providers hand off to the full AF Legacy import experience.
         </p>
+        <p className="text-[11px] text-cyan-200/40 mt-2">
+          Rankings import builds your career history only — it does not add leagues to the dashboard &quot;My Leagues&quot; list (that&apos;s for full sync from Import or leagues you create on AllFantasy).
+        </p>
       </div>
+
+      {state.successMessage ? (
+        <div className="mb-4 rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+          {state.successMessage}
+        </div>
+      ) : null}
 
       {state.error ? (
         <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">

@@ -18,6 +18,7 @@ import {
   MessageCircle,
   MessageSquare,
   Newspaper,
+  Palette,
   Settings,
   Shield,
   Shuffle,
@@ -92,8 +93,16 @@ const AI_CARDS: CardDef[] = [
   { id: 'ai-trash', title: 'AI Trash Talk', description: 'Generate trash talk for league chat', icon: MessageCircle, ai: true },
 ]
 
+/** Shown when this league has `IdpLeagueConfig` (same detection as league shell). */
+const IDP_CARDS: CardDef[] = [
+  { id: 'idp_roster', title: 'IDP Roster', description: 'Defensive slot layout and bench (preview)', icon: Shield },
+  { id: 'idp_scoring', title: 'IDP Scoring', description: 'Tackles, sacks, turnovers, and bonuses', icon: BarChart2 },
+  { id: 'idp_display', title: 'IDP Display', description: 'Default view, stat pills, draft tiers', icon: Palette },
+  { id: 'idp_ai', title: 'IDP AI', description: 'Chimmy IDP tools and AfSub preferences', icon: Bot, ai: true },
+]
+
 const PANEL_TITLES: Record<string, string> = Object.fromEntries(
-  [...GENERAL_CARDS, ...COMMISH_CARDS, ...AI_CARDS].map((c) => [c.id, c.title]),
+  [...GENERAL_CARDS, ...COMMISH_CARDS, ...AI_CARDS, ...IDP_CARDS].map((c) => [c.id, c.title]),
 )
 
 export type LeagueSettingsModalProps = {
@@ -130,6 +139,8 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   const [mainTab, setMainTab] = useState<SettingsTabKey>('general')
   const [activePanel, setActivePanel] = useState<string | null>(null)
   const [isMd, setIsMd] = useState(false)
+  const [idpLeague, setIdpLeague] = useState(false)
+  const [hasAfCommissionerSub, setHasAfCommissionerSub] = useState(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)')
@@ -144,6 +155,48 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     setMainTab(readStoredTab(league.id, isCommissioner))
     setActivePanel(null)
   }, [open, league.id, isCommissioner])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch(`/api/leagues/${encodeURIComponent(league.id)}/idp/config`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: unknown } | null) => {
+        if (!cancelled) setIdpLeague(Boolean(d?.config))
+      })
+      .catch(() => {
+        if (!cancelled) setIdpLeague(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, league.id])
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch(`/api/league/settings?leagueId=${encodeURIComponent(league.id)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { hasAfCommissionerSub?: boolean } | null) => {
+        if (!cancelled) setHasAfCommissionerSub(Boolean(d?.hasAfCommissionerSub))
+      })
+      .catch(() => {
+        if (!cancelled) setHasAfCommissionerSub(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, league.id])
+
+  useEffect(() => {
+    if (!open) return
+    if (mainTab === 'idp' && !idpLeague) {
+      setMainTab('general')
+    }
+    if (mainTab === 'commish' && !isCommissioner) {
+      setMainTab('general')
+    }
+  }, [open, mainTab, idpLeague, isCommissioner])
 
   useEffect(() => {
     if (!open) return
@@ -162,6 +215,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       isHeadCommissioner,
       sleeperMemberMap,
       onGoToDraftTab,
+      hasAfCommissionerSub,
     }),
     [
       league,
@@ -173,12 +227,14 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       isHeadCommissioner,
       sleeperMemberMap,
       onGoToDraftTab,
+      hasAfCommissionerSub,
     ],
   )
 
   const cards = useMemo(() => {
     if (mainTab === 'general') return GENERAL_CARDS
     if (mainTab === 'commish') return COMMISH_CARDS
+    if (mainTab === 'idp') return IDP_CARDS
     return AI_CARDS
   }, [mainTab])
 
@@ -310,6 +366,20 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                       }`}
                     >
                       COMMISH
+                    </button>
+                  ) : null}
+                  {idpLeague ? (
+                    <button
+                      type="button"
+                      onClick={() => setMainTab('idp')}
+                      className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
+                        mainTab === 'idp'
+                          ? 'border-red-500/35 bg-red-950/35 text-red-100 shadow-[0_0_0_1px_rgba(248,113,113,0.15)]'
+                          : 'border-transparent bg-white/[0.04] text-white/40 hover:bg-white/[0.07] hover:text-white/65'
+                      }`}
+                      data-testid="league-settings-tab-idp"
+                    >
+                      IDP
                     </button>
                   ) : null}
                   <button

@@ -156,10 +156,32 @@ export function LeagueShell({
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [portalMounted, setPortalMounted] = useState(false)
+  const [idpUi, setIdpUi] = useState<{ active: boolean; positionMode: string } | null>(null)
+  const [idpViewMode, setIdpViewMode] = useState<'offense' | 'defense' | 'full'>('full')
 
   useEffect(() => {
     setPortalMounted(true)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/leagues/${encodeURIComponent(league.id)}/idp/config`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: { positionMode?: string } } | null) => {
+        if (cancelled) return
+        if (d?.config) {
+          setIdpUi({ active: true, positionMode: d.config.positionMode ?? 'standard' })
+        } else {
+          setIdpUi({ active: false, positionMode: 'standard' })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setIdpUi({ active: false, positionMode: 'standard' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
 
   const selectedLeague = useMemo(
     () => prismaLeagueToUserLeague(league, { draftDate: draftDateIso }),
@@ -238,6 +260,9 @@ export function LeagueShell({
             onTabChange={setActiveTab}
             onOpenSettings={() => setSettingsOpen(true)}
             onGoHome={() => router.push('/dashboard')}
+            idpLeagueActive={idpUi?.active ?? false}
+            idpViewMode={idpViewMode}
+            onIdpViewModeChange={setIdpViewMode}
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
@@ -251,6 +276,9 @@ export function LeagueShell({
               inviteToken={inviteToken}
               isOwner={isOwner}
               onPlayerClick={handlePlayerClick}
+              idpLeagueActive={idpUi?.active ?? false}
+              idpViewMode={idpViewMode}
+              idpPositionMode={idpUi?.positionMode ?? 'standard'}
             />
           </div>
         </main>
@@ -301,6 +329,9 @@ function LeagueTabRouter({
   inviteToken,
   isOwner,
   onPlayerClick,
+  idpLeagueActive,
+  idpViewMode,
+  idpPositionMode,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -311,6 +342,9 @@ function LeagueTabRouter({
   inviteToken: string | undefined
   isOwner: boolean
   onPlayerClick: (playerId: string) => void
+  idpLeagueActive: boolean
+  idpViewMode: 'offense' | 'defense' | 'full'
+  idpPositionMode: string
 }) {
   const tab = tabDefs.find((t) => t.id === activeTab)
   const tabLabel = tab?.label ?? activeTab
@@ -324,10 +358,11 @@ function LeagueTabRouter({
           teams={teamSlots}
           isOwner={isOwner}
           inviteToken={inviteToken}
+          idpLeagueUi={idpLeagueActive}
         />
       )
     case 'redraft':
-      return <RedraftTab leagueId={leagueId} />
+      return <RedraftTab leagueId={leagueId} idpLeagueUi={idpLeagueActive} />
     case 'bestball':
       return <BestBallTab leagueId={leagueId} sport={sport} />
     case 'guillotine':
@@ -344,6 +379,9 @@ function LeagueTabRouter({
           onPlayerClick={onPlayerClick}
           inviteToken={inviteToken}
           sport={sport}
+          idpLeagueUi={idpLeagueActive}
+          idpViewMode={idpViewMode}
+          idpPositionMode={idpPositionMode}
         />
       )
     case 'league':
@@ -355,13 +393,17 @@ function LeagueTabRouter({
     case 'trades':
       return <TradesTab league={selectedLeague} teams={teamSlots} />
     case 'scores':
-      return <ScoresTab league={selectedLeague} sport={sport} />
+      return (
+        <ScoresTab league={selectedLeague} sport={sport} idpLeagueUi={idpLeagueActive} />
+      )
     case 'history':
       return <HistoryTab league={selectedLeague} />
     case 'settings':
       return <LeagueSettingsTab leagueId={leagueId} />
     case 'standings':
-      return <StandingsTab league={selectedLeague} tabLabel={tabLabel} />
+      return (
+        <StandingsTab league={selectedLeague} tabLabel={tabLabel} idpLeagueUi={idpLeagueActive} />
+      )
     case 'fixtures':
       return <FixturesTab league={selectedLeague} tabLabel={tabLabel} />
     case 'transfers':
@@ -386,6 +428,9 @@ function LeagueHeader({
   onTabChange,
   onOpenSettings,
   onGoHome,
+  idpLeagueActive = false,
+  idpViewMode = 'full',
+  onIdpViewModeChange,
 }: {
   league: UserLeague
   tabs: TabDef[]
@@ -393,6 +438,9 @@ function LeagueHeader({
   onTabChange: (t: string) => void
   onOpenSettings: () => void
   onGoHome: () => void
+  idpLeagueActive?: boolean
+  idpViewMode?: 'offense' | 'defense' | 'full'
+  onIdpViewModeChange?: (m: 'offense' | 'defense' | 'full') => void
 }) {
   return (
     <div className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c1e]">
@@ -406,11 +454,37 @@ function LeagueHeader({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="truncate text-[15px] font-bold text-white">{league.name}</h1>
+            {idpLeagueActive ? (
+              <span className="idp-creator-badge flex-shrink-0 whitespace-nowrap">✦ Created by TheCiege</span>
+            ) : null}
             <span className="flex-shrink-0 text-[11px] text-white/40">
               {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'}{' '}
               {league.scoring}
             </span>
           </div>
+          {idpLeagueActive && onIdpViewModeChange ? (
+            <div className="mt-2 flex max-w-md flex-wrap gap-1 rounded-lg border border-white/[0.08] bg-black/20 p-1">
+              {(['offense', 'defense', 'full'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => onIdpViewModeChange(m)}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${
+                    idpViewMode === m
+                      ? m === 'offense'
+                        ? 'bg-[color:var(--idp-offense)]/25 text-blue-100'
+                        : m === 'defense'
+                          ? 'bg-[color:var(--idp-defense)]/25 text-red-100'
+                          : 'bg-[color:var(--idp-combined)]/25 text-violet-100'
+                      : 'text-white/45 hover:bg-white/[0.04]'
+                  }`}
+                  data-testid={`idp-view-${m}`}
+                >
+                  {m === 'full' ? 'Full team' : m}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-shrink-0 items-center gap-0.5">
           <button
