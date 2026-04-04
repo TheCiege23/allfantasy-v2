@@ -1,4 +1,4 @@
-import { ENTITLEMENTS } from "@/lib/monetization/entitlements"
+import { ENTITLEMENTS, type EntitlementDef } from "@/lib/monetization/entitlements"
 import { getPremiumMonetizationForFeature } from "@/lib/monetization/feature-monetization-matrix"
 import {
   buildFeatureUpgradePath,
@@ -53,19 +53,24 @@ export function getGateDef(featureId: SubscriptionFeatureId): GateDef {
 
   const cat = ENTITLEMENTS[featureId as keyof typeof ENTITLEMENTS]
   if (cat) {
-    const rawNames = cat.requiredPlan
+    // ENTITLEMENTS is `as const`; cast so optional highlightFeature is read from EntitlementDef, not a per-key union.
+    const ent = cat as EntitlementDef
+    const rawNames = ent.requiredPlan
       .filter((p) => p !== "af_all_access")
       .map((p) => PLAN_DISPLAY[p] ?? p)
     const requiredPlanDisplay =
       rawNames.length > 0 ? rawNames : [PLAN_DISPLAY.af_all_access]
+    const highlightFromCatalog = ent["highlightFeature"]
     return {
       featureId,
-      label: override?.label ?? cat.label,
+      label: override?.label ?? ent.label,
       description:
-        override?.description ?? cat.description,
-      upgradeUrl: cat.upgradeUrl,
-      upgradeLabel: cat.upgradeLabel,
-      highlightParam: override?.highlightParam ?? cat.highlightFeature,
+        override?.description ?? ent.description,
+      upgradeUrl: ent.upgradeUrl,
+      upgradeLabel: ent.upgradeLabel,
+      highlightParam:
+        override?.highlightParam ??
+        (typeof highlightFromCatalog === "string" ? highlightFromCatalog : undefined),
       requiredPlanDisplay,
     }
   }
