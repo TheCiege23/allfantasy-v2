@@ -1,6 +1,7 @@
 import type { SportConfig } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculateOfficialTeamScore, leagueUsesDevyEngine } from '@/lib/devy/scoringEligibilityEngine'
+import { leagueUsesC2CEngine, updateC2CMatchupScores } from '@/lib/c2c/scoringEngine'
 import type { StatCategoryRow } from './types'
 
 export function calculateFantasyPoints(
@@ -28,6 +29,11 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
     },
   })
   if (!m || !m.homeRoster || !m.awayRosterId) return
+
+  if (await leagueUsesC2CEngine(m.leagueId)) {
+    await updateC2CMatchupScores(matchupId)
+    return
+  }
 
   const week = m.week
   const season = await prisma.redraftSeason.findFirst({ where: { id: m.seasonId } })

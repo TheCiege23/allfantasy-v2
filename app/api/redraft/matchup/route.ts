@@ -1,9 +1,11 @@
+import type { C2CMatchupScore } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { calculateOfficialTeamScore, leagueUsesDevyEngine } from '@/lib/devy/scoringEligibilityEngine'
+import { leagueUsesC2CEngine } from '@/lib/c2c/scoringEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,33 @@ export async function GET(req: NextRequest) {
       where: { seasonId, week: w },
       include: { homeRoster: true, awayRoster: true },
     })
+    if (await leagueUsesC2CEngine(season.leagueId)) {
+      const c2cScores: Record<string, { home: C2CMatchupScore | null; away: C2CMatchupScore | null }> = {}
+      for (const mu of matchups) {
+        const home = await prisma.c2CMatchupScore.findUnique({
+          where: {
+            leagueId_matchupId_rosterId: {
+              leagueId: season.leagueId,
+              matchupId: mu.id,
+              rosterId: mu.homeRosterId,
+            },
+          },
+        })
+        const away = mu.awayRosterId
+          ? await prisma.c2CMatchupScore.findUnique({
+              where: {
+                leagueId_matchupId_rosterId: {
+                  leagueId: season.leagueId,
+                  matchupId: mu.id,
+                  rosterId: mu.awayRosterId,
+                },
+              },
+            })
+          : null
+        c2cScores[mu.id] = { home, away }
+      }
+      return NextResponse.json({ matchups, c2cScores })
+    }
     if (await leagueUsesDevyEngine(season.leagueId)) {
       const devyScores: Record<
         string,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { updateC2CMatchupScores } from '@/lib/c2c/scoringEngine'
 import { syncWeeklyScores } from '@/lib/survivor/gameStateMachine'
 import { checkAllMatchupsComplete } from '@/lib/zombie/matchupCompletion'
 import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
@@ -49,12 +50,34 @@ export async function POST() {
     }),
   )
 
+  const c2cLeagues = await prisma.c2CLeague.findMany({ select: { leagueId: true } })
+  let c2cMatchupsRecalculated = 0
+  for (const { leagueId } of c2cLeagues) {
+    const matchups = await prisma.redraftMatchup.findMany({
+      where: {
+        leagueId,
+        status: { in: ['scheduled', 'active'] },
+      },
+      take: 120,
+      select: { id: true },
+    })
+    for (const m of matchups) {
+      try {
+        await updateC2CMatchupScores(m.id)
+        c2cMatchupsRecalculated++
+      } catch {
+        /* missing away roster / config */
+      }
+    }
+  }
+
   return NextResponse.json({
     updated: 0,
-    matchupsRecalculated: 0,
+    matchupsRecalculated: c2cMatchupsRecalculated,
     message: 'score-sync stub — connect stats provider',
     survivorBridge,
     zombieResolutionAttempts: zombieRes.length,
     zombieResolutionFailed: zombieRes.filter((r) => r.status === 'rejected').length,
+    c2cLeaguesSynced: c2cLeagues.length,
   })
 }

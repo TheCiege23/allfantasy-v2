@@ -2609,45 +2609,45 @@ model AppUser {
   bracketPayments         BracketPayment[]         @relation("BracketPayments")
   bracketRiskProfile      BracketRiskProfile?      @relation("BracketRiskProfile")
 
-  platformChatThreadsCreated    PlatformChatThread[]       @relation("PlatformChatThreadCreator")
-  platformChatThreadMemberships PlatformChatThreadMember[]
-  platformChatMessages          PlatformChatMessage[]      @relation("PlatformChatMessageSender")
-  platformNotifications         PlatformNotification[]
-  webPushSubscriptions          WebPushSubscription[]
-  engagementEvents              EngagementEvent[]
-  podcastEpisodes               PodcastEpisode[]
-  fantasyMediaEpisodes          FantasyMediaEpisode[]
-  socialClips                   SocialClip[]
-  socialContentAssets           SocialContentAsset[]
-  socialPublishTargets          SocialPublishTarget[]
-  shareableMoments              ShareableMoment[]
-  userSubscriptions             UserSubscription[]
-  platformBlockedUsers          PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
-  platformBlockedBy             PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
-  platformMessageReports        PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
-  platformUserReportsCreated    PlatformUserReport[]       @relation("PlatformUserReportReporter")
-  platformUserReportsAgainst    PlatformUserReport[]       @relation("PlatformUserReportReported")
-  tokenBalance                  UserTokenBalance?
-  tokenLedgerEntries            TokenLedger[]
-  walletAccount                 PlatformWalletAccount?
-  walletLedgerEntries           WalletLedgerEntry[]
-  referralCodes                 ReferralCode[]
-  referralsAsReferrer           Referral[]                 @relation("ReferralReferrer")
-  referralAsReferred            Referral?                  @relation("ReferralReferred")
-  referralEventsAsReferrer      ReferralEvent[]            @relation("ReferralEventReferrer")
-  referralRewards               ReferralReward[]
-  referredByEvents              ReferralEvent[]            @relation("ReferralEventReferred")
-  creatorProfile                CreatorProfile?
-  inviteLinksCreated            InviteLink[]
-  leagueTemplates               LeagueTemplate[]
-  growthAttributions            GrowthAttribution[]
-  tournamentsCreated            LegacyTournament[]         @relation("LegacyTournamentCreator")
-  tournamentShellsCommissioned  TournamentShell[]          @relation("TournamentShellCommissioner")
-  tournamentShellsCreatedBy     TournamentShell[]          @relation("TournamentShellCreator")
-  zombieUniversesCommissioned   ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
-  zombieUniversesCreated        ZombieUniverse[]           @relation("ZombieUniverseCreator")
-  bigBrotherChatCommandLogs     BigBrotherChatCommandLog[]
-  devyImportSessionsCommissioned DevyImportSession[] @relation("DevyImportSessionCommissioner")
+  platformChatThreadsCreated     PlatformChatThread[]       @relation("PlatformChatThreadCreator")
+  platformChatThreadMemberships  PlatformChatThreadMember[]
+  platformChatMessages           PlatformChatMessage[]      @relation("PlatformChatMessageSender")
+  platformNotifications          PlatformNotification[]
+  webPushSubscriptions           WebPushSubscription[]
+  engagementEvents               EngagementEvent[]
+  podcastEpisodes                PodcastEpisode[]
+  fantasyMediaEpisodes           FantasyMediaEpisode[]
+  socialClips                    SocialClip[]
+  socialContentAssets            SocialContentAsset[]
+  socialPublishTargets           SocialPublishTarget[]
+  shareableMoments               ShareableMoment[]
+  userSubscriptions              UserSubscription[]
+  platformBlockedUsers           PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
+  platformBlockedBy              PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
+  platformMessageReports         PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
+  platformUserReportsCreated     PlatformUserReport[]       @relation("PlatformUserReportReporter")
+  platformUserReportsAgainst     PlatformUserReport[]       @relation("PlatformUserReportReported")
+  tokenBalance                   UserTokenBalance?
+  tokenLedgerEntries             TokenLedger[]
+  walletAccount                  PlatformWalletAccount?
+  walletLedgerEntries            WalletLedgerEntry[]
+  referralCodes                  ReferralCode[]
+  referralsAsReferrer            Referral[]                 @relation("ReferralReferrer")
+  referralAsReferred             Referral?                  @relation("ReferralReferred")
+  referralEventsAsReferrer       ReferralEvent[]            @relation("ReferralEventReferrer")
+  referralRewards                ReferralReward[]
+  referredByEvents               ReferralEvent[]            @relation("ReferralEventReferred")
+  creatorProfile                 CreatorProfile?
+  inviteLinksCreated             InviteLink[]
+  leagueTemplates                LeagueTemplate[]
+  growthAttributions             GrowthAttribution[]
+  tournamentsCreated             LegacyTournament[]         @relation("LegacyTournamentCreator")
+  tournamentShellsCommissioned   TournamentShell[]          @relation("TournamentShellCommissioner")
+  tournamentShellsCreatedBy      TournamentShell[]          @relation("TournamentShellCreator")
+  zombieUniversesCommissioned    ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
+  zombieUniversesCreated         ZombieUniverse[]           @relation("ZombieUniverseCreator")
+  bigBrotherChatCommandLogs      BigBrotherChatCommandLog[]
+  devyImportSessionsCommissioned DevyImportSession[]        @relation("DevyImportSessionCommissioner")
 
   @@map("app_users")
 }
@@ -4048,20 +4048,20 @@ model League {
   aiPowerRankings            Boolean @default(false)
 
   /// Keeper league — max keepers per team per season (0 = effectively redraft for keepers).
-  keeperCount          Int?     @default(3)
-  keeperCostSystem     String?  @default("round_based")
-  keeperMaxYears       Int?     @default(3)
-  keeperWaiverAllowed  Boolean? @default(true)
-  keeperEligibilityRule String? @default("any")
-  keeperMinRoundsHeld  Int?     @default(0)
-  keeperRoundPenalty   Int?     @default(1)
-  keeperInflationRate  Int?     @default(1)
-  keeperAuctionPctIncrease Float? @default(0.2)
-  keeperSelectionDeadline DateTime?
-  keeperPhaseActive    Boolean? @default(false)
-  dynastySeasonPhase   String?  @default("regular")
-  keeperConflictRule   String?  @default("player_chooses")
-  keeperMissedDeadlineRule String? @default("auto_no_keepers")
+  keeperCount              Int?      @default(3)
+  keeperCostSystem         String?   @default("round_based")
+  keeperMaxYears           Int?      @default(3)
+  keeperWaiverAllowed      Boolean?  @default(true)
+  keeperEligibilityRule    String?   @default("any")
+  keeperMinRoundsHeld      Int?      @default(0)
+  keeperRoundPenalty       Int?      @default(1)
+  keeperInflationRate      Int?      @default(1)
+  keeperAuctionPctIncrease Float?    @default(0.2)
+  keeperSelectionDeadline  DateTime?
+  keeperPhaseActive        Boolean?  @default(false)
+  dynastySeasonPhase       String?   @default("regular")
+  keeperConflictRule       String?   @default("player_chooses")
+  keeperMissedDeadlineRule String?   @default("auto_no_keepers")
 
   /// Best ball — standard | private_league | tournament
   bestBallVariant   String?  @default("standard")
@@ -4077,10 +4077,10 @@ model League {
   bbOptimizerTiming String?  @default("period_end")
   bbContestId       String?
 
-  bbContest                   BestBallContest?           @relation("LeagueBestBallContest", fields: [bbContestId], references: [id], onDelete: SetNull)
-  bestBallOptimizedLineups    BestBallOptimizedLineup[]
-  bestBallRosterValidations   BestBallRosterValidation[]
-  bestBallAIInsights          BestBallAIInsight[]
+  bbContest                 BestBallContest?           @relation("LeagueBestBallContest", fields: [bbContestId], references: [id], onDelete: SetNull)
+  bestBallOptimizedLineups  BestBallOptimizedLineup[]
+  bestBallRosterValidations BestBallRosterValidation[]
+  bestBallAIInsights        BestBallAIInsight[]
 
   /// Guillotine survival (lowest score eliminated each period)
   guillotineMode                  Boolean? @default(false)
@@ -4099,40 +4099,40 @@ model League {
   guillotineAiInsights GuillotineAIInsight[]
 
   /// Survivor social format — phase and commissioner-tunable rules (see also survivorConfig).
-  survivorMode         Boolean? @default(false)
-  survivorPhase        String?  @default("pre_draft")
-  survivorPlayerCount  Int?     @default(20)
-  survivorTribeCount   Int?     @default(4)
-  survivorTribeSize    Int?     @default(5)
-  survivorTribeNaming  String?  @default("auto")
-  survivorMergeWeek    Int?     @default(7)
-  survivorMergeTrigger String?  @default("week")
-  survivorMergeAtCount Int?     @default(10)
-  survivorJuryStart    String?  @default("post_merge_vote_1")
-  survivorFinal3       Boolean? @default(true)
-  survivorSwapWeek     Int?
-  survivorSwapTrigger  String?  @default("manual")
-  survivorIdolsEnabled Boolean? @default(true)
-  survivorIdolCount    Int?     @default(9)
-  survivorIdolsTradable Boolean? @default(false)
-  survivorIdolsExpireAtMerge Boolean? @default(true)
-  survivorIdolConvertRule String? @default("faab")
-  survivorExileEnabled Boolean? @default(true)
-  survivorTokenEnabled Boolean? @default(true)
-  survivorBossResetEnabled Boolean? @default(true)
-  survivorExileReturnWeek Int?
-  survivorExileReturnTrigger String? @default("manual")
-  survivorSelfVoteAllowed Boolean? @default(false)
-  survivorTieRule        String?   @default("revote_then_rocks")
-  survivorRocksEnabled   Boolean?  @default(true)
-  survivorRevealMode     String?   @default("dramatic_sequential")
-  survivorChallengeMode  String?   @default("auto")
-  survivorDailyMessages  Boolean?  @default(false)
-  survivorWeeklyMessages Boolean?  @default(true)
-  survivorChatPermissions String?  @default("strict")
-  survivorRebalanceTrigger Int?    @default(3)
+  survivorMode                Boolean? @default(false)
+  survivorPhase               String?  @default("pre_draft")
+  survivorPlayerCount         Int?     @default(20)
+  survivorTribeCount          Int?     @default(4)
+  survivorTribeSize           Int?     @default(5)
+  survivorTribeNaming         String?  @default("auto")
+  survivorMergeWeek           Int?     @default(7)
+  survivorMergeTrigger        String?  @default("week")
+  survivorMergeAtCount        Int?     @default(10)
+  survivorJuryStart           String?  @default("post_merge_vote_1")
+  survivorFinal3              Boolean? @default(true)
+  survivorSwapWeek            Int?
+  survivorSwapTrigger         String?  @default("manual")
+  survivorIdolsEnabled        Boolean? @default(true)
+  survivorIdolCount           Int?     @default(9)
+  survivorIdolsTradable       Boolean? @default(false)
+  survivorIdolsExpireAtMerge  Boolean? @default(true)
+  survivorIdolConvertRule     String?  @default("faab")
+  survivorExileEnabled        Boolean? @default(true)
+  survivorTokenEnabled        Boolean? @default(true)
+  survivorBossResetEnabled    Boolean? @default(true)
+  survivorExileReturnWeek     Int?
+  survivorExileReturnTrigger  String?  @default("manual")
+  survivorSelfVoteAllowed     Boolean? @default(false)
+  survivorTieRule             String?  @default("revote_then_rocks")
+  survivorRocksEnabled        Boolean? @default(true)
+  survivorRevealMode          String?  @default("dramatic_sequential")
+  survivorChallengeMode       String?  @default("auto")
+  survivorDailyMessages       Boolean? @default(false)
+  survivorWeeklyMessages      Boolean? @default(true)
+  survivorChatPermissions     String?  @default("strict")
+  survivorRebalanceTrigger    Int?     @default(3)
   /// Optional cap on exile token balance (null = no cap).
-  survivorTokenCap         Int?
+  survivorTokenCap            Int?
   /// When true, failed exile_sacrifice_bet removes wagered tokens.
   survivorExileHarshTokenLoss Boolean? @default(false)
 
@@ -4147,13 +4147,13 @@ model League {
   survivorTwistEvents  SurvivorTwistEvent[]
   survivorAuditEntries SurvivorAuditEntry[]
 
-  survivorGameState            SurvivorGameState?
-  survivorPhaseTransitions     SurvivorPhaseTransition[]
-  survivorNotifications        SurvivorNotification[]
-  survivorChatMessages         SurvivorChatMessage[]
-  survivorCommissionerActions  SurvivorCommissionerAction[]
-  survivorSeasonSnapshot       SurvivorSeasonSnapshot?
-  survivorWeeklyScores         SurvivorWeeklyScore[]
+  survivorGameState           SurvivorGameState?
+  survivorPhaseTransitions    SurvivorPhaseTransition[]
+  survivorNotifications       SurvivorNotification[]
+  survivorChatMessages        SurvivorChatMessage[]
+  survivorCommissionerActions SurvivorCommissionerAction[]
+  survivorSeasonSnapshot      SurvivorSeasonSnapshot?
+  survivorWeeklyScores        SurvivorWeeklyScore[]
 
   rosters                     Roster[]
   teams                       LeagueTeam[]
@@ -4177,7 +4177,9 @@ model League {
   devyDraftHistories          DevyDraftHistory[]
   devyBestBallLineupSnapshots DevyBestBallLineupSnapshot[]
   c2cConfig                   C2CLeagueConfig?
+  c2cLeague                   C2CLeague?
   c2cScoringLogs              C2CScoringLog[]
+  c2cTransitionRecords        C2CTransitionRecord[]
   storylines                  LeagueStoryline[]
   matchupPreviews             LeagueMatchupPreview[]
   draftRecaps                 DraftRecap[]
@@ -4477,7 +4479,7 @@ model LegacyTournament {
   championUserId String?   @db.VarChar(64)
   lockedAt       DateTime?
 
-  creator       AppUser                       @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  creator       AppUser                        @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   conferences   LegacyTournamentConference[]
   leagues       LegacyTournamentLeague[]
   rounds        LegacyTournamentRound[]
@@ -4520,9 +4522,9 @@ model LegacyTournamentLeague {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  tournament LegacyTournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   conference LegacyTournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
-  league     League                        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league     League                     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([conferenceId])
@@ -4607,7 +4609,7 @@ model LegacyTournamentParticipant {
   createdAt                     DateTime @default(now())
   updatedAt                     DateTime @updatedAt
 
-  tournament LegacyTournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   conference LegacyTournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, userId])
@@ -4620,13 +4622,13 @@ model LegacyTournamentParticipant {
 // ========== Tournament Shell — multi-round connected league ecosystem ==========
 
 model TournamentShell {
-  id                      String   @id @default(cuid())
-  name                    String
-  sport                   String
+  id    String @id @default(cuid())
+  name  String
+  sport String
 
-  status                  String   @default("setup")
-  maxParticipants         Int      @default(120)
-  currentParticipantCount Int      @default(0)
+  status                  String @default("setup")
+  maxParticipants         Int    @default(120)
+  currentParticipantCount Int    @default(0)
 
   conferenceCount      Int @default(2)
   leaguesPerConference Int @default(6)
@@ -4671,14 +4673,14 @@ model TournamentShell {
   commissioner AppUser @relation("TournamentShellCommissioner", fields: [commissionerId], references: [id], onDelete: Cascade)
   creator      AppUser @relation("TournamentShellCreator", fields: [createdBy], references: [id], onDelete: Cascade)
 
-  conferences        TournamentConference[]
-  tournamentLeagues  TournamentLeague[]
-  rounds             TournamentRound[]
-  participants       TournamentParticipant[]
-  advancementGroups  TournamentAdvancementGroup[]
-  nameRecords   TournamentNameRecord[]
-  announcements TournamentAnnouncement[]
-  auditLogs     TournamentAuditLog[]
+  conferences       TournamentConference[]
+  tournamentLeagues TournamentLeague[]
+  rounds            TournamentRound[]
+  participants      TournamentParticipant[]
+  advancementGroups TournamentAdvancementGroup[]
+  nameRecords       TournamentNameRecord[]
+  announcements     TournamentAnnouncement[]
+  auditLogs         TournamentAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4693,15 +4695,15 @@ model TournamentConference {
   tournamentId String
   tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
-  name               String
-  slug               String
-  theme              String?
-  colorHex           String?
-  logoUrl            String?
-  bannerUrl          String?
-  conferenceNumber   Int
-  isActive           Boolean @default(true)
-  standingsCache     Json?
+  name             String
+  slug             String
+  theme            String?
+  colorHex         String?
+  logoUrl          String?
+  bannerUrl        String?
+  conferenceNumber Int
+  isActive         Boolean @default(true)
+  standingsCache   Json?
 
   leagues           TournamentLeague[]
   advancementGroups TournamentAdvancementGroup[]
@@ -4724,13 +4726,13 @@ model TournamentRound {
   roundLabel  String
   weekStart   Int
   weekEnd     Int
-  status      String  @default("pending")
+  status      String @default("pending")
 
-  leagueNamingTheme       String?
-  rosterSizeOverride      Int?
-  irEnabledOverride       Boolean?
-  tradeEnabledOverride    Boolean?
-  waiversEnabledOverride  Boolean?
+  leagueNamingTheme      String?
+  rosterSizeOverride     Int?
+  irEnabledOverride      Boolean?
+  tradeEnabledOverride   Boolean?
+  waiversEnabledOverride Boolean?
 
   draftScheduledAt DateTime?
   roundStartedAt   DateTime?
@@ -4772,7 +4774,7 @@ model TournamentLeague {
   draftCompletedAt DateTime?
   draftSessionId   String?
 
-  advancersCount     Int     @default(1)
+  advancersCount     Int                         @default(1)
   advancementGroupId String?
   advancementGroup   TournamentAdvancementGroup? @relation("ShellAdvancementGroupLeagues", fields: [advancementGroupId], references: [id], onDelete: SetNull)
 
@@ -4829,7 +4831,7 @@ model TournamentParticipant {
 }
 
 model TournamentLeagueParticipant {
-  id                 String @id @default(cuid())
+  id                 String           @id @default(cuid())
   tournamentLeagueId String
   league             TournamentLeague @relation(fields: [tournamentLeagueId], references: [id], onDelete: Cascade)
 
@@ -4837,15 +4839,15 @@ model TournamentLeagueParticipant {
   participant   TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   userId        String
 
-  wins          Int    @default(0)
-  losses        Int    @default(0)
-  ties          Int    @default(0)
-  pointsFor     Float  @default(0)
-  pointsAgainst Float  @default(0)
+  wins          Int     @default(0)
+  losses        Int     @default(0)
+  ties          Int     @default(0)
+  pointsFor     Float   @default(0)
+  pointsAgainst Float   @default(0)
   streak        String?
 
   leagueRank        Int?
-  conferenceRank  Int?
+  conferenceRank    Int?
   advancementStatus String @default("competing")
 
   redraftRosterId String?
@@ -5506,24 +5508,24 @@ model SurvivorLeagueConfig {
 
 /// Tribe within a Survivor league.
 model SurvivorTribe {
-  id        String               @id @default(uuid())
-  leagueId  String               @db.VarChar(64)
-  configId  String
-  config    SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-  name      String               @db.VarChar(128)
-  slotIndex Int                  @default(0) // 0-based order
-  logoUrl   String?
-  colorHex  String?
-  isActive  Boolean              @default(true)
-  isMerged  Boolean              @default(false)
-  phase     String               @default("pre_merge") @db.VarChar(24)
+  id            String               @id @default(uuid())
+  leagueId      String               @db.VarChar(64)
+  configId      String
+  config        SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  name          String               @db.VarChar(128)
+  slotIndex     Int                  @default(0) // 0-based order
+  logoUrl       String?
+  colorHex      String?
+  isActive      Boolean              @default(true)
+  isMerged      Boolean              @default(false)
+  phase         String               @default("pre_merge") @db.VarChar(24)
   chatChannelId String?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 
-  members     SurvivorTribeMember[]
-  chatMembers SurvivorTribeChatMember[]
-  councils    SurvivorTribalCouncil[] // councils this tribe attended (pre-merge)
+  members         SurvivorTribeMember[]
+  chatMembers     SurvivorTribeChatMember[]
+  councils        SurvivorTribalCouncil[] // councils this tribe attended (pre-merge)
   survivorPlayers SurvivorPlayer[]
 
   @@unique([configId, slotIndex])
@@ -5548,36 +5550,36 @@ model SurvivorTribeMember {
 
 /// Hidden idol: player-bound, one-time use. Ownership = current controlling rosterId.
 model SurvivorIdol {
-  id              String               @id @default(uuid())
-  leagueId        String               @db.VarChar(64)
-  configId        String
-  config          SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-  rosterId        String               @db.VarChar(64) // current owner (controls idol)
-  playerId        String               @db.VarChar(64) // bound to this player (for transfer on trade/claim/steal)
-  powerType       String               @db.VarChar(64)
-  powerCategory   String?              @db.VarChar(64)
-  powerLabel      String?              @db.VarChar(160)
-  powerDesc       String?              @db.Text
-  currentOwnerUserId  String?          @db.VarChar(64)
-  originalOwnerUserId String?          @db.VarChar(64)
-  isSecret        Boolean              @default(true)
-  isPubliclyKnown Boolean              @default(false)
-  isTradable      Boolean              @default(false)
-  transferHistory Json?
-  playWindowRule  String               @default("before_reveal") @db.VarChar(32)
-  rarity          String               @default("common") @db.VarChar(24)
-  expiresAtMerge  Boolean              @default(true)
-  expiresAtWeek   Int?
-  usedAtCouncilId String?              @db.VarChar(64)
-  isUsed          Boolean              @default(false)
-  status          String               @default("hidden") @db.VarChar(24) // hidden | revealed | used | expired
-  assignedAt      DateTime             @default(now())
-  usedAt          DateTime?
-  expiredAt       DateTime?
-  validUntilPhase String?              @db.VarChar(32) // e.g. merge = invalid after merge
-  auditLog        Json?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id                  String               @id @default(uuid())
+  leagueId            String               @db.VarChar(64)
+  configId            String
+  config              SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  rosterId            String               @db.VarChar(64) // current owner (controls idol)
+  playerId            String               @db.VarChar(64) // bound to this player (for transfer on trade/claim/steal)
+  powerType           String               @db.VarChar(64)
+  powerCategory       String?              @db.VarChar(64)
+  powerLabel          String?              @db.VarChar(160)
+  powerDesc           String?              @db.Text
+  currentOwnerUserId  String?              @db.VarChar(64)
+  originalOwnerUserId String?              @db.VarChar(64)
+  isSecret            Boolean              @default(true)
+  isPubliclyKnown     Boolean              @default(false)
+  isTradable          Boolean              @default(false)
+  transferHistory     Json?
+  playWindowRule      String               @default("before_reveal") @db.VarChar(32)
+  rarity              String               @default("common") @db.VarChar(24)
+  expiresAtMerge      Boolean              @default(true)
+  expiresAtWeek       Int?
+  usedAtCouncilId     String?              @db.VarChar(64)
+  isUsed              Boolean              @default(false)
+  status              String               @default("hidden") @db.VarChar(24) // hidden | revealed | used | expired
+  assignedAt          DateTime             @default(now())
+  usedAt              DateTime?
+  expiredAt           DateTime?
+  validUntilPhase     String?              @db.VarChar(32) // e.g. merge = invalid after merge
+  auditLog            Json?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
   ledgerEntries SurvivorIdolLedgerEntry[]
 
@@ -5730,36 +5732,36 @@ model SurvivorAuditLog {
 
 /// Mini-game / challenge definition per week.
 model SurvivorChallenge {
-  id            String               @id @default(uuid())
-  leagueId      String               @db.VarChar(64)
-  configId      String
-  config        SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
-  week          Int
-  challengeNumber Int                @default(1)
-  challengeType String               @db.VarChar(64) // score_prediction | over_under | player_prop | tribe_vs | immunity_auction | puzzle | trivia
-  type          String?              @db.VarChar(64)
-  title         String               @default("") @db.VarChar(256)
-  description   String               @default("") @db.Text
-  instructions  String               @default("") @db.Text
-  scope         String               @default("tribe") @db.VarChar(24)
-  submissionMode String              @default("tribe_chat") @db.VarChar(32)
-  configJson    Json? // type-specific params (line, options, reward type)
-  lockAt        DateTime?
-  locksAt       DateTime?
-  closesAt      DateTime?
-  status        String               @default("open") @db.VarChar(24)
-  rewardType    String?              @db.VarChar(64)
-  rewardAmount  Float?
-  rewardDetails Json?
-  penaltyType   String?              @db.VarChar(64)
-  penaltyDetails Json?
-  winnerUserIds String[]             @default([])
-  winnerTribeId String?              @db.VarChar(64)
-  resultSummary String?              @db.Text
-  auditLog      Json?
-  resultJson    Json? // resolved outcome and rewards
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id              String               @id @default(uuid())
+  leagueId        String               @db.VarChar(64)
+  configId        String
+  config          SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  week            Int
+  challengeNumber Int                  @default(1)
+  challengeType   String               @db.VarChar(64) // score_prediction | over_under | player_prop | tribe_vs | immunity_auction | puzzle | trivia
+  type            String?              @db.VarChar(64)
+  title           String               @default("") @db.VarChar(256)
+  description     String               @default("") @db.Text
+  instructions    String               @default("") @db.Text
+  scope           String               @default("tribe") @db.VarChar(24)
+  submissionMode  String               @default("tribe_chat") @db.VarChar(32)
+  configJson      Json? // type-specific params (line, options, reward type)
+  lockAt          DateTime?
+  locksAt         DateTime?
+  closesAt        DateTime?
+  status          String               @default("open") @db.VarChar(24)
+  rewardType      String?              @db.VarChar(64)
+  rewardAmount    Float?
+  rewardDetails   Json?
+  penaltyType     String?              @db.VarChar(64)
+  penaltyDetails  Json?
+  winnerUserIds   String[]             @default([])
+  winnerTribeId   String?              @db.VarChar(64)
+  resultSummary   String?              @db.Text
+  auditLog        Json?
+  resultJson      Json? // resolved outcome and rewards
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   submissions SurvivorChallengeSubmission[]
 
@@ -5770,18 +5772,18 @@ model SurvivorChallenge {
 
 /// One submission per roster (or tribe) per challenge.
 model SurvivorChallengeSubmission {
-  id          String            @id @default(cuid())
-  challengeId String
-  challenge   SurvivorChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
-  leagueId    String?           @db.VarChar(64)
-  userId      String?           @db.VarChar(64)
-  rosterId    String?           @db.VarChar(64)
-  tribeId     String?           @db.VarChar(64)
-  submission  Json // type-specific (e.g. over/under choice, predicted score)
-  isCorrect   Boolean?
+  id           String            @id @default(cuid())
+  challengeId  String
+  challenge    SurvivorChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  leagueId     String?           @db.VarChar(64)
+  userId       String?           @db.VarChar(64)
+  rosterId     String?           @db.VarChar(64)
+  tribeId      String?           @db.VarChar(64)
+  submission   Json // type-specific (e.g. over/under choice, predicted score)
+  isCorrect    Boolean?
   pointsEarned Float?
-  isLocked    Boolean           @default(false)
-  submittedAt DateTime          @default(now())
+  isLocked     Boolean           @default(false)
+  submittedAt  DateTime          @default(now())
 
   @@unique([challengeId, rosterId], name: "uniq_challenge_roster")
   @@unique([challengeId, tribeId], name: "uniq_challenge_tribe")
@@ -5809,44 +5811,44 @@ model SurvivorTribeChatMember {
 
 /// Per-user Survivor game state (parallel to roster-based tribe membership).
 model SurvivorPlayer {
-  id              String        @id @default(cuid())
-  leagueId        String
-  league          League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId          String
-  displayName     String
-  avatarUrl       String?
+  id          String  @id @default(cuid())
+  leagueId    String
+  league      League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId      String
+  displayName String
+  avatarUrl   String?
 
-  tribeId         String?
-  tribe           SurvivorTribe? @relation(fields: [tribeId], references: [id], onDelete: SetNull)
+  tribeId String?
+  tribe   SurvivorTribe? @relation(fields: [tribeId], references: [id], onDelete: SetNull)
 
-  playerState     String        @default("active")
-  eliminatedWeek  Int?
+  playerState      String @default("active")
+  eliminatedWeek   Int?
   eliminationRound Int?
 
-  idolIds         String[]      @default([])
+  idolIds String[] @default([])
 
-  tokenBalance    Int           @default(0)
-  totalTokensEarned Int         @default(0)
+  tokenBalance      Int @default(0)
+  totalTokensEarned Int @default(0)
 
-  hasImmunityThisWeek Boolean   @default(false)
-  immunitySource  String?
+  hasImmunityThisWeek Boolean @default(false)
+  immunitySource      String?
 
-  exileReturnEligible Boolean   @default(false)
-  exileWeeksServed Int          @default(0)
+  exileReturnEligible Boolean @default(false)
+  exileWeeksServed    Int     @default(0)
 
   redraftRosterId String?
 
-  canAccessTribeChat Boolean    @default(true)
-  canAccessMergeChat Boolean    @default(false)
-  canAccessExileChat Boolean    @default(false)
-  canAccessJuryChat  Boolean    @default(false)
-  canAccessFinaleChat Boolean   @default(false)
+  canAccessTribeChat  Boolean @default(true)
+  canAccessMergeChat  Boolean @default(false)
+  canAccessExileChat  Boolean @default(false)
+  canAccessJuryChat   Boolean @default(false)
+  canAccessFinaleChat Boolean @default(false)
 
-  isJuryMember    Boolean       @default(false)
-  isFinalist      Boolean       @default(false)
+  isJuryMember Boolean @default(false)
+  isFinalist   Boolean @default(false)
 
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([leagueId, userId])
   @@index([leagueId, playerState])
@@ -5856,9 +5858,9 @@ model SurvivorPlayer {
 
 /// Finale jury voting session (1:1 with league).
 model JurySession {
-  id              String   @id @default(cuid())
-  leagueId        String   @unique
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   status          String   @default("pending")
   finalistUserIds String[] @default([])
@@ -5867,24 +5869,24 @@ model JurySession {
   questionsDeadline DateTime?
   votingDeadline    DateTime?
 
-  votes           JuryVote[]
-  winnerId        String?
-  winnerName      String?
-  revealedAt      DateTime?
+  votes      JuryVote[]
+  winnerId   String?
+  winnerName String?
+  revealedAt DateTime?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@map("survivor_jury_sessions")
 }
 
 model JuryVote {
-  id              String      @id @default(cuid())
-  sessionId       String
-  session         JurySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  jurorUserId     String
-  finalistUserId  String
-  submittedAt     DateTime    @default(now())
-  isLate          Boolean     @default(false)
+  id             String      @id @default(cuid())
+  sessionId      String
+  session        JurySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  jurorUserId    String
+  finalistUserId String
+  submittedAt    DateTime    @default(now())
+  isLate         Boolean     @default(false)
 
   @@unique([sessionId, jurorUserId])
   @@index([sessionId])
@@ -5892,36 +5894,36 @@ model JuryVote {
 }
 
 model SurvivorHostMessage {
-  id              String   @id @default(cuid())
-  leagueId        String
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  channelType     String
-  tribeId         String?
-  targetUserId    String?
-  messageType     String
-  content         String   @db.Text
-  isPosted        Boolean  @default(false)
-  postedAt        DateTime?
-  requiresApproval Boolean @default(false)
-  createdAt       DateTime @default(now())
+  id               String    @id @default(cuid())
+  leagueId         String
+  league           League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  channelType      String
+  tribeId          String?
+  targetUserId     String?
+  messageType      String
+  content          String    @db.Text
+  isPosted         Boolean   @default(false)
+  postedAt         DateTime?
+  requiresApproval Boolean   @default(false)
+  createdAt        DateTime  @default(now())
 
   @@index([leagueId, channelType])
   @@map("survivor_host_messages")
 }
 
 model SurvivorChatChannel {
-  id              String   @id @default(cuid())
+  id              String                @id @default(cuid())
   leagueId        String
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league          League                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   name            String
   channelType     String
   tribeId         String?
-  memberUserIds   String[] @default([])
-  readOnlyUserIds String[] @default([])
-  isArchived      Boolean   @default(false)
+  memberUserIds   String[]              @default([])
+  readOnlyUserIds String[]              @default([])
+  isArchived      Boolean               @default(false)
   archivedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   messages        SurvivorChatMessage[] @relation("SurvivorChatChannelMessages")
 
   @@index([leagueId, channelType])
@@ -5929,34 +5931,34 @@ model SurvivorChatChannel {
 }
 
 model SurvivorTribeSwap {
-  id              String   @id @default(cuid())
-  leagueId        String
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  week            Int
-  swapType        String   @default("random_shuffle")
-  beforeSnapshot  Json
-  afterSnapshot   Json
-  newTribes       Json?
-  originalTribesRetained Boolean @default(true)
-  executedAt      DateTime @default(now())
+  id                     String   @id @default(cuid())
+  leagueId               String
+  league                 League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  week                   Int
+  swapType               String   @default("random_shuffle")
+  beforeSnapshot         Json
+  afterSnapshot          Json
+  newTribes              Json?
+  originalTribesRetained Boolean  @default(true)
+  executedAt             DateTime @default(now())
 
   @@index([leagueId])
   @@map("survivor_tribe_swaps")
 }
 
 model TokenPoolPick {
-  id              String   @id @default(cuid())
-  leagueId        String
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId          String
-  week            Int
-  sport           String
-  pickType        String
-  pick            Json
-  isCorrect       Boolean?
-  tokensEarned    Int      @default(0)
-  tokensLost      Int      @default(0)
-  submittedAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  leagueId     String
+  league       League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId       String
+  week         Int
+  sport        String
+  pickType     String
+  pick         Json
+  isCorrect    Boolean?
+  tokensEarned Int      @default(0)
+  tokensLost   Int      @default(0)
+  submittedAt  DateTime @default(now())
 
   @@index([leagueId, userId, week])
   @@map("survivor_token_pool_picks")
@@ -5964,19 +5966,19 @@ model TokenPoolPick {
 
 /// Exile parallel game — one row per Survivor-enabled league.
 model ExileIsland {
-  id              String   @id @default(cuid())
-  leagueId        String   @unique
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  isActive        Boolean  @default(false)
-  currentWeek     Int      @default(0)
-  bossName        String?  @default("The Exile Boss")
-  bossRosterId    String?
-  bossWinsEnabled Boolean  @default(true)
-  bossTokenResetOnWin Boolean @default(true)
-  chatChannelId   String?
-  createdAt       DateTime @default(now())
+  id                  String   @id @default(cuid())
+  leagueId            String   @unique
+  league              League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  isActive            Boolean  @default(false)
+  currentWeek         Int      @default(0)
+  bossName            String?  @default("The Exile Boss")
+  bossRosterId        String?
+  bossWinsEnabled     Boolean  @default(true)
+  bossTokenResetOnWin Boolean  @default(true)
+  chatChannelId       String?
+  createdAt           DateTime @default(now())
 
-  exilePlayers    ExileWeeklyEntry[]
+  exilePlayers ExileWeeklyEntry[]
 
   @@index([leagueId])
   @@map("survivor_exile_islands")
@@ -6113,22 +6115,22 @@ model SurvivorTwistEvent {
 
 /// Universal Survivor audit trail (distinct from legacy SurvivorAuditLog).
 model SurvivorAuditEntry {
-  id                       String   @id @default(cuid())
-  leagueId                 String
-  league                   League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  week                     Int?
-  category                 String
-  action                   String
-  actorUserId              String?
-  targetUserId             String?
-  targetTribeId            String?
-  relatedEntityId          String?
-  relatedEntityType        String?
-  data                     Json
-  isVisibleToCommissioner  Boolean  @default(true)
-  isVisibleToPublic        Boolean  @default(false)
-  isRevealablePostSeason   Boolean  @default(true)
-  createdAt                DateTime @default(now())
+  id                      String   @id @default(cuid())
+  leagueId                String
+  league                  League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  week                    Int?
+  category                String
+  action                  String
+  actorUserId             String?
+  targetUserId            String?
+  targetTribeId           String?
+  relatedEntityId         String?
+  relatedEntityType       String?
+  data                    Json
+  isVisibleToCommissioner Boolean  @default(true)
+  isVisibleToPublic       Boolean  @default(false)
+  isRevealablePostSeason  Boolean  @default(true)
+  createdAt               DateTime @default(now())
 
   @@index([leagueId, category])
   @@index([leagueId, week])
@@ -6167,16 +6169,16 @@ model SurvivorGameState {
   immuneTribeId       String?
   immunePlayerId      String?
   needsChallengeLock  Boolean   @default(false)
-  needsWaiverProcess    Boolean   @default(false)
-  needsExileScore       Boolean   @default(false)
-  needsTribalLock       Boolean   @default(false)
-  needsPhaseAdvance     Boolean   @default(false)
-  needsWeeklyRecap      Boolean   @default(false)
-  needsPowerRankings    Boolean   @default(false)
-  lastAutomationRun     DateTime?
-  lastError               String? @db.Text
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  needsWaiverProcess  Boolean   @default(false)
+  needsExileScore     Boolean   @default(false)
+  needsTribalLock     Boolean   @default(false)
+  needsPhaseAdvance   Boolean   @default(false)
+  needsWeeklyRecap    Boolean   @default(false)
+  needsPowerRankings  Boolean   @default(false)
+  lastAutomationRun   DateTime?
+  lastError           String?   @db.Text
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([phase])
   @@map("survivor_game_states")
@@ -6199,22 +6201,22 @@ model SurvivorPhaseTransition {
 }
 
 model SurvivorNotification {
-  id                String    @id @default(cuid())
-  leagueId          String    @db.VarChar(64)
-  league            League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  recipientUserId   String?
-  recipientRole     String?
-  type              String
-  title             String
-  body              String    @db.Text
-  deepLinkPath      String?
-  isSpoilerSafe     Boolean   @default(true)
-  urgency           String    @default("medium")
-  status            String    @default("pending")
-  scheduledFor      DateTime?
-  sentAt            DateTime?
-  errorMessage      String?   @db.Text
-  createdAt         DateTime  @default(now())
+  id              String    @id @default(cuid())
+  leagueId        String    @db.VarChar(64)
+  league          League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  recipientUserId String?
+  recipientRole   String?
+  type            String
+  title           String
+  body            String    @db.Text
+  deepLinkPath    String?
+  isSpoilerSafe   Boolean   @default(true)
+  urgency         String    @default("medium")
+  status          String    @default("pending")
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  errorMessage    String?   @db.Text
+  createdAt       DateTime  @default(now())
 
   @@index([leagueId, status])
   @@index([recipientUserId, status])
@@ -6222,28 +6224,28 @@ model SurvivorNotification {
 }
 
 model SurvivorChatMessage {
-  id              String   @id @default(cuid())
-  leagueId        String   @db.VarChar(64)
-  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id              String                 @id @default(cuid())
+  leagueId        String                 @db.VarChar(64)
+  league          League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   channelId       String
-  channel         SurvivorChatChannel @relation("SurvivorChatChannelMessages", fields: [channelId], references: [id], onDelete: Cascade)
+  channel         SurvivorChatChannel    @relation("SurvivorChatChannelMessages", fields: [channelId], references: [id], onDelete: Cascade)
   channelType     String
   senderUserId    String
   senderName      String
-  senderIsHost    Boolean  @default(false)
-  isSystemMessage Boolean  @default(false)
-  content         String   @db.Text
-  contentType     String   @default("text")
+  senderIsHost    Boolean                @default(false)
+  isSystemMessage Boolean                @default(false)
+  content         String                 @db.Text
+  contentType     String                 @default("text")
   cardData        Json?
-  isPinned        Boolean  @default(false)
+  isPinned        Boolean                @default(false)
   pinnedAt        DateTime?
   pinnedBy        String?
-  isDeleted       Boolean  @default(false)
+  isDeleted       Boolean                @default(false)
   deletedAt       DateTime?
   deletedBy       String?
   editedAt        DateTime?
   reactions       SurvivorChatReaction[]
-  createdAt       DateTime @default(now())
+  createdAt       DateTime               @default(now())
 
   @@index([channelId, createdAt])
   @@index([leagueId, channelType])
@@ -6283,52 +6285,52 @@ model SurvivorCommissionerAction {
 }
 
 model SurvivorSeasonSnapshot {
-  id                   String   @id @default(cuid())
-  leagueId             String     @unique @db.VarChar(64)
-  league               League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  season               Int
-  solesurvivor         Json
-  finalStandings       Json
-  totalWeeks           Int
-  totalTribes          Int
-  totalTribalCouncils  Int
-  totalIdolsPlayed     Int
-  totalTokensEarned    Int
-  totalChallenges      Int
-  hadTie               Boolean
-  hadRocks             Boolean
-  firstElimination     Json
-  mergeWeek            Int
-  exileReturnees       Json
-  juryStartWeek        Int
-  winnerVoteCount      Int
-  winnerId             String
-  episodeSummaries     Json
-  aiSeasonRecap        String?  @db.Text
-  aiChampionArc        String?  @db.Text
-  createdAt            DateTime @default(now())
+  id                  String   @id @default(cuid())
+  leagueId            String   @unique @db.VarChar(64)
+  league              League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season              Int
+  solesurvivor        Json
+  finalStandings      Json
+  totalWeeks          Int
+  totalTribes         Int
+  totalTribalCouncils Int
+  totalIdolsPlayed    Int
+  totalTokensEarned   Int
+  totalChallenges     Int
+  hadTie              Boolean
+  hadRocks            Boolean
+  firstElimination    Json
+  mergeWeek           Int
+  exileReturnees      Json
+  juryStartWeek       Int
+  winnerVoteCount     Int
+  winnerId            String
+  episodeSummaries    Json
+  aiSeasonRecap       String?  @db.Text
+  aiChampionArc       String?  @db.Text
+  createdAt           DateTime @default(now())
 
   @@index([leagueId])
   @@map("survivor_season_snapshots")
 }
 
 model SurvivorWeeklyScore {
-  id                      String   @id @default(cuid())
-  leagueId                String   @db.VarChar(64)
-  league                  League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id                      String    @id @default(cuid())
+  leagueId                String    @db.VarChar(64)
+  league                  League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   userId                  String
   week                    Int
-  fantasyScore            Float    @default(0)
-  pointBoostApplied       Float    @default(0)
-  pointPenaltyApplied     Float    @default(0)
-  finalScore              Float    @default(0)
+  fantasyScore            Float     @default(0)
+  pointBoostApplied       Float     @default(0)
+  pointPenaltyApplied     Float     @default(0)
+  finalScore              Float     @default(0)
   tribeId                 String?
-  countedTowardTribeTotal Boolean  @default(true)
-  wonTribeImmunity        Boolean  @default(false)
-  wonIndividualImmunity   Boolean  @default(false)
-  isFinalized             Boolean  @default(false)
+  countedTowardTribeTotal Boolean   @default(true)
+  wonTribeImmunity        Boolean   @default(false)
+  wonIndividualImmunity   Boolean   @default(false)
+  isFinalized             Boolean   @default(false)
   finalizedAt             DateTime?
-  correctionApplied       Boolean  @default(false)
+  correctionApplied       Boolean   @default(false)
 
   @@unique([leagueId, userId, week])
   @@index([leagueId, week])
@@ -6568,11 +6570,11 @@ model ZombieUniverseLevel {
   logoUrl    String?
 
   defaultBuyIn       Float?
-  ambushCountDefault Int     @default(3)
+  ambushCountDefault Int      @default(3)
   difficultyLabel    String?
-  maxLeagues         Int     @default(4)
-  teamsPerLeague     Int     @default(20)
-  leagueCount        Int     @default(1)
+  maxLeagues         Int      @default(4)
+  teamsPerLeague     Int      @default(20)
+  leagueCount        Int      @default(1)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -6585,19 +6587,19 @@ model ZombieUniverseLevel {
 
 /// Links a fantasy `League` to optional universe/tier and horde metadata.
 model ZombieLeague {
-  id         String              @id @default(uuid())
+  id         String               @id @default(uuid())
   universeId String?
   universe   ZombieUniverse?      @relation(fields: [universeId], references: [id], onDelete: Cascade)
   levelId    String?
   level      ZombieUniverseLevel? @relation(fields: [levelId], references: [id], onDelete: Cascade)
-  leagueId   String              @unique @db.VarChar(64)
-  league     League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  leagueId   String               @unique @db.VarChar(64)
+  league     League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
-  name   String? @db.VarChar(128)
-  slug   String  @default("") @db.VarChar(160)
-  logoUrl   String?
-  bannerUrl String?
-  colorHex  String?
+  name       String? @db.VarChar(128)
+  slug       String  @default("") @db.VarChar(160)
+  logoUrl    String?
+  bannerUrl  String?
+  colorHex   String?
   themeLabel String?
 
   sport          String  @default("NFL") @db.VarChar(12)
@@ -6615,8 +6617,8 @@ model ZombieLeague {
 
   draftScheduledAt DateTime?
   seasonStartWeek  Int?
-  currentWeek      Int @default(0)
-  totalWeeks       Int @default(17)
+  currentWeek      Int       @default(0)
+  totalWeeks       Int       @default(17)
 
   buyInAmount         Float?
   commissionerFee     Float?  @default(0)
@@ -6716,7 +6718,7 @@ model ZombieInfectionEvent {
   victimPriorStatus String
 
   victimNewStatus     String
-  winningsTransferred Float    @default(0)
+  winningsTransferred Float  @default(0)
   itemsTransferred    Json?
 
   infectorScore   Float
@@ -6744,7 +6746,7 @@ model ZombieWeeklyResolution {
 
   matchupResults Json
 
-  newZombies    String[]
+  newZombies     String[]
   infectionCount Int      @default(0)
   hordeSize      Int      @default(0)
   survivorCount  Int      @default(0)
@@ -6768,22 +6770,22 @@ model ZombieWeeklyResolution {
 }
 
 model ZombieItemTemplate {
-  id                String  @id @default(cuid())
-  itemType          String  @unique
-  category          String
-  label             String
-  description       String
-  useWindow         String
-  phaseValidity     String  @default("both")
-  targetType        String
-  isConsumable      Boolean @default(true)
-  rarity            String  @default("common")
-  survivorCanHold   Boolean @default(true)
-  zombieCanHold     Boolean @default(true)
-  whispererCanHold  Boolean @default(true)
+  id                   String   @id @default(cuid())
+  itemType             String   @unique
+  category             String
+  label                String
+  description          String
+  useWindow            String
+  phaseValidity        String   @default("both")
+  targetType           String
+  isConsumable         Boolean  @default(true)
+  rarity               String   @default("common")
+  survivorCanHold      Boolean  @default(true)
+  zombieCanHold        Boolean  @default(true)
+  whispererCanHold     Boolean  @default(true)
   abusePreventionRules String?
   auditRequirements    String?
-  createdAt         DateTime @default(now())
+  createdAt            DateTime @default(now())
 
   @@map("zombie_item_templates")
 }
@@ -6812,8 +6814,8 @@ model ZombieUniverseStat {
   careerZombieWeeks      Int   @default(0)
   careerWhispererSeasons Int   @default(0)
 
-  currentSeasonPPW    Float @default(0)
-  currentSeasonWinPct Float @default(0)
+  currentSeasonPPW    Float   @default(0)
+  currentSeasonWinPct Float   @default(0)
   weekKilled          Int?
   killedByUserId      String?
 
@@ -6910,10 +6912,10 @@ model ZombiePaidConfig {
   commissionerFeeRate Float  @default(0)
   commissionerFeeCap  Float?
 
-  totalPot         Float @default(0)
-  weeklyPayoutPool Float @default(0)
-  weeklyPayoutRate Float @default(0.3)
-  seasonPayoutRate Float @default(0.6)
+  totalPot          Float @default(0)
+  weeklyPayoutPool  Float @default(0)
+  weeklyPayoutRate  Float @default(0.3)
+  seasonPayoutRate  Float @default(0.6)
   survivorBonusRate Float @default(0.1)
 
   ultimateSurvivorPot     Float   @default(0)
@@ -6932,16 +6934,16 @@ model ZombiePaidConfig {
 
 /// Per-sport thresholds and copy for Zombie mode (7 sports).
 model ZombieRulesTemplate {
-  id       String @id @default(cuid())
-  sport    String @unique @db.VarChar(12) // NFL | NBA | MLB | NHL | NCAAFB | NCAABB | SOCCER
+  id    String @id @default(cuid())
+  sport String @unique @db.VarChar(12) // NFL | NBA | MLB | NHL | NCAAFB | NCAABB | SOCCER
 
-  rosterSize   Int @default(15)
-  starterCount Int @default(9)
-  benchCount   Int @default(6)
+  rosterSize     Int @default(15)
+  starterCount   Int @default(9)
+  benchCount     Int @default(6)
   irSlotsDefault Int @default(0)
 
-  lineupFrequency String @default("weekly") // weekly | daily | per_match
-  scoringPeriod   String @default("weekly") // weekly | daily | round_based
+  lineupFrequency   String @default("weekly") // weekly | daily | per_match
+  scoringPeriod     String @default("weekly") // weekly | daily | round_based
   scoringWindowDesc String @default("") @db.Text
 
   bashingThreshold      Float @default(30)
@@ -6974,7 +6976,7 @@ model ZombieRulesDocument {
   league   ZombieLeague @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   sport   String
-  version Int    @default(1)
+  version Int     @default(1)
   isPaid  Boolean @default(false)
 
   sectionOverview         String @default("") @db.Text
@@ -7015,10 +7017,10 @@ model ZombieAuditEntry {
   category String
   action   String
 
-  actorUserId   String?
-  actorRole     String?
-  targetUserId  String?
-  targetStatus  String?
+  actorUserId  String?
+  actorRole    String?
+  targetUserId String?
+  targetStatus String?
 
   previousState Json?
   newState      Json?
@@ -7026,11 +7028,11 @@ model ZombieAuditEntry {
   amount      Float?
   description String @db.Text
 
-  isVisibleToCommissioner   Boolean @default(true)
-  isVisibleToAffectedUser     Boolean @default(true)
-  isPublic                    Boolean @default(false)
-  isRevealablePostSeason      Boolean @default(true)
-  cannotBeOverridden          Boolean @default(false)
+  isVisibleToCommissioner Boolean @default(true)
+  isVisibleToAffectedUser Boolean @default(true)
+  isPublic                Boolean @default(false)
+  isRevealablePostSeason  Boolean @default(true)
+  cannotBeOverridden      Boolean @default(false)
 
   createdAt DateTime @default(now())
 
@@ -7047,13 +7049,13 @@ model ZombieFreeRewardConfig {
   zombieLeagueId String       @unique
   league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
 
-  currencyLabel   String @default("Outbreak Points")
-  weeklyWinLabel  String @default("Weekly Horde Haul")
-  seasonWinLabel  String @default("Sole Survivor Award")
+  currencyLabel    String @default("Outbreak Points")
+  weeklyWinLabel   String @default("Weekly Horde Haul")
+  seasonWinLabel   String @default("Sole Survivor Award")
   ultimatePotLabel String @default("Last Alive Bonus")
 
-  badgesEnabled         Boolean @default(true)
-  achievementsEnabled   Boolean @default(true)
+  badgesEnabled       Boolean @default(true)
+  achievementsEnabled Boolean @default(true)
 
   symbolicPotTotal   Float @default(0)
   symbolicWeeklyPool Float @default(0)
@@ -7064,23 +7066,23 @@ model ZombieFreeRewardConfig {
 }
 
 model ZombieAmbushAction {
-  id                 String       @id @default(cuid())
-  zombieLeagueId     String
-  zombieLeague       ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
-  week               Int
-  whispererUserId    String
-  ambushType         String
-  targetUserId       String?
-  targetMatchupId    String?
-  status             String       @default("pending")
-  submittedViaChimmy Boolean      @default(true)
-  chatMessageId      String?
-  validationResult   String?
-  validationNotes    String?
+  id                     String       @id @default(cuid())
+  zombieLeagueId         String
+  zombieLeague           ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  week                   Int
+  whispererUserId        String
+  ambushType             String
+  targetUserId           String?
+  targetMatchupId        String?
+  status                 String       @default("pending")
+  submittedViaChimmy     Boolean      @default(true)
+  chatMessageId          String?
+  validationResult       String?
+  validationNotes        String?
   commissionerNotifiedAt DateTime?
-  executedAt         DateTime?
-  rejectedReason     String?
-  auditLogId         String?
+  executedAt             DateTime?
+  rejectedReason         String?
+  auditLogId             String?
 
   createdAt DateTime @default(now())
 
@@ -7090,9 +7092,9 @@ model ZombieAmbushAction {
 }
 
 model ZombieBashingEvent {
-  id     String @id @default(cuid())
+  id       String @id @default(cuid())
   leagueId String @db.VarChar(64)
-  week  Int
+  week     Int
 
   winnerUserId String
   winnerStatus String
@@ -7111,10 +7113,10 @@ model ZombieBashingEvent {
   decisionMadeAt   DateTime?
   defaultedToRule  Boolean   @default(false)
 
-  winningsTransferred Float    @default(0)
+  winningsTransferred Float   @default(0)
   itemsTransferred    Json?
-  serumAwarded        Boolean  @default(false)
-  animationTriggered  Boolean  @default(false)
+  serumAwarded        Boolean @default(false)
+  animationTriggered  Boolean @default(false)
 
   commissionerNotifiedAt DateTime?
   resolvedAt             DateTime?
@@ -7149,9 +7151,9 @@ model ZombieMaulingEvent {
   newWhispererTriggered Boolean @default(false)
   newWhispererUserId    String?
 
-  animationTriggered       Boolean   @default(false)
+  animationTriggered     Boolean   @default(false)
   commissionerNotifiedAt DateTime?
-  resolvedAt               DateTime?
+  resolvedAt             DateTime?
 
   createdAt DateTime @default(now())
 
@@ -7165,8 +7167,8 @@ model ZombieChimmyAction {
   userId   String
   week     Int
 
-  actionType  String
-  rawMessage  String @db.Text
+  actionType   String
+  rawMessage   String @db.Text
   parsedAction Json?
 
   isValid         Boolean @default(false)
@@ -7179,8 +7181,8 @@ model ZombieChimmyAction {
   commissionerNotifiedAt DateTime?
 
   requiresCommissionerApproval Boolean   @default(false)
-  commissionerApprovedAt        DateTime?
-  commissionerApprovedBy        String?
+  commissionerApprovedAt       DateTime?
+  commissionerApprovedBy       String?
 
   auditEntryId String?
   resolvedAt   DateTime?
@@ -7225,8 +7227,8 @@ model ZombieEventAnimation {
   leagueId String @db.VarChar(64)
   week     Int
 
-  animationType String
-  primaryUserId String
+  animationType   String
+  primaryUserId   String
   secondaryUserId String?
 
   displayLocation String @default("league_chat_and_home")
@@ -7454,8 +7456,8 @@ model IDPCapConfig {
 
   draftSalaryMethod String @default("auction")
 
-  snakeScaleHighSalary Float @default(30.0)
-  snakeScaleLowSalary  Float @default(1.0)
+  snakeScaleHighSalary Float  @default(30.0)
+  snakeScaleLowSalary  Float  @default(1.0)
   snakeScaleCurve      String @default("linear")
 
   auctionDefaultContractYears Int @default(1)
@@ -7471,25 +7473,25 @@ model IDPCapConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  salaryRecords    IDPSalaryRecord[]
-  deadMoney        IDPDeadMoney[]    @relation("CapConfigDeadMoney")
-  capProjections   IDPCapProjection[]
+  salaryRecords  IDPSalaryRecord[]
+  deadMoney      IDPDeadMoney[]     @relation("CapConfigDeadMoney")
+  capProjections IDPCapProjection[]
 
   @@index([leagueId])
   @@map("idp_cap_configs")
 }
 
 model IDPSalaryRecord {
-  id       String @id @default(cuid())
-  leagueId String
+  id        String       @id @default(cuid())
+  leagueId  String
   capConfig IDPCapConfig @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
 
   rosterId String
   roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
-  playerId   String
-  playerName String
-  position   String
+  playerId    String
+  playerName  String
+  position    String
   isDefensive Boolean @default(false)
 
   salary Float
@@ -7522,8 +7524,8 @@ model IDPSalaryRecord {
 }
 
 model IDPDeadMoney {
-  id       String @id @default(cuid())
-  leagueId String
+  id        String       @id @default(cuid())
+  leagueId  String
   capConfig IDPCapConfig @relation("CapConfigDeadMoney", fields: [leagueId], references: [leagueId], onDelete: Cascade)
 
   rosterId String
@@ -7551,8 +7553,8 @@ model IDPDeadMoney {
 }
 
 model IDPCapProjection {
-  id       String @id @default(cuid())
-  leagueId String
+  id        String       @id @default(cuid())
+  leagueId  String
   capConfig IDPCapConfig @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
 
   rosterId String
@@ -7577,20 +7579,20 @@ model IDPCapTransaction {
 
   rosterId String
 
-  playerId   String
-  playerName String
+  playerId    String
+  playerName  String
   isDefensive Boolean @default(false)
 
   transactionType String
 
-  salary         Float
-  contractYears  Int?
+  salary           Float
+  contractYears    Int?
   deadMoneyCreated Float @default(0)
-  capImpact      Float
+  capImpact        Float
 
-  notes   String?
-  season  Int
-  week    Int?
+  notes  String?
+  season Int
+  week   Int?
 
   createdAt DateTime @default(now())
 
@@ -7659,9 +7661,9 @@ model DevyLeagueConfig {
 
 /// Full devy league engine config (roster buckets, taxi, devy draft). Distinct from legacy `DevyLeagueConfig`.
 model DevyLeague {
-  id        String @id @default(cuid())
-  leagueId  String @unique
-  league    League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   isDynastyOnly     Boolean @default(true)
   createdByTheCiege Boolean @default(true)
@@ -7712,11 +7714,11 @@ model DevyLeague {
 }
 
 model DevyPlayerState {
-  id       String     @id @default(cuid())
-  leagueId String
-  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
-  rosterId String
-  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  id         String        @id @default(cuid())
+  leagueId   String
+  devyLeague DevyLeague    @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId   String
+  roster     RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
   playerId   String
   playerName String
@@ -7737,8 +7739,8 @@ model DevyPlayerState {
   nflDraftRound    Int?
   nflDraftPick     Int?
 
-  isTaxiEligible  Boolean @default(false)
-  taxiYearsUsed   Int     @default(0)
+  isTaxiEligible Boolean @default(false)
+  taxiYearsUsed  Int     @default(0)
 
   transitionedFrom String?
   transitionedAt   DateTime?
@@ -7754,11 +7756,11 @@ model DevyPlayerState {
 }
 
 model DevyTaxiSlot {
-  id       String     @id @default(cuid())
-  leagueId String
-  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
-  rosterId String
-  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  id         String        @id @default(cuid())
+  leagueId   String
+  devyLeague DevyLeague    @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId   String
+  roster     RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
   playerId   String
   playerName String
@@ -7779,29 +7781,29 @@ model DevyTaxiSlot {
 }
 
 model DevyDevySlot {
-  id       String     @id @default(cuid())
-  leagueId String
-  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
-  rosterId String
-  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  id         String        @id @default(cuid())
+  leagueId   String
+  devyLeague DevyLeague    @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId   String
+  roster     RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
   playerId String
 
-  playerName String
-  position   String
-  school     String?
-  schoolLogoUrl String?
-  classYear String?
+  playerName               String
+  position                 String
+  school                   String?
+  schoolLogoUrl            String?
+  classYear                String?
   projectedDeclarationYear Int?
-  hasEnteredNFL Boolean @default(false)
-  nflEntryYear  Int?
-  nflEntryStatus String?
+  hasEnteredNFL            Boolean @default(false)
+  nflEntryYear             Int?
+  nflEntryStatus           String?
 
   rightsAcquiredVia String?
   rightsAcquiredAt  DateTime @default(now())
 
   transitionedAt  DateTime?
-  transitionQueue Boolean @default(false)
+  transitionQueue Boolean   @default(false)
 
   @@unique([leagueId, rosterId, playerId])
   @@index([leagueId, rosterId])
@@ -7810,8 +7812,8 @@ model DevyDevySlot {
 }
 
 model DevyRookieTransition {
-  id       String     @id @default(cuid())
-  leagueId String
+  id         String     @id @default(cuid())
+  leagueId   String
   devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
 
   rosterId String?
@@ -7827,8 +7829,8 @@ model DevyRookieTransition {
   previousState    String @default("devy")
   destinationState String
 
-  wasAutoTransitioned     Boolean @default(false)
-  wasCommissionerReview   Boolean @default(false)
+  wasAutoTransitioned    Boolean   @default(false)
+  wasCommissionerReview  Boolean   @default(false)
   commissionerApprovedAt DateTime?
 
   transitionedAt DateTime?
@@ -7839,8 +7841,8 @@ model DevyRookieTransition {
 }
 
 model DevyDraftPick {
-  id       String     @id @default(cuid())
-  leagueId String
+  id         String     @id @default(cuid())
+  leagueId   String
   devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
 
   pickType String
@@ -7850,8 +7852,8 @@ model DevyDraftPick {
   originalOwnerId String
   currentOwnerId  String
 
-  isTradeable    Boolean @default(true)
-  isUsed         Boolean @default(false)
+  isTradeable    Boolean   @default(true)
+  isUsed         Boolean   @default(false)
   usedOnPlayerId String?
   usedAt         DateTime?
 
@@ -7867,19 +7869,19 @@ model DevyDraftPick {
 
 /// Multi-source dynasty / devy import merge session (commissioner-driven).
 model DevyImportSession {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   leagueId       String
-  league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league         League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   commissionerId String
-  commissioner   AppUser  @relation("DevyImportSessionCommissioner", fields: [commissionerId], references: [id], onDelete: Cascade)
+  commissioner   AppUser @relation("DevyImportSessionCommissioner", fields: [commissionerId], references: [id], onDelete: Cascade)
 
   status String @default("pending")
 
   sources         DevyImportSource[]
-  playerMappings    DevyPlayerMapping[]
-  managerMappings   DevyManagerMapping[]
-  mergeConflicts    DevyMergeConflict[]
-  importedSeasons   DevyImportedSeason[]
+  playerMappings  DevyPlayerMapping[]
+  managerMappings DevyManagerMapping[]
+  mergeConflicts  DevyMergeConflict[]
+  importedSeasons DevyImportedSeason[]
 
   summary Json?
 
@@ -7908,7 +7910,7 @@ model DevyImportSource {
   rawData Json?
 
   importedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([sessionId])
   @@map("devy_import_sources")
@@ -7929,7 +7931,7 @@ model DevyPlayerMapping {
   internalPlayerId   String?
   internalPlayerName String?
 
-  matchConfidence String @default("unmatched")
+  matchConfidence String  @default("unmatched")
   matchMethod     String?
 
   isConfirmedByCommissioner Boolean @default(false)
@@ -7971,8 +7973,8 @@ model DevyMergeConflict {
   sessionId String
   session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  conflictType    String
-  description     String
+  conflictType     String
+  description      String
   affectedEntities Json
 
   resolution String @default("pending")
@@ -7997,12 +7999,12 @@ model DevyImportedSeason {
   sessionId String
   session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  season        Int
-  sourceLabel   String
+  season         Int
+  sourceLabel    String
   sourcePlatform String?
 
-  standings       Json?
-  scoringRecords  Json?
+  standings      Json?
+  scoringRecords Json?
 
   titleWinner String?
   notes       String?
@@ -8239,6 +8241,183 @@ model C2CScoringLog {
   @@map("c2c_scoring_logs")
 }
 
+// ========== Campus 2 Canton (C2C) league engine — dual roster scoring ==========
+
+model C2CLeague {
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  isDynastyOnly     Boolean @default(true)
+  createdByTheCiege Boolean @default(true)
+
+  sportPair String @default("NFL_CFB")
+
+  scoringMode       String @default("combined_total")
+  campusScoreWeight Float  @default(0.4)
+  cantonScoreWeight Float  @default(0.6)
+
+  campusStarterSlots Int @default(8)
+  cantonStarterSlots Int @default(8)
+  benchSlots         Int @default(8)
+  taxiSlots          Int @default(4)
+  devySlots          Int @default(6)
+  irSlots            Int @default(2)
+
+  taxiRookieOnly         Boolean   @default(true)
+  taxiMaxExperienceYears Int       @default(1)
+  taxiLockDeadline       DateTime?
+  taxiPointsVisible      Boolean   @default(true)
+
+  devyScoringEnabled Boolean @default(false)
+
+  startupDraftFormat String @default("split_campus_canton")
+  futureDraftFormat  String @default("combined")
+
+  footballCampusLockDay String @default("saturday_kickoff")
+  footballCantonLockDay String @default("sunday_kickoff_per_player")
+  basketballLineupFreq  String @default("weekly")
+
+  season Int @default(2025)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  playerStates  C2CPlayerState[]
+  matchupScores C2CMatchupScore[]
+  draftPicks    C2CDraftPick[]
+
+  @@index([leagueId])
+  @@index([sportPair])
+  @@map("c2c_leagues")
+}
+
+model C2CPlayerState {
+  id        String        @id @default(cuid())
+  leagueId  String
+  c2cLeague C2CLeague     @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId  String
+  roster    RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+  position   String
+  /// Sport key for PlayerWeeklyScore lookup (e.g. NFL, NBA, NCAAF, NCAAB).
+  sport      String @default("NFL")
+
+  playerSide String
+  playerType String @default("active")
+
+  bucketState        String @default("bench")
+  scoringEligibility String
+
+  school                   String?
+  schoolLogoUrl            String?
+  classYear                String?
+  projectedDeclarationYear Int?
+  hasEnteredPro            Boolean @default(false)
+  proEntryYear             Int?
+  proEntryMethod           String?
+
+  nflNbaTeam       String?
+  isRookieEligible Boolean @default(false)
+  isTaxiEligible   Boolean @default(false)
+  taxiYearsUsed    Int     @default(0)
+
+  transitionedFrom String?
+  transitionedAt   DateTime?
+  transitionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, playerSide, bucketState])
+  @@map("c2c_player_states")
+}
+
+model C2CMatchupScore {
+  id        String    @id @default(cuid())
+  leagueId  String
+  c2cLeague C2CLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  matchupId String
+  matchup   RedraftMatchup @relation(fields: [matchupId], references: [id], onDelete: Cascade)
+
+  rosterId String
+  week     Int
+  season   Int
+
+  campusStarterScore Float @default(0)
+  cantonStarterScore Float @default(0)
+
+  benchDisplayScore Float @default(0)
+  taxiDisplayScore  Float @default(0)
+  devyDisplayScore  Float @default(0)
+
+  officialTeamScore Float @default(0)
+
+  campusMatchupResult String?
+  cantonMatchupResult String?
+
+  isFinalized Boolean   @default(false)
+  finalizedAt DateTime?
+
+  @@unique([leagueId, matchupId, rosterId])
+  @@index([leagueId, week])
+  @@map("c2c_matchup_scores")
+}
+
+model C2CDraftPick {
+  id        String    @id @default(cuid())
+  leagueId  String
+  c2cLeague C2CLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  pickSide        String
+  season          Int
+  round           Int
+  originalOwnerId String
+  currentOwnerId  String
+
+  isTradeable    Boolean   @default(true)
+  isUsed         Boolean   @default(false)
+  usedOnPlayerId String?
+  usedAt         DateTime?
+  tradeHistory   Json?
+
+  @@unique([leagueId, pickSide, season, round, originalOwnerId])
+  @@index([leagueId, currentOwnerId])
+  @@index([leagueId, pickSide, season])
+  @@map("c2c_draft_picks")
+}
+
+model C2CTransitionRecord {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  rosterId   String?
+  playerId   String
+  playerName String
+
+  fromState String
+  toState   String
+
+  proEntryYear   Int
+  proEntryMethod String
+
+  destinationBucket String
+
+  wasAutoTransitioned  Boolean   @default(false)
+  commissionerApproved Boolean   @default(false)
+  approvedAt           DateTime?
+  notes                String?
+  transitionedAt       DateTime?
+
+  @@index([leagueId, proEntryYear])
+  @@map("c2c_transition_records")
+}
+
 /// Per-roster status in a Zombie league (Survivor | Zombie | Whisperer).
 model ZombieLeagueTeam {
   id               String        @id @default(uuid())
@@ -8253,30 +8432,30 @@ model ZombieLeagueTeam {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  displayName     String?
-  avatarUrl       String?
-  fantasyTeamName String?
-  statusHistory   Json?
-  killedByUserId  String?
-  killedAtWeek    Int?
-  infectionCount  Int     @default(0)
-  isWhisperer     Boolean @default(false)
-  ambushesRemaining Int   @default(0)
-  ambushesUsed      Int   @default(0)
-  wins              Int     @default(0)
-  losses            Int     @default(0)
-  pointsFor         Float   @default(0)
-  pointsAgainst     Float   @default(0)
-  weeklyWinnings    Float   @default(0)
-  totalWinnings     Float   @default(0)
-  isVeteran         Boolean @default(false)
-  yearsInLeague     Int     @default(1)
-  universeTierId    String?
-  redraftRosterId   String?
+  displayName           String?
+  avatarUrl             String?
+  fantasyTeamName       String?
+  statusHistory         Json?
+  killedByUserId        String?
+  killedAtWeek          Int?
+  infectionCount        Int     @default(0)
+  isWhisperer           Boolean @default(false)
+  ambushesRemaining     Int     @default(0)
+  ambushesUsed          Int     @default(0)
+  wins                  Int     @default(0)
+  losses                Int     @default(0)
+  pointsFor             Float   @default(0)
+  pointsAgainst         Float   @default(0)
+  weeklyWinnings        Float   @default(0)
+  totalWinnings         Float   @default(0)
+  isVeteran             Boolean @default(false)
+  yearsInLeague         Int     @default(1)
+  universeTierId        String?
+  redraftRosterId       String?
   /// Cumulative zombie attacks survived without infection (gun unlock).
-  zombieAttacksSurvived Int @default(0)
+  zombieAttacksSurvived Int     @default(0)
   /// Consecutive weeks won as Survivor (bomb unlock).
-  survivorWinStreak     Int @default(0)
+  survivorWinStreak     Int     @default(0)
 
   items ZombieTeamItem[]
 
@@ -8289,24 +8468,24 @@ model ZombieLeagueTeam {
 }
 
 model ZombieTeamItem {
-  id           String           @id @default(cuid())
-  teamStatusId String
-  team         ZombieLeagueTeam @relation(fields: [teamStatusId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  teamStatusId   String
+  team           ZombieLeagueTeam @relation(fields: [teamStatusId], references: [id], onDelete: Cascade)
   zombieLeagueId String
   userId         String
 
-  itemType   String
-  itemLabel  String
-  isUsed     Boolean  @default(false)
-  isExpired  Boolean  @default(false)
-  acquiredAt DateTime @default(now())
-  acquiredReason String?
-  usedAtWeek     Int?
-  usedOnUserId   String?
-  usedEffect     String?
+  itemType        String
+  itemLabel       String
+  isUsed          Boolean  @default(false)
+  isExpired       Boolean  @default(false)
+  acquiredAt      DateTime @default(now())
+  acquiredReason  String?
+  usedAtWeek      Int?
+  usedOnUserId    String?
+  usedEffect      String?
   /// ready | pending_activation — serum registers before kickoff, resolves at score finalization.
-  activationState String @default("ready")
-  activatesAtWeek   Int?
+  activationState String   @default("ready")
+  activatesAtWeek Int?
 
   @@index([teamStatusId])
   @@index([zombieLeagueId, userId])
@@ -10437,16 +10616,58 @@ model DraftAutopickSetting {
 // ── AllFantasy redraft league engine (distinct from legacy WaiverClaim / LeagueTrade models) ──
 
 model SportConfig {
-  id               String  @id @default(cuid())
-  sport            String  @unique
-  lineupFrequency  String
-  scoringType      String
-  hasIR            Boolean @default(true)
-  hasTaxi          Boolean @default(false)
-  hasBye           Boolean @default(false)
-  maxRosterSize    Int     @default(15)
+  id        String @id @default(cuid())
+  sport     String @unique
+  /// Human-readable label (e.g. "NFL Football")
+  displayName String @default("")
+  /// URL slug — unique when set (seed backfills per sport)
+  slug      String? @unique
+
+  /// Legacy redraft: weekly | daily | per_match
+  lineupFrequency String
+  /// Legacy: points | categories — mirrors defaultScoringSystem when possible
+  scoringType String
+
+  /// Centralized defaults (see lib/sportConfig)
+  defaultScoringSystem     String @default("points")
+  scoringCategories        Json?
+  scoringPresets           Json?
+  defaultRosterSlots       Json?
+  defaultBenchSlots        Int    @default(6)
+  defaultIRSlots           Int    @default(0)
+  defaultTaxiSlots         Int    @default(0)
+  defaultDevySlots         Int    @default(0)
+  positionEligibility      Json?
+  defaultSeasonWeeks       Int    @default(17)
+  defaultPlayoffStartWeek  Int    @default(15)
+  defaultPlayoffTeams      Int    @default(4)
+  defaultMatchupPeriodDays Int    @default(7)
+  lineupLockType           String @default("per_player_kickoff")
+
+  supportsRedraft       Boolean @default(true)
+  supportsDynasty       Boolean @default(false)
+  supportsKeeper        Boolean @default(false)
+  supportsDevy          Boolean @default(false)
+  supportsC2C           Boolean @default(false)
+  supportsIDP           Boolean @default(false)
+  supportsSuperflex     Boolean @default(false)
+  supportsTEPremium     Boolean @default(false)
+  supportsPPR           Boolean @default(false)
+  supportsCategories    Boolean @default(false)
+  supportsDailyLineups  Boolean @default(false)
+
+  commissionerSettings Json?
+  aiMetadata           Json?
+
+  hasIR         Boolean @default(true)
+  hasTaxi       Boolean @default(false)
+  hasBye        Boolean @default(false)
+  maxRosterSize Int     @default(15)
   defaultPositions Json
   statCategories   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("sport_configs")
 }
@@ -10466,18 +10687,18 @@ model RedraftSeason {
 
   medianGame Boolean @default(false)
 
-  rosters             RedraftRoster[]
-  schedule            RedraftMatchup[]
-  redraftWaiverClaims RedraftWaiverClaim[]
-  redraftTransactions RedraftLeagueTransaction[]
-  redraftLeagueTrades RedraftLeagueTrade[]
-  playoffBracket      RedraftPlayoffBracket?
-  aiLeagueInsights    RedraftAILeagueInsight[]
-  keeperRecords       KeeperRecord[]
-  keeperSelectionSession KeeperSelectionSession?
-  keeperEligibilities KeeperEligibility[]
-  keeperPickAdjustments KeeperPickAdjustment[]
-  keeperAuditLogs     KeeperAuditLog[]
+  rosters                  RedraftRoster[]
+  schedule                 RedraftMatchup[]
+  redraftWaiverClaims      RedraftWaiverClaim[]
+  redraftTransactions      RedraftLeagueTransaction[]
+  redraftLeagueTrades      RedraftLeagueTrade[]
+  playoffBracket           RedraftPlayoffBracket?
+  aiLeagueInsights         RedraftAILeagueInsight[]
+  keeperRecords            KeeperRecord[]
+  keeperSelectionSession   KeeperSelectionSession?
+  keeperEligibilities      KeeperEligibility[]
+  keeperPickAdjustments    KeeperPickAdjustment[]
+  keeperAuditLogs          KeeperAuditLog[]
   bestBallOptimizedLineups BestBallOptimizedLineup[]
   guillotineSeason         GuillotineSeason?
 
@@ -10509,15 +10730,15 @@ model RedraftRoster {
   faabBalance    Float? @default(100)
   waiverPriority Int    @default(0)
 
-  players          RedraftRosterPlayer[]
-  homeMatchups     RedraftMatchup[]           @relation("RedraftHomeRoster")
-  awayMatchups     RedraftMatchup[]           @relation("RedraftAwayRoster")
-  waiverClaims     RedraftWaiverClaim[]
-  tradesProposed   RedraftLeagueTrade[]       @relation("RedraftTradeProposer")
-  tradesReceived   RedraftLeagueTrade[]       @relation("RedraftTradeReceiver")
-  transactions     RedraftLeagueTransaction[]
-  aiRosterInsights RedraftAIRosterInsight[]
-  keeperRecords    KeeperRecord[]
+  players                  RedraftRosterPlayer[]
+  homeMatchups             RedraftMatchup[]           @relation("RedraftHomeRoster")
+  awayMatchups             RedraftMatchup[]           @relation("RedraftAwayRoster")
+  waiverClaims             RedraftWaiverClaim[]
+  tradesProposed           RedraftLeagueTrade[]       @relation("RedraftTradeProposer")
+  tradesReceived           RedraftLeagueTrade[]       @relation("RedraftTradeReceiver")
+  transactions             RedraftLeagueTransaction[]
+  aiRosterInsights         RedraftAIRosterInsight[]
+  keeperRecords            KeeperRecord[]
   bestBallOptimizedLineups BestBallOptimizedLineup[]
   guillotineSurvivalLogs   GuillotineSurvivalLog[]
   devyPlayerStates         DevyPlayerState[]
@@ -10526,8 +10747,10 @@ model RedraftRoster {
   devyRookieTransitions    DevyRookieTransition[]
 
   idpSalaryRecords  IDPSalaryRecord[]
-  idpDeadMoneyHits  IDPDeadMoney[]    @relation("RedraftRosterIdpDeadMoney")
+  idpDeadMoneyHits  IDPDeadMoney[]     @relation("RedraftRosterIdpDeadMoney")
   idpCapProjections IDPCapProjection[]
+
+  c2cPlayerStates C2CPlayerState[]
 
   isEliminated Boolean @default(false)
 
@@ -10555,7 +10778,7 @@ model RedraftRosterPlayer {
   addedAt   DateTime  @default(now())
   droppedAt DateTime?
 
-  acquisitionType String @default("drafted")
+  acquisitionType String  @default("drafted")
   isKept          Boolean @default(false)
 
   @@index([rosterId])
@@ -10588,6 +10811,8 @@ model RedraftMatchup {
   isMedianMatchup Boolean @default(false)
   medianScore     Float?
   lineupSnapshots Json?
+
+  c2cMatchupScores C2CMatchupScore[]
 
   @@index([seasonId, week])
   @@index([homeRosterId])
@@ -10760,7 +10985,7 @@ model KeeperRecord {
   originalDraftRound   Int?
   originalDraftYear    Int
   originalAuctionPrice Float?
-  yearsKept            Int @default(1)
+  yearsKept            Int    @default(1)
 
   costRound        Int?
   costAuctionValue Float?
@@ -10786,12 +11011,12 @@ model KeeperSelectionSession {
   leagueId String
   league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
-  seasonId String @unique
+  seasonId String        @unique
   season   RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   status String @default("open")
 
-  openedAt DateTime @default(now())
+  openedAt DateTime  @default(now())
   deadline DateTime
   lockedAt DateTime?
 
@@ -10822,8 +11047,8 @@ model KeeperEligibility {
 
   yearsKept Int @default(0)
 
-  projectedCost          String?
-  projectedCostRound     Int?
+  projectedCost        String?
+  projectedCostRound   Int?
   projectedCostAuction Float?
 
   computedAt DateTime @default(now())
@@ -10866,12 +11091,12 @@ model KeeperAuditLog {
 
   rosterId String
 
-  action       String
-  playerId     String?
-  playerName   String?
-  detail       Json?
-  performedBy  String
-  performedAt  DateTime @default(now())
+  action      String
+  playerId    String?
+  playerName  String?
+  detail      Json?
+  performedBy String
+  performedAt DateTime @default(now())
 
   @@index([leagueId, seasonId])
   @@map("keeper_audit_logs")
@@ -10898,30 +11123,30 @@ model BestBallSportTemplate {
 
 /// Auto-optimized best ball lineup for a scoring period (league roster or contest entry).
 model BestBallOptimizedLineup {
-  id              String   @id @default(cuid())
-  leagueId        String?
-  league          League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  seasonId        String?
-  season          RedraftSeason? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  rosterId        String?
-  roster          RedraftRoster? @relation(fields: [rosterId], references: [id], onDelete: Cascade)
-  contestId       String?
-  contest         BestBallContest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  entryId         String?
-  entry           BestBallEntry? @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  leagueId  String?
+  league    League?          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  seasonId  String?
+  season    RedraftSeason?   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  rosterId  String?
+  roster    RedraftRoster?   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  contestId String?
+  contest   BestBallContest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  entryId   String?
+  entry     BestBallEntry?   @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   week            Int
-  scoringPeriod   String   @default("weekly")
+  scoringPeriod   String    @default("weekly")
   starterIds      String[]
   benchIds        String[]
-  totalPoints     Float    @default(0)
+  totalPoints     Float     @default(0)
   lineupBreakdown Json
-  alternateExists Boolean  @default(false)
+  alternateExists Boolean   @default(false)
   alternateLineup Json?
   optimizerLog    Json?
-  isFinalized     Boolean  @default(false)
+  isFinalized     Boolean   @default(false)
   finalizedAt     DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([seasonId, week])
   @@index([rosterId])
@@ -10930,30 +11155,30 @@ model BestBallOptimizedLineup {
 }
 
 model BestBallContest {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   name               String
   sport              String
-  variant            String   @default("tournament")
-  status             String   @default("open")
-  podSize            Int      @default(12)
-  rosterSize         Int      @default(18)
-  rounds             Int      @default(1)
-  advancersPerPod    Int      @default(1)
-  draftType          String   @default("snake")
-  draftSpeed         String   @default("slow")
-  entryType          String   @default("single")
+  variant            String    @default("tournament")
+  status             String    @default("open")
+  podSize            Int       @default(12)
+  rosterSize         Int       @default(18)
+  rounds             Int       @default(1)
+  advancersPerPod    Int       @default(1)
+  draftType          String    @default("snake")
+  draftSpeed         String    @default("slow")
+  entryType          String    @default("single")
   maxEntriesPerUser  Int?
   totalEntries       Int?
-  scoringPeriod      String   @default("weekly")
-  cumulativeScoring  Boolean  @default(true)
-  resetBetweenRounds Boolean  @default(false)
+  scoringPeriod      String    @default("weekly")
+  cumulativeScoring  Boolean   @default(true)
+  resetBetweenRounds Boolean   @default(false)
   draftStartsAt      DateTime?
   contestStartsAt    DateTime?
   contestEndsAt      DateTime?
 
-  pods    BestBallPod[]
-  entries BestBallEntry[]
-  leagues League[]      @relation("LeagueBestBallContest")
+  pods             BestBallPod[]
+  entries          BestBallEntry[]
+  leagues          League[]                  @relation("LeagueBestBallContest")
   optimizedLineups BestBallOptimizedLineup[]
   aiInsights       BestBallAIInsight[]
 
@@ -10983,23 +11208,23 @@ model BestBallPod {
 }
 
 model BestBallEntry {
-  id            String          @id @default(cuid())
-  contestId     String
-  contest       BestBallContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
-  podId         String?
-  pod           BestBallPod?    @relation(fields: [podId], references: [id], onDelete: SetNull)
+  id        String          @id @default(cuid())
+  contestId String
+  contest   BestBallContest @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  podId     String?
+  pod       BestBallPod?    @relation(fields: [podId], references: [id], onDelete: SetNull)
 
-  userId        String
-  entryName     String?
-  entryNumber   Int             @default(1)
-  podRank       Int?
-  overallRank   Int?
-  currentRound  Int             @default(1)
-  totalPoints   Float           @default(0)
-  isEliminated  Boolean         @default(false)
-  hasAdvanced   Boolean         @default(false)
-  roster        Json?
-  weeklyScores  Json?
+  userId       String
+  entryName    String?
+  entryNumber  Int     @default(1)
+  podRank      Int?
+  overallRank  Int?
+  currentRound Int     @default(1)
+  totalPoints  Float   @default(0)
+  isEliminated Boolean @default(false)
+  hasAdvanced  Boolean @default(false)
+  roster       Json?
+  weeklyScores Json?
 
   optimizedLineups BestBallOptimizedLineup[]
 
@@ -11030,9 +11255,9 @@ model BestBallRosterValidation {
 
 /// Best ball AI output (AF Commissioner Subscription tier).
 model BestBallAIInsight {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   leagueId    String?
-  league      League?  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league      League?          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   contestId   String?
   contest     BestBallContest? @relation(fields: [contestId], references: [id], onDelete: Cascade)
   rosterId    String?
@@ -11041,7 +11266,7 @@ model BestBallAIInsight {
   type        String
   content     Json
   narrative   String?
-  generatedAt DateTime @default(now())
+  generatedAt DateTime         @default(now())
 
   @@index([leagueId, type])
   @@index([contestId, type])
@@ -11051,19 +11276,19 @@ model BestBallAIInsight {
 // ========== Guillotine survival engine (elimination seasons) ==========
 
 model GuillotineSeason {
-  id                    String   @id @default(cuid())
-  leagueId              String
-  league                League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  redraftSeasonId       String?  @unique
-  redraftSeason         RedraftSeason? @relation(fields: [redraftSeasonId], references: [id], onDelete: SetNull)
+  id              String         @id @default(cuid())
+  leagueId        String
+  league          League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  redraftSeasonId String?        @unique
+  redraftSeason   RedraftSeason? @relation(fields: [redraftSeasonId], references: [id], onDelete: SetNull)
 
   sport                 String
   season                Int
-  status                String   @default("setup")
+  status                String  @default("setup")
   totalTeamsStarted     Int
   currentTeamsActive    Int
-  currentScoringPeriod  Int      @default(0)
-  isInFinalStage        Boolean  @default(false)
+  currentScoringPeriod  Int     @default(0)
+  isInFinalStage        Boolean @default(false)
   finalStageStartPeriod Int?
 
   eliminations   GuillotineElimination[]
@@ -11079,23 +11304,23 @@ model GuillotineSeason {
 }
 
 model GuillotineElimination {
-  id                 String           @id @default(cuid())
-  seasonId           String
-  season             GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  leagueId           String
+  id       String           @id @default(cuid())
+  seasonId String
+  season   GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId String
 
   eliminatedRosterId String
-  eliminatedTeamName   String
+  eliminatedTeamName String
   eliminatedOwnerId  String
 
-  scoringPeriod      Int
-  finalScore         Float
-  rankAmongActive    Int
-  marginBelowSafe    Float
+  scoringPeriod   Int
+  finalScore      Float
+  rankAmongActive Int
+  marginBelowSafe Float
 
-  wasTiebreaker   Boolean @default(false)
-  tiebreakerType    String?
-  tiedWithRosterId  String?
+  wasTiebreaker    Boolean @default(false)
+  tiebreakerType   String?
+  tiedWithRosterId String?
 
   aiEliminationSummary String?
   aiCollapseReason     String?
@@ -11108,12 +11333,12 @@ model GuillotineElimination {
 }
 
 model GuillotineSurvivalLog {
-  id                    String           @id @default(cuid())
-  seasonId              String
-  season                GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  leagueId              String
-  rosterId              String
-  roster                RedraftRoster    @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  id       String           @id @default(cuid())
+  seasonId String
+  season   GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId String
+  rosterId String
+  roster   RedraftRoster    @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
   scoringPeriod         Int
   totalScore            Float
@@ -11121,7 +11346,7 @@ model GuillotineSurvivalLog {
   teamsActiveThisPeriod Int
   survivalStatus        String
   marginAboveChopLine   Float
-  wasInDangerZone       Boolean          @default(false)
+  wasInDangerZone       Boolean @default(false)
 
   @@unique([seasonId, rosterId, scoringPeriod])
   @@index([seasonId, scoringPeriod])
@@ -11130,10 +11355,10 @@ model GuillotineSurvivalLog {
 }
 
 model GuillotineWaiverRelease {
-  id                 String           @id @default(cuid())
-  seasonId           String
-  season             GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  leagueId           String
+  id       String           @id @default(cuid())
+  seasonId String
+  season   GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  leagueId String
 
   eliminatedRosterId String
   scoringPeriod      Int
@@ -11144,7 +11369,7 @@ model GuillotineWaiverRelease {
   team       String?
   sport      String
 
-  releaseStatus     String   @default("pending")
+  releaseStatus     String    @default("pending")
   availableAt       DateTime
   claimedByRosterId String?
   claimedAt         DateTime?
@@ -11156,16 +11381,16 @@ model GuillotineWaiverRelease {
 }
 
 model GuillotineAIInsight {
-  id              String           @id @default(cuid())
+  id            String           @id @default(cuid())
   leagueId      String
   league        League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   seasonId      String
   season        GuillotineSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   scoringPeriod Int?
 
-  rosterId String?
-  type     String
-  content  Json
+  rosterId  String?
+  type      String
+  content   Json
   narrative String?
 
   generatedAt DateTime @default(now())
