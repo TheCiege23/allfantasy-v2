@@ -1,5 +1,6 @@
 'use client'
 
+import clsx from 'clsx'
 import type { AutosaveStatus } from '@/lib/hooks/useAutosave'
 
 export type SettingsNavTabId =
@@ -14,8 +15,18 @@ export type SettingsNavTabId =
   | 'commissioner'
   | 'previous'
   | 'delete'
+  | 'survivor_setup'
+  | 'survivor_tribes'
+  | 'survivor_challenges'
+  | 'survivor_tribal'
+  | 'survivor_idols'
+  | 'survivor_exile'
+  | 'survivor_merge'
+  | 'survivor_chat'
+  | 'survivor_ai'
+  | 'survivor_advanced'
 
-const NAV: { id: SettingsNavTabId; label: string }[] = [
+const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'league', label: 'League' },
   { id: 'team', label: 'Team' },
   { id: 'roster', label: 'Roster' },
@@ -29,6 +40,19 @@ const NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'delete', label: 'Delete' },
 ]
 
+const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [
+  { id: 'survivor_setup', label: '🏝 Survivor Setup' },
+  { id: 'survivor_tribes', label: '🔥 Tribes' },
+  { id: 'survivor_challenges', label: '⚡ Challenges' },
+  { id: 'survivor_tribal', label: '🗳 Tribal Council' },
+  { id: 'survivor_idols', label: '🔮 Idols & Powers' },
+  { id: 'survivor_exile', label: '🏚 Exile Island' },
+  { id: 'survivor_merge', label: '🌊 Merge & Jury' },
+  { id: 'survivor_chat', label: '💬 Chat & Permissions' },
+  { id: 'survivor_ai', label: '🤖 AI Host' },
+  { id: 'survivor_advanced', label: '⚙️ Advanced Rules' },
+]
+
 function statusLabel(s: AutosaveStatus): string | null {
   if (s === 'saving') return 'Saving…'
   if (s === 'saved') return 'Saved'
@@ -36,19 +60,35 @@ function statusLabel(s: AutosaveStatus): string | null {
   return null
 }
 
+export function isSurvivorSettingsTab(id: SettingsNavTabId): boolean {
+  return id.startsWith('survivor_')
+}
+
 export function SettingsNav({
   activeTab,
   onSelect,
   saveStatus,
+  showSurvivorTabs,
+  className,
 }: {
   activeTab: SettingsNavTabId
   onSelect: (id: SettingsNavTabId) => void
   saveStatus: AutosaveStatus
+  showSurvivorTabs?: boolean
+  className?: string
 }) {
   const hint = statusLabel(saveStatus)
+  const items = showSurvivorTabs ? [...BASE_NAV, ...SURVIVOR_NAV] : BASE_NAV
+
   return (
-    <nav className="flex w-52 flex-shrink-0 flex-col gap-0.5 border-r border-white/[0.08] bg-[#080c14] p-3">
-      {NAV.map((t) => (
+    <nav
+      className={clsx(
+        'flex flex-shrink-0 flex-col gap-0.5 border-white/[0.08] bg-[#080c14] p-3 md:border-r',
+        'max-h-[min(280px,38vh)] w-full overflow-y-auto overflow-x-hidden md:max-h-none md:w-52',
+        className,
+      )}
+    >
+      {items.map((t) => (
         <button
           key={t.id}
           type="button"

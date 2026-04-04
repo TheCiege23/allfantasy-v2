@@ -7,6 +7,8 @@ export type EliminationResult = {
   eliminated: { rosterId: string; score: number }[]
   survived: { rosterId: string; score: number }[]
   finalStageReached: boolean
+  /** Set when cron skipped re-chop for an already-processed scoring period. */
+  skipped?: boolean
 }
 
 type RowScore = {
@@ -132,15 +134,34 @@ function seededIndex(seed: string, n: number): number {
   return Math.abs(h) % Math.max(1, n)
 }
 
+export type RunEliminationOptions = {
+  /** When true (default), no-op if this period already has a chop row (avoids double cron). Stat replay should pass false. */
+  skipIfAlreadyProcessed?: boolean
+}
+
 /**
  * Run guillotine chop for a scoring period after scores are final.
  */
-export async function runEliminationCheck(seasonId: string, scoringPeriod: number): Promise<EliminationResult> {
+export async function runEliminationCheck(
+  seasonId: string,
+  scoringPeriod: number,
+  opts?: RunEliminationOptions,
+): Promise<EliminationResult> {
   const g = await prisma.guillotineSeason.findFirst({
     where: { id: seasonId },
     include: { league: true, redraftSeason: true },
   })
   if (!g?.redraftSeason) throw new Error('GuillotineSeason or RedraftSeason not found')
+
+  const skipDup = opts?.skipIfAlreadyProcessed !== false
+  if (skipDup) {
+    const existing = await prisma.guillotineElimination.findFirst({
+      where: { seasonId, scoringPeriod },
+    })
+    if (existing) {
+      return { eliminated: [], survived: [], finalStageReached: false, skipped: true }
+    }
+  }
 
   const league = g.league
   const rs = g.redraftSeason

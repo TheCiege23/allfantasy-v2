@@ -38,6 +38,8 @@ tmp/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.tsc-errors*.txt
+.tsc-out.txt
 
 # prisma
 prisma/*.db

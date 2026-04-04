@@ -1,12 +1,23 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-league-patch'
 import { useAutosave } from '@/lib/hooks/useAutosave'
 import { LeagueSettingsPanel } from './settings/LeagueSettingsPanel'
 import { PlaceholderPanel } from './settings/PlaceholderPanel'
-import { SettingsNav, type SettingsNavTabId } from './settings/SettingsNav'
+import { SettingsNav, type SettingsNavTabId, isSurvivorSettingsTab } from './settings/SettingsNav'
 import { KeeperCommissionerDashboard } from './KeeperCommissionerDashboard'
+import { SurvivorSetupPanel } from './settings/survivor/SurvivorSetupPanel'
+import { SurvivorTribesPanel } from './settings/survivor/SurvivorTribesPanel'
+import { SurvivorChallengesPanel } from './settings/survivor/SurvivorChallengesPanel'
+import { SurvivorTribalPanel } from './settings/survivor/SurvivorTribalPanel'
+import { SurvivorIdolsPanel } from './settings/survivor/SurvivorIdolsPanel'
+import { SurvivorExilePanel } from './settings/survivor/SurvivorExilePanel'
+import { SurvivorMergeJuryPanel } from './settings/survivor/SurvivorMergeJuryPanel'
+import { SurvivorChatPanel } from './settings/survivor/SurvivorChatPanel'
+import { SurvivorAIHostPanel } from './settings/survivor/SurvivorAIHostPanel'
+import { SurvivorAdvancedPanel } from './settings/survivor/SurvivorAdvancedPanel'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -28,6 +39,8 @@ export function CommissionerSettingsModal({
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [payload, setPayload] = useState<ApiGet | null>(null)
+  const [survivorMode, setSurvivorMode] = useState(false)
+  const [tournamentShellId, setTournamentShellId] = useState<string | null>(null)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
 
@@ -42,11 +55,44 @@ export function CommissionerSettingsModal({
       .finally(() => setLoading(false))
   }, [isOpen, leagueId])
 
+  useEffect(() => {
+    if (!isOpen || !leagueId) return
+    fetch(`/api/survivor/season?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { mode?: boolean } | null) => setSurvivorMode(Boolean(d?.mode)))
+      .catch(() => setSurvivorMode(false))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setTournamentShellId(null)
+      return
+    }
+    fetch(`/api/league/detail?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { settings?: Record<string, unknown> } | null) => {
+        const sid =
+          data?.settings && typeof data.settings.tournamentShellId === 'string'
+            ? data.settings.tournamentShellId
+            : null
+        setTournamentShellId(sid)
+      })
+      .catch(() => setTournamentShellId(null))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
+    if (!survivorMode && isSurvivorSettingsTab(activeTab)) {
+      setActiveTab('league')
+    }
+  }, [survivorMode, activeTab])
+
   if (!isOpen) return null
 
   const canEdit = payload?.canEdit ?? false
   const hasSub = payload?.hasAfCommissionerSub ?? false
   const initialData = payload?.league as CommissionerSettingsFormData | undefined
+
+  const survivorProps = { leagueId, canEdit, hasAfCommissionerSub: hasSub }
 
   return (
     <div
@@ -56,7 +102,7 @@ export function CommissionerSettingsModal({
       aria-labelledby="commissioner-settings-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="relative flex h-[85vh] w-full max-w-[900px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1117] shadow-2xl">
+      <div className="relative flex h-[85vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1117] shadow-2xl md:flex-row">
         <h2 id="commissioner-settings-title" className="sr-only">
           Commissioner settings
         </h2>
@@ -69,9 +115,35 @@ export function CommissionerSettingsModal({
           ✕
         </button>
 
-        <SettingsNav activeTab={activeTab} onSelect={setActiveTab} saveStatus={status} />
+        <SettingsNav
+          activeTab={activeTab}
+          onSelect={setActiveTab}
+          saveStatus={status}
+          showSurvivorTabs={survivorMode}
+        />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {tournamentShellId ? (
+            <div className="border-b border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-[12px] text-cyan-50">
+              <p className="font-semibold text-white">
+                Managing tournament league ·{' '}
+                {payload?.league && typeof (payload.league as { name?: string }).name === 'string'
+                  ? (payload.league as { name?: string }).name
+                  : 'This league'}
+              </p>
+              <p className="mt-1 text-[11px] text-cyan-100/80">
+                Linked to a Tournament Shell — open the hub for national-style navigation and shell commissioner
+                tools.
+              </p>
+              <Link
+                href={`/tournament/${tournamentShellId}`}
+                className="mt-2 inline-flex font-semibold text-cyan-300 underline hover:text-cyan-200"
+                data-testid="commissioner-tournament-hub-link"
+              >
+                Manage full tournament settings →
+              </Link>
+            </div>
+          ) : null}
           {loading ? (
             <div className="space-y-3 px-6 py-8">
               <div className="h-10 animate-pulse rounded-xl bg-white/[0.06]" />
@@ -115,6 +187,26 @@ export function CommissionerSettingsModal({
             <PlaceholderPanel title="Previous Leagues" />
           ) : activeTab === 'delete' ? (
             <PlaceholderPanel title="Delete League" />
+          ) : activeTab === 'survivor_setup' ? (
+            <SurvivorSetupPanel {...survivorProps} />
+          ) : activeTab === 'survivor_tribes' ? (
+            <SurvivorTribesPanel {...survivorProps} />
+          ) : activeTab === 'survivor_challenges' ? (
+            <SurvivorChallengesPanel {...survivorProps} />
+          ) : activeTab === 'survivor_tribal' ? (
+            <SurvivorTribalPanel {...survivorProps} />
+          ) : activeTab === 'survivor_idols' ? (
+            <SurvivorIdolsPanel {...survivorProps} />
+          ) : activeTab === 'survivor_exile' ? (
+            <SurvivorExilePanel {...survivorProps} />
+          ) : activeTab === 'survivor_merge' ? (
+            <SurvivorMergeJuryPanel {...survivorProps} />
+          ) : activeTab === 'survivor_chat' ? (
+            <SurvivorChatPanel {...survivorProps} />
+          ) : activeTab === 'survivor_ai' ? (
+            <SurvivorAIHostPanel {...survivorProps} initialData={initialData} debouncedSave={debouncedSave} />
+          ) : activeTab === 'survivor_advanced' ? (
+            <SurvivorAdvancedPanel {...survivorProps} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

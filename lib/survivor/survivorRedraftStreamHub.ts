@@ -1,6 +1,8 @@
 /**
  * In-process pub/sub for `/api/redraft/stream/[seasonId]` so API routes can push Survivor + redraft events.
- * Single-instance only; multi-instance deploys should swap for Redis pub/sub later.
+ *
+ * Production: replace with Redis (or Vercel KV) pub/sub so elimination / phase events reach all nodes.
+ * Until then, `survivor_elimination` only reaches clients on the same instance as the writer.
  */
 
 type Listener = (payload: unknown) => void

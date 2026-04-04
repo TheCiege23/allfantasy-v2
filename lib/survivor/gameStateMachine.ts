@@ -16,6 +16,7 @@ import { logSurvivorAuditEntry } from '@/lib/survivor/auditEntry'
 import { getSurvivorConfig } from '@/lib/survivor/SurvivorLeagueConfig'
 import { scheduleTribalReminders } from '@/lib/survivor/notificationEngine'
 import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
+import { SURVIVOR_SETTINGS_TRIBAL_VOTE_WINDOW_HOURS } from '@/lib/survivor/survivorCommissionerSettings'
 
 async function sumRedraftStartersFantasy(
   rosterId: string,
@@ -313,7 +314,7 @@ export async function finalizeWeeklyScores(leagueId: string, week: number): Prom
 
 function tribalVoteWindowHoursFromLeague(settings: unknown): number {
   if (settings && typeof settings === 'object' && !Array.isArray(settings)) {
-    const raw = (settings as Record<string, unknown>).survivorTribalVoteWindowHours
+    const raw = (settings as Record<string, unknown>)[SURVIVOR_SETTINGS_TRIBAL_VOTE_WINDOW_HOURS]
     if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0 && raw <= 168) return raw
   }
   return 24

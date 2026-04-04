@@ -5,6 +5,11 @@ import { handleStatCorrection } from '@/lib/guillotine/statCorrectionHandler'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+/**
+ * Full stat-correction *replay* (reverse chop, waiver recall, re-run `runEliminationCheck` with
+ * `skipIfAlreadyProcessed: false`) lives in `handleStatCorrection` — wire when scores stabilize.
+ */
+
 export async function POST(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

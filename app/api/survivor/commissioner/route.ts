@@ -8,6 +8,7 @@ import { processReturnFromExile } from '@/lib/survivor/exileEngine'
 import { rebalanceTribes } from '@/lib/survivor/tribeEngine'
 import { getSurvivorConfig } from '@/lib/survivor/SurvivorLeagueConfig'
 import { enqueueNotification } from '@/lib/survivor/notificationEngine'
+import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTradesForElimination'
 
 export const dynamic = 'force-dynamic'
 
@@ -227,6 +228,14 @@ export async function POST(req: NextRequest) {
       where: { leagueId, currentOwnerUserId: targetUserId, isUsed: false },
       data: { status: 'expired', expiredAt: new Date() },
     })
+
+    const r0 = await prisma.roster.findFirst({
+      where: { leagueId, platformUserId: targetUserId },
+      select: { id: true },
+    })
+    if (r0) {
+      await voidPendingRedraftTradesForRoster(leagueId, r0.id).catch(() => {})
+    }
 
     await prisma.survivorPlayer.updateMany({
       where: { leagueId, userId: targetUserId },
