@@ -6616,6 +6616,9 @@ model ZombieLeague {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  /// Commissioner-only UI prefs (animations + advanced panels). JSON: { animations?: {...}, advanced?: {...} }
+  commissionerUiPrefs Json?
+
   teams                 ZombieLeagueTeam[]
   infections            ZombieInfectionLog[]
   resources             ZombieResourceLedger[]

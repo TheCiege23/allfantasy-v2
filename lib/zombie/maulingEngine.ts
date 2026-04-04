@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getZombieRulesForSport } from '@/lib/zombie/zombieRules'
-import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
+import { notifyCommissioner, notifyZombiePlayer } from '@/lib/zombie/commissionerNotificationService'
 import { queueAnimation } from '@/lib/zombie/animationEngine'
 import { handleWhispererDefeat } from '@/lib/zombie/whispererEngine'
 
@@ -98,6 +98,12 @@ export async function detectAndProcessMaulings(
       mt,
       { urgency: 'high', week, relatedEventId: row.id, relatedEventType: 'ZombieMaulingEvent' },
     )
+
+    await notifyZombiePlayer(winOwner, 'mauling_win', 'Mauling result', {
+      severity: 'medium',
+      body: `💀 You mauled your opponent in Week ${week}.`,
+      meta: { week, leagueId, maulingEventId: row.id },
+    }).catch(() => {})
 
     if (mt === 'zombie_mauls_whisperer') {
       await handleWhispererDefeat(zombieLeagueId, winOwner, week)

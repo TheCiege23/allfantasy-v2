@@ -41,6 +41,8 @@ export type LeftChatPanelLayoutProps = {
   leagues?: UserLeague[]
   /** Discord OAuth linked (UserProfile.discordUserId) — DMs tab CTA */
   discordConnected?: boolean
+  /** `?zombieChimmy=` deep link → league chat composer */
+  zombieChimmyPrefill?: string | null
 }
 
 /** Props contract for `RightControlPanel` */

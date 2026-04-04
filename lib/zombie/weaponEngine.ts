@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getZombieRulesForSport } from '@/lib/zombie/zombieRules'
 import { validateAmbushTiming } from '@/lib/zombie/ambushEngine'
-import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
+import { notifyCommissioner, notifyZombiePlayer } from '@/lib/zombie/commissionerNotificationService'
 import { queueAnimation } from '@/lib/zombie/animationEngine'
 import { appendZombieAudit } from '@/lib/zombie/ZombieAuditLog'
 
@@ -29,6 +29,11 @@ async function ensureTeamItem(
       itemLabel: label,
     },
   })
+  await notifyZombiePlayer(userId, 'weapon_earned', 'You earned a weapon', {
+    severity: 'medium',
+    body: `⚔️ You earned: ${label}.`,
+    meta: { itemType, leagueId },
+  }).catch(() => {})
 }
 
 export async function checkAndAwardWeapons(leagueId: string, week: number, zombieLeagueId: string): Promise<void> {

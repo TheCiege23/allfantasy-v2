@@ -9,10 +9,11 @@ import { deliverPendingAnimations } from '@/lib/zombie/animationEngine'
  */
 export async function processZombieAnnouncementQueue(): Promise<number> {
   const now = new Date()
+  /** Only rows with a scheduled time in the past — never auto-mark drafts with `scheduledFor: null`. */
   const due = await prisma.zombieAnnouncement.findMany({
     where: {
       isPosted: false,
-      scheduledFor: { lte: now },
+      AND: [{ scheduledFor: { not: null } }, { scheduledFor: { lte: now } }],
     },
     take: 100,
   })

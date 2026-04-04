@@ -7,6 +7,7 @@ import { SerumUseCard } from '@/app/zombie/components/chimmy/SerumUseCard'
 import { BombUseCard } from '@/app/zombie/components/chimmy/BombUseCard'
 import { AmbushConfirmationCard } from '@/app/zombie/components/chimmy/AmbushConfirmationCard'
 import { RevivalCard } from '@/app/zombie/components/chimmy/RevivalCard'
+import { BashingDecisionCard } from '@/app/zombie/components/chimmy/BashingDecisionCard'
 
 type LeagueTeam = {
   rosterId: string
@@ -25,6 +26,13 @@ export default function ZombieChatHubPage() {
     rules: { reviveThreshold: number }
     isWhisperer: boolean
     ambushesRemaining: number | null
+    pendingBashingDecision: {
+      id: string
+      week: number
+      loserName: string
+      margin: number
+      hoursLeft?: number
+    } | null
   } | null>(null)
   useEffect(() => {
     if (!leagueId) return
@@ -46,6 +54,13 @@ export default function ZombieChatHubPage() {
           resolution: { status: string } | null
           isWhisperer: boolean
           ambushesRemaining: number | null
+          pendingBashingDecision: {
+            id: string
+            week: number
+            loserName: string
+            margin: number
+            hoursLeft?: number
+          } | null
         } | null) => {
           if (!d) return
           setInv({
@@ -54,6 +69,7 @@ export default function ZombieChatHubPage() {
             rules: d.rules,
             isWhisperer: d.isWhisperer,
             ambushesRemaining: d.ambushesRemaining,
+            pendingBashingDecision: d.pendingBashingDecision ?? null,
           })
           setResolution(d.resolution)
         },
@@ -114,7 +130,14 @@ export default function ZombieChatHubPage() {
           serumCount={serumCount}
           reviveThreshold={inv?.rules.reviveThreshold ?? 3}
         />
-        {/* BashingDecisionCard: wire when bashing API exposes pending decision for session user */}
+        {inv?.pendingBashingDecision ? (
+          <BashingDecisionCard
+            leagueId={leagueId}
+            loserName={inv.pendingBashingDecision.loserName}
+            margin={inv.pendingBashingDecision.margin}
+            hoursLeft={inv.pendingBashingDecision.hoursLeft}
+          />
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-white/[0.08] p-3 text-[11px] text-[var(--zombie-text-dim)]">

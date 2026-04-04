@@ -1,7 +1,8 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRedraftStream } from '@/lib/hooks/useRedraftStream'
 import { ZombieMatchupCard } from '@/app/zombie/components/ZombieMatchupCard'
 
 type M = {
@@ -23,6 +24,10 @@ export default function ZombieMatchupsPage() {
   const [week, setWeek] = useState<number>(1)
   const [rules, setRules] = useState<{ bashingThreshold: number; maulingThreshold: number } | null>(null)
   const [resolution, setResolution] = useState<{ status: string; resolvedAt: string | null } | null>(null)
+  const [redraftSeasonId, setRedraftSeasonId] = useState<string | null>(null)
+  const lastAnimId = useRef<string | null>(null)
+
+  const { zombieAnimations } = useRedraftStream(redraftSeasonId)
 
   useEffect(() => {
     if (!leagueId) return
@@ -44,6 +49,7 @@ export default function ZombieMatchupsPage() {
         (d: {
           matchups?: M[]
           week?: number
+          redraftSeasonId?: string
           rules?: { bashingThreshold: number; maulingThreshold: number }
           resolution?: { status: string; resolvedAt: string | null } | null
         } | null) => {
@@ -51,6 +57,7 @@ export default function ZombieMatchupsPage() {
           if (d?.week) setWeek(d.week)
           if (d?.rules) setRules(d.rules)
           if (d?.resolution !== undefined) setResolution(d.resolution)
+          if (d?.redraftSeasonId) setRedraftSeasonId(d.redraftSeasonId)
         },
       )
       .catch(() => setList([]))
@@ -65,6 +72,17 @@ export default function ZombieMatchupsPage() {
     const t = setInterval(loadMatchups, 30_000)
     return () => clearInterval(t)
   }, [leagueId, loadMatchups])
+
+  useEffect(() => {
+    const last = zombieAnimations[zombieAnimations.length - 1] as
+      | { type?: string; leagueId?: string; id?: string }
+      | undefined
+    if (!last || last.type !== 'zombie_event_animation') return
+    if (last.leagueId && last.leagueId !== leagueId) return
+    if (last.id && lastAnimId.current === last.id) return
+    if (last.id) lastAnimId.current = last.id
+    loadMatchups()
+  }, [zombieAnimations, leagueId, loadMatchups])
 
   return (
     <div>

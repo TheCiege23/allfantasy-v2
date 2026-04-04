@@ -116,6 +116,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     matchups: out,
     week,
+    redraftSeasonId: season.id,
     rules: {
       bashingThreshold: rules.bashingThreshold,
       maulingThreshold: rules.maulingThreshold,

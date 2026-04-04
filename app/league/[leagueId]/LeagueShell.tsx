@@ -97,6 +97,8 @@ export type LeagueShellProps = {
   sleeperUsersByPlatformId: SleeperMemberMap
   currentSleeperUserId: string | null
   discordConnected?: boolean
+  /** Deep-link prefill for league chat composer (`?zombieChimmy=`). */
+  zombieChimmyPrefill?: string | null
 }
 
 export function LeagueShell({
@@ -114,6 +116,7 @@ export function LeagueShell({
   sleeperUsersByPlatformId,
   currentSleeperUserId,
   discordConnected = false,
+  zombieChimmyPrefill = null,
 }: LeagueShellProps) {
   const router = useRouter()
   const tabDefs = useMemo(() => {
@@ -209,6 +212,7 @@ export function LeagueShell({
             rootId="league-left-chat"
             leagues={leagueList}
             discordConnected={discordConnected}
+            zombieChimmyPrefill={zombieChimmyPrefill}
           />
         }
         rightPanel={

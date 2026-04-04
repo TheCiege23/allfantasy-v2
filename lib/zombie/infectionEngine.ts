@@ -3,6 +3,7 @@ import { runInfectionForWeek } from '@/lib/zombie/ZombieInfectionEngine'
 import { setRevived } from '@/lib/zombie/ZombieOwnerStatusService'
 import { logAuditEntry } from '@/lib/zombie/auditService'
 import { getLeagueMode } from '@/lib/zombie/zombieLeagueMode'
+import { notifyZombiePlayer } from '@/lib/zombie/commissionerNotificationService'
 
 export type InfectionResolutionResult = {
   zombieLeagueId: string
@@ -71,6 +72,19 @@ export async function resolveWeeklyInfections(
       actorRole: 'zombie',
       isPublic: true,
     }).catch(() => {})
+
+    const zName = z.name ?? 'League'
+    await notifyZombiePlayer(
+      victimUser.platformUserId,
+      'infected',
+      'Something changed in your zombie league',
+      {
+        pushSpoilerSafe: true,
+        severity: 'high',
+        body: `🧟 You have been infected — Week ${week} (${zName}).`,
+        meta: { leagueId: z.leagueId, zombieLeagueId, week },
+      },
+    ).catch(() => {})
   }
 
   return {

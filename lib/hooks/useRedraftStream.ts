@@ -9,6 +9,8 @@ export function useRedraftStream(seasonId: string | null) {
   const [scores, setScores] = useState<Record<string, unknown>>({})
   const [locks, setLocks] = useState<string[]>([])
   const [notifications, setNotifications] = useState<StreamEvent[]>([])
+  /** SSE payloads from `/api/redraft/stream` zombie animation poller (`zombie_event_animation`). */
+  const [zombieAnimations, setZombieAnimations] = useState<StreamEvent[]>([])
 
   useEffect(() => {
     if (!seasonId) return
@@ -22,6 +24,9 @@ export function useRedraftStream(seasonId: string | null) {
         }
         if (parsed.type === 'player_locked' && parsed.playerId) {
           setLocks((l) => [...new Set([...l, String(parsed.playerId)])])
+        }
+        if (parsed.type === 'zombie_event_animation') {
+          setZombieAnimations((prev) => [...prev.slice(-15), parsed])
         }
         if (
           parsed.type === 'waiver_result' ||
@@ -70,5 +75,5 @@ export function useRedraftStream(seasonId: string | null) {
     return () => es.close()
   }, [seasonId])
 
-  return { events, scores, locks, notifications }
+  return { events, scores, locks, notifications, zombieAnimations }
 }

@@ -151,6 +151,8 @@ type LeagueChatInPanelProps = {
   userDisplayName?: string
   userImage?: string | null
   onAskChimmy: () => void
+  /** Server-passed prefill when URL cannot be read client-side */
+  zombieChimmyPrefill?: string | null
 }
 
 /**
@@ -163,8 +165,10 @@ export function LeagueChatInPanel({
   userDisplayName = 'You',
   userImage = null,
   onAskChimmy,
+  zombieChimmyPrefill = null,
 }: LeagueChatInPanelProps) {
   const [messages, setMessages] = useState<LeagueChatMessage[]>([])
+  const [queryPrefill, setQueryPrefill] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -223,6 +227,18 @@ export function LeagueChatInPanel({
   useEffect(() => {
     void loadMessages()
   }, [loadMessages])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const q = params.get('zombieChimmy')
+    if (!q) return
+    setQueryPrefill(q)
+    params.delete('zombieChimmy')
+    const next = params.toString()
+    const path = window.location.pathname
+    window.history.replaceState(null, '', next ? `${path}?${next}` : path)
+  }, [selectedLeague.id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -466,6 +482,7 @@ export function LeagueChatInPanel({
           onSend={handleComposerSend}
           placeholder="Message league..."
           onAskChimmy={onAskChimmy}
+          initialDraftText={queryPrefill ?? zombieChimmyPrefill ?? null}
         />
         {sending ? <p className="mt-1 text-[11px] text-white/35">Sending…</p> : null}
       </div>

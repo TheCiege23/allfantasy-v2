@@ -230,6 +230,7 @@ export function LeftChatPanel({
   rootId = 'dashboard-left-chat',
   leagues = [],
   discordConnected = false,
+  zombieChimmyPrefill = null,
 }: LeftChatPanelLayoutProps) {
   const [activeTab, setActiveTab] = useState<LeftTab>('chimmy')
   const [activeChimmyLeagueId, setActiveChimmyLeagueId] = useState<string | null>(null)
@@ -377,6 +378,7 @@ export function LeftChatPanel({
                 userDisplayName={userDisplayName}
                 userImage={userImage}
                 onAskChimmy={() => setActiveTab('chimmy')}
+                zombieChimmyPrefill={zombieChimmyPrefill}
               />
             </div>
           </div>

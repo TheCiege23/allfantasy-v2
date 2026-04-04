@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       history: [],
       resolution: null,
       isCommissionerView: targetUserId !== session.user.id,
+      pendingBashingDecision: null,
     })
   }
 
@@ -79,6 +80,52 @@ export async function GET(req: Request) {
     select: { userId: true, ambushesRemaining: true },
   })
 
+  const now = new Date()
+  const pendingBash = await prisma.zombieBashingEvent.findFirst({
+    where: {
+      leagueId,
+      winnerUserId: targetUserId,
+      requiresDecision: true,
+      decisionMade: null,
+      OR: [{ decisionDeadline: null }, { decisionDeadline: { gt: now } }],
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  let pendingBashingDecision: {
+    id: string
+    week: number
+    loserName: string
+    margin: number
+    hoursLeft?: number
+    deadlineIso: string | null
+  } | null = null
+  if (pendingBash) {
+    const loserRoster = await prisma.roster.findFirst({
+      where: { leagueId, platformUserId: pendingBash.loserUserId },
+      select: { id: true },
+    })
+    let loserName = pendingBash.loserUserId
+    if (loserRoster) {
+      const zt = await prisma.zombieLeagueTeam.findUnique({
+        where: { leagueId_rosterId: { leagueId, rosterId: loserRoster.id } },
+        select: { fantasyTeamName: true, displayName: true },
+      })
+      loserName = zt?.fantasyTeamName || zt?.displayName || loserName
+    }
+    const dl = pendingBash.decisionDeadline
+    const hoursLeft =
+      dl && dl > now ? Math.round(((dl.getTime() - now.getTime()) / 3_600_000) * 10) / 10 : undefined
+    pendingBashingDecision = {
+      id: pendingBash.id,
+      week: pendingBash.week,
+      loserName,
+      margin: pendingBash.margin,
+      ...(hoursLeft !== undefined ? { hoursLeft } : {}),
+      deadlineIso: dl?.toISOString() ?? null,
+    }
+  }
+
   return NextResponse.json({
     items: team?.items ?? [],
     teamStatus: team?.status ?? 'Survivor',
@@ -91,5 +138,6 @@ export async function GET(req: Request) {
     isCommissionerView: targetUserId !== session.user.id,
     isPaid: z.isPaid,
     week,
+    pendingBashingDecision,
   })
 }

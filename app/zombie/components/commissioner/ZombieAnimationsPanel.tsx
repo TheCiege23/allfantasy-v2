@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const KEY = (leagueId: string) => `zombie-anim-prefs:${leagueId}`
 
@@ -26,6 +26,7 @@ export function ZombieAnimationsPanel({ leagueId, canEdit }: { leagueId: string;
   const [speed, setSpeed] = useState(1000)
   const [eventOn, setEventOn] = useState<Record<string, boolean>>({})
   const [preview, setPreview] = useState<string | null>(null)
+  const serverFlush = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     try {
@@ -41,6 +42,22 @@ export function ZombieAnimationsPanel({ leagueId, canEdit }: { leagueId: string;
       /* ignore */
     }
   }, [leagueId])
+
+  useEffect(() => {
+    if (!canEdit) return
+    void fetch(`/api/zombie/commissioner-ui-prefs?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { prefs?: { animations?: Record<string, unknown> } } | null) => {
+        const a = d?.prefs?.animations
+        if (!a || typeof a !== 'object') return
+        if (typeof a.enabled === 'boolean') setEnabled(a.enabled)
+        if (typeof a.dramatic === 'boolean') setDramatic(a.dramatic)
+        if (typeof a.reducedAll === 'boolean') setReducedAll(a.reducedAll)
+        if (typeof a.speed === 'number') setSpeed(a.speed)
+        if (a.eventOn && typeof a.eventOn === 'object') setEventOn(a.eventOn as Record<string, boolean>)
+      })
+      .catch(() => {})
+  }, [leagueId, canEdit])
 
   function persist(next: {
     enabled?: boolean
@@ -61,12 +78,24 @@ export function ZombieAnimationsPanel({ leagueId, canEdit }: { leagueId: string;
     } catch {
       /* ignore */
     }
+    if (!canEdit) return
+    if (serverFlush.current) clearTimeout(serverFlush.current)
+    serverFlush.current = setTimeout(() => {
+      void fetch('/api/zombie/commissioner-ui-prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ leagueId, animations: payload }),
+      }).catch(() => {})
+    }, 500)
   }
 
   return (
     <div className="space-y-6 px-4 py-4 md:px-6">
       <p className="text-[12px] text-white/50">
-        Stored in this browser until server sync is enabled. Client animations use CSS classes in{' '}
+        {canEdit
+          ? 'Preferences save to this league (commissioner). CSS classes: '
+          : 'View only. CSS classes: '}
         <code className="text-sky-300/90">globals.css</code>.
       </p>
 

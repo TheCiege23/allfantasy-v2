@@ -9,8 +9,17 @@ import { LeagueShell } from './LeagueShell'
 
 export const dynamic = 'force-dynamic'
 
-export default async function LeaguePage({ params }: { params: Promise<{ leagueId: string }> }) {
+export default async function LeaguePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ leagueId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { leagueId } = await params
+  const sp = searchParams ? await searchParams : {}
+  const zc = sp.zombieChimmy
+  const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
   } | null
@@ -111,6 +120,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       sleeperUsersByPlatformId={sleeperUsersByPlatformId}
       currentSleeperUserId={currentSleeperUserId}
       discordConnected={Boolean(userProfile?.discordUserId)}
+      zombieChimmyPrefill={zombieChimmyPrefill}
     />
   )
 }

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { getZombieRulesForSport } from '@/lib/zombie/zombieRules'
-import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
+import { notifyCommissioner, notifyZombiePlayer } from '@/lib/zombie/commissionerNotificationService'
 import { queueAnimation } from '@/lib/zombie/animationEngine'
 import { setZombie } from '@/lib/zombie/ZombieOwnerStatusService'
 import { appendZombieAudit } from '@/lib/zombie/ZombieAuditLog'
@@ -12,6 +12,19 @@ async function statusForRedraftOwner(leagueId: string, ownerId: string): Promise
     where: { leagueId_rosterId: { leagueId, rosterId: roster.id } },
   })
   return row?.status ?? 'Survivor'
+}
+
+async function displayNameForPlatformUser(leagueId: string, platformUserId: string): Promise<string> {
+  const roster = await prisma.roster.findFirst({
+    where: { leagueId, platformUserId },
+    select: { id: true },
+  })
+  if (!roster) return platformUserId
+  const zt = await prisma.zombieLeagueTeam.findUnique({
+    where: { leagueId_rosterId: { leagueId, rosterId: roster.id } },
+    select: { fantasyTeamName: true, displayName: true },
+  })
+  return zt?.fantasyTeamName || zt?.displayName || platformUserId
 }
 
 function bashType(w: string, l: string): string {
@@ -96,6 +109,15 @@ export async function detectAndProcessBashings(
       `${bt} — margin ${margin.toFixed(1)}`,
       { week, relatedEventId: row.id, relatedEventType: 'ZombieBashingEvent' },
     )
+
+    if (bt === 'survivor_bashes_survivor' && row.requiresDecision && row.decisionDeadline) {
+      const loserNm = await displayNameForPlatformUser(leagueId, loseOwner)
+      await notifyZombiePlayer(winOwner, 'bashing_decision', 'Bashing decision needed', {
+        severity: 'high',
+        body: `🔥 You bashed ${loserNm} by ${margin.toFixed(1)} pts. Spare or infect? Decide before the deadline.`,
+        meta: { bashingEventId: row.id, week, leagueId },
+      }).catch(() => {})
+    }
 
     if (bt === 'survivor_bashes_whisperer') {
       const wr = await prisma.whispererRecord.findUnique({ where: { zombieLeagueId } })
@@ -182,6 +204,11 @@ export async function processExpiredBashingDecisions(leagueId: string): Promise<
       relatedEventId: ev.id,
       relatedEventType: 'ZombieBashingEvent',
     })
+    await notifyZombiePlayer(ev.winnerUserId, 'bashing_defaulted', 'Bashing decision', {
+      severity: 'low',
+      body: 'Decision window expired. Default applied (spare).',
+      meta: { bashingEventId: ev.id, leagueId },
+    }).catch(() => {})
   }
 }
 

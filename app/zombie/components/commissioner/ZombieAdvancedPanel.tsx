@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const KEY = (leagueId: string) => `zombie-advanced-prefs:${leagueId}`
 
@@ -8,6 +8,7 @@ export function ZombieAdvancedPanel({ leagueId, canEdit }: { leagueId: string; c
   const [auditPlayers, setAuditPlayers] = useState(false)
   const [winningsPublic, setWinningsPublic] = useState(false)
   const [itemsPublic, setItemsPublic] = useState(false)
+  const serverFlush = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     try {
@@ -22,6 +23,20 @@ export function ZombieAdvancedPanel({ leagueId, canEdit }: { leagueId: string; c
     }
   }, [leagueId])
 
+  useEffect(() => {
+    if (!canEdit) return
+    void fetch(`/api/zombie/commissioner-ui-prefs?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { prefs?: { advanced?: Record<string, unknown> } } | null) => {
+        const a = d?.prefs?.advanced
+        if (!a || typeof a !== 'object') return
+        if (typeof a.auditPlayers === 'boolean') setAuditPlayers(a.auditPlayers)
+        if (typeof a.winningsPublic === 'boolean') setWinningsPublic(a.winningsPublic)
+        if (typeof a.itemsPublic === 'boolean') setItemsPublic(a.itemsPublic)
+      })
+      .catch(() => {})
+  }, [leagueId, canEdit])
+
   function save(partial: Partial<{ auditPlayers: boolean; winningsPublic: boolean; itemsPublic: boolean }>) {
     const payload = {
       auditPlayers: partial.auditPlayers ?? auditPlayers,
@@ -33,11 +48,23 @@ export function ZombieAdvancedPanel({ leagueId, canEdit }: { leagueId: string; c
     } catch {
       /* ignore */
     }
+    if (!canEdit) return
+    if (serverFlush.current) clearTimeout(serverFlush.current)
+    serverFlush.current = setTimeout(() => {
+      void fetch('/api/zombie/commissioner-ui-prefs', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ leagueId, advanced: payload }),
+      }).catch(() => {})
+    }, 500)
   }
 
   return (
     <div className="space-y-6 px-4 py-4 md:px-6">
-      <p className="text-[12px] text-white/50">Advanced toggles are stored locally until backed by league settings API.</p>
+      <p className="text-[12px] text-white/50">
+        {canEdit ? 'Toggles save to this league (commissioner). Engine rules still live in Prisma / resolution.' : 'View only.'}
+      </p>
 
       <section className="space-y-3 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
         <h3 className="text-[13px] font-bold text-white">Commissioner controls</h3>

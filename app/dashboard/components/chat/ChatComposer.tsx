@@ -31,6 +31,8 @@ type ChatComposerProps = {
   placeholder?: string
   /** Renders "Ask Chimmy" in the composer toolbar (e.g. league chat left panel). */
   onAskChimmy?: () => void
+  /** One-shot prefill from deep link query `?zombieChimmy=` (e.g. Zombie inventory → league chat). */
+  initialDraftText?: string | null
 }
 
 type Picker = 'gif' | 'emoji' | 'poll' | null
@@ -40,8 +42,10 @@ export function ChatComposer({
   onSend,
   placeholder = 'Message league...',
   onAskChimmy,
+  initialDraftText = null,
 }: ChatComposerProps) {
   const [text, setText] = useState('')
+  const appliedPrefillKey = useRef<string | null>(null)
   const [activePicker, setActivePicker] = useState<Picker>(null)
   const [isRecording, setIsRecording] = useState(false)
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([])
@@ -63,6 +67,22 @@ export function ChatComposer({
   useEffect(() => {
     autoResize()
   }, [text, autoResize])
+
+  useEffect(() => {
+    appliedPrefillKey.current = null
+  }, [leagueId])
+
+  useEffect(() => {
+    if (!initialDraftText?.trim()) return
+    const key = `${leagueId}:${initialDraftText}`
+    if (appliedPrefillKey.current === key) return
+    appliedPrefillKey.current = key
+    setText(initialDraftText)
+    queueMicrotask(() => {
+      textareaRef.current?.focus()
+      autoResize()
+    })
+  }, [leagueId, initialDraftText, autoResize])
 
   const insertChar = useCallback((char: string) => {
     const ta = textareaRef.current
