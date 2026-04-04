@@ -9,6 +9,7 @@ import { C2CPlayerModal } from '@/app/c2c/components/C2CPlayerModal'
 import type { C2CPlayerRow } from '@/app/c2c/components/c2cPlayerTypes'
 import { NBA_CBB_DEFAULTS, NFL_CFB_DEFAULTS } from '@/lib/c2c/sportDefaults'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
+import type { RosterBalanceReport } from '@/lib/c2c/ai/c2cChimmy'
 
 type RosterBuckets = {
   campusStarters: C2CPlayerRow[]
@@ -50,6 +51,38 @@ export function C2CRosterClient({
     player: null,
     side: 'campus',
   })
+  const [balanceOpen, setBalanceOpen] = useState(false)
+  const [balanceLoading, setBalanceLoading] = useState(false)
+  const [balanceReport, setBalanceReport] = useState<RosterBalanceReport | null>(null)
+  const [balanceErr, setBalanceErr] = useState<string | null>(null)
+
+  const loadBalance = useCallback(async () => {
+    if (!hasAfSub) return
+    setBalanceLoading(true)
+    setBalanceErr(null)
+    setBalanceReport(null)
+    setBalanceOpen(true)
+    try {
+      const r = await fetch('/api/c2c/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'roster_balance', leagueId, managerId: userId }),
+      })
+      if (r.status === 402) {
+        setBalanceErr('AF Commissioner Subscription required.')
+        return
+      }
+      const j = (await r.json().catch(() => ({}))) as { error?: string; report?: RosterBalanceReport }
+      if (!r.ok) {
+        setBalanceErr(typeof j.error === 'string' ? j.error : 'Roster balance failed')
+        return
+      }
+      setBalanceReport(j.report ?? null)
+    } finally {
+      setBalanceLoading(false)
+    }
+  }, [hasAfSub, leagueId, userId])
 
   const slots = useMemo(() => {
     if (!cfg) return { campus: NFL_CFB_DEFAULTS.campusStarterSlots, canton: NFL_CFB_DEFAULTS.cantonStarterSlots }
@@ -153,21 +186,70 @@ export function C2CRosterClient({
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-12 pt-4">
-      <div className="sticky top-14 z-10 mb-4 flex gap-1 rounded-xl border border-white/[0.07] bg-[#0c0c1e]/95 p-1 backdrop-blur md:top-0">
-        {(['full', 'campus', 'canton'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setViewMode(m)}
-            className={`flex-1 rounded-lg px-2 py-2 text-[11px] font-bold uppercase tracking-wide ${
-              viewMode === m ? 'bg-violet-600/30 text-white' : 'text-white/45 hover:bg-white/[0.04]'
-            }`}
-            data-testid={`c2c-view-${m}`}
-          >
-            {m === 'full' ? 'Full' : m === 'campus' ? 'Campus' : 'Canton'}
-          </button>
-        ))}
+      <div className="sticky top-14 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.07] bg-[#0c0c1e]/95 p-1 backdrop-blur md:top-0">
+        <div className="flex min-w-0 flex-1 gap-1">
+          {(['full', 'campus', 'canton'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setViewMode(m)}
+              className={`flex-1 rounded-lg px-2 py-2 text-[11px] font-bold uppercase tracking-wide ${
+                viewMode === m ? 'bg-violet-600/30 text-white' : 'text-white/45 hover:bg-white/[0.04]'
+              }`}
+              data-testid={`c2c-view-${m}`}
+            >
+              {m === 'full' ? 'Full' : m === 'campus' ? 'Campus' : 'Canton'}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => void loadBalance()}
+          disabled={!hasAfSub || balanceLoading}
+          className="shrink-0 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+          data-testid="c2c-roster-balance"
+        >
+          {balanceLoading ? '…' : 'Roster Balance'}
+        </button>
       </div>
+
+      {balanceOpen ? (
+        <div
+          className="mb-4 rounded-xl border border-white/[0.08] bg-[#0a1228]/90 p-4 text-[12px] text-white/80"
+          data-testid="c2c-roster-balance-panel"
+        >
+          {balanceErr ? <p className="text-amber-200/90">{balanceErr}</p> : null}
+          {balanceLoading ? <p className="text-white/55">Loading balance…</p> : null}
+          {balanceReport ? (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-white/45">Roster balance</p>
+              <p>
+                <span className="text-white/45">Campus side: </span>
+                <span className="font-semibold text-violet-200">{balanceReport.campusSideGrade}</span>
+                <span className="text-white/45"> · Canton side: </span>
+                <span className="font-semibold text-blue-200">{balanceReport.cantonSideGrade}</span>
+              </p>
+              <p>
+                <span className="text-white/45">Balance score: </span>
+                {balanceReport.balanceScore}
+                <span className="text-white/45"> · Weaker side: </span>
+                {balanceReport.weakSide}
+              </p>
+              <p>
+                <span className="text-white/45">Pipeline: </span>
+                {balanceReport.pipelineHealth}
+              </p>
+              <ul className="list-disc space-y-1 pl-4 text-white/70">
+                {balanceReport.recommendations.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          ) : !balanceErr && !balanceLoading ? (
+            <p className="text-white/45">No report yet.</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <C2CScoreSummaryBar
         campus={scores?.campus ?? 0}
@@ -332,6 +414,7 @@ export function C2CRosterClient({
         player={modal.player}
         side={modal.side}
         leagueId={leagueId}
+        userId={userId}
         hasAfSub={hasAfSub}
         countsTowardScore={
           modal.player

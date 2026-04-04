@@ -11,6 +11,7 @@ import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
 import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyCommandHandler'
 import { processIdpLeagueChatInput } from '@/lib/idp/idpChimmyLeagueChat'
 import { processDevyLeagueChatInput } from '@/lib/devy/devyChimmyLeagueChat'
+import { processC2cLeagueChatInput } from '@/lib/c2c/c2cChimmyLeagueChat'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
@@ -170,9 +171,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let c2cProcessed: Awaited<ReturnType<typeof processC2cLeagueChatInput>> | null = null
   let devyProcessed: Awaited<ReturnType<typeof processDevyLeagueChatInput>> | null = null
   let idpProcessed: Awaited<ReturnType<typeof processIdpLeagueChatInput>> | null = null
   if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId))) {
+    c2cProcessed = await processC2cLeagueChatInput(leagueId, userId, message)
+    if (c2cProcessed?.outcome === 'suppress_public') {
+      return NextResponse.json({
+        suppressed: true,
+        privateChimmyNotice: c2cProcessed.privateNotice,
+      })
+    }
+  }
+  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && c2cProcessed === null) {
     devyProcessed = await processDevyLeagueChatInput(leagueId, userId, message)
     if (devyProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -181,7 +192,7 @@ export async function POST(req: NextRequest) {
       })
     }
   }
-  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && devyProcessed === null) {
+  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && c2cProcessed === null && devyProcessed === null) {
     idpProcessed = await processIdpLeagueChatInput(leagueId, userId, message)
     if (idpProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -208,11 +219,13 @@ export async function POST(req: NextRequest) {
   const chimmyBatch =
     bbProcessed?.outcome === 'post_user_and_chimmy' && bbProcessed.chimmyMessages.length > 0
       ? bbProcessed.chimmyMessages
-      : devyProcessed?.outcome === 'post_user_and_chimmy' && devyProcessed.chimmyMessages.length > 0
-        ? devyProcessed.chimmyMessages
-        : idpProcessed?.outcome === 'post_user_and_chimmy' && idpProcessed.chimmyMessages.length > 0
-          ? idpProcessed.chimmyMessages
-          : []
+      : c2cProcessed?.outcome === 'post_user_and_chimmy' && c2cProcessed.chimmyMessages.length > 0
+        ? c2cProcessed.chimmyMessages
+        : devyProcessed?.outcome === 'post_user_and_chimmy' && devyProcessed.chimmyMessages.length > 0
+          ? devyProcessed.chimmyMessages
+          : idpProcessed?.outcome === 'post_user_and_chimmy' && idpProcessed.chimmyMessages.length > 0
+            ? idpProcessed.chimmyMessages
+            : []
 
   const extraMessages: ReturnType<typeof toClientMessage>[] = []
   if (chimmyBatch.length > 0) {
@@ -229,6 +242,7 @@ export async function POST(req: NextRequest) {
             isSystem: true,
             chimmy: true,
             ...(bbProcessed?.outcome === 'post_user_and_chimmy' ? { bigBrother: true } : {}),
+            ...(c2cProcessed?.outcome === 'post_user_and_chimmy' ? { c2c: true } : {}),
             ...(devyProcessed?.outcome === 'post_user_and_chimmy' ? { devy: true } : {}),
             ...(idpProcessed?.outcome === 'post_user_and_chimmy' ? { idp: true } : {}),
             ...(chimmy.metadata ?? {}),

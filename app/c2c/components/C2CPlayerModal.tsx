@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import type { CampusPlayerEval } from '@/lib/c2c/ai/c2cChimmy'
 import type { C2CPlayerRow } from './c2cPlayerTypes'
 
 export function C2CPlayerModal({
@@ -8,6 +10,7 @@ export function C2CPlayerModal({
   player,
   side,
   leagueId,
+  userId,
   hasAfSub = false,
   countsTowardScore,
 }: {
@@ -16,12 +19,49 @@ export function C2CPlayerModal({
   player: C2CPlayerRow | null
   side: 'campus' | 'canton'
   leagueId: string
+  userId: string
   hasAfSub?: boolean
   countsTowardScore: boolean
 }) {
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiEval, setAiEval] = useState<CampusPlayerEval | null>(null)
+  const [aiErr, setAiErr] = useState<string | null>(null)
+
   if (!open || !player) return null
 
   const campus = side === 'campus'
+
+  const runCampusAi = async () => {
+    if (!player || !campus) return
+    setAiLoading(true)
+    setAiErr(null)
+    setAiEval(null)
+    try {
+      const r = await fetch('/api/c2c/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'campus_eval',
+          leagueId,
+          managerId: userId,
+          playerId: player.playerId,
+        }),
+      })
+      if (r.status === 402) {
+        setAiErr('AF Commissioner Subscription required for AI features.')
+        return
+      }
+      const j = (await r.json().catch(() => ({}))) as { error?: string; eval?: CampusPlayerEval }
+      if (!r.ok) {
+        setAiErr(typeof j.error === 'string' ? j.error : 'Analysis failed')
+        return
+      }
+      setAiEval(j.eval ?? null)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   return (
     <div
@@ -100,6 +140,42 @@ export function C2CPlayerModal({
           )}
         </div>
 
+        {aiErr ? (
+          <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100" data-testid="c2c-player-ai-error">
+            {aiErr}
+          </p>
+        ) : null}
+
+        {aiEval ? (
+          <div
+            className="mt-4 space-y-2 rounded-xl border border-cyan-500/25 bg-cyan-950/20 p-3 text-[12px] text-white/85"
+            data-testid="c2c-player-ai-panel"
+          >
+            <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">Chimmy — campus + canton</p>
+            <p>
+              <span className="text-white/45">Campus grade: </span>
+              {aiEval.campusGrade}
+            </p>
+            <p>
+              <span className="text-white/45">Canton projection: </span>
+              {aiEval.cantonProjection}
+            </p>
+            <p>
+              <span className="text-white/45">Start: </span>
+              {aiEval.startRec}
+            </p>
+            <p>
+              <span className="text-white/45">Declaration risk: </span>
+              {aiEval.declarationRisk}
+            </p>
+            <p>
+              <span className="text-white/45">Hold: </span>
+              {aiEval.holdRecommendation}
+            </p>
+            <p className="text-white/75">{aiEval.verdict}</p>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-col gap-2 border-t border-white/[0.06] pt-4">
           {campus ? (
             <button
@@ -145,16 +221,20 @@ export function C2CPlayerModal({
               </>
             ) : null}
           </div>
-          {hasAfSub ? (
-            <a
-              href={`/league/${leagueId}?view=team`}
-              className="mt-2 inline-flex justify-center rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-[12px] font-semibold text-cyan-200 hover:bg-cyan-500/15"
+          {campus && hasAfSub ? (
+            <button
+              type="button"
+              onClick={() => void runCampusAi()}
+              disabled={aiLoading}
+              className="mt-2 inline-flex justify-center rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-[12px] font-semibold text-cyan-200 hover:bg-cyan-500/15 disabled:opacity-50"
               data-testid="c2c-player-modal-ai"
             >
-              AI Analysis (AfSub)
-            </a>
-          ) : (
+              {aiLoading ? 'Analyzing…' : 'AI Analysis (AfSub)'}
+            </button>
+          ) : campus ? (
             <p className="text-center text-[11px] text-white/35">AI analysis requires AfSub.</p>
+          ) : (
+            <p className="text-center text-[11px] text-white/35">Campus AI evaluates college prospects (open a campus player).</p>
           )}
         </div>
       </div>

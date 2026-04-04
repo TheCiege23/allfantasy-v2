@@ -397,7 +397,7 @@ export function CommissionerSettingsModal({
           ) : activeTab === 'c2c_drafts' ? (
             <C2CDraftsPanel config={c2cConfig} />
           ) : activeTab === 'c2c_ai' ? (
-            <C2CAIPanel hasAfSub={hasSub} />
+            <C2CAIPanel leagueId={leagueId} hasAfSub={hasSub} c2cConfig={c2cConfig} isCommissioner={canEdit} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

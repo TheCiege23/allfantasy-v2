@@ -1,4 +1,9 @@
 import { prisma } from '@/lib/prisma'
+import {
+  fetchForecastWeatherAtTime,
+  type ForecastWeatherAtTime,
+  NFL_VENUE_COORDS,
+} from '@/lib/openweathermap'
 
 type WeatherCacheDelegate = {
   upsert: (args: unknown) => Promise<unknown>
@@ -29,11 +34,6 @@ type WeatherCacheDelegate = {
 function weatherCacheDb(): WeatherCacheDelegate {
   return (prisma as unknown as { weatherCache: WeatherCacheDelegate }).weatherCache
 }
-import {
-  fetchForecastWeatherAtTime,
-  type ForecastWeatherAtTime,
-  NFL_VENUE_COORDS,
-} from '@/lib/openweathermap'
 
 const MS = 1000
 const MIN = 60 * MS

@@ -577,6 +577,12 @@ export function LeagueChatInPanel({
           bigBrotherAutocompleteLeagueId={
             selectedLeague.leagueVariant === 'big_brother' ? selectedLeague.id : null
           }
+          c2cAutocompleteLeagueId={
+            selectedLeague.leagueVariant &&
+            String(selectedLeague.leagueVariant).toLowerCase() === 'merged_devy_c2c'
+              ? selectedLeague.id
+              : null
+          }
           idpAutocompleteLeagueId={
             selectedLeague.leagueVariant &&
             ['idp', 'IDP', 'DYNASTY_IDP', 'dynasty_idp'].includes(selectedLeague.leagueVariant)

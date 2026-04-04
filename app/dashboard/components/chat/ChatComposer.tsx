@@ -35,6 +35,8 @@ type ChatComposerProps = {
   initialDraftText?: string | null
   /** When set, fetches Big Brother @Chimmy autocomplete for this league. */
   bigBrotherAutocompleteLeagueId?: string | null
+  /** When set, fetches C2C @Chimmy autocomplete for this league. */
+  c2cAutocompleteLeagueId?: string | null
   /** When set, fetches IDP @Chimmy autocomplete for this league (mutually exclusive with BB in practice). */
   idpAutocompleteLeagueId?: string | null
 }
@@ -48,6 +50,7 @@ export function ChatComposer({
   onAskChimmy,
   initialDraftText = null,
   bigBrotherAutocompleteLeagueId = null,
+  c2cAutocompleteLeagueId = null,
   idpAutocompleteLeagueId = null,
 }: ChatComposerProps) {
   const [text, setText] = useState('')
@@ -80,14 +83,17 @@ export function ChatComposer({
   }, [leagueId])
 
   useEffect(() => {
-    const leagueForSuggest = bigBrotherAutocompleteLeagueId ?? idpAutocompleteLeagueId
+    const leagueForSuggest =
+      bigBrotherAutocompleteLeagueId ?? c2cAutocompleteLeagueId ?? idpAutocompleteLeagueId
     if (!leagueForSuggest || !text.toLowerCase().includes('@chimmy')) {
       setBbSuggest(null)
       return
     }
     const path = bigBrotherAutocompleteLeagueId
       ? `/api/leagues/${encodeURIComponent(bigBrotherAutocompleteLeagueId)}/big-brother/chimmy-autocomplete?draft=${encodeURIComponent(text)}`
-      : `/api/leagues/${encodeURIComponent(idpAutocompleteLeagueId!)}/idp/chimmy-autocomplete?draft=${encodeURIComponent(text)}`
+      : c2cAutocompleteLeagueId
+        ? `/api/c2c/chimmy-autocomplete?leagueId=${encodeURIComponent(c2cAutocompleteLeagueId)}&draft=${encodeURIComponent(text)}`
+        : `/api/leagues/${encodeURIComponent(idpAutocompleteLeagueId!)}/idp/chimmy-autocomplete?draft=${encodeURIComponent(text)}`
     const handle = window.setTimeout(() => {
       void fetch(path, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
@@ -101,7 +107,7 @@ export function ChatComposer({
         .catch(() => setBbSuggest(null))
     }, 180)
     return () => window.clearTimeout(handle)
-  }, [text, bigBrotherAutocompleteLeagueId, idpAutocompleteLeagueId])
+  }, [text, bigBrotherAutocompleteLeagueId, c2cAutocompleteLeagueId, idpAutocompleteLeagueId])
 
   useEffect(() => {
     if (!initialDraftText?.trim()) return
@@ -295,7 +301,13 @@ export function ChatComposer({
           {bbSuggest?.options.length ? (
             <div
               className="max-h-36 overflow-y-auto border-b border-white/[0.06] px-2 py-1.5"
-              data-testid={bigBrotherAutocompleteLeagueId ? 'bb-chimmy-autocomplete' : 'idp-chimmy-autocomplete'}
+              data-testid={
+                bigBrotherAutocompleteLeagueId
+                  ? 'bb-chimmy-autocomplete'
+                  : c2cAutocompleteLeagueId
+                    ? 'c2c-chimmy-autocomplete'
+                    : 'idp-chimmy-autocomplete'
+              }
             >
               {bbSuggest.options.map((opt) => (
                 <button
