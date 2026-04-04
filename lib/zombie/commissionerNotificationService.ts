@@ -1,5 +1,18 @@
 import { prisma } from '@/lib/prisma'
 
+export type NotifyPlayerOptions = {
+  /** In-app body; may include names. */
+  body?: string | null
+  /** low | medium | high | critical */
+  severity?: string
+  meta?: Record<string, unknown>
+  /**
+   * When true, title/body are rewritten for push-style surfaces to avoid spoilers.
+   * Full detail should still be shown in-app via `meta.inAppTitle` / `meta.inAppBody` if set.
+   */
+  pushSpoilerSafe?: boolean
+}
+
 export type NotifyCommissionerOptions = {
   urgency?: string
   relatedUserId?: string
@@ -40,6 +53,36 @@ export async function notifyCommissioner(
       urgency: options.urgency ?? 'normal',
       requiresAction: options.requiresAction ?? false,
       actionDeadline: options.actionDeadline ?? null,
+    },
+  })
+}
+
+/**
+ * Player-facing in-app notification (PlatformNotification). Use spoiler-safe title/body when `pushSpoilerSafe`.
+ */
+export async function notifyZombiePlayer(
+  userId: string,
+  type: string,
+  title: string,
+  options: NotifyPlayerOptions = {},
+): Promise<void> {
+  const safe = options.pushSpoilerSafe === true
+  const displayTitle = safe ? 'League update' : title
+  const displayBody = safe ? 'Check your league — results are in.' : (options.body ?? null)
+
+  await prisma.platformNotification.create({
+    data: {
+      userId,
+      type: `zombie_${type}`,
+      title: displayTitle,
+      body: displayBody,
+      severity: options.severity ?? 'low',
+      meta: {
+        ...(options.meta ?? {}),
+        pushSpoilerSafe: safe,
+        inAppTitle: title,
+        inAppBody: options.body,
+      } as object,
     },
   })
 }

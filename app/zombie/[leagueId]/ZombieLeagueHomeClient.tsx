@@ -139,7 +139,7 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
         <ZombieEventFeed
           animations={anims}
           announcements={z.announcements}
-          maxItems={5}
+          maxItems={3}
           compact
           leagueId={leagueId}
           leagueName={z.name}

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { getZombieRulesForSport } from '@/lib/zombie/zombieRules'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,23 @@ export async function GET(req: Request) {
   const mm = await prisma.redraftMatchup.findMany({
     where: { seasonId: season.id, week },
   })
+
+  const rules = await getZombieRulesForSport(z.sport)
+  const resolution = await prisma.zombieWeeklyResolution.findUnique({
+    where: { zombieLeagueId_week: { zombieLeagueId: z.id, week } },
+    select: { status: true, resolvedAt: true, infectionCount: true },
+  })
+
+  const sessionRoster = await prisma.roster.findFirst({
+    where: { leagueId: lid, platformUserId: session.user.id },
+    select: { id: true },
+  })
+  const myRedraft = sessionRoster
+    ? await prisma.redraftRoster.findFirst({
+        where: { seasonId: season.id, ownerId: session.user.id },
+        select: { id: true },
+      })
+    : null
 
   async function sideLabel(redraftRosterId: string): Promise<{ name: string; status: string }> {
     const rr = await prisma.redraftRoster.findUnique({
@@ -63,15 +81,47 @@ export async function GET(req: Request) {
     if (hs.includes('survivor') && (as.includes('zombie') || as.includes('whisperer'))) infectionRisk = 'home'
     if (as.includes('survivor') && (hs.includes('zombie') || hs.includes('whisperer'))) infectionRisk = 'away'
 
+    const hsNum = m.homeScore ?? 0
+    const asNum = m.awayScore ?? 0
+    const margin = Math.abs(hsNum - asNum)
+    const complete = m.status === 'complete'
+    let riskLevel: 'low' | 'medium' | 'high' | 'critical' | 'na' = 'na'
+    if (infectionRisk !== 'none' && !complete) {
+      const survIsHome = hs.includes('survivor') && !hs.includes('zombie')
+      const diff = survIsHome ? hsNum - asNum : asNum - hsNum
+      if (diff > 20) riskLevel = 'low'
+      else if (diff >= -20) riskLevel = 'medium'
+      else if (diff >= -30) riskLevel = 'high'
+      else riskLevel = 'critical'
+    }
+
+    const isMyHome = myRedraft?.id === m.homeRosterId
+    const isMyAway = myRedraft?.id === m.awayRosterId
+    const mySide = isMyHome ? ('home' as const) : isMyAway ? ('away' as const) : null
+
     out.push({
       id: m.id,
       home,
       away,
       homeScore: m.homeScore,
       awayScore: m.awayScore,
+      status: m.status,
       infectionRisk,
+      riskLevel,
+      margin,
+      mySide,
     })
   }
 
-  return NextResponse.json({ matchups: out, week })
+  return NextResponse.json({
+    matchups: out,
+    week,
+    rules: {
+      bashingThreshold: rules.bashingThreshold,
+      maulingThreshold: rules.maulingThreshold,
+    },
+    resolution: resolution
+      ? { status: resolution.status, resolvedAt: resolution.resolvedAt, infectionCount: resolution.infectionCount }
+      : null,
+  })
 }

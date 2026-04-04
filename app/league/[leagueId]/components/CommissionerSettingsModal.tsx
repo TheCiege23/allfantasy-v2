@@ -31,6 +31,8 @@ import { ZombiePaidPanel } from '@/app/zombie/components/commissioner/ZombiePaid
 import { ZombieUniversePanel } from '@/app/zombie/components/commissioner/ZombieUniversePanel'
 import { ZombieUpdatesPanel } from '@/app/zombie/components/commissioner/ZombieUpdatesPanel'
 import { ZombieAIPanel } from '@/app/zombie/components/commissioner/ZombieAIPanel'
+import { ZombieAnimationsPanel } from '@/app/zombie/components/commissioner/ZombieAnimationsPanel'
+import { ZombieAdvancedPanel } from '@/app/zombie/components/commissioner/ZombieAdvancedPanel'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -249,6 +251,10 @@ export function CommissionerSettingsModal({
             <ZombieUniversePanel canEdit={canEdit} />
           ) : activeTab === 'zombie_updates' ? (
             <ZombieUpdatesPanel leagueId={leagueId} canEdit={canEdit} />
+          ) : activeTab === 'zombie_animations' ? (
+            <ZombieAnimationsPanel leagueId={leagueId} canEdit={canEdit} />
+          ) : activeTab === 'zombie_advanced' ? (
+            <ZombieAdvancedPanel leagueId={leagueId} canEdit={canEdit} />
           ) : activeTab === 'zombie_ai' ? (
             <ZombieAIPanel hasAfSub={hasSub} />
           ) : (

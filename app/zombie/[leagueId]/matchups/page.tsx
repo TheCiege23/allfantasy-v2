@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ZombieMatchupCard } from '@/app/zombie/components/ZombieMatchupCard'
 
 type M = {
@@ -11,12 +11,18 @@ type M = {
   homeScore: number | null
   awayScore: number | null
   infectionRisk: 'home' | 'away' | 'none'
+  riskLevel?: 'low' | 'medium' | 'high' | 'critical' | 'na'
+  margin?: number
+  mySide?: 'home' | 'away' | null
+  status?: string
 }
 
 export default function ZombieMatchupsPage() {
   const { leagueId } = useParams<{ leagueId: string }>()
   const [list, setList] = useState<M[]>([])
   const [week, setWeek] = useState<number>(1)
+  const [rules, setRules] = useState<{ bashingThreshold: number; maulingThreshold: number } | null>(null)
+  const [resolution, setResolution] = useState<{ status: string; resolvedAt: string | null } | null>(null)
 
   useEffect(() => {
     if (!leagueId) return
@@ -28,18 +34,37 @@ export default function ZombieMatchupsPage() {
       .catch(() => null)
   }, [leagueId])
 
-  useEffect(() => {
+  const loadMatchups = useCallback(() => {
     if (!leagueId) return
     fetch(`/api/zombie/matchups?leagueId=${encodeURIComponent(leagueId)}&week=${week}`, {
       credentials: 'include',
     })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: { matchups?: M[]; week?: number } | null) => {
-        if (d?.matchups) setList(d.matchups)
-        if (d?.week) setWeek(d.week)
-      })
+      .then(
+        (d: {
+          matchups?: M[]
+          week?: number
+          rules?: { bashingThreshold: number; maulingThreshold: number }
+          resolution?: { status: string; resolvedAt: string | null } | null
+        } | null) => {
+          if (d?.matchups) setList(d.matchups)
+          if (d?.week) setWeek(d.week)
+          if (d?.rules) setRules(d.rules)
+          if (d?.resolution !== undefined) setResolution(d.resolution)
+        },
+      )
       .catch(() => setList([]))
   }, [leagueId, week])
+
+  useEffect(() => {
+    loadMatchups()
+  }, [loadMatchups])
+
+  useEffect(() => {
+    if (!leagueId) return
+    const t = setInterval(loadMatchups, 30_000)
+    return () => clearInterval(t)
+  }, [leagueId, loadMatchups])
 
   return (
     <div>
@@ -55,6 +80,12 @@ export default function ZombieMatchupsPage() {
             homeScore={m.homeScore}
             awayScore={m.awayScore}
             infectionRisk={m.infectionRisk}
+            riskLevel={m.riskLevel ?? 'na'}
+            margin={m.margin ?? 0}
+            mySide={m.mySide ?? null}
+            matchStatus={m.status}
+            rules={rules ?? undefined}
+            resolutionComplete={resolution?.status === 'complete' && !!resolution?.resolvedAt}
           />
         ))}
         {!list.length ? <p className="text-[13px] text-[var(--zombie-text-dim)]">No matchups loaded yet.</p> : null}

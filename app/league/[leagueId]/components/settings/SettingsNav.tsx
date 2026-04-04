@@ -32,6 +32,8 @@ export type SettingsNavTabId =
   | 'zombie_paid'
   | 'zombie_universe'
   | 'zombie_updates'
+  | 'zombie_animations'
+  | 'zombie_advanced'
   | 'zombie_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
@@ -56,6 +58,8 @@ const ZOMBIE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'zombie_paid', label: '💰 Paid / Free' },
   { id: 'zombie_universe', label: '🌍 Universe' },
   { id: 'zombie_updates', label: '📋 Weekly Updates' },
+  { id: 'zombie_animations', label: '🎬 Animations' },
+  { id: 'zombie_advanced', label: '⚙️ Advanced Rules' },
   { id: 'zombie_ai', label: '🤖 AI Host' },
 ]
 

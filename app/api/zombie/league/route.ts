@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createZombieLeague } from '@/lib/zombie/setupEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getLeagueRole } from '@/lib/league/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,10 +67,21 @@ export async function GET(req: Request) {
   })
   const myTeam = roster ? (z.teams.find((t) => t.rosterId === roster.id) ?? null) : null
 
+  let myActiveItemCount = 0
+  if (myTeam) {
+    myActiveItemCount = await prisma.zombieTeamItem.count({
+      where: { teamStatusId: myTeam.id, isUsed: false, isExpired: false },
+    })
+  }
+
+  const role = await getLeagueRole(leagueId, session.user.id)
+
   return NextResponse.json({
     league: z,
     hordeSize: horde,
     survivorCount: surv,
     myTeam,
+    myActiveItemCount,
+    viewerIsCommissioner: role === 'commissioner',
   })
 }

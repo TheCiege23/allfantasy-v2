@@ -14,6 +14,22 @@ import { prisma } from '@/lib/prisma'
  * - **whisperer_replaced**: Fullscreen ~7s home, chat drama, universe hub, push.
  * - **horde_grows**: Home horde bar + feed milestone; no push.
  * - **last_survivor**: Home persistent urgent banner, universe flag, push with counts only.
+ *
+ * ## CSS classes (see `app/globals.css`)
+ * Map `animationType` to a class on the client when handling SSE `zombie_event_animation`:
+ * - `zombie_turn` → `.zombie-turn-anim` (~1200ms)
+ * - `player_revived` → `.revival-anim` (~1000ms ×3 pulses)
+ * - `mauling` / mauling → `.mauling-anim` (~1500ms)
+ * - `bashing` → impact can use `.weapon-pop-anim` or custom flash (~800ms)
+ * - `weapon_acquired` → `.weapon-pop-anim` (~600ms)
+ * - `weapon_stolen` → `.weapon-pop-anim` + slide (client)
+ * - `bomb_detonated` → `.bomb-anim` (~2000ms)
+ * - `serum_used` → `.serum-anim` (~800ms)
+ * - `ambush_triggered` → `.ambush-anim` (~1000ms)
+ * - `whisperer_replaced` → crimson pulse (reuse `.revival-anim` border color override or custom)
+ * - `horde_grows` / `last_survivor` → banner + `.zombie-turn-anim` subset as needed
+ *
+ * Prefer `durationMs` on the row; classes use defaults above. `prefers-reduced-motion: reduce` zeroes animations.
  */
 export async function queueAnimation(
   leagueId: string,
