@@ -201,8 +201,8 @@ export async function submitVote(
 
   await prisma.survivorVote.upsert({
     where: { councilId_voterRosterId: { councilId, voterRosterId } },
-    create: { councilId, voterRosterId, targetRosterId },
-    update: { targetRosterId },
+    create: { councilId, leagueId: council.leagueId, voterRosterId, targetRosterId },
+    update: { targetRosterId, leagueId: council.leagueId },
   })
   return { ok: true }
 }

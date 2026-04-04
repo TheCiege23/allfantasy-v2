@@ -23,7 +23,7 @@ export async function createChallenge(
   if (!config) return { ok: false, error: 'Not a Survivor league' }
 
   const existing = await prisma.survivorChallenge.findFirst({
-    where: { configId: config.configId, week, challengeType },
+    where: { configId: config.configId, week, challengeNumber: 1, challengeType },
   })
   if (existing) return { ok: false, error: 'Challenge already exists' }
 
@@ -32,6 +32,7 @@ export async function createChallenge(
       leagueId,
       configId: config.configId,
       week,
+      challengeNumber: 1,
       challengeType,
       configJson: configJson as object,
       lockAt: lockAt ?? null,

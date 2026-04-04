@@ -36,7 +36,27 @@ export function useRedraftStream(seasonId: string | null) {
           parsed.type === 'guillotine_elimination' ||
           parsed.type === 'guillotine_players_available' ||
           parsed.type === 'guillotine_final_stage' ||
-          parsed.type === 'guillotine_champion'
+          parsed.type === 'guillotine_champion' ||
+          parsed.type === 'tribal_council_opened' ||
+          parsed.type === 'vote_submitted' ||
+          parsed.type === 'voting_locked' ||
+          parsed.type === 'scroll_reveal_step' ||
+          parsed.type === 'idol_played' ||
+          parsed.type === 'player_eliminated' ||
+          parsed.type === 'player_sent_to_exile' ||
+          parsed.type === 'player_returned_from_exile' ||
+          parsed.type === 'tribe_swap_executed' ||
+          parsed.type === 'merge_announced' ||
+          parsed.type === 'immunity_awarded' ||
+          parsed.type === 'challenge_posted' ||
+          parsed.type === 'challenge_locked' ||
+          parsed.type === 'challenge_results' ||
+          parsed.type === 'jury_phase_opened' ||
+          parsed.type === 'finale_opened' ||
+          parsed.type === 'winner_revealed' ||
+          parsed.type === 'host_message' ||
+          parsed.type === 'token_awarded' ||
+          parsed.type === 'exile_boss_reset'
         ) {
           setNotifications((n) => [...n.slice(-20), parsed])
         }

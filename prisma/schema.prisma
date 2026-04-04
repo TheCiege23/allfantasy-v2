@@ -4092,6 +4092,48 @@ model League {
   guillotineSeasons    GuillotineSeason[]
   guillotineAiInsights GuillotineAIInsight[]
 
+  /// Survivor social format — phase and commissioner-tunable rules (see also survivorConfig).
+  survivorMode         Boolean? @default(false)
+  survivorPhase        String?  @default("pre_draft")
+  survivorPlayerCount  Int?     @default(20)
+  survivorTribeCount   Int?     @default(4)
+  survivorTribeSize    Int?     @default(5)
+  survivorTribeNaming  String?  @default("auto")
+  survivorMergeWeek    Int?     @default(7)
+  survivorMergeTrigger String?  @default("week")
+  survivorMergeAtCount Int?     @default(10)
+  survivorJuryStart    String?  @default("post_merge_vote_1")
+  survivorFinal3       Boolean? @default(true)
+  survivorSwapWeek     Int?
+  survivorSwapTrigger  String?  @default("manual")
+  survivorIdolsEnabled Boolean? @default(true)
+  survivorIdolCount    Int?     @default(9)
+  survivorIdolsTradable Boolean? @default(false)
+  survivorIdolsExpireAtMerge Boolean? @default(true)
+  survivorIdolConvertRule String? @default("faab")
+  survivorExileEnabled Boolean? @default(true)
+  survivorTokenEnabled Boolean? @default(true)
+  survivorBossResetEnabled Boolean? @default(true)
+  survivorExileReturnWeek Int?
+  survivorExileReturnTrigger String? @default("manual")
+  survivorSelfVoteAllowed Boolean? @default(false)
+  survivorTieRule        String?   @default("revote_then_rocks")
+  survivorRocksEnabled   Boolean?  @default(true)
+  survivorRevealMode     String?   @default("dramatic_sequential")
+  survivorChallengeMode  String?   @default("auto")
+  survivorDailyMessages  Boolean?  @default(false)
+  survivorWeeklyMessages Boolean?  @default(true)
+  survivorChatPermissions String?  @default("strict")
+  survivorRebalanceTrigger Int?    @default(3)
+
+  survivorPlayers      SurvivorPlayer[]
+  survivorHostMessages SurvivorHostMessage[]
+  survivorChatChannels SurvivorChatChannel[]
+  survivorTribeSwaps   SurvivorTribeSwap[]
+  tokenPoolPicks       TokenPoolPick[]
+  exileIsland          ExileIsland?
+  jurySession          JurySession?
+
   rosters                     Roster[]
   teams                       LeagueTeam[]
   divisions                   LeagueDivision[]
@@ -5128,12 +5170,19 @@ model SurvivorTribe {
   config    SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   name      String               @db.VarChar(128)
   slotIndex Int                  @default(0) // 0-based order
+  logoUrl   String?
+  colorHex  String?
+  isActive  Boolean              @default(true)
+  isMerged  Boolean              @default(false)
+  phase     String               @default("pre_merge") @db.VarChar(24)
+  chatChannelId String?
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
 
   members     SurvivorTribeMember[]
   chatMembers SurvivorTribeChatMember[]
   councils    SurvivorTribalCouncil[] // councils this tribe attended (pre-merge)
+  survivorPlayers SurvivorPlayer[]
 
   @@unique([configId, slotIndex])
   @@index([leagueId])
@@ -5164,11 +5213,27 @@ model SurvivorIdol {
   rosterId        String               @db.VarChar(64) // current owner (controls idol)
   playerId        String               @db.VarChar(64) // bound to this player (for transfer on trade/claim/steal)
   powerType       String               @db.VarChar(64)
+  powerCategory   String?              @db.VarChar(64)
+  powerLabel      String?              @db.VarChar(160)
+  powerDesc       String?              @db.Text
+  currentOwnerUserId  String?          @db.VarChar(64)
+  originalOwnerUserId String?          @db.VarChar(64)
+  isSecret        Boolean              @default(true)
+  isPubliclyKnown Boolean              @default(false)
+  isTradable      Boolean              @default(false)
+  transferHistory Json?
+  playWindowRule  String               @default("before_reveal") @db.VarChar(32)
+  rarity          String               @default("common") @db.VarChar(24)
+  expiresAtMerge  Boolean              @default(true)
+  expiresAtWeek   Int?
+  usedAtCouncilId String?              @db.VarChar(64)
+  isUsed          Boolean              @default(false)
   status          String               @default("hidden") @db.VarChar(24) // hidden | revealed | used | expired
   assignedAt      DateTime             @default(now())
   usedAt          DateTime?
   expiredAt       DateTime?
   validUntilPhase String?              @db.VarChar(32) // e.g. merge = invalid after merge
+  auditLog        Json?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
@@ -5177,6 +5242,8 @@ model SurvivorIdol {
   @@index([leagueId, rosterId])
   @@index([leagueId, playerId])
   @@index([configId, status])
+  @@index([leagueId, currentOwnerUserId])
+  @@index([leagueId, powerType])
   @@map("survivor_idols")
 }
 
@@ -5204,19 +5271,36 @@ model SurvivorTribalCouncil {
   configId             String
   config               SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   week                 Int
+  councilNumber        Int                  @default(1)
   phase                String               @db.VarChar(24) // pre_merge | merge
   attendingTribeId     String?              @db.VarChar(64) // pre_merge: which tribe
   tribe                SurvivorTribe?       @relation(fields: [attendingTribeId], references: [id], onDelete: SetNull)
+  status               String               @default("pending") @db.VarChar(24)
+  votingOpensAt        DateTime?
   voteDeadlineAt       DateTime
+  votingDeadline       DateTime?
+  revealStartsAt       DateTime?
   closedAt             DateTime?
   eliminatedRosterId   String?              @db.VarChar(64)
+  eliminatedUserId     String?              @db.VarChar(64)
+  eliminatedName       String?              @db.VarChar(160)
+  isTie                Boolean              @default(false)
+  tiePhase             String?              @db.VarChar(32)
+  tiePlayerIds         String[]             @default([])
+  rockDrawerUserId     String?              @db.VarChar(64)
+  idolsPlayed          Json?
+  nullifiersPlayed     Json?
+  doesNotCountVoteIds  String[]             @default([])
+  revealSequence       Json?
+  isRevealed           Boolean              @default(false)
+  auditLog             Json?
   tieBreakSeasonPoints Json? // snapshot of season points for tie-break
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
   votes SurvivorVote[]
 
-  @@unique([configId, week])
+  @@unique([configId, week, councilNumber])
   @@index([leagueId, week])
   @@map("survivor_tribal_councils")
 }
@@ -5226,12 +5310,23 @@ model SurvivorVote {
   id             String                @id @default(cuid())
   councilId      String
   council        SurvivorTribalCouncil @relation(fields: [councilId], references: [id], onDelete: Cascade)
+  leagueId       String?               @db.VarChar(64)
   voterRosterId  String                @db.VarChar(64)
   targetRosterId String                @db.VarChar(64)
-  createdAt      DateTime              @default(now())
+  voterUserId    String?               @db.VarChar(64)
+  targetUserId   String?               @db.VarChar(64)
+  voterName      String?               @db.VarChar(160)
+  targetName     String?               @db.VarChar(160)
+  isDoubleVote   Boolean               @default(false)
+  doesNotCount   Boolean               @default(false)
+  nullifiedBy    String?               @db.VarChar(64)
+  isLateVote     Boolean               @default(false)
+  submittedAt    DateTime              @default(now())
 
   @@unique([councilId, voterRosterId])
   @@index([councilId])
+  @@index([voterUserId])
+  @@index([leagueId])
   @@map("survivor_votes")
 }
 
@@ -5298,16 +5393,35 @@ model SurvivorChallenge {
   configId      String
   config        SurvivorLeagueConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
   week          Int
+  challengeNumber Int                @default(1)
   challengeType String               @db.VarChar(64) // score_prediction | over_under | player_prop | tribe_vs | immunity_auction | puzzle | trivia
+  type          String?              @db.VarChar(64)
+  title         String               @default("") @db.VarChar(256)
+  description   String               @default("") @db.Text
+  instructions  String               @default("") @db.Text
+  scope         String               @default("tribe") @db.VarChar(24)
+  submissionMode String              @default("tribe_chat") @db.VarChar(32)
   configJson    Json? // type-specific params (line, options, reward type)
   lockAt        DateTime?
+  locksAt       DateTime?
+  closesAt      DateTime?
+  status        String               @default("open") @db.VarChar(24)
+  rewardType    String?              @db.VarChar(64)
+  rewardAmount  Float?
+  rewardDetails Json?
+  penaltyType   String?              @db.VarChar(64)
+  penaltyDetails Json?
+  winnerUserIds String[]             @default([])
+  winnerTribeId String?              @db.VarChar(64)
+  resultSummary String?              @db.Text
+  auditLog      Json?
   resultJson    Json? // resolved outcome and rewards
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
   submissions SurvivorChallengeSubmission[]
 
-  @@unique([configId, week, challengeType])
+  @@unique([configId, week, challengeNumber, challengeType])
   @@index([leagueId, week])
   @@map("survivor_challenges")
 }
@@ -5317,13 +5431,19 @@ model SurvivorChallengeSubmission {
   id          String            @id @default(cuid())
   challengeId String
   challenge   SurvivorChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  leagueId    String?           @db.VarChar(64)
+  userId      String?           @db.VarChar(64)
   rosterId    String?           @db.VarChar(64)
   tribeId     String?           @db.VarChar(64)
   submission  Json // type-specific (e.g. over/under choice, predicted score)
+  isCorrect   Boolean?
+  pointsEarned Float?
+  isLocked    Boolean           @default(false)
   submittedAt DateTime          @default(now())
 
   @@unique([challengeId, rosterId], name: "uniq_challenge_roster")
   @@unique([challengeId, tribeId], name: "uniq_challenge_tribe")
+  @@unique([challengeId, userId], name: "uniq_challenge_user")
   @@index([challengeId])
   @@map("survivor_challenge_submissions")
 }
@@ -5343,6 +5463,199 @@ model SurvivorTribeChatMember {
   @@unique([tribeId, userId], name: "uniq_tribe_user")
   @@index([tribeId])
   @@map("survivor_tribe_chat_members")
+}
+
+/// Per-user Survivor game state (parallel to roster-based tribe membership).
+model SurvivorPlayer {
+  id              String        @id @default(cuid())
+  leagueId        String
+  league          League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId          String
+  displayName     String
+  avatarUrl       String?
+
+  tribeId         String?
+  tribe           SurvivorTribe? @relation(fields: [tribeId], references: [id], onDelete: SetNull)
+
+  playerState     String        @default("active")
+  eliminatedWeek  Int?
+  eliminationRound Int?
+
+  idolIds         String[]      @default([])
+
+  tokenBalance    Int           @default(0)
+  totalTokensEarned Int         @default(0)
+
+  hasImmunityThisWeek Boolean   @default(false)
+  immunitySource  String?
+
+  exileReturnEligible Boolean   @default(false)
+  exileWeeksServed Int          @default(0)
+
+  redraftRosterId String?
+
+  canAccessTribeChat Boolean    @default(true)
+  canAccessMergeChat Boolean    @default(false)
+  canAccessExileChat Boolean    @default(false)
+  canAccessJuryChat  Boolean    @default(false)
+  canAccessFinaleChat Boolean   @default(false)
+
+  isJuryMember    Boolean       @default(false)
+  isFinalist      Boolean       @default(false)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([leagueId, userId])
+  @@index([leagueId, playerState])
+  @@index([tribeId])
+  @@map("survivor_players")
+}
+
+/// Finale jury voting session (1:1 with league).
+model JurySession {
+  id              String   @id @default(cuid())
+  leagueId        String   @unique
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  status          String   @default("pending")
+  finalistUserIds String[] @default([])
+  jurorUserIds    String[] @default([])
+
+  questionsDeadline DateTime?
+  votingDeadline    DateTime?
+
+  votes           JuryVote[]
+  winnerId        String?
+  winnerName      String?
+  revealedAt      DateTime?
+
+  createdAt       DateTime @default(now())
+
+  @@map("survivor_jury_sessions")
+}
+
+model JuryVote {
+  id              String      @id @default(cuid())
+  sessionId       String
+  session         JurySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  jurorUserId     String
+  finalistUserId  String
+  submittedAt     DateTime    @default(now())
+  isLate          Boolean     @default(false)
+
+  @@unique([sessionId, jurorUserId])
+  @@index([sessionId])
+  @@map("survivor_jury_votes")
+}
+
+model SurvivorHostMessage {
+  id              String   @id @default(cuid())
+  leagueId        String
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  channelType     String
+  tribeId         String?
+  targetUserId    String?
+  messageType     String
+  content         String   @db.Text
+  isPosted        Boolean  @default(false)
+  postedAt        DateTime?
+  requiresApproval Boolean @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([leagueId, channelType])
+  @@map("survivor_host_messages")
+}
+
+model SurvivorChatChannel {
+  id              String   @id @default(cuid())
+  leagueId        String
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  name            String
+  channelType     String
+  tribeId         String?
+  memberUserIds   String[] @default([])
+  readOnlyUserIds String[] @default([])
+  isArchived      Boolean   @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([leagueId, channelType])
+  @@map("survivor_chat_channels")
+}
+
+model SurvivorTribeSwap {
+  id              String   @id @default(cuid())
+  leagueId        String
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  week            Int
+  swapType        String   @default("random_shuffle")
+  beforeSnapshot  Json
+  afterSnapshot   Json
+  newTribes       Json?
+  originalTribesRetained Boolean @default(true)
+  executedAt      DateTime @default(now())
+
+  @@index([leagueId])
+  @@map("survivor_tribe_swaps")
+}
+
+model TokenPoolPick {
+  id              String   @id @default(cuid())
+  leagueId        String
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId          String
+  week            Int
+  sport           String
+  pickType        String
+  pick            Json
+  isCorrect       Boolean?
+  tokensEarned    Int      @default(0)
+  tokensLost      Int      @default(0)
+  submittedAt     DateTime @default(now())
+
+  @@index([leagueId, userId, week])
+  @@map("survivor_token_pool_picks")
+}
+
+/// Exile parallel game — one row per Survivor-enabled league.
+model ExileIsland {
+  id              String   @id @default(cuid())
+  leagueId        String   @unique
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  isActive        Boolean  @default(false)
+  currentWeek     Int      @default(0)
+  bossName        String?  @default("The Exile Boss")
+  bossRosterId    String?
+  bossWinsEnabled Boolean  @default(true)
+  bossTokenResetOnWin Boolean @default(true)
+  chatChannelId   String?
+  createdAt       DateTime @default(now())
+
+  exilePlayers    ExileWeeklyEntry[]
+
+  @@index([leagueId])
+  @@map("survivor_exile_islands")
+}
+
+model ExileWeeklyEntry {
+  id              String      @id @default(cuid())
+  exileId         String
+  exile           ExileIsland @relation(fields: [exileId], references: [id], onDelete: Cascade)
+  leagueId        String
+  userId          String
+  week            Int
+  submittedLineup Json?
+  weeklyScore     Float       @default(0)
+  bossScore       Float?
+  bossWon         Boolean     @default(false)
+  tokenEarned     Int         @default(0)
+  tokenWiped      Boolean     @default(false)
+
+  @@unique([exileId, userId, week])
+  @@index([exileId, week])
+  @@map("survivor_exile_weekly_entries")
 }
 
 // ========== Big Brother League Engine (PROMPT 2/6) ==========

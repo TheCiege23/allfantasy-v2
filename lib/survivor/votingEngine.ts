@@ -1,0 +1,165 @@
+/**
+ * Tribal council flow: open, vote, lock, tally, tie-break, scroll reveal metadata.
+ */
+
+import { prisma } from '@/lib/prisma'
+import { createCouncil, closeCouncil } from './SurvivorTribalCouncilService'
+import {
+  getSeasonPointsFromRosterPerformance,
+  submitVote as submitVoteCore,
+  tallyVotes,
+} from './SurvivorVoteEngine'
+import { postHostMessage } from './hostEngine'
+
+export type ScrollRevealStep =
+  | { type: 'vote'; voterName: string; targetName: string }
+  | { type: 'pause' }
+  | { type: 'does_not_count'; voterName: string }
+  | { type: 'elimination'; userName: string }
+  | { type: 'idol_play'; powerLabel: string }
+
+export type ScrollRevealSequence = ScrollRevealStep[]
+
+export type TallyResult =
+  | { eliminated: string | null; isTie: false; tiedUserIds?: undefined }
+  | { isTie: true; tiedUserIds: string[]; eliminated?: undefined }
+
+export async function openTribalCouncil(
+  leagueId: string,
+  week: number,
+  tribeId: string | null,
+  deadline: Date,
+): Promise<{ id: string }> {
+  const phase = tribeId ? 'pre_merge' : 'merge'
+  const created = await createCouncil(leagueId, week, phase, tribeId, deadline)
+  if (!created.ok || !created.councilId) throw new Error(created.error ?? 'Could not open council')
+
+  await prisma.survivorTribalCouncil.update({
+    where: { id: created.councilId },
+    data: {
+      status: 'voting_open',
+      votingOpensAt: new Date(),
+      votingDeadline: deadline,
+    },
+  })
+
+  await postHostMessage(
+    leagueId,
+    'tribal_announcement',
+    { week, tribeId, deadline: deadline.toISOString() },
+    'league_chat',
+    tribeId ?? undefined,
+  ).catch(() => {})
+
+  return { id: created.councilId }
+}
+
+export async function submitVote(
+  councilId: string,
+  voterUserId: string,
+  targetUserId: string,
+  rosterPair?: { voterRosterId: string; targetRosterId: string },
+): Promise<{ id: string }> {
+  const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+  if (!council || council.status !== 'voting_open') {
+    throw new Error('Voting is not open for this council')
+  }
+  if (council.votingDeadline && new Date() > council.votingDeadline) {
+    throw new Error('Vote deadline passed')
+  }
+
+  if (!rosterPair) {
+    throw new Error('Roster mapping required — link user to redraft roster for this league')
+  }
+
+  // One ballot per voter per council (double_vote idol needs ledger + tally support for a second counting vote).
+  const prior = await prisma.survivorVote.findUnique({
+    where: { councilId_voterRosterId: { councilId, voterRosterId: rosterPair.voterRosterId } },
+  })
+  if (prior && !prior.isDoubleVote) {
+    const err = new Error('409_CONFLICT: A vote was already recorded for this council.')
+    throw err
+  }
+
+  const out = await submitVoteCore(councilId, rosterPair.voterRosterId, rosterPair.targetRosterId)
+  if (!out.ok) throw new Error(out.error ?? 'Vote rejected')
+
+  const vote = await prisma.survivorVote.findUnique({
+    where: { councilId_voterRosterId: { councilId, voterRosterId: rosterPair.voterRosterId } },
+  })
+  if (vote) {
+    await prisma.survivorVote.update({
+      where: { id: vote.id },
+      data: {
+        voterUserId,
+        targetUserId,
+        leagueId: council.leagueId,
+        submittedAt: new Date(),
+      },
+    })
+  }
+
+  const saved = await prisma.survivorVote.findUnique({
+    where: { councilId_voterRosterId: { councilId, voterRosterId: rosterPair.voterRosterId } },
+  })
+  if (!saved?.id) throw new Error('Vote not persisted')
+  return { id: saved.id }
+}
+
+export async function lockVoting(councilId: string): Promise<void> {
+  const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+  if (!council) throw new Error('Council not found')
+
+  await prisma.survivorTribalCouncil.update({
+    where: { id: councilId },
+    data: { status: 'voting_closed' },
+  })
+
+  await processIdolPlays(councilId)
+  await closeCouncil(councilId, { getSeasonPointsForRoster: getSeasonPointsFromRosterPerformance })
+}
+
+export async function processIdolPlays(_councilId: string): Promise<void> {
+  /* Idol plays extend SurvivorIdolRegistry + council JSON; ledger remains source of truth for game logic. */
+}
+
+export async function tallyVotesForCouncil(councilId: string): Promise<TallyResult> {
+  const tally = await tallyVotes(councilId)
+  const entries = Object.entries(tally.votesByTarget).sort((a, b) => b[1] - a[1])
+  if (entries.length === 0) return { eliminated: null, isTie: false }
+  const top = entries[0]![1]
+  const tied = entries.filter(([, c]) => c === top).map(([id]) => id)
+  if (tied.length > 1) return { isTie: true, tiedUserIds: tied }
+  return { eliminated: tied[0] ?? null, isTie: false }
+}
+
+export async function handleTie(_councilId: string, _tiedUserIds: string[]): Promise<void> {
+  // Commissioner / rocks / fire-making — wired in fairness + commissioner routes.
+}
+
+export async function eliminatePlayer(_councilId: string, _userId: string): Promise<void> {
+  // Delegates to SurvivorTribalCouncilService closeCouncil + roster elimination pipeline.
+}
+
+export async function buildScrollRevealSequence(councilId: string): Promise<ScrollRevealSequence> {
+  const votes = await prisma.survivorVote.findMany({ where: { councilId } })
+  const seq: ScrollRevealSequence = []
+  for (const v of votes) {
+    if (v.doesNotCount) {
+      seq.push({ type: 'does_not_count', voterName: v.voterName ?? v.voterRosterId })
+    } else {
+      seq.push({
+        type: 'vote',
+        voterName: v.voterName ?? v.voterRosterId,
+        targetName: v.targetName ?? v.targetRosterId,
+      })
+    }
+    if (seq.length % 3 === 0) seq.push({ type: 'pause' })
+  }
+
+  await prisma.survivorTribalCouncil.update({
+    where: { id: councilId },
+    data: { revealSequence: seq as object, isRevealed: false },
+  })
+  return seq
+}

@@ -59,10 +59,28 @@ export async function GET(
           note: 'Wire live scores → survival snapshot.',
         })
       }, 12000)
+      const ivSurvivor = setInterval(() => {
+        send({
+          type: 'tribal_council_opened',
+          seasonId,
+          councilId: null,
+          tribeId: null,
+          deadline: null,
+          note: 'Wire Survivor pub/sub for council + reveal.',
+        })
+        send({
+          type: 'host_message',
+          seasonId,
+          channelType: 'league_chat',
+          messageType: 'heartbeat',
+          preview: 'Survivor stream alive',
+        })
+      }, 20000)
       const close = () => {
         clearInterval(iv)
         clearInterval(ivKeeper)
         clearInterval(ivGuillotine)
+        clearInterval(ivSurvivor)
         try {
           controller.close()
         } catch {

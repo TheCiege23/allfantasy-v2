@@ -28,7 +28,7 @@ export async function createCouncil(
   if (!config) return { ok: false, error: 'Not a Survivor league' }
 
   const existing = await prisma.survivorTribalCouncil.findUnique({
-    where: { configId_week: { configId: config.configId, week } },
+    where: { configId_week_councilNumber: { configId: config.configId, week, councilNumber: 1 } },
   })
   if (existing) return { ok: false, error: 'Council already exists for this week' }
 
@@ -44,6 +44,7 @@ export async function createCouncil(
       leagueId,
       configId: config.configId,
       week,
+      councilNumber: 1,
       phase,
       attendingTribeId,
       voteDeadlineAt,
@@ -168,7 +169,7 @@ export async function getCouncil(leagueId: string, week: number) {
   const config = await getSurvivorConfig(leagueId)
   if (!config) return null
   return prisma.survivorTribalCouncil.findUnique({
-    where: { configId_week: { configId: config.configId, week } },
+    where: { configId_week_councilNumber: { configId: config.configId, week, councilNumber: 1 } },
     include: { votes: true },
   })
 }
