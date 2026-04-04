@@ -9,6 +9,9 @@ import { useSession } from 'next-auth/react'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
 import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
+import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 type WaiverType = 'FAAB' | 'ROLLING' | 'PRIORITY'
 type LeagueFormat = 'redraft' | 'dynasty' | 'keeper'
@@ -754,6 +757,7 @@ function WirePanel({
   onFilter,
   onQueue,
   onRefresh,
+  sport,
 }: {
   players: WirePlayer[]
   loading: boolean
@@ -763,6 +767,7 @@ function WirePanel({
   onFilter: (value: string) => void
   onQueue: (player: WirePlayer) => void
   onRefresh: () => void
+  sport: SupportedSport
 }) {
   const filteredPlayers =
     filter === 'ALL'
@@ -770,6 +775,8 @@ function WirePanel({
       : players.filter((player) => (filter === 'FLEX' ? shouldTreatAsFlex(player.position) : player.position.toUpperCase() === filter))
 
   const queuedIds = new Set(queue.map((item) => item.pickup.id))
+  const showCrest = isWeatherSensitiveSport(sport)
+  const seasonY = new Date().getFullYear()
 
   return (
     <div className="flex h-full flex-col">
@@ -821,8 +828,25 @@ function WirePanel({
                       <div className="text-xs text-white/35">{player.team || 'FA'}</div>
                     </div>
                     <p className="mt-2 text-xs leading-5 text-white/55">{player.reason}</p>
-                    <div className="mt-3 flex items-center gap-3 text-[11px] text-white/35">
-                      <span>Projection: {player.projectedPts != null ? player.projectedPts.toFixed(1) : '--'}</span>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/35">
+                      <span className="inline-flex items-center gap-1">
+                        Projection:{' '}
+                        {player.projectedPts != null ? player.projectedPts.toFixed(1) : '--'}
+                        {showCrest ? (
+                          <AFCrestButton
+                            playerId={player.id}
+                            playerName={player.name}
+                            sport={sport}
+                            position={player.position}
+                            baselineProjection={
+                              player.projectedPts != null ? player.projectedPts : placeholderBaselineProjection(player.id)
+                            }
+                            week={1}
+                            season={seasonY}
+                            size="sm"
+                          />
+                        ) : null}
+                      </span>
                       <span>Ownership: {player.ownership != null ? `${player.ownership}%` : 'n/a'}</span>
                     </div>
                   </div>
@@ -1483,6 +1507,7 @@ export default function WaiverAIPage() {
                   onFilter={setPositionFilter}
                   onQueue={queuePlayer}
                   onRefresh={() => void refreshWire(selectedLeague, deriveRosterWeakness(roster))}
+                  sport={selectedLeague.sport}
                 />
               </div>
 

@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { CoachAdviceType, CoachExplanation, CoachRecommendation } from '@/lib/ai-coach/types';
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata';
+import { AFCrestButton } from '@/components/weather/AFCrestButton';
 
 type AdviceTypeOption = {
   id: CoachAdviceType;
@@ -567,8 +569,22 @@ export function CoachAdvicePanel({
             </p>
             <ul className="mt-2 space-y-1 text-sm text-white/85" data-testid="coach-lineup-optimizer-starters">
               {optimizerResult.result.starters.map((starter) => (
-                <li key={`${starter.slotId}-${starter.playerId}`}>
-                  {starter.slotCode}: {starter.playerName} ({starter.projectedPoints.toFixed(1)})
+                <li key={`${starter.slotId}-${starter.playerId}`} className="flex flex-wrap items-center gap-2">
+                  <span>
+                    {starter.slotCode}: {starter.playerName} ({starter.projectedPoints.toFixed(1)})
+                  </span>
+                  {sport && isWeatherSensitiveSport(sport) ? (
+                    <AFCrestButton
+                      playerId={starter.playerId || `coach-${starter.playerName}`}
+                      playerName={starter.playerName}
+                      sport={sport}
+                      position={starter.selectedPosition || '—'}
+                      baselineProjection={starter.projectedPoints}
+                      week={week ?? 1}
+                      season={new Date().getFullYear()}
+                      size="sm"
+                    />
+                  ) : null}
                 </li>
               ))}
             </ul>

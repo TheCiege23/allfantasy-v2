@@ -7,6 +7,9 @@ import { PlayerImage } from '@/app/components/PlayerImage'
 import { TeamLogo } from '@/app/components/TeamLogo'
 import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
+import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 export type PlayersTabProps = {
   league: UserLeague
@@ -28,6 +31,9 @@ function badgePosition(p: SlimPlayer): string {
 export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   const resolvedSport = sport ?? league.sport
   const { players, loading } = useSleeperPlayers(resolvedSport)
+  const seasonYear = new Date().getFullYear()
+  const weekNum = 1
+  const showWeatherCrest = isWeatherSensitiveSport(resolvedSport)
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
   const [freeAgents, setFreeAgents] = useState(false)
@@ -235,7 +241,27 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
                       )}
                     </p>
                   </div>
-                  <div className="w-16 shrink-0 text-right text-[11px] text-white/60">—</div>
+                  <div className="w-16 shrink-0 text-right text-[11px] text-white/60">
+                    {projection ? (
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <span>{placeholderBaselineProjection(p.id).toFixed(1)}</span>
+                        {showWeatherCrest ? (
+                          <AFCrestButton
+                            playerId={p.id}
+                            playerName={p.name}
+                            sport={resolvedSport}
+                            position={p.position || '—'}
+                            baselineProjection={placeholderBaselineProjection(p.id)}
+                            week={weekNum}
+                            season={seasonYear}
+                            size="xs"
+                          />
+                        ) : null}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
+                  </div>
                   <div className="w-28 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
                   <div className="w-36 shrink-0 text-right text-[10px] text-white/45">— · — · —</div>
                   <div className="min-w-0 flex-1 text-right text-[10px] text-white/45">— · — · —</div>

@@ -63,6 +63,9 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
         matchup={{ homeScore: 0, awayScore: 0 }}
         userRosterName="Your team"
         sport="NFL"
+        leagueId={leagueId}
+        week={1}
+        season={new Date().getFullYear()}
       />
 
       <div className="grid gap-4 lg:grid-cols-2">

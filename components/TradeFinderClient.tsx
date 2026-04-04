@@ -9,6 +9,7 @@ import { useAI } from '@/hooks/useAI';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import PartnerMatchView from '@/components/PartnerMatchView';
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata';
 
 type League = { id: string; name: string; sport: string; season: number; platformLeagueId: string; platform: string; isDynasty: boolean };
 
@@ -96,7 +97,7 @@ export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { i
       if (weather.rain > 5 || weather.windSpeed > 20) {
         return {
           ...suggestion,
-          reason: suggestion.reason + ` (Weather warning: ${city} forecast shows ${weather.description} — wind ${Math.round(weather.windSpeed)} mph, rain ${weather.rain}". Consider avoiding outdoor K/DEF.)`,
+          reason: suggestion.reason + ` (Weather warning: ${city} forecast shows ${weather.description} — wind ${Math.round(weather.windSpeed)} mph, rain ${weather.rain}. Consider avoiding outdoor K/DEF.)`,
         };
       }
     } catch {}
@@ -394,6 +395,13 @@ export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { i
       >
         {loading ? 'Searching for trades...' : preset === 'NONE' ? 'Find Trades' : `Find ${preset === 'TARGET_POSITION' ? targetPosition : preset === 'ACQUIRE_PICKS' ? 'Pick' : 'Consolidation'} Trades`}
       </Button>
+
+      {selectedLeague && isWeatherSensitiveSport(selectedLeague.sport) ? (
+        <p className="rounded-lg border border-cyan-500/25 bg-cyan-500/5 px-3 py-2 text-center text-[11px] text-cyan-100/85">
+          🌤 Where player projections are shown elsewhere in AllFantasy, the <span className="font-bold">AF</span> crest opens
+          weather-adjusted scoring — trade cards here still summarize AI; cross-check outdoor starts in roster / matchup views.
+        </p>
+      ) : null}
 
       {loading ? (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

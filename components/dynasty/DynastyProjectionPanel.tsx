@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
 
 type DynastyProjection = {
@@ -74,6 +75,7 @@ export function DynastyProjectionPanel({
   const [aiAdvice, setAiAdvice] = useState<DynastyAdvice | null>(null)
   const [aiLoading, setAiLoading] = useState<boolean>(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [weatherLegendOpen, setWeatherLegendOpen] = useState(true)
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -284,6 +286,25 @@ export function DynastyProjectionPanel({
         <p className="mb-3 text-[11px] text-white/45">
           Updated {formatInTimezone(generatedAt)}
         </p>
+      ) : null}
+
+      {isWeatherSensitiveSport(sport) ? (
+        <div className="mb-3 rounded-lg border border-cyan-500/20 bg-cyan-500/5">
+          <button
+            type="button"
+            onClick={() => setWeatherLegendOpen((o) => !o)}
+            className="flex w-full items-center justify-between px-3 py-2 text-left text-[11px] font-semibold text-cyan-200/90"
+          >
+            <span>🌤 AF crest = weather-adjusted weekly projection (roster / players tabs)</span>
+            <span className="text-white/45">{weatherLegendOpen ? '−' : '+'}</span>
+          </button>
+          {weatherLegendOpen ? (
+            <p className="border-t border-white/[0.06] px-3 pb-2 pt-1 text-[10px] text-white/50">
+              Dynasty scores here are long-term strength — for game-week weather adjustments, use the AF crest next to
+              projected points on Team and Players tabs.
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {loading ? <p className="text-sm text-white/60">Loading dynasty projections...</p> : null}
