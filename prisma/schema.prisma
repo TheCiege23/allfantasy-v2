@@ -4189,6 +4189,7 @@ model League {
   tournamentShellLeague       TournamentLeague? // TournamentShell engine league link
   bigBrotherConfig            BigBrotherLeagueConfig?
   idpConfig                   IdpLeagueConfig?
+  idpCapConfig                IDPCapConfig?
   dynastyConfig               DynastyLeagueConfig?
   mockDrafts                  MockDraft[]
   draftSessions               DraftSession[]
@@ -7429,6 +7430,175 @@ model IdpSettingsAuditLog {
   @@map("idp_settings_audit_logs")
 }
 
+// ========== IDP Salary Cap (GM layer on IDP / redraft shell) ==========
+
+model IDPCapConfig {
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  totalCap Float @default(200.0)
+
+  isHardCap Boolean @default(true)
+
+  capFloorEnabled Boolean @default(false)
+  capFloor        Float?
+
+  capRolloverEnabled Boolean @default(false)
+
+  inSeasonHoldbackEnabled Boolean @default(false)
+  inSeasonHoldbackPct     Float   @default(0.10)
+
+  franchiseTagEnabled Boolean @default(false)
+  franchiseTagValue   Float   @default(20.0)
+
+  draftSalaryMethod String @default("auction")
+
+  snakeScaleHighSalary Float @default(30.0)
+  snakeScaleLowSalary  Float @default(1.0)
+  snakeScaleCurve      String @default("linear")
+
+  auctionDefaultContractYears Int @default(1)
+  snakeTopPickContractYears   Int @default(3)
+  snakeMidPickContractYears   Int @default(2)
+  snakeLatePickContractYears  Int @default(1)
+
+  isDynastyMode      Boolean @default(false)
+  contractsCarryOver Boolean @default(false)
+
+  season Int @default(2025)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  salaryRecords    IDPSalaryRecord[]
+  deadMoney        IDPDeadMoney[]    @relation("CapConfigDeadMoney")
+  capProjections   IDPCapProjection[]
+
+  @@index([leagueId])
+  @@map("idp_cap_configs")
+}
+
+model IDPSalaryRecord {
+  id       String @id @default(cuid())
+  leagueId String
+  capConfig IDPCapConfig @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+  position   String
+  isDefensive Boolean @default(false)
+
+  salary Float
+
+  contractYears  Int @default(1)
+  yearsRemaining Int @default(1)
+
+  contractStartYear Int
+
+  status String @default("active")
+
+  acquisitionMethod String
+
+  isFranchiseTagged Boolean @default(false)
+
+  hasBeenExtended   Boolean @default(false)
+  extensionBoostPct Float   @default(0.10)
+
+  cutPenaltyCurrent Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deadMoneyRecords IDPDeadMoney[]
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, rosterId])
+  @@index([leagueId, status])
+  @@map("idp_salary_records")
+}
+
+model IDPDeadMoney {
+  id       String @id @default(cuid())
+  leagueId String
+  capConfig IDPCapConfig @relation("CapConfigDeadMoney", fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  rosterId String
+  roster   RedraftRoster @relation("RedraftRosterIdpDeadMoney", fields: [rosterId], references: [id], onDelete: Cascade)
+
+  salaryRecordId String
+  salaryRecord   IDPSalaryRecord @relation(fields: [salaryRecordId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+
+  reason String
+
+  currentYearDead Float
+  futureYearsDead Float
+  totalDeadMoney  Float
+
+  yearsRemainingAtCut Int
+  season              Int
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, rosterId])
+  @@map("idp_dead_money")
+}
+
+model IDPCapProjection {
+  id       String @id @default(cuid())
+  leagueId String
+  capConfig IDPCapConfig @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  projectionYear  Int
+  committedSalary Float
+  deadCapHits     Float
+  totalCapUsed    Float
+  availableCap    Float
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, rosterId, projectionYear])
+  @@index([leagueId, rosterId])
+  @@map("idp_cap_projections")
+}
+
+model IDPCapTransaction {
+  id       String @id @default(cuid())
+  leagueId String
+
+  rosterId String
+
+  playerId   String
+  playerName String
+  isDefensive Boolean @default(false)
+
+  transactionType String
+
+  salary         Float
+  contractYears  Int?
+  deadMoneyCreated Float @default(0)
+  capImpact      Float
+
+  notes   String?
+  season  Int
+  week    Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, rosterId])
+  @@index([leagueId, transactionType])
+  @@map("idp_cap_transactions")
+}
+
 // ========== Devy Dynasty League Engine (PROMPT 2/6) ==========
 
 /// Devy Dynasty league config. Sport adapter derived from League.sport (nfl_devy | nba_devy).
@@ -10354,6 +10524,10 @@ model RedraftRoster {
   devyTaxiSlots            DevyTaxiSlot[]
   devyDevySlots            DevyDevySlot[]
   devyRookieTransitions    DevyRookieTransition[]
+
+  idpSalaryRecords  IDPSalaryRecord[]
+  idpDeadMoneyHits  IDPDeadMoney[]    @relation("RedraftRosterIdpDeadMoney")
+  idpCapProjections IDPCapProjection[]
 
   isEliminated Boolean @default(false)
 

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,6 +111,34 @@ export async function PATCH(req: NextRequest) {
         : body.action === 'veto'
           ? 'vetoed'
           : t.status
+
+  if (body.action === 'accept') {
+    const cap = await validateRedraftTradeCap(
+      t.leagueId,
+      t.proposerRosterId,
+      t.receiverRosterId,
+      t.proposerOffers,
+      t.receiverOffers,
+    )
+    if (!cap.ok) {
+      return NextResponse.json({ error: cap.message }, { status: 409 })
+    }
+    try {
+      await applyRedraftTradeCapTransfers(
+        t.leagueId,
+        t.proposerRosterId,
+        t.receiverRosterId,
+        t.proposerOffers,
+        t.receiverOffers,
+      )
+    } catch (e) {
+      console.error('[redraft/trades] IDP cap transfer failed', e)
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Cap transfer failed' },
+        { status: 409 },
+      )
+    }
+  }
 
   const updated = await prisma.redraftLeagueTrade.update({
     where: { id: tradeId },

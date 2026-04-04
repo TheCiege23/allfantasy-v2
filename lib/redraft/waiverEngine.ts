@@ -1,6 +1,31 @@
 import { prisma } from '@/lib/prisma'
+import { assignIdpCapSalaryForWaiverClaim } from '@/lib/idp/capEngine'
 
 export type ProcessedClaim = { claimId: string; status: string; reason?: string }
+
+/**
+ * After a claim is approved and `RedraftRosterPlayer` exists for the add, assign IDP cap salary.
+ * No-op when the league has no `IDPCapConfig`.
+ */
+export async function finalizeRedraftWaiverClaimIdpCap(opts: {
+  leagueId: string
+  rosterId: string
+  addPlayerId: string
+  addPlayerName: string
+  bidAmount: number | null | undefined
+  position: string
+  isDefensive: boolean
+}): Promise<void> {
+  await assignIdpCapSalaryForWaiverClaim(
+    opts.leagueId,
+    opts.rosterId,
+    opts.addPlayerId,
+    opts.addPlayerName,
+    opts.position,
+    opts.isDefensive,
+    opts.bidAmount,
+  )
+}
 
 export async function processWaiverWindow(
   leagueId: string,
@@ -17,6 +42,8 @@ export async function processWaiverWindow(
       status: 'denied',
       reason: 'Waiver engine not fully wired — placeholder',
     })
+    // When implementing approvals: after roster add, if idpCap, call:
+    // await finalizeRedraftWaiverClaimIdpCap({ leagueId, rosterId: c.rosterId, addPlayerId: c.addPlayerId, ... })
   }
   return results
 }
