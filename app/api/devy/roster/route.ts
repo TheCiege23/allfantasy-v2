@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
-import { getScoringEligibility } from '@/lib/devy/scoringEligibilityEngine'
+import { getScoringEligibility, getWeeklyPointsBreakdownForRoster } from '@/lib/devy/scoringEligibilityEngine'
 import { moveToTaxi, promoteToActive } from '@/lib/devy/rosterEngine'
 
 export const dynamic = 'force-dynamic'
@@ -28,7 +28,18 @@ export async function GET(req: NextRequest) {
     prisma.devyDevySlot.findMany({ where: { leagueId, rosterId } }),
   ])
 
-  return NextResponse.json({ playerStates, taxiSlots: taxi, devySlots: devy })
+  const weekParam = req.nextUrl.searchParams.get('week')
+  const seasonParam = req.nextUrl.searchParams.get('season')
+  let weeklyScores: Awaited<ReturnType<typeof getWeeklyPointsBreakdownForRoster>> | null = null
+  if (weekParam != null && seasonParam != null) {
+    const week = Number(weekParam)
+    const season = Number(seasonParam)
+    if (Number.isFinite(week) && Number.isFinite(season) && week > 0) {
+      weeklyScores = await getWeeklyPointsBreakdownForRoster(leagueId, rosterId, week, season)
+    }
+  }
+
+  return NextResponse.json({ playerStates, taxiSlots: taxi, devySlots: devy, weeklyScores })
 }
 
 export async function PATCH(req: NextRequest) {

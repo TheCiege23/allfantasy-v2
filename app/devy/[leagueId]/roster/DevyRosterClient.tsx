@@ -40,6 +40,12 @@ type DevySlot = {
   nflEntryYear?: number | null
 }
 
+type WeeklyEntry = {
+  fantasyPts: number
+  eligibility: string
+  bucketState: string
+}
+
 export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userId: string }) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -48,6 +54,14 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
   const [playerStates, setPlayerStates] = useState<PlayerState[]>([])
   const [taxiSlots, setTaxiSlots] = useState<TaxiSlot[]>([])
   const [devySlots, setDevySlots] = useState<DevySlot[]>([])
+  const [seasonSnap, setSeasonSnap] = useState<{
+    seasonYear: number
+    currentWeek: number
+    totalWeeks: number
+  } | null>(null)
+  const [selectedWeek, setSelectedWeek] = useState<number | null>(null)
+  const [weeklyByPlayer, setWeeklyByPlayer] = useState<Record<string, WeeklyEntry>>({})
+  const [scoreContext, setScoreContext] = useState<{ week: number; season: number } | null>(null)
   const [benchBannerDismissed, setBenchBannerDismissed] = useState(false)
   const [irOpen, setIrOpen] = useState(false)
   const [taxiOpen, setTaxiOpen] = useState(false)
@@ -71,34 +85,57 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
       })
       if (!sr.ok) throw new Error('No redraft season for this league')
       const sj = (await sr.json()) as {
-        season?: { rosters?: { id: string; ownerId: string | null }[] }
+        season?: {
+          rosters?: { id: string; ownerId: string | null }[]
+          season: number
+          currentWeek: number
+          totalWeeks: number
+        }
       }
+      const season = sj.season
+      if (!season) throw new Error('No redraft season')
       const rid =
-        sj.season?.rosters?.find((r) => r.ownerId === userId)?.id ??
-        sj.season?.rosters?.[0]?.id ??
-        null
+        season.rosters?.find((r) => r.ownerId === userId)?.id ?? season.rosters?.[0]?.id ?? null
       if (!rid) throw new Error('No roster found')
       setRosterId(rid)
 
-      const rr = await fetch(
-        `/api/devy/roster?leagueId=${encodeURIComponent(leagueId)}&rosterId=${encodeURIComponent(rid)}`,
-        { credentials: 'include' },
-      )
+      const cw = Math.max(1, season.currentWeek || 1)
+      const week = selectedWeek !== null ? selectedWeek : cw
+      setSeasonSnap({
+        seasonYear: season.season,
+        currentWeek: cw,
+        totalWeeks: season.totalWeeks ?? 18,
+      })
+
+      const qs = new URLSearchParams({
+        leagueId,
+        rosterId: rid,
+        week: String(week),
+        season: String(season.season),
+      })
+      const rr = await fetch(`/api/devy/roster?${qs.toString()}`, { credentials: 'include' })
       if (!rr.ok) throw new Error('Could not load devy roster')
       const rj = (await rr.json()) as {
         playerStates: PlayerState[]
         taxiSlots: TaxiSlot[]
         devySlots: DevySlot[]
+        weeklyScores?: { week: number; season: number; byPlayerId: Record<string, WeeklyEntry> } | null
       }
       setPlayerStates(rj.playerStates ?? [])
       setTaxiSlots(rj.taxiSlots ?? [])
       setDevySlots(rj.devySlots ?? [])
+      setWeeklyByPlayer(rj.weeklyScores?.byPlayerId ?? {})
+      if (rj.weeklyScores) {
+        setScoreContext({ week: rj.weeklyScores.week, season: rj.weeklyScores.season })
+      } else {
+        setScoreContext(null)
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed to load')
     } finally {
       setLoading(false)
     }
-  }, [leagueId, userId])
+  }, [leagueId, userId, selectedWeek])
 
   useEffect(() => {
     void reload()
@@ -164,9 +201,11 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
     await reload()
   }
 
-  const pointsFor = (s: PlayerState) => {
-    if (s.scoringEligibility === 'counts') return '12.4'
-    return '8.1'
+  const formatPts = (playerId: string) => {
+    const row = weeklyByPlayer[playerId]
+    if (!row || !scoreContext) return '—'
+    if (row.eligibility === 'none') return '—'
+    return row.fantasyPts.toFixed(1)
   }
 
   if (loading) {
@@ -201,6 +240,46 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
         maxDevySlots={maxDevy}
       />
 
+      {seasonSnap && scoreContext ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] bg-[#080c14] px-4 py-2">
+          <p className="text-[11px] text-white/50">
+            Fantasy points · Week {scoreContext.week} · {scoreContext.season} season
+            <span className="ml-2 text-white/35">(player_weekly_scores)</span>
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className="min-h-[44px] rounded-lg border border-white/[0.1] px-3 py-1 text-[12px] text-white/80 md:min-h-0"
+              onClick={() => setSelectedWeek(scoreContext.week - 1)}
+              disabled={scoreContext.week <= 1}
+              data-testid="devy-week-prev"
+            >
+              ←
+            </button>
+            <span className="min-w-[2rem] text-center text-[12px] font-mono text-cyan-200/90">
+              {scoreContext.week}
+            </span>
+            <button
+              type="button"
+              className="min-h-[44px] rounded-lg border border-white/[0.1] px-3 py-1 text-[12px] text-white/80 md:min-h-0"
+              onClick={() => setSelectedWeek(scoreContext.week + 1)}
+              disabled={scoreContext.week >= seasonSnap.totalWeeks}
+              data-testid="devy-week-next"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              className="ml-2 text-[11px] text-cyan-400/80 underline"
+              onClick={() => setSelectedWeek(null)}
+              data-testid="devy-week-reset"
+            >
+              Current
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mx-auto max-w-3xl space-y-4 px-3 py-4 pb-24">
         <SectionTitle
           accent="var(--devy-active)"
@@ -216,7 +295,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
               name={s.playerName}
               position={s.position}
               statusLabel="STARTER"
-              pointsDisplay={pointsFor(s)}
+              pointsDisplay={formatPts(s.playerId)}
               onMove={(a) => {
                 if (a === 'bench') void patchRoster({ playerId: s.playerId, action: 'move_to_bench' })
                 if (a === 'ir') void patchRoster({ playerId: s.playerId, action: 'move_to_ir' })
@@ -261,7 +340,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
               name={s.playerName}
               position={s.position}
               statusLabel="BENCH"
-              pointsDisplay={pointsFor(s)}
+              pointsDisplay={formatPts(s.playerId)}
               onMove={(a) => {
                 if (a === 'ir') void patchRoster({ playerId: s.playerId, action: 'move_to_ir' })
                 if (a === 'taxi') void patchRoster({ playerId: s.playerId, action: 'move_to_taxi' })
@@ -303,7 +382,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
                   name={s.playerName}
                   position={s.position}
                   statusLabel="IR"
-                  pointsDisplay={pointsFor(s)}
+                  pointsDisplay={formatPts(s.playerId)}
                   onMove={(a) => {
                     if (a === 'bench') void patchRoster({ playerId: s.playerId, action: 'move_to_bench' })
                   }}
@@ -347,7 +426,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
                   name={t.playerName}
                   position={t.position}
                   taxiYear={{ current: t.taxiYearsCurrent, max: 4 }}
-                  pointsDisplay="8.1"
+                  pointsDisplay={formatPts(t.playerId)}
                   onPromote={() =>
                     void patchRoster({ playerId: t.playerId, action: 'promote_to_active', targetSlot: 'active_bench' })
                   }
@@ -376,7 +455,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
                     name={s.playerName}
                     position={s.position}
                     taxiYear={{ current: s.taxiYearsUsed ?? 1, max: 4 }}
-                    pointsDisplay="—"
+                    pointsDisplay={formatPts(s.playerId)}
                     onPromote={() =>
                       void patchRoster({ playerId: s.playerId, action: 'promote_to_active', targetSlot: 'active_bench' })
                     }

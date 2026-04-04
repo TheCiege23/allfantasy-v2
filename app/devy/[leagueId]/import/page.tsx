@@ -6,8 +6,17 @@ import { ImportWizard } from '@/app/devy/components/ImportWizard'
 
 export const dynamic = 'force-dynamic'
 
-export default async function DevyImportPage({ params }: { params: Promise<{ leagueId: string }> }) {
+export default async function DevyImportPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ leagueId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { leagueId } = await params
+  const sp = searchParams ? await searchParams : {}
+  const sid = sp.sessionId
+  const initialSessionId = typeof sid === 'string' ? sid : Array.isArray(sid) ? sid[0] : undefined
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/devy/${leagueId}/import`)}`)
@@ -24,7 +33,7 @@ export default async function DevyImportPage({ params }: { params: Promise<{ lea
           <span className="w-12" />
         </div>
       </header>
-      <ImportWizard leagueId={leagueId} />
+      <ImportWizard leagueId={leagueId} initialSessionId={initialSessionId} />
     </div>
   )
 }

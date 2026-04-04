@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import type { ImportAuditSummary } from '@/lib/devy/mergeExecutionEngine'
+import { formatImportAuditPlainText } from '@/app/devy/lib/formatImportAuditText'
 
 const STEPS = [
   'Source setup',
@@ -10,7 +12,7 @@ const STEPS = [
   'Post-merge audit',
 ] as const
 
-export function ImportWizard({ leagueId }: { leagueId: string }) {
+export function ImportWizard({ leagueId, initialSessionId }: { leagueId: string; initialSessionId?: string }) {
   const [step, setStep] = useState(0)
 
   return (
@@ -43,7 +45,7 @@ export function ImportWizard({ leagueId }: { leagueId: string }) {
         ) : step === 3 ? (
           <StepPreMerge leagueId={leagueId} />
         ) : (
-          <StepAudit leagueId={leagueId} />
+          <StepAudit leagueId={leagueId} initialSessionId={initialSessionId} />
         )}
       </div>
 
@@ -177,23 +179,79 @@ function StepPreMerge({ leagueId }: { leagueId: string }) {
   )
 }
 
-function StepAudit({ leagueId }: { leagueId: string }) {
+function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSessionId?: string }) {
+  const [sessionId, setSessionId] = useState(initialSessionId ?? '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function downloadAudit() {
+    const sid = sessionId.trim()
+    if (!sid) {
+      setErr('Enter the import session ID from your merge run.')
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const r = await fetch(`/api/devy/import/audit?sessionId=${encodeURIComponent(sid)}`, {
+        credentials: 'include',
+      })
+      if (!r.ok) {
+        const t = await r.text()
+        throw new Error(t || `HTTP ${r.status}`)
+      }
+      const data = (await r.json()) as {
+        audit: ImportAuditSummary
+        session: { id: string; status: string; mergedAt: string | null; summary?: unknown }
+      }
+      const text = formatImportAuditPlainText(data.audit, data.session)
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `devy-import-audit-${sid.slice(0, 12)}.txt`
+      a.rel = 'noopener'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Download failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="space-y-4 text-[13px] text-white/80">
       <p className="text-[16px] font-bold text-emerald-200">✓ Merge complete</p>
       <p className="text-[12px] text-white/55">
-        Download audit from `/api/devy/import/audit` when wired; placeholder for UI shell.
+        Pulls the same audit as <code className="text-white/60">generateImportAudit</code> via{' '}
+        <code className="text-white/60">GET /api/devy/import/audit</code>.
       </p>
+      <label className="block text-[11px] text-white/45">
+        Import session ID
+        <input
+          value={sessionId}
+          onChange={(e) => setSessionId(e.target.value)}
+          placeholder="e.g. clx…"
+          className="mt-1 w-full rounded-xl border border-white/[0.1] bg-black/30 px-3 py-2 text-[13px] text-white placeholder:text-white/30 min-h-[44px]"
+          data-testid="import-audit-session-input"
+        />
+      </label>
+      {err ? <p className="text-[12px] text-red-300">{err}</p> : null}
       <div className="flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          className="rounded-xl border border-white/[0.1] px-4 py-3 text-[12px] font-semibold text-white/75 min-h-[44px]"
+          disabled={busy}
+          onClick={() => void downloadAudit()}
+          className="rounded-xl border border-white/[0.1] px-4 py-3 text-[12px] font-semibold text-white/90 min-h-[44px] disabled:opacity-50"
+          data-testid="import-audit-download"
         >
-          Download audit report
+          {busy ? 'Downloading…' : 'Download audit report (.txt)'}
         </button>
         <a
           href={`/league/${leagueId}`}
           className="inline-flex items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-3 text-[12px] font-semibold text-cyan-100 min-h-[44px]"
+          data-testid="import-audit-view-league"
         >
           View your league
         </a>

@@ -155,3 +155,106 @@ export async function leagueUsesDevyEngine(leagueId: string): Promise<boolean> {
   const row = await prisma.devyLeague.findUnique({ where: { leagueId }, select: { id: true } })
   return row != null
 }
+
+export type RosterWeeklyPointsEntry = {
+  fantasyPts: number
+  eligibility: ScoringEligibility
+  bucketState: string
+}
+
+function mapRedraftSlotToBucket(slotType: string): string {
+  const s = slotType.toLowerCase()
+  if (s === 'bench') return 'active_bench'
+  if (s === 'taxi') return 'taxi'
+  if (s === 'devy') return 'devy'
+  if (s === 'ir' || s === 'injured_reserve') return 'ir'
+  return 'active_starter'
+}
+
+/**
+ * Per-player fantasy points for a week, aligned with devy bucket / eligibility (devy = no scoring).
+ */
+export async function getWeeklyPointsBreakdownForRoster(
+  leagueId: string,
+  rosterId: string,
+  week: number,
+  seasonYear: number,
+): Promise<{ week: number; season: number; byPlayerId: Record<string, RosterWeeklyPointsEntry> }> {
+  const rp = await prisma.redraftRosterPlayer.findMany({
+    where: { rosterId, droppedAt: null },
+  })
+  const sportByPlayer = new Map(rp.map(r => [r.playerId, r.sport]))
+
+  const [states, taxiSlots, devySlots] = await Promise.all([
+    prisma.devyPlayerState.findMany({ where: { leagueId, rosterId } }),
+    prisma.devyTaxiSlot.findMany({ where: { leagueId, rosterId } }),
+    prisma.devyDevySlot.findMany({ where: { leagueId, rosterId } }),
+  ])
+
+  const byPlayerId: Record<string, RosterWeeklyPointsEntry> = {}
+
+  if (states.length > 0) {
+    for (const s of states) {
+      byPlayerId[s.playerId] = {
+        fantasyPts: 0,
+        eligibility: getScoringEligibility(s.bucketState, s.playerType),
+        bucketState: s.bucketState,
+      }
+    }
+  } else {
+    for (const r of rp) {
+      const bucket = mapRedraftSlotToBucket(r.slotType)
+      byPlayerId[r.playerId] = {
+        fantasyPts: 0,
+        eligibility: getScoringEligibility(bucket, 'nfl_veteran'),
+        bucketState: bucket,
+      }
+    }
+  }
+
+  for (const t of taxiSlots) {
+    if (!byPlayerId[t.playerId]) {
+      byPlayerId[t.playerId] = {
+        fantasyPts: 0,
+        eligibility: getScoringEligibility('taxi', 'nfl_rookie'),
+        bucketState: 'taxi',
+      }
+    }
+  }
+
+  for (const d of devySlots) {
+    if (byPlayerId[d.playerId]) continue
+    byPlayerId[d.playerId] = {
+      fantasyPts: 0,
+      eligibility: 'none',
+      bucketState: 'devy',
+    }
+  }
+
+  const idsToScore = Object.keys(byPlayerId).filter(pid => byPlayerId[pid].eligibility !== 'none')
+  if (idsToScore.length === 0) {
+    return { week, season: seasonYear, byPlayerId }
+  }
+
+  const scores = await prisma.playerWeeklyScore.findMany({
+    where: {
+      week,
+      season: seasonYear,
+      playerId: { in: idsToScore },
+    },
+  })
+
+  const ptsByPlayer = new Map<string, number>()
+  for (const sc of scores) {
+    const want = sportByPlayer.get(sc.playerId)
+    if (want && sc.sport !== want) continue
+    ptsByPlayer.set(sc.playerId, sc.fantasyPts)
+  }
+
+  for (const pid of idsToScore) {
+    const row = byPlayerId[pid]
+    if (row) row.fantasyPts = ptsByPlayer.get(pid) ?? 0
+  }
+
+  return { week, season: seasonYear, byPlayerId }
+}
