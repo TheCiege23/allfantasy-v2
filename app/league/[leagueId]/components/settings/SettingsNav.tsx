@@ -39,6 +39,13 @@ export type SettingsNavTabId =
   | 'idp_scoring'
   | 'idp_display'
   | 'idp_ai'
+  | 'devy_format'
+  | 'devy_roster'
+  | 'devy_rules'
+  | 'devy_taxi'
+  | 'devy_drafts'
+  | 'devy_import'
+  | 'devy_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'league', label: 'League' },
@@ -74,6 +81,16 @@ const IDP_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'idp_ai', label: '🤖 IDP AI' },
 ]
 
+const DEVY_NAV: { id: SettingsNavTabId; label: string }[] = [
+  { id: 'devy_format', label: '🏈 League Format' },
+  { id: 'devy_roster', label: '📋 Rosters' },
+  { id: 'devy_rules', label: '🎓 Devy Rules' },
+  { id: 'devy_taxi', label: '🚕 Taxi Rules' },
+  { id: 'devy_drafts', label: '🎲 Drafts' },
+  { id: 'devy_import', label: '📥 Import' },
+  { id: 'devy_ai', label: '🤖 AI Settings' },
+]
+
 const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'survivor_setup', label: '🏝 Survivor Setup' },
   { id: 'survivor_tribes', label: '🔥 Tribes' },
@@ -106,6 +123,10 @@ export function isIdpSettingsTab(id: SettingsNavTabId): boolean {
   return id.startsWith('idp_')
 }
 
+export function isDevySettingsTab(id: SettingsNavTabId): boolean {
+  return id.startsWith('devy_')
+}
+
 export function SettingsNav({
   activeTab,
   onSelect,
@@ -113,6 +134,7 @@ export function SettingsNav({
   showSurvivorTabs,
   showZombieTabs,
   showIdpTabs,
+  showDevyTabs,
   className,
 }: {
   activeTab: SettingsNavTabId
@@ -121,6 +143,7 @@ export function SettingsNav({
   showSurvivorTabs?: boolean
   showZombieTabs?: boolean
   showIdpTabs?: boolean
+  showDevyTabs?: boolean
   className?: string
 }) {
   const hint = statusLabel(saveStatus)
@@ -129,13 +152,14 @@ export function SettingsNav({
     ...(showSurvivorTabs ? SURVIVOR_NAV : []),
     ...(showZombieTabs ? ZOMBIE_NAV : []),
     ...(showIdpTabs ? IDP_NAV : []),
+    ...(showDevyTabs ? DEVY_NAV : []),
   ]
 
   return (
     <nav
       className={clsx(
         'flex flex-shrink-0 flex-col gap-0.5 border-white/[0.08] bg-[#080c14] p-3 md:border-r',
-        'max-h-[min(280px,38vh)] w-full overflow-y-auto overflow-x-hidden md:max-h-none md:w-52',
+        'max-h-[min(280px,38vh)] w-full overflow-x-auto overflow-y-auto md:max-h-[min(85vh,900px)] md:w-52',
         className,
       )}
     >

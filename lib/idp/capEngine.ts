@@ -395,7 +395,7 @@ export async function processExtension(
     transactionType: 'extension',
     salary: newSalary,
     contractYears: updated.contractYears,
-    capImpact: delta,
+    capImpact: newSalary - oldSalary,
     season: cfg.season,
   })
 
@@ -455,7 +455,7 @@ export async function processFranchiseTag(
       transactionType: 'franchise_tag',
       salary: tagSalary,
       contractYears: 1,
-      capImpact: delta,
+      capImpact: tagSalary - existing.salary,
       season: capYear,
     })
     await refreshCapProjections(leagueId, rosterId)

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getScoringEligibility } from '@/lib/devy/scoringEligibilityEngine'
 import { collectPlayers } from '@/lib/devy/identityMatchingEngine'
@@ -249,8 +250,8 @@ async function buildHistoryCreateRows(
     season: number
     sourceLabel: string
     sourcePlatform: string | null
-    standings: object | null
-    scoringRecords: object | null
+    standings: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue
+    scoringRecords: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue
     titleWinner: string | null
     notes: string | null
     importConfidence: string
@@ -263,8 +264,8 @@ async function buildHistoryCreateRows(
     season: number
     sourceLabel: string
     sourcePlatform: string | null
-    standings: object | null
-    scoringRecords: object | null
+    standings: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue
+    scoringRecords: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue
     titleWinner: string | null
     notes: string | null
     importConfidence: string
@@ -282,8 +283,8 @@ async function buildHistoryCreateRows(
       season,
       sourceLabel: `Imported from ${s.sourcePlatform ?? 'source'} (${season})`,
       sourcePlatform: s.sourcePlatform,
-      standings: null,
-      scoringRecords: null,
+      standings: Prisma.JsonNull,
+      scoringRecords: Prisma.JsonNull,
       titleWinner: null,
       notes: null,
       importConfidence: 'medium',

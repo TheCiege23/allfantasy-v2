@@ -1,0 +1,203 @@
+'use client'
+
+import { useState } from 'react'
+
+const STEPS = [
+  'Source setup',
+  'Matching review',
+  'Conflict resolution',
+  'Pre-merge review',
+  'Post-merge audit',
+] as const
+
+export function ImportWizard({ leagueId }: { leagueId: string }) {
+  const [step, setStep] = useState(0)
+
+  return (
+    <div className="flex min-h-[70dvh] flex-col">
+      <div className="border-b border-white/[0.06] px-4 py-3">
+        <div className="flex gap-1 overflow-x-auto pb-1">
+          {STEPS.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setStep(i)}
+              className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                step === i ? 'bg-cyan-500/20 text-cyan-100' : 'bg-white/[0.04] text-white/45'
+              }`}
+              data-testid={`import-step-${i}`}
+            >
+              {i + 1}. {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {step === 0 ? (
+          <StepSource />
+        ) : step === 1 ? (
+          <StepMatching />
+        ) : step === 2 ? (
+          <StepConflicts />
+        ) : step === 3 ? (
+          <StepPreMerge leagueId={leagueId} />
+        ) : (
+          <StepAudit leagueId={leagueId} />
+        )}
+      </div>
+
+      <div className="sticky bottom-0 flex gap-2 border-t border-white/[0.08] bg-[#040915] p-4">
+        <button
+          type="button"
+          disabled={step === 0}
+          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          className="min-h-[44px] flex-1 rounded-xl border border-white/[0.1] py-2 text-[13px] font-semibold text-white/80 disabled:opacity-40"
+        >
+          Back
+        </button>
+        <button
+          type="button"
+          disabled={step >= STEPS.length - 1}
+          onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
+          className="min-h-[44px] flex-1 rounded-xl border border-cyan-500/40 bg-cyan-500/15 py-2 text-[13px] font-semibold text-cyan-100 disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function StepSource() {
+  return (
+    <div className="space-y-4 text-[13px] text-white/80">
+      <div>
+        <h2 className="text-[18px] font-bold text-white">Import your league history & rosters</h2>
+        <p className="mt-1 text-[12px] text-white/45">Connect external platforms to combine into AllFantasy.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {['NFL roster source', 'Devy roster source', 'History source'].map((t) => (
+          <button
+            key={t}
+            type="button"
+            className="rounded-xl border border-dashed border-white/[0.12] bg-black/20 px-4 py-6 text-[12px] font-semibold text-cyan-200/80 min-h-[44px]"
+          >
+            + Add {t}
+          </button>
+        ))}
+      </div>
+      <div className="rounded-xl border border-white/[0.08] bg-[#0a1228] p-4">
+        <p className="text-[11px] text-white/45">Each source: platform, connection type, classification, status.</p>
+        <button
+          type="button"
+          className="mt-3 w-full rounded-xl border border-cyan-500/30 bg-cyan-500/10 py-3 text-[13px] font-semibold text-cyan-100 min-h-[44px]"
+        >
+          Run identity matching →
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function StepMatching() {
+  return (
+    <div className="space-y-4 text-[13px] text-white/80">
+      <p className="text-[12px] text-white/55">Matching players across sources…</p>
+      <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+        <div className="h-full w-2/3 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500" />
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ['Exact', 12, 'text-emerald-300'],
+          ['High', 4, 'text-sky-300'],
+          ['Review', 2, 'text-amber-300'],
+          ['Unmatched', 1, 'text-red-300'],
+        ].map(([label, n, cls]) => (
+          <div key={String(label)} className="rounded-lg border border-white/[0.06] bg-black/25 p-3 text-center">
+            <p className={`text-[20px] font-bold ${cls}`}>{n}</p>
+            <p className="text-[10px] uppercase text-white/45">{label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-white/40">Review tables and actions wire to import APIs in a follow-up.</p>
+    </div>
+  )
+}
+
+function StepConflicts() {
+  return (
+    <div className="space-y-3 text-[13px] text-white/80">
+      <div className="flex flex-wrap gap-2">
+        {['All', 'Critical', 'Warning', 'Info'].map((f) => (
+          <span
+            key={f}
+            className="rounded-full border border-white/[0.08] px-3 py-1 text-[11px] text-white/55"
+          >
+            {f}
+          </span>
+        ))}
+      </div>
+      <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+        <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-100">
+          Duplicate
+        </span>
+        <p className="mt-2 text-[12px] text-white/70">Sample conflict — choose resolution (radio) + notes.</p>
+        <p className="mt-2 text-[11px] text-white/40">0 of 0 resolved (placeholder)</p>
+      </div>
+    </div>
+  )
+}
+
+function StepPreMerge({ leagueId }: { leagueId: string }) {
+  return (
+    <div className="space-y-4 text-[13px] text-white/80">
+      <div className="rounded-xl border border-white/[0.08] bg-[#0a1228] p-4">
+        <p className="font-semibold text-white">Merge summary</p>
+        <ul className="mt-2 space-y-1 text-[12px] text-white/60">
+          <li>NFL players → teams (preview)</li>
+          <li>Devy prospects → teams (preview)</li>
+          <li>Seasons of history</li>
+          <li>Picks per team</li>
+        </ul>
+      </div>
+      <button
+        type="button"
+        className="w-full rounded-xl border border-red-500/40 bg-red-500/10 py-3 text-[13px] font-semibold text-red-100 min-h-[44px]"
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.confirm('This will overwrite empty league rosters. Continue?')) {
+            /* no-op — execute route not invoked from UI-only wizard */
+          }
+        }}
+      >
+        Confirm merge →
+      </button>
+      <p className="text-[10px] text-white/35">League: {leagueId}</p>
+    </div>
+  )
+}
+
+function StepAudit({ leagueId }: { leagueId: string }) {
+  return (
+    <div className="space-y-4 text-[13px] text-white/80">
+      <p className="text-[16px] font-bold text-emerald-200">✓ Merge complete</p>
+      <p className="text-[12px] text-white/55">
+        Download audit from `/api/devy/import/audit` when wired; placeholder for UI shell.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          className="rounded-xl border border-white/[0.1] px-4 py-3 text-[12px] font-semibold text-white/75 min-h-[44px]"
+        >
+          Download audit report
+        </button>
+        <a
+          href={`/league/${leagueId}`}
+          className="inline-flex items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-3 text-[12px] font-semibold text-cyan-100 min-h-[44px]"
+        >
+          View your league
+        </a>
+      </div>
+    </div>
+  )
+}

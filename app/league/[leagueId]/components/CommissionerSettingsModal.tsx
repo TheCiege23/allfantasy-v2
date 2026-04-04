@@ -12,6 +12,7 @@ import {
   isSurvivorSettingsTab,
   isZombieSettingsTab,
   isIdpSettingsTab,
+  isDevySettingsTab,
 } from './settings/SettingsNav'
 import { IDPRosterPanel } from '@/app/idp/components/settings/IDPRosterPanel'
 import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
@@ -38,6 +39,13 @@ import { ZombieUpdatesPanel } from '@/app/zombie/components/commissioner/ZombieU
 import { ZombieAIPanel } from '@/app/zombie/components/commissioner/ZombieAIPanel'
 import { ZombieAnimationsPanel } from '@/app/zombie/components/commissioner/ZombieAnimationsPanel'
 import { ZombieAdvancedPanel } from '@/app/zombie/components/commissioner/ZombieAdvancedPanel'
+import { DevyFormatPanel } from '@/app/devy/components/settings/DevyFormatPanel'
+import { DevyRosterPanel } from '@/app/devy/components/settings/DevyRosterPanel'
+import { DevyRulesPanel } from '@/app/devy/components/settings/DevyRulesPanel'
+import { DevyTaxiPanel } from '@/app/devy/components/settings/DevyTaxiPanel'
+import { DevyDraftsPanel } from '@/app/devy/components/settings/DevyDraftsPanel'
+import { DevyImportPanel } from '@/app/devy/components/settings/DevyImportPanel'
+import { DevyAIPanel } from '@/app/devy/components/settings/DevyAIPanel'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
@@ -63,6 +71,8 @@ export function CommissionerSettingsModal({
   const [tournamentShellId, setTournamentShellId] = useState<string | null>(null)
   const [zombieMode, setZombieMode] = useState(false)
   const [idpLeague, setIdpLeague] = useState(false)
+  const [devyMode, setDevyMode] = useState(false)
+  const [devyConfig, setDevyConfig] = useState<Record<string, unknown> | null>(null)
 
   const { status, save, debouncedSave } = useAutosave(leagueId)
 
@@ -101,6 +111,25 @@ export function CommissionerSettingsModal({
   }, [isOpen, leagueId])
 
   useEffect(() => {
+    if (!isOpen) return
+    fetch(`/api/devy?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: Record<string, unknown> } | null) => {
+        if (d?.config) {
+          setDevyMode(true)
+          setDevyConfig(d.config)
+        } else {
+          setDevyMode(false)
+          setDevyConfig(null)
+        }
+      })
+      .catch(() => {
+        setDevyMode(false)
+        setDevyConfig(null)
+      })
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
     if (!isOpen) {
       setTournamentShellId(null)
       return
@@ -135,6 +164,12 @@ export function CommissionerSettingsModal({
     }
   }, [idpLeague, activeTab])
 
+  useEffect(() => {
+    if (!devyMode && isDevySettingsTab(activeTab)) {
+      setActiveTab('league')
+    }
+  }, [devyMode, activeTab])
+
   if (!isOpen) return null
 
   const canEdit = payload?.canEdit ?? false
@@ -145,13 +180,13 @@ export function CommissionerSettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-0 backdrop-blur-sm md:p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="commissioner-settings-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="relative flex h-[85vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d1117] shadow-2xl md:flex-row">
+      <div className="relative flex h-[100dvh] w-full max-w-[900px] flex-col overflow-hidden rounded-none border border-white/[0.08] bg-[#0d1117] shadow-2xl md:h-[85vh] md:rounded-2xl md:flex-row">
         <h2 id="commissioner-settings-title" className="sr-only">
           Commissioner settings
         </h2>
@@ -171,6 +206,7 @@ export function CommissionerSettingsModal({
           showSurvivorTabs={survivorMode}
           showZombieTabs={zombieMode}
           showIdpTabs={idpLeague}
+          showDevyTabs={devyMode}
         />
 
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -286,6 +322,20 @@ export function CommissionerSettingsModal({
             <IDPDisplayPanel />
           ) : activeTab === 'idp_ai' ? (
             <IDPAIPanel leagueId={leagueId} hasAfSub={hasSub} isCommissioner={payload?.canEdit ?? false} />
+          ) : activeTab === 'devy_format' ? (
+            <DevyFormatPanel config={devyConfig} />
+          ) : activeTab === 'devy_roster' ? (
+            <DevyRosterPanel config={devyConfig} />
+          ) : activeTab === 'devy_rules' ? (
+            <DevyRulesPanel config={devyConfig} />
+          ) : activeTab === 'devy_taxi' ? (
+            <DevyTaxiPanel config={devyConfig} />
+          ) : activeTab === 'devy_drafts' ? (
+            <DevyDraftsPanel config={devyConfig} />
+          ) : activeTab === 'devy_import' ? (
+            <DevyImportPanel leagueId={leagueId} />
+          ) : activeTab === 'devy_ai' ? (
+            <DevyAIPanel hasAfSub={hasSub} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

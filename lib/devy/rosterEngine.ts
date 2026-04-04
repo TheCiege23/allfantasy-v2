@@ -160,7 +160,7 @@ export async function moveToTaxi(
   const taxiCheck = await validateTaxiEligibility(leagueId, playerId, cfg.season)
   if (!taxiCheck.eligible) throw new Error(taxiCheck.reason)
 
-  return prisma.$transaction(tx => moveToTaxiWithTx(tx, cfg, leagueId, rosterId, playerId))
+  return prisma.$transaction(tx => moveToTaxiWithTx(tx as Tx, cfg, leagueId, rosterId, playerId))
 }
 
 export async function processDevyToRookieTransition(
@@ -215,7 +215,7 @@ export async function processDevyToRookieTransition(
       const inTaxi = await tx.devyTaxiSlot.count({ where: { leagueId, rosterId: first.rosterId } })
       if (inTaxi < cfg.taxiSlots) {
         try {
-          await moveToTaxiWithTx(tx, cfg, leagueId, first.rosterId, playerId)
+          await moveToTaxiWithTx(tx as Tx, cfg, leagueId, first.rosterId, playerId)
           await tx.devyDevySlot.deleteMany({ where: { leagueId, rosterId: first.rosterId, playerId } })
           destinationState = 'taxi'
         } catch {

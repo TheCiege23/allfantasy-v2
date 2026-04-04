@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Home } from 'lucide-react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -30,6 +31,8 @@ import { ScheduleTab } from './tabs/ScheduleTab'
 import { LeagueTabPlaceholder } from './tabs/LeagueTabPlaceholder'
 import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
+import { CommissionerSettingsModal } from './components/CommissionerSettingsModal'
+import { useIdpCapSummary, useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
 import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
 import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
@@ -120,6 +123,10 @@ export function LeagueShell({
   zombieChimmyPrefill = null,
 }: LeagueShellProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { rosterId: capRosterId } = useRedraftRosterId(league.id)
+  const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
+  const idpCapEnabled = Boolean(capSummary)
   const tabDefs = useMemo(() => {
     let base = getLeagueTabs(String(league.sport))
     if (league.bestBallMode) {
@@ -153,11 +160,32 @@ export function LeagueShell({
     const ids = new Set(tabDefs.map((t) => t.id))
     setActiveTab((prev) => (ids.has(prev) ? prev : tabDefs[0]?.id ?? 'draft'))
   }, [tabDefs])
+
+  useEffect(() => {
+    const view = searchParams.get('view')
+    if (!view) return
+    const map: Record<string, string> = {
+      team: 'team',
+      roster: 'team',
+      matchup: 'scores',
+      scores: 'scores',
+      draft: 'draft',
+      redraft: 'redraft',
+      trades: 'trades',
+    }
+    const target = map[view]
+    if (!target) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (ids.has(target)) setActiveTab(target)
+  }, [searchParams, tabDefs])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [portalMounted, setPortalMounted] = useState(false)
   const [idpUi, setIdpUi] = useState<{ active: boolean; positionMode: string } | null>(null)
   const [idpViewMode, setIdpViewMode] = useState<'offense' | 'defense' | 'full'>('full')
+  const [devyConfig, setDevyConfig] = useState<Record<string, unknown> | null | 'none'>(null)
+  const [devyBucketStats, setDevyBucketStats] = useState({ active: 0, taxi: 0, devy: 0 })
+  const [commissionerSettingsOpen, setCommissionerSettingsOpen] = useState(false)
 
   useEffect(() => {
     setPortalMounted(true)
@@ -182,6 +210,68 @@ export function LeagueShell({
       cancelled = true
     }
   }, [league.id])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/devy?leagueId=${encodeURIComponent(league.id)}`, { credentials: 'include' })
+      .then((r) => {
+        if (r.status === 404) return 'none' as const
+        return r.ok ? r.json() : 'none' as const
+      })
+      .then((d) => {
+        if (cancelled) return
+        if (d === 'none') setDevyConfig('none')
+        else if (d && typeof d === 'object' && 'config' in d && d.config)
+          setDevyConfig(d.config as Record<string, unknown>)
+        else setDevyConfig('none')
+      })
+      .catch(() => {
+        if (!cancelled) setDevyConfig('none')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
+
+  useEffect(() => {
+    if (devyConfig === null || devyConfig === 'none') return
+    let cancelled = false
+    fetch(`/api/redraft/season?leagueId=${encodeURIComponent(league.id)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { season?: { rosters?: { id: string; ownerId: string | null }[] } } | null) => {
+        const roster = data?.season?.rosters?.find((r) => r.ownerId === userId)
+        if (!roster?.id) return null
+        return fetch(
+          `/api/devy/roster?leagueId=${encodeURIComponent(league.id)}&rosterId=${encodeURIComponent(roster.id)}`,
+          { credentials: 'include' },
+        )
+      })
+      .then((r) => (r && r.ok ? r.json() : null))
+      .then(
+        (d: {
+          playerStates?: { bucketState: string }[]
+          taxiSlots?: unknown[]
+          devySlots?: unknown[]
+        } | null) => {
+          if (cancelled || !d) return
+          const ps = d.playerStates ?? []
+          const active = ps.filter((s) =>
+            ['active_starter', 'active_bench', 'ir'].includes(s.bucketState),
+          ).length
+          setDevyBucketStats({
+            active,
+            taxi: (d.taxiSlots ?? []).length,
+            devy: (d.devySlots ?? []).length,
+          })
+        },
+      )
+      .catch(() => {
+        if (!cancelled) setDevyBucketStats({ active: 0, taxi: 0, devy: 0 })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [devyConfig, league.id, userId])
 
   const selectedLeague = useMemo(
     () => prismaLeagueToUserLeague(league, { draftDate: draftDateIso }),
@@ -255,6 +345,7 @@ export function LeagueShell({
         <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <LeagueHeader
             league={selectedLeague}
+            leagueId={league.id}
             tabs={tabDefs}
             activeTab={activeTab}
             onTabChange={setActiveTab}
@@ -263,6 +354,13 @@ export function LeagueShell({
             idpLeagueActive={idpUi?.active ?? false}
             idpViewMode={idpViewMode}
             onIdpViewModeChange={setIdpViewMode}
+            devyLeagueActive={devyConfig !== null && devyConfig !== 'none'}
+            devyBucketStats={devyBucketStats}
+            isCommissioner={isCommissioner}
+            onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+            idpCapEnabled={idpCapEnabled}
+            capSummary={capSummary}
+            capRosterId={capRosterId}
           />
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
@@ -292,6 +390,17 @@ export function LeagueShell({
           onClose={closePlayerCard}
         />
       ) : null}
+
+      {portalMounted && isCommissioner && devyConfig !== null && devyConfig !== 'none'
+        ? createPortal(
+            <CommissionerSettingsModal
+              leagueId={league.id}
+              isOpen={commissionerSettingsOpen}
+              onClose={() => setCommissionerSettingsOpen(false)}
+            />,
+            document.body,
+          )
+        : null}
 
       {portalMounted
         ? createPortal(
@@ -423,6 +532,7 @@ function LeagueTabRouter({
 
 function LeagueHeader({
   league,
+  leagueId,
   tabs,
   activeTab,
   onTabChange,
@@ -431,8 +541,16 @@ function LeagueHeader({
   idpLeagueActive = false,
   idpViewMode = 'full',
   onIdpViewModeChange,
+  devyLeagueActive = false,
+  devyBucketStats = { active: 0, taxi: 0, devy: 0 },
+  isCommissioner = false,
+  onOpenCommissionerSettings,
+  idpCapEnabled = false,
+  capSummary = null,
+  capRosterId = null,
 }: {
   league: UserLeague
+  leagueId: string
   tabs: TabDef[]
   activeTab: string
   onTabChange: (t: string) => void
@@ -441,7 +559,25 @@ function LeagueHeader({
   idpLeagueActive?: boolean
   idpViewMode?: 'offense' | 'defense' | 'full'
   onIdpViewModeChange?: (m: 'offense' | 'defense' | 'full') => void
+  devyLeagueActive?: boolean
+  devyBucketStats?: { active: number; taxi: number; devy: number }
+  isCommissioner?: boolean
+  onOpenCommissionerSettings?: () => void
+  idpCapEnabled?: boolean
+  capSummary?: {
+    totalCap: number
+    availableCap: number
+  } | null
+  capRosterId?: string | null
 }) {
+  const capPct =
+    capSummary && capSummary.totalCap > 0 ? capSummary.availableCap / capSummary.totalCap : 0
+  const capPillClass =
+    capPct > 0.3
+      ? 'border-[color:var(--cap-green)]/50 bg-[color:var(--cap-green)]/15 text-emerald-100'
+      : capPct > 0.1
+        ? 'border-[color:var(--cap-amber)]/45 bg-[color:var(--cap-amber)]/15 text-amber-100'
+        : 'border-[color:var(--cap-red)]/45 bg-[color:var(--cap-red)]/15 text-red-100'
   return (
     <div className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c1e]">
       <div className="flex items-center gap-3 px-5 pb-0 pt-4">
@@ -456,6 +592,25 @@ function LeagueHeader({
             <h1 className="truncate text-[15px] font-bold text-white">{league.name}</h1>
             {idpLeagueActive ? (
               <span className="idp-creator-badge flex-shrink-0 whitespace-nowrap">✦ Created by TheCiege</span>
+            ) : null}
+            {devyLeagueActive ? (
+              <>
+                <span
+                  className="devy-creator-badge flex-shrink-0 whitespace-nowrap"
+                  data-testid="devy-creator-badge"
+                >
+                  ✦ Created by TheCiege
+                </span>
+                <span
+                  className="flex-shrink-0 rounded-full border border-white/[0.1] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/90"
+                  style={{
+                    background: 'linear-gradient(90deg, rgba(124,58,237,0.35), rgba(37,99,235,0.35))',
+                  }}
+                  data-testid="devy-dynasty-pill"
+                >
+                  Dynasty · Devy
+                </span>
+              </>
             ) : null}
             <span className="flex-shrink-0 text-[11px] text-white/40">
               {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'}{' '}
@@ -486,6 +641,38 @@ function LeagueHeader({
             </div>
           ) : null}
         </div>
+        <div className="flex flex-shrink-0 flex-col items-end gap-1">
+          {idpCapEnabled && capSummary && capRosterId ? (
+            <Link
+              href={`/idp/cap/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`}
+              className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide transition hover:brightness-110 ${capPillClass}`}
+              data-testid="idp-cap-header-pill"
+            >
+              CAP: ${capSummary.availableCap.toFixed(1)}M
+            </Link>
+          ) : null}
+          {devyLeagueActive ? (
+            <div
+              className="flex max-w-[200px] flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[9px] font-semibold text-white/70 sm:max-w-none sm:text-[10px]"
+              data-testid="devy-bucket-stats"
+            >
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-active)' }} />
+                {devyBucketStats.active} NFL
+              </span>
+              <span className="text-white/25">·</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-taxi)' }} />
+                {devyBucketStats.taxi} Taxi
+              </span>
+              <span className="text-white/25">·</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-devy)' }} />
+                {devyBucketStats.devy} Devy
+              </span>
+            </div>
+          ) : null}
+        </div>
         <div className="flex flex-shrink-0 items-center gap-0.5">
           <button
             type="button"
@@ -507,6 +694,71 @@ function LeagueHeader({
           </button>
         </div>
       </div>
+
+      {idpLeagueActive && idpCapEnabled && capRosterId ? (
+        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+          {(
+            [
+              ['Roster', `/league/${leagueId}?view=team`],
+              ['Matchup', `/league/${leagueId}?view=scores`],
+              ['Contracts', `/idp/contracts/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`],
+              ['Defense Hub', `/idp/defense-hub/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`],
+              ['Cap Room', `/idp/cap/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`],
+              ['Chat', `/league/${leagueId}`],
+            ] as const
+          ).map(([label, href]) => (
+            <Link
+              key={label}
+              href={href}
+              className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+              data-testid={`idp-cap-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      {devyLeagueActive ? (
+        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-white/[0.05] px-5 py-2">
+          {(
+            [
+              ['Roster', `/devy/${leagueId}/roster`],
+              ['Taxi', `/devy/${leagueId}/roster#taxi`],
+              ['Devy', `/devy/${leagueId}/roster#devy`],
+              ['Picks', `/devy/${leagueId}/picks`],
+              ['Matchup', `/league/${leagueId}`],
+              ['Chat', `/league/${leagueId}`],
+              ['History', `/devy/${leagueId}/history`],
+              ['Commissioner', '__commish__'],
+            ] as const
+          ).map(([label, href]) =>
+            href === '__commish__' ? (
+              <button
+                key={label}
+                type="button"
+                onClick={() => {
+                  if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
+                  else onOpenSettings()
+                }}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
+                data-testid={`devy-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </button>
+            ) : (
+              <Link
+                key={label}
+                href={href}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
+                data-testid={`devy-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </Link>
+            ),
+          )}
+        </div>
+      ) : null}
 
       <div className="scrollbar-none mt-2 flex overflow-x-auto px-5">
         {tabs.map((tab) => (

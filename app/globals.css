@@ -98,7 +98,52 @@
   --idp-border: rgba(255, 255, 255, 0.06);
   --idp-creator-glow: 0 0 8px rgba(99, 102, 241, 0.6), 0 0 20px rgba(99, 102, 241, 0.3);
 
+  /* IDP Salary cap — room / contracts / dead money */
+  --cap-green: #16a34a;
+  --cap-amber: #f59e0b;
+  --cap-red: #dc2626;
+  --cap-dead: #6b7280;
+  --cap-contract: #2563eb;
+  --cap-bar-bg: rgba(255, 255, 255, 0.08);
+
+  /* Devy League — roster buckets & surfaces */
+  --devy-active: #16a34a;
+  --devy-taxi: #f59e0b;
+  --devy-devy: #7c3aed;
+  --devy-rookie: #2563eb;
+  --devy-ir: #6b7280;
+  --devy-panel: #0b0d13;
+  --devy-border: rgba(255, 255, 255, 0.06);
+  --devy-creator-glow: 0 0 8px rgba(99, 102, 241, 0.6), 0 0 20px rgba(99, 102, 241, 0.3);
+  --devy-badge-devy: rgba(124, 58, 237, 0.15);
+  --devy-badge-taxi: rgba(245, 158, 11, 0.15);
+
   color-scheme: light;
+}
+
+@keyframes devy-creator-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+}
+
+.devy-creator-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #3b82f6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: var(--devy-creator-glow);
+  animation: devy-creator-pulse 3s ease-in-out infinite;
 }
 
 @keyframes idp-creator-pulse {
