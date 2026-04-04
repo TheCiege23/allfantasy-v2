@@ -14,25 +14,36 @@ function weekPoints(row: StandingsLeagueRow): number {
 
 export default function TournamentStandingsHubPage() {
   const ctx = useTournamentUi()
+  const [standingsRoundNumber, setStandingsRoundNumber] = useState<number>(() => {
+    const c = ctx.shell.currentRoundNumber || 1
+    if (ctx.rounds.some((r) => r.roundNumber === c)) return c
+    return ctx.rounds[0]?.roundNumber ?? 1
+  })
   const [tab, setTab] = useState<Tab>('league')
   const [weeklyWeek, setWeeklyWeek] = useState<number | null>(null)
   const [q, setQ] = useState('')
 
-  const activeRound = useMemo(
-    () => ctx.rounds.find((r) => r.roundNumber === ctx.shell.currentRoundNumber) ?? ctx.rounds[0] ?? null,
-    [ctx.rounds, ctx.shell.currentRoundNumber],
+  const roundsSorted = useMemo(
+    () => [...ctx.rounds].sort((a, b) => a.roundNumber - b.roundNumber),
+    [ctx.rounds],
+  )
+
+  const selectedRoundMeta = useMemo(
+    () => roundsSorted.find((r) => r.roundNumber === standingsRoundNumber) ?? roundsSorted[0] ?? null,
+    [roundsSorted, standingsRoundNumber],
   )
 
   const state = useTournamentParticipantState(ctx, {
+    roundNumber: standingsRoundNumber,
     weeklyWeek: tab === 'weekly' ? weeklyWeek : undefined,
   })
 
   useEffect(() => {
     if (tab !== 'weekly') return
     if (weeklyWeek != null) return
-    const r = state.standingsRound ?? activeRound
+    const r = state.standingsRound ?? selectedRoundMeta
     if (r) setWeeklyWeek(r.weekEnd)
-  }, [tab, weeklyWeek, state.standingsRound, activeRound])
+  }, [tab, weeklyWeek, state.standingsRound, selectedRoundMeta])
 
   const conference = useMemo(
     () => ctx.conferences.find((c) => c.id === ctx.participant?.currentConferenceId) ?? ctx.conferences[0],
@@ -61,14 +72,23 @@ export default function TournamentStandingsHubPage() {
   }, [state.standingsLeagues])
 
   const weekOptions = useMemo(() => {
-    const r = state.standingsRound ?? activeRound
+    const r = state.standingsRound ?? selectedRoundMeta
     if (!r) return []
     const o: number[] = []
     for (let w = r.weekStart; w <= r.weekEnd; w++) o.push(w)
     return o
-  }, [state.standingsRound, activeRound])
+  }, [state.standingsRound, selectedRoundMeta])
 
   const filterQ = (name: string) => !q.trim() || name.toLowerCase().includes(q.trim().toLowerCase())
+
+  useEffect(() => {
+    if (roundsSorted.length === 0) return
+    const ok = roundsSorted.some((r) => r.roundNumber === standingsRoundNumber)
+    if (!ok) {
+      setStandingsRoundNumber(ctx.shell.currentRoundNumber || roundsSorted[0]!.roundNumber)
+      setWeeklyWeek(null)
+    }
+  }, [roundsSorted, standingsRoundNumber, ctx.shell.currentRoundNumber])
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'league', label: 'My League' },
@@ -79,7 +99,32 @@ export default function TournamentStandingsHubPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <h1 className="text-[18px] font-bold text-white">Standings</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <h1 className="text-[18px] font-bold text-white">Standings</h1>
+        {roundsSorted.length > 0 ? (
+          <label className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--tournament-text-mid)]">
+            <span className="font-semibold text-white/80">Tournament round</span>
+            <select
+              value={standingsRoundNumber}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10)
+                if (Number.isFinite(n)) {
+                  setStandingsRoundNumber(n)
+                  setWeeklyWeek(null)
+                }
+              }}
+              className="max-w-[min(100vw-2rem,280px)] rounded-lg border border-[var(--tournament-border)] bg-black/30 px-2 py-1.5 text-[13px] text-white"
+              data-testid="standings-round-select"
+            >
+              {roundsSorted.map((r) => (
+                <option key={r.id} value={r.roundNumber}>
+                  {r.roundLabel?.trim() ? r.roundLabel : `Round ${r.roundNumber}`}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
       <div className="scrollbar-none flex gap-1 overflow-x-auto border-b border-[var(--tournament-border)] pb-2">
         {tabs.map((t) => (
           <button
@@ -88,7 +133,7 @@ export default function TournamentStandingsHubPage() {
             onClick={() => {
               setTab(t.id)
               if (t.id === 'weekly' && weeklyWeek === null) {
-                const r = state.standingsRound ?? activeRound
+                const r = state.standingsRound ?? selectedRoundMeta
                 if (r) setWeeklyWeek(r.weekEnd)
               }
             }}
@@ -151,44 +196,72 @@ export default function TournamentStandingsHubPage() {
         </div>
       ) : null}
 
-      {tab === 'conference' ? (
-        <div className="tournament-panel overflow-x-auto p-2">
-          <table className="w-full min-w-[560px]">
-            <tbody>
-              {conferenceRowsSeason
-                .filter((r) => filterQ(r.participant.displayName))
-                .map((row, idx) => (
-                  <StandingsRow
-                    key={row.id}
-                    row={row}
-                    rank={row.conferenceRank ?? idx + 1}
-                    highlight={row.userId === ctx.viewerUserId}
-                    hidePf={false}
-                  />
-                ))}
-            </tbody>
-          </table>
+      {tab === 'league' && !myLeague && state.standingsReady && state.standingsLeagues.length > 0 ? (
+        <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
+          You have no league assignment in this round. Try Conference or Global, or pick another tournament round.
         </div>
       ) : null}
 
-      {tab === 'global' ? (
-        <div className="tournament-panel overflow-x-auto p-2">
-          <table className="w-full min-w-[560px]">
-            <tbody>
-              {globalRowsSeason
-                .filter((r) => filterQ(r.participant.displayName))
-                .map((row, idx) => (
-                  <StandingsRow
-                    key={`${row.id}-g`}
-                    row={row}
-                    rank={idx + 1}
-                    highlight={row.userId === ctx.viewerUserId}
-                    hidePf={false}
-                  />
-                ))}
-            </tbody>
-          </table>
+      {tab === 'league' && !myLeague && state.standingsReady && state.standingsLeagues.length === 0 && !state.standingsError ? (
+        <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
+          No leagues in this round yet.
         </div>
+      ) : null}
+
+      {tab === 'league' && !myLeague && !state.standingsReady && !state.standingsError ? (
+        <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">Loading standings…</div>
+      ) : null}
+
+      {tab === 'conference' ? (
+        conferenceRowsSeason.length > 0 ? (
+          <div className="tournament-panel overflow-x-auto p-2">
+            <table className="w-full min-w-[560px]">
+              <tbody>
+                {conferenceRowsSeason
+                  .filter((r) => filterQ(r.participant.displayName))
+                  .map((row, idx) => (
+                    <StandingsRow
+                      key={row.id}
+                      row={row}
+                      rank={row.conferenceRank ?? idx + 1}
+                      highlight={row.userId === ctx.viewerUserId}
+                      hidePf={false}
+                    />
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
+            No conference standings for this round{conference ? ` (${conference.name})` : ''}.
+          </div>
+        )
+      ) : null}
+
+      {tab === 'global' ? (
+        globalRowsSeason.length > 0 ? (
+          <div className="tournament-panel overflow-x-auto p-2">
+            <table className="w-full min-w-[560px]">
+              <tbody>
+                {globalRowsSeason
+                  .filter((r) => filterQ(r.participant.displayName))
+                  .map((row, idx) => (
+                    <StandingsRow
+                      key={`${row.id}-g`}
+                      row={row}
+                      rank={idx + 1}
+                      highlight={row.userId === ctx.viewerUserId}
+                      hidePf={false}
+                    />
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
+            No participants in this round yet.
+          </div>
+        )
       ) : null}
 
       {tab === 'weekly' && weeklyWeek === null ? (
@@ -199,7 +272,7 @@ export default function TournamentStandingsHubPage() {
         <div className="space-y-6">
           <section>
             <h2 className="mb-2 text-[13px] font-bold text-white">
-              Global — week {weeklyWeek}
+              Global — round {state.standingsRound?.roundNumber ?? standingsRoundNumber}, week {weeklyWeek}
               <span className="ml-2 font-normal text-[var(--tournament-text-dim)]">(high to low)</span>
             </h2>
             <div className="tournament-panel overflow-x-auto p-2">
@@ -226,7 +299,7 @@ export default function TournamentStandingsHubPage() {
           {conference ? (
             <section>
               <h2 className="mb-2 text-[13px] font-bold text-white">
-                {conference.name} — week {weeklyWeek}
+                {conference.name} — round {state.standingsRound?.roundNumber ?? standingsRoundNumber}, week {weeklyWeek}
               </h2>
               <div className="tournament-panel overflow-x-auto p-2">
                 <table className="w-full min-w-[560px]">
@@ -251,7 +324,9 @@ export default function TournamentStandingsHubPage() {
           ) : null}
 
           <section>
-            <h2 className="mb-2 text-[13px] font-bold text-white">My league — week {weeklyWeek}</h2>
+            <h2 className="mb-2 text-[13px] font-bold text-white">
+              My league — round {state.standingsRound?.roundNumber ?? standingsRoundNumber}, week {weeklyWeek}
+            </h2>
             {myLeague ? (
               <div className="tournament-panel overflow-x-auto p-2">
                 <table className="w-full min-w-[560px]">

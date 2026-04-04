@@ -40,11 +40,13 @@ export function useTournamentParticipantState(
 ) {
   const { shell, participant, viewerUserId, tournamentLeagues } = ctx
   const [standingsError, setStandingsError] = useState<string | null>(null)
+  const [standingsReady, setStandingsReady] = useState(false)
   const [round, setRound] = useState(ctx.rounds.find((r) => r.roundNumber === shell.currentRoundNumber) ?? ctx.rounds[0] ?? null)
   const [leagues, setLeagues] = useState<StandingsLeague[]>([])
 
   const reload = useCallback(async () => {
     setStandingsError(null)
+    setStandingsReady(false)
     try {
       const rn = opts?.roundNumber ?? (shell.currentRoundNumber || 1)
       const wk = opts?.weeklyWeek != null && Number.isFinite(opts.weeklyWeek) ? opts.weeklyWeek : undefined
@@ -53,6 +55,8 @@ export function useTournamentParticipantState(
       setLeagues(data.leagues)
     } catch (e) {
       setStandingsError(e instanceof Error ? e.message : 'Standings unavailable')
+    } finally {
+      setStandingsReady(true)
     }
   }, [shell.id, shell.currentRoundNumber, opts?.roundNumber, opts?.weeklyWeek])
 
@@ -130,6 +134,7 @@ export function useTournamentParticipantState(
     isDraftLive,
     standingsRound: round,
     standingsLeagues: leagues,
+    standingsReady,
     standingsError,
     reloadStandings: reload,
     myStandingsRow: myRow,
