@@ -7,6 +7,7 @@ import type {
   PlayerCardCareerProjection,
 } from '@/lib/player-card-analytics/types'
 import { usePlayerCardAnalytics } from '@/hooks/usePlayerCardAnalytics'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 
 export interface PlayerCardAnalyticsProps {
   playerId?: string | null
@@ -89,7 +90,13 @@ export default function PlayerCardAnalytics({
 
           {data.matchupPrediction && (
             <Section icon={<Target className="h-4 w-4 text-cyan-400" />} title="Matchup outlook">
-              <MatchupBlock pred={data.matchupPrediction} />
+              <MatchupBlock
+                pred={data.matchupPrediction}
+                playerId={playerId}
+                playerName={playerName.trim()}
+                position={position}
+                sport={sport}
+              />
             </Section>
           )}
 
@@ -135,8 +142,32 @@ function MetaTrendsBlock({ meta }: { meta: PlayerCardMetaTrend }) {
   )
 }
 
-function MatchupBlock({ pred }: { pred: PlayerCardAnalyticsPayload['matchupPrediction'] }) {
+function MatchupBlock({
+  pred,
+  playerId,
+  playerName,
+  position,
+  sport,
+}: {
+  pred: PlayerCardAnalyticsPayload['matchupPrediction']
+  playerId?: string | null
+  playerName: string
+  position?: string | null
+  sport?: string | null
+}) {
   if (!pred) return null
+  const seasonY = new Date().getFullYear()
+  const crest =
+    playerId && sport
+      ? {
+          playerId,
+          playerName,
+          sport,
+          position: position || '—',
+          week: 1,
+          season: seasonY,
+        }
+      : undefined
   return (
     <div className="text-xs text-zinc-300">
       {pred.opponentTier && (
@@ -146,10 +177,21 @@ function MatchupBlock({ pred }: { pred: PlayerCardAnalyticsPayload['matchupPredi
       )}
       {pred.outlook && <p>{pred.outlook}</p>}
       {(pred.expectedPoints != null || pred.expectedPointsPerGame != null) && (
-        <p className="mt-1">
-          {pred.expectedPointsPerGame != null && `Expected ${pred.expectedPointsPerGame.toFixed(1)} PPG`}
-          {pred.expectedPoints != null && pred.expectedPointsPerGame != null && ' · '}
-          {pred.expectedPoints != null && `${pred.expectedPoints.toFixed(0)} pts (season)`}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5">
+          {pred.expectedPointsPerGame != null && (
+            <>
+              <span>Expected</span>
+              <ProjectionDisplay
+                projection={pred.expectedPointsPerGame}
+                suffix="PPG"
+                showAFCrest={Boolean(crest)}
+                afCrestProps={crest}
+                pointsClassName="text-xs text-zinc-300"
+              />
+            </>
+          )}
+          {pred.expectedPoints != null && pred.expectedPointsPerGame != null && <span>·</span>}
+          {pred.expectedPoints != null && <span>{pred.expectedPoints.toFixed(0)} pts (season)</span>}
         </p>
       )}
     </div>

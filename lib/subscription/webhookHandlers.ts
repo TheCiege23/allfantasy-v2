@@ -43,6 +43,31 @@ export function mapStripeSubscriptionStatus(stripeStatus: Stripe.Subscription.St
   }
 }
 
+type SubscriptionPeriodFields = {
+  current_period_start?: number
+  current_period_end?: number
+}
+
+function subscriptionPeriods(sub: Stripe.Subscription): { start: Date | null; end: Date | null } {
+  const s = sub as Stripe.Subscription & SubscriptionPeriodFields
+  const startSec = s.current_period_start
+  const endSec = s.current_period_end
+  return {
+    start: startSec != null ? new Date(startSec * 1000) : null,
+    end: endSec != null ? new Date(endSec * 1000) : null,
+  }
+}
+
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const inv = invoice as Stripe.Invoice & {
+    subscription?: string | Stripe.Subscription | null
+  }
+  const sub = inv.subscription
+  if (typeof sub === "string") return sub
+  if (sub && typeof sub !== "string") return sub.id
+  return null
+}
+
 export async function updateSubscriptionFromStripeEvent(
   sub: Stripe.Subscription,
   userId: string
@@ -50,12 +75,7 @@ export async function updateSubscriptionFromStripeEvent(
   const stripeSubscriptionId = sub.id
   const stripeCustomerId = typeof sub.customer === "string" ? sub.customer : null
   const status = mapStripeSubscriptionStatus(sub.status)
-  const currentPeriodStart = sub.current_period_start
-    ? new Date(sub.current_period_start * 1000)
-    : null
-  const currentPeriodEnd = sub.current_period_end
-    ? new Date(sub.current_period_end * 1000)
-    : null
+  const { start: currentPeriodStart, end: currentPeriodEnd } = subscriptionPeriods(sub)
 
   const existing = await prisma.userSubscription.findUnique({
     where: { stripeSubscriptionId },
@@ -121,7 +141,7 @@ export async function markSubscriptionAsExpired(
       status: "canceled",
       canceledAt: sub.canceled_at ? new Date(sub.canceled_at * 1000) : now,
       expiresAt: ended,
-      currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : ended,
+      currentPeriodEnd: subscriptionPeriods(sub).end ?? ended,
       metadata: { lastStripeEvent: "customer.subscription.deleted" },
     },
   })
@@ -148,12 +168,7 @@ export async function markSubscriptionPastDue(
 ): Promise<void> {
   const now = new Date()
   const gracePeriodEnd = addDays(now, GRACE_DAYS)
-  const subId =
-    typeof invoice.subscription === "string"
-      ? invoice.subscription
-      : invoice.subscription && typeof invoice.subscription !== "string"
-        ? invoice.subscription.id
-        : null
+  const subId = invoiceSubscriptionId(invoice)
 
   if (subId) {
     await prisma.userSubscription.updateMany({
@@ -185,12 +200,7 @@ export async function refreshSubscriptionPeriod(
   invoice: Stripe.Invoice,
   userId: string
 ): Promise<void> {
-  const subId =
-    typeof invoice.subscription === "string"
-      ? invoice.subscription
-      : invoice.subscription && typeof invoice.subscription !== "string"
-        ? invoice.subscription.id
-        : null
+  const subId = invoiceSubscriptionId(invoice)
 
   const periodEndSec = invoice.period_end ?? null
   const currentPeriodEnd =

@@ -7,8 +7,7 @@ import { PlayerImage } from '@/app/components/PlayerImage'
 import { TeamLogo } from '@/app/components/TeamLogo'
 import type { SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
-import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
-import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 export type PlayersTabProps = {
@@ -33,7 +32,6 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
   const { players, loading } = useSleeperPlayers(resolvedSport)
   const seasonYear = new Date().getFullYear()
   const weekNum = 1
-  const showWeatherCrest = isWeatherSensitiveSport(resolvedSport)
   const [pos, setPos] = useState<PosFilter>('ALL')
   const [projection, setProjection] = useState(true)
   const [freeAgents, setFreeAgents] = useState(false)
@@ -244,19 +242,20 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
                   <div className="w-16 shrink-0 text-right text-[11px] text-white/60">
                     {projection ? (
                       <span className="inline-flex items-center justify-end gap-1">
-                        <span>{placeholderBaselineProjection(p.id).toFixed(1)}</span>
-                        {showWeatherCrest ? (
-                          <AFCrestButton
-                            playerId={p.id}
-                            playerName={p.name}
-                            sport={resolvedSport}
-                            position={p.position || '—'}
-                            baselineProjection={placeholderBaselineProjection(p.id)}
-                            week={weekNum}
-                            season={seasonYear}
-                            size="xs"
-                          />
-                        ) : null}
+                        <ProjectionDisplay
+                          projection={placeholderBaselineProjection(p.id)}
+                          suffix=""
+                          pointsClassName="text-[11px] text-white/60"
+                          afCrestProps={{
+                            playerId: p.id,
+                            playerName: p.name,
+                            sport: resolvedSport,
+                            position: p.position || '—',
+                            week: weekNum,
+                            season: seasonYear,
+                            size: 'xs',
+                          }}
+                        />
                       </span>
                     ) : (
                       '—'

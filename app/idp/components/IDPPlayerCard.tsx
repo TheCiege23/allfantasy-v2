@@ -3,6 +3,7 @@
 import { PlayerImage } from '@/app/components/PlayerImage'
 import type { PlayerMap } from '@/lib/hooks/useSleeperPlayers'
 import { mockIdpPoints, mockStatPills, idpRoleLabel } from './idpPositionUtils'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 
 const PILL_STYLES: Record<string, string> = {
   SOLO: 'border-[color:var(--idp-tackle)]/50 bg-[color:var(--idp-tackle)]/15 text-amber-100',
@@ -164,7 +165,22 @@ export function IDPPlayerCard({
         </div>
         <div className="shrink-0 text-right">
           <p className="text-lg font-bold text-[color:var(--idp-defense)]">{pts}</p>
-          <p className="text-[10px] text-white/35">proj {proj}</p>
+          <div className="text-[10px] text-white/35 inline-flex justify-end">
+            <span className="mr-0.5">proj</span>
+            <ProjectionDisplay
+              projection={proj}
+              suffix=""
+              pointsClassName="text-[10px] text-white/35"
+              afCrestProps={{
+                playerId,
+                playerName: name,
+                sport,
+                position,
+                week,
+                season: new Date().getFullYear(),
+              }}
+            />
+          </div>
         </div>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">

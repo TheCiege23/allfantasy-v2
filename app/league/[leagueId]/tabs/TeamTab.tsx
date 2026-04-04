@@ -12,7 +12,7 @@ import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hook
 import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
 import { IDPTeamDashboard } from '@/app/idp/components/IDPTeamDashboard'
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
-import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 export type TeamTabProps = {
@@ -269,19 +269,25 @@ function RosterRow({
       </div>
       <div className="flex shrink-0 items-center gap-2 text-right text-xs text-white/45">
         <span className="flex w-[4.5rem] items-center justify-end gap-0.5">
-          <span>{baseline.toFixed(1)}</span>
-          {showCrest ? (
-            <AFCrestButton
-              playerId={playerId}
-              playerName={label}
-              sport={crestSport}
-              position={pos}
-              baselineProjection={baseline}
-              week={week}
-              season={season}
-              size="sm"
-            />
-          ) : null}
+          <ProjectionDisplay
+            projection={baseline}
+            suffix=""
+            showAFCrest={showCrest}
+            pointsClassName="text-xs text-white/45"
+            afCrestProps={
+              showCrest
+                ? {
+                    playerId,
+                    playerName: label,
+                    sport: crestSport,
+                    position: pos,
+                    week,
+                    season,
+                    size: 'sm',
+                  }
+                : undefined
+            }
+          />
         </span>
         <span className="w-10">—</span>
       </div>

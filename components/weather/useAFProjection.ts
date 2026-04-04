@@ -1,14 +1,37 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import type { AFProjection } from '@/lib/weather/afProjectionService'
-import type { AFCrestButtonProps } from '@/components/weather/afCrestTypes'
+import {
+  parseAfProjectionResponse,
+  toAFProjectionDisplay,
+  type AFProjectionDisplay,
+} from '@/lib/weather/afProjectionAdapter'
 
-const cache = new Map<string, AFProjection>()
+const projectionCache = new Map<string, AFProjectionDisplay>()
 
-function cacheKey(p: AFCrestButtonProps): string {
+export type UseAFProjectionParams = {
+  playerId: string
+  playerName: string
+  sport: string
+  position: string
+  baselineProjection: number
+  lat?: number | null
+  lng?: number | null
+  gameTime?: string | null
+  isIndoor?: boolean
+  isDome?: boolean
+  roofClosed?: boolean
+  week?: number
+  season?: number
+  eventId?: string
+}
+
+function buildCacheKey(p: UseAFProjectionParams): string {
   return [
     p.playerId,
+    p.playerName,
+    p.sport,
+    p.position,
     p.week ?? 'w',
     p.season ?? 's',
     p.eventId ?? 'e',
@@ -22,23 +45,24 @@ function cacheKey(p: AFCrestButtonProps): string {
   ].join('|')
 }
 
-export function useAFProjection(params: AFCrestButtonProps) {
-  const [loading, setLoading] = useState(false)
-  const [data, setData] = useState<AFProjection | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [fetched, setFetched] = useState(false)
+export function useAFProjection(params: UseAFProjectionParams) {
+  const [state, setState] = useState<{
+    loading: boolean
+    data: AFProjectionDisplay | null
+    fetched: boolean
+  }>({ loading: false, data: null, fetched: false })
+
+  const cacheKey = buildCacheKey(params)
 
   const fetchProjection = useCallback(async () => {
-    const key = cacheKey(params)
-    const hit = cache.get(key)
-    if (hit) {
-      setData(hit)
-      setFetched(true)
-      setError(null)
+    const cached = projectionCache.get(cacheKey)
+    if (cached) {
+      setState({ loading: false, data: cached, fetched: true })
       return
     }
-    setLoading(true)
-    setError(null)
+
+    setState((s) => ({ ...s, loading: true }))
+
     try {
       const res = await fetch('/api/weather/af-projection', {
         method: 'POST',
@@ -61,35 +85,37 @@ export function useAFProjection(params: AFCrestButtonProps) {
           eventId: params.eventId,
         }),
       })
-      const j = (await res.json().catch(() => ({}))) as AFProjection & { error?: string }
-      if (!res.ok) {
-        throw new Error(typeof j.error === 'string' ? j.error : 'Projection failed')
-      }
-      cache.set(key, j)
-      setData(j)
-      setFetched(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
-      setData(null)
-    } finally {
-      setLoading(false)
-    }
-  }, [
-    params.playerId,
-    params.playerName,
-    params.sport,
-    params.position,
-    params.baselineProjection,
-    params.lat,
-    params.lng,
-    params.gameTime,
-    params.isIndoor,
-    params.isDome,
-    params.roofClosed,
-    params.week,
-    params.season,
-    params.eventId,
-  ])
 
-  return { loading, data, error, fetched, fetch: fetchProjection }
+      const raw = await res.json()
+      if (!res.ok) {
+        const errMsg =
+          raw && typeof raw === 'object' && typeof (raw as { error?: unknown }).error === 'string'
+            ? (raw as { error: string }).error
+            : 'AF projection unavailable'
+        throw new Error(errMsg)
+      }
+      const parsed = parseAfProjectionResponse(raw)
+      if (!parsed) {
+        throw new Error('AF projection unavailable')
+      }
+      const display = toAFProjectionDisplay(parsed, false, null)
+
+      projectionCache.set(cacheKey, display)
+      setState({ loading: false, data: display, fetched: true })
+    } catch (err) {
+      const fallback = toAFProjectionDisplay(
+        null,
+        false,
+        err instanceof Error ? err.message : 'unavailable'
+      )
+      setState({ loading: false, data: fallback, fetched: true })
+    }
+  }, [cacheKey])
+
+  return {
+    loading: state.loading,
+    data: state.data,
+    fetched: state.fetched,
+    fetch: fetchProjection,
+  }
 }

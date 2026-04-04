@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { CoachAdviceType, CoachExplanation, CoachRecommendation } from '@/lib/ai-coach/types';
-import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata';
-import { AFCrestButton } from '@/components/weather/AFCrestButton';
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay';
 
 type AdviceTypeOption = {
   id: CoachAdviceType;
@@ -569,22 +568,32 @@ export function CoachAdvicePanel({
             </p>
             <ul className="mt-2 space-y-1 text-sm text-white/85" data-testid="coach-lineup-optimizer-starters">
               {optimizerResult.result.starters.map((starter) => (
-                <li key={`${starter.slotId}-${starter.playerId}`} className="flex flex-wrap items-center gap-2">
+                <li
+                  key={`${starter.slotId}-${starter.playerId}`}
+                  className="flex flex-wrap items-center gap-x-1 gap-y-1"
+                >
                   <span>
-                    {starter.slotCode}: {starter.playerName} ({starter.projectedPoints.toFixed(1)})
+                    {starter.slotCode}: {starter.playerName} (
                   </span>
-                  {sport && isWeatherSensitiveSport(sport) ? (
-                    <AFCrestButton
-                      playerId={starter.playerId || `coach-${starter.playerName}`}
-                      playerName={starter.playerName}
-                      sport={sport}
-                      position={starter.selectedPosition || '—'}
-                      baselineProjection={starter.projectedPoints}
-                      week={week ?? 1}
-                      season={new Date().getFullYear()}
-                      size="sm"
-                    />
-                  ) : null}
+                  <ProjectionDisplay
+                    projection={starter.projectedPoints}
+                    suffix=""
+                    pointsClassName="text-sm text-white/85"
+                    afCrestProps={
+                      sport
+                        ? {
+                            playerId: starter.playerId || `coach-${starter.playerName}`,
+                            playerName: starter.playerName,
+                            sport,
+                            position: starter.selectedPosition || '—',
+                            week: week ?? 1,
+                            season: new Date().getFullYear(),
+                            size: 'sm',
+                          }
+                        : undefined
+                    }
+                  />
+                  <span>)</span>
                 </li>
               ))}
             </ul>

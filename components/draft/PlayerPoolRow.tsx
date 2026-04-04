@@ -1,4 +1,5 @@
 import type { DraftPlayerPoolEntry } from '@/lib/workers/draft-worker'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 
 export function PlayerPoolRow({
   player,
@@ -39,11 +40,40 @@ export function PlayerPoolRow({
           ) : null}
         </div>
         <p className="truncate text-sm font-semibold text-white">{player.name}</p>
-        <p className="text-xs text-white/55">
-          {player.position}
-          {player.team ? ` • ${player.team}` : ''}
-          {player.projectedPoints != null ? ` • ${player.projectedPoints.toFixed(1)} proj` : ''}
-          {player.weeklyPoints != null ? ` • ${player.weeklyPoints.toFixed(1)} wk` : ''}
+        <p className="text-xs text-white/55 flex flex-wrap items-center gap-x-1">
+          <span>{player.position}</span>
+          {player.team ? (
+            <>
+              <span>•</span>
+              <span>{player.team}</span>
+            </>
+          ) : null}
+          {player.projectedPoints != null ? (
+            <>
+              <span>•</span>
+              <ProjectionDisplay
+                projection={player.projectedPoints}
+                suffix="proj"
+                afCrestProps={{
+                  playerId: player.playerId,
+                  playerName: player.name,
+                  sport: player.sport ?? 'NFL',
+                  position: player.position,
+                  lat: player.venueLat ?? null,
+                  lng: player.venueLng ?? null,
+                  gameTime: player.gameTime ?? null,
+                  isIndoor: player.isIndoorVenue ?? false,
+                  isDome: player.isDome ?? false,
+                }}
+              />
+            </>
+          ) : null}
+          {player.weeklyPoints != null ? (
+            <>
+              <span>•</span>
+              <span>{player.weeklyPoints.toFixed(1)} wk</span>
+            </>
+          ) : null}
         </p>
         {(player.classYearLabel || player.conference || player.projectedLandingSpot || player.nextGameLabel) ? (
           <p className="mt-1 text-[11px] text-white/45">

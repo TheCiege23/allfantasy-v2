@@ -10,7 +10,7 @@ import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTr
 import EngagementEventTracker from '@/components/engagement/EngagementEventTracker'
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
-import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 type WaiverType = 'FAAB' | 'ROLLING' | 'PRIORITY'
@@ -831,21 +831,29 @@ function WirePanel({
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/35">
                       <span className="inline-flex items-center gap-1">
                         Projection:{' '}
-                        {player.projectedPts != null ? player.projectedPts.toFixed(1) : '--'}
-                        {showCrest ? (
-                          <AFCrestButton
-                            playerId={player.id}
-                            playerName={player.name}
-                            sport={sport}
-                            position={player.position}
-                            baselineProjection={
-                              player.projectedPts != null ? player.projectedPts : placeholderBaselineProjection(player.id)
+                        {player.projectedPts != null ? (
+                          <ProjectionDisplay
+                            projection={player.projectedPts}
+                            suffix=""
+                            showAFCrest={showCrest}
+                            pointsClassName="text-[11px] text-white/35"
+                            afCrestProps={
+                              showCrest
+                                ? {
+                                    playerId: player.id,
+                                    playerName: player.name,
+                                    sport,
+                                    position: player.position,
+                                    week: 1,
+                                    season: seasonY,
+                                    size: 'sm',
+                                  }
+                                : undefined
                             }
-                            week={1}
-                            season={seasonY}
-                            size="sm"
                           />
-                        ) : null}
+                        ) : (
+                          '--'
+                        )}
                       </span>
                       <span>Ownership: {player.ownership != null ? `${player.ownership}%` : 'n/a'}</span>
                     </div>

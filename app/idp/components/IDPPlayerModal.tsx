@@ -15,6 +15,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { mockIdpPoints, mockStatPills, idpRoleLabel } from './idpPositionUtils'
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
+import { WeatherBadge } from '@/components/weather/WeatherBadge'
+import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import type { IdpSalaryRecordJson } from '@/app/idp/hooks/useIdpTeamCap'
 import { mockContractUi } from '@/app/idp/hooks/useIdpTeamCap'
 import type { DefenderEvaluation } from '@/lib/idp/ai/idpCapChimmy'
@@ -63,6 +66,17 @@ export function IDPPlayerModal({
       : matchup === 'Tough'
         ? 'text-red-300'
         : 'text-white/50'
+
+  const showOutdoorWeatherHint = isWeatherSensitiveSport(sport)
+  const mockGameWeather =
+    showOutdoorWeatherHint
+      ? {
+          conditionLabel: 'Partly cloudy' as const,
+          temperatureF: 48,
+          windSpeedMph: 14,
+          precipChancePct: 12,
+        }
+      : null
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiEval, setAiEval] = useState<DefenderEvaluation | null>(null)
@@ -203,10 +217,26 @@ export function IDPPlayerModal({
                 </div>
               ))}
             </div>
-            <p className="text-sm">
+            <p className="text-sm flex flex-wrap items-center gap-2">
               <span className="text-white/45">IDP points:</span>{' '}
               <span className="font-bold text-[color:var(--idp-defense)]">{pts}</span>{' '}
-              <span className="text-white/35">proj {proj}</span>
+              <span className="text-white/35 inline-flex items-center gap-1">
+                proj
+                <ProjectionDisplay
+                  projection={proj}
+                  suffix=""
+                  pointsClassName="text-sm text-white/35"
+                  afCrestProps={{
+                    playerId,
+                    playerName: name,
+                    sport,
+                    position,
+                    week,
+                    season: new Date().getFullYear(),
+                    size: 'sm',
+                  }}
+                />
+              </span>
             </p>
             <p className="text-xs text-white/45">Snap share (snapshot): ~{40 + (playerId.length % 55)}%</p>
           </section>
@@ -226,15 +256,40 @@ export function IDPPlayerModal({
               {role} — Edge / box mix (illustrative). Defender role:{' '}
               <span className="text-white">{position === 'LB' ? 'Run Stopper – 4-3 MIKE' : 'Edge Rusher – 3-4 OLB'}</span>
             </p>
-            <p className="text-sm">
+            <p className="text-sm flex flex-wrap items-center gap-2">
               Matchup: <span className={matchupClass}>{matchup}</span> · Opp rank vs {position}: #
               {10 + (playerId.charCodeAt(0) ?? 0) % 22}
+              {mockGameWeather ? (
+                <WeatherBadge
+                  conditionLabel={mockGameWeather.conditionLabel}
+                  temperatureF={mockGameWeather.temperatureF}
+                  windSpeedMph={mockGameWeather.windSpeedMph}
+                  precipChancePct={mockGameWeather.precipChancePct}
+                  className="text-white/45"
+                />
+              ) : null}
             </p>
           </section>
 
           <section className="space-y-2 border-t border-white/[0.06] pt-3">
             <h4 className="text-[11px] font-bold uppercase tracking-wide text-white/40">Projection</h4>
-            <p className="text-sm text-white/70">Projected IDP pts for remaining schedule: ~{proj + 0.5} / game (UI placeholder).</p>
+            <p className="text-sm text-white/70 flex flex-wrap items-center gap-2">
+              <span>Projected IDP pts for remaining schedule (UI placeholder): ~</span>
+              <ProjectionDisplay
+                projection={proj + 0.5}
+                suffix=" / game"
+                pointsClassName="text-sm text-white/70"
+                afCrestProps={{
+                  playerId,
+                  playerName: name,
+                  sport,
+                  position,
+                  week,
+                  season: new Date().getFullYear(),
+                  size: 'sm',
+                }}
+              />
+            </p>
           </section>
 
           <section className="space-y-2 border-t border-white/[0.06] pt-3" data-testid="idp-player-contract-panel">

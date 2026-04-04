@@ -1,15 +1,14 @@
 'use client'
 
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
-import { AFCrestButton } from '@/components/weather/AFCrestButton'
 
 export function MatchupView({
   matchup,
   userRosterName,
   sport,
-  leagueId,
-  week = 1,
-  season,
+  leagueId: _leagueId,
+  week: _week,
+  season: _season,
 }: {
   matchup: { homeScore: number; awayScore: number }
   userRosterName: string
@@ -18,10 +17,7 @@ export function MatchupView({
   week?: number
   season?: number
 }) {
-  const yr = season ?? new Date().getFullYear()
-  const lid = leagueId ?? 'league'
-  const showAf = isWeatherSensitiveSport(sport)
-  const homeBaseline = Math.max(0.1, matchup.homeScore)
+  const showAfHint = isWeatherSensitiveSport(sport)
 
   return (
     <div className="space-y-3">
@@ -40,19 +36,12 @@ export function MatchupView({
         </div>
       </div>
 
-      {showAf ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-white/60">
-          <AFCrestButton
-            playerId={`${lid}-team-proj`}
-            playerName={userRosterName}
-            sport={sport}
-            position="TEAM"
-            baselineProjection={homeBaseline}
-            week={week}
-            season={yr}
-            size="md"
-          />
-          <span>AF Projection available — tap AF for weather adjustments (team baseline).</span>
+      {showAfHint ? (
+        <div className="mt-2 text-[11px] text-white/35 flex items-center gap-1.5">
+          <span className="bg-gradient-to-r from-cyan-400 to-violet-400 bg-clip-text text-transparent font-bold text-[10px]">
+            AF
+          </span>
+          <span>Click AF on any player for weather-adjusted projections</span>
         </div>
       ) : null}
     </div>

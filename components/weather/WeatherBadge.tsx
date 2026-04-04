@@ -1,48 +1,42 @@
 'use client'
 
-export type WeatherBadgeData = {
-  conditionLabel: string | null
-  tempF: number | null
-  windMph: number | null
-  precipChancePct: number | null
-} | null
+import { conditionEmoji } from '@/lib/weather/afProjectionAdapter'
 
-function emojiForCondition(label: string | null): string {
-  if (!label) return '🌤'
-  const l = label.toLowerCase()
-  if (l.includes('rain') || l.includes('shower')) return '🌧'
-  if (l.includes('snow')) return '❄️'
-  if (l.includes('cloud')) return '☁️'
-  if (l.includes('clear') || l.includes('sun')) return '☀️'
-  if (l.includes('fog') || l.includes('mist')) return '🌫'
-  if (l.includes('storm') || l.includes('thunder')) return '⛈'
-  return '🌤'
+type Props = {
+  conditionLabel?: string | null
+  temperatureF?: number | null
+  windSpeedMph?: number | null
+  precipChancePct?: number | null
+  className?: string
 }
 
-export function WeatherBadge({ weather }: { weather: WeatherBadgeData }) {
-  if (!weather?.conditionLabel && weather?.tempF == null && weather?.windMph == null) return null
-  const em = emojiForCondition(weather.conditionLabel)
-  const temp =
-    weather.tempF != null && Number.isFinite(weather.tempF) ? `${Math.round(weather.tempF)}°F` : '—'
-  const wind =
-    weather.windMph != null && Number.isFinite(weather.windMph)
-      ? `${Math.round(weather.windMph)}mph wind`
-      : null
-  const precip =
-    weather.precipChancePct != null && Number.isFinite(weather.precipChancePct)
-      ? `${Math.round(weather.precipChancePct)}% precip`
-      : null
+export function WeatherBadge({
+  conditionLabel,
+  temperatureF,
+  windSpeedMph,
+  precipChancePct,
+  className,
+}: Props) {
+  if (!conditionLabel && temperatureF == null && windSpeedMph == null) return null
+
+  const parts: string[] = []
+  if (conditionLabel) parts.push(conditionEmoji(conditionLabel))
+  if (temperatureF !== null && temperatureF !== undefined) parts.push(`${Math.round(temperatureF)}°F`)
+  if (windSpeedMph != null && windSpeedMph !== undefined && windSpeedMph > 8) {
+    parts.push(`${Math.round(windSpeedMph)}mph`)
+  }
+  if (precipChancePct != null && precipChancePct !== undefined && precipChancePct >= 30) {
+    parts.push(`${Math.round(precipChancePct)}%🌧`)
+  }
+
+  if (!parts.length) return null
 
   return (
     <span
-      className="inline-flex max-w-[220px] items-center gap-1 truncate text-[11px] text-white/45"
+      className={`inline-flex items-center text-[10px] text-white/40 ${className ?? ''}`}
       data-testid="weather-badge"
     >
-      {em}{' '}
-      {weather.conditionLabel ? `${weather.conditionLabel} · ` : ''}
-      {temp}
-      {wind ? ` · ${wind}` : ''}
-      {precip ? ` · ${precip}` : ''}
+      {parts.join(' · ')}
     </span>
   )
 }

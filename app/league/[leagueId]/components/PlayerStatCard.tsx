@@ -3,10 +3,8 @@
 import { useEffect } from 'react'
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
 import { resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
-import { WeatherBadge } from '@/components/weather/WeatherBadge'
 import { useAFProjection } from '@/components/weather/useAFProjection'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
-import type { WeatherAdjustmentFactor } from '@/lib/weather/weatherImpactEngine'
 
 export type PlayerStatCardProps = {
   playerId: string
@@ -48,19 +46,6 @@ export function PlayerStatCard({ playerId, leagueId, sport, onClose }: PlayerSta
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const weatherSnap = af?.weatherSnapshot
-  const badgeWeather =
-    weatherSnap && (weatherSnap.conditionLabel != null || weatherSnap.temperatureF != null)
-      ? {
-          conditionLabel: weatherSnap.conditionLabel,
-          tempF: weatherSnap.temperatureF,
-          windMph: weatherSnap.windSpeedMph,
-          precipChancePct: weatherSnap.precipChancePct,
-        }
-      : null
-
-  const factors: WeatherAdjustmentFactor[] = Array.isArray(af?.adjustmentFactors) ? af!.adjustmentFactors : []
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
@@ -100,46 +85,63 @@ export function PlayerStatCard({ playerId, leagueId, sport, onClose }: PlayerSta
           <div className="mt-4 border-t border-white/[0.08] pt-4" data-testid="player-stat-weather-impact">
             <div className="mb-3 flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-widest text-white/40">Weather Impact</span>
-              <WeatherBadge weather={badgeWeather} />
+              {af?.weatherLabel ? (
+                <span className="text-[11px] text-white/45" data-testid="weather-badge">
+                  {af.weatherLabel}
+                </span>
+              ) : null}
             </div>
             {afLoading ? (
               <p className="text-xs text-white/45">Loading AF weather-adjusted projection…</p>
-            ) : af ? (
+            ) : af && !af.error ? (
               <>
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
                     <div className="text-xs text-white/40">Baseline</div>
-                    <div className="text-lg font-bold text-white">{baseline.toFixed(1)}</div>
+                    <div className="text-lg font-bold text-white">{af.standard.toFixed(1)}</div>
                   </div>
                   <div className="text-white/30">→</div>
                   <div>
                     <div className="text-xs text-white/40">AF Projected</div>
                     <div
                       className={`text-lg font-bold ${
-                        af.afProjection > baseline ? 'text-green-400' : af.afProjection < baseline ? 'text-red-400' : 'text-white'
+                        af.af > af.standard ? 'text-green-400' : af.af < af.standard ? 'text-red-400' : 'text-white'
                       }`}
                     >
-                      {af.afProjection.toFixed(1)}
+                      {af.af.toFixed(1)}
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1 text-xs italic text-white/50">{af.shortReason}</div>
+                  <div className="min-w-0 flex-1 text-xs italic text-white/50">{af.reason}</div>
                 </div>
-                {Math.abs(af.weatherAdjustment) > 0.05 && factors.length > 0 ? (
+                {Math.abs(af.delta) > 0.05 && af.factors.length > 0 ? (
                   <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/40">
-                    {factors.map((f) => (
-                      <div key={`${f.factor}-${f.reason}`} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1">
-                        <span className={f.direction === 'positive' ? 'text-green-400' : f.direction === 'negative' ? 'text-red-400' : 'text-white/50'}>
-                          {f.impact > 0 ? '+' : ''}
-                          {f.impact.toFixed(1)}
+                    {af.factors.map((f, idx) => (
+                      <div
+                        key={`${f.label}-${idx}`}
+                        className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1"
+                      >
+                        <span
+                          className={
+                            f.direction === 'pos'
+                              ? 'text-green-400'
+                              : f.direction === 'neg'
+                                ? 'text-red-400'
+                                : 'text-white/50'
+                          }
+                        >
+                          {f.direction === 'pos' ? '↑ ' : f.direction === 'neg' ? '↓ ' : ''}
+                          {f.value}
                         </span>{' '}
-                        {f.reason}
+                        {f.label}
                       </div>
                     ))}
                   </div>
                 ) : null}
               </>
             ) : (
-              <p className="text-xs text-white/40">Weather projection unavailable.</p>
+              <p className="text-xs text-white/40">
+                {af?.error ? af.error : 'Weather projection unavailable.'}
+              </p>
             )}
           </div>
         ) : null}

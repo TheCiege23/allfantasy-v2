@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Crown, Star, Users as UsersIcon, ChevronDown, ChevronUp } from "lucide-react"
+import { ProjectionDisplay } from "@/components/weather/ProjectionDisplay"
 
 type SportKey = "NFL" | "NBA" | "MLB"
 
@@ -311,7 +312,12 @@ export default function LeagueDashboard() {
                                 Projected
                               </div>
                               <div className="mt-0.5 text-xs font-medium" style={{ color: "var(--text)" }}>
-                                {league.projectedPoints.toFixed(1)} pts
+                                <ProjectionDisplay
+                                  projection={league.projectedPoints}
+                                  suffix="pts"
+                                  showAFCrest={false}
+                                  pointsClassName="text-xs font-medium"
+                                />
                               </div>
                             </div>
                             <div>

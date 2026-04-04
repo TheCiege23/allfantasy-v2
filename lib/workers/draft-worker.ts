@@ -80,6 +80,14 @@ export type DraftPlayerPoolEntry = {
   name: string
   position: string
   team: string | null
+  /** League sport; used for AF weather crest and display. */
+  sport?: string | null
+  /** Optional venue / schedule hints for weather-adjusted projections (may be unfilled). */
+  venueLat?: number | null
+  venueLng?: number | null
+  gameTime?: string | null
+  isIndoorVenue?: boolean
+  isDome?: boolean
   adp: number | null
   source?: 'pro' | 'college'
   poolType?: 'college' | 'pro'
@@ -314,6 +322,12 @@ async function buildAvailablePlayers(
       name: String(entry.full_name ?? ''),
       position: String(entry.position ?? ''),
       team: entry.team_abbreviation ?? entry.team ?? null,
+      sport,
+      venueLat: null,
+      venueLng: null,
+      gameTime: null,
+      isIndoorVenue: false,
+      isDome: false,
       adp:
         entry.adp != null
           ? Number(entry.adp)
@@ -377,6 +391,12 @@ async function buildAvailablePlayers(
       name: entry.name,
       position: entry.position,
       team: entry.school ?? null,
+      sport: sport ?? null,
+      venueLat: null,
+      venueLng: null,
+      gameTime: null,
+      isIndoorVenue: false,
+      isDome: false,
       adp: entry.devyAdp != null ? Number(entry.devyAdp) : index + 1,
       source: 'college' as const,
       poolType: 'college' as const,
