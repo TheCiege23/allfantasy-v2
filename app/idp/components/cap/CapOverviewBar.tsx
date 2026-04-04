@@ -1,5 +1,7 @@
 'use client'
 
+import type { CapAdvice } from '@/lib/idp/ai/idpCapChimmy'
+
 type Props = {
   activeSalary: number
   deadMoney: number
@@ -8,6 +10,10 @@ type Props = {
   year: number
   onYearChange?: (y: number) => void
   yearOptions?: number[]
+  /** AfSub: AI cap recommendations */
+  capAdvice?: CapAdvice | null
+  capAdviceLoading?: boolean
+  onOpenFullCapAnalysis?: () => void
 }
 
 export function CapOverviewBar({
@@ -18,6 +24,9 @@ export function CapOverviewBar({
   year,
   onYearChange,
   yearOptions,
+  capAdvice,
+  capAdviceLoading,
+  onOpenFullCapAnalysis,
 }: Props) {
   const t = Math.max(totalCap, 0.001)
   const a = Math.max(0, activeSalary)
@@ -80,6 +89,34 @@ export function CapOverviewBar({
           Available: ${v.toFixed(1)}M
         </span>
       </div>
+
+      {capAdviceLoading ? (
+        <p className="text-[11px] text-white/40">Loading AI cap tips…</p>
+      ) : capAdvice?.recommendations?.length ? (
+        <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/15 p-3" data-testid="cap-overview-ai-moves">
+          <h3 className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">Best cap moves</h3>
+          <ul className="mt-2 space-y-2 text-[12px] text-white/85">
+            {capAdvice.recommendations.slice(0, 3).map((r, i) => (
+              <li key={i}>
+                <span className="font-semibold text-cyan-100/95">{r.action}</span>
+                {r.player ? ` · ${r.player}` : ''} — {r.savingsOrCost}. {r.reason}
+              </li>
+            ))}
+          </ul>
+          {capAdvice.summary ? (
+            <p className="mt-2 text-[11px] text-white/50">{capAdvice.summary}</p>
+          ) : null}
+          {onOpenFullCapAnalysis ? (
+            <button
+              type="button"
+              onClick={onOpenFullCapAnalysis}
+              className="mt-3 rounded-lg border border-cyan-500/40 px-3 py-2 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-950/40"
+            >
+              See Full AI Cap Analysis
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

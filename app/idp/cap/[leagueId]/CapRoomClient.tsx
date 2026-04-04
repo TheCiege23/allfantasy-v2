@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import type { CapAdvice } from '@/lib/idp/ai/idpCapChimmy'
 import { CapOverviewBar } from '@/app/idp/components/cap/CapOverviewBar'
 import { CapPieChart } from '@/app/idp/components/cap/CapPieChart'
 import { ContractsTable } from '@/app/idp/components/cap/ContractsTable'
@@ -12,6 +13,7 @@ import type { IdpCapSummaryJson, IdpSalaryRecordJson } from '@/app/idp/hooks/use
 import { useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
 
 export function CapRoomClient({ leagueId }: { leagueId: string }) {
+  const router = useRouter()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const searchParams = useSearchParams()
@@ -27,6 +29,8 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
   >([])
   const [err, setErr] = useState<string | null>(null)
   const [hasSub, setHasSub] = useState(false)
+  const [capAdvice, setCapAdvice] = useState<CapAdvice | null>(null)
+  const [capAdviceLoading, setCapAdviceLoading] = useState(false)
 
   useEffect(() => {
     if (!rosterId || !userId) return
@@ -90,6 +94,34 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
     }
   }, [year, leagueId, rosterId, userId])
 
+  useEffect(() => {
+    if (!hasSub || !rosterId || !userId) {
+      setCapAdvice(null)
+      return
+    }
+    let cancelled = false
+    setCapAdviceLoading(true)
+    fetch('/api/idp/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ leagueId, rosterId, action: 'cap_advice' }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: CapAdvice | null) => {
+        if (!cancelled && d?.recommendations) setCapAdvice(d)
+      })
+      .catch(() => {
+        if (!cancelled) setCapAdvice(null)
+      })
+      .finally(() => {
+        if (!cancelled) setCapAdviceLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasSub, rosterId, userId, leagueId])
+
   const projForYear =
     year != null ? projections.find((p) => p.projectionYear === year) : projections[0]
 
@@ -123,6 +155,11 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
               year={year}
               onYearChange={setYear}
               yearOptions={[year, year + 1, year + 2, year + 3]}
+              capAdvice={hasSub ? capAdvice : null}
+              capAdviceLoading={hasSub && capAdviceLoading}
+              onOpenFullCapAnalysis={
+                hasSub ? () => router.push(`/league/${leagueId}?view=league`) : undefined
+              }
             />
             <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
               <CapPieChart activeSalary={activeSal} deadMoney={deadM} availableCap={avail} size={160} />
@@ -154,24 +191,9 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
               <ExtensionSimulator leagueId={leagueId} rosterId={rosterId} contracts={contracts} />
             ) : null}
 
-            {hasSub ? (
-              <div className="rounded-xl border border-cyan-500/25 bg-cyan-950/15 p-4">
-                <h3 className="text-[12px] font-bold uppercase tracking-wide text-cyan-200/90">Best cap moves</h3>
-                <ul className="mt-2 space-y-2 text-[12px] text-white/80">
-                  <li>Cut dead-weight bench — saves cap, minimal scoring impact (AI)</li>
-                  <li>Extend key LB — value vs replacement (AI)</li>
-                  <li>Tag edge rusher — protects premium asset (AI)</li>
-                </ul>
-                <button
-                  type="button"
-                  className="mt-3 rounded-lg border border-cyan-500/40 px-3 py-2 text-[11px] font-semibold text-cyan-100"
-                >
-                  See Full AI Cap Analysis
-                </button>
-              </div>
-            ) : (
+            {!hasSub ? (
               <p className="text-[11px] text-white/40">AfSub: enable commissioner subscription for AI cap recommendations.</p>
-            )}
+            ) : null}
           </>
         ) : !err ? (
           <p className="text-sm text-white/45">Loading cap data…</p>

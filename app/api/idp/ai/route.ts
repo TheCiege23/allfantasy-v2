@@ -17,6 +17,16 @@ import {
   saveIdpAiPrefs,
   type IdpChimmyPrefs,
 } from '@/lib/idp/ai/idpChimmy'
+import {
+  getCapSpaceAdvice,
+  evaluateContractDecision,
+  getCapEfficiencyRankings,
+  getCapBurdenWarnings,
+  identifyTradeTargets,
+  getContenderVsRebuildAdvice,
+  generateDefenderWeeklyRecap,
+  getDefenderEvaluationForPlayer,
+} from '@/lib/idp/ai/idpCapChimmy'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -32,6 +42,14 @@ type Action =
   | 'scarcity'
   | 'power_rankings'
   | 'player_analysis'
+  | 'defender_eval'
+  | 'cap_advice'
+  | 'contract_eval'
+  | 'cap_efficiency'
+  | 'cap_burden'
+  | 'trade_targets_cap'
+  | 'contender_rebuild'
+  | 'weekly_recap'
   | 'ai_prefs'
 
 export async function POST(req: NextRequest) {
@@ -119,6 +137,58 @@ export async function POST(req: NextRequest) {
         if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 })
         const narrative = await getIdpPlayerAiAnalysis(leagueId, managerId, week, playerId)
         return NextResponse.json({ narrative })
+      }
+      case 'defender_eval': {
+        const managerId = typeof body.managerId === 'string' ? body.managerId : userId
+        if (managerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        const playerId = typeof body.playerId === 'string' ? body.playerId : ''
+        if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 })
+        const data = await getDefenderEvaluationForPlayer(leagueId, managerId, week, playerId)
+        return NextResponse.json(data)
+      }
+      case 'cap_advice': {
+        const rosterId = typeof body.rosterId === 'string' ? body.rosterId : ''
+        if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
+        const data = await getCapSpaceAdvice(leagueId, rosterId)
+        return NextResponse.json(data)
+      }
+      case 'contract_eval': {
+        const rosterId = typeof body.rosterId === 'string' ? body.rosterId : ''
+        const playerId = typeof body.playerId === 'string' ? body.playerId : ''
+        const decisionType = body.decisionType as 'cut' | 'extend' | 'tag' | 'hold' | undefined
+        if (!rosterId || !playerId || !decisionType) {
+          return NextResponse.json({ error: 'rosterId, playerId, decisionType required' }, { status: 400 })
+        }
+        const data = await evaluateContractDecision(leagueId, rosterId, playerId, decisionType)
+        return NextResponse.json(data)
+      }
+      case 'cap_efficiency': {
+        const data = await getCapEfficiencyRankings(leagueId, week)
+        return NextResponse.json(data)
+      }
+      case 'cap_burden': {
+        const rosterId = typeof body.rosterId === 'string' ? body.rosterId : ''
+        if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
+        const data = await getCapBurdenWarnings(leagueId, rosterId)
+        return NextResponse.json({ warnings: data })
+      }
+      case 'trade_targets_cap': {
+        const managerId = typeof body.managerId === 'string' ? body.managerId : userId
+        if (managerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        const data = await identifyTradeTargets(leagueId, managerId)
+        return NextResponse.json(data)
+      }
+      case 'contender_rebuild': {
+        const managerId = typeof body.managerId === 'string' ? body.managerId : userId
+        if (managerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        const data = await getContenderVsRebuildAdvice(leagueId, managerId)
+        return NextResponse.json(data)
+      }
+      case 'weekly_recap': {
+        const managerId = typeof body.managerId === 'string' ? body.managerId : userId
+        if (managerId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        const data = await generateDefenderWeeklyRecap(leagueId, managerId, week)
+        return NextResponse.json(data)
       }
       case 'ai_prefs': {
         const raw = body.prefs

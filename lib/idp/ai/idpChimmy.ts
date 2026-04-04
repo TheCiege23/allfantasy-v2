@@ -186,7 +186,7 @@ function parseOffensivePlayers(playerData: unknown): Array<{ name: string; posit
   return out
 }
 
-function parseIdpPlayers(playerData: unknown): IdPlayerRow[] {
+export function parseIdpPlayers(playerData: unknown): IdPlayerRow[] {
   if (!Array.isArray(playerData)) return []
   const out: IdPlayerRow[] = []
   for (const raw of playerData) {
@@ -224,7 +224,7 @@ async function allLeagueRosterPlayerIds(leagueId: string): Promise<Set<string>> 
 }
 
 /** Mock waiver pool: synthetic defenders not rostered in this league. */
-async function buildMockWaiverPool(leagueId: string, week: number, limit: number): Promise<IdPlayerRow[]> {
+export async function buildMockWaiverPool(leagueId: string, week: number, limit: number): Promise<IdPlayerRow[]> {
   const taken = await allLeagueRosterPlayerIds(leagueId)
   const pool: IdPlayerRow[] = []
   const positions = ['DE', 'DT', 'LB', 'CB', 'S']
@@ -723,6 +723,19 @@ export function getIdpChimmyHelpText(): string {
     '• `@chimmy idp sleepers` — low-owned upside',
     '• `@chimmy idp scarcity` — waiver scarcity by position',
     '• `@chimmy idp power rankings` — commissioner power rankings post',
+    '• `@chimmy cap` — your cap summary (public)',
+    '• `@chimmy contracts` — your salary list (public)',
+    '• `@chimmy cut [name]` — cut dead-money preview (public)',
+    '• `@chimmy extend [name]` — extension salary preview (public)',
+    '• `@chimmy simulate defense cap` — IDP salary vs room snapshot (public)',
+    '• `@chimmy cap advice` — AI cap moves (AfSub)',
+    '• `@chimmy defender value [name]` — 10-pillar eval (AfSub)',
+    '• `@chimmy contract eval [name] [cut|extend|tag]` — contract decision (AfSub)',
+    '• `@chimmy cap efficiency` — pts/$ rankings (AfSub)',
+    '• `@chimmy cap burden` — projection warnings (AfSub)',
+    '• `@chimmy trade targets cap` — trade ideas (AfSub)',
+    '• `@chimmy contender rebuild` — roster arc advice (AfSub)',
+    '• `@chimmy weekly recap` — defensive recap (AfSub)',
     '• `@chimmy help idp` — this list',
     '',
     '🔒 AI IDP features require the AF Commissioner Subscription.',
@@ -743,12 +756,19 @@ export async function getIdpPlayerAiAnalysis(
   const p = defenders.find((d) => d.playerId === playerId)
   if (!p) throw new Error('Player not on your IDP roster snapshot')
   const pr = await resolveIdpAiProfile(leagueId, playerId, week)
+  const { buildDefenderEvaluationContext, scoreDefender } = await import('@/lib/idp/ai/idpCapChimmy')
+  const ctx = await buildDefenderEvaluationContext(leagueId, playerId, week, p)
+  const evalModel = scoreDefender(ctx.profile, ctx.stats, ctx.salary, ctx.matchup, ctx.leagueConfig, ctx.formatType)
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: CHIMMY_IDP_RULE },
       {
         role: 'user',
-        content: `Start/sit style assessment for ${p.name} (${p.position}) Week ${week}: ${JSON.stringify(pr)}`,
+        content: `Start/sit assessment for ${p.name} (${p.position}) Week ${week}.
+Deterministic profile: ${JSON.stringify(pr)}
+10-pillar evaluation (0-100): overall ${evalModel.overallGrade.toFixed(1)}, weekly start ${evalModel.weeklyStartGrade.toFixed(1)}, salary eff ${evalModel.salaryEfficiencyGrade.toFixed(1)}, risk ${evalModel.riskScore.toFixed(1)}.
+Verdict hint: ${evalModel.verdict}. Top pillars: ${evalModel.pillarBreakdown.slice(0, 3).map((x) => `${x.name}=${x.score.toFixed(0)}`).join(', ')}.
+Incorporate contract/salary context in 2-3 sentences when relevant.`,
       },
     ],
     temperature: 0.45,

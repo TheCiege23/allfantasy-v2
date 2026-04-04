@@ -16,6 +16,7 @@ import {
 import { mockIdpPoints, mockStatPills, idpRoleLabel } from './idpPositionUtils'
 import type { IdpSalaryRecordJson } from '@/app/idp/hooks/useIdpTeamCap'
 import { mockContractUi } from '@/app/idp/hooks/useIdpTeamCap'
+import type { DefenderEvaluation } from '@/lib/idp/ai/idpCapChimmy'
 
 export type IDPPlayerModalProps = {
   open: boolean
@@ -63,7 +64,8 @@ export function IDPPlayerModal({
         : 'text-white/50'
 
   const [aiLoading, setAiLoading] = useState(false)
-  const [aiText, setAiText] = useState<string | null>(null)
+  const [aiEval, setAiEval] = useState<DefenderEvaluation | null>(null)
+  const [aiNarrative, setAiNarrative] = useState<string | null>(null)
   const [aiLocked, setAiLocked] = useState(false)
 
   const mock = mockContractUi(playerId)
@@ -124,7 +126,8 @@ export function IDPPlayerModal({
     if (!userId) return
     setAiLoading(true)
     setAiLocked(false)
-    setAiText(null)
+    setAiEval(null)
+    setAiNarrative(null)
     try {
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
@@ -133,7 +136,7 @@ export function IDPPlayerModal({
         body: JSON.stringify({
           leagueId,
           week,
-          action: 'player_analysis',
+          action: 'defender_eval',
           managerId: userId,
           playerId,
         }),
@@ -142,12 +145,28 @@ export function IDPPlayerModal({
         setAiLocked(true)
         return
       }
-      const data = (await res.json().catch(() => ({}))) as { narrative?: string; error?: string }
-      setAiText(data.narrative ?? data.error ?? 'Could not load analysis.')
+      const data = (await res.json().catch(() => ({}))) as {
+        evaluation?: DefenderEvaluation
+        error?: string
+      }
+      if (data.evaluation) {
+        setAiEval(data.evaluation)
+      } else {
+        setAiNarrative(data.error ?? 'Could not load evaluation.')
+      }
     } finally {
       setAiLoading(false)
     }
   }
+
+  const overallTone =
+    aiEval == null
+      ? 'text-white/50'
+      : aiEval.overallGrade >= 72
+        ? 'text-[color:var(--cap-green)]'
+        : aiEval.overallGrade >= 48
+          ? 'text-[color:var(--cap-amber)]'
+          : 'text-red-300'
 
   return (
     <>
@@ -262,17 +281,74 @@ export function IDPPlayerModal({
             ) : null}
           </section>
 
-          {aiText || aiLocked ? (
-            <section className="space-y-2 border-t border-white/[0.06] pt-3" data-testid="idp-player-ai-panel">
-              <h4 className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">Chimmy analysis</h4>
+          {aiEval || aiNarrative || aiLocked ? (
+            <section className="space-y-3 border-t border-white/[0.06] pt-3" data-testid="idp-player-ai-panel">
+              <h4 className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">AI evaluation</h4>
               {aiLocked ? (
                 <p className="flex items-center gap-2 text-xs text-amber-100/95">
                   <Lock className="h-4 w-4 shrink-0" />
                   This feature requires the AF Commissioner Subscription.
                 </p>
-              ) : (
-                <p className="text-sm leading-relaxed text-white/85">{aiText}</p>
-              )}
+              ) : null}
+              {aiEval ? (
+                <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-white/10 bg-black/30 text-lg font-bold ${overallTone}`}
+                      style={{
+                        borderColor:
+                          aiEval.overallGrade >= 72
+                            ? 'var(--cap-green)'
+                            : aiEval.overallGrade >= 48
+                              ? 'var(--cap-amber)'
+                              : 'var(--cap-red)',
+                      }}
+                    >
+                      {Math.round(aiEval.overallGrade)}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-white/45">Overall</p>
+                      <p className={`text-2xl font-bold ${overallTone}`}>{aiEval.overallGrade.toFixed(1)}/100</p>
+                      <span className="mt-1 inline-block rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-white/90">
+                        {aiEval.verdict.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-3">
+                    {[
+                      ['Weekly start', aiEval.weeklyStartGrade],
+                      ['Dynasty', aiEval.dynastyGrade],
+                      ['Salary eff.', aiEval.salaryEfficiencyGrade],
+                      ['Contract val.', aiEval.contractValueGrade],
+                      ['Boom/Bust', aiEval.boomBustScore],
+                      ['Floor', aiEval.floorScore],
+                      ['Risk', aiEval.riskScore],
+                      ['Trade value', aiEval.tradeValueScore],
+                      ['Waiver prio.', aiEval.waiverPriorityScore],
+                      ['Trend', aiEval.trendScore],
+                    ].map(([label, val]) => (
+                      <div key={String(label)} className="rounded-md border border-white/[0.06] bg-black/25 px-2 py-1.5">
+                        <p className="text-[9px] text-white/40">{label}</p>
+                        <p className="font-mono font-semibold text-white/90">{typeof val === 'number' ? val.toFixed(0) : val}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <ul className="list-inside list-disc space-y-1 text-[11px] text-white/80">
+                    {aiEval.topReasons.map((r) => (
+                      <li key={r.slice(0, 24)}>{r}</li>
+                    ))}
+                  </ul>
+                  <p className="text-[11px] text-amber-200/85">Risk: {aiEval.mainRisk}</p>
+                  <p className="text-[10px] text-white/45">
+                    Confidence: <span className="font-semibold text-white/70">{aiEval.confidence}</span>
+                  </p>
+                </div>
+              ) : null}
+              {aiNarrative ? (
+                <p className="text-sm leading-relaxed text-white/85" data-testid="idp-player-ai-narrative">
+                  {aiNarrative}
+                </p>
+              ) : null}
             </section>
           ) : null}
 

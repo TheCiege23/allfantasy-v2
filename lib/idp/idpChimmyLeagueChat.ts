@@ -14,7 +14,24 @@ import {
   getIDPScarcityReport,
   generateIDPPowerRankings,
   getIdpChimmyHelpText,
+  parseIdpPlayers,
 } from '@/lib/idp/ai/idpChimmy'
+import {
+  getCapSpaceAdvice,
+  getCapEfficiencyRankings,
+  getCapBurdenWarnings,
+  identifyTradeTargets,
+  getContenderVsRebuildAdvice,
+  generateDefenderWeeklyRecap,
+  evaluateContractDecision,
+  formatChatCapSummary,
+  formatChatContractsList,
+  formatChatCutPreview,
+  formatChatExtendPreview,
+  formatChatDefenseCapSimulate,
+  getRedraftRosterIdForUser,
+  getDefenderEvaluationForPlayer,
+} from '@/lib/idp/ai/idpCapChimmy'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 
 export type IdpLeagueChatProcessResult =
@@ -81,6 +98,188 @@ export async function processIdpLeagueChatInput(
   })
 
   try {
+    // ── Cap / contract (public — no AfSub) ─────────────────────────────
+    if (
+      (low === 'cap' || /^cap\s*$/i.test(low.trim())) &&
+      !low.includes('advice') &&
+      !low.includes('efficiency') &&
+      !low.includes('burden')
+    ) {
+      const text = await formatChatCapSummary(leagueId, userId)
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text, metadata: chimmyMeta({ idpAction: 'cap_summary' }) }],
+      }
+    }
+    if (low.startsWith('contracts') || low === 'contracts') {
+      const text = await formatChatContractsList(leagueId, userId)
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text, metadata: chimmyMeta({ idpAction: 'contracts_list' }) }],
+      }
+    }
+    if (low.startsWith('simulate defense cap') || low.includes('simulate defense cap')) {
+      const text = await formatChatDefenseCapSimulate(leagueId, userId)
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text, metadata: chimmyMeta({ idpAction: 'cap_sim' }) }],
+      }
+    }
+    const cutM = low.match(/^cut\s+(.+)/)
+    if (cutM?.[1]) {
+      const text = await formatChatCutPreview(leagueId, userId, cutM[1].trim())
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text, metadata: chimmyMeta({ idpAction: 'cut_preview' }) }],
+      }
+    }
+    const extM = low.match(/^extend\s+(.+)/)
+    if (extM?.[1]) {
+      const text = await formatChatExtendPreview(leagueId, userId, extM[1].trim())
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text, metadata: chimmyMeta({ idpAction: 'extend_preview' }) }],
+      }
+    }
+
+    // ── AfSub cap AI ────────────────────────────────────────────────────
+    if (low.includes('cap advice')) {
+      const rosterId = await getRedraftRosterIdForUser(leagueId, userId)
+      if (!rosterId) return privateNotice('Could not resolve your redraft roster for cap.')
+      try {
+        const advice = await getCapSpaceAdvice(leagueId, rosterId)
+        const lines = advice.recommendations
+          .map((r) => `• ${r.action} → ${r.player ?? '—'} → ${r.savingsOrCost} — ${r.reason}`)
+          .join('\n')
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `💡 **Cap advice (private)**\n${advice.summary}\n\n${lines}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    if (low.includes('cap efficiency')) {
+      try {
+        const r = await getCapEfficiencyRankings(leagueId, week)
+        const up = r.underpriced.map((x) => `${x.playerName}: ${x.ptsPerM.toFixed(2)} pts/$M`).join('\n')
+        const down = r.overpriced.map((x) => `${x.playerName}: ${x.ptsPerM.toFixed(2)} pts/$M`).join('\n')
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `📊 **Cap efficiency — Week ${week}** (private)\nBest value:\n${up}\n\nWorst value:\n${down}\nLeague avg ${r.leagueAvgEfficiency.toFixed(3)} pts/$M`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    if (low.includes('cap burden')) {
+      const rosterId = await getRedraftRosterIdForUser(leagueId, userId)
+      if (!rosterId) return privateNotice('Could not resolve roster.')
+      try {
+        const w = await getCapBurdenWarnings(leagueId, rosterId)
+        const text = w.map((x) => `• ${x.year}: ${x.message} — ${x.detail}`).join('\n') || 'No major burden flags.'
+        return { outcome: 'suppress_public', privateNotice: `⚠️ **Cap burden** (private)\n${text}` }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    if (low.includes('trade targets cap') || (low.includes('trade') && low.includes('targets') && low.includes('cap'))) {
+      try {
+        const t = await identifyTradeTargets(leagueId, userId)
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `🎯 **Trade targets** (private)\n${t.summary}\n\n${t.targets
+            .slice(0, 5)
+            .map((x) => `• ${x.playerName} (${x.position}) $${x.salary}M — ${x.note}`)
+            .join('\n')}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    if (low.includes('contender rebuild')) {
+      try {
+        const a = await getContenderVsRebuildAdvice(leagueId, userId)
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `🏗️ **${a.mode}** (private)\n${a.reasoning}\n${a.recommendedActions.map((x) => `• ${x}`).join('\n')}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    if (low.includes('weekly recap') || low.includes('defender recap')) {
+      try {
+        const r = await generateDefenderWeeklyRecap(leagueId, userId, week)
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `📝 **Week ${r.week} recap** (private)\n${r.text}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    const defVal = low.match(/defender value\s+(.+)/)
+    if (defVal?.[1]) {
+      const nameQ = defVal[1].trim()
+      const roster = await prisma.roster.findFirst({
+        where: { leagueId, platformUserId: userId },
+        select: { playerData: true },
+      })
+      const defs = parseIdpPlayers(roster?.playerData)
+      const p = defs.find((d) => d.name.toLowerCase().includes(nameQ.toLowerCase()))
+      if (!p) return privateNotice(`No defender match for "${nameQ}" on your roster snapshot.`)
+      try {
+        const { evaluation: ev } = await getDefenderEvaluationForPlayer(leagueId, userId, week, p.playerId)
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `🛡️ **${p.name}** eval (private)\nOverall ${ev.overallGrade.toFixed(1)} · Start ${ev.weeklyStartGrade} · ${ev.verdict}\n${ev.topReasons.join('\n')}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+    const ce = low.match(/contract eval\s+(.+?)\s+(cut|extend|tag|hold)\s*$/)
+    if (ce?.[1] && ce[2]) {
+      const rosterId = await getRedraftRosterIdForUser(leagueId, userId)
+      if (!rosterId) return privateNotice('Could not resolve roster.')
+      const nameQ = ce[1].trim()
+      const rec = await prisma.iDPSalaryRecord.findFirst({
+        where: {
+          leagueId,
+          rosterId,
+          playerName: { contains: nameQ, mode: 'insensitive' },
+        },
+      })
+      if (!rec) return privateNotice(`No contract for "${nameQ}".`)
+      const dt = ce[2] === 'tag' ? 'tag' : ce[2] === 'cut' ? 'cut' : ce[2] === 'extend' ? 'extend' : 'hold'
+      try {
+        const out = await evaluateContractDecision(leagueId, rosterId, rec.playerId, dt)
+        return {
+          outcome: 'suppress_public',
+          privateNotice: `📋 **Contract ${dt}** (private)\n${out.recommendation}\n${out.reasoning.join(' ')}`,
+        }
+      } catch (e) {
+        const g = subGate(e)
+        if (g) return privateNotice(g)
+        throw e
+      }
+    }
+
     if (low.includes('idp rankings') || low.startsWith('idp rankings')) {
       const pos = rest.match(/idp rankings\s+(\w+)/i)?.[1]
       try {
