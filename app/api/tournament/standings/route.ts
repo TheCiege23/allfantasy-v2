@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
 import { canViewStandings } from '@/lib/tournament/shellAccess'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,35 @@ export async function GET(req: NextRequest) {
       participants: { include: { participant: { select: { displayName: true, userId: true } } } },
     },
   })
+
+  const weekRaw = req.nextUrl.searchParams.get('week')?.trim()
+  if (weekRaw != null && weekRaw !== '') {
+    const w = parseInt(weekRaw, 10)
+    if (!Number.isFinite(w)) {
+      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
+    }
+    if (w < round.weekStart || w > round.weekEnd) {
+      return NextResponse.json(
+        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
+        { status: 400 },
+      )
+    }
+    const weekPts = await computeWeeklyPointsByTlpId(
+      leagues.map((l) => ({
+        leagueId: l.leagueId,
+        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
+      })),
+      w,
+    )
+    const leaguesWithWeek = leagues.map((l) => ({
+      ...l,
+      participants: l.participants.map((p) => ({
+        ...p,
+        weekPoints: weekPts.get(p.id) ?? 0,
+      })),
+    }))
+    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
+  }
 
   return NextResponse.json({ round, leagues })
 }

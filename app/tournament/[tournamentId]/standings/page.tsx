@@ -1,17 +1,38 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { StandingsRow } from '@/app/tournament/components/StandingsRow'
+import type { StandingsLeagueRow } from '@/lib/tournament/tournamentStandingsFetch'
 
 type Tab = 'league' | 'conference' | 'global' | 'weekly'
 
+function weekPoints(row: StandingsLeagueRow): number {
+  return row.weekPoints ?? 0
+}
+
 export default function TournamentStandingsHubPage() {
   const ctx = useTournamentUi()
-  const state = useTournamentParticipantState(ctx)
   const [tab, setTab] = useState<Tab>('league')
+  const [weeklyWeek, setWeeklyWeek] = useState<number | null>(null)
   const [q, setQ] = useState('')
+
+  const activeRound = useMemo(
+    () => ctx.rounds.find((r) => r.roundNumber === ctx.shell.currentRoundNumber) ?? ctx.rounds[0] ?? null,
+    [ctx.rounds, ctx.shell.currentRoundNumber],
+  )
+
+  const state = useTournamentParticipantState(ctx, {
+    weeklyWeek: tab === 'weekly' ? weeklyWeek : undefined,
+  })
+
+  useEffect(() => {
+    if (tab !== 'weekly') return
+    if (weeklyWeek != null) return
+    const r = state.standingsRound ?? activeRound
+    if (r) setWeeklyWeek(r.weekEnd)
+  }, [tab, weeklyWeek, state.standingsRound, activeRound])
 
   const conference = useMemo(
     () => ctx.conferences.find((c) => c.id === ctx.participant?.currentConferenceId) ?? ctx.conferences[0],
@@ -23,7 +44,7 @@ export default function TournamentStandingsHubPage() {
     return state.standingsLeagues.find((l) => l.id === state.myStandingsRow?.tournamentLeagueId) ?? null
   }, [state.myStandingsRow, state.standingsLeagues])
 
-  const conferenceRows = useMemo(() => {
+  const conferenceRowsSeason = useMemo(() => {
     if (!conference) return []
     return state.standingsLeagues
       .filter((L) => L.conferenceId === conference.id)
@@ -31,13 +52,21 @@ export default function TournamentStandingsHubPage() {
       .sort((a, b) => (a.conferenceRank ?? 999) - (b.conferenceRank ?? 999))
   }, [conference, state.standingsLeagues])
 
-  const globalRows = useMemo(() => {
+  const globalRowsSeason = useMemo(() => {
     const rows = state.standingsLeagues.flatMap((L) =>
       L.participants.map((p) => ({ ...p, _league: L.name, _conf: L.conferenceId })),
     )
     rows.sort((a, b) => b.pointsFor - a.pointsFor)
     return rows
   }, [state.standingsLeagues])
+
+  const weekOptions = useMemo(() => {
+    const r = state.standingsRound ?? activeRound
+    if (!r) return []
+    const o: number[] = []
+    for (let w = r.weekStart; w <= r.weekEnd; w++) o.push(w)
+    return o
+  }, [state.standingsRound, activeRound])
 
   const filterQ = (name: string) => !q.trim() || name.toLowerCase().includes(q.trim().toLowerCase())
 
@@ -56,7 +85,13 @@ export default function TournamentStandingsHubPage() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id)
+              if (t.id === 'weekly' && weeklyWeek === null) {
+                const r = state.standingsRound ?? activeRound
+                if (r) setWeeklyWeek(r.weekEnd)
+              }
+            }}
             className={`shrink-0 rounded-lg px-4 py-2 text-[12px] font-bold ${
               tab === t.id ? 'bg-cyan-500/20 text-cyan-100' : 'text-[var(--tournament-text-mid)] hover:bg-white/5'
             }`}
@@ -73,6 +108,27 @@ export default function TournamentStandingsHubPage() {
         placeholder="Search team…"
         className="w-full rounded-xl border border-[var(--tournament-border)] bg-black/25 px-3 py-2 text-[13px] text-white placeholder:text-white/35 md:max-w-sm"
       />
+
+      {tab === 'weekly' && weekOptions.length > 0 ? (
+        <label className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--tournament-text-mid)]">
+          <span className="font-semibold text-white/80">Redraft week</span>
+          <select
+            value={weeklyWeek ?? weekOptions[weekOptions.length - 1]!}
+            onChange={(e) => setWeeklyWeek(parseInt(e.target.value, 10))}
+            className="rounded-lg border border-[var(--tournament-border)] bg-black/30 px-2 py-1.5 text-[13px] text-white"
+            data-testid="standings-week-select"
+          >
+            {weekOptions.map((w) => (
+              <option key={w} value={w}>
+                Week {w}
+              </option>
+            ))}
+          </select>
+          <span className="text-[11px] text-[var(--tournament-text-dim)]">
+            Points from linked redraft matchups for this tournament round.
+          </span>
+        </label>
+      ) : null}
 
       {tab === 'league' && myLeague ? (
         <div className="tournament-panel overflow-x-auto p-2">
@@ -99,7 +155,7 @@ export default function TournamentStandingsHubPage() {
         <div className="tournament-panel overflow-x-auto p-2">
           <table className="w-full min-w-[560px]">
             <tbody>
-              {conferenceRows
+              {conferenceRowsSeason
                 .filter((r) => filterQ(r.participant.displayName))
                 .map((row, idx) => (
                   <StandingsRow
@@ -119,7 +175,7 @@ export default function TournamentStandingsHubPage() {
         <div className="tournament-panel overflow-x-auto p-2">
           <table className="w-full min-w-[560px]">
             <tbody>
-              {globalRows
+              {globalRowsSeason
                 .filter((r) => filterQ(r.participant.displayName))
                 .map((row, idx) => (
                   <StandingsRow
@@ -135,10 +191,94 @@ export default function TournamentStandingsHubPage() {
         </div>
       ) : null}
 
-      {tab === 'weekly' ? (
-        <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
-          Weekly high scores sync with redraft weekly scoring. Use your league workspace Scores tab for week-by-week
-          detail until this hub pulls week slices from the API.
+      {tab === 'weekly' && weeklyWeek === null ? (
+        <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">Loading weekly scores…</div>
+      ) : null}
+
+      {tab === 'weekly' && weeklyWeek !== null ? (
+        <div className="space-y-6">
+          <section>
+            <h2 className="mb-2 text-[13px] font-bold text-white">
+              Global — week {weeklyWeek}
+              <span className="ml-2 font-normal text-[var(--tournament-text-dim)]">(high to low)</span>
+            </h2>
+            <div className="tournament-panel overflow-x-auto p-2">
+              <table className="w-full min-w-[560px]">
+                <tbody>
+                  {[...globalRowsSeason]
+                    .sort((a, b) => weekPoints(b) - weekPoints(a))
+                    .filter((r) => filterQ(r.participant.displayName))
+                    .map((row, idx) => (
+                      <StandingsRow
+                        key={`${row.id}-wg`}
+                        row={row}
+                        rank={idx + 1}
+                        highlight={row.userId === ctx.viewerUserId}
+                        hidePf={false}
+                        variant="weekly"
+                      />
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {conference ? (
+            <section>
+              <h2 className="mb-2 text-[13px] font-bold text-white">
+                {conference.name} — week {weeklyWeek}
+              </h2>
+              <div className="tournament-panel overflow-x-auto p-2">
+                <table className="w-full min-w-[560px]">
+                  <tbody>
+                    {[...conferenceRowsSeason]
+                      .sort((a, b) => weekPoints(b) - weekPoints(a))
+                      .filter((r) => filterQ(r.participant.displayName))
+                      .map((row, idx) => (
+                        <StandingsRow
+                          key={`${row.id}-wc`}
+                          row={row}
+                          rank={idx + 1}
+                          highlight={row.userId === ctx.viewerUserId}
+                          hidePf={false}
+                          variant="weekly"
+                        />
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
+          <section>
+            <h2 className="mb-2 text-[13px] font-bold text-white">My league — week {weeklyWeek}</h2>
+            {myLeague ? (
+              <div className="tournament-panel overflow-x-auto p-2">
+                <table className="w-full min-w-[560px]">
+                  <tbody>
+                    {myLeague.participants
+                      .filter((r) => filterQ(r.participant.displayName))
+                      .sort((a, b) => weekPoints(b) - weekPoints(a))
+                      .map((row, idx) => (
+                        <StandingsRow
+                          key={`${row.id}-wl`}
+                          row={row}
+                          rank={idx + 1}
+                          highlight={row.userId === ctx.viewerUserId}
+                          hidePf={false}
+                          variant="weekly"
+                        />
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
+                Join a tournament league to see your pod&apos;s weekly scores here. Global and conference views above
+                include everyone in this round.
+              </div>
+            )}
+          </section>
         </div>
       ) : null}
 

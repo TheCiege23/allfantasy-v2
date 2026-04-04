@@ -36,7 +36,7 @@ function rowForUser(leagues: StandingsLeague[], userId: string | null): Standing
 
 export function useTournamentParticipantState(
   ctx: TournamentUiContextValue,
-  opts?: { roundNumber?: number },
+  opts?: { roundNumber?: number; weeklyWeek?: number | null },
 ) {
   const { shell, participant, viewerUserId, tournamentLeagues } = ctx
   const [standingsError, setStandingsError] = useState<string | null>(null)
@@ -47,13 +47,14 @@ export function useTournamentParticipantState(
     setStandingsError(null)
     try {
       const rn = opts?.roundNumber ?? (shell.currentRoundNumber || 1)
-      const data = await fetchTournamentStandingsJson(shell.id, rn)
+      const wk = opts?.weeklyWeek != null && Number.isFinite(opts.weeklyWeek) ? opts.weeklyWeek : undefined
+      const data = await fetchTournamentStandingsJson(shell.id, rn, wk)
       setRound(data.round)
       setLeagues(data.leagues)
     } catch (e) {
       setStandingsError(e instanceof Error ? e.message : 'Standings unavailable')
     }
-  }, [shell.id, shell.currentRoundNumber, opts?.roundNumber])
+  }, [shell.id, shell.currentRoundNumber, opts?.roundNumber, opts?.weeklyWeek])
 
   useEffect(() => {
     void reload()

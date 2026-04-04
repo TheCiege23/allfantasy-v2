@@ -15,6 +15,8 @@ export type StandingsLeagueRow = {
   conferenceRank: number | null
   advancementStatus: string
   draftSlot: number | null
+  /** Present when `week` was passed to the standings API; redraft matchup points for that week. */
+  weekPoints?: number
   participant: { displayName: string; userId: string }
 }
 
@@ -43,9 +45,11 @@ export type StandingsRound = {
 export async function fetchTournamentStandingsJson(
   tournamentId: string,
   roundNumber?: number,
-): Promise<{ round: StandingsRound; leagues: StandingsLeague[] }> {
+  week?: number | null,
+): Promise<{ round: StandingsRound; leagues: StandingsLeague[]; weeklyWeek?: number }> {
   const q = new URLSearchParams({ tournamentId })
   if (roundNumber != null && Number.isFinite(roundNumber)) q.set('roundNumber', String(roundNumber))
+  if (week != null && Number.isFinite(week)) q.set('week', String(week))
   const r = await fetch(`/api/tournament/standings?${q}`, { credentials: 'include' })
   if (!r.ok) {
     const err = await r.json().catch(() => ({}))

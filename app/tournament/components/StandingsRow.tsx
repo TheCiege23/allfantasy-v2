@@ -16,13 +16,17 @@ export function StandingsRow({
   highlight,
   movement,
   hidePf,
+  variant = 'season',
 }: {
   row: StandingsLeagueRow
   rank: number
   highlight?: boolean
   movement?: string
   hidePf?: boolean
+  /** `weekly`: show redraft week score from `row.weekPoints` (fallback 0) instead of season record. */
+  variant?: 'season' | 'weekly'
 }) {
+  const weekPf = variant === 'weekly' ? (row.weekPoints ?? 0) : row.pointsFor
   const st = row.advancementStatus ?? 'competing'
   const chip =
     st === 'wildcard_eligible'
@@ -61,11 +65,15 @@ export function StandingsRow({
         {movement ?? '—'}
       </td>
       <td className="w-14 whitespace-nowrap py-2.5 text-[11px] text-[var(--tournament-text-mid)]">
-        {row.wins}-{row.losses}
-        {row.ties ? `-${row.ties}` : ''}
+        {variant === 'weekly' ? '—' : (
+          <>
+            {row.wins}-{row.losses}
+            {row.ties ? `-${row.ties}` : ''}
+          </>
+        )}
       </td>
       {!hidePf ? (
-        <td className="w-[72px] py-2.5 text-right font-semibold text-white">{row.pointsFor.toFixed(1)}</td>
+        <td className="w-[72px] py-2.5 text-right font-semibold text-white">{weekPf.toFixed(1)}</td>
       ) : null}
       <td className="hidden w-12 py-2.5 text-right text-[10px] text-[var(--tournament-text-dim)] lg:table-cell">
         {row.conferenceRank ?? '—'}
