@@ -264,6 +264,10 @@ These are **tech design** deliverables, not unresolved PRD ambiguity:
 
 ## 13. References (internal)
 
+- Database schema (Prisma / PostgreSQL / Redis / audit): `docs/DATABASE_SCHEMA_BIG_BROTHER_LEAGUE.md`
+- Backend automation (cron, ticks, idempotency, commissioner fallback): `docs/BIG_BROTHER_AUTOMATION_ENGINE.md`
+- UX journey tables (Figma) + Chimmy command parser spec: `docs/UX_BIG_BROTHER_JOURNEY_AND_COMMANDS.md`
+- Narrative BB flows: `docs/UX_FLOWS_BIG_BROTHER_LEAGUE.md`
 - Supported sports: `lib/sport-scope.ts`
 - Chimmy / AI commissioner precedent: `docs/PROMPT232_CHIMMY_AI_SYSTEM_ARCHITECTURE.md`, `docs/PROMPT39_AI_COMMISSIONER_CORE_ARCHITECTURE_DELIVERABLE.md`
 - Orphan / AI manager patterns: `docs/PROMPT181_ORPHAN_AI_MANAGER_DELIVERABLE.md`

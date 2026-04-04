@@ -171,6 +171,18 @@
     {
       "path": "/api/zombie/automation",
       "schedule": "0 9 * * 2"
+    },
+    {
+      "path": "/api/big-brother/cron/automation",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/big-brother/cron/reminders",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/big-brother/cron/stat-correction",
+      "schedule": "0 */1 * * *"
     }
   ]
 }
