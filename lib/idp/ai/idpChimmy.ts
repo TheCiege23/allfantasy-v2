@@ -8,6 +8,8 @@ import { requireAfSubUserIdOrThrow } from '@/lib/redraft/ai/requireAfSub'
 import { isIdpLeague } from '@/lib/idp'
 import { openaiChatText } from '@/lib/openai-client'
 import { isCommissioner } from '@/lib/commissioner/permissions'
+import { computeIdpFantasyPoints, getMergedScoringRulesForLeague } from '@/lib/idp/scoringEngine'
+import { generateDeterministicWeeklyStatLine } from '@/lib/idp/statIngestionEngine'
 
 /** Lib equivalent of route `requireAfSub()` — must run before any IDP AI work. */
 async function requireAfSub(): Promise<void> {
@@ -112,8 +114,17 @@ function seedFromString(s: string): number {
   return Math.abs(h) || 1
 }
 
-/** Deterministic synthetic IDP profile for AI context (not official stats). */
-export function syntheticIdpProfile(playerId: string, week: number) {
+/** Shape shared by legacy sync sim + league-scored engine profile. */
+export type IdpAiStatProfile = {
+  seasonAvg: number
+  snapShare: number
+  matchupRating: number
+  recent3: number[]
+  trend: 'up' | 'down'
+}
+
+/** Deterministic synthetic IDP profile (no league context) — fallback when rules are unavailable. */
+export function syntheticIdpProfile(playerId: string, week: number): IdpAiStatProfile {
   const s = seedFromString(`${playerId}:${week}`)
   const seasonAvg = 4 + (s % 120) / 10
   const snapShare = 35 + (s % 55)
@@ -123,7 +134,25 @@ export function syntheticIdpProfile(playerId: string, week: number) {
   return { seasonAvg, snapShare, matchupRating, recent3: recent, trend }
 }
 
-function startScore(p: ReturnType<typeof syntheticIdpProfile>): number {
+/** League-aware profile: weekly points from `statIngestionEngine` × `getMergedScoringRulesForLeague`. */
+export async function resolveIdpAiProfile(leagueId: string, playerId: string, week: number): Promise<IdpAiStatProfile> {
+  const rules = await getMergedScoringRulesForLeague(leagueId)
+  const w1 = Math.max(1, week - 2)
+  const w2 = Math.max(1, week - 1)
+  const w3 = Math.min(18, Math.max(1, week))
+  const recent3 = [w1, w2, w3].map((w) => {
+    const line = generateDeterministicWeeklyStatLine(playerId, w)
+    return computeIdpFantasyPoints(line, rules).total
+  })
+  const seasonAvg = recent3.reduce((a, b) => a + b, 0) / recent3.length
+  const trend: 'up' | 'down' = recent3[2] >= recent3[0] ? 'up' : 'down'
+  const seed = seedFromString(`${playerId}:${week}`)
+  const snapShare = 35 + (seed % 55)
+  const matchupRating = 3 + (seed % 17) / 2
+  return { seasonAvg, snapShare, matchupRating, recent3, trend }
+}
+
+function startScore(p: IdpAiStatProfile): number {
   const recentAvg = p.recent3.reduce((a, b) => a + b, 0) / 3
   return 0.35 * p.seasonAvg + 0.25 * p.matchupRating + 0.2 * (p.snapShare / 100) * 25 + 0.2 * recentAvg
 }
@@ -204,7 +233,7 @@ async function buildMockWaiverPool(leagueId: string, week: number, limit: number
   while (pool.length < Math.max(limit * 4, 24) && i < 200) {
     const pid = `waiver-synth-${leagueId.slice(0, 6)}-${i}`
     if (!taken.has(pid)) {
-      const prof = syntheticIdpProfile(pid, week)
+      const prof = await resolveIdpAiProfile(leagueId, pid, week)
       if (prof.snapShare >= 40 || prof.trend === 'up') {
         pool.push({
           playerId: pid,
@@ -239,11 +268,16 @@ export async function getDefenderStartSitRec(
     }
   }
 
-  const scored = defenders.map((d) => ({
-    ...d,
-    profile: syntheticIdpProfile(d.playerId, week),
-    score: startScore(syntheticIdpProfile(d.playerId, week)),
-  }))
+  const scored = await Promise.all(
+    defenders.map(async (d) => {
+      const profile = await resolveIdpAiProfile(leagueId, d.playerId, week)
+      return {
+        ...d,
+        profile,
+        score: startScore(profile),
+      }
+    }),
+  )
   scored.sort((a, b) => b.score - a.score)
   const starters = scored.slice(0, Math.min(4, scored.length)).map((s) => s.name)
   const sitters = scored.slice(Math.min(4, scored.length)).map((s) => s.name)
@@ -278,12 +312,15 @@ export async function getIDPWaiverTargets(
   await assertIdpLeague(leagueId)
 
   const pool = await buildMockWaiverPool(leagueId, week, limit)
-  const ranked = pool
-    .map((p, idx) => {
-      const pr = syntheticIdpProfile(p.playerId, week)
-      const score = startScore(pr) + (idx % 3) * 0.1
-      return { ...p, score, pr }
-    })
+  const ranked = (
+    await Promise.all(
+      pool.map(async (p, idx) => {
+        const pr = await resolveIdpAiProfile(leagueId, p.playerId, week)
+        const score = startScore(pr) + (idx % 3) * 0.1
+        return { ...p, score, pr }
+      }),
+    )
+  )
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
 
@@ -331,17 +368,21 @@ export async function getIDPMatchupAnalysis(
   const oppOff = parseOffensivePlayers(opponent?.playerData)
   const oppLabel = opponent ? `Opponent (${opponent.id.slice(0, 8)})` : 'Opponent'
 
-  const myLines = myDef.map((d) => {
-    const p = syntheticIdpProfile(d.playerId, week)
-    return `${d.name} (${d.position}): matchup rating ${p.matchupRating.toFixed(1)}, snaps ${p.snapShare}%`
-  })
+  const myLines = (
+    await Promise.all(
+      myDef.map(async (d) => {
+        const p = await resolveIdpAiProfile(leagueId, d.playerId, week)
+        return `${d.name} (${d.position}): matchup rating ${p.matchupRating.toFixed(1)}, snaps ${p.snapShare}%`
+      }),
+    )
+  ).join('\n')
 
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: CHIMMY_IDP_RULE },
       {
         role: 'user',
-        content: `Week ${week}. My IDP defenders:\n${myLines.join('\n') || '(none parsed)'}\nOpponent: ${oppLabel}. Their offensive skill players (sample): ${oppOff.slice(0, 8).map((o) => `${o.name} (${o.position})`).join(', ') || 'unknown'}\nExplain matchup context: run-heavy vs pass-heavy opponent tendencies (hypothetical from matchup rating), and where my IDP has tackle/sack upside.\nAlso note one way the opponent could outscore me on IDP this week.`,
+        content: `Week ${week}. My IDP defenders:\n${myLines || '(none parsed)'}\nOpponent: ${oppLabel}. Their offensive skill players (sample): ${oppOff.slice(0, 8).map((o) => `${o.name} (${o.position})`).join(', ') || 'unknown'}\nExplain matchup context: run-heavy vs pass-heavy opponent tendencies (hypothetical from matchup rating), and where my IDP has tackle/sack upside.\nAlso note one way the opponent could outscore me on IDP this week.`,
       },
     ],
     temperature: 0.45,
@@ -426,7 +467,7 @@ Reply with ONLY a JSON object (no markdown) with keys:
   }
 }
 
-function rankingComposite(pr: ReturnType<typeof syntheticIdpProfile>): number {
+function rankingComposite(pr: IdpAiStatProfile): number {
   const snapTrend = pr.trend === 'up' ? 1 : 0.65
   return 0.4 * pr.seasonAvg + 0.4 * pr.matchupRating + 0.2 * snapTrend * 12
 }
@@ -440,14 +481,16 @@ export async function getWeeklyIDPRankings(
   await assertIdpLeague(leagueId)
 
   const pool = await buildMockWaiverPool(leagueId, week, 100)
-  const scored = pool.map((p) => {
-    const pr = syntheticIdpProfile(p.playerId, week)
-    const proj =
-      0.4 * pr.seasonAvg +
-      0.4 * pr.matchupRating +
-      0.2 * ((pr.snapShare / 100) * 25 + (pr.trend === 'up' ? 2 : 0))
-    return { p, pr, proj, composite: rankingComposite(pr) }
-  })
+  const scored = await Promise.all(
+    pool.map(async (p) => {
+      const pr = await resolveIdpAiProfile(leagueId, p.playerId, week)
+      const proj =
+        0.4 * pr.seasonAvg +
+        0.4 * pr.matchupRating +
+        0.2 * ((pr.snapShare / 100) * 25 + (pr.trend === 'up' ? 2 : 0))
+      return { p, pr, proj, composite: rankingComposite(pr) }
+    }),
+  )
   scored.sort((a, b) => b.composite - a.composite)
 
   const matchesPos = (pos: string, filter: string) => {
@@ -497,13 +540,17 @@ export async function getSleeperDefenders(leagueId: string, week: number): Promi
   const pool = await buildMockWaiverPool(leagueId, week, 60)
   const posKey = (pos: string) =>
     ['DE', 'DT', 'DL'].includes(pos.toUpperCase()) ? 'DL' : pos.toUpperCase() === 'LB' ? 'LB' : 'DB'
+  const withScores = await Promise.all(
+    pool.map(async (p) => {
+      const pr = await resolveIdpAiProfile(leagueId, p.playerId, week)
+      return { p, pr, score: startScore(pr) }
+    }),
+  )
   const byPos = new Map<string, Array<{ p: IdPlayerRow; score: number }>>()
-  for (const p of pool) {
-    const pr = syntheticIdpProfile(p.playerId, week)
-    const score = startScore(pr)
-    const k = posKey(p.position)
+  for (const row of withScores) {
+    const k = posKey(row.p.position)
     const arr = byPos.get(k) ?? []
-    arr.push({ p, score })
+    arr.push({ p: row.p, score: row.score })
     byPos.set(k, arr)
   }
   for (const arr of byPos.values()) {
@@ -515,10 +562,12 @@ export async function getSleeperDefenders(leagueId: string, week: number): Promi
     const idx = arr.findIndex((x) => x.p.playerId === p.playerId)
     return idx < 0 ? 99 : idx + 1
   }
+  const prByPlayer = new Map(withScores.map((r) => [r.p.playerId, r.pr]))
 
   const out: SleeperDefender[] = []
   for (const p of pool) {
-    const pr = syntheticIdpProfile(p.playerId, week)
+    const pr = prByPlayer.get(p.playerId)
+    if (!pr) continue
     const own = (seedFromString(p.playerId) % 28) + 1
     const posRank = rankAtPos(p)
     if (own < 30 && pr.snapShare >= 60 && pr.matchupRating >= 6 && posRank <= 20) {
@@ -546,7 +595,7 @@ export async function getSnapShareInsights(leagueId: string, managerId: string):
   const positives: SnapShareReport['positives'] = []
   const wk = 1
   for (const d of defenders) {
-    const pr = syntheticIdpProfile(d.playerId, wk)
+    const pr = await resolveIdpAiProfile(leagueId, d.playerId, wk)
     if (pr.snapShare < 50) {
       concerns.push({
         player: d.name,
@@ -608,16 +657,21 @@ export async function generateIDPPowerRankings(leagueId: string, week: number): 
     select: { id: true, playerData: true },
   })
 
-  const scored = rosters.map((r) => {
-    const idps = parseIdpPlayers(r.playerData)
-    let sum = 0
-    for (const p of idps) sum += startScore(syntheticIdpProfile(p.playerId, week))
-    return {
-      teamLabel: `Team ${r.id.slice(0, 6)}`,
-      sum,
-      blurb: `IDP strength score ~${sum.toFixed(1)} (synthetic).`,
-    }
-  })
+  const scored = await Promise.all(
+    rosters.map(async (r) => {
+      const idps = parseIdpPlayers(r.playerData)
+      let sum = 0
+      for (const p of idps) {
+        const prof = await resolveIdpAiProfile(leagueId, p.playerId, week)
+        sum += startScore(prof)
+      }
+      return {
+        teamLabel: `Team ${r.id.slice(0, 6)}`,
+        sum,
+        blurb: `IDP strength score ~${sum.toFixed(1)} (league scoring rules + deterministic stats).`,
+      }
+    }),
+  )
   scored.sort((a, b) => b.sum - a.sum)
   const lines: PowerRankingsPost['lines'] = scored.map((s, i) => ({
     rank: i + 1,
@@ -688,7 +742,7 @@ export async function getIdpPlayerAiAnalysis(
   const defenders = parseIdpPlayers(roster?.playerData)
   const p = defenders.find((d) => d.playerId === playerId)
   if (!p) throw new Error('Player not on your IDP roster snapshot')
-  const pr = syntheticIdpProfile(playerId, week)
+  const pr = await resolveIdpAiProfile(leagueId, playerId, week)
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: CHIMMY_IDP_RULE },

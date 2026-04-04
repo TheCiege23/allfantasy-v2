@@ -59,3 +59,14 @@ export {
   checkIdpLineupGaps,
   canRosterFieldLegalIdpLineup,
 } from './IdpEdgeCaseHandlers'
+export {
+  mergeIdpScoringRules,
+  getMergedScoringRulesForLeague,
+  computeIdpFantasyPoints,
+  type IdpFantasyPointsResult,
+} from './scoringEngine'
+export {
+  normalizeExternalDefenseStats,
+  generateDeterministicWeeklyStatLine,
+  type IdpWeeklyStatLine,
+} from './statIngestionEngine'
