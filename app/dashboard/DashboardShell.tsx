@@ -80,18 +80,26 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
   const settings = toRecord(raw.settings) ?? undefined
   const currentWeek = weekFromSettings(raw.settings)
 
+  const userRoleRaw = raw.userRole
+  const userRole: 'commissioner' | 'member' | 'imported' =
+    userRoleRaw === 'commissioner' || userRoleRaw === 'member' || userRoleRaw === 'imported'
+      ? userRoleRaw
+      : 'member'
+
   return {
     id: selectedLeagueId,
     sourceLeagueId: sourceLeagueId || selectedLeagueId,
     name: toStringValue(raw.name, 'Unnamed League'),
     platform,
     sport,
+    leagueVariant:
+      toStringValue(raw.leagueVariant) || toStringValue(raw.league_variant) || null,
     format:
       toStringValue(raw.leagueVariant) ||
       toStringValue(raw.league_variant) ||
       (toBooleanValue(raw.isDynasty) ? 'dynasty' : 'redraft'),
     scoring: toStringValue(raw.scoring, 'Standard'),
-    teamCount: toNumberValue(raw.leagueSize ?? raw.totalTeams),
+    teamCount: toNumberValue(raw.teamCount ?? raw.leagueSize ?? raw.totalTeams),
     season: parseSeasonValue(raw.season),
     status: toStringValue(raw.status) || toStringValue(raw.syncStatus) || undefined,
     currentWeek: currentWeek ?? undefined,
@@ -101,6 +109,11 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
     syncStatus: toStringValue(raw.syncStatus) || null,
     avatarUrl: toStringValue(raw.avatarUrl) || null,
     platformLeagueId,
+    isCommissioner: toBooleanValue(raw.isCommissioner),
+    userRole,
+    isPaid: toBooleanValue(raw.isPaid),
+    entryFee:
+      typeof raw.entryFee === 'number' && Number.isFinite(raw.entryFee) ? raw.entryFee : null,
   }
 }
 

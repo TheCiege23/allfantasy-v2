@@ -27,6 +27,14 @@ export interface UserLeague {
   draftDate?: string | null
   /** Prisma `League.leagueVariant` when provided (e.g. big_brother, zombie). */
   leagueVariant?: string | null
+  /** True if the current user is commissioner (Sleeper is_owner sync) or owns a native AllFantasy league */
+  isCommissioner?: boolean
+  /** User relationship to this league row */
+  userRole?: 'commissioner' | 'member' | 'imported'
+  /** Entry fee or buy-in detected in league settings */
+  isPaid?: boolean
+  /** Entry fee in USD when present */
+  entryFee?: number | null
 }
 
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */

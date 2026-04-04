@@ -432,13 +432,23 @@ export function LeagueListPanel({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex min-w-0 items-start justify-between gap-1">
-                            <p
-                              className={`min-w-0 truncate font-bold text-white/90 ${
-                                compact ? 'text-[14px]' : 'text-[13px]'
-                              }`}
-                            >
-                              {league.name}
-                            </p>
+                            <div className="flex min-w-0 flex-1 items-center gap-1">
+                              <p
+                                className={`min-w-0 truncate font-bold text-white/90 ${
+                                  compact ? 'text-[14px]' : 'text-[13px]'
+                                }`}
+                              >
+                                {league.name}
+                              </p>
+                              {compact && league.isCommissioner ? (
+                                <span
+                                  className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-300"
+                                  title="You are commissioner"
+                                >
+                                  ★
+                                </span>
+                              ) : null}
+                            </div>
                             <span
                               className={`shrink-0 font-semibold ${
                                 compact
@@ -467,6 +477,17 @@ export function LeagueListPanel({
                             >
                               {sportLabel}
                             </span>
+                            {compact ? (
+                              league.isPaid ? (
+                                <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-1 py-0.5 text-[9px] font-semibold text-emerald-400">
+                                  Paid
+                                </span>
+                              ) : (
+                                <span className="rounded bg-white/[0.04] px-1 py-0.5 text-[9px] font-semibold text-white/25">
+                                  Free
+                                </span>
+                              )
+                            ) : null}
                             {!compact ? (
                               <span
                                 className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${conceptBadge.className}`}
@@ -514,15 +535,35 @@ export function LeagueListPanel({
             })}
           </div>
         ) : leagues.length === 0 ? (
-          <div className="flex h-full min-h-[220px] items-center justify-center px-3">
-            <div className="w-full rounded-2xl border border-white/[0.07] bg-[#0c0c1e] px-4 py-6 text-center">
-              <p className="text-sm font-semibold text-white/80">No leagues connected</p>
+          <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 px-3 py-6 text-center">
+            <p className="text-2xl">🏆</p>
+            <div>
+              <p className="text-sm font-semibold text-white/75">No leagues yet</p>
+              <p className="mt-1 text-[11px] text-white/40">
+                Create a league or import one to get started
+              </p>
+            </div>
+            <div className="flex w-full flex-col gap-1.5">
               <button
                 type="button"
-                onClick={() => router.push('/dashboard/rankings')}
-                className="mt-3 inline-flex rounded-xl border border-cyan-500/50 px-3 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/10"
+                onClick={() => router.push('/create-league')}
+                className="rounded-xl bg-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-500/30"
+              >
+                + Create League
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/import')}
+                className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs font-semibold text-white/50 transition hover:border-white/20 hover:text-white/70"
               >
                 Import a League
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push('/find-league')}
+                className="text-[11px] text-white/30 transition hover:text-white/50"
+              >
+                Find a league to join
               </button>
             </div>
           </div>
