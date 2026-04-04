@@ -2644,6 +2644,8 @@ model AppUser {
   tournamentsCreated            LegacyTournament[]         @relation("LegacyTournamentCreator")
   tournamentShellsCommissioned  TournamentShell[]          @relation("TournamentShellCommissioner")
   tournamentShellsCreatedBy     TournamentShell[]          @relation("TournamentShellCreator")
+  zombieUniversesCommissioned   ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
+  zombieUniversesCreated        ZombieUniverse[]           @relation("ZombieUniverseCreator")
 
   @@map("app_users")
 }
@@ -4143,6 +4145,14 @@ model League {
   survivorTwistEvents  SurvivorTwistEvent[]
   survivorAuditEntries SurvivorAuditEntry[]
 
+  survivorGameState            SurvivorGameState?
+  survivorPhaseTransitions     SurvivorPhaseTransition[]
+  survivorNotifications        SurvivorNotification[]
+  survivorChatMessages         SurvivorChatMessage[]
+  survivorCommissionerActions  SurvivorCommissionerAction[]
+  survivorSeasonSnapshot       SurvivorSeasonSnapshot?
+  survivorWeeklyScores         SurvivorWeeklyScore[]
+
   rosters                     Roster[]
   teams                       LeagueTeam[]
   divisions                   LeagueDivision[]
@@ -4660,9 +4670,9 @@ model TournamentShell {
   rounds             TournamentRound[]
   participants       TournamentParticipant[]
   advancementGroups  TournamentAdvancementGroup[]
-  nameRecords        TournamentNameRecord[]
-  shellAnnouncements TournamentShellAnnouncement[]
-  shellAuditLogs     TournamentShellAuditLog[]
+  nameRecords   TournamentNameRecord[]
+  announcements TournamentAnnouncement[]
+  auditLogs     TournamentAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4892,7 +4902,8 @@ model TournamentNameRecord {
   @@map("tournament_shell_name_records")
 }
 
-model TournamentShellAnnouncement {
+/// Shell tournament feed (table: tournament_shell_announcements; distinct from legacy tournament_announcements).
+model TournamentAnnouncement {
   id           String          @id @default(cuid())
   tournamentId String
   tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -4913,7 +4924,8 @@ model TournamentShellAnnouncement {
   @@map("tournament_shell_announcements")
 }
 
-model TournamentShellAuditLog {
+/// Shell audit trail (table: tournament_shell_audit_logs; distinct from legacy tournament_audit_logs).
+model TournamentAuditLog {
   id           String          @id @default(cuid())
   tournamentId String
   tournament   TournamentShell @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
@@ -5904,6 +5916,7 @@ model SurvivorChatChannel {
   archivedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  messages        SurvivorChatMessage[] @relation("SurvivorChatChannelMessages")
 
   @@index([leagueId, channelType])
   @@map("survivor_chat_channels")
@@ -6116,6 +6129,206 @@ model SurvivorAuditEntry {
   @@map("survivor_audit_entries")
 }
 
+/// Central coordinator row for Survivor automation (phase, week, flags).
+model SurvivorGameState {
+  id                  String    @id @default(cuid())
+  leagueId            String    @unique @db.VarChar(64)
+  league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  phase               String    @default("pre_draft")
+  currentWeek         Int       @default(0)
+  totalTribalCouncils Int       @default(0)
+  activeTribeCount    Int       @default(0)
+  activePlayerCount   Int       @default(0)
+  exilePlayerCount    Int       @default(0)
+  juryPlayerCount     Int       @default(0)
+  draftCompletedAt    DateTime?
+  preMergeStartedAt   DateTime?
+  mergeTriggeredAt    DateTime?
+  juryStartedAt       DateTime?
+  finaleStartedAt     DateTime?
+  seasonCompletedAt   DateTime?
+  weekStartedAt       DateTime?
+  weekScoringLockedAt DateTime?
+  weekScoringFinalAt  DateTime?
+  activeChallengeId   String?
+  challengeLockedAt   DateTime?
+  challengeResultAt   DateTime?
+  activeCouncilId     String?
+  tribalOpenedAt      DateTime?
+  tribalDeadline      DateTime?
+  tribalRevealAt      DateTime?
+  tribalCompleteAt    DateTime?
+  immuneTribeId       String?
+  immunePlayerId      String?
+  needsChallengeLock  Boolean   @default(false)
+  needsWaiverProcess    Boolean   @default(false)
+  needsExileScore       Boolean   @default(false)
+  needsTribalLock       Boolean   @default(false)
+  needsPhaseAdvance     Boolean   @default(false)
+  needsWeeklyRecap      Boolean   @default(false)
+  needsPowerRankings    Boolean   @default(false)
+  lastAutomationRun     DateTime?
+  lastError               String? @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([phase])
+  @@map("survivor_game_states")
+}
+
+model SurvivorPhaseTransition {
+  id                String   @id @default(cuid())
+  leagueId          String   @db.VarChar(64)
+  league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  fromPhase         String
+  toPhase           String
+  week              Int
+  triggeredBy       String
+  triggeredByUserId String?
+  notes             String?  @db.Text
+  executedAt        DateTime @default(now())
+
+  @@index([leagueId])
+  @@map("survivor_phase_transitions")
+}
+
+model SurvivorNotification {
+  id                String    @id @default(cuid())
+  leagueId          String    @db.VarChar(64)
+  league            League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  recipientUserId   String?
+  recipientRole     String?
+  type              String
+  title             String
+  body              String    @db.Text
+  deepLinkPath      String?
+  isSpoilerSafe     Boolean   @default(true)
+  urgency           String    @default("medium")
+  status            String    @default("pending")
+  scheduledFor      DateTime?
+  sentAt            DateTime?
+  errorMessage      String?   @db.Text
+  createdAt         DateTime  @default(now())
+
+  @@index([leagueId, status])
+  @@index([recipientUserId, status])
+  @@map("survivor_notifications")
+}
+
+model SurvivorChatMessage {
+  id              String   @id @default(cuid())
+  leagueId        String   @db.VarChar(64)
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  channelId       String
+  channel         SurvivorChatChannel @relation("SurvivorChatChannelMessages", fields: [channelId], references: [id], onDelete: Cascade)
+  channelType     String
+  senderUserId    String
+  senderName      String
+  senderIsHost    Boolean  @default(false)
+  isSystemMessage Boolean  @default(false)
+  content         String   @db.Text
+  contentType     String   @default("text")
+  cardData        Json?
+  isPinned        Boolean  @default(false)
+  pinnedAt        DateTime?
+  pinnedBy        String?
+  isDeleted       Boolean  @default(false)
+  deletedAt       DateTime?
+  deletedBy       String?
+  editedAt        DateTime?
+  reactions       SurvivorChatReaction[]
+  createdAt       DateTime @default(now())
+
+  @@index([channelId, createdAt])
+  @@index([leagueId, channelType])
+  @@map("survivor_chat_messages")
+}
+
+model SurvivorChatReaction {
+  id        String              @id @default(cuid())
+  messageId String
+  message   SurvivorChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  emoji     String
+  createdAt DateTime            @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@map("survivor_chat_reactions")
+}
+
+model SurvivorCommissionerAction {
+  id             String   @id @default(cuid())
+  leagueId       String   @db.VarChar(64)
+  league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  commissionerId String
+  week           Int?
+  actionType     String
+  targetUserId   String?
+  targetTribeId  String?
+  description    String   @db.Text
+  previousState  Json?
+  newState       Json?
+  wasConfirmed   Boolean  @default(true)
+  executedAt     DateTime @default(now())
+
+  @@index([leagueId])
+  @@index([commissionerId])
+  @@map("survivor_commissioner_actions")
+}
+
+model SurvivorSeasonSnapshot {
+  id                   String   @id @default(cuid())
+  leagueId             String     @unique @db.VarChar(64)
+  league               League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season               Int
+  solesurvivor         Json
+  finalStandings       Json
+  totalWeeks           Int
+  totalTribes          Int
+  totalTribalCouncils  Int
+  totalIdolsPlayed     Int
+  totalTokensEarned    Int
+  totalChallenges      Int
+  hadTie               Boolean
+  hadRocks             Boolean
+  firstElimination     Json
+  mergeWeek            Int
+  exileReturnees       Json
+  juryStartWeek        Int
+  winnerVoteCount      Int
+  winnerId             String
+  episodeSummaries     Json
+  aiSeasonRecap        String?  @db.Text
+  aiChampionArc        String?  @db.Text
+  createdAt            DateTime @default(now())
+
+  @@index([leagueId])
+  @@map("survivor_season_snapshots")
+}
+
+model SurvivorWeeklyScore {
+  id                      String   @id @default(cuid())
+  leagueId                String   @db.VarChar(64)
+  league                  League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId                  String
+  week                    Int
+  fantasyScore            Float    @default(0)
+  pointBoostApplied       Float    @default(0)
+  pointPenaltyApplied     Float    @default(0)
+  finalScore              Float    @default(0)
+  tribeId                 String?
+  countedTowardTribeTotal Boolean  @default(true)
+  wonTribeImmunity        Boolean  @default(false)
+  wonIndividualImmunity   Boolean  @default(false)
+  isFinalized             Boolean  @default(false)
+  finalizedAt             DateTime?
+  correctionApplied       Boolean  @default(false)
+
+  @@unique([leagueId, userId, week])
+  @@index([leagueId, week])
+  @@map("survivor_weekly_scores")
+}
+
 // ========== Big Brother League Engine (PROMPT 2/6) ==========
 
 /// Big Brother league config: HOH, nomination, veto, vote, eviction, jury, finale settings.
@@ -6278,30 +6491,64 @@ model BigBrotherAuditLog {
 
 /// Zombie universe: groups multiple leagues into levels (e.g. Gamma, Beta, Alpha).
 model ZombieUniverse {
-  id        String   @id @default(uuid())
-  name      String   @db.VarChar(128)
-  sport     String   @default("NFL") @db.VarChar(12)
-  settings  Json? // leagueCount, levelNames, teamsPerLeague, movementRules, tieBreakers
+  id       String @id @default(uuid())
+  name     String @db.VarChar(128)
+  sport    String @default("NFL") @db.VarChar(12)
+  settings Json? // leagueCount, levelNames, teamsPerLeague, movementRules, tieBreakers
+
+  status                  String  @default("setup") // setup | active | offseason | complete
+  tiersEnabled            Boolean @default(true)
+  tierCount               Int     @default(3)
+  namingMode              String  @default("hybrid") // auto | manual | hybrid
+  isPaid                  Boolean @default(false)
+  defaultBuyIn            Float?
+  newMembersStartAtBottom Boolean @default(true)
+  promotionEnabled        Boolean @default(true)
+  relegationEnabled       Boolean @default(true)
+  promotionCount          Int     @default(2)
+  relegationCount         Int     @default(2)
+  promotionMode           String  @default("auto") // auto | manual_approval
+
+  commissionedByUserId String?
+  commissionedBy       AppUser? @relation("ZombieUniverseCommissioner", fields: [commissionedByUserId], references: [id], onDelete: SetNull)
+  createdByUserId      String?
+  createdBy            AppUser? @relation("ZombieUniverseCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  levels  ZombieUniverseLevel[]
-  leagues ZombieLeague[]
-  audit   ZombieAuditLog[]
+  levels       ZombieUniverseLevel[]
+  leagues      ZombieLeague[]
+  audit        ZombieAuditLog[]
+  universeStat ZombieUniverseStat[]
+  movements    ZombieMovementRecord[]
 
+  @@index([status])
+  @@index([commissionedByUserId])
   @@map("zombie_universes")
 }
 
 /// Level within a Zombie universe (e.g. Gamma, Beta, Alpha).
 model ZombieUniverseLevel {
-  id          String         @id @default(uuid())
-  universeId  String
-  universe    ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
-  name        String         @db.VarChar(64)
-  rankOrder   Int            @default(1) // 1 = bottom (Gamma), higher = top (Alpha)
-  leagueCount Int            @default(1)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id         String         @id @default(uuid())
+  universeId String
+  universe   ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  name       String         @db.VarChar(64)
+  rankOrder  Int            @default(1) // 1 = bottom (Gamma), higher = top (Alpha)
+  tierLabel  String?        @db.VarChar(64)
+  tierLevel  Int?
+  tierTheme  String?
+  colorHex   String?
+  logoUrl    String?
+
+  defaultBuyIn       Float?
+  ambushCountDefault Int     @default(3)
+  difficultyLabel    String?
+  maxLeagues         Int     @default(4)
+  teamsPerLeague     Int     @default(20)
+  leagueCount        Int     @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   leagues ZombieLeague[]
 
@@ -6310,30 +6557,329 @@ model ZombieUniverseLevel {
   @@map("zombie_universe_levels")
 }
 
-/// Links a League to a Zombie universe and level. One league belongs to at most one universe.
+/// Links a fantasy `League` to optional universe/tier and horde metadata.
 model ZombieLeague {
-  id           String              @id @default(uuid())
-  universeId   String
-  universe     ZombieUniverse      @relation(fields: [universeId], references: [id], onDelete: Cascade)
-  levelId      String
-  level        ZombieUniverseLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
-  leagueId     String              @unique @db.VarChar(64)
-  league       League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  name         String?             @db.VarChar(128)
-  orderInLevel Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  id         String              @id @default(uuid())
+  universeId String?
+  universe   ZombieUniverse?      @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  levelId    String?
+  level      ZombieUniverseLevel? @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  leagueId   String              @unique @db.VarChar(64)
+  league     League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
-  teams      ZombieLeagueTeam[]
-  infections ZombieInfectionLog[]
-  resources  ZombieResourceLedger[]
-  winnings   ZombieWeeklyWinnings[]
-  ambushes   ZombieAmbushEvent[]
-  audit      ZombieAuditLog[]
+  name   String? @db.VarChar(128)
+  slug   String  @default("") @db.VarChar(160)
+  logoUrl   String?
+  bannerUrl String?
+  colorHex  String?
+  themeLabel String?
+
+  sport          String  @default("NFL") @db.VarChar(12)
+  season         Int     @default(2026)
+  isSingleLeague Boolean @default(false)
+  isPaid         Boolean @default(false)
+  status         String  @default("setup")
+
+  teamCount        Int @default(20)
+  currentTeamCount Int @default(0)
+
+  whispererSelectionMode String  @default("random")
+  whispererAmbushCount   Int     @default(3)
+  whispererIsPublic      Boolean @default(true)
+
+  draftScheduledAt DateTime?
+  seasonStartWeek  Int?
+  currentWeek      Int @default(0)
+  totalWeeks       Int @default(17)
+
+  buyInAmount         Float?
+  commissionerFee     Float?  @default(0)
+  potTotal            Float   @default(0)
+  weeklyPayoutEnabled Boolean @default(false)
+  ultimateSurvivorPot Boolean @default(false)
+
+  commissionerId String?
+  namingMode     String  @default("hybrid")
+
+  orderInLevel Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teams                 ZombieLeagueTeam[]
+  infections            ZombieInfectionLog[]
+  resources             ZombieResourceLedger[]
+  winnings              ZombieWeeklyWinnings[]
+  ambushes              ZombieAmbushEvent[]
+  audit                 ZombieAuditLog[]
+  whispererRecord       WhispererRecord?
+  weeklyResolutions     ZombieWeeklyResolution[]
+  infectionEventsDetail ZombieInfectionEvent[]
+  announcements         ZombieAnnouncement[]
+  paidConfig            ZombiePaidConfig?
 
   @@index([universeId])
   @@index([levelId])
+  @@index([status])
   @@map("zombie_leagues")
+}
+
+model WhispererRecord {
+  id             String       @id @default(cuid())
+  zombieLeagueId String       @unique
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+
+  userId      String
+  displayName String
+
+  selectionMode      String
+  selectedAt         DateTime  @default(now())
+  isPubliclyRevealed Boolean   @default(true)
+  revealedAt         DateTime?
+
+  ambushesGranted   Int @default(3)
+  ambushesUsed      Int @default(0)
+  ambushesRemaining Int @default(3)
+
+  activePowers Json?
+
+  wasDefeated      Boolean @default(false)
+  defeatedAtWeek   Int?
+  defeatedByUserId String?
+  postDefeatRule   String?
+
+  hordeSizeAtPeak     Int   @default(0)
+  totalInfections     Int   @default(0)
+  totalWinningsStolen Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([zombieLeagueId])
+  @@index([userId])
+  @@map("zombie_whisperer_records")
+}
+
+model ZombieInfectionEvent {
+  id             String       @id @default(cuid())
+  zombieLeagueId String
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  week           Int
+
+  infectorUserId    String
+  infectorStatus    String
+  infectorName      String
+  victimUserId      String
+  victimName        String
+  victimPriorStatus String
+
+  victimNewStatus     String
+  winningsTransferred Float    @default(0)
+  itemsTransferred    Json?
+
+  infectorScore   Float
+  victimScore     Float
+  scoreDifference Float
+
+  isStatCorrected Boolean   @default(false)
+  correctedAt     DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([zombieLeagueId, week])
+  @@index([victimUserId])
+  @@index([infectorUserId])
+  @@map("zombie_infection_events")
+}
+
+model ZombieWeeklyResolution {
+  id             String       @id @default(cuid())
+  zombieLeagueId String
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  week           Int
+
+  status String @default("pending")
+
+  matchupResults Json
+
+  newZombies    String[]
+  infectionCount Int      @default(0)
+  hordeSize      Int      @default(0)
+  survivorCount  Int      @default(0)
+
+  weeklyWinningsPool   Float @default(0)
+  winningsDistribution Json?
+
+  ambushEvents Json?
+  itemEvents   Json?
+  serumAwards  Json?
+  weaponAwards Json?
+
+  resolvedAt             DateTime?
+  requiresStatCorrection Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([zombieLeagueId, week])
+  @@index([zombieLeagueId])
+  @@map("zombie_weekly_resolutions")
+}
+
+model ZombieItemTemplate {
+  id                String  @id @default(cuid())
+  itemType          String  @unique
+  category          String
+  label             String
+  description       String
+  useWindow         String
+  phaseValidity     String  @default("both")
+  targetType        String
+  isConsumable      Boolean @default(true)
+  rarity            String  @default("common")
+  survivorCanHold   Boolean @default(true)
+  zombieCanHold     Boolean @default(true)
+  whispererCanHold  Boolean @default(true)
+  abusePreventionRules String?
+  auditRequirements    String?
+  createdAt         DateTime @default(now())
+
+  @@map("zombie_item_templates")
+}
+
+model ZombieUniverseStat {
+  id          String         @id @default(cuid())
+  universeId  String
+  universe    ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  userId      String
+  displayName String
+
+  leagueId   String
+  leagueName String
+  tierLabel  String?
+
+  currentStatus String  @default("survivor")
+  isWhisperer   Boolean @default(false)
+
+  careerWins             Int   @default(0)
+  careerLosses           Int   @default(0)
+  careerPointsFor        Float @default(0)
+  careerInfections       Int   @default(0)
+  careerTimesInfected    Int   @default(0)
+  careerWinnings         Float @default(0)
+  careerSurvivorWeeks    Int   @default(0)
+  careerZombieWeeks      Int   @default(0)
+  careerWhispererSeasons Int   @default(0)
+
+  currentSeasonPPW    Float @default(0)
+  currentSeasonWinPct Float @default(0)
+  weekKilled          Int?
+  killedByUserId      String?
+
+  universeRank Int?
+  tierRank     Int?
+
+  projectedNextTier String?
+  projectedMovement String?
+
+  season          Int
+  lastUpdatedWeek Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([universeId, userId, season])
+  @@index([universeId, tierLabel])
+  @@index([userId])
+  @@map("zombie_universe_stats")
+}
+
+model ZombieMovementRecord {
+  id          String         @id @default(cuid())
+  universeId  String
+  universe    ZombieUniverse @relation(fields: [universeId], references: [id], onDelete: Cascade)
+  userId      String
+  displayName String
+  season      Int
+
+  fromTierLabel String
+  toTierLabel   String
+  movementType  String
+  reason        String
+
+  finalRecord   String?
+  finalPPW      Float?
+  finalTierRank Int?
+
+  approvedBy String?
+  executedAt DateTime @default(now())
+
+  @@index([universeId, season])
+  @@index([userId])
+  @@map("zombie_movement_records")
+}
+
+model ZombieAnnouncement {
+  id             String       @id @default(cuid())
+  zombieLeagueId String
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  universeId     String?
+  week           Int?
+
+  type    String
+  title   String
+  content String @db.Text
+
+  isPublic     Boolean @default(true)
+  targetUserId String?
+
+  isPosted Boolean   @default(false)
+  postedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([zombieLeagueId, type])
+  @@map("zombie_announcements")
+}
+
+model ZombieNameRecord {
+  id            String   @id @default(cuid())
+  universeId    String?
+  leagueId      String?
+  entityType    String
+  entityId      String
+  generatedName String
+  finalName     String
+  wasEdited     Boolean  @default(false)
+  namingMode    String
+  createdAt     DateTime @default(now())
+
+  @@index([universeId])
+  @@map("zombie_name_records")
+}
+
+model ZombiePaidConfig {
+  id             String       @id @default(cuid())
+  zombieLeagueId String       @unique
+  league         ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+
+  buyInAmount         Float
+  commissionerFeeRate Float  @default(0)
+  commissionerFeeCap  Float?
+
+  totalPot         Float @default(0)
+  weeklyPayoutPool Float @default(0)
+  weeklyPayoutRate Float @default(0.3)
+  seasonPayoutRate Float @default(0.6)
+  survivorBonusRate Float @default(0.1)
+
+  ultimateSurvivorPot     Float   @default(0)
+  ultimateSurvivorEnabled Boolean @default(false)
+
+  paidUserIds    String[]
+  totalCollected Float    @default(0)
+  totalPaidOut   Float    @default(0)
+  potIsLocked    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("zombie_paid_configs")
 }
 
 /// Zombie league config (1:1 with League when leagueVariant is zombie). Can exist without universe.
@@ -6815,12 +7361,57 @@ model ZombieLeagueTeam {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
+  displayName     String?
+  avatarUrl       String?
+  fantasyTeamName String?
+  statusHistory   Json?
+  killedByUserId  String?
+  killedAtWeek    Int?
+  infectionCount  Int     @default(0)
+  isWhisperer     Boolean @default(false)
+  ambushesRemaining Int   @default(0)
+  ambushesUsed      Int   @default(0)
+  wins              Int     @default(0)
+  losses            Int     @default(0)
+  pointsFor         Float   @default(0)
+  pointsAgainst     Float   @default(0)
+  weeklyWinnings    Float   @default(0)
+  totalWinnings     Float   @default(0)
+  isVeteran         Boolean @default(false)
+  yearsInLeague     Int     @default(1)
+  universeTierId    String?
+  redraftRosterId   String?
+
+  items ZombieTeamItem[]
+
   @@unique([leagueId, rosterId])
   @@index([leagueId])
   @@index([zombieLeagueId])
   @@index([rosterId])
   @@index([status])
   @@map("zombie_league_teams")
+}
+
+model ZombieTeamItem {
+  id           String           @id @default(cuid())
+  teamStatusId String
+  team         ZombieLeagueTeam @relation(fields: [teamStatusId], references: [id], onDelete: Cascade)
+  zombieLeagueId String
+  userId         String
+
+  itemType   String
+  itemLabel  String
+  isUsed     Boolean  @default(false)
+  isExpired  Boolean  @default(false)
+  acquiredAt DateTime @default(now())
+  acquiredReason String?
+  usedAtWeek     Int?
+  usedOnUserId   String?
+  usedEffect     String?
+
+  @@index([teamStatusId])
+  @@index([zombieLeagueId, userId])
+  @@map("zombie_team_items")
 }
 
 /// Infection event: Survivor -> Zombie (loss to Whisperer or Zombie).

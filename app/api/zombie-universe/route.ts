@@ -34,8 +34,9 @@ export async function GET() {
 
   const byUniverse = new Map<string, { id: string; name: string; sport: string }>()
   for (const zl of zombieLeagues) {
-    if (zl.universe && !byUniverse.has(zl.universeId)) {
-      byUniverse.set(zl.universeId, {
+    const uid = zl.universeId
+    if (uid && zl.universe && !byUniverse.has(uid)) {
+      byUniverse.set(uid, {
         id: zl.universe.id,
         name: zl.universe.name,
         sport: zl.universe.sport,
