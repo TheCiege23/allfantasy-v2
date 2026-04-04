@@ -1,4 +1,33 @@
 -- Expand ZombieRulesTemplate + rules docs + audit + free rewards + announcement queue
+-- Base table: Prisma model existed before any migration created the physical table; create if missing.
+
+CREATE TABLE IF NOT EXISTS "zombie_rules_templates" (
+    "id" TEXT NOT NULL,
+    "sport" VARCHAR(12) NOT NULL,
+    "rosterSize" INTEGER NOT NULL DEFAULT 15,
+    "starterCount" INTEGER NOT NULL DEFAULT 9,
+    "benchCount" INTEGER NOT NULL DEFAULT 6,
+    "irSlotsDefault" INTEGER NOT NULL DEFAULT 0,
+    "lineupFrequency" TEXT NOT NULL DEFAULT 'weekly',
+    "scoringPeriod" TEXT NOT NULL DEFAULT 'weekly',
+    "scoringWindowDesc" TEXT NOT NULL DEFAULT '',
+    "bashingThreshold" DOUBLE PRECISION NOT NULL DEFAULT 30,
+    "maulingThreshold" DOUBLE PRECISION NOT NULL DEFAULT 50,
+    "weaponShieldThreshold" DOUBLE PRECISION NOT NULL DEFAULT 100,
+    "weaponAmbushThreshold" DOUBLE PRECISION NOT NULL DEFAULT 120,
+    "serumAwardCondition" TEXT NOT NULL DEFAULT '',
+    "serumAwardDesc" TEXT NOT NULL DEFAULT '',
+    "edgeCaseNotes" TEXT NOT NULL DEFAULT '',
+    "positionList" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "lineupLockDesc" TEXT,
+    "reviveThreshold" INTEGER NOT NULL DEFAULT 3,
+    "serumMaxHold" INTEGER NOT NULL DEFAULT 5,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "zombie_rules_templates_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_rules_templates_sport_key" ON "zombie_rules_templates"("sport");
 
 ALTER TABLE "zombie_rules_templates" ADD COLUMN IF NOT EXISTS "rosterSize" INTEGER NOT NULL DEFAULT 15;
 ALTER TABLE "zombie_rules_templates" ADD COLUMN IF NOT EXISTS "starterCount" INTEGER NOT NULL DEFAULT 9;

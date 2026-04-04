@@ -1,4 +1,5 @@
 -- Survivor backend: game state machine, notifications, chat messages, commissioner log, snapshots, weekly score bridge
+-- Idempotent FK/constraints: safe to re-run after a failed/partial apply (P3009/P3018 recovery).
 
 CREATE TABLE IF NOT EXISTS "survivor_game_states" (
     "id" TEXT NOT NULL,
@@ -39,14 +40,16 @@ CREATE TABLE IF NOT EXISTS "survivor_game_states" (
     "lastAutomationRun" TIMESTAMP(3),
     "lastError" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "survivor_game_states_pkey" PRIMARY KEY ("id")
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "survivor_game_states_leagueId_key" ON "survivor_game_states"("leagueId");
 CREATE INDEX IF NOT EXISTS "survivor_game_states_phase_idx" ON "survivor_game_states"("phase");
 
-ALTER TABLE "survivor_game_states" ADD CONSTRAINT "survivor_game_states_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_game_states" ADD CONSTRAINT "survivor_game_states_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_phase_transitions" (
     "id" TEXT NOT NULL,
@@ -62,7 +65,9 @@ CREATE TABLE IF NOT EXISTS "survivor_phase_transitions" (
 );
 
 CREATE INDEX IF NOT EXISTS "survivor_phase_transitions_leagueId_idx" ON "survivor_phase_transitions"("leagueId");
-ALTER TABLE "survivor_phase_transitions" ADD CONSTRAINT "survivor_phase_transitions_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_phase_transitions" ADD CONSTRAINT "survivor_phase_transitions_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_notifications" (
     "id" TEXT NOT NULL,
@@ -85,7 +90,9 @@ CREATE TABLE IF NOT EXISTS "survivor_notifications" (
 
 CREATE INDEX IF NOT EXISTS "survivor_notifications_leagueId_status_idx" ON "survivor_notifications"("leagueId", "status");
 CREATE INDEX IF NOT EXISTS "survivor_notifications_recipientUserId_status_idx" ON "survivor_notifications"("recipientUserId", "status");
-ALTER TABLE "survivor_notifications" ADD CONSTRAINT "survivor_notifications_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_notifications" ADD CONSTRAINT "survivor_notifications_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_chat_messages" (
     "id" TEXT NOT NULL,
@@ -112,8 +119,12 @@ CREATE TABLE IF NOT EXISTS "survivor_chat_messages" (
 
 CREATE INDEX IF NOT EXISTS "survivor_chat_messages_channelId_createdAt_idx" ON "survivor_chat_messages"("channelId", "createdAt");
 CREATE INDEX IF NOT EXISTS "survivor_chat_messages_leagueId_channelType_idx" ON "survivor_chat_messages"("leagueId", "channelType");
-ALTER TABLE "survivor_chat_messages" ADD CONSTRAINT "survivor_chat_messages_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "survivor_chat_messages" ADD CONSTRAINT "survivor_chat_messages_channelId_fkey" FOREIGN KEY ("channelId") REFERENCES "survivor_chat_channels"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_chat_messages" ADD CONSTRAINT "survivor_chat_messages_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "survivor_chat_messages" ADD CONSTRAINT "survivor_chat_messages_channelId_fkey" FOREIGN KEY ("channelId") REFERENCES "survivor_chat_channels"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_chat_reactions" (
     "id" TEXT NOT NULL,
@@ -125,7 +136,9 @@ CREATE TABLE IF NOT EXISTS "survivor_chat_reactions" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "survivor_chat_reactions_messageId_userId_emoji_key" ON "survivor_chat_reactions"("messageId", "userId", "emoji");
-ALTER TABLE "survivor_chat_reactions" ADD CONSTRAINT "survivor_chat_reactions_messageId_fkey" FOREIGN KEY ("messageId") REFERENCES "survivor_chat_messages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_chat_reactions" ADD CONSTRAINT "survivor_chat_reactions_messageId_fkey" FOREIGN KEY ("messageId") REFERENCES "survivor_chat_messages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_commissioner_actions" (
     "id" TEXT NOT NULL,
@@ -145,7 +158,9 @@ CREATE TABLE IF NOT EXISTS "survivor_commissioner_actions" (
 
 CREATE INDEX IF NOT EXISTS "survivor_commissioner_actions_leagueId_idx" ON "survivor_commissioner_actions"("leagueId");
 CREATE INDEX IF NOT EXISTS "survivor_commissioner_actions_commissionerId_idx" ON "survivor_commissioner_actions"("commissionerId");
-ALTER TABLE "survivor_commissioner_actions" ADD CONSTRAINT "survivor_commissioner_actions_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_commissioner_actions" ADD CONSTRAINT "survivor_commissioner_actions_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_season_snapshots" (
     "id" TEXT NOT NULL,
@@ -175,7 +190,9 @@ CREATE TABLE IF NOT EXISTS "survivor_season_snapshots" (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "survivor_season_snapshots_leagueId_key" ON "survivor_season_snapshots"("leagueId");
-ALTER TABLE "survivor_season_snapshots" ADD CONSTRAINT "survivor_season_snapshots_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_season_snapshots" ADD CONSTRAINT "survivor_season_snapshots_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE IF NOT EXISTS "survivor_weekly_scores" (
     "id" TEXT NOT NULL,
@@ -198,7 +215,9 @@ CREATE TABLE IF NOT EXISTS "survivor_weekly_scores" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS "survivor_weekly_scores_leagueId_userId_week_key" ON "survivor_weekly_scores"("leagueId", "userId", "week");
 CREATE INDEX IF NOT EXISTS "survivor_weekly_scores_leagueId_week_idx" ON "survivor_weekly_scores"("leagueId", "week");
-ALTER TABLE "survivor_weekly_scores" ADD CONSTRAINT "survivor_weekly_scores_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "survivor_weekly_scores" ADD CONSTRAINT "survivor_weekly_scores_leagueId_fkey" FOREIGN KEY ("leagueId") REFERENCES "leagues"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Repair AppUser <-> ZombieUniverse relation back-references (required by Prisma)
 ALTER TABLE "zombie_universes" ADD COLUMN IF NOT EXISTS "commissionedByUserId" TEXT;

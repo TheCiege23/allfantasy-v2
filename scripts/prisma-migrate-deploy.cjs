@@ -193,6 +193,10 @@ const command = hasLocalPrisma ? prismaBin : "npx";
 const recoverableFailedMigrations = new Set([
   "20260363000000_add_ai_memory_and_chat_history",
   "20260401000000_add_devy_c2c_rollout_foundation",
+  /** Survivor backend: transient DB timeouts / advisory locks / Neon — resolve rolled back and redeploy. */
+  "20260405000000_add_survivor_backend_engine",
+  /** Zombie rules engine: missing base table / partial apply — idempotent SQL + resolve rolled back. */
+  "20260405020000_add_zombie_rules_engine",
 ]);
 
 function buildArgs(prismaArgs) {
@@ -297,11 +301,19 @@ function outputMentionsFailedMigration(output, migrationName) {
 }
 
 function extractFailedMigrationName(output) {
-  const migrationNameMatch = output.match(/Migration name:\s*([^\s]+)/);
-  if (migrationNameMatch?.[1]) return migrationNameMatch[1];
+  const trim = (s) => (typeof s === "string" ? s.trim() : s);
 
-  const failedMigrationMatch = output.match(/The `([^`]+)` migration/);
-  if (failedMigrationMatch?.[1]) return failedMigrationMatch[1];
+  const migrationNameMatch = output.match(/Migration name:\s*(\S+)/);
+  if (migrationNameMatch?.[1]) return trim(migrationNameMatch[1]);
+
+  const backtickMigration = output.match(/The `([^`]+)` migration/);
+  if (backtickMigration?.[1]) return trim(backtickMigration[1]);
+
+  // P3009 (some CLI / locales): "The migration `name` started" or "migration name started"
+  const startedMatch = output.match(
+    /(?:The\s+)?`?([0-9]{14}_[a-z0-9_]+)`?\s+migration\s+started/i
+  );
+  if (startedMatch?.[1]) return trim(startedMatch[1]);
 
   for (const migrationName of recoverableFailedMigrations) {
     if (outputMentionsFailedMigration(output, migrationName)) {
@@ -394,18 +406,26 @@ END $$;
   );
 }
 
-const output = readCombinedOutput(result);
-const failedMigrationName = extractFailedMigrationName(output);
-const shouldRetryFailedMigration =
-  typeof result.status === "number" &&
-  result.status !== 0 &&
-  (output.includes("P3018") || output.includes("P3009")) &&
-  !!failedMigrationName &&
-  recoverableFailedMigrations.has(failedMigrationName);
+const maxRecoverableResolvePasses = 4;
+let resolvePass = 0;
 
-if (shouldRetryFailedMigration && failedMigrationName) {
+while (resolvePass < maxRecoverableResolvePasses) {
+  const output = readCombinedOutput(result);
+  const failedMigrationName = extractFailedMigrationName(output);
+  const shouldRetryFailedMigration =
+    typeof result.status === "number" &&
+    result.status !== 0 &&
+    (output.includes("P3018") || output.includes("P3009")) &&
+    !!failedMigrationName &&
+    recoverableFailedMigrations.has(failedMigrationName);
+
+  if (!shouldRetryFailedMigration || !failedMigrationName) {
+    break;
+  }
+
+  resolvePass += 1;
   console.warn(
-    `[db:migrate:deploy] Detected failed migration ${failedMigrationName}; marking it rolled back and retrying deploy once.`
+    `[db:migrate:deploy] Detected failed migration ${failedMigrationName}; marking it rolled back and retrying deploy (pass ${resolvePass}/${maxRecoverableResolvePasses}).`
   );
 
   const resolveResult = runPrisma([
@@ -416,20 +436,20 @@ if (shouldRetryFailedMigration && failedMigrationName) {
   ]);
   writeOutput(resolveResult);
 
-  if (resolveResult.status === 0) {
-    if (failedMigrationName === "20260401000000_add_devy_c2c_rollout_foundation") {
-      const bootstrapResult = ensureC2CLeagueConfigTable();
-      writeOutput(bootstrapResult);
-
-      if (bootstrapResult.status !== 0) {
-        process.exit(typeof bootstrapResult.status === "number" ? bootstrapResult.status : 1);
-      }
-    }
-
-    result = runMigrateDeployWithRetries();
-  } else {
+  if (resolveResult.status !== 0) {
     process.exit(typeof resolveResult.status === "number" ? resolveResult.status : 1);
   }
+
+  if (failedMigrationName === "20260401000000_add_devy_c2c_rollout_foundation") {
+    const bootstrapResult = ensureC2CLeagueConfigTable();
+    writeOutput(bootstrapResult);
+
+    if (bootstrapResult.status !== 0) {
+      process.exit(typeof bootstrapResult.status === "number" ? bootstrapResult.status : 1);
+    }
+  }
+
+  result = runMigrateDeployWithRetries();
 }
 
 if (typeof result.status === "number") {
