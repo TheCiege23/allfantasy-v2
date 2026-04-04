@@ -8,12 +8,13 @@ export function useAfSubGate(defaultFeatureKey: FeatureKey) {
   const ctx = useSubscriptionGateOptional()
 
   const handleApiResponse = useCallback(
-    async (response: Response): Promise<boolean> => {
+    async (response: Response, featureKeyOverride?: FeatureKey): Promise<boolean> => {
       if (response.status === 402) {
+        const key = featureKeyOverride ?? defaultFeatureKey
         if (ctx) {
-          ctx.gate(defaultFeatureKey)
+          ctx.gate(key)
         } else if (typeof window !== 'undefined') {
-          window.location.assign(getUpgradeUrl(defaultFeatureKey))
+          window.location.assign(getUpgradeUrl(key))
         }
         return false
       }

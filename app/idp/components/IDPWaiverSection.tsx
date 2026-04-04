@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Lock, Loader2, Sparkles } from 'lucide-react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
+import { Loader2, Sparkles } from 'lucide-react'
 import type { IDPWaiverTarget } from '@/lib/idp/ai/idpChimmy'
 
 /**
@@ -11,8 +12,8 @@ export function IDPWaiverSection({ leagueId, week }: { leagueId: string; week: n
   const [pos, setPos] = useState<'ALL' | 'DL' | 'LB' | 'DB'>('ALL')
   const [sort, setSort] = useState<'proj' | 'avg' | 'trend'>('proj')
   const [aiLoading, setAiLoading] = useState(false)
-  const [aiLocked, setAiLocked] = useState(false)
   const [aiTargets, setAiTargets] = useState<IDPWaiverTarget[] | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_idp_analysis')
 
   const trending = [
     { name: 'D. Defender', pos: 'LB', add: '+412%', pts: 14.2 },
@@ -28,7 +29,6 @@ export function IDPWaiverSection({ leagueId, week }: { leagueId: string; week: n
 
   const runAiTargets = async () => {
     setAiLoading(true)
-    setAiLocked(false)
     try {
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
@@ -36,8 +36,7 @@ export function IDPWaiverSection({ leagueId, week }: { leagueId: string; week: n
         credentials: 'include',
         body: JSON.stringify({ leagueId, week, action: 'waiver_targets', limit: 5 }),
       })
-      if (res.status === 402) {
-        setAiLocked(true)
+      if (!(await handleApiResponse(res))) {
         setAiTargets(null)
         return
       }
@@ -72,12 +71,6 @@ export function IDPWaiverSection({ leagueId, week }: { leagueId: string; week: n
         </div>
       </div>
 
-      {aiLocked ? (
-        <p className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100/95">
-          <Lock className="h-3.5 w-3.5 shrink-0" />
-          🔒 This feature requires the AF Commissioner Subscription.
-        </p>
-      ) : null}
 
       {aiTargets && aiTargets.length > 0 ? (
         <div className="rounded-lg border border-cyan-500/25 bg-cyan-950/15 p-3" data-testid="idp-waiver-ai-list">

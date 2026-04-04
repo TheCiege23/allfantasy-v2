@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 export type NflModalPayload = {
   kind: 'nfl'
@@ -46,6 +47,7 @@ export function DevyPlayerModal({
   const [evalBusy, setEvalBusy] = useState(false)
   const [evalErr, setEvalErr] = useState<string | null>(null)
   const [evalText, setEvalText] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_devy_scouting')
 
   if (!open || !payload) return null
 
@@ -138,10 +140,7 @@ export function DevyPlayerModal({
                           playerId: payload.kind === 'devy' ? payload.playerId : '',
                         }),
                       })
-                      if (res.status === 402) {
-                        setEvalErr('AF Commissioner Subscription required for AI evaluation.')
-                        return
-                      }
+                      if (!(await handleApiResponse(res))) return
                       if (!res.ok) {
                         const j = (await res.json().catch(() => ({}))) as { error?: string }
                         throw new Error(j.error || `HTTP ${res.status}`)

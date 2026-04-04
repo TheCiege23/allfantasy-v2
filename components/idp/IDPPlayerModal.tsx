@@ -5,7 +5,8 @@
  */
 
 import { useState } from 'react'
-import { Lock, Sparkles } from 'lucide-react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
+import { Sparkles } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -35,11 +36,10 @@ export function IDPPlayerModal({
 }: IDPPlayerModalProps) {
   const [loading, setLoading] = useState(false)
   const [analysis, setAnalysis] = useState<string | null>(null)
-  const [locked, setLocked] = useState(false)
+  const { handleApiResponse } = useAfSubGate('commissioner_idp_analysis')
 
   const runAnalysis = async () => {
     setLoading(true)
-    setLocked(false)
     try {
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
@@ -52,8 +52,7 @@ export function IDPPlayerModal({
           playerId,
         }),
       })
-      if (res.status === 402) {
-        setLocked(true)
+      if (!(await handleApiResponse(res))) {
         setAnalysis(null)
         return
       }
@@ -88,14 +87,9 @@ export function IDPPlayerModal({
             className="w-full gap-2 border border-cyan-500/30 bg-cyan-950/40 text-cyan-100 hover:bg-cyan-950/60"
             data-testid="idp-player-ai-analysis"
           >
-            {locked ? <Lock className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? 'Analyzing…' : locked ? 'AI Analysis — subscription required' : 'AI Analysis'}
+            <Sparkles className="h-4 w-4" />
+            {loading ? 'Analyzing…' : 'AI Analysis'}
           </Button>
-          {locked ? (
-            <p className="rounded-lg border border-amber-500/25 bg-amber-950/20 px-3 py-2 text-sm text-amber-100/90">
-              🔒 This feature requires the AF Commissioner Subscription.
-            </p>
-          ) : null}
           {analysis ? (
             <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
               {analysis}

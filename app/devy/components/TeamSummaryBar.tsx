@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 
 type Props = {
   leagueId?: string
@@ -28,6 +29,7 @@ export function TeamSummaryBar({
   const [pipeBusy, setPipeBusy] = useState(false)
   const [pipeText, setPipeText] = useState<string | null>(null)
   const [pipeErr, setPipeErr] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_devy_scouting')
 
   const pipeline = devyCount + taxiCount
   const ratio = maxDevySlots > 0 ? Math.min(1, pipeline / maxDevySlots) : 0
@@ -80,10 +82,7 @@ export function TeamSummaryBar({
                       rosterId,
                     }),
                   })
-                  if (res.status === 402) {
-                    setPipeErr('AfSub required.')
-                    return
-                  }
+                  if (!(await handleApiResponse(res))) return
                   if (!res.ok) {
                     const j = (await res.json().catch(() => ({}))) as { error?: string }
                     throw new Error(j.error || `HTTP ${res.status}`)

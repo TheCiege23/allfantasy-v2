@@ -35,7 +35,6 @@ export function IDPAIPanel({
   })
   const [busy, setBusy] = useState<string | null>(null)
   const [out, setOut] = useState<string | null>(null)
-  const [locked, setLocked] = useState(false)
   const { handleApiResponse, gate } = useAfSubGate('commissioner_idp_analysis')
 
   useEffect(() => {
@@ -76,17 +75,13 @@ export function IDPAIPanel({
           },
         }),
       })
-      if (!(await handleApiResponse(res))) {
-        setLocked(true)
-        return
-      }
+      if (!(await handleApiResponse(res))) return
     },
     [hasAfSub, isCommissioner, leagueId, handleApiResponse],
   )
 
   const run = async (action: string) => {
     setBusy(action)
-    setLocked(false)
     setOut(null)
     try {
       const res = await fetch('/api/idp/ai', {
@@ -95,10 +90,7 @@ export function IDPAIPanel({
         credentials: 'include',
         body: JSON.stringify({ leagueId, week, action }),
       })
-      if (!(await handleApiResponse(res))) {
-        setLocked(true)
-        return
-      }
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       setOut(JSON.stringify(data, null, 2))
     } finally {
@@ -234,11 +226,6 @@ export function IDPAIPanel({
             </button>
           ) : null}
         </div>
-        {locked ? (
-          <p className="flex items-center gap-1 text-[11px] text-amber-200/90">
-            <Lock className="h-3.5 w-3.5" /> 🔒 This feature requires the AF Commissioner Subscription.
-          </p>
-        ) : null}
         {out ? (
           <pre className="max-h-48 overflow-auto rounded-lg border border-white/[0.06] bg-black/40 p-2 text-[10px] text-white/75">
             {out}

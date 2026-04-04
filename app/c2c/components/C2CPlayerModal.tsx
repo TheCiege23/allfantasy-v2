@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import type { CampusPlayerEval } from '@/lib/c2c/ai/c2cChimmy'
 import type { C2CPlayerRow } from './c2cPlayerTypes'
 
@@ -26,6 +27,7 @@ export function C2CPlayerModal({
   const [aiLoading, setAiLoading] = useState(false)
   const [aiEval, setAiEval] = useState<CampusPlayerEval | null>(null)
   const [aiErr, setAiErr] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_c2c_scouting')
 
   if (!open || !player) return null
 
@@ -48,10 +50,7 @@ export function C2CPlayerModal({
           playerId: player.playerId,
         }),
       })
-      if (r.status === 402) {
-        setAiErr('AF Commissioner Subscription required for AI features.')
-        return
-      }
+      if (!(await handleApiResponse(r))) return
       const j = (await r.json().catch(() => ({}))) as { error?: string; eval?: CampusPlayerEval }
       if (!r.ok) {
         setAiErr(typeof j.error === 'string' ? j.error : 'Analysis failed')

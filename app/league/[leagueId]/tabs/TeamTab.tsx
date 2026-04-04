@@ -11,6 +11,9 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
 import { IDPTeamDashboard } from '@/app/idp/components/IDPTeamDashboard'
+import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
+import { AFCrestButton } from '@/components/weather/AFCrestButton'
+import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
 
 export type TeamTabProps = {
   league: UserLeague
@@ -193,6 +196,8 @@ function RosterRow({
   playersLoading,
   onPlayerClick,
   slotLabel,
+  week,
+  season,
 }: {
   playerId: string
   sport: string
@@ -200,6 +205,8 @@ function RosterRow({
   playersLoading: boolean
   onPlayerClick: (id: string) => void
   slotLabel?: string
+  week: number
+  season: number
 }) {
   const resolved = resolvePlayerName(playerId, players)
   const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
@@ -207,6 +214,9 @@ function RosterRow({
   const showTeam = resolved.team && resolved.team !== 'FA'
   const leftBadge = slotLabel ?? pos
   const badgeClass = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass(pos)
+  const baseline = placeholderBaselineProjection(playerId)
+  const crestSport = sport
+  const showCrest = isWeatherSensitiveSport(crestSport)
   return (
     <button
       type="button"
@@ -257,8 +267,22 @@ function RosterRow({
           )}
         </p>
       </div>
-      <div className="flex shrink-0 gap-3 text-right text-xs text-white/45">
-        <span className="w-10">—</span>
+      <div className="flex shrink-0 items-center gap-2 text-right text-xs text-white/45">
+        <span className="flex w-[4.5rem] items-center justify-end gap-0.5">
+          <span>{baseline.toFixed(1)}</span>
+          {showCrest ? (
+            <AFCrestButton
+              playerId={playerId}
+              playerName={label}
+              sport={crestSport}
+              position={pos}
+              baselineProjection={baseline}
+              week={week}
+              season={season}
+              size="sm"
+            />
+          ) : null}
+        </span>
         <span className="w-10">—</span>
       </div>
     </button>
@@ -299,6 +323,7 @@ export function TeamTab({
   const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
   const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
+  const seasonYear = new Date().getFullYear()
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
   const [payload, setPayload] = useState<DbRosterPayload | SleeperApiPayload | null>(null)
@@ -547,6 +572,8 @@ export function TeamTab({
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
                   slotLabel={sleeperStarterLabels[i]}
+                  week={week}
+                  season={seasonYear}
                 />
               ))}
             </div>
@@ -563,6 +590,8 @@ export function TeamTab({
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
+                  week={week}
+                  season={seasonYear}
                 />
               ))}
             </div>
@@ -580,6 +609,8 @@ export function TeamTab({
                     players={players}
                     playersLoading={playersLoading}
                     onPlayerClick={onPlayerClick}
+                    week={week}
+                    season={seasonYear}
                   />
                 ))}
               </div>
@@ -598,6 +629,8 @@ export function TeamTab({
                     players={players}
                     playersLoading={playersLoading}
                     onPlayerClick={onPlayerClick}
+                    week={week}
+                    season={seasonYear}
                   />
                 ))}
               </div>
@@ -644,6 +677,8 @@ export function TeamTab({
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
+                  week={week}
+                  season={seasonYear}
                 />
               ))}
             </div>
@@ -660,6 +695,8 @@ export function TeamTab({
                   players={players}
                   playersLoading={playersLoading}
                   onPlayerClick={onPlayerClick}
+                  week={week}
+                  season={seasonYear}
                 />
               ))}
             </div>
@@ -678,6 +715,8 @@ export function TeamTab({
                       players={players}
                       playersLoading={playersLoading}
                       onPlayerClick={onPlayerClick}
+                      week={week}
+                      season={seasonYear}
                     />
                   ))
                 ) : (
@@ -700,6 +739,8 @@ export function TeamTab({
                       players={players}
                       playersLoading={playersLoading}
                       onPlayerClick={onPlayerClick}
+                      week={week}
+                      season={seasonYear}
                     />
                   ))
                 ) : (

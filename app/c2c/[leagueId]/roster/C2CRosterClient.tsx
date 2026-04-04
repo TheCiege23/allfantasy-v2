@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import { DevyPlayerCard } from '@/app/devy/components/DevyPlayerCard'
 import { C2CScoreSummaryBar } from '@/app/c2c/components/C2CScoreSummaryBar'
 import { C2CCampusPlayerCard } from '@/app/c2c/components/C2CCampusPlayerCard'
@@ -55,6 +56,7 @@ export function C2CRosterClient({
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [balanceReport, setBalanceReport] = useState<RosterBalanceReport | null>(null)
   const [balanceErr, setBalanceErr] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_c2c_scouting')
 
   const loadBalance = useCallback(async () => {
     if (!hasAfSub) return
@@ -69,10 +71,7 @@ export function C2CRosterClient({
         credentials: 'include',
         body: JSON.stringify({ action: 'roster_balance', leagueId, managerId: userId }),
       })
-      if (r.status === 402) {
-        setBalanceErr('AF Commissioner Subscription required.')
-        return
-      }
+      if (!(await handleApiResponse(r))) return
       const j = (await r.json().catch(() => ({}))) as { error?: string; report?: RosterBalanceReport }
       if (!r.ok) {
         setBalanceErr(typeof j.error === 'string' ? j.error : 'Roster balance failed')
@@ -82,7 +81,7 @@ export function C2CRosterClient({
     } finally {
       setBalanceLoading(false)
     }
-  }, [hasAfSub, leagueId, userId])
+  }, [handleApiResponse, hasAfSub, leagueId, userId])
 
   const slots = useMemo(() => {
     if (!cfg) return { campus: NFL_CFB_DEFAULTS.campusStarterSlots, canton: NFL_CFB_DEFAULTS.cantonStarterSlots }

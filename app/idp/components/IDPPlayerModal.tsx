@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Lock, Loader2, Sparkles } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { PlayerImage } from '@/app/components/PlayerImage'
 import type { PlayerMap } from '@/lib/hooks/useSleeperPlayers'
 import {
@@ -66,7 +67,7 @@ export function IDPPlayerModal({
   const [aiLoading, setAiLoading] = useState(false)
   const [aiEval, setAiEval] = useState<DefenderEvaluation | null>(null)
   const [aiNarrative, setAiNarrative] = useState<string | null>(null)
-  const [aiLocked, setAiLocked] = useState(false)
+  const { handleApiResponse } = useAfSubGate('commissioner_idp_analysis')
 
   const mock = mockContractUi(playerId)
   const contract = contractProp
@@ -125,7 +126,6 @@ export function IDPPlayerModal({
   const runAiAnalysis = async () => {
     if (!userId) return
     setAiLoading(true)
-    setAiLocked(false)
     setAiEval(null)
     setAiNarrative(null)
     try {
@@ -141,10 +141,7 @@ export function IDPPlayerModal({
           playerId,
         }),
       })
-      if (res.status === 402) {
-        setAiLocked(true)
-        return
-      }
+      if (!(await handleApiResponse(res))) return
       const data = (await res.json().catch(() => ({}))) as {
         evaluation?: DefenderEvaluation
         error?: string
@@ -281,15 +278,9 @@ export function IDPPlayerModal({
             ) : null}
           </section>
 
-          {aiEval || aiNarrative || aiLocked ? (
+          {aiEval || aiNarrative ? (
             <section className="space-y-3 border-t border-white/[0.06] pt-3" data-testid="idp-player-ai-panel">
               <h4 className="text-[11px] font-bold uppercase tracking-wide text-cyan-200/90">AI evaluation</h4>
-              {aiLocked ? (
-                <p className="flex items-center gap-2 text-xs text-amber-100/95">
-                  <Lock className="h-4 w-4 shrink-0" />
-                  This feature requires the AF Commissioner Subscription.
-                </p>
-              ) : null}
               {aiEval ? (
                 <div className="space-y-3 rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-3">
                   <div className="flex items-center gap-4">

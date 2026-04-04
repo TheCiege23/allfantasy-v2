@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import { useSession } from 'next-auth/react'
 import type { CapAdvice } from '@/lib/idp/ai/idpCapChimmy'
 import { CapOverviewBar } from '@/app/idp/components/cap/CapOverviewBar'
@@ -31,6 +32,7 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
   const [hasSub, setHasSub] = useState(false)
   const [capAdvice, setCapAdvice] = useState<CapAdvice | null>(null)
   const [capAdviceLoading, setCapAdviceLoading] = useState(false)
+  const { handleApiResponse } = useAfSubGate('commissioner_cap_advice')
 
   useEffect(() => {
     if (!rosterId || !userId) return
@@ -101,26 +103,35 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
     }
     let cancelled = false
     setCapAdviceLoading(true)
-    fetch('/api/idp/ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ leagueId, rosterId, action: 'cap_advice' }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: CapAdvice | null) => {
+    ;(async () => {
+      try {
+        const r = await fetch('/api/idp/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ leagueId, rosterId, action: 'cap_advice' }),
+        })
+        if (cancelled) return
+        if (!(await handleApiResponse(r))) {
+          setCapAdvice(null)
+          return
+        }
+        if (!r.ok) {
+          setCapAdvice(null)
+          return
+        }
+        const d = (await r.json()) as CapAdvice | null
         if (!cancelled && d?.recommendations) setCapAdvice(d)
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setCapAdvice(null)
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setCapAdviceLoading(false)
-      })
+      }
+    })()
     return () => {
       cancelled = true
     }
-  }, [hasSub, rosterId, userId, leagueId])
+  }, [handleApiResponse, hasSub, rosterId, userId, leagueId])
 
   const projForYear =
     year != null ? projections.find((p) => p.projectionYear === year) : projections[0]

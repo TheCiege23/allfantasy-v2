@@ -5,7 +5,7 @@
  */
 
 import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 
@@ -19,12 +19,11 @@ type Action =
 export function IDPAIPanel({ leagueId, isCommissioner }: { leagueId: string; isCommissioner: boolean }) {
   const [week, setWeek] = useState(1)
   const [busy, setBusy] = useState<Action | null>(null)
-  const [locked, setLocked] = useState(false)
   const [text, setText] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_idp_analysis')
 
   const run = async (action: Action) => {
     setBusy(action)
-    setLocked(false)
     setText(null)
     try {
       const res = await fetch('/api/idp/ai', {
@@ -32,10 +31,7 @@ export function IDPAIPanel({ leagueId, isCommissioner }: { leagueId: string; isC
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leagueId, week, action }),
       })
-      if (res.status === 402) {
-        setLocked(true)
-        return
-      }
+      if (!(await handleApiResponse(res))) return
       const data = await res.json().catch(() => ({}))
       setText(JSON.stringify(data, null, 2))
     } finally {
@@ -119,11 +115,6 @@ export function IDPAIPanel({ leagueId, isCommissioner }: { leagueId: string; isC
           </Button>
         ) : null}
       </div>
-      {locked ? (
-        <p className="mt-3 flex items-center gap-1 text-xs text-amber-200/90">
-          <Lock className="h-3.5 w-3.5" /> 🔒 This feature requires the AF Commissioner Subscription.
-        </p>
-      ) : null}
       {text ? (
         <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-white/8 bg-black/30 p-2 text-[11px] text-white/80">
           {text}

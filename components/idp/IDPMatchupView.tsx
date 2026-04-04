@@ -5,7 +5,8 @@
  */
 
 import { useState } from 'react'
-import { Lock, Sparkles } from 'lucide-react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
+import { Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { IDPMatchupReport } from '@/lib/idp/ai/idpChimmy'
 
@@ -19,12 +20,11 @@ export function IDPMatchupView({
   opponentLabel?: string
 }) {
   const [loading, setLoading] = useState(false)
-  const [locked, setLocked] = useState(false)
   const [report, setReport] = useState<IDPMatchupReport | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_idp_analysis')
 
   const run = async () => {
     setLoading(true)
-    setLocked(false)
     try {
       const res = await fetch('/api/idp/ai', {
         method: 'POST',
@@ -32,10 +32,7 @@ export function IDPMatchupView({
         credentials: 'include',
         body: JSON.stringify({ leagueId, week, action: 'matchup_analysis' }),
       })
-      if (res.status === 402) {
-        setLocked(true)
-        return
-      }
+      if (!(await handleApiResponse(res))) return
       const data = (await res.json().catch(() => null)) as IDPMatchupReport | null
       if (data && typeof data.analysis === 'string') setReport(data)
     } finally {
@@ -59,13 +56,10 @@ export function IDPMatchupView({
           className="gap-1.5 border-amber-500/30 text-amber-100 hover:bg-amber-950/35"
           data-testid="idp-matchup-chimmy-analysis"
         >
-          {locked ? <Lock className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+          <Sparkles className="h-3.5 w-3.5" />
           {loading ? '…' : 'Chimmy Analysis'}
         </Button>
       </div>
-      {locked ? (
-        <p className="mt-3 text-xs text-amber-200/90">🔒 This feature requires the AF Commissioner Subscription.</p>
-      ) : null}
       {report ? (
         <div className="mt-3 space-y-2 text-sm text-white/85">
           <p className="whitespace-pre-wrap">{report.analysis}</p>

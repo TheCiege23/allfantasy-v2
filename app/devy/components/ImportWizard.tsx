@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
 import type { ImportAuditSummary } from '@/lib/devy/mergeExecutionEngine'
 import { formatImportAuditPlainText } from '@/app/devy/lib/formatImportAuditText'
 import type { SuggestedMatch } from '@/lib/devy/ai/devyChimmy'
@@ -187,6 +188,7 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
   const [suggestions, setSuggestions] = useState<SuggestedMatch[] | null>(null)
   const [summaryText, setSummaryText] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const { handleApiResponse } = useAfSubGate('commissioner_devy_scouting')
 
   async function downloadAudit() {
     const sid = sessionId.trim()
@@ -240,10 +242,7 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
         credentials: 'include',
         body: JSON.stringify({ action: 'suggest_matches', sessionId: sid }),
       })
-      if (r.status === 402) {
-        setErr('AF Commissioner Subscription required for AI match suggestions.')
-        return
-      }
+      if (!(await handleApiResponse(r))) return
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string }
         throw new Error(j.error || `HTTP ${r.status}`)
@@ -273,10 +272,7 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
         credentials: 'include',
         body: JSON.stringify({ action: 'import_summary', sessionId: sid }),
       })
-      if (r.status === 402) {
-        setErr('AF Commissioner Subscription required for import summary.')
-        return
-      }
+      if (!(await handleApiResponse(r))) return
       if (!r.ok) {
         const j = (await r.json().catch(() => ({}))) as { error?: string }
         throw new Error(j.error || `HTTP ${r.status}`)

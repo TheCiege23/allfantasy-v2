@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
-import { getUpgradeUrl, LEAGUE_SETTINGS_AI_PANEL_FEATURE } from '@/lib/monetization/entitlements'
+import { useAfSubGate } from '@/hooks/useAfSubGate'
+import { LEAGUE_SETTINGS_AI_PANEL_FEATURE } from '@/lib/monetization/entitlements'
 import { QRCodeSVG } from 'qrcode.react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import type { UserLeague } from '@/app/dashboard/types'
@@ -759,7 +759,7 @@ function parseNameList(raw: string): { name: string }[] {
 }
 
 function AiFeaturePanel({ panelId, ctx }: { panelId: string; ctx: SubPanelContext }) {
-  const subscriptionGate = useSubscriptionGateOptional()
+  const { handleApiResponse } = useAfSubGate('commissioner_ai_tools')
   const titles: Record<string, string> = {
     'ai-chimmy-setup': 'Chimmy league setup',
     'ai-power-rankings': 'AI power rankings',
@@ -845,15 +845,8 @@ function AiFeaturePanel({ panelId, ctx }: { panelId: string; ctx: SubPanelContex
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (res.status === 402) {
-        const fk = LEAGUE_SETTINGS_AI_PANEL_FEATURE[panelId] ?? 'commissioner_ai_tools'
-        if (subscriptionGate) {
-          subscriptionGate.gate(fk)
-        } else if (typeof window !== 'undefined') {
-          window.location.assign(getUpgradeUrl(fk))
-        }
-        return
-      }
+      const fk = LEAGUE_SETTINGS_AI_PANEL_FEATURE[panelId] ?? 'commissioner_ai_tools'
+      if (!(await handleApiResponse(res, fk))) return
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Request failed')
       setResult(data)
