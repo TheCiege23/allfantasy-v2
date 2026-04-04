@@ -1,3 +1,4 @@
+import type { TournamentRound } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { provisionTournamentLeagueWithManagers } from '@/lib/tournament/setupEngine'
 import { generateLeagueNamesForConference, recordName, slugify } from '@/lib/tournament/namingEngine'
@@ -50,10 +51,7 @@ function shuffleInPlace<T>(arr: T[]): void {
   }
 }
 
-function resolveNextPlayRound(
-  rounds: Array<{ roundNumber: number; roundType: string }>,
-  fromRound: { roundNumber: number },
-) {
+function resolveNextPlayRound(rounds: TournamentRound[], fromRound: { roundNumber: number }) {
   return rounds
     .filter((r) => r.roundNumber > fromRound.roundNumber && r.roundType !== 'bubble')
     .sort((a, b) => a.roundNumber - b.roundNumber)[0]

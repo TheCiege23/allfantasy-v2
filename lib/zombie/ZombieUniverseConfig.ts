@@ -42,14 +42,16 @@ export async function getUniverseLeagues(universeId: string): Promise<ZombieUniv
     include: { level: true },
     orderBy: [{ level: { rankOrder: 'asc' } }, { orderInLevel: 'asc' }],
   })
-  return rows.map((r) => ({
-    id: r.id,
-    universeId: r.universeId,
-    levelId: r.levelId,
-    leagueId: r.leagueId,
-    name: r.name,
-    orderInLevel: r.orderInLevel,
-  }))
+  return rows
+    .filter((r): r is typeof r & { universeId: string; levelId: string } => r.universeId != null && r.levelId != null)
+    .map((r) => ({
+      id: r.id,
+      universeId: r.universeId,
+      levelId: r.levelId,
+      leagueId: r.leagueId,
+      name: r.name,
+      orderInLevel: r.orderInLevel,
+    }))
 }
 
 export async function createZombieUniverse(input: {

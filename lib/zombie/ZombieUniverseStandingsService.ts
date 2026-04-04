@@ -33,6 +33,8 @@ export async function getUniverseStandings(
   const out: UniverseStandingsRow[] = []
 
   for (const zl of leagues) {
+    if (!zl.levelId || !zl.level) continue
+
     const teamRows = await prisma.zombieLeagueTeam.findMany({
       where: { leagueId: zl.leagueId },
       select: {

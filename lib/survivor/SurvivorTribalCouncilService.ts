@@ -13,6 +13,9 @@ import { enrollInExile } from './SurvivorExileEngine'
 import { shouldJoinJury, enrollJuryMember } from './SurvivorJuryEngine'
 import { isMergeTriggered, recordMerge } from './SurvivorMergeEngine'
 import type { SurvivorCouncilResult } from './types'
+import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTradesForElimination'
+import { notifyElimination } from '@/lib/survivor/notificationEngine'
+import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
 
 /**
  * Create a Tribal Council for the week. Pre-merge: pass attendingTribeId. Merge: no tribe.
@@ -105,6 +108,7 @@ export async function closeCouncil(
   }
 
   await removeRosterFromTribeChat(council.leagueId, eliminatedRosterId)
+  await voidPendingRedraftTradesForRoster(council.leagueId, eliminatedRosterId).catch(() => {})
   await prisma.survivorTribeMember.deleteMany({
     where: { rosterId: eliminatedRosterId },
   })
@@ -113,6 +117,29 @@ export async function closeCouncil(
     where: { id: eliminatedRosterId, leagueId: council.leagueId },
     select: { platformUserId: true },
   })
+  const leagueTeam =
+    eliminatedRoster?.platformUserId != null
+      ? await prisma.leagueTeam.findFirst({
+          where: { leagueId: council.leagueId, platformUserId: eliminatedRoster.platformUserId },
+          select: { teamName: true },
+        })
+      : null
+  const elimLabel = leagueTeam?.teamName?.trim() || 'Eliminated player'
+  await notifyElimination(council.leagueId, elimLabel, council.week).catch(() => {})
+  const rss = await prisma.redraftSeason.findFirst({
+    where: { leagueId: council.leagueId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true },
+  })
+  if (rss) {
+    publishSurvivorRedraftEvent(rss.id, {
+      type: 'survivor_elimination',
+      leagueId: council.leagueId,
+      week: council.week,
+      rosterId: eliminatedRosterId,
+      preview: 'The tribe has spoken',
+    })
+  }
   if (eliminatedRoster?.platformUserId) {
     await enrollInExile(council.leagueId, eliminatedRosterId, eliminatedRoster.platformUserId).catch((err) => {
       console.warn('[Survivor] Exile enrollment non-fatal:', err)

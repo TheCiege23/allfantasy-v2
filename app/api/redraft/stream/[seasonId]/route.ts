@@ -63,6 +63,37 @@ export async function GET(
           note: 'Wire live scores → survival snapshot.',
         })
       }, 12000)
+      const sentZombieAnim = new Set<string>()
+      const ivZombieAnim = setInterval(() => {
+        void (async () => {
+          try {
+            const rows = await prisma.zombieEventAnimation.findMany({
+              where: { leagueId: season.leagueId, isDelivered: false },
+              orderBy: { createdAt: 'asc' },
+              take: 20,
+            })
+            for (const a of rows) {
+              if (sentZombieAnim.has(a.id)) continue
+              sentZombieAnim.add(a.id)
+              send({
+                type: 'zombie_event_animation',
+                leagueId: a.leagueId,
+                week: a.week,
+                animationType: a.animationType,
+                primaryUserId: a.primaryUserId,
+                secondaryUserId: a.secondaryUserId,
+                metadata: a.metadata,
+                durationMs: a.durationMs,
+                reducedMotion: a.reducedMotion,
+                id: a.id,
+              })
+            }
+          } catch {
+            /* ignore */
+          }
+        })()
+      }, 5000)
+
       const ivSurvivor = setInterval(() => {
         send({
           type: 'phase_changed',
@@ -120,6 +151,7 @@ export async function GET(
         clearInterval(iv)
         clearInterval(ivKeeper)
         clearInterval(ivGuillotine)
+        clearInterval(ivZombieAnim)
         clearInterval(ivSurvivor)
         try {
           controller.close()

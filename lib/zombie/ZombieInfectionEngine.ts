@@ -43,6 +43,16 @@ export async function computeInfections(input: InfectionInput): Promise<ZombieIn
 
   const infected: ZombieInfectionOutcome['infected'] = []
 
+  const pendingSerum = await prisma.zombieTeamItem.findMany({
+    where: {
+      activationState: 'pending_activation',
+      activatesAtWeek: week,
+      team: { leagueId },
+    },
+    select: { team: { select: { rosterId: true } } },
+  })
+  const serumProtectedRosterIds = new Set(pendingSerum.map((i) => i.team.rosterId))
+
   for (const m of matchups) {
     const winnerTeamId = m.winnerTeamId
     if (!winnerTeamId) continue // tie
@@ -53,6 +63,8 @@ export async function computeInfections(input: InfectionInput): Promise<ZombieIn
 
     const loserStatus = statusByRoster.get(loserRosterId)
     if (loserStatus !== 'Survivor') continue
+
+    if (serumProtectedRosterIds.has(loserRosterId)) continue
 
     const winnerStatus = statusByRoster.get(winnerRosterId)
     const infectByWhisperer = config.infectionLossToWhisperer && winnerStatus === 'Whisperer'

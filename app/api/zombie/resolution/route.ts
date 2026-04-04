@@ -23,7 +23,7 @@ export async function POST(req: Request) {
   const z = await prisma.zombieLeague.findUnique({ where: { leagueId } })
   if (!z) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const res = await runWeeklyResolution(z.id, week)
+  const res = await runWeeklyResolution(z.id, week, { force: true })
   return NextResponse.json({ resolution: res })
 }
 

@@ -1,3 +1,8 @@
+/**
+ * Bubble phase: single-table snapshot + advancement hooks.
+ * `head_to_head` and `mini_bracket` bubble *modes* in the full spec still need real mini-schedules /
+ * sub-bracket pairing; this module stays intentionally simplified until schedule templates land.
+ */
 import { prisma } from '@/lib/prisma'
 import { executeAdvancement, handleEliminations } from '@/lib/tournament/advancementEngine'
 
