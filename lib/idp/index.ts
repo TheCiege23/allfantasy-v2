@@ -70,3 +70,9 @@ export {
   generateDeterministicWeeklyStatLine,
   type IdpWeeklyStatLine,
 } from './statIngestionEngine'
+export {
+  getRosteredPlayerIdsInLeague,
+  parseIdpRowsFromPlayerData,
+  matchesIdpPositionFilter,
+  type ParsedIdpRosterRow,
+} from './idpRouteHelpers'
