@@ -140,6 +140,8 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   const [activePanel, setActivePanel] = useState<string | null>(null)
   const [isMd, setIsMd] = useState(false)
   const [idpLeague, setIdpLeague] = useState(false)
+  /** Avoid treating `!idpLeague` as definitive until `/idp/config` has responded (prevents flashing off IDP tab). */
+  const [idpConfigLoaded, setIdpConfigLoaded] = useState(false)
   const [hasAfCommissionerSub, setHasAfCommissionerSub] = useState(false)
 
   useEffect(() => {
@@ -159,6 +161,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   useEffect(() => {
     if (!open) return
     let cancelled = false
+    setIdpConfigLoaded(false)
     fetch(`/api/leagues/${encodeURIComponent(league.id)}/idp/config`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { config?: unknown } | null) => {
@@ -166,6 +169,9 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
       })
       .catch(() => {
         if (!cancelled) setIdpLeague(false)
+      })
+      .finally(() => {
+        if (!cancelled) setIdpConfigLoaded(true)
       })
     return () => {
       cancelled = true
@@ -190,13 +196,13 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
 
   useEffect(() => {
     if (!open) return
-    if (mainTab === 'idp' && !idpLeague) {
+    if (mainTab === 'idp' && idpConfigLoaded && !idpLeague) {
       setMainTab('general')
     }
     if (mainTab === 'commish' && !isCommissioner) {
       setMainTab('general')
     }
-  }, [open, mainTab, idpLeague, isCommissioner])
+  }, [open, mainTab, idpLeague, idpConfigLoaded, isCommissioner])
 
   useEffect(() => {
     if (!open) return
