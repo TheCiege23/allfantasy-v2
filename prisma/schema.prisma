@@ -2647,6 +2647,7 @@ model AppUser {
   zombieUniversesCommissioned   ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
   zombieUniversesCreated        ZombieUniverse[]           @relation("ZombieUniverseCreator")
   bigBrotherChatCommandLogs     BigBrotherChatCommandLog[]
+  devyImportSessionsCommissioned DevyImportSession[] @relation("DevyImportSessionCommissioner")
 
   @@map("app_users")
 }
@@ -4168,6 +4169,8 @@ model League {
   zombieConfig                ZombieLeagueConfig?
   devyConfig                  DevyLeagueConfig?
   devyLeague                  DevyLeague?
+  devyImportSessions          DevyImportSession[]
+  devyImportedSeasons         DevyImportedSeason[]
   devyRights                  DevyRights[]
   devyLifecycleEvents         DevyLifecycleEvent[]
   devyCommissionerOverrides   DevyCommissionerOverride[]
@@ -7690,6 +7693,157 @@ model DevyDraftPick {
   @@index([leagueId, currentOwnerId])
   @@index([leagueId, pickType, season])
   @@map("devy_draft_picks")
+}
+
+/// Multi-source dynasty / devy import merge session (commissioner-driven).
+model DevyImportSession {
+  id             String   @id @default(cuid())
+  leagueId       String
+  league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  commissionerId String
+  commissioner   AppUser  @relation("DevyImportSessionCommissioner", fields: [commissionerId], references: [id], onDelete: Cascade)
+
+  status String @default("pending")
+
+  sources         DevyImportSource[]
+  playerMappings    DevyPlayerMapping[]
+  managerMappings   DevyManagerMapping[]
+  mergeConflicts    DevyMergeConflict[]
+  importedSeasons   DevyImportedSeason[]
+
+  summary Json?
+
+  approvedAt DateTime?
+  mergedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([leagueId])
+  @@index([commissionerId])
+  @@map("devy_import_sessions")
+}
+
+model DevyImportSource {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  sourceType     String
+  sourcePlatform String?
+  classification String?
+
+  connectionStatus String @default("pending")
+
+  rawData Json?
+
+  importedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("devy_import_sources")
+}
+
+model DevyPlayerMapping {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  externalId       String
+  externalName     String
+  externalPlatform String
+  externalPosition String?
+  externalTeam     String?
+  externalSchool   String?
+
+  internalPlayerId   String?
+  internalPlayerName String?
+
+  matchConfidence String @default("unmatched")
+  matchMethod     String?
+
+  isConfirmedByCommissioner Boolean @default(false)
+  requiresReview            Boolean @default(false)
+  playerType                String?
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, externalId, externalPlatform])
+  @@map("devy_player_mappings")
+}
+
+model DevyManagerMapping {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  externalUsername    String
+  externalDisplayName String
+  externalPlatform    String
+
+  internalUserId   String?
+  internalUsername String?
+
+  matchConfidence String @default("unmatched")
+
+  isConfirmedByCommissioner Boolean @default(false)
+  requiresReview            Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("devy_manager_mappings")
+}
+
+model DevyMergeConflict {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  conflictType    String
+  description     String
+  affectedEntities Json
+
+  resolution String @default("pending")
+
+  resolvedBy       String?
+  resolvedAt       DateTime?
+  resolutionNote   String?
+  commissionerNote String?
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([sessionId, resolution])
+  @@map("devy_merge_conflicts")
+}
+
+model DevyImportedSeason {
+  id       String @id @default(cuid())
+  leagueId String
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  sessionId String
+  session   DevyImportSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  season        Int
+  sourceLabel   String
+  sourcePlatform String?
+
+  standings       Json?
+  scoringRecords  Json?
+
+  titleWinner String?
+  notes       String?
+
+  importConfidence String @default("high")
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, season])
+  @@index([sessionId])
+  @@map("devy_imported_seasons")
 }
 
 /// PROMPT 3: Per-roster devy rights and lifecycle state. One row per (league, roster, devyPlayer) when a manager holds devy rights.
