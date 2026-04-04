@@ -132,7 +132,7 @@ export function LeagueSettingsPanel({
               </p>
               <SubscriptionGateBadge
                 featureId="commissioner_ai_tools"
-                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightParam: 'ai_tools' })}
               />
             </div>
           </PremiumGate>
@@ -373,7 +373,7 @@ export function LeagueSettingsPanel({
                 </p>
                 <SubscriptionGateBadge
                   featureId="commissioner_ai_tools"
-                  onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightFeature: 'ai_tools' })}
+                  onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightParam: 'ai_tools' })}
                 />
               </div>
             </PremiumGate>

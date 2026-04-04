@@ -13,7 +13,7 @@ export type EntitlementDef = {
   requiredPlan: SubscriptionPlanFamily[]
   upgradeUrl: string
   upgradeLabel: string
-  highlightFeature?: string
+  highlightParam?: string
 }
 
 export const ENTITLEMENTS = {
@@ -25,7 +25,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'ai_tools',
+    highlightParam: 'ai_tools',
   },
   commissioner_ai_narration: {
     key: 'commissioner_ai_narration',
@@ -35,7 +35,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'ai_narration',
+    highlightParam: 'ai_narration',
   },
   commissioner_ai_recap: {
     key: 'commissioner_ai_recap',
@@ -44,7 +44,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'ai_recap',
+    highlightParam: 'ai_recap',
   },
   commissioner_ai_copilot: {
     key: 'commissioner_ai_copilot',
@@ -53,7 +53,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'ai_copilot',
+    highlightParam: 'ai_copilot',
   },
   commissioner_ai_jury_briefing: {
     key: 'commissioner_ai_jury_briefing',
@@ -103,7 +103,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'weather',
+    highlightParam: 'weather',
   },
   commissioner_power_rankings: {
     key: 'commissioner_power_rankings',
@@ -112,7 +112,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'power_rankings',
+    highlightParam: 'power_rankings',
   },
   commissioner_fairness_audit: {
     key: 'commissioner_fairness_audit',
@@ -137,7 +137,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'idp_ai',
+    highlightParam: 'idp_ai',
   },
   commissioner_c2c_scouting: {
     key: 'commissioner_c2c_scouting',
@@ -146,7 +146,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightFeature: 'c2c_ai',
+    highlightParam: 'c2c_ai',
   },
   pro_draft_ai: {
     key: 'pro_draft_ai',
@@ -155,7 +155,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'draft_ai',
+    highlightParam: 'draft_ai',
   },
   pro_waiver_ai: {
     key: 'pro_waiver_ai',
@@ -164,7 +164,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'waiver_ai',
+    highlightParam: 'waiver_ai',
   },
   pro_trade_ai: {
     key: 'pro_trade_ai',
@@ -173,7 +173,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'trade_ai',
+    highlightParam: 'trade_ai',
   },
   pro_lineup_optimizer: {
     key: 'pro_lineup_optimizer',
@@ -183,7 +183,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'lineup_optimizer',
+    highlightParam: 'lineup_optimizer',
   },
   pro_start_sit: {
     key: 'pro_start_sit',
@@ -192,7 +192,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'start_sit',
+    highlightParam: 'start_sit',
   },
   pro_matchup_analysis: {
     key: 'pro_matchup_analysis',
@@ -201,7 +201,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'matchup',
+    highlightParam: 'matchup',
   },
   pro_player_comparison: {
     key: 'pro_player_comparison',
@@ -218,7 +218,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_pro', 'af_all_access'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
-    highlightFeature: 'af_projections',
+    highlightParam: 'af_projections',
   },
   pro_snap_analysis: {
     key: 'pro_snap_analysis',
@@ -235,7 +235,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_war_room', 'af_all_access'],
     upgradeUrl: '/war-room',
     upgradeLabel: 'Get AF War Room',
-    highlightFeature: 'dynasty_projections',
+    highlightParam: 'dynasty_projections',
   },
   war_room_devy_rankings: {
     key: 'war_room_devy_rankings',
@@ -252,7 +252,7 @@ export const ENTITLEMENTS = {
     requiredPlan: ['af_war_room', 'af_all_access'],
     upgradeUrl: '/war-room',
     upgradeLabel: 'Get AF War Room',
-    highlightFeature: 'draft_strategy',
+    highlightParam: 'draft_strategy',
   },
   war_room_pipeline_analysis: {
     key: 'war_room_pipeline_analysis',

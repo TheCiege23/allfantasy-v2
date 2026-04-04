@@ -53,14 +53,14 @@ export function getGateDef(featureId: SubscriptionFeatureId): GateDef {
 
   const cat = ENTITLEMENTS[featureId as keyof typeof ENTITLEMENTS]
   if (cat) {
-    // ENTITLEMENTS is `as const`; cast so optional highlightFeature is read from EntitlementDef, not a per-key union.
+    // ENTITLEMENTS is `as const`; cast to EntitlementDef so optional highlightParam is not a per-key union.
     const ent = cat as EntitlementDef
     const rawNames = ent.requiredPlan
       .filter((p) => p !== "af_all_access")
       .map((p) => PLAN_DISPLAY[p] ?? p)
     const requiredPlanDisplay =
       rawNames.length > 0 ? rawNames : [PLAN_DISPLAY.af_all_access]
-    const highlightFromCatalog = ent["highlightFeature"]
+    const highlightFromCatalog = ent.highlightParam
     return {
       featureId,
       label: override?.label ?? ent.label,

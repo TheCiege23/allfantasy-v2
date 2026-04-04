@@ -103,7 +103,7 @@ export function SurvivorAIHostPanel({
                 disabled={d}
                 onChange={(v) => {
                   if (!sub) {
-                    subscriptionGate?.gate('commissioner_ai_recap', { highlightFeature: 'ai_recap' })
+                    subscriptionGate?.gate('commissioner_ai_recap', { highlightParam: 'ai_recap' })
                     return
                   }
                   setRecaps(v)
@@ -114,7 +114,7 @@ export function SurvivorAIHostPanel({
                 <SubscriptionGateBadge
                   featureId="commissioner_ai_recap"
                   onClick={() =>
-                    subscriptionGate?.gate('commissioner_ai_recap', { highlightFeature: 'ai_recap' })
+                    subscriptionGate?.gate('commissioner_ai_recap', { highlightParam: 'ai_recap' })
                   }
                 />
               ) : null}
@@ -142,7 +142,7 @@ export function SurvivorAIHostPanel({
                 checked={betrayal}
                 onChange={(v) => {
                   if (!sub) {
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                     return
                   }
                   setBetrayal(v)
@@ -153,7 +153,7 @@ export function SurvivorAIHostPanel({
                 <SubscriptionGateBadge
                   featureId="commissioner_ai_narration"
                   onClick={() =>
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                   }
                 />
               ) : null}
@@ -168,7 +168,7 @@ export function SurvivorAIHostPanel({
                 checked={rivalry}
                 onChange={(v) => {
                   if (!sub) {
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                     return
                   }
                   setRivalry(v)
@@ -179,7 +179,7 @@ export function SurvivorAIHostPanel({
                 <SubscriptionGateBadge
                   featureId="commissioner_ai_narration"
                   onClick={() =>
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                   }
                 />
               ) : null}
@@ -194,7 +194,7 @@ export function SurvivorAIHostPanel({
                 checked={finaleRecap}
                 onChange={(v) => {
                   if (!sub) {
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                     return
                   }
                   setFinaleRecap(v)
@@ -205,7 +205,7 @@ export function SurvivorAIHostPanel({
                 <SubscriptionGateBadge
                   featureId="commissioner_ai_narration"
                   onClick={() =>
-                    subscriptionGate?.gate('commissioner_ai_narration', { highlightFeature: 'ai_narration' })
+                    subscriptionGate?.gate('commissioner_ai_narration', { highlightParam: 'ai_narration' })
                   }
                 />
               ) : null}

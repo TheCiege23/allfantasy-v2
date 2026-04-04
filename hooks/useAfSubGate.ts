@@ -59,7 +59,7 @@ export function useAfSubGate(defaultFeatureId: SubscriptionFeatureId) {
           isOpen: false,
           featureId: null,
           featureLabel: undefined,
-          highlightFeature: undefined,
+          highlightParam: undefined,
         },
     }),
     [ctx, handleApiResponse]

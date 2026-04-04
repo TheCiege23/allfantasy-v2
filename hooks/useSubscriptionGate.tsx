@@ -15,13 +15,13 @@ type GateState = {
   isOpen: boolean
   featureId: SubscriptionFeatureId | null
   featureLabel: string | undefined
-  highlightFeature: string | undefined
+  highlightParam: string | undefined
 }
 
 type SubscriptionGateContextValue = {
   gate: (
     featureId: SubscriptionFeatureId,
-    opts?: { featureLabel?: string; highlightFeature?: string }
+    opts?: { featureLabel?: string; highlightParam?: string }
   ) => void
   close: () => void
   state: GateState
@@ -34,16 +34,16 @@ export function SubscriptionGateProvider({ children }: { children: ReactNode }) 
     isOpen: false,
     featureId: null,
     featureLabel: undefined,
-    highlightFeature: undefined,
+    highlightParam: undefined,
   })
 
   const gate = useCallback(
-    (featureId: SubscriptionFeatureId, opts?: { featureLabel?: string; highlightFeature?: string }) => {
+    (featureId: SubscriptionFeatureId, opts?: { featureLabel?: string; highlightParam?: string }) => {
       setState({
         isOpen: true,
         featureId,
         featureLabel: opts?.featureLabel,
-        highlightFeature: opts?.highlightFeature,
+        highlightParam: opts?.highlightParam,
       })
     },
     []
@@ -63,7 +63,7 @@ export function SubscriptionGateProvider({ children }: { children: ReactNode }) 
         onClose={close}
         featureId={state.featureId ?? 'commissioner_ai_tools'}
         featureLabel={state.featureLabel}
-        highlightFeature={state.highlightFeature}
+        highlightParam={state.highlightParam}
       />
     </SubscriptionGateContext.Provider>
   )

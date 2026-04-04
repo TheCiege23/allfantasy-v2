@@ -10,13 +10,14 @@ export function SubscriptionGateModal({
   onClose,
   featureId,
   featureLabel,
-  highlightFeature,
+  highlightParam: highlightParamOverride,
 }: {
   isOpen: boolean
   onClose: () => void
   featureId: SubscriptionFeatureId
   featureLabel?: string
-  highlightFeature?: string
+  /** Optional query `?highlight=` for pricing surfaces; overrides catalog default from getGateDef. */
+  highlightParam?: string
 }) {
   useEffect(() => {
     if (!isOpen) return
@@ -41,7 +42,7 @@ export function SubscriptionGateModal({
   if (!isOpen) return null
 
   const def = getGateDef(featureId)
-  const hash = highlightFeature ?? def.highlightParam
+  const hash = highlightParamOverride ?? def.highlightParam
   const upgradeUrl =
     def.upgradeUrl + (hash ? `?highlight=${encodeURIComponent(hash)}` : '')
 
