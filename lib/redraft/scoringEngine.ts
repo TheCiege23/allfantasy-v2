@@ -1,5 +1,6 @@
 import type { SportConfig } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { calculateOfficialTeamScore, leagueUsesDevyEngine } from '@/lib/devy/scoringEligibilityEngine'
 import type { StatCategoryRow } from './types'
 
 export function calculateFantasyPoints(
@@ -32,12 +33,18 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
   const season = await prisma.redraftSeason.findFirst({ where: { id: m.seasonId } })
   if (!season) return
 
+  const useDevyEngine = await leagueUsesDevyEngine(m.leagueId)
+
   async function sumStarters(rosterId: string): Promise<number> {
+    if (useDevyEngine) {
+      const r = await calculateOfficialTeamScore(m.leagueId, rosterId, week, season.season)
+      return r.officialScore
+    }
     const starters = await prisma.redraftRosterPlayer.findMany({
       where: {
         rosterId,
         droppedAt: null,
-        slotType: { notIn: ['bench', 'taxi'] },
+        slotType: { notIn: ['bench', 'taxi', 'devy'] },
       },
     })
     let pts = 0

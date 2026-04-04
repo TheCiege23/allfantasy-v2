@@ -183,6 +183,10 @@
     {
       "path": "/api/big-brother/cron/stat-correction",
       "schedule": "0 */1 * * *"
+    },
+    {
+      "path": "/api/devy/automation",
+      "schedule": "0 6 * * *"
     }
   ]
 }

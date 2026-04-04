@@ -4167,6 +4167,7 @@ model League {
   survivorConfig              SurvivorLeagueConfig?
   zombieConfig                ZombieLeagueConfig?
   devyConfig                  DevyLeagueConfig?
+  devyLeague                  DevyLeague?
   devyRights                  DevyRights[]
   devyLifecycleEvents         DevyLifecycleEvent[]
   devyCommissionerOverrides   DevyCommissionerOverride[]
@@ -7483,6 +7484,214 @@ model DevyLeagueConfig {
   @@map("devy_league_configs")
 }
 
+/// Full devy league engine config (roster buckets, taxi, devy draft). Distinct from legacy `DevyLeagueConfig`.
+model DevyLeague {
+  id        String @id @default(cuid())
+  leagueId  String @unique
+  league    League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  isDynastyOnly     Boolean @default(true)
+  createdByTheCiege Boolean @default(true)
+
+  startupDraftFormat String @default("combined")
+  futureDraftFormat  String @default("combined")
+
+  activeRosterSize Int @default(20)
+  benchSlots       Int @default(6)
+  irSlots          Int @default(2)
+  taxiSlots        Int @default(5)
+  devySlots        Int @default(10)
+  maxDevyPerTeam   Int @default(10)
+
+  taxiRookieOnly           Boolean   @default(true)
+  taxiAllowNonRookies      Boolean   @default(false)
+  taxiMaxExperienceYears   Int       @default(1)
+  taxiLockDeadline         DateTime?
+  taxiCanReturnAfterPromo  Boolean   @default(false)
+  taxiAutoQualifyRookies   Boolean   @default(true)
+  taxiDevyToRookieEligible Boolean   @default(true)
+  taxiPointsVisibleDisplay Boolean   @default(true)
+  taxiPointsCountToward    Boolean   @default(false)
+  taxiPoachaingEnabled     Boolean   @default(false)
+
+  devyFreshmenEligible      Boolean @default(false)
+  devyAutoPromoteToRookie   Boolean @default(true)
+  devyDeclarationVisibility Boolean @default(true)
+
+  rookiePickTradingEnabled Boolean @default(true)
+  devyPickTradingEnabled   Boolean @default(true)
+
+  devyGradBehavior String @default("move_to_taxi")
+
+  season Int @default(2025)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taxiSlotRecords   DevyTaxiSlot[]
+  devySlotRecords   DevyDevySlot[]
+  rookieTransitions DevyRookieTransition[]
+  playerStates      DevyPlayerState[]
+  draftPicks        DevyDraftPick[]
+
+  @@index([leagueId])
+  @@map("devy_leagues")
+}
+
+model DevyPlayerState {
+  id       String     @id @default(cuid())
+  leagueId String
+  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+  position   String
+
+  playerType String
+
+  bucketState        String @default("active_bench")
+  scoringEligibility String @default("display_only")
+
+  school                   String?
+  classYear                String?
+  projectedDeclarationYear Int?
+  isDevyEligible           Boolean @default(false)
+
+  isRookieEligible Boolean @default(false)
+  nflDraftYear     Int?
+  nflDraftRound    Int?
+  nflDraftPick     Int?
+
+  isTaxiEligible  Boolean @default(false)
+  taxiYearsUsed   Int     @default(0)
+
+  transitionedFrom String?
+  transitionedAt   DateTime?
+  transitionReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, playerType])
+  @@index([leagueId, bucketState])
+  @@map("devy_player_states")
+}
+
+model DevyTaxiSlot {
+  id       String     @id @default(cuid())
+  leagueId String
+  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId   String
+  playerName String
+  position   String
+
+  taxiYearStart    Int
+  taxiYearsCurrent Int     @default(1)
+  isEligible       Boolean @default(true)
+  isLocked         Boolean @default(false)
+
+  addedAt         DateTime  @default(now())
+  promotedAt      DateTime?
+  promotedToState String?
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, rosterId])
+  @@map("devy_taxi_slots")
+}
+
+model DevyDevySlot {
+  id       String     @id @default(cuid())
+  leagueId String
+  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+  rosterId String
+  roster   RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  playerId String
+
+  playerName String
+  position   String
+  school     String?
+  schoolLogoUrl String?
+  classYear String?
+  projectedDeclarationYear Int?
+  hasEnteredNFL Boolean @default(false)
+  nflEntryYear  Int?
+  nflEntryStatus String?
+
+  rightsAcquiredVia String?
+  rightsAcquiredAt  DateTime @default(now())
+
+  transitionedAt  DateTime?
+  transitionQueue Boolean @default(false)
+
+  @@unique([leagueId, rosterId, playerId])
+  @@index([leagueId, rosterId])
+  @@index([leagueId, hasEnteredNFL])
+  @@map("devy_devy_slots")
+}
+
+model DevyRookieTransition {
+  id       String     @id @default(cuid())
+  leagueId String
+  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  rosterId String?
+  roster   RedraftRoster? @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+
+  playerId   String
+  playerName String
+  school     String?
+
+  nflEntryYear   Int
+  nflEntryMethod String
+
+  previousState    String @default("devy")
+  destinationState String
+
+  wasAutoTransitioned     Boolean @default(false)
+  wasCommissionerReview   Boolean @default(false)
+  commissionerApprovedAt DateTime?
+
+  transitionedAt DateTime?
+  notes          String?
+
+  @@index([leagueId, nflEntryYear])
+  @@map("devy_rookie_transitions")
+}
+
+model DevyDraftPick {
+  id       String     @id @default(cuid())
+  leagueId String
+  devyLeague DevyLeague @relation(fields: [leagueId], references: [leagueId], onDelete: Cascade)
+
+  pickType String
+  season   Int
+  round    Int
+
+  originalOwnerId String
+  currentOwnerId  String
+
+  isTradeable    Boolean @default(true)
+  isUsed         Boolean @default(false)
+  usedOnPlayerId String?
+  usedAt         DateTime?
+
+  tradeHistory Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([leagueId, pickType, season, round, originalOwnerId])
+  @@index([leagueId, currentOwnerId])
+  @@index([leagueId, pickType, season])
+  @@map("devy_draft_picks")
+}
+
 /// PROMPT 3: Per-roster devy rights and lifecycle state. One row per (league, roster, devyPlayer) when a manager holds devy rights.
 model DevyRights {
   id                  String    @id @default(uuid())
@@ -9987,6 +10196,10 @@ model RedraftRoster {
   keeperRecords    KeeperRecord[]
   bestBallOptimizedLineups BestBallOptimizedLineup[]
   guillotineSurvivalLogs   GuillotineSurvivalLog[]
+  devyPlayerStates         DevyPlayerState[]
+  devyTaxiSlots            DevyTaxiSlot[]
+  devyDevySlots            DevyDevySlot[]
+  devyRookieTransitions    DevyRookieTransition[]
 
   isEliminated Boolean @default(false)
 

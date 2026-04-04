@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { calculateOfficialTeamScore, leagueUsesDevyEngine } from '@/lib/devy/scoringEligibilityEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,6 +38,20 @@ export async function GET(req: NextRequest) {
       where: { seasonId, week: w },
       include: { homeRoster: true, awayRoster: true },
     })
+    if (await leagueUsesDevyEngine(season.leagueId)) {
+      const devyScores: Record<
+        string,
+        { home: Awaited<ReturnType<typeof calculateOfficialTeamScore>>; away: Awaited<ReturnType<typeof calculateOfficialTeamScore>> | null }
+      > = {}
+      for (const mu of matchups) {
+        const home = await calculateOfficialTeamScore(season.leagueId, mu.homeRosterId, w, season.season)
+        const away = mu.awayRosterId
+          ? await calculateOfficialTeamScore(season.leagueId, mu.awayRosterId, w, season.season)
+          : null
+        devyScores[mu.id] = { home, away }
+      }
+      return NextResponse.json({ matchups, devyScores })
+    }
     return NextResponse.json({ matchups })
   }
 
