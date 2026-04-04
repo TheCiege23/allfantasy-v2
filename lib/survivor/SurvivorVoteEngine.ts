@@ -92,7 +92,13 @@ export async function tallyVotes(
     if (entryCouncilId !== councilId) continue
 
     const powerType = typeof metadata.powerType === 'string' ? metadata.powerType : entry.idol.powerType
-    if (powerType === 'protect_self' || powerType === 'protect_self_plus_one') {
+    if (
+      powerType === 'protect_self' ||
+      powerType === 'protect_self_plus_one' ||
+      powerType === 'hidden_immunity_idol' ||
+      powerType === 'merge_hidden_immunity' ||
+      powerType === 'safety_without_power'
+    ) {
       const protectedRosterId =
         typeof metadata.protectedRosterId === 'string' && metadata.protectedRosterId.trim()
           ? metadata.protectedRosterId
@@ -101,7 +107,19 @@ export async function tallyVotes(
         protectedRosterIds.add(protectedRosterId)
       }
     }
-    if (powerType === 'extra_vote' && entry.fromRosterId) {
+    if (powerType === 'super_immunity') {
+      const selfRoster =
+        typeof metadata.protectedRosterId === 'string' && metadata.protectedRosterId.trim()
+          ? metadata.protectedRosterId
+          : entry.fromRosterId
+      const allyRoster =
+        typeof metadata.protectedAllyRosterId === 'string' && metadata.protectedAllyRosterId.trim()
+          ? metadata.protectedAllyRosterId
+          : null
+      if (selfRoster) protectedRosterIds.add(selfRoster)
+      if (allyRoster) protectedRosterIds.add(allyRoster)
+    }
+    if ((powerType === 'extra_vote' || powerType === 'double_vote') && entry.fromRosterId) {
       extraVoteRosterIds.add(entry.fromRosterId)
     }
     if (powerType === 'vote_nullifier') {

@@ -10,6 +10,9 @@ import {
   tallyVotes,
 } from './SurvivorVoteEngine'
 import { postHostMessage } from './hostEngine'
+import { logSurvivorAuditEntry } from './auditEntry'
+import { getEligibleRosterIdsForCouncil } from './SurvivorCouncilEligibility'
+import { getWeeklyEffectState } from './SurvivorEffectEngine'
 
 export type ScrollRevealStep =
   | { type: 'vote'; voterName: string; targetName: string }
@@ -50,6 +53,18 @@ export async function openTribalCouncil(
     'league_chat',
     tribeId ?? undefined,
   ).catch(() => {})
+
+  await logSurvivorAuditEntry({
+    leagueId,
+    week,
+    category: 'tribal',
+    action: 'TRIBAL_OPENED',
+    targetTribeId: tribeId ?? null,
+    relatedEntityId: created.councilId,
+    relatedEntityType: 'council',
+    data: { councilId: created.councilId, tribeId, week, deadline: deadline.toISOString() },
+    isVisibleToPublic: true,
+  })
 
   return { id: created.councilId }
 }
@@ -103,6 +118,26 @@ export async function submitVote(
     where: { councilId_voterRosterId: { councilId, voterRosterId: rosterPair.voterRosterId } },
   })
   if (!saved?.id) throw new Error('Vote not persisted')
+
+  await logSurvivorAuditEntry({
+    leagueId: council.leagueId,
+    week: council.week,
+    category: 'vote',
+    action: 'VOTE_SUBMITTED',
+    actorUserId: voterUserId,
+    targetUserId,
+    relatedEntityId: saved.id,
+    relatedEntityType: 'vote',
+    data: {
+      voteId: saved.id,
+      councilId,
+      submittedAt: new Date().toISOString(),
+      voterUserId,
+      targetUserId,
+    },
+    isVisibleToPublic: false,
+  })
+
   return { id: saved.id }
 }
 
@@ -110,9 +145,23 @@ export async function lockVoting(councilId: string): Promise<void> {
   const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
   if (!council) throw new Error('Council not found')
 
+  const votes = await prisma.survivorVote.findMany({ where: { councilId } })
+  const lateVotes = votes.filter((v) => v.isLateVote).length
+
   await prisma.survivorTribalCouncil.update({
     where: { id: councilId },
     data: { status: 'voting_closed' },
+  })
+
+  await logSurvivorAuditEntry({
+    leagueId: council.leagueId,
+    week: council.week,
+    category: 'vote',
+    action: 'VOTE_LOCKED',
+    relatedEntityId: councilId,
+    relatedEntityType: 'council',
+    data: { councilId, totalVotes: votes.length, lateVotes },
+    isVisibleToPublic: false,
   })
 
   await processIdolPlays(councilId)
@@ -139,6 +188,31 @@ export async function handleTie(_councilId: string, _tiedUserIds: string[]): Pro
 
 export async function eliminatePlayer(_councilId: string, _userId: string): Promise<void> {
   // Delegates to SurvivorTribalCouncilService closeCouncil + roster elimination pipeline.
+}
+
+/**
+ * Players eligible to draw rocks: attending council, not immune this week, not part of the active tie block.
+ */
+export async function getRocksEligibleRosterIds(
+  councilId: string,
+  tiedRosterIds: string[],
+): Promise<string[]> {
+  const council = await prisma.survivorTribalCouncil.findUnique({
+    where: { id: councilId },
+    select: { leagueId: true, week: true },
+  })
+  if (!council) return []
+
+  const league = await prisma.league.findUnique({
+    where: { id: council.leagueId },
+    select: { survivorRocksEnabled: true },
+  })
+  if (league?.survivorRocksEnabled === false) return []
+
+  const weekly = await getWeeklyEffectState(council.leagueId, council.week)
+  const attending = await getEligibleRosterIdsForCouncil(councilId)
+  const tied = new Set(tiedRosterIds)
+  return attending.filter((rid) => !weekly.protectedRosterIds.has(rid) && !tied.has(rid))
 }
 
 export async function buildScrollRevealSequence(councilId: string): Promise<ScrollRevealSequence> {

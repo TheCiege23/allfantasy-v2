@@ -2641,7 +2641,9 @@ model AppUser {
   inviteLinksCreated            InviteLink[]
   leagueTemplates               LeagueTemplate[]
   growthAttributions            GrowthAttribution[]
-  tournamentsCreated            Tournament[]               @relation("TournamentCreator")
+  tournamentsCreated            LegacyTournament[]         @relation("LegacyTournamentCreator")
+  tournamentShellsCommissioned  TournamentShell[]          @relation("TournamentShellCommissioner")
+  tournamentShellsCreatedBy     TournamentShell[]          @relation("TournamentShellCreator")
 
   @@map("app_users")
 }
@@ -4125,6 +4127,10 @@ model League {
   survivorWeeklyMessages Boolean?  @default(true)
   survivorChatPermissions String?  @default("strict")
   survivorRebalanceTrigger Int?    @default(3)
+  /// Optional cap on exile token balance (null = no cap).
+  survivorTokenCap         Int?
+  /// When true, failed exile_sacrifice_bet removes wagered tokens.
+  survivorExileHarshTokenLoss Boolean? @default(false)
 
   survivorPlayers      SurvivorPlayer[]
   survivorHostMessages SurvivorHostMessage[]
@@ -4133,6 +4139,9 @@ model League {
   tokenPoolPicks       TokenPoolPick[]
   exileIsland          ExileIsland?
   jurySession          JurySession?
+  survivorPowerBalance SurvivorPowerBalance?
+  survivorTwistEvents  SurvivorTwistEvent[]
+  survivorAuditEntries SurvivorAuditEntry[]
 
   rosters                     Roster[]
   teams                       LeagueTeam[]
@@ -4161,7 +4170,8 @@ model League {
   scoringSnapshots            ScoringSettingsSnapshot[]
   leagueIntroViews            LeagueIntroView[]
   zombieLeague                ZombieLeague? // when league is in a zombie universe
-  tournamentLeague            TournamentLeague? // PROMPT 2: when league is part of a tournament
+  legacyTournamentLeague      LegacyTournamentLeague? // legacy tournament mode (pre–tournament shell)
+  tournamentShellLeague       TournamentLeague? // TournamentShell engine league link
   bigBrotherConfig            BigBrotherLeagueConfig?
   idpConfig                   IdpLeagueConfig?
   dynastyConfig               DynastyLeagueConfig?
@@ -4433,36 +4443,31 @@ model LeagueTemplate {
   @@map("league_templates")
 }
 
-// ========== Tournament Mode (PROMPT 2) — multi-league elimination ==========
+// ========== Legacy tournament mode — existing DB tables (client: prisma.legacyTournament*) ==========
 
-/// Tournament: one parent record; creator is commissioner of all child leagues.
-model Tournament {
+model LegacyTournament {
   id          String   @id @default(uuid())
   name        String   @db.VarChar(120)
-  sport       String   @db.VarChar(8) // NFL first
+  sport       String   @db.VarChar(8)
   season      Int      @default(0)
   variant     String   @default("black_vs_gold") @db.VarChar(32)
   creatorId   String
-  /// qualificationWeeks, advancementPerLeague, redraftWeeks, draftType, participantPoolSize, leagueNamingMode, faabResetByRound, benchByRound, etc.
   settings    Json     @default("{}")
-  /// visibility: public | unlisted | private. forumAnnouncements: boolean. bannerTheme: string.
   hubSettings Json     @default("{}")
-  status      String   @default("setup") @db.VarChar(24) // setup | qualification | elimination | finals | completed
+  status      String   @default("setup") @db.VarChar(24)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  /// Set when tournament is completed; prevents duplicate champion.
   championUserId String?   @db.VarChar(64)
-  /// Locked at start of competition; no rebalance after this.
   lockedAt       DateTime?
 
-  creator       AppUser                  @relation("TournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  conferences   TournamentConference[]
-  leagues       TournamentLeague[]
-  rounds        TournamentRound[]
-  announcements TournamentAnnouncement[]
-  participants  TournamentParticipant[]
-  auditLogs     TournamentAuditLog[]
+  creator       AppUser                       @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  conferences   LegacyTournamentConference[]
+  leagues       LegacyTournamentLeague[]
+  rounds        LegacyTournamentRound[]
+  announcements LegacyTournamentAnnouncement[]
+  participants  LegacyTournamentParticipant[]
+  auditLogs     LegacyTournamentAuditLog[]
 
   @@index([creatorId])
   @@index([sport, season])
@@ -4470,99 +4475,94 @@ model Tournament {
   @@map("tournaments")
 }
 
-/// Conference: e.g. Black / Gold; themed names and styling.
-model TournamentConference {
+model LegacyTournamentConference {
   id           String   @id @default(uuid())
   tournamentId String
   name         String   @db.VarChar(64)
-  theme        String   @default("black") @db.VarChar(24) // black | gold | custom
-  themePayload Json? // { primaryColor, secondaryColor, iconName }
+  theme        String   @default("black") @db.VarChar(24)
+  themePayload Json?
   orderIndex   Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tournament   Tournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  leagues      TournamentLeague[]
-  participants TournamentParticipant[]
+  tournament   LegacyTournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  leagues      LegacyTournamentLeague[]
+  participants LegacyTournamentParticipant[]
 
   @@index([tournamentId])
   @@map("tournament_conferences")
 }
 
-/// Join: League belongs to one Tournament and one Conference; round/phase tracked.
-model TournamentLeague {
+model LegacyTournamentLeague {
   id                String   @id @default(uuid())
   tournamentId      String
   conferenceId      String
   leagueId          String   @unique
-  roundIndex        Int      @default(0) // 0 = qualification
-  phase             String   @default("qualification") @db.VarChar(24) // qualification | elimination | elite_eight | championship
+  roundIndex        Int      @default(0)
+  phase             String   @default("qualification") @db.VarChar(24)
   orderInConference Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  tournament Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  conference TournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
-  league     League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament              @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  conference LegacyTournamentConference @relation(fields: [conferenceId], references: [id], onDelete: Cascade)
+  league     League                        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([conferenceId])
   @@map("tournament_leagues")
 }
 
-/// Round container: qualification round, elimination rounds, finals.
-model TournamentRound {
+model LegacyTournamentRound {
   id           String   @id @default(uuid())
   tournamentId String
-  roundIndex   Int // 0 = qualification, 1+ = elimination/finals
-  phase        String   @db.VarChar(24) // qualification | elimination | elite_eight | championship
-  name         String?  @db.VarChar(64) // e.g. "Qualification", "Elite Eight"
+  roundIndex   Int
+  phase        String   @db.VarChar(24)
+  name         String?  @db.VarChar(64)
   startWeek    Int?     @default(0)
   endWeek      Int?     @default(0)
-  status       String   @default("pending") @db.VarChar(24) // pending | active | completed | archived
-  settings     Json? // advancementCount, redraftSchedule, faabReset, benchSpots
+  status       String   @default("pending") @db.VarChar(24)
+  settings     Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, roundIndex])
   @@index([tournamentId])
   @@map("tournament_rounds")
 }
 
-/// Tournament-wide announcements (hub/forum).
-model TournamentAnnouncement {
+model LegacyTournamentAnnouncement {
   id           String   @id @default(uuid())
   tournamentId String
   authorId     String?
   title        String?  @db.VarChar(200)
   body         String   @db.Text
-  type         String   @default("general") @db.VarChar(32) // general | round_start | round_end | redraft | league_disband | champion_story
-  metadata     Json? // roundIndex, leagueIds, linkedLeagueId
+  type         String   @default("general") @db.VarChar(32)
+  metadata     Json?
   pinned       Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([tournamentId, createdAt])
   @@map("tournament_announcements")
 }
 
-/// PROMPT 5: Audit log for advancement, elimination, redraft, overrides, tie resolution, lock, rebalance.
-model TournamentAuditLog {
+model LegacyTournamentAuditLog {
   id           String   @id @default(uuid())
   tournamentId String
-  actorId      String? // commissioner userId
-  action       String   @db.VarChar(48) // advancement_run | elimination | force_advance | tie_resolution | lock | rebalance | rerun_standings | rerun_seeding | redraft_regenerate | draft_reopen | archive_round | resolve_state | bulk_update
-  targetType   String?  @db.VarChar(24) // participant | league | round | tournament
+  actorId      String?
+  action       String   @db.VarChar(48)
+  targetType   String?  @db.VarChar(24)
   targetId     String?  @db.VarChar(128)
-  metadata     Json? // userId, leagueId, roundIndex, before/after, reason
+  metadata     Json?
   createdAt    DateTime @default(now())
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId])
   @@index([tournamentId, createdAt])
@@ -5656,6 +5656,140 @@ model ExileWeeklyEntry {
   @@unique([exileId, userId, week])
   @@index([exileId, week])
   @@map("survivor_exile_weekly_entries")
+}
+
+/// Reference catalog for idol / advantage / disadvantage powers (seed data).
+model SurvivorPowerTemplate {
+  id                   String   @id @default(cuid())
+  powerType            String   @unique
+  powerLabel           String
+  powerCategory        String
+  description          String   @db.Text
+  exactBehavior        String   @db.Text
+  useWindow            String
+  phaseValidity        String   @default("both")
+  targetType           String
+  isSecret             Boolean  @default(true)
+  expirationRule       String
+  isTradable           Boolean  @default(false)
+  riskLevel            String   @default("medium")
+  recommendedFreq      String
+  maxPerSeason         Int      @default(1)
+  maxPerPlayer         Int      @default(1)
+  maxConcurrentLeague  Int      @default(3)
+  abusePreventionRules String   @db.Text
+  revealBehavior       String
+  aiValidationRequired String   @db.Text
+  auditRequirements    String   @db.Text
+  isDraftDefault       Boolean  @default(false)
+  isAdvanced           Boolean  @default(false)
+  isDisadvantage       Boolean  @default(false)
+  createdAt            DateTime @default(now())
+
+  @@index([powerCategory])
+  @@map("survivor_power_templates")
+}
+
+/// Week-by-week season arc reference (e.g. 20-player standard).
+model SurvivorSeasonArcTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  playerCount Int
+  tribeCount  Int
+  description String   @db.Text
+  arcSteps    Json
+  createdAt   DateTime @default(now())
+
+  @@map("survivor_season_arc_templates")
+}
+
+/// Challenge format catalog (pre-merge, post-merge, exile).
+model SurvivorChallengeTemplate {
+  id                              String   @id @default(cuid())
+  challengeKey                    String   @unique
+  name                            String
+  theme                           String   @db.Text
+  category                        String
+  scope                           String   @default("tribe")
+  inputDescription                String   @db.Text
+  submissionChannel               String   @default("tribe_chat")
+  deadlineBehavior                String   @default("")
+  tiebreakerRule                  String   @default("")
+  defaultRewardType               String   @default("")
+  defaultPenaltyType              String?
+  affectsImmunity                 Boolean  @default(false)
+  affectsFaab                     Boolean  @default(false)
+  grantsIdol                      Boolean  @default(false)
+  grantsDisadvantage              Boolean  @default(false)
+  aiCanAutoGenerate               Boolean  @default(true)
+  commissionerApprovalRecommended Boolean  @default(false)
+  phaseValidity                   String   @default("pre_merge")
+  sportAdaptation                 Json?
+  notes                           String?  @db.Text
+  extraMetadata                   Json?
+  createdAt                       DateTime @default(now())
+
+  @@index([category, phaseValidity])
+  @@map("survivor_challenge_templates")
+}
+
+/// Runtime caps and counts for power balance enforcement (1:1 league).
+model SurvivorPowerBalance {
+  id                 String   @id @default(cuid())
+  leagueId           String   @unique
+  league             League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  activePowerCount   Int      @default(0)
+  immunityPowerCount Int      @default(0)
+  voteControlCount   Int      @default(0)
+  scorePowerCount    Int      @default(0)
+  tribeControlCount  Int      @default(0)
+  infoPowerCount     Int      @default(0)
+  powersByPlayer     Json     @default("{}")
+  lastUpdated        DateTime @default(now())
+
+  @@index([leagueId])
+  @@map("survivor_power_balances")
+}
+
+model SurvivorTwistEvent {
+  id                String   @id @default(cuid())
+  leagueId          String
+  league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  week              Int
+  twistType         String
+  description       String   @db.Text
+  affectedPlayerIds String[] @default([])
+  affectedTribeIds  String[] @default([])
+  wasAutoTriggered  Boolean  @default(true)
+  commissionerNote  String?  @db.Text
+  executedAt        DateTime @default(now())
+
+  @@index([leagueId, week])
+  @@map("survivor_twist_events")
+}
+
+/// Universal Survivor audit trail (distinct from legacy SurvivorAuditLog).
+model SurvivorAuditEntry {
+  id                       String   @id @default(cuid())
+  leagueId                 String
+  league                   League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  week                     Int?
+  category                 String
+  action                   String
+  actorUserId              String?
+  targetUserId             String?
+  targetTribeId            String?
+  relatedEntityId          String?
+  relatedEntityType        String?
+  data                     Json
+  isVisibleToCommissioner  Boolean  @default(true)
+  isVisibleToPublic        Boolean  @default(false)
+  isRevealablePostSeason   Boolean  @default(true)
+  createdAt                DateTime @default(now())
+
+  @@index([leagueId, category])
+  @@index([leagueId, week])
+  @@map("survivor_audit_entries")
 }
 
 // ========== Big Brother League Engine (PROMPT 2/6) ==========
