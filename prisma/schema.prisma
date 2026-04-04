@@ -6616,6 +6616,7 @@ model ZombieLeague {
   infectionEventsDetail ZombieInfectionEvent[]
   announcements         ZombieAnnouncement[]
   paidConfig            ZombiePaidConfig?
+  ambushActions         ZombieAmbushAction[]
 
   @@index([universeId])
   @@index([levelId])
@@ -6880,6 +6881,206 @@ model ZombiePaidConfig {
   updatedAt DateTime @updatedAt
 
   @@map("zombie_paid_configs")
+}
+
+/// Per-sport thresholds for bashing, mauling, and weapon awards.
+model ZombieRulesTemplate {
+  id                    String  @id @default(cuid())
+  sport                 String  @unique @db.VarChar(12)
+  bashingThreshold      Float   @default(30)
+  maulingThreshold      Float   @default(50)
+  weaponShieldThreshold Float   @default(100)
+  weaponAmbushThreshold Float   @default(120)
+  reviveThreshold       Int     @default(3)
+  serumMaxHold          Int     @default(5)
+  lineupLockDesc        String? @db.Text
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("zombie_rules_templates")
+}
+
+model ZombieAmbushAction {
+  id                 String       @id @default(cuid())
+  zombieLeagueId     String
+  zombieLeague       ZombieLeague @relation(fields: [zombieLeagueId], references: [id], onDelete: Cascade)
+  week               Int
+  whispererUserId    String
+  ambushType         String
+  targetUserId       String?
+  targetMatchupId    String?
+  status             String       @default("pending")
+  submittedViaChimmy Boolean      @default(true)
+  chatMessageId      String?
+  validationResult   String?
+  validationNotes    String?
+  commissionerNotifiedAt DateTime?
+  executedAt         DateTime?
+  rejectedReason     String?
+  auditLogId         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([zombieLeagueId, week])
+  @@index([whispererUserId])
+  @@map("zombie_ambush_actions")
+}
+
+model ZombieBashingEvent {
+  id     String @id @default(cuid())
+  leagueId String @db.VarChar(64)
+  week  Int
+
+  winnerUserId String
+  winnerStatus String
+  loserUserId  String
+  loserStatus  String
+
+  winnerScore Float
+  loserScore  Float
+  margin      Float
+
+  bashingType String
+
+  requiresDecision Boolean   @default(false)
+  decisionDeadline DateTime?
+  decisionMade     String?
+  decisionMadeAt   DateTime?
+  defaultedToRule  Boolean   @default(false)
+
+  winningsTransferred Float    @default(0)
+  itemsTransferred    Json?
+  serumAwarded        Boolean  @default(false)
+  animationTriggered  Boolean  @default(false)
+
+  commissionerNotifiedAt DateTime?
+  resolvedAt             DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, week])
+  @@map("zombie_bashing_events")
+}
+
+model ZombieMaulingEvent {
+  id       String @id @default(cuid())
+  leagueId String @db.VarChar(64)
+  week     Int
+
+  maulerUserId String
+  maulerStatus String
+  victimUserId String
+  victimStatus String
+
+  maulerScore Float
+  victimScore Float
+  margin      Float
+
+  maulingType String
+
+  winningsTransferred Float   @default(0)
+  lootMultiplier      Float   @default(2)
+  itemsTransferred    Json?
+  serumAutoAwarded    Boolean @default(false)
+
+  newWhispererTriggered Boolean @default(false)
+  newWhispererUserId    String?
+
+  animationTriggered       Boolean   @default(false)
+  commissionerNotifiedAt DateTime?
+  resolvedAt               DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, week])
+  @@map("zombie_mauling_events")
+}
+
+model ZombieChimmyAction {
+  id       String @id @default(cuid())
+  leagueId String @db.VarChar(64)
+  userId   String
+  week     Int
+
+  actionType  String
+  rawMessage  String @db.Text
+  parsedAction Json?
+
+  isValid         Boolean @default(false)
+  validationError String?
+
+  publicResponse  String? @db.Text
+  privateResponse String? @db.Text
+  effect          Json?
+
+  commissionerNotifiedAt DateTime?
+
+  requiresCommissionerApproval Boolean   @default(false)
+  commissionerApprovedAt        DateTime?
+  commissionerApprovedBy        String?
+
+  auditEntryId String?
+  resolvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, userId, week])
+  @@index([leagueId, actionType])
+  @@map("zombie_chimmy_actions")
+}
+
+model ZombieCommissionerNotification {
+  id             String @id @default(cuid())
+  leagueId       String @db.VarChar(64)
+  commissionerId String
+  week           Int?
+
+  type    String
+  title   String
+  summary String @db.Text
+
+  relatedUserId    String?
+  relatedEventId   String?
+  relatedEventType String?
+
+  urgency String @default("normal")
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  requiresAction Boolean   @default(false)
+  actionDeadline DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, commissionerId, isRead])
+  @@map("zombie_commissioner_notifications")
+}
+
+model ZombieEventAnimation {
+  id       String @id @default(cuid())
+  leagueId String @db.VarChar(64)
+  week     Int
+
+  animationType String
+  primaryUserId String
+  secondaryUserId String?
+
+  displayLocation String @default("league_chat_and_home")
+  durationMs      Int    @default(3000)
+
+  metadata Json?
+
+  isDelivered Boolean   @default(false)
+  deliveredAt DateTime?
+
+  reducedMotion Boolean @default(false)
+
+  scheduledFor DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([leagueId, isDelivered])
+  @@map("zombie_event_animations")
 }
 
 /// Zombie league config (1:1 with League when leagueVariant is zombie). Can exist without universe.
@@ -7381,6 +7582,10 @@ model ZombieLeagueTeam {
   yearsInLeague     Int     @default(1)
   universeTierId    String?
   redraftRosterId   String?
+  /// Cumulative zombie attacks survived without infection (gun unlock).
+  zombieAttacksSurvived Int @default(0)
+  /// Consecutive weeks won as Survivor (bomb unlock).
+  survivorWinStreak     Int @default(0)
 
   items ZombieTeamItem[]
 
@@ -7408,6 +7613,9 @@ model ZombieTeamItem {
   usedAtWeek     Int?
   usedOnUserId   String?
   usedEffect     String?
+  /// ready | pending_activation — serum registers before kickoff, resolves at score finalization.
+  activationState String @default("ready")
+  activatesAtWeek   Int?
 
   @@index([teamStatusId])
   @@index([zombieLeagueId, userId])

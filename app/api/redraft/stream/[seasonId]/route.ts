@@ -3,13 +3,14 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { subscribeSurvivorRedraftStream } from '@/lib/survivor/survivorRedraftStreamHub'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export async function GET(
   _req: NextRequest,
-  context: { params: { seasonId: string } },
+  context: { params: Promise<{ seasonId: string }> },
 ) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
@@ -17,7 +18,7 @@ export async function GET(
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const { seasonId } = context.params
+  const { seasonId } = await context.params
   const season = await prisma.redraftSeason.findFirst({ where: { id: seasonId } })
   if (!season) {
     return new Response('Not found', { status: 404 })
@@ -35,6 +36,9 @@ export async function GET(
         controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
       }
       send({ type: 'connected', seasonId })
+      const unsubSurvivor = subscribeSurvivorRedraftStream(seasonId, (payload) => {
+        send(payload)
+      })
       const iv = setInterval(() => {
         send({ type: 'heartbeat', t: Date.now() })
       }, 5000)
@@ -61,12 +65,47 @@ export async function GET(
       }, 12000)
       const ivSurvivor = setInterval(() => {
         send({
+          type: 'phase_changed',
+          seasonId,
+          leagueId: season.leagueId,
+          from: 'pre_merge',
+          to: 'merge',
+          week: 1,
+        })
+        send({
+          type: 'week_started',
+          week: 1,
+          leagueId: season.leagueId,
+        })
+        send({
+          type: 'scores_finalized',
+          week: 1,
+          leagueId: season.leagueId,
+        })
+        send({
           type: 'tribal_council_opened',
           seasonId,
           councilId: null,
           tribeId: null,
           deadline: null,
-          note: 'Wire Survivor pub/sub for council + reveal.',
+          note: 'Live events also arrive via survivorRedraftStreamHub when API routes publish.',
+        })
+        send({
+          type: 'notification_queued',
+          notificationType: 'vote_reminder',
+          urgency: 'high',
+          leagueId: season.leagueId,
+        })
+        send({
+          type: 'tribal_auto_opened',
+          councilId: null,
+          deadline: null,
+          leagueId: season.leagueId,
+        })
+        send({
+          type: 'exile_scores_updated',
+          week: 1,
+          leagueId: season.leagueId,
         })
         send({
           type: 'host_message',
@@ -77,6 +116,7 @@ export async function GET(
         })
       }, 20000)
       const close = () => {
+        unsubSurvivor()
         clearInterval(iv)
         clearInterval(ivKeeper)
         clearInterval(ivGuillotine)
