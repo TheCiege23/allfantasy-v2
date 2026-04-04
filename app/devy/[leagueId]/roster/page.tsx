@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Link from 'next/link'
+import { prisma } from '@/lib/prisma'
 import { DevyRosterClient } from './DevyRosterClient'
 
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,11 @@ export default async function DevyRosterPage({ params }: { params: Promise<{ lea
   if (!session?.user?.id) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/devy/${leagueId}/roster`)}`)
   }
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: session.user.id },
+    select: { afCommissionerSub: true },
+  })
 
   return (
     <div className="min-h-screen bg-[#040915]">
@@ -28,7 +34,11 @@ export default async function DevyRosterPage({ params }: { params: Promise<{ lea
           <span className="w-12" />
         </div>
       </header>
-      <DevyRosterClient leagueId={leagueId} userId={session.user.id} />
+      <DevyRosterClient
+        leagueId={leagueId}
+        userId={session.user.id}
+        hasAfSub={profile?.afCommissionerSub ?? false}
+      />
     </div>
   )
 }

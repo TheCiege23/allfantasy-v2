@@ -338,7 +338,7 @@ export function CommissionerSettingsModal({
           ) : activeTab === 'devy_import' ? (
             <DevyImportPanel leagueId={leagueId} />
           ) : activeTab === 'devy_ai' ? (
-            <DevyAIPanel hasAfSub={hasSub} />
+            <DevyAIPanel leagueId={leagueId} hasAfSub={hasSub} isCommissioner={canEdit} />
           ) : (
             <PlaceholderPanel title="Settings" />
           )}

@@ -46,7 +46,15 @@ type WeeklyEntry = {
   bucketState: string
 }
 
-export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userId: string }) {
+export function DevyRosterClient({
+  leagueId,
+  userId,
+  hasAfSub = false,
+}: {
+  leagueId: string
+  userId: string
+  hasAfSub?: boolean
+}) {
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
@@ -232,6 +240,9 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
   return (
     <div className="min-h-screen bg-[#040915] text-white">
       <TeamSummaryBar
+        leagueId={leagueId}
+        rosterId={rosterId}
+        hasAfSub={hasAfSub}
         activeCount={activeNflCount}
         taxiCount={taxiSlots.length}
         devyCount={devySlots.length}
@@ -506,6 +517,7 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
                       open: true,
                       payload: {
                         kind: 'devy',
+                        playerId: d.playerId,
                         name: d.playerName,
                         position: d.position,
                         school: d.school,
@@ -537,6 +549,8 @@ export function DevyRosterClient({ leagueId, userId }: { leagueId: string; userI
         open={modal.open}
         onClose={() => setModal({ open: false, payload: null })}
         payload={modal.payload}
+        leagueId={leagueId}
+        hasAfSub={hasAfSub}
       />
     </div>
   )

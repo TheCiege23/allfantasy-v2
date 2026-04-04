@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 export type NflModalPayload = {
   kind: 'nfl'
   name: string
@@ -12,6 +14,7 @@ export type NflModalPayload = {
 
 export type DevyModalPayload = {
   kind: 'devy'
+  playerId: string
   name: string
   position: string
   school?: string | null
@@ -31,11 +34,19 @@ export function DevyPlayerModal({
   open,
   onClose,
   payload,
+  leagueId,
+  hasAfSub = false,
 }: {
   open: boolean
   onClose: () => void
   payload: DevyPlayerModalPayload | null
+  leagueId?: string
+  hasAfSub?: boolean
 }) {
+  const [evalBusy, setEvalBusy] = useState(false)
+  const [evalErr, setEvalErr] = useState<string | null>(null)
+  const [evalText, setEvalText] = useState<string | null>(null)
+
   if (!open || !payload) return null
 
   return (
@@ -107,6 +118,73 @@ export function DevyPlayerModal({
               <p className="font-semibold text-white/80">Rights panel</p>
               <p className="mt-1">Acquired: {payload.acquiredAt ?? '—'} via {payload.acquiredVia ?? '—'}</p>
             </section>
+            {hasAfSub && leagueId ? (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  disabled={evalBusy}
+                  onClick={async () => {
+                    setEvalBusy(true)
+                    setEvalErr(null)
+                    setEvalText(null)
+                    try {
+                      const res = await fetch('/api/devy/ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                          action: 'prospect_eval',
+                          leagueId,
+                          playerId: payload.kind === 'devy' ? payload.playerId : '',
+                        }),
+                      })
+                      if (res.status === 402) {
+                        setEvalErr('AF Commissioner Subscription required for AI evaluation.')
+                        return
+                      }
+                      if (!res.ok) {
+                        const j = (await res.json().catch(() => ({}))) as { error?: string }
+                        throw new Error(j.error || `HTTP ${res.status}`)
+                      }
+                      const data = (await res.json()) as {
+                        ceiling: string
+                        timeline: string
+                        fit: string
+                        grade: string
+                        risks: string[]
+                        verdict: string
+                      }
+                      setEvalText(
+                        [
+                          `Grade: ${data.grade}`,
+                          `Ceiling: ${data.ceiling}`,
+                          `Timeline: ${data.timeline}`,
+                          `Fit: ${data.fit}`,
+                          `Risks: ${data.risks?.join('; ') || '—'}`,
+                          `Verdict: ${data.verdict}`,
+                        ].join('\n\n'),
+                      )
+                    } catch (e) {
+                      setEvalErr(e instanceof Error ? e.message : 'Request failed')
+                    } finally {
+                      setEvalBusy(false)
+                    }
+                  }}
+                  className="w-full rounded-xl border border-cyan-500/35 bg-cyan-500/10 py-2.5 text-[12px] font-semibold text-cyan-100 min-h-[44px] disabled:opacity-50"
+                  data-testid="devy-ai-evaluate-prospect"
+                >
+                  {evalBusy ? 'Analyzing…' : 'AI evaluation (Chimmy)'}
+                </button>
+                {evalErr ? <p className="text-[11px] text-amber-200/90">{evalErr}</p> : null}
+                {evalText ? (
+                  <pre className="whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-black/30 p-3 text-[11px] text-white/75">
+                    {evalText}
+                  </pre>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-[11px] text-white/35">AI prospect evaluation requires AfSub.</p>
+            )}
             {payload.hasEnteredNfl ? (
               <section className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-[12px]">
                 <p className="font-semibold text-emerald-100">Entered NFL {payload.nflEntryYear ?? ''}</p>

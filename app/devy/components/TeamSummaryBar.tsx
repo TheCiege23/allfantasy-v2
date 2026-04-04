@@ -1,6 +1,11 @@
 'use client'
 
+import { useState } from 'react'
+
 type Props = {
+  leagueId?: string
+  rosterId?: string | null
+  hasAfSub?: boolean
   activeCount: number
   taxiCount: number
   devyCount: number
@@ -10,6 +15,9 @@ type Props = {
 }
 
 export function TeamSummaryBar({
+  leagueId,
+  rosterId,
+  hasAfSub = false,
   activeCount,
   taxiCount,
   devyCount,
@@ -17,6 +25,10 @@ export function TeamSummaryBar({
   devyPickCount,
   maxDevySlots,
 }: Props) {
+  const [pipeBusy, setPipeBusy] = useState(false)
+  const [pipeText, setPipeText] = useState<string | null>(null)
+  const [pipeErr, setPipeErr] = useState<string | null>(null)
+
   const pipeline = devyCount + taxiCount
   const ratio = maxDevySlots > 0 ? Math.min(1, pipeline / maxDevySlots) : 0
   const label = ratio >= 0.66 ? 'Strong' : ratio >= 0.33 ? 'Average' : 'Thin'
@@ -48,6 +60,66 @@ export function TeamSummaryBar({
             }}
           />
         </div>
+        {hasAfSub && leagueId && rosterId ? (
+          <div className="mt-2 space-y-1">
+            <button
+              type="button"
+              disabled={pipeBusy}
+              onClick={async () => {
+                setPipeBusy(true)
+                setPipeErr(null)
+                setPipeText(null)
+                try {
+                  const res = await fetch('/api/devy/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                      action: 'pipeline_health',
+                      leagueId,
+                      rosterId,
+                    }),
+                  })
+                  if (res.status === 402) {
+                    setPipeErr('AfSub required.')
+                    return
+                  }
+                  if (!res.ok) {
+                    const j = (await res.json().catch(() => ({}))) as { error?: string }
+                    throw new Error(j.error || `HTTP ${res.status}`)
+                  }
+                  const data = (await res.json()) as {
+                    mode: string
+                    pipelineScore: number
+                    concerns: string[]
+                    recommendations: string[]
+                  }
+                  setPipeText(
+                    [
+                      `Mode: ${data.mode} · Pipeline score: ${data.pipelineScore}/100`,
+                      data.concerns?.length ? `Concerns: ${data.concerns.join('; ')}` : '',
+                      `Tips: ${data.recommendations?.join(' ') ?? '—'}`,
+                    ]
+                      .filter(Boolean)
+                      .join('\n'),
+                  )
+                } catch (e) {
+                  setPipeErr(e instanceof Error ? e.message : 'Failed')
+                } finally {
+                  setPipeBusy(false)
+                }
+              }}
+              className="w-full rounded-lg border border-cyan-500/30 bg-cyan-500/10 py-2 text-[11px] font-semibold text-cyan-100 min-h-[40px] disabled:opacity-50"
+              data-testid="devy-pipeline-ai"
+            >
+              {pipeBusy ? 'Analyzing pipeline…' : 'AI pipeline health'}
+            </button>
+            {pipeErr ? <p className="text-[10px] text-amber-200/90">{pipeErr}</p> : null}
+            {pipeText ? (
+              <p className="text-[10px] leading-snug text-white/55">{pipeText}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   )

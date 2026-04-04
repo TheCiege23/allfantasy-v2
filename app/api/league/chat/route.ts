@@ -10,6 +10,7 @@ import { syncOutboundLeagueChat } from '@/lib/discord/sync-outbound'
 import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
 import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyCommandHandler'
 import { processIdpLeagueChatInput } from '@/lib/idp/idpChimmyLeagueChat'
+import { processDevyLeagueChatInput } from '@/lib/devy/devyChimmyLeagueChat'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
@@ -169,8 +170,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let devyProcessed: Awaited<ReturnType<typeof processDevyLeagueChatInput>> | null = null
   let idpProcessed: Awaited<ReturnType<typeof processIdpLeagueChatInput>> | null = null
   if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId))) {
+    devyProcessed = await processDevyLeagueChatInput(leagueId, userId, message)
+    if (devyProcessed?.outcome === 'suppress_public') {
+      return NextResponse.json({
+        suppressed: true,
+        privateChimmyNotice: devyProcessed.privateNotice,
+      })
+    }
+  }
+  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && devyProcessed === null) {
     idpProcessed = await processIdpLeagueChatInput(leagueId, userId, message)
     if (idpProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -197,9 +208,11 @@ export async function POST(req: NextRequest) {
   const chimmyBatch =
     bbProcessed?.outcome === 'post_user_and_chimmy' && bbProcessed.chimmyMessages.length > 0
       ? bbProcessed.chimmyMessages
-      : idpProcessed?.outcome === 'post_user_and_chimmy' && idpProcessed.chimmyMessages.length > 0
-        ? idpProcessed.chimmyMessages
-        : []
+      : devyProcessed?.outcome === 'post_user_and_chimmy' && devyProcessed.chimmyMessages.length > 0
+        ? devyProcessed.chimmyMessages
+        : idpProcessed?.outcome === 'post_user_and_chimmy' && idpProcessed.chimmyMessages.length > 0
+          ? idpProcessed.chimmyMessages
+          : []
 
   const extraMessages: ReturnType<typeof toClientMessage>[] = []
   if (chimmyBatch.length > 0) {
@@ -216,6 +229,7 @@ export async function POST(req: NextRequest) {
             isSystem: true,
             chimmy: true,
             ...(bbProcessed?.outcome === 'post_user_and_chimmy' ? { bigBrother: true } : {}),
+            ...(devyProcessed?.outcome === 'post_user_and_chimmy' ? { devy: true } : {}),
             ...(idpProcessed?.outcome === 'post_user_and_chimmy' ? { idp: true } : {}),
             ...(chimmy.metadata ?? {}),
           },

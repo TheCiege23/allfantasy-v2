@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { ImportAuditSummary } from '@/lib/devy/mergeExecutionEngine'
 import { formatImportAuditPlainText } from '@/app/devy/lib/formatImportAuditText'
+import type { SuggestedMatch } from '@/lib/devy/ai/devyChimmy'
 
 const STEPS = [
   'Source setup',
@@ -182,6 +183,9 @@ function StepPreMerge({ leagueId }: { leagueId: string }) {
 function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSessionId?: string }) {
   const [sessionId, setSessionId] = useState(initialSessionId ?? '')
   const [busy, setBusy] = useState(false)
+  const [aiBusy, setAiBusy] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestedMatch[] | null>(null)
+  const [summaryText, setSummaryText] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   async function downloadAudit() {
@@ -220,6 +224,72 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
     }
   }
 
+  async function runSuggestMatches() {
+    const sid = sessionId.trim()
+    if (!sid) {
+      setErr('Enter the import session ID.')
+      return
+    }
+    setAiBusy('suggest')
+    setErr(null)
+    setSuggestions(null)
+    try {
+      const r = await fetch('/api/devy/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'suggest_matches', sessionId: sid }),
+      })
+      if (r.status === 402) {
+        setErr('AF Commissioner Subscription required for AI match suggestions.')
+        return
+      }
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error || `HTTP ${r.status}`)
+      }
+      const data = (await r.json()) as { suggestions: SuggestedMatch[] }
+      setSuggestions(data.suggestions ?? [])
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'AI suggest failed')
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
+  async function runImportSummary() {
+    const sid = sessionId.trim()
+    if (!sid) {
+      setErr('Enter the import session ID.')
+      return
+    }
+    setAiBusy('summary')
+    setErr(null)
+    setSummaryText(null)
+    try {
+      const r = await fetch('/api/devy/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'import_summary', sessionId: sid }),
+      })
+      if (r.status === 402) {
+        setErr('AF Commissioner Subscription required for import summary.')
+        return
+      }
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string }
+        throw new Error(j.error || `HTTP ${r.status}`)
+      }
+      const data = (await r.json()) as { narrative: string; auditConfidence: string }
+      setSummaryText(`${data.narrative}\n\n(Confidence: ${data.auditConfidence})`)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Import summary failed')
+    } finally {
+      setAiBusy(null)
+    }
+  }
+
   return (
     <div className="space-y-4 text-[13px] text-white/80">
       <p className="text-[16px] font-bold text-emerald-200">✓ Merge complete</p>
@@ -238,7 +308,7 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
         />
       </label>
       {err ? <p className="text-[12px] text-red-300">{err}</p> : null}
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button
           type="button"
           disabled={busy}
@@ -248,6 +318,24 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
         >
           {busy ? 'Downloading…' : 'Download audit report (.txt)'}
         </button>
+        <button
+          type="button"
+          disabled={!!aiBusy}
+          onClick={() => void runSuggestMatches()}
+          className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-4 py-3 text-[12px] font-semibold text-cyan-100 min-h-[44px] disabled:opacity-50"
+          data-testid="import-ai-suggest-matches"
+        >
+          {aiBusy === 'suggest' ? 'Suggesting…' : 'AI suggest matches'}
+        </button>
+        <button
+          type="button"
+          disabled={!!aiBusy}
+          onClick={() => void runImportSummary()}
+          className="rounded-xl border border-violet-500/35 bg-violet-500/10 px-4 py-3 text-[12px] font-semibold text-violet-100 min-h-[44px] disabled:opacity-50"
+          data-testid="import-ai-summary"
+        >
+          {aiBusy === 'summary' ? 'Summarizing…' : 'AI import summary'}
+        </button>
         <a
           href={`/league/${leagueId}`}
           className="inline-flex items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-3 text-[12px] font-semibold text-cyan-100 min-h-[44px]"
@@ -256,6 +344,23 @@ function StepAudit({ leagueId, initialSessionId }: { leagueId: string; initialSe
           View your league
         </a>
       </div>
+      {suggestions && suggestions.length > 0 ? (
+        <div className="rounded-xl border border-white/[0.08] bg-[#0a1228] p-3 text-[11px] text-white/70">
+          <p className="font-semibold text-white/85">Suggested matches</p>
+          <ul className="mt-2 space-y-1">
+            {suggestions.slice(0, 12).map((s) => (
+              <li key={s.mappingId}>
+                {s.externalName} → {s.suggestedName ?? 'No match'} ({Math.round(s.confidence)}%) — {s.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {summaryText ? (
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-3 text-[12px] text-white/80 whitespace-pre-wrap">
+          {summaryText}
+        </div>
+      ) : null}
     </div>
   )
 }
