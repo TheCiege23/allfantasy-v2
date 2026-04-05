@@ -59,7 +59,7 @@ describe("notification center services", () => {
 
   it("resolves top bar utility order and settings shortcut visibility", () => {
     const guest = getTopBarUtilities({ isAuthenticated: false, isAdmin: false })
-    expect(guest.map((utility) => utility.id)).toEqual(["theme"])
+    expect(guest.map((utility) => utility.id)).toEqual([])
 
     const authenticated = getTopBarUtilities({
       isAuthenticated: true,
@@ -74,7 +74,6 @@ describe("notification center services", () => {
       "settings",
       "ai_chat",
       "language",
-      "theme",
       "admin",
       "profile",
     ])

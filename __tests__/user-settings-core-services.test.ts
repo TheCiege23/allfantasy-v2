@@ -11,7 +11,7 @@ describe("user-settings core services", () => {
     })
 
     expect(result.preferredLanguage).toBe("en")
-    expect(result.themePreference).toBe("legacy")
+    expect(result.themePreference).toBe("dark")
     expect(typeof result.timezone).toBe("string")
   })
 

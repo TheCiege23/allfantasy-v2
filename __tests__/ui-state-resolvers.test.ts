@@ -26,7 +26,7 @@ describe("ui-state resolvers", () => {
     expect(dashboardActions.map((action) => action.href)).toEqual([
       "/create-league",
       "/import",
-      "/chimmy",
+      "/messages?tab=ai&sport=NFL&source=fallback",
     ])
 
     const notificationsActions = resolveRecoveryActions("notifications")
