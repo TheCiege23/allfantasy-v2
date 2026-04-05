@@ -95,3 +95,10 @@ export function getGateDef(featureId: SubscriptionFeatureId): GateDef {
 export function getUpgradeUrlForFeature(featureId: SubscriptionFeatureId): string {
   return getGateDef(featureId).upgradeUrl
 }
+
+/** Same as pricing CTAs: base path + `?highlight=` when the catalog defines one (e.g. supplemental draft). */
+export function getUpgradeUrlWithHighlightForFeature(featureId: SubscriptionFeatureId): string {
+  const def = getGateDef(featureId)
+  const h = typeof def.highlightParam === "string" && def.highlightParam.length > 0 ? def.highlightParam : undefined
+  return def.upgradeUrl + (h ? `?highlight=${encodeURIComponent(h)}` : "")
+}

@@ -18,12 +18,17 @@ export async function requireEntitlement(
 
   if (!result.hasAccess) {
     const def = getGateDef(featureId)
+    const hash =
+      typeof def.highlightParam === "string" && def.highlightParam.length > 0
+        ? def.highlightParam
+        : undefined
+    const upgradeUrl = def.upgradeUrl + (hash ? `?highlight=${encodeURIComponent(hash)}` : "")
     return NextResponse.json(
       {
         error: result.message,
         upgrade: true,
         featureId,
-        upgradeUrl: def.upgradeUrl,
+        upgradeUrl,
         planRequired: def.upgradeLabel,
       },
       { status: 402 }

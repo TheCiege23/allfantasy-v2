@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import type { SupplementalAsset, SupplementalDraftState } from '@/lib/supplemental-draft/types'
+
+const POLL_MS = 5000 as const
 
 type LeagueSettingsBrief = {
   userRole?: string | null
@@ -28,26 +30,34 @@ export default function SupplementalDraftLivePage() {
   const [tab, setTab] = useState<'all' | 'player' | 'draft_pick' | 'faab'>('all')
   const [pickBusy, setPickBusy] = useState(false)
   const [deadline, setDeadline] = useState<number | null>(null)
+  const [pollError, setPollError] = useState<string | null>(null)
+  const timeoutSentForPickRef = useRef<string | null>(null)
 
   const loadState = useCallback(async () => {
     const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/state`, {
       cache: 'no-store',
     })
     const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
-    if (!res.ok) throw new Error(json.error ?? 'Could not load draft')
+    if (!res.ok) {
+      const err = (json as { error?: string }).error ?? 'Could not load draft'
+      setPollError(err)
+      return
+    }
+    setPollError(null)
     setState(json)
   }, [draftId, leagueId])
 
   useEffect(() => {
-    void loadState().catch((e) => toast.error(e instanceof Error ? e.message : 'Load failed'))
+    void loadState()
   }, [loadState])
 
   useEffect(() => {
+    if (state?.status === 'completed' || state?.status === 'cancelled') return
     const t = window.setInterval(() => {
-      void loadState().catch(() => {})
-    }, 5000)
+      void loadState()
+    }, POLL_MS)
     return () => window.clearInterval(t)
-  }, [loadState])
+  }, [loadState, state?.status])
 
   useEffect(() => {
     void (async () => {
@@ -91,6 +101,49 @@ export default function SupplementalDraftLivePage() {
   const currentRosterId = state?.currentRosterId ?? null
   const isMyTurn = Boolean(myRosterId && currentRosterId === myRosterId)
   const isPassed = Boolean(myRosterId && state?.passedRosterIds.includes(myRosterId))
+
+  useEffect(() => {
+    timeoutSentForPickRef.current = null
+  }, [state?.currentPickIndex, state?.currentRosterId])
+
+  useEffect(() => {
+    if (!state || state.status !== 'in_progress') return
+    if (!state.autoPickOnTimeout || pickTimeSeconds <= 0) return
+    if (!isMyTurn || !myRosterId || isPassed) return
+    if (secondsLeft > 0) return
+    const key = `${state.currentPickIndex}-${state.currentPickNumber}-${myRosterId}`
+    if (timeoutSentForPickRef.current === key) return
+    timeoutSentForPickRef.current = key
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/timeout`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rosterId: myRosterId }),
+          }
+        )
+        const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
+        if (!res.ok) {
+          timeoutSentForPickRef.current = null
+          return
+        }
+        setState(json)
+      } catch {
+        timeoutSentForPickRef.current = null
+      }
+    })()
+  }, [
+    draftId,
+    isMyTurn,
+    isPassed,
+    leagueId,
+    myRosterId,
+    pickTimeSeconds,
+    secondsLeft,
+    state,
+  ])
   const participants = state?.participantRosterIds ?? []
 
   const pool = state?.assetPool ?? []
@@ -99,12 +152,14 @@ export default function SupplementalDraftLivePage() {
     return pool.filter((a) => a.isAvailable && a.assetType === tab)
   }, [pool, tab])
 
-  const currentRound =
-    state && state.picksPerRound > 0 ? Math.floor(state.currentPickIndex / state.picksPerRound) + 1 : 1
-  const pickInRound =
-    state && state.picksPerRound > 0 ? (state.currentPickIndex % state.picksPerRound) + 1 : 1
-
-  const recent = (state?.picks ?? []).slice(-5)
+  const roundNo =
+    state && state.picksPerRound > 0
+      ? Math.ceil(state.currentPickNumber / Math.max(1, state.picksPerRound))
+      : 1
+  const pickInRoundNo =
+    state && state.picksPerRound > 0
+      ? ((state.currentPickNumber - 1) % Math.max(1, state.picksPerRound)) + 1
+      : state?.currentPickNumber ?? 1
 
   const submitPick = async (assetId: string) => {
     if (!myRosterId) return
@@ -115,12 +170,12 @@ export default function SupplementalDraftLivePage() {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assetId, rosterId: myRosterId }),
+          body: JSON.stringify({ assetId }),
         }
       )
       const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Pick failed')
-      setState(json)
+      setState(json as SupplementalDraftState)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Pick failed')
     } finally {
@@ -215,7 +270,15 @@ export default function SupplementalDraftLivePage() {
   if (!state) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-10 text-center text-sm text-white/60">
-        Loading supplemental draft…
+        {pollError ? (
+          <div className="mx-auto max-w-md rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-left text-red-100">
+            <p className="font-semibold">Could not load draft</p>
+            <p className="mt-1 text-xs text-red-200/90">{pollError}</p>
+            <p className="mt-2 text-[11px] text-white/45">Retrying every {POLL_MS / 1000}s…</p>
+          </div>
+        ) : (
+          'Loading supplemental draft…'
+        )}
       </main>
     )
   }
@@ -267,6 +330,11 @@ export default function SupplementalDraftLivePage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 text-white">
+      {pollError ? (
+        <div className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90">
+          Refresh issue: {pollError} — still retrying every {POLL_MS / 1000}s
+        </div>
+      ) : null}
       {configuring ? (
         <div className="mb-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-100">
           <p>This draft is not live yet.</p>
@@ -320,12 +388,19 @@ export default function SupplementalDraftLivePage() {
                       </span>
                     </p>
                   ) : a.assetType === 'draft_pick' ? (
-                    <p>
-                      {a.pickYear} Round {a.pickRound}
-                      {a.isTradedPick ? (
-                        <span className="ml-2 rounded bg-amber-500/20 px-1.5 text-[9px] text-amber-200">TRADED</span>
+                    <div>
+                      <p>
+                        {a.pickYear} Round {a.pickRound}
+                        {a.isTradedPick ? (
+                          <span className="ml-2 rounded bg-amber-500/20 px-1.5 text-[9px] text-amber-200">TRADED</span>
+                        ) : null}
+                      </p>
+                      {a.isTradedPick && a.originalOwnerRosterId ? (
+                        <p className="mt-0.5 text-[9px] text-white/40">
+                          Original owner roster preserved in DB — pick routes to winner on claim.
+                        </p>
                       ) : null}
-                    </p>
+                    </div>
                   ) : (
                     <p>
                       ${a.faabAmount ?? 0}{' '}
@@ -348,17 +423,18 @@ export default function SupplementalDraftLivePage() {
 
         <div className="rounded-2xl border border-cyan-500/15 bg-[#081226] p-4 text-center lg:col-span-1">
           <p className="text-[11px] text-white/45">
-            Round {currentRound} of {state.totalRounds}
+            Round {roundNo} of {state.totalRounds}
           </p>
           <p className="text-[11px] text-white/45">
-            Pick {pickInRound} of {state.picksPerRound}
+            Pick {pickInRoundNo} of {state.picksPerRound} this round · #{state.currentPickNumber} overall
           </p>
           <p
             className={`mt-4 text-lg font-bold ${isMyTurn ? 'text-cyan-200 drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]' : 'text-white/90'}`}
           >
             {currentRosterId ? nameFor(currentRosterId) : '—'}
           </p>
-          {isMyTurn ? <p className="mt-1 text-xs font-semibold text-cyan-300">⚡ YOUR PICK</p> : null}
+          <p className="mt-1 text-[11px] text-white/40">is on the clock</p>
+          {isMyTurn ? <p className="mt-2 text-sm font-bold text-cyan-300">YOUR PICK</p> : null}
           {pickTimeSeconds > 0 && state.status === 'in_progress' ? (
             <p className={`mt-3 text-2xl font-mono ${secondsLeft <= 10 ? 'text-red-400' : 'text-white/80'}`}>
               {secondsLeft}s
@@ -377,15 +453,6 @@ export default function SupplementalDraftLivePage() {
             ) : (
               <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] text-white/60">PASSED</span>
             )}
-          </div>
-          <div className="mt-6 space-y-1 text-left text-[10px] text-white/45">
-            <p className="text-[9px] font-semibold uppercase tracking-wide text-white/35">Recent</p>
-            {recent.map((p) => (
-              <p key={p.pickNumber}>
-                R{p.round} P{p.pickInRound}: {nameFor(p.rosterId)} →{' '}
-                {p.isPassed ? 'passed' : (p.assetDisplayName ?? 'asset')}
-              </p>
-            ))}
           </div>
         </div>
 
@@ -438,6 +505,29 @@ export default function SupplementalDraftLivePage() {
           </button>
         </div>
       ) : null}
+
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#080f1f] p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Draft log</p>
+        <div className="mt-3 max-h-64 space-y-2 overflow-y-auto text-[11px] text-white/75">
+          {state.picks.length === 0 ? (
+            <p className="text-white/40">No picks yet.</p>
+          ) : (
+            state.picks.map((p) => (
+              <p key={p.pickNumber}>
+                <span className="text-white/45">
+                  Round {p.round}, Pick {p.pickInRound}:
+                </span>{' '}
+                <span className="text-white/85">{nameFor(p.rosterId)}</span>{' '}
+                {p.isPassed ? (
+                  <span className="text-amber-200/90">passed</span>
+                ) : (
+                  <span>selected {p.assetDisplayName ?? 'asset'}</span>
+                )}
+              </p>
+            ))
+          )}
+        </div>
+      </div>
     </main>
   )
 }

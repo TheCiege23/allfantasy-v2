@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
 import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
 import { prisma } from '@/lib/prisma'
+import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(_req: Request, ctx: { params: Promise<{ leagueId: string; draftId: string }> }) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  if (ent instanceof NextResponse) return ent
+  const userId = ent
 
   const { leagueId, draftId } = await ctx.params
   if (!leagueId || !draftId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })

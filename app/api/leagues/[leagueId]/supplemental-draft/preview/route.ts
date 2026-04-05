@@ -3,8 +3,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import {
   buildAssetPoolFromRosters,
@@ -12,13 +10,14 @@ import {
 } from '@/lib/supplemental-draft/assetPoolBuilder'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
+import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  if (ent instanceof NextResponse) return ent
+  const userId = ent
 
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })

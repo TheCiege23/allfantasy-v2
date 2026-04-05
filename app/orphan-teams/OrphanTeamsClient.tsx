@@ -9,6 +9,7 @@ import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGat
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 
 type OrphanTeamCard = {
@@ -68,7 +69,9 @@ type OrphanedTeamsApiResponse = {
 
 function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
   const router = useRouter()
+  const { hasCommissioner } = useEntitlements()
   const gateCtx = useSubscriptionGateOptional()
+
   const [data, setData] = useState<OrphanedTeamsApiResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [advertiseIds, setAdvertiseIds] = useState<Set<string>>(new Set())
@@ -165,67 +168,9 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
   if (!data) return null
 
   const orphanCount = data.orphanCount
-  const supp = (() => {
-    if (data.hasActiveSuppDraft && data.activeSuppDraftId) {
-      return (
-        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-4">
-          <p className="text-sm font-semibold text-white">A supplemental draft is in progress.</p>
-          <Link
-            href={`/league/${leagueId}/supplemental-draft/${data.activeSuppDraftId}`}
-            className="mt-3 inline-flex rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/25"
-          >
-            Resume draft →
-          </Link>
-        </div>
-      )
-    }
-    if (orphanCount < 2) {
-      return (
-        <div className="pointer-events-none rounded-xl border border-white/10 bg-white/[0.02] p-4 opacity-50">
-          <p className="text-xs text-white/55">
-            🔒 Requires 2+ orphaned teams. Currently: {orphanCount}.
-          </p>
-        </div>
-      )
-    }
-    if (data.suppDraftGated) {
-      return (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <SubscriptionGateBadge
-              featureId="commissioner_supplemental_draft"
-              onClick={() => openGate('commissioner_supplemental_draft')}
-            />
-            <span className="text-xs text-amber-200/80">AF Commissioner subscription required.</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => openGate('commissioner_supplemental_draft')}
-            className="mt-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20"
-          >
-            View plans →
-          </button>
-        </div>
-      )
-    }
-    if (data.canRunSuppDraft) {
-      return (
-        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/[0.03] p-4">
-          <p className="text-xs text-cyan-100/90">
-            ✓ {orphanCount} orphaned teams · assets ready
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push(`/league/${leagueId}/supplemental-draft/setup`)}
-            className="mt-3 w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/25 sm:w-auto"
-          >
-            Set up supplemental draft →
-          </button>
-        </div>
-      )
-    }
-    return null
-  })()
+  const isDisabled = orphanCount < 2
+  const isGated = data.suppDraftGated || !hasCommissioner
+  const canLaunchSuppDraft = !isGated && data.canRunSuppDraft
 
   const toggle = (set: Dispatch<SetStateAction<Set<string>>>, id: string) => {
     set((prev) => {
@@ -245,111 +190,182 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
           featureId={localGate}
         />
       ) : null}
-      <div className="rounded-2xl border border-white/10 bg-[#081226] p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-white">Commissioner: open teams</h2>
-        <p className="mt-1 text-sm text-white/55">League ID: {leagueId}</p>
+
+      <div className="rounded-2xl border border-amber-500/15 bg-[#081226] p-4 sm:p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/70">Commissioner</p>
+        <h2 className="mt-1 text-lg font-semibold text-white">League {leagueId}</h2>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-[#0a1328] p-4">
-        <h3 className="text-sm font-semibold text-white/90">Orphaned team summary</h3>
-        {data.orphanedTeams.length === 0 ? (
-          <p className="mt-2 text-sm text-white/45">No orphaned teams in this league.</p>
-        ) : (
-          <ul className="mt-3 space-y-2">
+      {orphanCount >= 1 ? (
+        <div className="rounded-2xl border border-white/10 bg-[#0a1228] p-4 sm:p-5">
+          <div className="flex items-start gap-2 border-b border-white/[0.06] pb-4">
+            <span className="text-xl" aria-hidden>
+              ⚠️
+            </span>
+            <div>
+              <h3 className="text-base font-bold text-white">
+                {orphanCount} Orphaned Team{orphanCount === 1 ? '' : 's'} Detected
+              </h3>
+              <p className="mt-1 text-sm text-white/55">The following teams no longer have managers:</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {data.orphanedTeams.map((t) => (
-              <li
+              <div
                 key={t.rosterId}
-                className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-xs text-white/80"
+                className="rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3 text-xs text-white/85"
               >
-                <span className="font-medium text-white">{t.teamName}</span>
-                <span className="text-white/55">
+                <p className="font-semibold text-white">{t.teamName}</p>
+                <p className="mt-1 text-white/50">
                   {t.playerCount} players · {t.draftPickCount} picks
                   {t.faabRemaining > 0 ? ` · $${t.faabRemaining} FAAB` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
-          <h3 className="text-sm font-semibold text-white">📢 Advertise to Find-a-League</h3>
-          <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
-            {data.orphanedTeams.map((t) => (
-              <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
-                <input
-                  type="checkbox"
-                  className="rounded border-white/20"
-                  checked={advertiseIds.has(t.rosterId)}
-                  disabled={!data.canAdvertise}
-                  onChange={() => toggle(setAdvertiseIds, t.rosterId)}
-                />
-                {t.teamName}
-              </label>
+                </p>
+              </div>
             ))}
           </div>
-          <button
-            type="button"
-            disabled={busy !== null || !data.canAdvertise || advertiseIds.size === 0}
-            onClick={() => void postAdvertise()}
-            className="mt-4 w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40"
-          >
-            {busy === 'advertise' ? 'Posting…' : 'Post to Find-a-League'}
-          </button>
-        </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
-          <h3 className="text-sm font-semibold text-white">🤖 Assign AI manager</h3>
-          <div className="mt-2 flex gap-3 text-[11px] text-white/70">
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="ai-type"
-                checked={aiType === 'season_long'}
-                onChange={() => setAiType('season_long')}
-              />
-              For season
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="ai-type"
-                checked={aiType === 'until_claimed'}
-                onChange={() => setAiType('until_claimed')}
-              />
-              Until claimed
-            </label>
-          </div>
-          <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
-            {data.orphanedTeams.map((t) => (
-              <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
-                <input
-                  type="checkbox"
-                  className="rounded border-white/20"
-                  checked={aiIds.has(t.rosterId)}
-                  disabled={!data.canAssignAI}
-                  onChange={() => toggle(setAiIds, t.rosterId)}
-                />
-                {t.teamName}
-              </label>
-            ))}
-          </div>
-          <button
-            type="button"
-            disabled={busy !== null || !data.canAssignAI || aiIds.size === 0}
-            onClick={() => void postAi()}
-            className="mt-4 w-full rounded-lg border border-violet-400/35 bg-violet-500/15 py-2 text-xs font-bold text-violet-100 disabled:opacity-40"
-          >
-            {busy === 'ai' ? 'Assigning…' : 'Assign AI manager'}
-          </button>
-        </div>
+          <p className="mt-6 text-sm font-medium text-white/90">Choose how to handle these teams:</p>
 
-        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
-          <h3 className="text-sm font-semibold text-white">🏈 Supplemental draft</h3>
-          <div className="mt-3">{supp}</div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <div className="rounded-xl border border-white/10 bg-[#080f1f] p-4">
+              <h4 className="text-sm font-semibold text-white">📢 Advertise to Find-a-League</h4>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+                Post these teams to the league finder so new managers can claim them.
+              </p>
+              <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+                {data.orphanedTeams.map((t) => (
+                  <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
+                    <input
+                      type="checkbox"
+                      className="rounded border-white/20"
+                      checked={advertiseIds.has(t.rosterId)}
+                      disabled={!data.canAdvertise}
+                      onChange={() => toggle(setAdvertiseIds, t.rosterId)}
+                    />
+                    {t.teamName}
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={busy !== null || !data.canAdvertise || advertiseIds.size === 0}
+                onClick={() => void postAdvertise()}
+                className="mt-4 w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40"
+              >
+                {busy === 'advertise' ? 'Posting…' : 'Post to Find-a-League'}
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-[#080f1f] p-4">
+              <h4 className="text-sm font-semibold text-white">🤖 Assign AI Manager</h4>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+                An AI will manage this team until a human takes over, or for the full season.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-white/70">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="ai-type"
+                    checked={aiType === 'season_long'}
+                    onChange={() => setAiType('season_long')}
+                  />
+                  For season
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="radio"
+                    name="ai-type"
+                    checked={aiType === 'until_claimed'}
+                    onChange={() => setAiType('until_claimed')}
+                  />
+                  Until claimed
+                </label>
+              </div>
+              <div className="mt-3 max-h-36 space-y-2 overflow-y-auto">
+                {data.orphanedTeams.map((t) => (
+                  <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
+                    <input
+                      type="checkbox"
+                      className="rounded border-white/20"
+                      checked={aiIds.has(t.rosterId)}
+                      disabled={!data.canAssignAI}
+                      onChange={() => toggle(setAiIds, t.rosterId)}
+                    />
+                    {t.teamName}
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                disabled={busy !== null || !data.canAssignAI || aiIds.size === 0}
+                onClick={() => void postAi()}
+                className="mt-4 w-full rounded-lg border border-violet-400/35 bg-violet-500/15 py-2 text-xs font-bold text-violet-100 disabled:opacity-40"
+              >
+                {busy === 'ai' ? 'Assigning…' : 'Assign AI Manager'}
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-[#080f1f] p-4">
+              <h4 className="text-sm font-semibold text-white">🏈 Supplemental Draft</h4>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+                Pool all orphaned team assets and draft them among remaining managers.
+              </p>
+
+              {data.hasActiveSuppDraft && data.activeSuppDraftId ? (
+                <div className="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
+                  <p className="text-xs font-semibold text-emerald-100">A supplemental draft is in progress.</p>
+                  <Link
+                    href={`/league/${leagueId}/supplemental-draft/${data.activeSuppDraftId}`}
+                    className="mt-2 inline-flex rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100"
+                  >
+                    Resume draft →
+                  </Link>
+                </div>
+              ) : (
+                <div className={`mt-4 ${isDisabled ? 'opacity-40' : ''}`}>
+                  {isGated ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <button
+                        type="button"
+                        onClick={() => openGate('commissioner_supplemental_draft')}
+                        className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/90 hover:bg-white/[0.07]"
+                      >
+                        🏈 Supplemental Draft
+                      </button>
+                      <SubscriptionGateBadge
+                        featureId="commissioner_supplemental_draft"
+                        onClick={() => openGate('commissioner_supplemental_draft')}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isDisabled || !canLaunchSuppDraft}
+                      onClick={() => router.push(`/league/${leagueId}/supplemental-draft/setup`)}
+                      className="w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      🏈 Run Supplemental Draft →
+                    </button>
+                  )}
+                  {isDisabled ? (
+                    <p className="text-xs text-white/40 mt-2">Requires 2+ orphaned teams</p>
+                  ) : null}
+                  {isGated && !isDisabled ? (
+                    <p className="mt-2 text-[11px] text-amber-200/70">
+                      AF Commissioner subscription required to run supplemental drafts.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="rounded-2xl border border-white/10 bg-[#0a1328] px-4 py-6 text-center text-sm text-white/55">
+          No orphaned teams in this league.
+        </p>
+      )}
     </div>
   )
 }

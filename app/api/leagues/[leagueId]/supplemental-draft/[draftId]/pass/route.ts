@@ -32,23 +32,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
 
   if (remove) {
     if (!comm) return NextResponse.json({ error: 'Only the commissioner can remove pass status.' }, { status: 403 })
-  } else {
-    const roster = await prisma.roster.findFirst({
-      where: { id: rosterId, leagueId },
-      select: { platformUserId: true },
-    })
-    if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
-    if (roster.platformUserId !== userId) {
-      return NextResponse.json({ error: 'You can only pass for your own roster.' }, { status: 403 })
+    try {
+      await SupplementalDraftEngine.removePassByCommissioner(draftId, rosterId)
+      const state = await SupplementalDraftEngine.getDraftState(draftId)
+      return NextResponse.json({ ok: true, draft: state })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Pass update failed'
+      return NextResponse.json({ error: msg }, { status: 400 })
     }
   }
 
+  const roster = await prisma.roster.findFirst({
+    where: { id: rosterId, leagueId },
+    select: { platformUserId: true },
+  })
+  if (!roster) return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
+  if (roster.platformUserId !== userId) {
+    return NextResponse.json({ error: 'You can only pass for your own roster.' }, { status: 403 })
+  }
+
   try {
-    await SupplementalDraftEngine.passManager(draftId, rosterId, remove)
-    const state = await SupplementalDraftEngine.getDraftState(draftId)
+    const state = await SupplementalDraftEngine.makePick(draftId, rosterId, 'PASS')
     return NextResponse.json({ ok: true, draft: state })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Pass update failed'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    const st = msg === 'Not your pick' || msg.includes('Not your pick') ? 409 : 400
+    return NextResponse.json({ error: msg }, { status: st })
   }
 }

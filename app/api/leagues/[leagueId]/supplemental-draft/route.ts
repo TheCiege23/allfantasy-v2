@@ -33,12 +33,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
-  const { leagueId } = await ctx.params
-  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
-
   const ent = await requireEntitlement('commissioner_supplemental_draft')
   if (ent instanceof NextResponse) return ent
   const commissionerUserId = ent
+
+  const { leagueId } = await ctx.params
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
   if (!(await isCommissioner(leagueId, commissionerUserId))) {
     return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, isDynasty: true, leagueVariant: true, settings: true },
+    select: { id: true, isDynasty: true, leagueVariant: true, leagueType: true, settings: true },
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 

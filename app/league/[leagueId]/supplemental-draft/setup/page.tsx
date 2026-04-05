@@ -21,6 +21,10 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
+import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import type { SupplementalAsset, SupplementalScenario } from '@/lib/supplemental-draft/types'
 
 type PreviewResponse = {
@@ -32,8 +36,6 @@ type PreviewResponse = {
   suggestedRounds: number
   suggestedPicksPerRound: number
 }
-
-type RosterRow = { rosterId: string; teamName: string; isOrphan: boolean }
 
 function SortableParticipant({
   id,
@@ -74,7 +76,7 @@ export default function SupplementalDraftSetupPage() {
   const leagueId = params.leagueId
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
-  const [scenario, setScenario] = useState<SupplementalScenario>('orphan_teams')
+  const [scenario, setScenario] = useState<SupplementalScenario | null>(null)
   const [orphanPayload, setOrphanPayload] = useState<{
     orphanedTeams: { rosterId: string; teamName: string }[]
     orphanCount: number
@@ -90,6 +92,12 @@ export default function SupplementalDraftSetupPage() {
   const [autoPickOnTimeout, setAutoPickOnTimeout] = useState(true)
 
   const [launching, setLaunching] = useState(false)
+  const gateOptional = useSubscriptionGateOptional()
+  const [localGate, setLocalGate] = useState<SubscriptionFeatureId | null>(null)
+
+  const openSuppGate = (id: SubscriptionFeatureId) => {
+    gateOptional?.gate(id) ?? setLocalGate(id)
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -113,22 +121,45 @@ export default function SupplementalDraftSetupPage() {
   }, [leagueId])
 
   const loadParticipants = useCallback(async () => {
-    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/downsize`, { cache: 'no-store' })
+    const res = await fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/managers`, {
+      cache: 'no-store',
+    })
     const json = (await res.json().catch(() => ({}))) as {
-      rosters?: RosterRow[]
+      rosters?: { id: string; platformUserId: string }[]
+      managers?: { rosterId: string; displayName: string }[]
       error?: string
     }
-    if (!res.ok) throw new Error(json.error ?? 'Failed to load rosters')
-    const rows = (json.rosters ?? []).filter((r) => !r.isOrphan)
-    const ids = rows.map((r) => r.rosterId)
-    const labels = Object.fromEntries(rows.map((r) => [r.rosterId, r.teamName]))
-    setParticipantOrder(ids)
-    setParticipantLabels(labels)
+    if (!res.ok) throw new Error(json.error ?? 'Failed to load managers')
+    const byId = new Map((json.rosters ?? []).map((r) => [r.id, r]))
+    const managers = json.managers ?? []
+    const nonOrphan = managers.filter((m) => {
+      const r = byId.get(m.rosterId)
+      return r && !isOrphanPlatformUserId(r.platformUserId)
+    })
+    setParticipantOrder(nonOrphan.map((m) => m.rosterId))
+    setParticipantLabels(
+      Object.fromEntries(nonOrphan.map((m) => [m.rosterId, m.displayName ?? `Team ${m.rosterId.slice(0, 6)}`]))
+    )
   }, [leagueId])
 
   useEffect(() => {
     void loadOrphans().catch((e) => toast.error(e instanceof Error ? e.message : 'Load failed'))
   }, [loadOrphans])
+
+  useEffect(() => {
+    if (orphanPayload != null && orphanPayload.orphanCount < 2) {
+      toast.error('Supplemental draft needs at least 2 orphaned teams.')
+      router.replace(`/league/${leagueId}`)
+    }
+  }, [orphanPayload, leagueId, router])
+
+  useEffect(() => {
+    if (!orphanPayload) return
+    if (scenario !== 'orphan_teams') return
+    if (orphanPayload.orphanCount >= 2) return
+    toast.error('At least two orphaned teams are required for a supplemental draft.')
+    router.replace(`/league/${leagueId}`)
+  }, [orphanPayload, scenario, leagueId, router])
 
   useEffect(() => {
     void loadParticipants().catch(() => {
@@ -177,6 +208,7 @@ export default function SupplementalDraftSetupPage() {
     }
   }
 
+  const canContinueFrom1 = scenario !== null
   const canContinueFrom2 = sourceIds.size >= 2
   const canContinueFrom3 = preview != null
   const canContinueFrom4 = orderMode === 'randomized' || participantOrder.length > 0
@@ -193,16 +225,21 @@ export default function SupplementalDraftSetupPage() {
   }
 
   const launch = async () => {
+    if (!scenario) {
+      toast.error('Select a scenario before launching.')
+      return
+    }
     const sourceRosterIds = [...sourceIds]
-    const body = {
+    const body: Record<string, unknown> = {
       scenario,
       sourceRosterIds,
-      participantRosterIds:
-        orderMode === 'commissioner_set' && participantOrder.length > 0 ? participantOrder : undefined,
       orderMode,
-      manualOrder: orderMode === 'commissioner_set' ? participantOrder : undefined,
       pickTimeSeconds,
       autoPickOnTimeout,
+    }
+    if (orderMode === 'commissioner_set' && participantOrder.length > 0) {
+      body.participantRosterIds = participantOrder
+      body.manualOrder = participantOrder
     }
     setLaunching(true)
     try {
@@ -212,18 +249,13 @@ export default function SupplementalDraftSetupPage() {
         body: JSON.stringify(body),
       })
       const json = (await res.json().catch(() => ({}))) as { draft?: { id: string }; error?: string }
+      if (res.status === 402) {
+        openSuppGate('commissioner_supplemental_draft')
+        return
+      }
       if (!res.ok) throw new Error(json.error ?? 'Could not create draft')
       const draftId = json.draft?.id
       if (!draftId) throw new Error('Missing draft id')
-
-      const startRes = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/start`,
-        { method: 'POST' }
-      )
-      if (!startRes.ok) {
-        const err = (await startRes.json().catch(() => ({}))) as { error?: string }
-        throw new Error(err.error ?? 'Draft created but could not start.')
-      }
       router.push(`/league/${leagueId}/supplemental-draft/${draftId}`)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Launch failed')
@@ -234,6 +266,13 @@ export default function SupplementalDraftSetupPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-8 text-white">
+      {localGate && !gateOptional ? (
+        <SubscriptionGateModal
+          isOpen={Boolean(localGate)}
+          onClose={() => setLocalGate(null)}
+          featureId={localGate}
+        />
+      ) : null}
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Supplemental draft setup</h1>
@@ -430,7 +469,7 @@ export default function SupplementalDraftSetupPage() {
         <div className="space-y-4 rounded-2xl border border-white/10 bg-[#0a1328] p-4">
           <h2 className="text-sm font-semibold">Review</h2>
           <ul className="space-y-1 text-xs text-white/70">
-            <li>Scenario: {scenario}</li>
+            <li>Scenario: {scenario ?? '—'}</li>
             <li>Sources: {sourceIds.size} rosters</li>
             <li>Order: {orderMode === 'randomized' ? 'Randomized' : 'Manual'}</li>
             <li>
@@ -466,6 +505,7 @@ export default function SupplementalDraftSetupPage() {
           disabled={
             step >= 5 ||
             previewLoading ||
+            (step === 1 && !canContinueFrom1) ||
             (step === 2 && !canContinueFrom2) ||
             (step === 3 && !canContinueFrom3) ||
             (step === 4 && !canContinueFrom4)

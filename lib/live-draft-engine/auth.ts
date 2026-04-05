@@ -51,3 +51,21 @@ export async function getCurrentUserRosterIdForLeague(
   })
   return roster?.id ?? null
 }
+
+/**
+ * Supplemental draft: only the roster owner may submit picks (no commissioner proxy).
+ * Caller must also enforce turn order and `passedRosterIds` in the engine.
+ */
+export async function canSubmitSupplementalPickForUser(
+  leagueId: string,
+  userId: string | undefined,
+  rosterId: string
+): Promise<boolean> {
+  if (!userId) return false
+  const roster = await prisma.roster.findFirst({
+    where: { id: rosterId, leagueId },
+    select: { id: true, platformUserId: true },
+  })
+  if (!roster) return false
+  return roster.platformUserId === userId
+}

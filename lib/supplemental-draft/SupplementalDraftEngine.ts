@@ -5,7 +5,7 @@
 
 import { randomBytes } from 'node:crypto'
 
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
@@ -159,6 +159,48 @@ function allParticipantsPassed(participantRosterIds: string[], passedRosterIds: 
   return participantRosterIds.every((id) => passed.has(id))
 }
 
+function asJsonRecord(v: unknown): Record<string, unknown> {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
+}
+
+function nextRoundReentryPickIndex(
+  draftOrder: string[],
+  picksPerRound: number,
+  rosterId: string,
+  currentPickIndex: number
+): number | null {
+  const p = Math.max(1, picksPerRound)
+  const curRound = Math.floor(Math.max(0, currentPickIndex) / p)
+  let best: number | null = null
+  for (let i = 0; i < draftOrder.length; i++) {
+    if (draftOrder[i] !== rosterId) continue
+    const rr = Math.floor(i / p)
+    if (rr > curRound) {
+      if (best === null || i < best) best = i
+    }
+  }
+  return best
+}
+
+function readPlayerDataRoot(playerData: unknown): Record<string, unknown> {
+  if (playerData == null) return { players: [] as unknown[] }
+  if (Array.isArray(playerData)) return { players: [...playerData] }
+  const r = asJsonRecord(playerData)
+  return r && Object.keys(r).length > 0 ? { ...r } : { players: [] as unknown[] }
+}
+
+function draftPickMatchesAsset(raw: unknown, pickId: string): boolean {
+  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  if (!o) return false
+  const id =
+    (typeof o.id === 'string' && o.id) ||
+    (typeof o.pick_id === 'string' && o.pick_id) ||
+    (typeof o.pickId === 'string' && o.pickId) ||
+    (typeof o.draft_pick_id === 'string' && o.draft_pick_id) ||
+    ''
+  return id === pickId
+}
+
 export class SupplementalDraftEngine {
   static async createDraft(
     config: SupplementalDraftConfig,
@@ -250,29 +292,164 @@ export class SupplementalDraftEngine {
   }
 
   static async makePick(draftId: string, rosterId: string, assetId: string): Promise<SupplementalDraftState> {
-    const row = await prisma.supplementalDraft.findUnique({
-      where: { id: draftId },
-      include: { picks: { orderBy: { pickNumber: 'asc' } } },
-    })
-    if (!row) throw new Error('Draft not found')
-    if (row.status !== 'in_progress') throw new Error('Draft is not active')
-    if (!row.participantRosterIds.includes(rosterId)) throw new Error('Roster is not a participant in this draft')
+    const after = await prisma.$transaction(
+      async (tx) => {
+        const row = await tx.supplementalDraft.findUnique({
+          where: { id: draftId },
+          include: { picks: { orderBy: { pickNumber: 'asc' } } },
+        })
+        if (!row) throw new Error('Draft not found')
+        if (row.status !== 'in_progress') throw new Error('Draft is not active')
+        if (!row.participantRosterIds.includes(rosterId)) throw new Error('Roster is not a participant in this draft')
+        if (row.passedRosterIds.includes(rosterId)) {
+          throw new Error('You have passed out of this supplemental draft')
+        }
 
-    const assets = parseAssetPool(row.assetPool)
-    const currentRoster = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
-    if (!currentRoster || currentRoster !== rosterId) {
-      throw new Error('Not your pick')
+        const assets = parseAssetPool(row.assetPool)
+        const currentRoster = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
+        if (!currentRoster || currentRoster !== rosterId) {
+          throw new Error('Not your pick')
+        }
+
+        const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
+        const round = Math.ceil(pickNo / Math.max(1, row.picksPerRound))
+        const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
+
+        if (assetId === 'PASS' || assetId === 'pass') {
+          const passed = [...new Set([...row.passedRosterIds, rosterId])]
+          const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, passed)
+
+          await tx.supplementalDraftPick.create({
+            data: {
+              supplementalDraftId: draftId,
+              pickNumber: pickNo,
+              round,
+              pickInRound,
+              rosterId,
+              isPassed: true,
+              pickedAt: new Date(),
+            },
+          })
+          await tx.roster.updateMany({
+            where: { id: rosterId, leagueId: row.leagueId },
+            data: { supplementalDraftPasses: true },
+          })
+
+          let status: string = row.status
+          let completedAt: Date | null = row.completedAt
+          if (
+            allParticipantsPassed(row.participantRosterIds, passed) ||
+            allAssetsClaimed(assets) ||
+            nextIndex >= row.draftOrder.length
+          ) {
+            status = 'completed'
+            completedAt = new Date()
+          }
+
+          await tx.supplementalDraft.update({
+            where: { id: draftId },
+            data: {
+              passedRosterIds: passed,
+              currentPickIndex: nextIndex,
+              status: status as never,
+              completedAt,
+            },
+          })
+        } else {
+          const asset = assets.find((a) => a.id === assetId)
+          if (!asset || !asset.isAvailable) throw new Error('Asset not available')
+
+          asset.isAvailable = false
+          asset.claimedByRosterId = rosterId
+          asset.claimedAt = new Date().toISOString()
+
+          const display =
+            asset.assetType === 'player'
+              ? asset.playerName ?? asset.playerId ?? 'Player'
+              : asset.assetType === 'draft_pick'
+                ? asset.pickLabel ?? 'Draft pick'
+                : asset.assetType === 'faab'
+                  ? `FAAB $${asset.faabAmount ?? 0}`
+                  : 'Asset'
+
+          const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
+
+          await tx.supplementalDraftPick.create({
+            data: {
+              supplementalDraftId: draftId,
+              pickNumber: pickNo,
+              round,
+              pickInRound,
+              rosterId,
+              assetType: asset.assetType,
+              assetId: asset.playerId ?? asset.pickId ?? asset.id,
+              assetDisplayName: display,
+              isPassed: false,
+              pickedAt: new Date(),
+            },
+          })
+
+          let status: string = row.status
+          let completedAt: Date | null = row.completedAt
+          if (allAssetsClaimed(assets) || nextIndex >= row.draftOrder.length) {
+            status = 'completed'
+            completedAt = new Date()
+          }
+
+          await tx.supplementalDraft.update({
+            where: { id: draftId },
+            data: {
+              assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
+              currentPickIndex: nextIndex,
+              status: status as never,
+              completedAt,
+            },
+          })
+        }
+
+        return tx.supplementalDraft.findUnique({
+          where: { id: draftId },
+          include: { picks: { orderBy: { pickNumber: 'asc' } } },
+        })
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 15000,
+      }
+    )
+
+    if (!after) throw new Error('Draft not found')
+    if (after.status === 'completed') {
+      await SupplementalDraftEngine.completeDraft(draftId)
     }
+    return rowToState(after)
+  }
 
-    const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
-    const round = Math.ceil(pickNo / Math.max(1, row.picksPerRound))
-    const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
+  /**
+   * Auto-advance when the pick timer expires — does NOT add the manager to passedRosterIds (one turn only).
+   */
+  static async advancePickOnTimeout(draftId: string, rosterId: string): Promise<SupplementalDraftState> {
+    const after = await prisma.$transaction(
+      async (tx) => {
+        const row = await tx.supplementalDraft.findUnique({
+          where: { id: draftId },
+          include: { picks: { orderBy: { pickNumber: 'asc' } } },
+        })
+        if (!row) throw new Error('Draft not found')
+        if (row.status !== 'in_progress') throw new Error('Draft is not active')
+        if (!row.autoPickOnTimeout) throw new Error('Auto-pick on timeout is off')
+        if (row.pickTimeSeconds <= 0) throw new Error('No pick timer configured')
+        const current = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
+        if (!current || current !== rosterId) throw new Error('Not your pick')
+        if (row.passedRosterIds.includes(rosterId)) throw new Error('You have passed out of this supplemental draft')
 
-    if (assetId === 'PASS' || assetId === 'pass') {
-      const passed = [...new Set([...row.passedRosterIds, rosterId])]
-      const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, passed)
+        const assets = parseAssetPool(row.assetPool)
+        const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
+        const round = Math.ceil(pickNo / Math.max(1, row.picksPerRound))
+        const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
+        const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
 
-      await prisma.$transaction(async (tx) => {
         await tx.supplementalDraftPick.create({
           data: {
             supplementalDraftId: draftId,
@@ -280,22 +457,15 @@ export class SupplementalDraftEngine {
             round,
             pickInRound,
             rosterId,
-            isPassed: true,
+            assetDisplayName: 'Timer expired (auto)',
+            isPassed: false,
             pickedAt: new Date(),
           },
-        })
-        await tx.roster.updateMany({
-          where: { id: rosterId, leagueId: row.leagueId },
-          data: { supplementalDraftPasses: true },
         })
 
         let status: string = row.status
         let completedAt: Date | null = row.completedAt
-        if (
-          allParticipantsPassed(row.participantRosterIds, passed) ||
-          allAssetsClaimed(assets) ||
-          nextIndex >= row.draftOrder.length
-        ) {
+        if (allAssetsClaimed(assets) || nextIndex >= row.draftOrder.length) {
           status = 'completed'
           completedAt = new Date()
         }
@@ -303,100 +473,106 @@ export class SupplementalDraftEngine {
         await tx.supplementalDraft.update({
           where: { id: draftId },
           data: {
-            passedRosterIds: passed,
             currentPickIndex: nextIndex,
             status: status as never,
             completedAt,
           },
         })
-      })
 
-      const after = await prisma.supplementalDraft.findUnique({
-        where: { id: draftId },
-        include: { picks: { orderBy: { pickNumber: 'asc' } } },
-      })
-      if (after?.status === 'completed') {
-        await SupplementalDraftEngine.completeDraft(draftId)
+        return tx.supplementalDraft.findUnique({
+          where: { id: draftId },
+          include: { picks: { orderBy: { pickNumber: 'asc' } } },
+        })
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 15000,
       }
-      return rowToState(after!)
+    )
+
+    if (!after) throw new Error('Draft not found')
+    if (after.status === 'completed') {
+      await SupplementalDraftEngine.completeDraft(draftId)
     }
+    return rowToState(after)
+  }
 
-    const asset = assets.find((a) => a.id === assetId)
-    if (!asset || !asset.isAvailable) throw new Error('Asset not available')
-
-    asset.isAvailable = false
-    asset.claimedByRosterId = rosterId
-    asset.claimedAt = new Date().toISOString()
-
-    const display =
-      asset.assetType === 'player'
-        ? asset.playerName ?? asset.playerId ?? 'Player'
-        : asset.assetType === 'draft_pick'
-          ? asset.pickLabel ?? 'Draft pick'
-          : asset.assetType === 'faab'
-            ? `FAAB $${asset.faabAmount ?? 0}`
-            : 'Asset'
-
-    const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
-
+  /**
+   * Commissioner removes a manager from `passedRosterIds` — they re-enter at the next round’s pick
+   * (not the current round). May advance `currentPickIndex` if the clock would otherwise land on them too soon.
+   */
+  static async removePassByCommissioner(draftId: string, rosterId: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
-      await tx.supplementalDraftPick.create({
-        data: {
-          supplementalDraftId: draftId,
-          pickNumber: pickNo,
-          round,
-          pickInRound,
-          rosterId,
-          assetType: asset.assetType,
-          assetId: asset.playerId ?? asset.pickId ?? asset.id,
-          assetDisplayName: display,
-          isPassed: false,
-          pickedAt: new Date(),
-        },
-      })
+      const row = await tx.supplementalDraft.findUnique({ where: { id: draftId } })
+      if (!row) throw new Error('Draft not found')
+      if (row.status !== 'in_progress' && row.status !== 'configuring') {
+        throw new Error('Draft is not active')
+      }
 
-      let status: string = row.status
-      let completedAt: Date | null = row.completedAt
-      if (allAssetsClaimed(assets) || nextIndex >= row.draftOrder.length) {
-        status = 'completed'
-        completedAt = new Date()
+      const passed = row.passedRosterIds.filter((id) => id !== rosterId)
+
+      if (row.status !== 'in_progress') {
+        await tx.supplementalDraft.update({
+          where: { id: draftId },
+          data: { passedRosterIds: passed },
+        })
+        await tx.roster.updateMany({
+          where: { id: rosterId, leagueId: row.leagueId },
+          data: { supplementalDraftPasses: false },
+        })
+        return
+      }
+
+      const ppr = Math.max(1, row.picksPerRound)
+      const cur = row.currentPickIndex
+
+      let nextIndex = cur
+      let firstR: number | null = null
+      for (let i = cur; i < row.draftOrder.length; i++) {
+        if (row.draftOrder[i] === rosterId) {
+          firstR = i
+          break
+        }
+      }
+      if (firstR != null) {
+        const sameRound = Math.floor(firstR / ppr) === Math.floor(cur / ppr)
+        if (sameRound) {
+          const jump = nextRoundReentryPickIndex(row.draftOrder, ppr, rosterId, cur)
+          if (jump != null) nextIndex = jump
+        }
       }
 
       await tx.supplementalDraft.update({
         where: { id: draftId },
         data: {
-          assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
-          currentPickIndex: nextIndex,
-          status: status as never,
-          completedAt,
+          passedRosterIds: passed,
+          ...(nextIndex !== cur ? { currentPickIndex: nextIndex } : {}),
         },
       })
+      await tx.roster.updateMany({
+        where: { id: rosterId, leagueId: row.leagueId },
+        data: { supplementalDraftPasses: false },
+      })
     })
-
-    const after = await prisma.supplementalDraft.findUnique({
-      where: { id: draftId },
-      include: { picks: { orderBy: { pickNumber: 'asc' } } },
-    })
-    if (after?.status === 'completed') {
-      await SupplementalDraftEngine.completeDraft(draftId)
-    }
-    return rowToState(after!)
   }
 
+  /** @deprecated Prefer `makePick(..., 'PASS')` or `removePassByCommissioner` */
   static async passManager(
     draftId: string,
     rosterId: string,
     commissionerOverride: boolean = false
   ): Promise<void> {
+    if (commissionerOverride) {
+      await SupplementalDraftEngine.removePassByCommissioner(draftId, rosterId)
+      return
+    }
     const row = await prisma.supplementalDraft.findUnique({ where: { id: draftId } })
     if (!row) throw new Error('Draft not found')
 
-    let passed = [...row.passedRosterIds]
-    if (commissionerOverride) {
-      passed = passed.filter((id) => id !== rosterId)
-    } else {
-      if (!passed.includes(rosterId)) passed = [...passed, rosterId]
-    }
+    const passed = row.passedRosterIds.includes(rosterId)
+      ? [...row.passedRosterIds]
+      : [...row.passedRosterIds, rosterId]
 
     await prisma.$transaction([
       prisma.supplementalDraft.update({
@@ -405,7 +581,7 @@ export class SupplementalDraftEngine {
       }),
       prisma.roster.updateMany({
         where: { id: rosterId, leagueId: row.leagueId },
-        data: { supplementalDraftPasses: commissionerOverride ? false : true },
+        data: { supplementalDraftPasses: true },
       }),
     ])
   }
@@ -415,8 +591,20 @@ export class SupplementalDraftEngine {
     if (!row || row.status !== 'completed') return
 
     const assets = parseAssetPool(row.assetPool)
+    const participantSet = new Set(row.participantRosterIds)
 
     await prisma.$transaction(async (tx) => {
+      const unclaimedPlayerIds: string[] = []
+      const unclaimedPickAuction: {
+        assetId: string
+        pickId?: string
+        round?: number
+        year?: number
+        originalOwnerRosterId?: string
+        tradedToRosterId?: string
+        isTradedPick?: boolean
+      }[] = []
+
       for (const asset of assets) {
         if (!asset.claimedByRosterId) {
           if (asset.assetType === 'faab' && asset.sourceRosterId) {
@@ -425,6 +613,60 @@ export class SupplementalDraftEngine {
               data: { faabRemaining: 0 },
             })
           }
+          if (asset.assetType === 'player' && asset.playerId) {
+            unclaimedPlayerIds.push(String(asset.playerId))
+            if (asset.sourceRosterId) {
+              const src = await tx.roster.findFirst({
+                where: { id: asset.sourceRosterId, leagueId: row.leagueId },
+                select: { playerData: true },
+              })
+              if (src) {
+                if (Array.isArray(src.playerData)) {
+                  const filtered = src.playerData.filter((p: unknown) => {
+                    const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
+                    const pid = o?.playerId ?? o?.player_id ?? o?.id
+                    return String(pid) !== String(asset.playerId)
+                  })
+                  await tx.roster.update({
+                    where: { id: asset.sourceRosterId },
+                    data: { playerData: filtered },
+                  })
+                } else {
+                  const root = readPlayerDataRoot(src.playerData)
+                  const players = Array.isArray(root.players) ? root.players : []
+                  root.players = players.filter((p: unknown) => {
+                    const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
+                    const pid = o?.playerId ?? o?.player_id ?? o?.id
+                    return String(pid) !== String(asset.playerId)
+                  })
+                  await tx.roster.update({
+                    where: { id: asset.sourceRosterId },
+                    data: { playerData: root as Prisma.InputJsonValue },
+                  })
+                }
+              }
+            }
+          }
+          if (asset.assetType === 'draft_pick') {
+            unclaimedPickAuction.push({
+              assetId: asset.id,
+              pickId: asset.pickId,
+              round: asset.pickRound,
+              year: asset.pickYear,
+              originalOwnerRosterId: asset.originalOwnerRosterId ?? asset.sourceRosterId,
+              tradedToRosterId: asset.tradedToRosterId ?? asset.sourceRosterId,
+              isTradedPick: asset.isTradedPick,
+            })
+          }
+          continue
+        }
+
+        if (asset.assetType === 'faab' && asset.sourceRosterId) {
+          await tx.roster.updateMany({
+            where: { id: asset.sourceRosterId, leagueId: row.leagueId },
+            data: { faabRemaining: 0 },
+          })
+          // QA: do NOT credit faabAmount to the claiming manager — the FAAB lot is consumed as a draft asset only.
           continue
         }
 
@@ -435,15 +677,15 @@ export class SupplementalDraftEngine {
             select: { playerData: true },
           })
           if (dest) {
-            const pd = dest.playerData
-            const arr = Array.isArray(pd) ? [...pd] : []
-            const already = arr.some((p: unknown) => {
+            const root = readPlayerDataRoot(dest.playerData)
+            const players = Array.isArray(root.players) ? root.players : []
+            const already = players.some((p: unknown) => {
               const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
               const pid = o?.playerId ?? o?.player_id ?? o?.id
               return String(pid) === String(asset.playerId)
             })
             if (!already) {
-              arr.push({
+              players.push({
                 playerId: asset.playerId,
                 name: asset.playerName,
                 position: asset.playerPosition,
@@ -451,9 +693,10 @@ export class SupplementalDraftEngine {
                 source: 'supplemental_draft',
               })
             }
+            root.players = players
             await tx.roster.update({
               where: { id: destId },
-              data: { playerData: arr },
+              data: { playerData: root as Prisma.InputJsonValue },
             })
           }
 
@@ -461,32 +704,133 @@ export class SupplementalDraftEngine {
             where: { id: asset.sourceRosterId, leagueId: row.leagueId },
             select: { playerData: true },
           })
-          if (src && Array.isArray(src.playerData)) {
-            const filtered = src.playerData.filter((p: unknown) => {
-              const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
-              const pid = o?.playerId ?? o?.player_id ?? o?.id
-              return String(pid) !== String(asset.playerId)
-            })
-            await tx.roster.update({
-              where: { id: asset.sourceRosterId },
-              data: { playerData: filtered },
-            })
+          if (src) {
+            if (Array.isArray(src.playerData)) {
+              const filtered = src.playerData.filter((p: unknown) => {
+                const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
+                const pid = o?.playerId ?? o?.player_id ?? o?.id
+                return String(pid) !== String(asset.playerId)
+              })
+              await tx.roster.update({
+                where: { id: asset.sourceRosterId },
+                data: { playerData: filtered },
+              })
+            } else {
+              const root = readPlayerDataRoot(src.playerData)
+              const players = Array.isArray(root.players) ? root.players : []
+              root.players = players.filter((p: unknown) => {
+                const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
+                const pid = o?.playerId ?? o?.player_id ?? o?.id
+                return String(pid) !== String(asset.playerId)
+              })
+              await tx.roster.update({
+                where: { id: asset.sourceRosterId },
+                data: { playerData: root as Prisma.InputJsonValue },
+              })
+            }
           }
         }
 
-        if (asset.assetType === 'draft_pick' && asset.claimedByRosterId) {
-          // Future: persist traded pick ownership on a first-class model or league JSON.
-          void asset.pickId
+        if (asset.assetType === 'draft_pick' && asset.claimedByRosterId && asset.pickId) {
+          const pickId = asset.pickId
+          const destId = asset.claimedByRosterId
+          const origOwner = asset.originalOwnerRosterId ?? asset.sourceRosterId
+          const dest = await tx.roster.findFirst({
+            where: { id: destId, leagueId: row.leagueId },
+            select: { playerData: true },
+          })
+          if (dest) {
+            const root = readPlayerDataRoot(dest.playerData)
+            const rootRec = root as Record<string, unknown>
+            const primaryKey = (['draftPicks', 'futurePicks', 'draft_picks', 'picks'] as const).find((k) =>
+              Array.isArray(rootRec[k])
+            )
+            const key = primaryKey ?? 'draftPicks'
+            const rawArr = rootRec[key]
+            const draftPicks = Array.isArray(rawArr) ? [...rawArr] : []
+            const row = {
+              id: asset.pickId,
+              pick_id: asset.pickId,
+              season: asset.pickYear,
+              year: asset.pickYear,
+              pickYear: asset.pickYear,
+              round: asset.pickRound,
+              originalOwnerRosterId: origOwner,
+              original_owner_id: origOwner,
+              tradedToRosterId: destId,
+              roster_id: destId,
+              isTradedPick: asset.isTradedPick ?? false,
+              is_traded: asset.isTradedPick ?? false,
+              label: asset.pickLabel,
+              source: 'supplemental_draft',
+            }
+            if (!draftPicks.some((raw) => draftPickMatchesAsset(raw, pickId))) {
+              draftPicks.push(row)
+            }
+            rootRec[key] = draftPicks
+            await tx.roster.update({
+              where: { id: destId },
+              data: {
+                playerData: root as Prisma.InputJsonValue,
+              },
+            })
+          }
+
+          const src = await tx.roster.findFirst({
+            where: { id: asset.sourceRosterId, leagueId: row.leagueId },
+            select: { playerData: true },
+          })
+          if (src) {
+            const root = readPlayerDataRoot(src.playerData)
+            for (const pk of ['draftPicks', 'futurePicks', 'draft_picks', 'picks'] as const) {
+              const v = root[pk]
+              if (Array.isArray(v)) {
+                root[pk] = v.filter((raw: unknown) => !draftPickMatchesAsset(raw, pickId))
+              }
+            }
+            await tx.roster.update({
+              where: { id: asset.sourceRosterId },
+              data: { playerData: root as Prisma.InputJsonValue },
+            })
+          }
         }
       }
+
+      const leagueRow = await tx.league.findFirst({
+        where: { id: row.leagueId },
+        select: { settings: true },
+      })
+      const prev = asJsonRecord(leagueRow?.settings ?? {})
+      const eligibleBidders = (await tx.roster.findMany({
+        where: { leagueId: row.leagueId },
+        select: { id: true },
+      }))
+        .map((r) => r.id)
+        .filter((id) => !participantSet.has(id))
+
+      await tx.league.update({
+        where: { id: row.leagueId },
+        data: {
+          settings: {
+            ...prev,
+            supplementalDraftLastCompletion: {
+              draftId,
+              completedAt: new Date().toISOString(),
+              waiverWirePlayerIds: unclaimedPlayerIds,
+              faabAuctionForNonParticipants: unclaimedPickAuction.map((p) => ({
+                ...p,
+                eligibleBidderRosterIds: eligibleBidders,
+              })),
+            },
+          } as Prisma.InputJsonValue,
+        },
+      })
 
       await tx.roster.updateMany({
         where: { leagueId: row.leagueId },
         data: { supplementalDraftPasses: false },
       })
     })
-
-    // Remaining players → waivers; remaining picks → FAAB auction for non-participants: follow-up tasks.
   }
 
   static async getDraftState(draftId: string): Promise<SupplementalDraftState | null> {

@@ -1,20 +1,25 @@
 /**
- * Supplemental draft is limited to dynasty-style leagues (explicit flag or variant/settings).
+ * Server-side eligibility for supplemental draft creation (dynasty / devy / salary-style).
+ * Delegates to `isLeagueEligibleForSupplementalDraft` so API and UI stay aligned.
  */
+
+import { isLeagueEligibleForSupplementalDraft } from '@/lib/league/supplemental-draft-eligibility'
 
 export function isSupplementalDraftDynastyEligible(league: {
   isDynasty: boolean
   leagueVariant: string | null
+  leagueType: string | null
   settings: unknown
 }): boolean {
-  if (league.isDynasty) return true
-  const v = String(league.leagueVariant ?? '').toLowerCase()
-  if (v.includes('dynasty') || v.includes('devy')) return true
   const s =
     league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
       ? (league.settings as Record<string, unknown>)
       : {}
-  const lt = String(s.leagueType ?? s.format ?? s.mode ?? '').toLowerCase()
-  if (lt.includes('dynasty') || lt.includes('devy')) return true
-  return false
+  const leagueType =
+    league.leagueType ?? (typeof s.leagueType === 'string' ? s.leagueType : null)
+  return isLeagueEligibleForSupplementalDraft({
+    isDynasty: league.isDynasty,
+    leagueType,
+    leagueVariant: league.leagueVariant,
+  })
 }

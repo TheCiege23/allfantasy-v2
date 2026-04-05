@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import {
-  canSubmitSupplementalPickForUser,
+  canSubmitPickForRoster,
   getCurrentUserRosterIdForLeague,
 } from '@/lib/live-draft-engine/auth'
 import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
@@ -25,10 +25,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     return NextResponse.json({ error: 'Draft not found' }, { status })
   }
 
-  const body = (await req.json().catch(() => ({}))) as { assetId?: string; rosterId?: string }
-  const assetId = typeof body.assetId === 'string' ? body.assetId : ''
-  if (!assetId) return NextResponse.json({ error: 'assetId required' }, { status: 400 })
-
+  const body = (await req.json().catch(() => ({}))) as { rosterId?: string }
   let rosterId = typeof body.rosterId === 'string' ? body.rosterId.trim() : ''
   if (!rosterId) {
     const mine = await getCurrentUserRosterIdForLeague(leagueId, userId)
@@ -36,28 +33,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     rosterId = mine
   }
 
-  if (!(await canSubmitSupplementalPickForUser(leagueId, userId, rosterId))) {
+  if (!(await canSubmitPickForRoster(leagueId, userId, rosterId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   try {
-    const state = await SupplementalDraftEngine.makePick(draftId, rosterId, assetId)
+    const state = await SupplementalDraftEngine.advancePickOnTimeout(draftId, rosterId)
     return NextResponse.json(state)
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Pick failed'
-    const isConflict =
-      typeof msg === 'string' &&
-      (msg.includes('serialization failure') ||
-        msg.includes('could not serialize') ||
-        msg.includes('deadlock') ||
-        msg.includes('P2034'))
-    if (isConflict) {
-      return NextResponse.json(
-        { error: 'Pick conflict — draft state changed. Refresh and try again.', code: 'PICK_CONFLICT' },
-        { status: 409 }
-      )
-    }
-    const st = msg === 'Not your pick' || msg.includes('Not your pick') ? 409 : 400
-    return NextResponse.json({ error: msg }, { status: st })
+    const msg = e instanceof Error ? e.message : 'Advance failed'
+    return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
