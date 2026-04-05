@@ -1,8 +1,23 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatInTimeZone } from 'date-fns-tz'
 import { toast } from 'sonner'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+import { isLeagueEligibleForSupplementalDraft } from '@/lib/league/supplemental-draft-eligibility'
+
+/** Shown with `isLeagueEligibleForSupplementalDraft` for supplemental-draft settings visibility. */
+const DYNASTY_VARIANTS = ['devy_dynasty', 'merged_devy_c2c', 'dynasty', 'devy', 'c2c', 'salary'] as const
+
+function leagueMatchesSupplementalDraftVariants(leagueVariant: string | null | undefined): boolean {
+  if (!leagueVariant) return false
+  const v = leagueVariant.toLowerCase()
+  return DYNASTY_VARIANTS.some((k) => v.includes(k))
+}
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import type { DraftOrderSlotRow } from '@/lib/draft/pick-order'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
 import { COMMON_TIMEZONES, formatInTz, isValidIanaTimeZone, toUtc } from '@/lib/timezone'
@@ -120,6 +135,16 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   const [keeperOpen, setKeeperOpen] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [maxPfWarning, setMaxPfWarning] = useState<string | null>(null)
+  const [orphanApi, setOrphanApi] = useState<{
+    orphanCount: number
+    hasActiveSuppDraft: boolean
+    activeSuppDraftId: string | null
+    canRunSuppDraft: boolean
+    suppDraftGated: boolean
+    totalAssets: number
+  } | null>(null)
+  const [localSubGate, setLocalSubGate] = useState<SubscriptionFeatureId | null>(null)
+  const gateOptional = useSubscriptionGateOptional()
 
   const refresh = useCallback(async () => {
     setLoadError(null)
@@ -154,6 +179,59 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  const isSuppDraftLeague = useMemo(() => {
+    if (!data?.league) return false
+    return isLeagueEligibleForSupplementalDraft({
+      isDynasty: data.league.isDynasty,
+      leagueType: data.league.leagueType ?? null,
+      leagueVariant: data.league.leagueVariant ?? null,
+    })
+  }, [data?.league])
+
+  useEffect(() => {
+    if (!leagueId || !isSuppDraftLeague || data?.userRole !== 'commissioner') {
+      setOrphanApi(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/orphaned-teams`, { cache: 'no-store' })
+      const json = (await res.json().catch(() => ({}))) as {
+        orphanCount?: number
+        hasActiveSuppDraft?: boolean
+        activeSuppDraftId?: string | null
+        canRunSuppDraft?: boolean
+        suppDraftGated?: boolean
+        orphanedTeams?: { playerCount?: number; draftPickCount?: number; faabRemaining?: number }[]
+      }
+      if (!res.ok || cancelled) return
+      const teams = Array.isArray(json.orphanedTeams) ? json.orphanedTeams : []
+      const totalAssets = teams.reduce(
+        (acc, t) =>
+          acc +
+          (t.playerCount ?? 0) +
+          (t.draftPickCount ?? 0) +
+          (typeof t.faabRemaining === 'number' && t.faabRemaining > 0 ? 1 : 0),
+        0
+      )
+      setOrphanApi({
+        orphanCount: json.orphanCount ?? 0,
+        hasActiveSuppDraft: Boolean(json.hasActiveSuppDraft),
+        activeSuppDraftId: json.activeSuppDraftId ?? null,
+        canRunSuppDraft: Boolean(json.canRunSuppDraft),
+        suppDraftGated: Boolean(json.suppDraftGated),
+        totalAssets,
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [data?.userRole, isSuppDraftLeague, leagueId])
+
+  const openSuppGate = (id: SubscriptionFeatureId) => {
+    gateOptional?.gate(id) ?? setLocalSubGate(id)
+  }
 
   const s = data?.settings as RawSettings | null
   const league = data?.league
@@ -360,6 +438,14 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
       <div className={!canEdit ? 'pointer-events-none select-none opacity-[0.88]' : ''}>
       <LeagueSettingsHeader isDirty={dirty} onSaveAll={() => void saveAll()} canEdit={canEdit} />
       <SettingsNav />
+
+      {localSubGate && !gateOptional ? (
+        <SubscriptionGateModal
+          isOpen={Boolean(localSubGate)}
+          onClose={() => setLocalSubGate(null)}
+          featureId={localSubGate}
+        />
+      ) : null}
 
       <SettingsSection
         id="draft-time"
@@ -687,6 +773,96 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           ) : null}
         </div>
       </SettingsSection>
+
+      {(league.isDynasty ||
+        leagueMatchesSupplementalDraftVariants(league.leagueVariant) ||
+        isSuppDraftLeague) &&
+      isHeadCommissioner &&
+      orphanApi ? (
+        <div
+          className={[
+            'rounded-xl border p-4 mt-4',
+            orphanApi.hasActiveSuppDraft && orphanApi.activeSuppDraftId
+              ? 'border-emerald-500/25 bg-emerald-500/[0.04]'
+              : orphanApi.orphanCount < 2
+                ? 'border-white/[0.06] opacity-50 pointer-events-none'
+                : orphanApi.suppDraftGated
+                  ? 'border-amber-500/20 bg-amber-500/[0.03]'
+                  : 'border-cyan-500/20 bg-cyan-500/[0.03]',
+          ].join(' ')}
+          data-testid="league-settings-supplemental-draft"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-white">🏈 Supplemental Draft</h4>
+              <p className="text-xs text-white/50 mt-0.5">
+                For orphaned teams or league downsizing. Pool assets and draft them among new managers.
+              </p>
+            </div>
+            {orphanApi.suppDraftGated ? (
+              <SubscriptionGateBadge
+                featureId="commissioner_supplemental_draft"
+                onClick={() => openSuppGate('commissioner_supplemental_draft')}
+              />
+            ) : null}
+          </div>
+
+          {orphanApi.hasActiveSuppDraft && orphanApi.activeSuppDraftId ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href={`/league/${leagueId}/supplemental-draft/${orphanApi.activeSuppDraftId}`}
+                className="inline-flex rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100"
+              >
+                Resume draft →
+              </Link>
+            </div>
+          ) : null}
+
+          {orphanApi.orphanCount < 2 && !orphanApi.hasActiveSuppDraft ? (
+            <p className="text-xs text-white/30 mt-2">
+              🔒 Disabled — requires 2+ orphaned teams. Currently: {orphanApi.orphanCount} orphaned team
+              {orphanApi.orphanCount === 1 ? '' : 's'}.
+            </p>
+          ) : null}
+
+          {orphanApi.orphanCount >= 2 && !orphanApi.suppDraftGated && !orphanApi.hasActiveSuppDraft ? (
+            <>
+              <p className="text-xs text-green-400/80 mt-2">
+                ✓ {orphanApi.orphanCount} orphaned teams detected — {orphanApi.totalAssets} assets available
+              </p>
+              <div className="mt-3 flex gap-2 flex-wrap">
+                <Link
+                  href={`/league/${leagueId}/orphan-teams`}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-white/70 hover:bg-white/[0.05]"
+                >
+                  Manage Orphaned Teams
+                </Link>
+                <Link
+                  href={`/league/${leagueId}/supplemental-draft/setup`}
+                  className="rounded-xl bg-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/30"
+                >
+                  Set Up Supplemental Draft →
+                </Link>
+              </div>
+            </>
+          ) : null}
+
+          {orphanApi.suppDraftGated && !orphanApi.hasActiveSuppDraft ? (
+            <div className="mt-3">
+              <p className="text-xs text-amber-200/70">
+                AF Commissioner subscription required to run supplemental drafts.
+              </p>
+              <button
+                type="button"
+                onClick={() => openSuppGate('commissioner_supplemental_draft')}
+                className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/15"
+              >
+                View AF Commissioner Plans →
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <SettingsSection
         id="keepers"

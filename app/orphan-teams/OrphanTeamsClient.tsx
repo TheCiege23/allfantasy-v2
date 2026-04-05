@@ -1,9 +1,15 @@
 'use client'
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
-import { Bot, CheckCircle2, Lock, Search, UserPlus, Users } from 'lucide-react'
+import { FormEvent, useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { Bot, CheckCircle2, Loader2, Lock, Search, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 
 type OrphanTeamCard = {
   id: string
@@ -43,7 +49,312 @@ function buildStatusBadge(status: OrphanTeamCard['myRequestStatus']) {
   return null
 }
 
-export default function OrphanTeamsClient() {
+type OrphanedTeamsApiResponse = {
+  orphanedTeams: {
+    rosterId: string
+    teamName: string
+    playerCount: number
+    draftPickCount: number
+    faabRemaining: number
+  }[]
+  orphanCount: number
+  hasActiveSuppDraft: boolean
+  activeSuppDraftId: string | null
+  canAdvertise: boolean
+  canAssignAI: boolean
+  canRunSuppDraft: boolean
+  suppDraftGated: boolean
+}
+
+function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
+  const router = useRouter()
+  const gateCtx = useSubscriptionGateOptional()
+  const [data, setData] = useState<OrphanedTeamsApiResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [advertiseIds, setAdvertiseIds] = useState<Set<string>>(new Set())
+  const [aiIds, setAiIds] = useState<Set<string>>(new Set())
+  const [aiType, setAiType] = useState<'season_long' | 'until_claimed'>('season_long')
+  const [busy, setBusy] = useState<string | null>(null)
+  const [localGate, setLocalGate] = useState<SubscriptionFeatureId | null>(null)
+
+  const openGate = (featureId: SubscriptionFeatureId) => {
+    gateCtx?.gate(featureId) ?? setLocalGate(featureId)
+  }
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/orphaned-teams`, { cache: 'no-store' })
+      const json = (await res.json().catch(() => ({}))) as OrphanedTeamsApiResponse & { error?: string }
+      if (!res.ok) throw new Error(json?.error ?? 'Could not load orphaned teams.')
+      setData(json)
+      const all = new Set(json.orphanedTeams.map((t) => t.rosterId))
+      setAdvertiseIds(all)
+      setAiIds(all)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not load orphaned teams.')
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const postAdvertise = async () => {
+    const rosterIds = [...advertiseIds]
+    if (rosterIds.length === 0) {
+      toast.error('Select at least one team.')
+      return
+    }
+    setBusy('advertise')
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/orphaned-teams/advertise`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rosterIds }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? 'Advertise failed')
+      toast.success('Teams posted to Find-a-League.')
+      await load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Advertise failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const postAi = async () => {
+    const rosterIds = [...aiIds]
+    if (rosterIds.length === 0) {
+      toast.error('Select at least one team.')
+      return
+    }
+    setBusy('ai')
+    try {
+      for (const rosterId of rosterIds) {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/orphaned-teams/assign-ai`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rosterId, aiManagerType: aiType }),
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error((json as { error?: string }).error ?? 'AI assign failed')
+      }
+      toast.success('AI manager assigned.')
+      await load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'AI assign failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-[#080f1f] px-4 py-8 text-sm text-white/60">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading league orphaned teams…
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const orphanCount = data.orphanCount
+  const supp = (() => {
+    if (data.hasActiveSuppDraft && data.activeSuppDraftId) {
+      return (
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-4">
+          <p className="text-sm font-semibold text-white">A supplemental draft is in progress.</p>
+          <Link
+            href={`/league/${leagueId}/supplemental-draft/${data.activeSuppDraftId}`}
+            className="mt-3 inline-flex rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/25"
+          >
+            Resume draft →
+          </Link>
+        </div>
+      )
+    }
+    if (orphanCount < 2) {
+      return (
+        <div className="pointer-events-none rounded-xl border border-white/10 bg-white/[0.02] p-4 opacity-50">
+          <p className="text-xs text-white/55">
+            🔒 Requires 2+ orphaned teams. Currently: {orphanCount}.
+          </p>
+        </div>
+      )
+    }
+    if (data.suppDraftGated) {
+      return (
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <SubscriptionGateBadge
+              featureId="commissioner_supplemental_draft"
+              onClick={() => openGate('commissioner_supplemental_draft')}
+            />
+            <span className="text-xs text-amber-200/80">AF Commissioner subscription required.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => openGate('commissioner_supplemental_draft')}
+            className="mt-3 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/20"
+          >
+            View plans →
+          </button>
+        </div>
+      )
+    }
+    if (data.canRunSuppDraft) {
+      return (
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/[0.03] p-4">
+          <p className="text-xs text-cyan-100/90">
+            ✓ {orphanCount} orphaned teams · assets ready
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push(`/league/${leagueId}/supplemental-draft/setup`)}
+            className="mt-3 w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/25 sm:w-auto"
+          >
+            Set up supplemental draft →
+          </button>
+        </div>
+      )
+    }
+    return null
+  })()
+
+  const toggle = (set: Dispatch<SetStateAction<Set<string>>>, id: string) => {
+    set((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-4" data-testid="commissioner-orphan-league-panel">
+      {localGate && !gateCtx ? (
+        <SubscriptionGateModal
+          isOpen={Boolean(localGate)}
+          onClose={() => setLocalGate(null)}
+          featureId={localGate}
+        />
+      ) : null}
+      <div className="rounded-2xl border border-white/10 bg-[#081226] p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-white">Commissioner: open teams</h2>
+        <p className="mt-1 text-sm text-white/55">League ID: {leagueId}</p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-[#0a1328] p-4">
+        <h3 className="text-sm font-semibold text-white/90">Orphaned team summary</h3>
+        {data.orphanedTeams.length === 0 ? (
+          <p className="mt-2 text-sm text-white/45">No orphaned teams in this league.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {data.orphanedTeams.map((t) => (
+              <li
+                key={t.rosterId}
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-xs text-white/80"
+              >
+                <span className="font-medium text-white">{t.teamName}</span>
+                <span className="text-white/55">
+                  {t.playerCount} players · {t.draftPickCount} picks
+                  {t.faabRemaining > 0 ? ` · $${t.faabRemaining} FAAB` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
+          <h3 className="text-sm font-semibold text-white">📢 Advertise to Find-a-League</h3>
+          <div className="mt-3 max-h-48 space-y-2 overflow-y-auto">
+            {data.orphanedTeams.map((t) => (
+              <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
+                <input
+                  type="checkbox"
+                  className="rounded border-white/20"
+                  checked={advertiseIds.has(t.rosterId)}
+                  disabled={!data.canAdvertise}
+                  onChange={() => toggle(setAdvertiseIds, t.rosterId)}
+                />
+                {t.teamName}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={busy !== null || !data.canAdvertise || advertiseIds.size === 0}
+            onClick={() => void postAdvertise()}
+            className="mt-4 w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40"
+          >
+            {busy === 'advertise' ? 'Posting…' : 'Post to Find-a-League'}
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
+          <h3 className="text-sm font-semibold text-white">🤖 Assign AI manager</h3>
+          <div className="mt-2 flex gap-3 text-[11px] text-white/70">
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="ai-type"
+                checked={aiType === 'season_long'}
+                onChange={() => setAiType('season_long')}
+              />
+              For season
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="ai-type"
+                checked={aiType === 'until_claimed'}
+                onChange={() => setAiType('until_claimed')}
+              />
+              Until claimed
+            </label>
+          </div>
+          <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+            {data.orphanedTeams.map((t) => (
+              <label key={t.rosterId} className="flex items-center gap-2 text-xs text-white/80">
+                <input
+                  type="checkbox"
+                  className="rounded border-white/20"
+                  checked={aiIds.has(t.rosterId)}
+                  disabled={!data.canAssignAI}
+                  onChange={() => toggle(setAiIds, t.rosterId)}
+                />
+                {t.teamName}
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={busy !== null || !data.canAssignAI || aiIds.size === 0}
+            onClick={() => void postAi()}
+            className="mt-4 w-full rounded-lg border border-violet-400/35 bg-violet-500/15 py-2 text-xs font-bold text-violet-100 disabled:opacity-40"
+          >
+            {busy === 'ai' ? 'Assigning…' : 'Assign AI manager'}
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-[#080f1f] p-4">
+          <h3 className="text-sm font-semibold text-white">🏈 Supplemental draft</h3>
+          <div className="mt-3">{supp}</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function OrphanTeamsClient({ leagueId }: { leagueId?: string }) {
   const [cards, setCards] = useState<OrphanTeamCard[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -127,10 +438,14 @@ export default function OrphanTeamsClient() {
 
   return (
     <section className="space-y-6">
+      {leagueId ? <CommissionerLeagueOrphanPanel leagueId={leagueId} /> : null}
+
       <div className="rounded-2xl border border-white/10 bg-[#081226] p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-white sm:text-2xl">Orphan Team Marketplace</h1>
+            <h1 className="text-xl font-semibold text-white sm:text-2xl">
+              {leagueId ? 'Find-a-League marketplace' : 'Orphan Team Marketplace'}
+            </h1>
             <p className="mt-1 text-sm text-white/65">
               Adopt orphan teams from active leagues. All requests require commissioner approval.
             </p>

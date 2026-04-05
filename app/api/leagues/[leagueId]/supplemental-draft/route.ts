@@ -55,9 +55,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   }
 
   const orphanIds = await getOrphanRosterIdsForLeague(leagueId)
-  if (orphanIds.length < 2) {
-    return NextResponse.json({ error: 'At least two orphan teams are required' }, { status: 400 })
-  }
+  const orphanSet = new Set(orphanIds)
 
   const active = await SupplementalDraftEngine.getActiveDraftForLeague(leagueId)
   if (active) {
@@ -68,9 +66,48 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     where: { leagueId },
     select: { id: true, platformUserId: true },
   })
-  const participantRosterIds = allRosters
+  const defaultParticipantRosterIds = allRosters
     .filter((r) => !isOrphanPlatformUserId(r.platformUserId))
     .map((r) => r.id)
+
+  const body = (await req.json().catch(() => ({}))) as Partial<SupplementalDraftConfig> & {
+    sourceRosterIds?: string[]
+    participantRosterIds?: string[]
+  }
+
+  let sourceRosterIds: string[]
+  if (Array.isArray(body.sourceRosterIds) && body.sourceRosterIds.length > 0) {
+    sourceRosterIds = [...new Set(body.sourceRosterIds.map(String))].filter((id) => orphanSet.has(id))
+    if (sourceRosterIds.length < 2) {
+      return NextResponse.json(
+        { error: 'Select at least two valid orphan source rosters for the asset pool.' },
+        { status: 400 }
+      )
+    }
+  } else {
+    sourceRosterIds = orphanIds
+    if (sourceRosterIds.length < 2) {
+      return NextResponse.json({ error: 'At least two orphan teams are required' }, { status: 400 })
+    }
+  }
+
+  let participantRosterIds: string[]
+  if (Array.isArray(body.participantRosterIds) && body.participantRosterIds.length > 0) {
+    const wanted = [...new Set(body.participantRosterIds.map(String))]
+    const valid = new Set(allRosters.map((r) => r.id))
+    participantRosterIds = wanted.filter((id) => valid.has(id))
+    for (const id of participantRosterIds) {
+      const row = allRosters.find((r) => r.id === id)
+      if (!row || isOrphanPlatformUserId(row.platformUserId)) {
+        return NextResponse.json(
+          { error: 'Participants must be non-orphan rosters in this league.' },
+          { status: 400 }
+        )
+      }
+    }
+  } else {
+    participantRosterIds = defaultParticipantRosterIds
+  }
 
   if (participantRosterIds.length === 0) {
     return NextResponse.json(
@@ -79,19 +116,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     )
   }
 
-  const body = (await req.json().catch(() => ({}))) as Partial<SupplementalDraftConfig>
   const orderMode = body.orderMode === 'commissioner_set' ? 'commissioner_set' : 'randomized'
-  const pickTimeSeconds =
-    typeof body.pickTimeSeconds === 'number' && Number.isFinite(body.pickTimeSeconds)
-      ? Math.max(30, Math.min(600, Math.floor(body.pickTimeSeconds)))
-      : 120
+  const rawPick = typeof body.pickTimeSeconds === 'number' && Number.isFinite(body.pickTimeSeconds) ? body.pickTimeSeconds : 120
+  const pickTimeSeconds = Math.max(0, Math.min(600, Math.floor(rawPick)))
   const autoPickOnTimeout = body.autoPickOnTimeout !== false
   const scenario = body.scenario === 'league_downsizing' ? 'league_downsizing' : 'orphan_teams'
 
   const config: SupplementalDraftConfig = {
     leagueId,
     scenario,
-    sourceRosterIds: orphanIds,
+    sourceRosterIds,
     participantRosterIds,
     orderMode,
     manualOrder: Array.isArray(body.manualOrder) ? body.manualOrder.map(String) : undefined,

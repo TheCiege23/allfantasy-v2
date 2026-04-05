@@ -1,5 +1,6 @@
 export type LeagueTeamBrief = {
   id: string
+  externalId?: string
   teamName: string
   ownerName: string
   avatarUrl?: string | null
@@ -23,6 +24,8 @@ export type LeagueSettingsApi = {
     timezone: string
     teamCount: number
     isDynasty: boolean
+    leagueType?: string | null
+    leagueVariant?: string | null
     rosterSize: number | null
     totalRosterSlots: number
     teams: LeagueTeamBrief[]

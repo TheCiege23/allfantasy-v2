@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { isLeagueEligibleForSupplementalDraft } from '@/lib/league/supplemental-draft-eligibility'
+import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
@@ -23,6 +24,65 @@ function mergeLeagueSettings(existing: unknown, patch: Record<string, unknown>):
       ? (existing as Record<string, unknown>)
       : {}
   return { ...base, ...patch } as Prisma.InputJsonValue
+}
+
+/**
+ * Commissioner-only: current size + roster rows with display names for downsizing UI.
+ */
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { leagueId } = await ctx.params
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+
+  try {
+    await assertCommissioner(leagueId, userId)
+  } catch {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const league = await prisma.league.findFirst({
+    where: { id: leagueId },
+    select: {
+      leagueSize: true,
+      isDynasty: true,
+      leagueType: true,
+      leagueVariant: true,
+    },
+  })
+  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  const eligible = isLeagueEligibleForSupplementalDraft(league)
+  const [rosters, teams] = await Promise.all([
+    prisma.roster.findMany({
+      where: { leagueId },
+      select: { id: true, platformUserId: true },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.leagueTeam.findMany({
+      where: { leagueId },
+      select: { externalId: true, teamName: true, ownerName: true },
+    }),
+  ])
+
+  const nameByExternal = new Map(teams.map((t) => [t.externalId, t.teamName?.trim() || t.ownerName?.trim() || 'Team']))
+  const rosterRows = rosters.map((r) => ({
+    rosterId: r.id,
+    teamName: nameByExternal.get(r.id) ?? nameByExternal.get(r.platformUserId) ?? 'Team',
+    isOrphan: isOrphanPlatformUserId(r.platformUserId),
+  }))
+
+  const rosterCount = rosters.length
+  const currentSize = Math.max(league.leagueSize ?? 0, rosterCount)
+
+  return NextResponse.json({
+    eligible,
+    currentSize,
+    leagueSize: league.leagueSize ?? currentSize,
+    rosters: rosterRows,
+  })
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
@@ -122,6 +182,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
           },
         }),
       ])
+      sourceRosterIds.push(fromId)
       dissolved += 1
     } else {
       await prisma.roster.update({
