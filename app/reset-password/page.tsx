@@ -2,14 +2,17 @@
 
 import Link from "next/link"
 import { useState, Suspense, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
 import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2, TriangleAlert } from "lucide-react"
 import { AuthStatusHeader, AuthStatusLoadingFallback, AuthStatusShell } from "@/components/auth/AuthStatusShell"
+import { clearUnifiedAuthDestination } from "@/lib/auth/UnifiedAuthOrchestrator"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 type AuthMode = "checking" | "token" | "supabase" | "none"
 
 function ResetPasswordContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams?.get("token") || ""
   const requestedReturnTo = searchParams?.get("returnTo") || ""
@@ -71,41 +74,69 @@ function ResetPasswordContent() {
           setError(updateErr.message || "Could not update password.")
           return
         }
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
+        const email = session?.user?.email?.trim() ?? ""
         const accessToken = session?.access_token
+
         if (accessToken) {
-          void fetch("/api/auth/password/sync-neon", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify({ newPassword: password }),
-          }).catch(() => {})
-        }
-        await supabase.auth.signOut().catch(() => {})
-      } else {
-        const res = await fetch("/api/auth/password/reset/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, newPassword: password }),
-        })
-
-        const data = await res.json()
-
-        if (!res.ok) {
-          const errorMap: Record<string, string> = {
-            MISSING_FIELDS: "Token and new password are required.",
-            WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
-            INVALID_OR_USED_TOKEN: "This reset link is invalid or has already been used.",
-            EXPIRED_TOKEN: "This reset link has expired. Please request a new one.",
-            RESET_FAILED: "Something went wrong saving your password. Please try again.",
+          try {
+            await fetch("/api/auth/password/sync-neon", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ newPassword: password }),
+            })
+          } catch {
+            // Neon sync is best-effort; NextAuth still needs the hash for credentials sign-in.
           }
-          setError(errorMap[data.error] || data.error || "Something went wrong.")
-          return
         }
+
+        await supabase.auth.signOut().catch(() => {})
+
+        if (email) {
+          const signInResult = await signIn("credentials", {
+            login: email,
+            password,
+            redirect: false,
+            callbackUrl: safeReturnTo,
+          })
+          if (!signInResult?.error) {
+            clearUnifiedAuthDestination()
+            router.replace(safeReturnTo)
+            return
+          }
+        }
+
+        setSuccess(true)
+        setTimeout(() => {
+          window.location.href = `${loginHref}&reset=success`
+        }, 2000)
+        return
+      }
+
+      const res = await fetch("/api/auth/password/reset/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, newPassword: password }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        const errorMap: Record<string, string> = {
+          MISSING_FIELDS: "Token and new password are required.",
+          WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
+          INVALID_OR_USED_TOKEN: "This reset link is invalid or has already been used.",
+          EXPIRED_TOKEN: "This reset link has expired. Please request a new one.",
+          RESET_FAILED: "Something went wrong saving your password. Please try again.",
+        }
+        setError(errorMap[data.error] || data.error || "Something went wrong.")
+        return
       }
 
       setSuccess(true)
