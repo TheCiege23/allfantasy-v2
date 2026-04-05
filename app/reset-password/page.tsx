@@ -69,31 +69,74 @@ function ResetPasswordContent() {
     setLoading(true)
     try {
       if (authMode === "supabase") {
-        const { error: updateErr } = await supabase.auth.updateUser({ password })
+        const { data: updateData, error: updateErr } = await supabase.auth.updateUser({ password })
         if (updateErr) {
           setError(updateErr.message || "Could not update password.")
           return
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        const email = session?.user?.email?.trim() ?? ""
-        const accessToken = session?.access_token
+        // Supabase may return a refreshed session on password update; client typings omit `session`.
+        const refreshed = updateData as typeof updateData & {
+          session?: { access_token?: string; user?: { email?: string } } | null
+        }
 
-        if (accessToken) {
-          try {
-            await fetch("/api/auth/password/sync-neon", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${accessToken}`,
-              },
-              body: JSON.stringify({ newPassword: password }),
-            })
-          } catch {
-            // Neon sync is best-effort; NextAuth still needs the hash for credentials sign-in.
-          }
+        // Prefer token from updateUser response — getSession() can still hold a stale access_token before refresh.
+        const { data: sessAfterUpdate } = await supabase.auth.getSession()
+        const accessToken =
+          refreshed.session?.access_token ?? sessAfterUpdate.session?.access_token
+        const email =
+          refreshed.session?.user?.email?.trim() ??
+          refreshed.user?.email?.trim() ??
+          sessAfterUpdate.session?.user?.email?.trim() ??
+          ""
+
+        if (!accessToken) {
+          console.error("[reset-password] No access token after updateUser; cannot sync Neon")
+          setError(
+            "Your password was updated, but we could not sync your account. Please sign out and use \"Forgot password\" again, or try logging in with Google if you use it."
+          )
+          return
+        }
+
+        let syncRes: Response
+        try {
+          syncRes = await fetch("/api/auth/password/sync-neon", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              newPassword: password,
+              ...(email ? { email } : {}),
+            }),
+          })
+        } catch (fetchErr) {
+          console.error("[reset-password] sync-neon fetch failed:", fetchErr)
+          setError("Network error while saving your password. Check your connection and try again.")
+          return
+        }
+
+        const syncPayload = (await syncRes.json().catch(() => ({}))) as {
+          error?: string
+          message?: string
+          synced?: boolean
+        }
+
+        if (!syncRes.ok) {
+          console.error("[reset-password] sync-neon failed:", syncRes.status, syncPayload)
+          setError(
+            typeof syncPayload.message === "string" && syncPayload.message
+              ? syncPayload.message
+              : "Could not save your password to your AllFantasy account. Try again or contact support."
+          )
+          return
+        }
+
+        if (!syncPayload.synced) {
+          console.error("[reset-password] sync-neon returned without synced:true", syncPayload)
+          setError("Could not update your saved password. Please try again or use Forgot password.")
+          return
         }
 
         await supabase.auth.signOut().catch(() => {})
@@ -110,6 +153,11 @@ function ResetPasswordContent() {
             router.replace(safeReturnTo)
             return
           }
+          console.warn("[reset-password] credentials signIn after sync failed:", signInResult?.error)
+          setError(
+            "Your password was saved. Sign in on the next screen with your email and new password."
+          )
+          return
         }
 
         setSuccess(true)

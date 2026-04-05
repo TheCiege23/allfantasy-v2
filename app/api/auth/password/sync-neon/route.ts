@@ -6,9 +6,13 @@ import { isStrongPassword } from "@/lib/tokens"
 
 export const runtime = "nodejs"
 
+const BCRYPT_ROUNDS = 10
+
 /**
  * After Supabase `updateUser({ password })`, sync bcrypt hash to Neon `appUser`
  * so NextAuth credentials sign-in stays consistent.
+ *
+ * Identity: Supabase JWT (`getUser(accessToken)`). Email in body is optional and must match JWT if sent.
  */
 export async function POST(req: Request) {
   const authHeader = req.headers.get("authorization")
@@ -16,13 +20,20 @@ export async function POST(req: Request) {
     authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : ""
 
   if (!accessToken) {
-    return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 })
+    return NextResponse.json(
+      { error: "UNAUTHORIZED", message: "Missing access token. Open the reset link from your email again." },
+      { status: 401 }
+    )
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
   if (!url || !anon) {
-    return NextResponse.json({ error: "NOT_CONFIGURED" }, { status: 503 })
+    console.error("[sync-neon] Supabase env not configured")
+    return NextResponse.json(
+      { error: "NOT_CONFIGURED", message: "Server configuration error. Try again later." },
+      { status: 503 }
+    )
   }
 
   const supabase = createClient(url, anon)
@@ -32,34 +43,81 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser(accessToken)
 
   if (userErr || !user?.email) {
-    return NextResponse.json({ error: "INVALID_SESSION" }, { status: 401 })
+    console.error("[sync-neon] getUser failed:", userErr?.message ?? "no email")
+    return NextResponse.json(
+      { error: "INVALID_SESSION", message: "Session expired or invalid. Request a new password reset link." },
+      { status: 401 }
+    )
   }
 
   const body = await req.json().catch(() => ({}))
   const newPassword = String(body?.newPassword || "")
+  const bodyEmailRaw = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
+
   if (!isStrongPassword(newPassword)) {
-    return NextResponse.json({ error: "WEAK_PASSWORD" }, { status: 400 })
+    return NextResponse.json({ error: "WEAK_PASSWORD", message: "Password does not meet strength rules." }, { status: 400 })
   }
 
-  const email = user.email.toLowerCase()
+  const emailFromJwt = user.email.toLowerCase()
+  if (bodyEmailRaw && bodyEmailRaw !== emailFromJwt) {
+    return NextResponse.json(
+      { error: "EMAIL_MISMATCH", message: "Email does not match the signed-in reset session." },
+      { status: 400 }
+    )
+  }
 
+  let passwordHash: string
   try {
-    const passwordHash = await bcrypt.hash(newPassword, 12)
-    const row = await prisma.appUser.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
+    passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+  } catch (err) {
+    console.error("[sync-neon] bcrypt.hash failed:", err)
+    return NextResponse.json(
+      { error: "HASH_FAILED", message: "Could not process password." },
+      { status: 500 }
+    )
+  }
+
+  let row: { id: string } | null
+  try {
+    row = await prisma.appUser.findFirst({
+      where: { email: { equals: emailFromJwt, mode: "insensitive" } },
       select: { id: true },
     })
-    if (!row) {
-      console.warn("[sync-neon] No app_users row for email after Supabase password update:", email)
-      return NextResponse.json({ ok: true, synced: false })
-    }
+  } catch (err) {
+    console.error("[sync-neon] prisma findFirst failed:", err)
+    return NextResponse.json(
+      { error: "DB_LOOKUP_FAILED", message: "Could not look up your account." },
+      { status: 500 }
+    )
+  }
+
+  if (!row) {
+    console.error("[sync-neon] No app_users row for email:", emailFromJwt)
+    return NextResponse.json(
+      {
+        error: "USER_NOT_FOUND",
+        message:
+          "No AllFantasy account found for this email. If you use Google sign-in only, use that to sign in.",
+      },
+      { status: 404 }
+    )
+  }
+
+  try {
     await prisma.appUser.update({
       where: { id: row.id },
       data: { passwordHash },
     })
-    return NextResponse.json({ ok: true, synced: true })
   } catch (err) {
-    console.error("[sync-neon] DB sync failed (non-critical):", err)
-    return NextResponse.json({ ok: true, synced: false })
+    console.error("[sync-neon] prisma.appUser.update failed:", err)
+    return NextResponse.json(
+      {
+        error: "SYNC_FAILED",
+        message: err instanceof Error ? err.message : "Could not save password to your account.",
+      },
+      { status: 500 }
+    )
   }
+
+  return NextResponse.json({ ok: true, synced: true, email: emailFromJwt })
 }
