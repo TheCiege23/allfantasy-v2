@@ -4,7 +4,16 @@ import Link from "next/link"
 import type { ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 
-export function AuthStatusShell({ children }: { children: ReactNode }) {
+export function AuthStatusShell({
+  children,
+  navRightHref = "/",
+  navRightLabel = "Home",
+}: {
+  children: ReactNode
+  /** Default preserves landing link; password-recovery flows should use /login */
+  navRightHref?: string
+  navRightLabel?: string
+}) {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#110b1e] text-white">
       <div
@@ -40,10 +49,10 @@ export function AuthStatusShell({ children }: { children: ReactNode }) {
           </span>
         </Link>
         <Link
-          href="/"
+          href={navRightHref}
           className="rounded-[7px] border border-violet-400/30 px-4 py-1.5 text-[13px] font-medium text-white/65 transition hover:border-violet-300/50 hover:text-white"
         >
-          Home
+          {navRightLabel}
         </Link>
       </nav>
 

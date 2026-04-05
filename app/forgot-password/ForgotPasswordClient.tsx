@@ -28,9 +28,14 @@ function RecoveryPage(props: {
   subtitle: string
   children: ReactNode
   footer?: ReactNode
+  navRightHref?: string
+  navRightLabel?: string
 }) {
   return (
-    <AuthStatusShell>
+    <AuthStatusShell
+      navRightHref={props.navRightHref ?? '/'}
+      navRightLabel={props.navRightLabel ?? 'Home'}
+    >
       <div className="w-full max-w-[440px]">
         <Link
           href={props.backHref}
@@ -278,6 +283,8 @@ export default function ForgotPasswordClient() {
   if (step === 'choose') {
     return (
       <RecoveryPage
+        navRightHref={loginHref}
+        navRightLabel="Sign In"
         backHref={loginHref}
         title="Reset your password"
         subtitle="Choose how you want to receive your recovery code."
@@ -330,6 +337,8 @@ export default function ForgotPasswordClient() {
   if (step === 'request' && method === 'email') {
     return (
       <RecoveryPage
+        navRightHref={loginHref}
+        navRightLabel="Sign In"
         backHref={loginHref}
         title="Reset via email"
         subtitle="We'll email a reset code only if this address is registered."
@@ -397,6 +406,8 @@ export default function ForgotPasswordClient() {
   if (step === 'request' && method === 'sms') {
     return (
       <RecoveryPage
+        navRightHref={loginHref}
+        navRightLabel="Sign In"
         backHref={loginHref}
         title="Reset via SMS"
         subtitle="We'll text a reset code only if this number is on file."
@@ -465,6 +476,8 @@ export default function ForgotPasswordClient() {
   if (step === 'enter_code') {
     return (
       <RecoveryPage
+        navRightHref={loginHref}
+        navRightLabel="Sign In"
         backHref={loginHref}
         title="Enter code and new password"
         subtitle={
@@ -579,7 +592,7 @@ export default function ForgotPasswordClient() {
 
   if (step === 'success') {
     return (
-      <AuthStatusShell>
+      <AuthStatusShell navRightHref={loginHref} navRightLabel="Sign In">
         <div className="w-full max-w-[440px]">
           <AuthStatusHeader
             title="Password reset"

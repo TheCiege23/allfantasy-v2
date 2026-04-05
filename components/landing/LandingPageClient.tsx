@@ -17,7 +17,7 @@ const LANDING_COPY = {
     nav: {
       brand: 'AllFantasy',
       signIn: 'Sign In',
-      signUp: 'Get Started',
+      signUp: 'Get Started →',
       dashboard: 'Dashboard',
       admin: 'Admin',
       forCommissioners: '★ For Commissioners',
@@ -218,7 +218,7 @@ const LANDING_COPY = {
     nav: {
       brand: 'AllFantasy',
       signIn: 'Iniciar sesión',
-      signUp: 'Comenzar',
+      signUp: 'Comenzar →',
       dashboard: 'Panel',
       admin: 'Admin',
       forCommissioners: '★ Para comisionados',
@@ -444,8 +444,13 @@ export default function LandingPageClient({
   const { language } = useLanguage()
   const { status } = useSession()
   const copy = LANDING_COPY[language === 'es' ? 'es' : 'en']
+  /** Unauth nav + hero only when definitely not signed in; use server session while client status is loading. */
   const isAuthenticated =
-    status === 'loading' ? Boolean(initialSession?.user) : status === 'authenticated'
+    status === 'unauthenticated'
+      ? false
+      : status === 'authenticated'
+        ? true
+        : Boolean(initialSession?.user)
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
@@ -556,7 +561,7 @@ export default function LandingPageClient({
                     data-testid="landing-nav-sign-up"
                     onClick={() =>
                       trackLandingCtaClick({
-                        cta_label: `${copy.nav.signUp} →`,
+                        cta_label: copy.nav.signUp,
                         cta_destination: signupHref,
                         cta_type: 'primary',
                         source: 'nav',
@@ -564,7 +569,6 @@ export default function LandingPageClient({
                     }
                   >
                     {copy.nav.signUp}
-                    <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </>
               ) : (
