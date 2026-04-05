@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
+import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import AppShell from '@/app/components/AppShell'
 import { DashboardOverview } from './components/DashboardOverview'
@@ -261,6 +263,7 @@ export function DashboardShell({
   }
 
   const isLeagueRoute = Boolean(activeLeagueId)
+  const geo = useGeoRestriction()
 
   return (
     <AppShell
@@ -294,6 +297,18 @@ export function DashboardShell({
       }
     >
       <>
+        {!geo.loading && geo.isPaidBlocked && geo.stateCode ? (
+          <div
+            className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-center text-[11px] leading-snug text-amber-100 sm:text-xs md:px-6"
+            role="status"
+          >
+            <span className="font-semibold">Availability ({geo.stateName ?? geo.stateCode}):</span> Paid subscriptions and paid
+            leagues are not available from your location.{' '}
+            <Link href={`/paid-restricted?state=${encodeURIComponent(geo.stateCode)}`} className="font-medium text-cyan-300 underline">
+              Learn more
+            </Link>
+          </div>
+        ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
           <div className="flex items-center justify-between gap-3">
