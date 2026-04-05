@@ -18,4 +18,14 @@ export async function register(): Promise<void> {
   } catch {
     // Optional; do not block startup
   }
+  // BullMQ workers (including integrity) normally run via `scripts/start-worker.ts`.
+  // Set START_INTEGRITY_WORKER_WITH_NEXT=1 only on a dedicated Node host — not on Vercel serverless.
+  try {
+    if (process.env.START_INTEGRITY_WORKER_WITH_NEXT === "1") {
+      const { startIntegrityWorker } = await import("./lib/workers/integrity-worker");
+      startIntegrityWorker();
+    }
+  } catch {
+    // Non-fatal
+  }
 }

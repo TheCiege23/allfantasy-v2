@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
+import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
 
 export const dynamic = 'force-dynamic'
 
@@ -144,6 +145,13 @@ export async function PATCH(req: NextRequest) {
     where: { id: tradeId },
     data: { status: next },
   })
+
+  if (body.action === 'accept' && updated.status === 'accepted') {
+    void enqueueCollusionScan(updated.leagueId, updated.id, [
+      updated.proposerRosterId,
+      updated.receiverRosterId,
+    ]).catch((e) => console.error('[redraft/trades] enqueueCollusionScan failed', e))
+  }
 
   return NextResponse.json({ trade: updated })
 }

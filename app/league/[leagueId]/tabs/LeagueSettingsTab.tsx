@@ -6,8 +6,11 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { toast } from 'sonner'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
+import { IntegritySettingsPanel } from '@/components/commissioner/IntegritySettingsPanel'
+import { useEntitlement } from '@/hooks/useEntitlement'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 import { isLeagueEligibleForDispersalDraft } from '@/lib/league/dispersal-draft-eligibility'
+import { getUpgradeUrlWithHighlightForFeature } from '@/lib/subscription/featureGating'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import type { DraftOrderSlotRow } from '@/lib/draft/pick-order'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
@@ -136,6 +139,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   } | null>(null)
   const [localSubGate, setLocalSubGate] = useState<SubscriptionFeatureId | null>(null)
   const gateOptional = useSubscriptionGateOptional()
+  const integrityEnt = useEntitlement('commissioner_integrity_monitoring')
 
   const refresh = useCallback(async () => {
     setLoadError(null)
@@ -1002,6 +1006,14 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           control={<Toggle checked={Boolean(s?.aiRiskUpsideNotes ?? true)} onChange={(v) => void patch({ aiRiskUpsideNotes: v })} />}
         />
       </SettingsSection>
+
+      {isHeadCommissioner ? (
+        <IntegritySettingsPanel
+          leagueId={leagueId}
+          hasAccess={integrityEnt.hasAccess('commissioner_integrity_monitoring')}
+          upgradeUrl={getUpgradeUrlWithHighlightForFeature('commissioner_integrity_monitoring')}
+        />
+      ) : null}
 
       {isHeadCommissioner ? (
         <SettingsSection id="co-commissioners" title="Co-Commissioners">

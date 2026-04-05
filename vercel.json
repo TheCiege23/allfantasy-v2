@@ -203,6 +203,14 @@
     {
       "path": "/api/subscription/sync-profiles",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/integrity-collusion",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/integrity-tanking",
+      "schedule": "0 10 * * 2"
     }
   ]
 }
