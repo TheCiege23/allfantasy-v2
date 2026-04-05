@@ -30,7 +30,7 @@ function RecoveryPage(props: {
   footer?: ReactNode
 }) {
   return (
-    <AuthStatusShell>
+    <AuthStatusShell navRightHref="/login" navRightLabel="Sign In">
       <div className="w-full max-w-[440px]">
         <Link
           href={props.backHref}
@@ -579,7 +579,7 @@ export default function ForgotPasswordClient() {
 
   if (step === 'success') {
     return (
-      <AuthStatusShell>
+      <AuthStatusShell navRightHref="/login" navRightLabel="Sign In">
         <div className="w-full max-w-[440px]">
           <AuthStatusHeader
             title="Password reset"
