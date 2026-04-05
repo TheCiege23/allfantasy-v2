@@ -25,6 +25,16 @@ describe("dashboard runtime issues", () => {
     ).toEqual([])
   })
 
+  it("accepts AUTH_SECRET when NEXTAUTH_SECRET is unset", () => {
+    expect(
+      getDashboardMissingEnvVars({
+        DATABASE_URL: "postgresql://u:p@h:5432/db",
+        NEXTAUTH_SECRET: "",
+        AUTH_SECRET: "fallback-secret",
+      })
+    ).toEqual([])
+  })
+
   it("builds a database-specific dashboard message", () => {
     expect(createDashboardRuntimeIssue(["DATABASE_URL"])).toEqual({
       title: "Dashboard temporarily unavailable",

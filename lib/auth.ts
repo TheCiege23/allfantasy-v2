@@ -9,13 +9,14 @@ import { linkSocialAccountToAppUser } from "@/lib/auth/SocialAccountLinkingServi
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
+import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret";
 
 function getAuthSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET?.trim();
+  const secret = resolveAuthSecret();
 
   if (!secret) {
     throw new Error(
-      "NEXTAUTH_SECRET is not set. Add it to your local environment and Vercel project settings."
+      "NEXTAUTH_SECRET (or AUTH_SECRET) is not set. Add it to your local environment and Vercel project settings."
     );
   }
 

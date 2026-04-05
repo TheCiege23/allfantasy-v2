@@ -11,7 +11,9 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Clock,
 } from "lucide-react"
+import { isAllowedSessionIdleMinutes } from "@/lib/auth/session-idle-constants"
 import {
   getSecurityStatus,
   getContactSummary,
@@ -63,6 +65,8 @@ export function SecuritySettingsSection({
   const [passwordChanging, setPasswordChanging] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [idleSaving, setIdleSaving] = useState(false)
+  const [idleError, setIdleError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!emailEdit) {
@@ -230,6 +234,38 @@ export function SecuritySettingsSection({
     setPhoneErrorMessage(null)
   }
 
+  async function saveSessionIdle(value: string) {
+    setIdleSaving(true)
+    setIdleError(null)
+    const minutes =
+      value === "" || value === "off" ? null : Number.parseInt(value, 10)
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionIdleTimeoutMinutes: minutes,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        setIdleError(data?.error ?? "Failed to save session setting")
+        return
+      }
+      if (typeof window !== "undefined") {
+        if (minutes == null || minutes === 0) {
+          localStorage.removeItem("af_session_idle_minutes")
+        } else {
+          localStorage.setItem("af_session_idle_minutes", String(minutes))
+        }
+        window.dispatchEvent(new Event("af-session-idle-updated"))
+      }
+      onRefetch()
+    } finally {
+      setIdleSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -251,6 +287,52 @@ export function SecuritySettingsSection({
         <p className="text-xs" style={{ color: "var(--muted)" }}>
           You are signed in on this browser. Use Sign out below or from Account to end this session.
         </p>
+      </div>
+
+      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+        <div className="flex items-start gap-2">
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--muted)" }} />
+          <div>
+            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+              Auto sign-out when idle
+            </p>
+            <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+              After no keyboard, mouse, or touch activity for the chosen time, you will be signed out and returned to the home page. Turn off to stay signed in until the normal session expiry.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="session-idle-select" className="sr-only">
+            Idle session timeout
+          </label>
+          <select
+            id="session-idle-select"
+            data-testid="settings-session-idle-timeout"
+            disabled={idleSaving}
+            className="rounded-lg border px-3 py-2 text-sm outline-none"
+            style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+            value={
+              profile?.sessionIdleTimeoutMinutes != null &&
+              isAllowedSessionIdleMinutes(profile.sessionIdleTimeoutMinutes)
+                ? String(profile.sessionIdleTimeoutMinutes)
+                : "off"
+            }
+            onChange={(e) => void saveSessionIdle(e.target.value)}
+          >
+            <option value="off">Off</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+            <option value="720">12 hours</option>
+            <option value="1440">24 hours</option>
+          </select>
+          {idleSaving ? (
+            <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--muted)" }} />
+          ) : null}
+        </div>
+        {idleError ? (
+          <p className="text-xs text-red-500">{idleError}</p>
+        ) : null}
       </div>
 
       {/* Security status card */}

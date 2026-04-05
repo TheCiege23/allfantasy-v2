@@ -95,6 +95,8 @@ export interface UserProfileForSettings {
   notificationPreferences: Record<string, unknown> | null
   onboardingStep: string | null
   onboardingCompletedAt: Date | null
+  /** Minutes of inactivity before auto sign-out; null/0 = off (allowed: 30, 60, 240, 720, 1440). */
+  sessionIdleTimeoutMinutes: number | null
   settings: UserSettingsRecord | null
   updatedAt: Date
 }
@@ -128,6 +130,8 @@ export interface ProfileUpdatePayload {
   onboardingCompletedAt?: Date | null
   /** Clears Sleeper link fields on `UserProfile`. */
   clearSleeperLink?: boolean
+  /** Auto sign-out after idle period; null or 0 = off. */
+  sessionIdleTimeoutMinutes?: number | null
 }
 
 export interface UserSettingsUpdatePayload {

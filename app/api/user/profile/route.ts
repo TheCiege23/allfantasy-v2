@@ -62,6 +62,8 @@ type ProfileBody = {
   disconnectSleeper?: boolean
   accentColor?: string | null
   fantasyPreferences?: Record<string, unknown> | null
+  /** Auto sign-out after N minutes idle; omit to leave unchanged. */
+  sessionIdleTimeoutMinutes?: number | null
 }
 
 async function handleProfileWrite(req: Request, userId: string) {
@@ -81,6 +83,7 @@ async function handleProfileWrite(req: Request, userId: string) {
     disconnectSleeper,
     accentColor,
     fantasyPreferences,
+    sessionIdleTimeoutMinutes,
   } = body
 
   const snapshot = await getSettingsProfile(userId)
@@ -148,6 +151,12 @@ async function handleProfileWrite(req: Request, userId: string) {
   }
   if (disconnectSleeper === true) {
     profilePayload.clearSleeperLink = true
+  }
+  if (sessionIdleTimeoutMinutes !== undefined) {
+    profilePayload.sessionIdleTimeoutMinutes =
+      sessionIdleTimeoutMinutes === null || sessionIdleTimeoutMinutes === 0
+        ? null
+        : sessionIdleTimeoutMinutes
   }
 
   const snapshotForFallback = await getSettingsProfile(userId)

@@ -47,6 +47,7 @@ async function queryBaseProfile(
           notificationPreferences: true,
           onboardingStep: true,
           onboardingCompletedAt: true,
+          sessionIdleTimeoutMinutes: true,
           updatedAt: true,
         },
       },
@@ -99,6 +100,10 @@ async function queryBaseProfile(
     notificationPreferences: (profile?.notificationPreferences as Record<string, unknown> | null) ?? null,
     onboardingStep: profile?.onboardingStep ?? null,
     onboardingCompletedAt: profile?.onboardingCompletedAt ?? null,
+    sessionIdleTimeoutMinutes:
+      typeof profile?.sessionIdleTimeoutMinutes === "number"
+        ? profile.sessionIdleTimeoutMinutes
+        : null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }

@@ -1,3 +1,4 @@
+import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { hasDatabaseUrl } from "@/lib/env/database-url"
 
 export type DashboardRuntimeIssue = {
@@ -11,6 +12,7 @@ const DASHBOARD_TITLE = "Dashboard temporarily unavailable"
 const KNOWN_CONFIG_ERRORS = [
   { env: "DATABASE_URL", pattern: "DATABASE_URL is not set" },
   { env: "NEXTAUTH_SECRET", pattern: "NEXTAUTH_SECRET is not set" },
+  { env: "NEXTAUTH_SECRET", pattern: "NEXTAUTH_SECRET (or AUTH_SECRET) is not set" },
 ] as const
 
 function unique(values: string[]): string[] {
@@ -32,7 +34,7 @@ export function getDashboardMissingEnvVars(
   const missing: string[] = []
 
   if (!hasDatabaseUrl(env)) missing.push("DATABASE_URL")
-  if (!env.NEXTAUTH_SECRET?.trim()) missing.push("NEXTAUTH_SECRET")
+  if (!resolveAuthSecret(env)) missing.push("NEXTAUTH_SECRET")
 
   return missing
 }

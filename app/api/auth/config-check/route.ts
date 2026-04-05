@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { hasDatabaseUrl } from "@/lib/env/database-url"
 
 export const runtime = "nodejs"
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic"
 export async function GET() {
   const missing: string[] = []
   if (!hasDatabaseUrl(process.env)) missing.push("DATABASE_URL")
-  if (!process.env.NEXTAUTH_SECRET?.trim()) missing.push("NEXTAUTH_SECRET")
+  if (!resolveAuthSecret(process.env)) missing.push("NEXTAUTH_SECRET")
   if (!process.env.NEXTAUTH_URL?.trim()) missing.push("NEXTAUTH_URL")
 
   if (missing.length === 0) {

@@ -9,6 +9,7 @@ import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
+import SessionIdleMonitor from '@/components/auth/SessionIdleMonitor';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
@@ -211,6 +212,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ServiceWorkerRegistration />
               <ReferralTracker />
               <SyncProfilePreferences />
+              <SessionIdleMonitor />
               <ErrorBoundaryClient>
                 {children}
               </ErrorBoundaryClient>

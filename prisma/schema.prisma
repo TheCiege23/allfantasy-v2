@@ -3850,6 +3850,8 @@ model UserProfile {
   timezone                  String?
   preferredLanguage         String?
   themePreference           String? // "dark" | "light" | "legacy"
+  /// Auto sign-out after this many minutes of inactivity (null/0 = off). Allowed: 30, 60, 240, 720, 1440.
+  sessionIdleTimeoutMinutes Int?
   avatarPreset              String?
   bio                       String?             @db.Text
   preferredSports           Json? // string[] e.g. ["NFL","NBA"]

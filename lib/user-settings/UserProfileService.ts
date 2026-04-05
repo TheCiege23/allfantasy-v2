@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { isAllowedSessionIdleMinutes } from "@/lib/auth/session-idle-constants"
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
 import type { ProfileUpdatePayload } from "./types"
 
@@ -69,6 +70,16 @@ export async function updateUserProfile(
   if (payload.onboardingStep !== undefined) updateProfile.onboardingStep = payload.onboardingStep ?? null
   if (payload.onboardingCompletedAt !== undefined)
     updateProfile.onboardingCompletedAt = payload.onboardingCompletedAt ?? null
+  if (payload.sessionIdleTimeoutMinutes !== undefined) {
+    const v = payload.sessionIdleTimeoutMinutes
+    if (v === null || v === 0) {
+      updateProfile.sessionIdleTimeoutMinutes = null
+    } else if (isAllowedSessionIdleMinutes(v)) {
+      updateProfile.sessionIdleTimeoutMinutes = v
+    } else {
+      return { ok: false, error: "Invalid session timeout value" }
+    }
+  }
 
   try {
     if (Object.keys(updateProfile).length > 0) {

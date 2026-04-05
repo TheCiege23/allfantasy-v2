@@ -27,6 +27,12 @@ export default function SyncProfilePreferences() {
   useEffect(() => {
     if (status === "unauthenticated") {
       syncedSessionKeyRef.current = null
+      try {
+        localStorage.removeItem("af_session_idle_minutes")
+        window.dispatchEvent(new Event("af-session-idle-updated"))
+      } catch {
+        // ignore
+      }
       return
     }
     if (status !== "authenticated" || !session?.user) return
@@ -65,6 +71,18 @@ export default function SyncProfilePreferences() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(bootstrap.patchPayload),
           }).catch(() => {})
+        }
+
+        const idleMin = data.sessionIdleTimeoutMinutes
+        if (typeof idleMin === "number" && idleMin > 0) {
+          localStorage.setItem("af_session_idle_minutes", String(idleMin))
+        } else {
+          localStorage.removeItem("af_session_idle_minutes")
+        }
+        try {
+          window.dispatchEvent(new Event("af-session-idle-updated"))
+        } catch {
+          // ignore
         }
       })
       .catch(() => {})
