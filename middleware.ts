@@ -18,14 +18,26 @@ const GEO_EXEMPT_PREFIXES = [
   "/favicon.ico",
 ]
 
-/** Paid commerce / subscription surfaces — free app routes stay available in paid_block states. */
+/** Exact-prefix match: `/pro` matches `/pro` and `/pro/foo`, not `/professional`. */
+function isPaidPrefix(prefix: string, pathname: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`)
+}
+
+/** Paid API surfaces in paid_block states (cron/webhooks like sync-profiles stay open). */
 const PAID_GEO_PREFIXES = [
-  "/api/monetization/checkout",
+  "/api/subscription/checkout",
+  "/api/subscription/portal",
   "/api/subscription/billing-portal",
-  "/commissioner-upgrade",
-  "/pro",
-  "/all-access",
-  "/war-room",
+  "/api/subscription/cancel",
+  "/api/subscription/upgrade",
+  "/api/monetization/checkout",
+  "/api/user/autocoach",
+]
+
+const PAID_GEO_PATTERNS = [
+  /^\/api\/leagues\/[^/]+\/dispersal-draft/,
+  /^\/api\/leagues\/[^/]+\/integrity(?:\/|$)/,
+  /^\/api\/leagues\/[^/]+\/autocoach-settings/,
 ]
 
 function isExemptPath(pathname: string): boolean {
@@ -33,10 +45,6 @@ function isExemptPath(pathname: string): boolean {
     if (pathname === p || pathname.startsWith(`${p}/`)) return true
   }
   return false
-}
-
-function isPaidGeoPath(pathname: string): boolean {
-  return PAID_GEO_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
 
 export function middleware(request: NextRequest) {
@@ -70,22 +78,30 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (isPaidBlocked(stateCode) && isPaidGeoPath(pathname)) {
-      if (pathname.startsWith("/api/")) {
+    if (isPaidBlocked(stateCode)) {
+      const isPaidRoute =
+        PAID_GEO_PREFIXES.some((p) => isPaidPrefix(p, pathname)) ||
+        PAID_GEO_PATTERNS.some((r) => r.test(pathname))
+
+      if (isPaidRoute && pathname.startsWith("/api/")) {
         return new NextResponse(
           JSON.stringify({
             error: "PAID_GEO_BLOCKED",
-            message: "Paid fantasy sports products are not available in your state.",
+            message: "Paid features are not available in your state.",
             stateCode,
             allowFree: true,
+            redirectTo: "/paid-restricted",
           }),
           { status: 451, headers: { "Content-Type": "application/json" } }
         )
       }
-      const url = request.nextUrl.clone()
-      url.pathname = "/paid-restricted"
-      url.searchParams.set("state", stateCode)
-      return NextResponse.redirect(url)
+
+      if (isPaidRoute && !pathname.startsWith("/api/")) {
+        const url = request.nextUrl.clone()
+        url.pathname = "/paid-restricted"
+        url.searchParams.set("state", stateCode)
+        return NextResponse.redirect(url)
+      }
     }
   }
 
