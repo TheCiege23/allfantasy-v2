@@ -113,8 +113,7 @@ function SignupContent() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFileError, setAvatarFileError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  /** Step 2 (Profile) phone digits; Step 4 phone verification uses this same state. */
-  const [profilePhone, setProfilePhone] = useState("")
+  const [phone, setPhone] = useState("")
   const [phoneCodeSent, setPhoneCodeSent] = useState(false)
   const [phoneCode, setPhoneCode] = useState("")
   const [phoneCodeVerified, setPhoneCodeVerified] = useState(false)
@@ -211,11 +210,9 @@ function SignupContent() {
   }, [username])
 
   async function handleSendPhoneCode() {
-    const normalizedPhone = normalizePhoneForSubmit(profilePhone)
+    const normalizedPhone = normalizePhoneForSubmit(phone)
     if (!normalizedPhone) {
-      setPhoneVerificationMessage(
-        "No phone number on file. Add one in your profile or use email verification instead."
-      )
+      setPhoneVerificationMessage("Enter your phone number first.")
       return
     }
     setPhoneSendingCode(true)
@@ -242,11 +239,9 @@ function SignupContent() {
   }
 
   async function handleVerifyPhoneCode() {
-    const normalizedPhone = normalizePhoneForSubmit(profilePhone)
+    const normalizedPhone = normalizePhoneForSubmit(phone)
     if (!normalizedPhone) {
-      setPhoneVerificationMessage(
-        "No phone number on file. Add one in your profile or use email verification instead."
-      )
+      setPhoneVerificationMessage("Enter your phone number first.")
       return
     }
     if (!phoneCode.trim()) {
@@ -482,7 +477,7 @@ function SignupContent() {
           email: email.trim(),
           password,
           displayName: username.trim(),
-          phone: normalizePhoneForSubmit(profilePhone) || undefined,
+          phone: normalizePhoneForSubmit(phone) || undefined,
           ageConfirmed,
           verificationMethod,
           phoneVerificationCode:
@@ -704,8 +699,7 @@ function SignupContent() {
               {isPhone ? (
                 <>
                   <p className="text-sm leading-7" style={{ color: "var(--muted)" }}>
-                    Sign in to verify your phone number{" "}
-                    <span style={{ color: "var(--text)" }}>{profilePhone}</span> and complete setup.
+                    Sign in to verify your phone number <span style={{ color: "var(--text)" }}>{phone}</span> and complete setup.
                   </p>
                   <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
                     You&apos;ll receive a verification code via SMS after signing in.
@@ -1212,10 +1206,10 @@ function SignupContent() {
                       <span>+1</span>
                     </div>
                     <input
-                      value={profilePhone}
+                      value={phone}
                       onChange={(e) => {
                         const digits = normalizeSignupPhoneDigits(e.target.value)
-                        setProfilePhone(digits)
+                        setPhone(digits)
                         setPhoneCodeSent(false)
                         setPhoneCode("")
                         setPhoneCodeVerified(false)
@@ -1232,9 +1226,9 @@ function SignupContent() {
                   <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
                     Used for account security. Never shared or sold.
                   </p>
-                  {profilePhone.length > 0 && (
+                  {phone.length > 0 && (
                     <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                      Formatted: {formatSignupPhoneDisplay(profilePhone)}
+                      Formatted: {formatSignupPhoneDisplay(phone)}
                     </p>
                   )}
                 </div>
@@ -1470,7 +1464,7 @@ function SignupContent() {
                         <button
                           type="button"
                           onClick={handleSendPhoneCode}
-                          disabled={phoneSendingCode || !profilePhone.trim()}
+                          disabled={phoneSendingCode || !phone.trim()}
                           className="rounded-xl border px-4 py-3 text-xs transition disabled:opacity-50"
                           style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
                         >
@@ -1702,8 +1696,7 @@ function SignupContent() {
                       !passwordStrength.valid ||
                       !ageConfirmed ||
                       !agreementGateOpen ||
-                      (verificationMethod === "PHONE" &&
-                        (!profilePhone.trim() || !phoneCodeVerified))
+                      (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
                     }
                     className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     style={{
