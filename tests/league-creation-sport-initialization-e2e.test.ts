@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 describe('Prompt 10 — League Creation End-to-End Sport Initialization', () => {
   describe('Module Structure and Availability', () => {
@@ -155,7 +155,7 @@ describe('Prompt 10 — League Creation End-to-End Sport Initialization', () => 
   })
 
   describe('API Route Integration', () => {
-    it('league create route exists', async () => {
+    it('POST /api/league/create is exported (app route; not the /create-league page)', async () => {
       const m = await import('@/app/api/league/create/route')
       expect(m.POST).toBeDefined()
       expect(typeof m.POST).toBe('function')
@@ -193,4 +193,3 @@ describe('Prompt 10 — League Creation End-to-End Sport Initialization', () => 
     })
   })
 })
-
