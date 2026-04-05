@@ -1,12 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getServerSessionMock = vi.fn()
-const leagueFindFirstMock = vi.fn()
-const leagueCreateMock = vi.fn()
-const getCreationPayloadAndSettingsMock = vi.fn()
-const validateLeagueSettingsMock = vi.fn()
-const validateLeagueFeatureFlagsMock = vi.fn()
-const runPostCreateInitializationMock = vi.fn()
+const {
+  getServerSessionMock,
+  leagueFindFirstMock,
+  leagueFindUniqueMock,
+  leagueWaiverSettingsFindUniqueMock,
+  leagueWaiverSettingsUpsertMock,
+  leagueCreateMock,
+  getCreationPayloadAndSettingsMock,
+  validateLeagueSettingsMock,
+  validateLeagueFeatureFlagsMock,
+  runPostCreateInitializationMock,
+} = vi.hoisted(() => ({
+  getServerSessionMock: vi.fn(),
+  leagueFindFirstMock: vi.fn(),
+  leagueFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsUpsertMock: vi.fn(),
+  leagueCreateMock: vi.fn(),
+  getCreationPayloadAndSettingsMock: vi.fn(),
+  validateLeagueSettingsMock: vi.fn(),
+  validateLeagueFeatureFlagsMock: vi.fn(),
+  runPostCreateInitializationMock: vi.fn(),
+}))
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -24,7 +40,12 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     league: {
       findFirst: leagueFindFirstMock,
+      findUnique: leagueFindUniqueMock,
       create: leagueCreateMock,
+    },
+    leagueWaiverSettings: {
+      findUnique: leagueWaiverSettingsFindUniqueMock,
+      upsert: leagueWaiverSettingsUpsertMock,
     },
   },
 }))
@@ -52,6 +73,17 @@ describe('POST /api/league/create sport defaults integration', () => {
 
     getServerSessionMock.mockResolvedValue({ user: { id: 'u1' } })
     leagueFindFirstMock.mockResolvedValue(null)
+    leagueFindUniqueMock.mockImplementation(({ where }: { where: { id: string } }) => {
+      const id = String(where?.id ?? '')
+      const raw = id.replace(/^league-/i, '')
+      const sport =
+        raw.toLowerCase() === 'soccer'
+          ? 'SOCCER'
+          : raw.toUpperCase()
+      return Promise.resolve({ sport, leagueVariant: null })
+    })
+    leagueWaiverSettingsFindUniqueMock.mockResolvedValue(null)
+    leagueWaiverSettingsUpsertMock.mockResolvedValue({ id: 'lws-1' })
     leagueCreateMock.mockImplementation(async ({ data }: any) => ({
       id: `league-${String(data.sport).toLowerCase()}`,
       name: data.name,

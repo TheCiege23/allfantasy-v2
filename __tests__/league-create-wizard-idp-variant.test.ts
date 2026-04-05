@@ -1,13 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getServerSessionMock = vi.fn()
-const leagueFindFirstMock = vi.fn()
-const leagueCreateMock = vi.fn()
-const getCreationPayloadAndSettingsMock = vi.fn()
-const validateLeagueSettingsMock = vi.fn()
-const validateLeagueFeatureFlagsMock = vi.fn()
-const runPostCreateInitializationMock = vi.fn()
-const upsertIdpLeagueConfigMock = vi.fn()
+const {
+  getServerSessionMock,
+  leagueFindFirstMock,
+  leagueFindUniqueMock,
+  leagueWaiverSettingsFindUniqueMock,
+  leagueWaiverSettingsUpsertMock,
+  leagueCreateMock,
+  getCreationPayloadAndSettingsMock,
+  validateLeagueSettingsMock,
+  validateLeagueFeatureFlagsMock,
+  runPostCreateInitializationMock,
+  upsertIdpLeagueConfigMock,
+} = vi.hoisted(() => ({
+  getServerSessionMock: vi.fn(),
+  leagueFindFirstMock: vi.fn(),
+  leagueFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsUpsertMock: vi.fn(),
+  leagueCreateMock: vi.fn(),
+  getCreationPayloadAndSettingsMock: vi.fn(),
+  validateLeagueSettingsMock: vi.fn(),
+  validateLeagueFeatureFlagsMock: vi.fn(),
+  runPostCreateInitializationMock: vi.fn(),
+  upsertIdpLeagueConfigMock: vi.fn(),
+}))
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -25,7 +42,12 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     league: {
       findFirst: leagueFindFirstMock,
+      findUnique: leagueFindUniqueMock,
       create: leagueCreateMock,
+    },
+    leagueWaiverSettings: {
+      findUnique: leagueWaiverSettingsFindUniqueMock,
+      upsert: leagueWaiverSettingsUpsertMock,
     },
   },
 }))
@@ -61,6 +83,9 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
 
     getServerSessionMock.mockResolvedValue({ user: { id: 'u1' } })
     leagueFindFirstMock.mockResolvedValue(null)
+    leagueFindUniqueMock.mockResolvedValue({ sport: 'NFL', leagueVariant: 'DYNASTY_IDP' })
+    leagueWaiverSettingsFindUniqueMock.mockResolvedValue(null)
+    leagueWaiverSettingsUpsertMock.mockResolvedValue({ id: 'lws-1' })
     leagueCreateMock.mockResolvedValue({
       id: 'league-idp-1',
       name: 'IDP Wizard League',

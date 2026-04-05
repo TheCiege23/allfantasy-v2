@@ -1,9 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const getServerSessionMock = vi.fn()
-const requireVerifiedUserMock = vi.fn()
-const runImportedLeagueNormalizationPipelineMock = vi.fn()
-const persistImportedLeagueFromNormalizationMock = vi.fn()
+const {
+  getServerSessionMock,
+  requireVerifiedUserMock,
+  runImportedLeagueNormalizationPipelineMock,
+  persistImportedLeagueFromNormalizationMock,
+  leagueFindFirstMock,
+  leagueCreateMock,
+  leagueFindUniqueMock,
+  leagueWaiverSettingsFindUniqueMock,
+  leagueWaiverSettingsUpsertMock,
+} = vi.hoisted(() => ({
+  getServerSessionMock: vi.fn(),
+  requireVerifiedUserMock: vi.fn(),
+  runImportedLeagueNormalizationPipelineMock: vi.fn(),
+  persistImportedLeagueFromNormalizationMock: vi.fn(),
+  leagueFindFirstMock: vi.fn(),
+  leagueCreateMock: vi.fn(),
+  leagueFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsFindUniqueMock: vi.fn(),
+  leagueWaiverSettingsUpsertMock: vi.fn(),
+}))
 
 class ImportedLeagueConflictErrorMock extends Error {}
 
@@ -22,8 +39,13 @@ vi.mock('@/lib/auth-guard', () => ({
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     league: {
-      findFirst: vi.fn(),
-      create: vi.fn(),
+      findFirst: leagueFindFirstMock,
+      findUnique: leagueFindUniqueMock,
+      create: leagueCreateMock,
+    },
+    leagueWaiverSettings: {
+      findUnique: leagueWaiverSettingsFindUniqueMock,
+      upsert: leagueWaiverSettingsUpsertMock,
     },
   },
 }))
@@ -48,6 +70,15 @@ describe('POST /api/league/create Sleeper import flow', () => {
     requireVerifiedUserMock.mockResolvedValue({
       ok: true,
       userId: 'u1',
+    })
+    leagueFindFirstMock.mockResolvedValue(null)
+    leagueFindUniqueMock.mockResolvedValue({ sport: 'NFL', leagueVariant: null })
+    leagueWaiverSettingsFindUniqueMock.mockResolvedValue(null)
+    leagueWaiverSettingsUpsertMock.mockResolvedValue({ id: 'lws-1' })
+    leagueCreateMock.mockResolvedValue({
+      id: 'league-1',
+      name: 'Imported Sleeper League',
+      sport: 'NFL',
     })
   })
 

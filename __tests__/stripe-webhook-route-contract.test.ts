@@ -17,9 +17,11 @@ const createMock = vi.hoisted(() => vi.fn())
 const updateMock = vi.hoisted(() => vi.fn())
 const subscriptionPlanUpsertMock = vi.hoisted(() => vi.fn())
 const userSubscriptionUpsertMock = vi.hoisted(() => vi.fn())
+const userSubscriptionFindManyMock = vi.hoisted(() => vi.fn())
 const userSubscriptionFindFirstMock = vi.hoisted(() => vi.fn())
 const userSubscriptionUpdateMock = vi.hoisted(() => vi.fn())
 const userSubscriptionCreateMock = vi.hoisted(() => vi.fn())
+const userProfileUpsertMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/stripe-client", () => ({
   getStripeClient: getStripeClientMock,
@@ -38,9 +40,16 @@ vi.mock("@/lib/prisma", () => ({
     },
     userSubscription: {
       upsert: userSubscriptionUpsertMock,
+      findMany: userSubscriptionFindManyMock,
+      findUnique: vi.fn().mockResolvedValue(null),
       findFirst: userSubscriptionFindFirstMock,
       update: userSubscriptionUpdateMock,
       create: userSubscriptionCreateMock,
+      delete: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(0),
+    },
+    userProfile: {
+      upsert: userProfileUpsertMock,
     },
   },
 }))
@@ -53,9 +62,11 @@ describe("Stripe webhook route contracts", () => {
     updateMock.mockResolvedValue({ id: "row-1" })
     subscriptionPlanUpsertMock.mockResolvedValue({ id: "plan-1" })
     userSubscriptionUpsertMock.mockResolvedValue({ id: "sub-1" })
+    userSubscriptionFindManyMock.mockResolvedValue([])
     userSubscriptionFindFirstMock.mockResolvedValue(null)
     userSubscriptionUpdateMock.mockResolvedValue({ id: "sub-1" })
     userSubscriptionCreateMock.mockResolvedValue({ id: "sub-1" })
+    userProfileUpsertMock.mockResolvedValue({ userId: "u1" })
     constructEventMock.mockReturnValue({
       id: "evt_1",
       type: "checkout.session.completed",
