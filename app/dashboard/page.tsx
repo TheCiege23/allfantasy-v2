@@ -27,7 +27,7 @@ export default async function DashboardPage() {
     )
   }
 
-  const session = (await getServerSession(authOptions as never)) as {
+  let session: {
     user?: {
       id?: string
       name?: string | null
@@ -35,30 +35,53 @@ export default async function DashboardPage() {
       image?: string | null
     }
   } | null
-
-  if (!session?.user?.id) {
-    redirect('/login?callbackUrl=/dashboard')
+  try {
+    session = (await getServerSession(authOptions as never)) as typeof session
+  } catch (error) {
+    console.error('[dashboard] getServerSession failed:', error)
+    return (
+      <DashboardUnavailableState
+        title="Dashboard temporarily unavailable"
+        message="We couldn't verify your session. Please sign in again or try again in a moment."
+      />
+    )
   }
 
-  const userId = session.user.id
+  const sessionUser = session?.user
+  const rawUserId = typeof sessionUser?.id === 'string' ? sessionUser.id.trim() : ''
+  if (!sessionUser || !rawUserId) {
+    redirect('/login?callbackUrl=/dashboard')
+  }
+  const userId = rawUserId
 
   try {
-    const dbUser = await prisma.appUser.findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true },
-    })
+    const [dbUser, userProfile] = await Promise.all([
+      prisma.appUser
+        .findUnique({
+          where: { id: userId },
+          select: { avatarUrl: true },
+        })
+        .catch((err: unknown) => {
+          console.error('[dashboard] appUser lookup failed:', err)
+          return null
+        }),
+      prisma.userProfile
+        .findUnique({
+          where: { userId },
+          select: { discordUserId: true },
+        })
+        .catch((err: unknown) => {
+          console.error('[dashboard] userProfile lookup failed:', err)
+          return null
+        }),
+    ])
 
-    const userProfile = await prisma.userProfile.findUnique({
-      where: { userId },
-      select: { discordUserId: true },
-    })
-
-    const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
+    const userImage = resolveDashboardAvatarUrl(sessionUser.image, dbUser?.avatarUrl ?? undefined)
 
     return (
       <DashboardShell
         userId={userId}
-        userName={session.user.name ?? session.user.email ?? 'Manager'}
+        userName={sessionUser.name ?? sessionUser.email ?? 'Manager'}
         userImage={userImage}
         discordConnected={Boolean(userProfile?.discordUserId)}
       />

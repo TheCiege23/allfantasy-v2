@@ -48,13 +48,16 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const profile = await prisma.userProfile.findUnique({
-      where: { userId },
-      select: { sleeperUserId: true },
-    })
+    const profile = await prisma.userProfile
+      .findUnique({
+        where: { userId },
+        select: { sleeperUserId: true },
+      })
+      .catch(() => null)
 
     const [genericLeagues, sleeperLeagues] = await Promise.all([
-      (prisma as any).league.findMany({
+      (prisma as any).league
+        .findMany({
         where: {
           userId,
           name: { not: null },
@@ -93,40 +96,49 @@ export async function GET() {
             },
           },
         },
-      }),
-      (prisma as any).sleeperLeague.findMany({
-        where: {
-          userId,
-          totalTeams: { gt: 0 },
-        },
-        orderBy: { lastSyncedAt: 'desc' },
-        select: {
-          id: true,
-          name: true,
-          sleeperLeagueId: true,
-          totalTeams: true,
-          season: true,
-          status: true,
-          isDynasty: true,
-          scoringType: true,
-          syncStatus: true,
-          syncError: true,
-          lastSyncedAt: true,
-          createdAt: true,
-          rosters: {
-            select: {
-              id: true,
-              ownerId: true,
-              rosterId: true,
-              players: true,
-              starters: true,
-              bench: true,
-              faabRemaining: true,
-              waiverPriority: true,
+      })
+        .catch((err: unknown) => {
+          console.error('[League List] generic leagues query failed', err)
+          return []
+        }),
+      (prisma as any).sleeperLeague
+        .findMany({
+          where: {
+            userId,
+            totalTeams: { gt: 0 },
+          },
+          orderBy: { lastSyncedAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            sleeperLeagueId: true,
+            totalTeams: true,
+            season: true,
+            status: true,
+            isDynasty: true,
+            scoringType: true,
+            syncStatus: true,
+            syncError: true,
+            lastSyncedAt: true,
+            createdAt: true,
+            rosters: {
+              select: {
+                id: true,
+                ownerId: true,
+                rosterId: true,
+                players: true,
+                starters: true,
+                bench: true,
+                faabRemaining: true,
+                waiverPriority: true,
+              },
             },
           },
-        },
-      }),
+        })
+        .catch((err: unknown) => {
+          console.error('[League List] sleeper leagues query failed', err)
+          return []
+        }),
     ])
 
     const sleeperGenericSorted = genericLeagues
@@ -197,7 +209,7 @@ export async function GET() {
           userRole: 'imported' as const,
           isPaid: false,
           entryFee: null,
-          rosters: lg.rosters.map((r: any) => ({
+          rosters: (Array.isArray(lg.rosters) ? lg.rosters : []).map((r: any) => ({
             id: r.id,
             platformUserId: r.ownerId,
             players: r.players,
