@@ -300,14 +300,14 @@ export const authOptions: NextAuthOptions = {
       }
 
       if (account.provider === "google" || account.provider === "apple") {
-        try {
+        const runSocialLink = async (): Promise<true> => {
           const oauthEmail = resolveOAuthEmailFromCallback(user, profile);
           if (oauthEmail) {
             user.email = oauthEmail;
           }
 
           const linkedUser = await linkSocialAccountToAppUser({
-            provider: account.provider,
+            provider: account.provider === "google" ? "google" : "apple",
             providerAccountId: account.providerAccountId,
             type: account.type,
             email: oauthEmail ?? user.email,
@@ -329,6 +329,20 @@ export const authOptions: NextAuthOptions = {
           user.image = linkedUser.avatarUrl;
 
           return true;
+        };
+
+        if (account.provider === "google") {
+          console.log("[google-signin] profile email:", profile?.email);
+          try {
+            return await runSocialLink();
+          } catch (err) {
+            console.error("[google-signin] FATAL:", err);
+            return false;
+          }
+        }
+
+        try {
+          return await runSocialLink();
         } catch (error) {
           console.error("[auth] social account linking error:", error);
           return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
