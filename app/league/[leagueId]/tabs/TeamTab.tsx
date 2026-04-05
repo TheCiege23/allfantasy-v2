@@ -8,7 +8,7 @@ import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGat
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
-import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
+import { isBestBallLeague } from '@/lib/autocoach/bestBallShared'
 import type { LeagueTeam } from '@prisma/client'
 import { PlayerImage } from '@/app/components/PlayerImage'
 import { TeamLogo } from '@/app/components/TeamLogo'

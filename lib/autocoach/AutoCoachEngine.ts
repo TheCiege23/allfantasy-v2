@@ -1,3 +1,5 @@
+import 'server-only'
+
 // AutoCoach: AI lineup guardian for AF Pro subscribers.
 // Runs PREGAME ONLY — once any game in a slate starts, no swaps are made.
 // Does NOT apply to Best Ball leagues.
@@ -11,10 +13,13 @@ import {
   getNormalizedLineupSections,
   type RosterSectionKey,
 } from '@/lib/roster/LineupTemplateValidation'
-import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
+import { BESTBALL_VARIANTS, isBestBallLeague } from '@/lib/autocoach/bestBallShared'
+import { getNotificationsQueue } from '@/lib/queues/bullmq'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
 import { isGameSlateStarted, toSlateDateUtc } from '@/lib/autocoach/StatusMonitor'
 import type { AutoCoachSwapResult } from '@/lib/autocoach/types'
+
+export { BESTBALL_VARIANTS, isBestBallLeague }
 
 /** Canonical inactive tokens that trigger AutoCoach (aligned with status intelligence worker). */
 export const AUTOCOACH_SWAP_STATUSES = new Set([
@@ -64,8 +69,6 @@ export const AUTOCOACH_UNCERTAIN_STATUSES = new Set([
   'GAMETIME',
 ])
 
-export const BESTBALL_VARIANTS = new Set(['best_ball', 'bestball', 'best-ball'])
-
 export function normalizeStatusToken(status: string): string {
   return status.toUpperCase().replace(/\s+/g, '_')
 }
@@ -88,13 +91,6 @@ export function isSwapEligibleStatus(status: string): boolean {
   if (!status?.trim()) return false
   if (isUncertainStatusForSwap(status)) return false
   return AUTOCOACH_SWAP_STATUSES.has(normalizeStatusToken(status))
-}
-
-export function isBestBallLeague(leagueVariant: string | null | undefined, bestBallMode?: boolean | null): boolean {
-  if (bestBallMode === true) return true
-  if (!leagueVariant) return false
-  const v = leagueVariant.toLowerCase()
-  return BESTBALL_VARIANTS.has(v) || v.includes('best_ball') || v.includes('bestball')
 }
 
 function leagueSportToPlayerSport(sport: LeagueSport): string {
@@ -128,6 +124,39 @@ async function projectionScore(playerId: string, sport: string): Promise<number>
     if (typeof pts === 'number' && Number.isFinite(pts)) return pts
   }
   return 0
+}
+
+async function enqueueSwapNotification(
+  userId: string,
+  leagueId: string,
+  leagueName: string,
+  playerOutName: string,
+  playerInName: string,
+  status: string,
+  swapLogId: string
+): Promise<void> {
+  const queue = getNotificationsQueue()
+  if (!queue) return
+
+  try {
+    await queue.add(
+      'autocoach_swap',
+      {
+        userIds: [userId],
+        category: 'autocoach',
+        type: 'autocoach_swap',
+        title: '⚡ AutoCoach made a swap',
+        body: `${playerOutName} (${status}) ↔ ${playerInName} in ${leagueName}`,
+        severity: 'low',
+        actionHref: `/app/league/${leagueId}?tab=team`,
+        actionLabel: 'View lineup',
+        meta: { leagueId, swapLogId },
+      },
+      { removeOnComplete: true }
+    )
+  } catch (e) {
+    console.warn('[AutoCoachEngine] enqueueSwapNotification failed:', e)
+  }
 }
 
 export async function executeAutoCoachSwap(
@@ -207,17 +236,15 @@ export async function executeAutoCoachSwap(
     },
   })
 
-  await dispatchNotification({
-    userIds: [userId],
-    category: 'autocoach',
-    type: 'autocoach_swap',
-    title: '⚡ AutoCoach made a swap',
-    body: `${playerOut.name} (${playerOut.status}) ↔ ${playerIn.name} in ${leagueName}`,
-    severity: 'low',
-    actionHref: `/app/league/${leagueId}?tab=team`,
-    actionLabel: 'View lineup',
-    meta: { leagueId, swapLogId: swapLog.id },
-  })
+  await enqueueSwapNotification(
+    userId,
+    leagueId,
+    leagueName,
+    playerOut.name,
+    playerIn.name,
+    playerOut.status,
+    swapLog.id
+  )
 
   return {
     rosterId,
