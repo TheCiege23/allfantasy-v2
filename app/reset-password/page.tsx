@@ -1,25 +1,48 @@
 "use client"
 
 import Link from "next/link"
-import { useState, Suspense } from "react"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useState, Suspense, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2, TriangleAlert } from "lucide-react"
 import { AuthStatusHeader, AuthStatusLoadingFallback, AuthStatusShell } from "@/components/auth/AuthStatusShell"
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+
+type AuthMode = "checking" | "token" | "supabase" | "none"
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams()
-  const router = useRouter()
   const token = searchParams?.get("token") || ""
   const requestedReturnTo = searchParams?.get("returnTo") || ""
   const safeReturnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard"
   const loginHref = `/login?callbackUrl=${encodeURIComponent(safeReturnTo)}`
 
+  const [authMode, setAuthMode] = useState<AuthMode>("checking")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    if (token) {
+      setAuthMode("token")
+      return
+    }
+    if (!isSupabaseConfigured) {
+      setAuthMode("none")
+      return
+    }
+    let cancelled = false
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled) return
+      if (session?.user) setAuthMode("supabase")
+      else setAuthMode("none")
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,29 +65,66 @@ function ResetPasswordContent() {
 
     setLoading(true)
     try {
-      const res = await fetch("/api/auth/password/reset/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword: password }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        const errorMap: Record<string, string> = {
-          MISSING_FIELDS: "Token and new password are required.",
-          WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
-          INVALID_OR_USED_TOKEN: "This reset link is invalid or has already been used.",
-          EXPIRED_TOKEN: "This reset link has expired. Please request a new one.",
-          RESET_FAILED: "Something went wrong saving your password. Please try again.",
+      if (authMode === "supabase") {
+        const { error: updateErr } = await supabase.auth.updateUser({ password })
+        if (updateErr) {
+          setError(updateErr.message || "Could not update password.")
+          return
         }
-        setError(errorMap[data.error] || data.error || "Something went wrong.")
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
+        if (!accessToken) {
+          setError("Session expired. Open the reset link from your email again.")
+          return
+        }
+        const syncRes = await fetch("/api/auth/password/sync-neon", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ newPassword: password }),
+        })
+        const syncData = await syncRes.json().catch(() => ({}))
+        if (!syncRes.ok) {
+          const errorMap: Record<string, string> = {
+            WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
+            SYNC_FAILED: "Could not sync password to your account. Try again or contact support.",
+            INVALID_SESSION: "Session expired. Open the reset link from your email again.",
+            UNAUTHORIZED: "Session expired. Open the reset link from your email again.",
+          }
+          setError(errorMap[String(syncData.error)] || "Something went wrong saving your password.")
+          return
+        }
+        await supabase.auth.signOut().catch(() => {})
       } else {
-        setSuccess(true)
-        setTimeout(() => {
-          window.location.href = `${loginHref}&reset=1`
-        }, 2000)
+        const res = await fetch("/api/auth/password/reset/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token, newPassword: password }),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          const errorMap: Record<string, string> = {
+            MISSING_FIELDS: "Token and new password are required.",
+            WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
+            INVALID_OR_USED_TOKEN: "This reset link is invalid or has already been used.",
+            EXPIRED_TOKEN: "This reset link has expired. Please request a new one.",
+            RESET_FAILED: "Something went wrong saving your password. Please try again.",
+          }
+          setError(errorMap[data.error] || data.error || "Something went wrong.")
+          return
+        }
       }
+
+      setSuccess(true)
+      setTimeout(() => {
+        window.location.href = `${loginHref}&reset=1`
+      }, 2000)
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {
@@ -72,27 +132,40 @@ function ResetPasswordContent() {
     }
   }
 
-  if (!token) {
+  if (authMode === "checking") {
+    return (
+      <AuthStatusShell>
+        <div className="w-full max-w-[440px]">
+          <AuthStatusHeader title="Loading" subtitle="Checking your reset session…" />
+          <div className="flex justify-center rounded-[18px] border border-violet-400/20 bg-[#16102a] p-12">
+            <Loader2 className="h-10 w-10 animate-spin text-cyan-400" />
+          </div>
+        </div>
+      </AuthStatusShell>
+    )
+  }
+
+  if (authMode === "none" && !token) {
     return (
       <AuthStatusShell>
         <div className="w-full max-w-[440px]">
           <AuthStatusHeader
             title="Invalid reset link"
-            subtitle="This password reset link is missing or no longer valid."
+            subtitle="Open the link from your password reset email, or request a new one."
           />
           <div className="rounded-[18px] border border-red-500/20 bg-[#16102a] p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10">
               <TriangleAlert className="h-7 w-7 text-amber-400" />
             </div>
-            <h1 className="mt-5 text-2xl font-semibold text-white">Invalid reset link</h1>
+            <h1 className="mt-5 text-2xl font-semibold text-white">Session required</h1>
             <p className="mt-3 text-sm leading-6 text-white/60">
-              This password reset link is missing or invalid.
+              We couldn&apos;t verify a password reset session. Use the link from your email, or request a new reset.
             </p>
             <Link
               href="/forgot-password"
               className="mt-7 inline-flex items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-6 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:opacity-90"
             >
-              <span>Request new reset link</span>
+              <span>Request reset</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -143,7 +216,11 @@ function ResetPasswordContent() {
 
         <AuthStatusHeader
           title="Set new password"
-          subtitle="Choose a strong new password for your AllFantasy account."
+          subtitle={
+            authMode === "supabase"
+              ? "Choose a new password for your AllFantasy account (verified via email link)."
+              : "Choose a strong new password for your AllFantasy account."
+          }
         />
 
         {error && (
@@ -222,4 +299,3 @@ export default function ResetPasswordPage() {
     </Suspense>
   )
 }
-

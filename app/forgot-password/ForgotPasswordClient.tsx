@@ -20,7 +20,7 @@ import {
 } from '@/lib/auth/ResetCodeVerificationService'
 
 type Method = 'email' | 'sms'
-type Step = 'choose' | 'request' | 'enter_code' | 'success'
+type Step = 'choose' | 'request' | 'enter_code' | 'email_link_sent' | 'success'
 
 function RecoveryPage(props: {
   backHref: string
@@ -123,7 +123,7 @@ export default function ForgotPasswordClient() {
             : 'Could not send code. Try again.'
         )
       } else {
-        setStep('enter_code')
+        setStep('email_link_sent')
         setError(null)
       }
     } catch {
@@ -280,7 +280,7 @@ export default function ForgotPasswordClient() {
       <RecoveryPage
         backHref={loginHref}
         title="Reset your password"
-        subtitle="Choose how you want to receive your recovery code."
+        subtitle="Choose how you want to reset your password."
         footer={
           <>
             Need an account?{' '}
@@ -306,7 +306,7 @@ export default function ForgotPasswordClient() {
           >
             <Mail className="mx-auto h-8 w-8 text-cyan-400" />
             <div className="mt-3 text-sm font-semibold text-white">Email</div>
-            <div className="mt-1 text-xs text-white/50">Send a reset code to your email</div>
+            <div className="mt-1 text-xs text-white/50">Send a reset link to your email</div>
           </button>
           <button
             type="button"
@@ -327,12 +327,41 @@ export default function ForgotPasswordClient() {
     )
   }
 
+  if (step === 'email_link_sent' && method === 'email') {
+    return (
+      <RecoveryPage
+        backHref={loginHref}
+        title="Check your email"
+        subtitle="If an account exists for that address, we sent a password reset link."
+        footer={
+          <button
+            type="button"
+            onClick={() => {
+              setStep('request')
+              setError(null)
+            }}
+            className="text-sm text-white/55 transition hover:text-white/80"
+          >
+            Send another link
+          </button>
+        }
+      >
+        <RecoveryCard>
+          <div className="text-center text-sm leading-6 text-white/70">
+            <p>Open the link in the email to continue. Check your spam folder if you don&apos;t see it.</p>
+            <p className="mt-4 text-xs text-white/45">The link opens AllFantasy so you can set a new password.</p>
+          </div>
+        </RecoveryCard>
+      </RecoveryPage>
+    )
+  }
+
   if (step === 'request' && method === 'email') {
     return (
       <RecoveryPage
         backHref={loginHref}
         title="Reset via email"
-        subtitle="We'll email a reset code only if this address is registered."
+        subtitle="We'll email a reset link only if this address is registered."
         footer={
           <button
             type="button"
@@ -383,7 +412,7 @@ export default function ForgotPasswordClient() {
                 </>
               ) : (
                 <>
-                  <span>Send code</span>
+                  <span>Send reset link</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -462,16 +491,12 @@ export default function ForgotPasswordClient() {
     )
   }
 
-  if (step === 'enter_code') {
+  if (step === 'enter_code' && method === 'sms') {
     return (
       <RecoveryPage
         backHref={loginHref}
         title="Enter code and new password"
-        subtitle={
-          method === 'email'
-            ? `If ${email.trim() || 'that email'} has an account with us, a reset code is on its way. Check your inbox (and spam folder). Enter the code below with your new password.`
-            : `If this phone number has an account with us, a reset code is on its way. Check your messages. Enter the code below with your new password.`
-        }
+        subtitle={`If this phone number has an account with us, a reset code is on its way. Check your messages. Enter the code below with your new password.`}
       >
         <RecoveryError error={error} />
         <RecoveryCard>

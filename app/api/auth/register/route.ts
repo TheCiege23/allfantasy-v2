@@ -358,6 +358,31 @@ export async function POST(req: Request) {
       throw err
     })
 
+    // Mirror credentials in Supabase Auth so password recovery can use resetPasswordForEmail (no Neon round-trip).
+    if (!isE2ERequest) {
+      try {
+        const { createSupabaseAdminClient } = await import("@/lib/supabase/supabase-admin")
+        const admin = createSupabaseAdminClient()
+        if (admin) {
+          const { error: sbErr } = await admin.auth.admin.createUser({
+            email,
+            password: String(password),
+            email_confirm: true,
+            user_metadata: {
+              username,
+              displayName: typeof displayName === "string" && displayName.trim() ? displayName.trim() : username,
+              af_user_id: user.id,
+            },
+          })
+          if (sbErr) {
+            console.warn("[register] Supabase admin.createUser:", sbErr.message)
+          }
+        }
+      } catch (sbEx) {
+        console.warn("[register] Supabase provision failed (non-blocking):", sbEx)
+      }
+    }
+
     // Growth attribution is best-effort and should not block account creation.
     if (!isE2ERequest) {
       try {

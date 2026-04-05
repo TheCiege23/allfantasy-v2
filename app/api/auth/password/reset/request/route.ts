@@ -111,140 +111,39 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  const user = await (prisma as any).appUser.findUnique({
-    where: { email },
-    select: { id: true, email: true },
-  }).catch(() => null)
-
-  if (!user) {
-    void logPasswordResetAudit({
-      outcome: "email_user_not_found",
-      type: "email",
-      email,
-      ip,
-    })
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+  if (!supabaseUrl || !supabaseAnon) {
+    console.error("[pw-reset] Supabase not configured (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY)")
     return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  const code = String(Math.floor(100000 + Math.random() * 900000))
-  const tokenHash = sha256Hex(code)
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 15)
-
-  try {
-    await (prisma as any).passwordResetToken.deleteMany({ where: { userId: user.id } }).catch(() => {})
-    await (prisma as any).passwordResetToken.create({
-      data: { userId: user.id, tokenHash, expiresAt },
-    })
-  } catch (dbErr) {
-    console.error("[pw-reset] DB error creating token:", dbErr)
-    return NextResponse.json({ ok: true }, { status: 200 })
-  }
-
-  void logPasswordResetAudit({
-    outcome: "email_token_created",
-    type: "email",
-    userId: user.id,
-    email: user.email,
-    ip,
+  const { createClient } = await import("@supabase/supabase-js")
+  const supabase = createClient(supabaseUrl, supabaseAnon)
+  const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: "https://www.allfantasy.ai/auth/callback?next=/reset-password",
   })
 
-  try {
-    const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
-    const { getResendClient } = await import("@/lib/resend-client")
-    const { client } = await getResendClient()
-
-    const result = await client.emails.send({
-      from: process.env.RESEND_FROM || "noreply@allfantasy.ai",
-      to: user.email,
-      subject: "Your AllFantasy password reset code",
-      html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
-    .container { max-width: 520px; margin: 0 auto; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 16px; padding: 32px; border: 1px solid #334155; }
-    .logo { font-size: 24px; font-weight: 700; background: linear-gradient(90deg, #22d3ee, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .code { display: inline-block; font-size: 30px; letter-spacing: 8px; font-weight: 700; color: #22d3ee; margin: 14px 0; }
-    .muted { color:#94a3b8; }
-    .footer { text-align:center; margin-top: 24px; font-size: 12px; color:#64748b; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="logo">AllFantasy.ai</div>
-      <h2 style="margin:16px 0 8px;color:#f1f5f9;">Reset your password</h2>
-      <p class="muted">Use this one-time code in the AllFantasy password reset screen.</p>
-      <div class="code">${code}</div>
-      <p class="muted" style="font-size:13px;margin-top:16px;">Code expires in 15 minutes.</p>
-      <p class="muted" style="font-size:13px;margin-top:12px;"><a href="${USER_FACING_SITE_ORIGIN}/auth/callback?next=/reset-password" style="color:#22d3ee;">Open AllFantasy to finish resetting your password</a></p>
-    </div>
-    <div class="footer">
-      <p>If you didn't request this, you can ignore it.</p>
-    </div>
-  </div>
-</body>
-</html>`,
-    })
-
-    if ("error" in result && result.error) {
-      console.error("[auth][password-reset][request] resend error", {
-        userId: user.id,
-        email: user.email,
-        message: result.error.message,
-      })
-      void logPasswordResetAudit({
-        outcome: "email_send_failed",
-        type: "email",
-        userId: user.id,
-        email: user.email,
-        ip,
-        detail: { provider: "resend", message: result.error.message },
-      })
-      await (prisma as any).passwordResetToken.deleteMany({
-        where: { userId: user.id },
-      }).catch(() => {})
-      // Same response as unknown email — avoid account enumeration via status codes.
-      return NextResponse.json({ ok: true }, { status: 200 })
-    }
-    void logPasswordResetAudit({
-      outcome: "email_sent",
-      type: "email",
-      userId: user.id,
-      email: user.email,
-      ip,
-      detail: {
-        provider: "resend",
-        emailId: "data" in result && result.data?.id ? result.data.id : null,
-        from: process.env.RESEND_FROM || "noreply@allfantasy.ai",
-      },
-    })
-  } catch (error) {
-    console.error("[pw-reset] email send failed:", {
-      userId: user.id,
-      email: user.email,
-      error: error instanceof Error ? error.message : String(error),
-    })
+  if (resetErr) {
+    console.error("[pw-reset] resetPasswordForEmail:", { email, message: resetErr.message })
     void logPasswordResetAudit({
       outcome: "email_send_failed",
       type: "email",
-      userId: user.id,
-      email: user.email,
+      email,
       ip,
-      detail: {
-        provider: "resend",
-        message: error instanceof Error ? error.message : String(error),
-      },
+      detail: { provider: "supabase", message: resetErr.message },
     })
-    await (prisma as any).passwordResetToken.deleteMany({
-      where: { userId: user.id },
-    }).catch(() => {})
-    return NextResponse.json({ ok: true }, { status: 200 })
+  } else {
+    void logPasswordResetAudit({
+      outcome: "email_sent",
+      type: "email",
+      email,
+      ip,
+      detail: { provider: "supabase" },
+    })
   }
 
-  return NextResponse.json({ ok: true, method: "email" }, { status: 200 })
+  return NextResponse.json({ ok: true }, { status: 200 })
   } catch (err) {
     console.error("[password/reset/request] unexpected:", err)
     return NextResponse.json({ ok: true }, { status: 200 })
