@@ -2648,6 +2648,7 @@ model AppUser {
   zombieUniversesCreated         ZombieUniverse[]           @relation("ZombieUniverseCreator")
   bigBrotherChatCommandLogs      BigBrotherChatCommandLog[]
   devyImportSessionsCommissioned DevyImportSession[]        @relation("DevyImportSessionCommissioner")
+  supplementalDraftsCreated      SupplementalDraft[]       @relation("SupplementalDraftCreator")
 
   @@map("app_users")
 }
@@ -4200,12 +4201,14 @@ model League {
   mockDrafts                  MockDraft[]
   draftSessions               DraftSession[]
   chatMessages                LeagueChatMessage[]
+  supplementalDrafts          SupplementalDraft[]
   discordLeagueChannels       DiscordLeagueChannel[]
   aiCommissionerConfig        AiCommissionerConfig?
   aiCommissionerAlerts        AiCommissionerAlert[]
   aiCommissionerActionLogs    AiCommissionerActionLog[]
   invites                     LeagueInvite[]
   managerClaims               LeagueManagerClaim[]
+  findLeagueListings          FindLeagueListing[]
   seasons                     LeagueSeason[]
   leagueSettings              LeagueSettings?
   user                        AppUser                      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -5001,12 +5004,79 @@ model LeagueChatMessage {
   source           String?  @db.VarChar(16)
   discordMessageId String?  @db.VarChar(64)
   sourceDiscord    Boolean  @default(false)
+  /// @chimmy private thread — only `visibleToUserId` should see the row when true.
+  isPrivate          Boolean  @default(false)
+  visibleToUserId    String?
+  messageSubtype     String?  @db.VarChar(32)
+  mentionedUserIds   String[] @default([])
+  globalBroadcastId  String?  @db.VarChar(64)
   createdAt        DateTime @default(now())
 
   @@index([leagueId])
   @@index([leagueId, source])
   @@index([createdAt])
+  @@index([globalBroadcastId])
   @@map("league_chat_messages")
+}
+
+/// Commissioner-run supplemental draft: orphaned / dissolved team assets pooled for linear draft.
+model SupplementalDraft {
+  id                   String    @id @default(cuid())
+  leagueId             String
+  scenario             String    @db.VarChar(32) // orphan_teams | league_downsizing
+  status               String    @default("pending") @db.VarChar(24) // pending | configuring | in_progress | completed | cancelled
+
+  participantRosterIds String[]
+  passedRosterIds        String[] @default([])
+
+  draftOrder       String[]
+  currentPickIndex Int      @default(0)
+  totalRounds      Int      @default(0)
+  picksPerRound    Int      @default(0)
+
+  sourceRosterIds String[]
+  assetPool       Json     @default("[]")
+
+  orderMode       String   @default("randomized") @db.VarChar(24) // randomized | commissioner_set
+  draftType       String   @default("linear") @db.VarChar(16)
+  pickTimeSeconds Int      @default(120)
+  autoPickOnTimeout Boolean @default(true)
+
+  createdByUserId String
+  createdBy       AppUser   @relation("SupplementalDraftCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  picks  SupplementalDraftPick[]
+
+  @@index([leagueId])
+  @@index([status])
+  @@map("supplemental_drafts")
+}
+
+model SupplementalDraftPick {
+  id                  String   @id @default(cuid())
+  supplementalDraftId String
+  pickNumber          Int
+  round               Int
+  pickInRound         Int
+  rosterId            String
+
+  assetType        String?  @db.VarChar(24) // player | draft_pick | faab
+  assetId          String?  @db.VarChar(128)
+  assetDisplayName String?  @db.VarChar(256)
+  isPassed         Boolean  @default(false)
+
+  pickedAt DateTime?
+
+  supplementalDraft SupplementalDraft @relation(fields: [supplementalDraftId], references: [id], onDelete: Cascade)
+
+  @@unique([supplementalDraftId, pickNumber])
+  @@index([supplementalDraftId, rosterId])
+  @@map("supplemental_draft_picks")
 }
 
 model AiCommissionerConfig {
@@ -5112,14 +5182,37 @@ model LeagueManagerClaim {
   @@unique([leagueId, teamExternalId])
 }
 
+/// Public find-a-league row when a commissioner advertises an orphan / open manager slot.
+model FindLeagueListing {
+  id        String      @id @default(cuid())
+  leagueId  String
+  rosterId  String
+  headline  String      @default("") @db.VarChar(256)
+  body      String?     @db.Text
+  sport     LeagueSport @default(NFL)
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId])
+  @@index([isActive, sport, createdAt])
+  @@map("find_league_listings")
+}
+
 model Roster {
   id             String   @id @default(uuid())
   leagueId       String
   league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   platformUserId String
   playerData     Json
+  /// Optional commissioner flags: `isAdvertised`, `aiManaged`, `aiManagerType`, etc.
+  settings       Json?
   faabRemaining  Int?
   waiverPriority Int?
+  /// True when this roster has clicked Pass in the active supplemental draft (cleared when draft ends).
+  supplementalDraftPasses Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -9539,6 +9632,11 @@ model PlatformChatMessage {
   messageType  String   @default("text")
   body         String
   metadata     Json?
+  isPrivate          Boolean  @default(false)
+  visibleToUserId    String?
+  messageSubtype     String?  @db.VarChar(32)
+  mentionedUserIds   String[] @default([])
+  globalBroadcastId  String?  @db.VarChar(64)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -9547,6 +9645,7 @@ model PlatformChatMessage {
 
   @@index([threadId, createdAt])
   @@index([senderUserId, createdAt])
+  @@index([globalBroadcastId])
   @@map("platform_chat_messages")
 }
 

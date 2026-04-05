@@ -148,6 +148,16 @@ export const ENTITLEMENTS = {
     upgradeLabel: 'Get AF Commissioner',
     highlightParam: 'c2c_ai',
   },
+  commissioner_supplemental_draft: {
+    key: 'commissioner_supplemental_draft',
+    label: 'Supplemental Draft',
+    description:
+      'Set up and run a supplemental draft for orphaned teams or league downsizing. Requires AF Commissioner subscription.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightParam: 'supplemental_draft',
+  },
   pro_draft_ai: {
     key: 'pro_draft_ai',
     label: 'AI Draft Assistant',

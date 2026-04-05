@@ -21,7 +21,13 @@ const includeUser = {
 
 export async function getLeagueChatMessages(
   leagueId: string,
-  options: { limit?: number; before?: Date; source?: string | null; /** when undefined, league channel = exclude draft-only + tribe-only */ }
+  options: {
+    limit?: number
+    before?: Date
+    source?: string | null /** when undefined, league channel = exclude draft-only + tribe-only */
+    /** Required for private @chimmy rows — omit only for internal jobs (avoid leaking). */
+    requestingUserId?: string
+  }
 ): Promise<PlatformChatMessage[]> {
   const limit = Math.min(options.limit ?? 50, 100)
   const where: Record<string, unknown> = { leagueId }
@@ -31,6 +37,12 @@ export async function getLeagueChatMessages(
     where.source = null
   } else if (options.source === undefined) {
     where.NOT = [{ source: 'draft' }, { source: { startsWith: 'tribe_' } }]
+  }
+  const requestingUserId = options.requestingUserId
+  if (requestingUserId) {
+    where.OR = [{ isPrivate: false }, { isPrivate: true, visibleToUserId: requestingUserId }]
+  } else {
+    where.isPrivate = false
   }
   const rows = await prisma.leagueChatMessage.findMany({
     where: {
@@ -42,6 +54,13 @@ export async function getLeagueChatMessages(
     include: includeUser,
   })
   return rows.reverse().map((m) => {
+    const rowPriv = m as {
+      isPrivate?: boolean
+      visibleToUserId?: string | null
+      messageSubtype?: string | null
+      mentionedUserIds?: string[]
+      globalBroadcastId?: string | null
+    }
     const rawMeta = ((m as { metadata?: Record<string, unknown> }).metadata ?? null) as Record<
       string,
       unknown
@@ -66,7 +85,21 @@ export async function getLeagueChatMessages(
     const withImage = (m as { imageUrl?: string | null }).imageUrl
       ? { ...baseMeta, imageUrl: (m as { imageUrl?: string | null }).imageUrl }
       : baseMeta
-    const withPresence = { ...withImage, lastActiveAt: m.createdAt.toISOString() }
+    const privacy =
+      rowPriv.isPrivate || rowPriv.messageSubtype || rowPriv.globalBroadcastId
+        ? {
+            isPrivate: Boolean(rowPriv.isPrivate),
+            visibleToUserId: rowPriv.visibleToUserId ?? undefined,
+            messageSubtype: rowPriv.messageSubtype ?? undefined,
+            mentionedUserIds: rowPriv.mentionedUserIds ?? undefined,
+            globalBroadcastId: rowPriv.globalBroadcastId ?? undefined,
+          }
+        : {}
+    const withPresence = {
+      ...withImage,
+      lastActiveAt: m.createdAt.toISOString(),
+      ...privacy,
+    }
     const meta = Object.keys(withPresence).length > 0 ? withPresence : undefined
     return meta ? { ...base, metadata: meta } : base
   })
@@ -83,6 +116,11 @@ export async function createLeagueChatMessage(
     source?: string | null
     discordMessageId?: string | null
     sourceDiscord?: boolean
+    isPrivate?: boolean
+    visibleToUserId?: string | null
+    messageSubtype?: string | null
+    mentionedUserIds?: string[]
+    globalBroadcastId?: string | null
   }
 ): Promise<PlatformChatMessage | null> {
   const source =
@@ -102,6 +140,11 @@ export async function createLeagueChatMessage(
       source,
       discordMessageId: options.discordMessageId ?? null,
       sourceDiscord: options.sourceDiscord ?? false,
+      isPrivate: options.isPrivate ?? false,
+      visibleToUserId: options.visibleToUserId ?? null,
+      messageSubtype: options.messageSubtype ?? null,
+      mentionedUserIds: options.mentionedUserIds ?? [],
+      globalBroadcastId: options.globalBroadcastId ?? null,
     },
     include: includeUser,
   })
@@ -131,12 +174,32 @@ export async function createLeagueChatMessage(
     body: created.message || '',
     createdAt: created.createdAt.toISOString(),
   }
-  if (created.imageUrl || (created as { metadata?: Record<string, unknown> }).metadata) {
-    const baseMeta = ((created as { metadata?: Record<string, unknown> }).metadata ?? {}) as Record<string, unknown>
+  const cr = created as {
+    imageUrl?: string | null
+    metadata?: Record<string, unknown>
+    isPrivate?: boolean
+    visibleToUserId?: string | null
+    messageSubtype?: string | null
+    mentionedUserIds?: string[]
+    globalBroadcastId?: string | null
+  }
+  if (
+    created.imageUrl ||
+    cr.metadata ||
+    cr.isPrivate ||
+    cr.messageSubtype ||
+    cr.globalBroadcastId
+  ) {
+    const baseMeta = (cr.metadata ?? {}) as Record<string, unknown>
     out.metadata = {
       ...baseMeta,
       ...(created.imageUrl && { imageUrl: created.imageUrl }),
       lastActiveAt: created.createdAt.toISOString(),
+      ...(cr.isPrivate ? { isPrivate: true } : {}),
+      ...(cr.visibleToUserId ? { visibleToUserId: cr.visibleToUserId } : {}),
+      ...(cr.messageSubtype ? { messageSubtype: cr.messageSubtype } : {}),
+      ...(cr.mentionedUserIds?.length ? { mentionedUserIds: cr.mentionedUserIds } : {}),
+      ...(cr.globalBroadcastId ? { globalBroadcastId: cr.globalBroadcastId } : {}),
     }
   }
   return out

@@ -48,6 +48,7 @@ export type SubscriptionFeatureId =
   | 'commissioner_cap_advice'
   | 'commissioner_c2c_scouting'
   | 'commissioner_weather_projections'
+  | 'commissioner_supplemental_draft'
   | 'pro_draft_ai'
   | 'pro_waiver_ai'
   | 'pro_trade_ai'

@@ -55,6 +55,14 @@ export function AFChatPanel({
     setActiveTab(selectedLeague ? 'league' : 'chimmy')
   }, [selectedLeague])
 
+  const commissionerLeagues = useMemo(
+    () =>
+      leagues
+        .filter((l) => l.isCommissioner)
+        .map((l) => ({ id: l.id, name: l.name, teamCount: l.teamCount ?? 0 })),
+    [leagues]
+  )
+
   const tabContent = useMemo(() => {
     if (activeTab === 'chimmy') {
       return (
@@ -100,6 +108,7 @@ export function AFChatPanel({
           selectedLeague={selectedLeague}
           userId={userId}
           onAskChimmy={() => setActiveTab('chimmy')}
+          commissionerLeagues={commissionerLeagues}
         />
       )
     }
@@ -109,7 +118,7 @@ export function AFChatPanel({
         Select a league to see its chat
       </div>
     )
-  }, [activeTab, selectedLeague, userId])
+  }, [activeTab, commissionerLeagues, selectedLeague, userId])
 
   return (
     <div className="flex h-full w-[300px] flex-shrink-0 flex-col border-l border-white/[0.07] bg-[#0a0a1f]">

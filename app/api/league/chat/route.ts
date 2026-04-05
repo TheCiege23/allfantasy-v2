@@ -12,6 +12,10 @@ import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyComman
 import { processIdpLeagueChatInput } from '@/lib/idp/idpChimmyLeagueChat'
 import { processDevyLeagueChatInput } from '@/lib/devy/devyChimmyLeagueChat'
 import { processC2cLeagueChatInput } from '@/lib/c2c/c2cChimmyLeagueChat'
+import { isChimmyPrivateMessage, parseAtMentions } from '@/lib/chat-core/mentionPrivacyFilter'
+import { generateChimmyPrivateReply } from '@/lib/chat-core/chimmyPrivateReply'
+import { getLeagueMemberUserIds } from '@/lib/league-chat/leagueMemberIds'
+import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 
 function toStringValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
@@ -98,7 +102,7 @@ export async function GET(req: NextRequest) {
   }
 
   const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || '50'), 100)
-  const messages = await getLeagueChatMessages(leagueId, { limit })
+  const messages = await getLeagueChatMessages(leagueId, { limit, requestingUserId: userId })
 
   return NextResponse.json({
     messages: messages.map((message) =>
@@ -202,6 +206,69 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const wantsChimmyPrivateDm =
+    !hasRich &&
+    message.trim() &&
+    isChimmyPrivateMessage(message) &&
+    !(bbProcessed?.outcome === 'post_user_and_chimmy' && (bbProcessed.chimmyMessages?.length ?? 0) > 0) &&
+    !(c2cProcessed?.outcome === 'post_user_and_chimmy' && (c2cProcessed.chimmyMessages?.length ?? 0) > 0) &&
+    !(devyProcessed?.outcome === 'post_user_and_chimmy' && (devyProcessed.chimmyMessages?.length ?? 0) > 0) &&
+    !(idpProcessed?.outcome === 'post_user_and_chimmy' && (idpProcessed.chimmyMessages?.length ?? 0) > 0)
+
+  if (wantsChimmyPrivateDm) {
+    const mentionParsed = parseAtMentions(message)
+    const privateUserMsg = await createLeagueChatMessage(leagueId, userId, message, {
+      metadata: metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
+      isPrivate: true,
+      visibleToUserId: userId,
+      messageSubtype: 'chimmy_private',
+      mentionedUserIds: mentionParsed.userMentions,
+    })
+    if (!privateUserMsg) {
+      return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
+    }
+    const replyText = await generateChimmyPrivateReply(message, leagueId)
+    const leagueRow = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { userId: true },
+    })
+    const announcerId = leagueRow?.userId ?? userId
+    const privateChimmyMsg = await createLeagueChatMessage(leagueId, announcerId, replyText, {
+      type: 'system',
+      isPrivate: true,
+      visibleToUserId: userId,
+      messageSubtype: 'chimmy_private',
+      metadata: { isSystem: true, chimmyPrivateReply: true },
+    })
+
+    return NextResponse.json({
+      message: toClientMessage({
+        id: privateUserMsg.id,
+        senderUserId: privateUserMsg.senderUserId ?? null,
+        senderName: privateUserMsg.senderName ?? 'Manager',
+        senderAvatarUrl: privateUserMsg.senderAvatarUrl ?? null,
+        body: privateUserMsg.body,
+        createdAt: privateUserMsg.createdAt,
+        messageType: privateUserMsg.messageType ?? 'text',
+        metadata: privateUserMsg.metadata ?? null,
+      }),
+      extraMessages: privateChimmyMsg
+        ? [
+            toClientMessage({
+              id: privateChimmyMsg.id,
+              senderUserId: privateChimmyMsg.senderUserId ?? null,
+              senderName: privateChimmyMsg.senderName ?? 'Chimmy',
+              senderAvatarUrl: privateChimmyMsg.senderAvatarUrl ?? null,
+              body: privateChimmyMsg.body,
+              createdAt: privateChimmyMsg.createdAt,
+              messageType: privateChimmyMsg.messageType ?? 'text',
+              metadata: privateChimmyMsg.metadata ?? null,
+            }),
+          ]
+        : [],
+    })
+  }
+
   const bodyText =
     message ||
     (metadata?.gifUrl || metadata?.giphyId || metadata?.gifId ? '🎬 GIF' : '') ||
@@ -209,8 +276,11 @@ export async function POST(req: NextRequest) {
     (metadata?.attachments ? '📎 Media' : '') ||
     '[Media]'
 
+  const mentionInfo = parseAtMentions(message)
   const created = await createLeagueChatMessage(leagueId, userId, bodyText, {
     metadata: metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
+    messageSubtype: mentionInfo.hasAll ? 'at_all' : null,
+    mentionedUserIds: mentionInfo.userMentions,
   })
   if (!created) {
     return NextResponse.json({ error: 'Failed to send message' }, { status: 500 })
@@ -274,6 +344,30 @@ export async function POST(req: NextRequest) {
     text: created.body,
     gifUrl: gifUrlFromMetadata(metadata),
   }).catch(() => {})
+
+  if (mentionInfo.hasAll) {
+    const sender = await prisma.appUser.findUnique({
+      where: { id: userId },
+      select: { displayName: true, username: true, email: true },
+    })
+    const senderName = sender?.displayName || sender?.username || sender?.email || 'Someone'
+    void getLeagueMemberUserIds(leagueId).then((ids) => {
+      const targets = ids.filter((id) => id !== userId)
+      if (targets.length === 0) return
+      return dispatchNotification({
+        userIds: targets,
+        category: 'league_announcements',
+        productType: 'app',
+        type: 'at_all',
+        title: '@all in league chat',
+        body: `${senderName} mentioned everyone in the league chat.`,
+        severity: 'low',
+        actionHref: `/app/league/${encodeURIComponent(leagueId)}`,
+        actionLabel: 'Open chat',
+        meta: { leagueId, messageId: created.id },
+      })
+    })
+  }
 
   return NextResponse.json({
     message: toClientMessage({

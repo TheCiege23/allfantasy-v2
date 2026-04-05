@@ -53,6 +53,8 @@ export type LeftChatPanelLayoutProps = {
   discordConnected?: boolean
   /** `?zombieChimmy=` deep link → league chat composer */
   zombieChimmyPrefill?: string | null
+  /** Leagues the user commissions — for @global broadcast modal */
+  commissionerLeagues?: { id: string; name: string; teamCount: number }[]
 }
 
 /** Props contract for `RightControlPanel` */

@@ -175,6 +175,14 @@ export function DashboardShell({
     return found ?? null
   }, [leagues, activeLeagueId])
 
+  const commissionerLeagues = useMemo(
+    () =>
+      leagues
+        .filter((l) => l.isCommissioner)
+        .map((l) => ({ id: l.id, name: l.name, teamCount: l.teamCount ?? 0 })),
+    [leagues]
+  )
+
   const handleSelectLeague = useCallback(
     (league: UserLeague | null) => {
       if (league) {
@@ -267,6 +275,7 @@ export function DashboardShell({
           rootId="dashboard-left-chat"
           leagues={leagues}
           discordConnected={discordConnected}
+          commissionerLeagues={commissionerLeagues}
         />
       }
       rightPanel={
@@ -372,6 +381,7 @@ export function DashboardShell({
                 rootId={null}
                 leagues={leagues}
                 discordConnected={discordConnected}
+                commissionerLeagues={commissionerLeagues}
               />
             </div>
           </div>

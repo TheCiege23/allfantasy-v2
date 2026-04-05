@@ -9,6 +9,7 @@ export type NotificationCategoryId =
   | "trade_proposals"
   | "trade_accept_reject"
   | "chat_mentions"
+  | "league_announcements"
   | "bracket_updates"
   | "ai_alerts"
   | "league_drama"
@@ -39,6 +40,7 @@ export const NOTIFICATION_CATEGORY_IDS: NotificationCategoryId[] = [
   "trade_proposals",
   "trade_accept_reject",
   "chat_mentions",
+  "league_announcements",
   "bracket_updates",
   "ai_alerts",
   "league_drama",
@@ -58,6 +60,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string
   trade_proposals: "Trade proposals",
   trade_accept_reject: "Trade accept / reject",
   chat_mentions: "Chat mentions",
+  league_announcements: "League announcements & @all",
   bracket_updates: "Bracket updates",
   ai_alerts: "AI alerts",
   league_drama: "League drama / storylines",

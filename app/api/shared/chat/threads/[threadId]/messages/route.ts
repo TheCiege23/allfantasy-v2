@@ -162,6 +162,7 @@ export async function GET(
         limit,
         before: beforeDate ?? undefined,
         source,
+        requestingUserId: user.appUserId,
       })
       const visible = applyBlockedVisibility(messages, blockSet)
       return NextResponse.json({

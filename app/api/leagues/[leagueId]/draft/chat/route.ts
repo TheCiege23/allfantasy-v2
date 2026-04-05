@@ -115,6 +115,7 @@ export async function GET(
     limit,
     before: before ? new Date(before) : undefined,
     source: syncOn ? undefined : 'draft',
+    requestingUserId: userId,
   })
   return NextResponse.json({
     messages: messages.map(toDraftMessage),

@@ -15,6 +15,7 @@ export {
 export const PUSH_NOTIFICATION_CATEGORIES = [
   "ai_alerts",
   "chat_mentions",
+  "league_announcements",
   "matchup_results",
   "lineup_reminders",
   "league_drama",

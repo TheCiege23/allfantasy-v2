@@ -140,6 +140,7 @@ export async function GET(req: NextRequest) {
       timezone: tz,
       teamCount: league.leagueSize ?? league.teams.length,
       isDynasty: league.isDynasty,
+      leagueVariant: league.leagueVariant ?? null,
       rosterSize: league.rosterSize,
       totalRosterSlots,
       sportConfig,

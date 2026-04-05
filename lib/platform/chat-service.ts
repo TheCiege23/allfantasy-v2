@@ -376,7 +376,10 @@ export async function getPlatformThreadMessages(
     if (!member) return []
 
     const rows = await (prisma as any).platformChatMessage.findMany({
-      where: { threadId },
+      where: {
+        threadId,
+        OR: [{ isPrivate: false }, { isPrivate: true, visibleToUserId: appUserId }],
+      },
       include: {
         sender: {
           select: {
@@ -399,23 +402,32 @@ export async function getPlatformThreadMessages(
     })
 
     const visible = rows.filter((r: any) => !(r.metadata as Record<string, unknown>)?.hiddenByMod)
-    return visible.reverse().map((msg: any) => ({
-      id: msg.id,
-      threadId,
-      senderUserId: msg.senderUserId || null,
-      senderName:
-        msg.sender?.displayName ||
-        msg.sender?.username ||
-        msg.sender?.email ||
-        resolveSystemSenderName(msg.messageType, msg.metadata),
-      senderUsername: msg.sender?.username || null,
-      senderAvatarUrl: msg.sender?.avatarUrl ?? null,
-      senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
-      messageType: msg.messageType || 'text',
-      body: msg.body || '',
-      createdAt: toIso(msg.createdAt),
-      metadata: msg.metadata || undefined,
-    }))
+    return visible.reverse().map((msg: any) => {
+      const baseMeta =
+        msg.metadata && typeof msg.metadata === 'object' && !Array.isArray(msg.metadata)
+          ? { ...(msg.metadata as Record<string, unknown>) }
+          : {}
+      if (msg.isPrivate) baseMeta.isPrivate = true
+      if (msg.visibleToUserId) baseMeta.visibleToUserId = msg.visibleToUserId
+      if (msg.messageSubtype) baseMeta.messageSubtype = msg.messageSubtype
+      return {
+        id: msg.id,
+        threadId,
+        senderUserId: msg.senderUserId || null,
+        senderName:
+          msg.sender?.displayName ||
+          msg.sender?.username ||
+          msg.sender?.email ||
+          resolveSystemSenderName(msg.messageType, msg.metadata),
+        senderUsername: msg.sender?.username || null,
+        senderAvatarUrl: msg.sender?.avatarUrl ?? null,
+        senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
+        messageType: msg.messageType || 'text',
+        body: msg.body || '',
+        createdAt: toIso(msg.createdAt),
+        metadata: Object.keys(baseMeta).length ? baseMeta : undefined,
+      }
+    })
   } catch {
     return []
   }

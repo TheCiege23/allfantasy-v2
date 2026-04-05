@@ -8,6 +8,9 @@ import { EmojiPicker } from './EmojiPicker'
 import { GifPicker } from './GifPicker'
 import { PollComposer } from './PollComposer'
 import { VoiceRecorder } from './VoiceRecorder'
+import { MentionAutocomplete } from './MentionAutocomplete'
+import { GlobalBroadcastModal } from './GlobalBroadcastModal'
+import { useMentionAutocomplete, type MentionSuggestion } from '@/lib/chat-core/useMentionAutocomplete'
 
 export type LeagueComposerPayload = {
   text: string
@@ -39,6 +42,10 @@ type ChatComposerProps = {
   c2cAutocompleteLeagueId?: string | null
   /** When set, fetches IDP @Chimmy autocomplete for this league (mutually exclusive with BB in practice). */
   idpAutocompleteLeagueId?: string | null
+  chatType?: 'league' | 'huddle' | 'dm' | 'chimmy' | 'draft'
+  isCommissioner?: boolean
+  commissionerLeagues?: { id: string; name: string; teamCount: number }[]
+  currentUserId?: string
 }
 
 type Picker = 'gif' | 'emoji' | 'poll' | null
@@ -52,6 +59,10 @@ export function ChatComposer({
   bigBrotherAutocompleteLeagueId = null,
   c2cAutocompleteLeagueId = null,
   idpAutocompleteLeagueId = null,
+  chatType = 'league',
+  isCommissioner = false,
+  commissionerLeagues = [],
+  currentUserId,
 }: ChatComposerProps) {
   const [text, setText] = useState('')
   const appliedPrefillKey = useRef<string | null>(null)
@@ -62,6 +73,49 @@ export function ChatComposer({
   const [pollDraft, setPollDraft] = useState<PollDraft | null>(null)
   const [sending, setSending] = useState(false)
   const [bbSuggest, setBbSuggest] = useState<{ type: string; options: string[] } | null>(null)
+  const [globalModalOpen, setGlobalModalOpen] = useState(false)
+  const [cursorPos, setCursorPos] = useState(0)
+
+  const { suggestions: mentionSuggestions } = useMentionAutocomplete({
+    text,
+    cursorPos,
+    leagueId,
+    chatType,
+    isCommissioner,
+  })
+
+  const showBbChimmySuggest = Boolean(bbSuggest?.options?.length)
+  const showMentionSuggest = mentionSuggestions.length > 0 && !showBbChimmySuggest
+
+  const applyMentionSelection = useCallback(
+    (s: MentionSuggestion) => {
+      const ta = textareaRef.current
+      const pos = ta?.selectionStart ?? cursorPos
+      const before = text.slice(0, pos)
+      const after = text.slice(pos)
+      if (s.type === '@global') {
+        setGlobalModalOpen(true)
+        const newBefore = before.replace(/@\w*$/, '')
+        setText(newBefore + after)
+        queueMicrotask(() => {
+          const p = newBefore.length
+          ta?.setSelectionRange(p, p)
+          ta?.focus()
+          setCursorPos(p)
+        })
+        return
+      }
+      const newBefore = before.replace(/@\w*$/, s.value)
+      setText(newBefore + after)
+      queueMicrotask(() => {
+        const p = newBefore.length
+        ta?.setSelectionRange(p, p)
+        ta?.focus()
+        setCursorPos(p)
+      })
+    },
+    [cursorPos, text]
+  )
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -250,7 +304,11 @@ export function ChatComposer({
     }`
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col" data-testid="league-chat-composer">
+    <div
+      className="flex min-w-0 flex-1 flex-col"
+      data-testid="league-chat-composer"
+      data-current-user-id={currentUserId ?? ''}
+    >
       <AttachmentPreview
         gif={pendingGif}
         attachments={attachments}
@@ -334,10 +392,23 @@ export function ChatComposer({
               ))}
             </div>
           ) : null}
+          {showMentionSuggest ? (
+            <MentionAutocomplete
+              suggestions={mentionSuggestions}
+              onSelect={(s) => applyMentionSelection(s)}
+              onDismiss={() => {}}
+            />
+          ) : null}
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value)
+              setCursorPos(e.target.selectionStart ?? 0)
+            }}
+            onKeyUp={(e) => setCursorPos(e.currentTarget.selectionStart ?? 0)}
+            onClick={(e) => setCursorPos(e.currentTarget.selectionStart ?? 0)}
+            onSelect={(e) => setCursorPos(e.currentTarget.selectionStart ?? 0)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -459,6 +530,13 @@ export function ChatComposer({
           )}
         </div>
       </div>
+
+      <GlobalBroadcastModal
+        isOpen={globalModalOpen}
+        onClose={() => setGlobalModalOpen(false)}
+        commissionerLeagues={commissionerLeagues}
+        onSend={async () => {}}
+      />
     </div>
   )
 }

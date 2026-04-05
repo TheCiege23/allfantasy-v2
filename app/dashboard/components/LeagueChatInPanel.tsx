@@ -6,6 +6,7 @@ import type { UserLeague } from '../types'
 import { ChatComposer, type LeagueComposerPayload } from './chat/ChatComposer'
 import { ChatSenderAvatar } from './chat/ChatSenderAvatar'
 import { isLeagueMessageThreaded } from './chat/chat-timestamps'
+import { parseAtMentions } from '@/lib/chat-core/mentionPrivacyFilter'
 
 export type LeagueChatMessage = {
   id: string
@@ -21,6 +22,9 @@ export type LeagueChatMessage = {
   playerName?: string
   createdAt: string
   metadata?: Record<string, unknown> | null
+  isPrivate?: boolean
+  visibleToUserId?: string
+  messageSubtype?: string
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -131,6 +135,11 @@ function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
   const avatarRaw = o.authorAvatarUrl ?? o.author_avatar
   const createdMs = parseCreatedUnixMs(o)
   const messageType = toStringValue(o.messageType, '')
+  const isPrivate = meta?.isPrivate === true
+  const visibleToUserId =
+    typeof meta?.visibleToUserId === 'string' ? meta.visibleToUserId : undefined
+  const messageSubtype =
+    typeof meta?.messageSubtype === 'string' ? meta.messageSubtype : undefined
   return {
     id,
     authorId: toStringValue(o.authorId, ''),
@@ -142,6 +151,9 @@ function mapLeagueApiMessage(raw: unknown): LeagueChatMessage | null {
     isActivity: false,
     createdAt: new Date(createdMs).toISOString(),
     metadata: meta,
+    isPrivate: isPrivate || undefined,
+    visibleToUserId,
+    messageSubtype,
   }
 }
 
@@ -154,6 +166,7 @@ type LeagueChatInPanelProps = {
   onAskChimmy: () => void
   /** Server-passed prefill when URL cannot be read client-side */
   zombieChimmyPrefill?: string | null
+  commissionerLeagues?: { id: string; name: string; teamCount: number }[]
 }
 
 /**
@@ -167,6 +180,7 @@ export function LeagueChatInPanel({
   userImage = null,
   onAskChimmy,
   zombieChimmyPrefill = null,
+  commissionerLeagues = [],
 }: LeagueChatInPanelProps) {
   const [messages, setMessages] = useState<LeagueChatMessage[]>([])
   const [queryPrefill, setQueryPrefill] = useState<string | null>(null)
@@ -381,6 +395,21 @@ export function LeagueChatInPanel({
               .filter((m): m is LeagueChatMessage => Boolean(m))
           : []
 
+        if (serverMessage?.id) {
+          const mentionParsed = parseAtMentions(payload.text.trim())
+          if (mentionParsed.userMentions.length > 0) {
+            void fetch('/api/shared/chat/mentions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                threadId: `league:${selectedLeague.id}`,
+                messageId: serverMessage.id,
+                mentionedUsernames: mentionParsed.userMentions,
+              }),
+            }).catch(() => {})
+          }
+        }
+
         setMessages((current) => {
           const merged = current.map((message) =>
             message.id === optimisticMessage.id ? serverMessage ?? optimisticMessage : message
@@ -396,6 +425,8 @@ export function LeagueChatInPanel({
     },
     [clearError, selectedLeague.id, showTimedError, userDisplayName, userId, userImage]
   )
+
+  const isUserCommissioner = selectedLeague.isCommissioner === true
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -416,13 +447,19 @@ export function LeagueChatInPanel({
               const meta = message.metadata
               const isChimmyBubble =
                 meta?.chimmy === true && (meta?.bigBrother === true || meta?.idp === true)
+              const chimmyPrivateReply = meta?.chimmyPrivateReply === true
               const isVoteProgress = meta?.bbVoteProgress === true
               const urgency = meta?.urgency === true
               const displayName =
                 isChimmyBubble ? 'Chimmy' : message.author_display_name
+              const isPrivateToViewer =
+                message.isPrivate === true && message.visibleToUserId === userId
+              const isGlobalBroadcast = message.messageSubtype === 'global_broadcast'
+              const isAtAllSubtype = message.messageSubtype === 'at_all'
               const isSystemLine =
                 !isChimmyBubble &&
                 !isVoteProgress &&
+                !chimmyPrivateReply &&
                 (message.author_display_name === 'AllFantasy' ||
                   message.messageType === 'system' ||
                   (meta && typeof meta.isSystem === 'boolean' && meta.isSystem === true))
@@ -464,6 +501,23 @@ export function LeagueChatInPanel({
                   >
                     {message.text}
                   </p>
+                )
+              }
+
+              if (chimmyPrivateReply) {
+                return (
+                  <div key={message.id} className="mt-2 flex items-start gap-2 py-1.5">
+                    <div className="mt-0.5 flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[11px] font-bold text-violet-200">
+                      C
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="mb-0.5 text-[10px] font-semibold text-violet-200/90">🔒 Chimmy (private)</p>
+                      <div className="max-w-[92%] whitespace-pre-wrap rounded-2xl rounded-tl-sm border border-violet-500/15 bg-violet-500/5 px-3 py-2 text-[13px] text-white/90">
+                        {message.text}
+                      </div>
+                      <span className="mt-0.5 text-[11px] text-white/30">{formatChatTime(message.createdAt)}</span>
+                    </div>
+                  </div>
                 )
               }
 
@@ -511,7 +565,26 @@ export function LeagueChatInPanel({
                 return (
                   <div key={message.id} className={`flex justify-end py-1.5 ${index > 0 ? groupGap : ''}`}>
                     <div className="ml-auto flex min-w-0 max-w-[82%] flex-col items-end">
-                      <div className="rounded-2xl rounded-tr-sm border border-cyan-500/25 bg-cyan-500/15 px-3 py-2 text-[13px] text-white">
+                      <div
+                        className={`rounded-2xl rounded-tr-sm px-3 py-2 text-[13px] text-white ${
+                          isPrivateToViewer
+                            ? 'border border-violet-500/15 bg-violet-500/5'
+                            : isGlobalBroadcast
+                              ? 'border border-cyan-500/20 border-l-2 border-l-cyan-500 bg-cyan-500/10'
+                              : isAtAllSubtype
+                                ? 'border border-amber-500/15 border-l-2 border-l-amber-500/60 bg-white/[0.06]'
+                                : 'border border-cyan-500/25 bg-cyan-500/15'
+                        }`}
+                      >
+                        {isGlobalBroadcast ? (
+                          <p className="mb-1 text-[10px] font-semibold text-cyan-300/90">📡 Global Broadcast</p>
+                        ) : null}
+                        {isAtAllSubtype ? (
+                          <p className="mb-1 text-[10px] font-semibold text-amber-200/80">📢 @all</p>
+                        ) : null}
+                        {isPrivateToViewer ? (
+                          <p className="mb-1 text-[10px] text-violet-200/85">🔒 Only visible to you</p>
+                        ) : null}
                         {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                         {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                       </div>
@@ -550,7 +623,26 @@ export function LeagueChatInPanel({
                         </span>
                       </div>
                     )}
-                    <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-white/[0.07] px-3 py-2 text-[13px] text-white/90">
+                    <div
+                      className={`max-w-[85%] rounded-2xl rounded-tl-sm px-3 py-2 text-[13px] text-white/90 ${
+                        isPrivateToViewer
+                          ? 'border border-violet-500/15 bg-violet-500/5'
+                          : isGlobalBroadcast
+                            ? 'border border-white/[0.07] border-l-2 border-l-cyan-500 bg-white/[0.05]'
+                            : isAtAllSubtype
+                              ? 'border border-white/[0.07] border-l-2 border-l-amber-500/60 bg-white/[0.05]'
+                              : 'bg-white/[0.07]'
+                      }`}
+                    >
+                      {isGlobalBroadcast ? (
+                        <p className="mb-1 text-[10px] font-semibold text-cyan-300/90">📡 Global Broadcast</p>
+                      ) : null}
+                      {isAtAllSubtype ? (
+                        <p className="mb-1 text-[10px] font-semibold text-amber-200/80">📢 @all</p>
+                      ) : null}
+                      {isPrivateToViewer ? (
+                        <p className="mb-1 text-[10px] text-violet-200/85">🔒 Only visible to you</p>
+                      ) : null}
                       {gifDisplay ? <GifWithAttribution gif={gifDisplay} /> : null}
                       {message.text ? <p className="leading-relaxed">{message.text}</p> : null}
                     </div>
@@ -589,6 +681,10 @@ export function LeagueChatInPanel({
               ? selectedLeague.id
               : null
           }
+          chatType="league"
+          isCommissioner={isUserCommissioner}
+          commissionerLeagues={commissionerLeagues}
+          currentUserId={userId}
         />
         {sending ? <p className="mt-1 text-[11px] text-white/35">Sending…</p> : null}
       </div>
