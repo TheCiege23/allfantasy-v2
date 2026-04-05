@@ -7,7 +7,7 @@
     "build": "node scripts/vercel-next-build.cjs --no-lint",
     "vercel-build": "npm run build",
     "start": "next start",
-    "postinstall": "prisma migrate deploy",
+    "postinstall": "prisma generate",
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
