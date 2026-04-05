@@ -1,13 +1,13 @@
+import "server-only"
+
 // PRIVACY BOUNDARY: This module never reads chat data.
 // Monitoring is based solely on on-field actions and trade data.
 
-import "server-only"
-
 import Anthropic from "@anthropic-ai/sdk"
-import type { Prisma } from "@prisma/client"
+import type { LeagueSport, Prisma } from "@prisma/client"
 
-import { pricePick, pricePlayer, type ValuationContext } from "@/lib/hybrid-valuation"
 import { prisma } from "@/lib/prisma"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 
 import { notifyCommissionerOfFlag } from "./integrityNotifier"
 
@@ -37,14 +37,20 @@ export type CollusionScanResult = {
   scannedAt: string
 }
 
-type OfferPiece =
-  | { kind: "player"; name: string; position: string }
-  | { kind: "pick"; name: string; position: string; year: number; round: number }
+type OfferPlayerPiece = { kind: "player"; name: string; position: string; externalId?: string }
+type OfferPickPiece = { kind: "pick"; name: string; position: string; year: number; round: number }
+type OfferPiece = OfferPlayerPiece | OfferPickPiece
 
 function parseOffers(raw: unknown): OfferPiece[] {
   if (!Array.isArray(raw)) return []
   const out: OfferPiece[] = []
   for (const item of raw) {
+    if (typeof item === "string") {
+      const id = item.trim()
+      if (!id) continue
+      out.push({ kind: "player", name: id, position: "UNK", externalId: id })
+      continue
+    }
     if (!item || typeof item !== "object") continue
     const o = item as Record<string, unknown>
     if (typeof o.type === "string" && o.type.toLowerCase() === "pick") {
@@ -59,37 +65,139 @@ function parseOffers(raw: unknown): OfferPiece[] {
       })
       continue
     }
+    const ext =
+      typeof o.playerId === "string"
+        ? o.playerId.trim()
+        : typeof o.externalId === "string"
+          ? o.externalId.trim()
+          : typeof o.sleeperPlayerId === "string"
+            ? o.sleeperPlayerId.trim()
+            : undefined
     const name =
       (typeof o.playerName === "string" && o.playerName) ||
       (typeof o.name === "string" && o.name) ||
       (typeof o.player_name === "string" && o.player_name) ||
+      ext ||
       ""
     if (!name) continue
     const position = typeof o.position === "string" ? o.position : "UNK"
-    out.push({ kind: "player", name, position })
+    out.push({ kind: "player", name, position, externalId: ext })
   }
   return out
 }
 
-async function valueOffers(pieces: OfferPiece[], ctx: ValuationContext): Promise<{ name: string; position: string; estimatedValue: number }[]> {
-  const rows: { name: string; position: string; estimatedValue: number }[] = []
-  for (const p of pieces) {
-    if (p.kind === "player") {
-      const priced = await pricePlayer(p.name, ctx)
-      rows.push({
-        name: p.name,
-        position: priced.position ?? p.position,
-        estimatedValue: Math.round(priced.value),
-      })
-    } else {
-      const priced = await pricePick({ year: p.year, round: p.round }, ctx)
-      rows.push({
-        name: p.name,
-        position: "PICK",
-        estimatedValue: Math.round(priced.value),
-      })
-    }
+/** Trade value from ADP (lower ADP = higher fantasy value). No filesystem / hybrid-valuation deps. */
+function estimatedValueFromAdp(adp: number | null | undefined): number {
+  const a = typeof adp === "number" && Number.isFinite(adp) ? adp : 220
+  return Math.max(5, Math.round(4000 / Math.sqrt(Math.max(a, 0.5))))
+}
+
+function pickHeuristicValue(year: number, round: number): number {
+  const r = Math.min(Math.max(round, 1), 16)
+  const yrBoost = year >= new Date().getFullYear() ? 1 : 0.92
+  return Math.max(8, Math.round((17 - r) * 14 * yrBoost))
+}
+
+function dedupeSportsPlayersByExternalId<T extends { externalId: string; fetchedAt: Date }>(rows: T[]): Map<string, T> {
+  const m = new Map<string, T>()
+  for (const r of rows) {
+    const prev = m.get(r.externalId)
+    if (!prev || r.fetchedAt > prev.fetchedAt) m.set(r.externalId, r)
   }
+  return m
+}
+
+async function valueOffers(
+  leagueSport: LeagueSport,
+  pieces: OfferPiece[],
+): Promise<{ name: string; position: string; estimatedValue: number }[]> {
+  const sportStr = String(leagueSport)
+  const recSport = normalizeToSupportedSport(sportStr)
+
+  const rows: { name: string; position: string; estimatedValue: number }[] = []
+
+  const playerPieces = pieces.filter((p): p is OfferPlayerPiece => p.kind === "player")
+  const pickPieces = pieces.filter((p): p is OfferPickPiece => p.kind === "pick")
+
+  for (const p of pickPieces) {
+    rows.push({
+      name: p.name,
+      position: "PICK",
+      estimatedValue: pickHeuristicValue(p.year, p.round),
+    })
+  }
+
+  const externalIds = [...new Set(playerPieces.map((x) => x.externalId).filter(Boolean) as string[])]
+  const nameHints = [...new Set(playerPieces.filter((x) => !x.externalId && x.name?.trim()).map((x) => x.name.trim()))]
+
+  const spFetched =
+    externalIds.length > 0
+      ? await prisma.sportsPlayer.findMany({
+          where: { sport: sportStr, externalId: { in: externalIds } },
+          select: { externalId: true, name: true, position: true, fetchedAt: true },
+        })
+      : []
+
+  const byExt = dedupeSportsPlayersByExternalId(spFetched)
+
+  const nameFetched =
+    nameHints.length > 0
+      ? await prisma.sportsPlayer.findMany({
+          where: {
+            sport: sportStr,
+            OR: nameHints.map((name) => ({ name: { equals: name, mode: "insensitive" as const } })),
+          },
+          select: { externalId: true, name: true, position: true, fetchedAt: true },
+          orderBy: { fetchedAt: "desc" },
+        })
+      : []
+
+  const byNameLower = new Map<string, (typeof nameFetched)[0]>()
+  for (const r of nameFetched) {
+    const k = r.name.trim().toLowerCase()
+    if (!byNameLower.has(k)) byNameLower.set(k, r)
+  }
+
+  const resolvedIds = new Set<string>([...byExt.keys()])
+  for (const r of nameFetched) resolvedIds.add(r.externalId)
+
+  const recordRows =
+    resolvedIds.size > 0
+      ? await prisma.sportsPlayerRecord.findMany({
+          where: { sport: String(recSport), id: { in: [...resolvedIds] } },
+          select: { id: true, adp: true },
+        })
+      : []
+  const adpByPlayerId = new Map(recordRows.map((r) => [r.id, r.adp]))
+
+  for (const p of playerPieces) {
+    let sp = p.externalId ? byExt.get(p.externalId) : undefined
+    if (!sp && p.name?.trim()) {
+      sp = byNameLower.get(p.name.trim().toLowerCase())
+    }
+    if (!sp && p.externalId) {
+      const one = await prisma.sportsPlayer.findFirst({
+        where: {
+          sport: sportStr,
+          OR: [{ externalId: p.externalId }, { sleeperId: p.externalId }],
+        },
+        select: { externalId: true, name: true, position: true, fetchedAt: true },
+        orderBy: { fetchedAt: "desc" },
+      })
+      if (one) sp = one
+    }
+
+    const playerKey = sp?.externalId ?? p.externalId
+    const adp = playerKey ? adpByPlayerId.get(playerKey) : undefined
+    const estimatedValue = sp ? estimatedValueFromAdp(adp) : 45
+
+    rows.push({
+      name: sp?.name ?? p.name,
+      position: sp?.position ?? p.position,
+      estimatedValue,
+    })
+  }
+
   return rows
 }
 
@@ -176,16 +284,12 @@ export async function scanTradeForCollusion(leagueId: string, tradeTransactionId
     return { leagueId, flags: [], scannedAt }
   }
 
-  const ctx: ValuationContext = {
-    asOfDate: new Date().toISOString().slice(0, 10),
-    isSuperFlex: false,
-    numTeams: 12,
-  }
+  const leagueSport = trade.league.sport
 
   const proposerPieces = parseOffers(trade.proposerOffers as unknown)
   const receiverPieces = parseOffers(trade.receiverOffers as unknown)
-  const assetsTeam1Gave = await valueOffers(proposerPieces, ctx)
-  const assetsTeam2Gave = await valueOffers(receiverPieces, ctx)
+  const assetsTeam1Gave = await valueOffers(leagueSport, proposerPieces)
+  const assetsTeam2Gave = await valueOffers(leagueSport, receiverPieces)
 
   const team1Total = sumValues(assetsTeam1Gave)
   const team2Total = sumValues(assetsTeam2Gave)

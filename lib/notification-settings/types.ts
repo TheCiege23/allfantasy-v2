@@ -20,6 +20,7 @@ export type NotificationCategoryId =
   | "lineup_alerts"
   | "draft_alerts"
   | "draft_intel_alerts"
+  | "autocoach"
 
 export interface NotificationChannelPrefs {
   enabled: boolean
@@ -51,6 +52,7 @@ export const NOTIFICATION_CATEGORY_IDS: NotificationCategoryId[] = [
   "lineup_alerts",
   "draft_alerts",
   "draft_intel_alerts",
+  "autocoach",
 ]
 
 export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string> = {
@@ -71,4 +73,5 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategoryId, string
   lineup_alerts: "Starting lineup alerts",
   draft_alerts: "Draft alerts (on the clock, timer, trade offers)",
   draft_intel_alerts: "Draft intelligence (AI queue, Chimmy DMs, recap)",
+  autocoach: "Chimmy AutoCoach lineup swaps",
 }

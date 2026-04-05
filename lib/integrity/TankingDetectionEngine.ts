@@ -1,8 +1,8 @@
+import "server-only"
+
 // PRIVACY BOUNDARY: This module never reads chat data.
 // Monitoring is based solely on lineup decisions, waiver activity,
 // and on-field performance data.
-
-import "server-only"
 
 import Anthropic from "@anthropic-ai/sdk"
 import type { Prisma } from "@prisma/client"

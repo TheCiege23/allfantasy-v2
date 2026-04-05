@@ -1,6 +1,6 @@
-// PRIVACY BOUNDARY: This worker never reads chat data.
-
 import "server-only"
+
+// PRIVACY BOUNDARY: This worker never reads chat data.
 
 import { Worker, Job, type ConnectionOptions } from "bullmq"
 import { getRedisConnection, isRedisConfigured } from "@/lib/queues/bullmq"

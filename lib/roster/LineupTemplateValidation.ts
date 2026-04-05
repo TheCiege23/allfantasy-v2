@@ -83,7 +83,8 @@ function getStarterAllowedSet(template: RosterTemplateDto): Set<string> {
   )
 }
 
-function buildPlayerDataFromSections(
+/** Persist lineup_sections + legacy starters/bench fields after AutoCoach or manual edits. */
+export function buildPlayerDataFromSections(
   existingPlayerData: unknown,
   sections: Record<RosterSectionKey, Array<Record<string, unknown>>>
 ): Record<string, unknown> {

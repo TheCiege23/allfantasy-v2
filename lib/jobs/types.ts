@@ -32,6 +32,8 @@ export type AiJobType =
   | "waiver_analysis"
   | "draft_insight"
   | "digest"
+  | "autocoach_pregame_scan"
+  | "autocoach_status_check"
 
 export interface AiJobPayload {
   type: AiJobType

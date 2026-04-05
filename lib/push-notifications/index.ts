@@ -21,6 +21,7 @@ export const PUSH_NOTIFICATION_CATEGORIES = [
   "league_drama",
   "commissioner_alerts",
   "draft_intel_alerts",
+  "autocoach",
 ] as const
 
 export type PushNotificationCategory = (typeof PUSH_NOTIFICATION_CATEGORIES)[number]

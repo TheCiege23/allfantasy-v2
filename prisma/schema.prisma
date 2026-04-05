@@ -2649,6 +2649,7 @@ model AppUser {
   bigBrotherChatCommandLogs      BigBrotherChatCommandLog[]
   devyImportSessionsCommissioned DevyImportSession[]        @relation("DevyImportSessionCommissioner")
   dispersalDraftsCreated         DispersalDraft[]           @relation("DispersalDraftCreator")
+  autoCoachSettings              AutoCoachSetting[]
 
   @@map("app_users")
 }
@@ -3871,6 +3872,9 @@ model UserProfile {
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
   afWarRoomSub      Boolean @default(false)
 
+  /// Master switch: when false, AutoCoach does not run for any league (per-league prefs preserved).
+  autoCoachGlobalEnabled Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -4203,6 +4207,9 @@ model League {
   chatMessages                LeagueChatMessage[]
   dispersalDrafts             DispersalDraft[]
   discordLeagueChannels       DiscordLeagueChannel[]
+  autoCoachSettings           AutoCoachSetting[]
+  /// Commissioner kill switch — managers cannot use Chimmy AutoCoach when false (does not grant Pro).
+  autoCoachEnabled            Boolean                      @default(true)
   aiCommissionerConfig        AiCommissionerConfig?
   aiCommissionerAlerts        AiCommissionerAlert[]
   aiCommissionerActionLogs    AiCommissionerActionLog[]
@@ -4294,6 +4301,53 @@ model LeagueIntegritySettings {
   updatedAt DateTime @updatedAt
 
   @@map("league_integrity_settings")
+}
+
+/// Per-user per-league Chimmy AutoCoach™ (AF Pro); commissioner can block via `League.autoCoachEnabled` + `blockedByCommissioner`.
+model AutoCoachSetting {
+  id                      String    @id @default(cuid())
+  userId                  String
+  leagueId                String
+  enabled                 Boolean   @default(false)
+  blockedByCommissioner   Boolean   @default(false)
+  lastRunAt               DateTime?
+  lastSwapAt              DateTime?
+  totalSwapsMade          Int       @default(0)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  user   AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId])
+  @@index([userId])
+  @@index([leagueId])
+  @@map("auto_coach_settings")
+}
+
+model AutoCoachSwapLog {
+  id               String   @id @default(cuid())
+  userId           String
+  leagueId         String
+  rosterId         String
+  slotPosition     String
+  playerOutId      String
+  playerOutName    String
+  playerOutStatus  String
+  playerInId       String
+  playerInName     String
+  playerInPosition String
+  statusSource     String
+  statusDetectedAt DateTime
+  swapMadeAt       DateTime @default(now())
+  gameStartsAt     DateTime?
+  wasPreGame       Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, leagueId])
+  @@index([leagueId])
+  @@index([swapMadeAt])
+  @@map("auto_coach_swap_logs")
 }
 
 /// Commissioner-managed draft & league draft-time settings (one row per league).

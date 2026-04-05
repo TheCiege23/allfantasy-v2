@@ -1,5 +1,7 @@
 import "server-only"
 
+// PRIVACY BOUNDARY: Notifications reference integrity flags only — no chat payloads.
+
 import { prisma } from "@/lib/prisma"
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher"
 

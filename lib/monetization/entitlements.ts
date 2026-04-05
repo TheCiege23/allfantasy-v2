@@ -248,6 +248,16 @@ export const ENTITLEMENTS = {
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',
   },
+  pro_autocoach: {
+    key: 'pro_autocoach',
+    label: 'Chimmy AutoCoach™',
+    description:
+      'AI automatically swaps injured or inactive starters before your games begin. Never forget to check your lineup again.',
+    requiredPlan: ['af_pro', 'af_all_access'],
+    upgradeUrl: '/pro',
+    upgradeLabel: 'Get AF Pro',
+    highlightParam: 'autocoach',
+  },
   war_room_dynasty_projections: {
     key: 'war_room_dynasty_projections',
     label: 'Dynasty Projections',
@@ -332,6 +342,7 @@ export const HIGHLIGHT_TO_PLAN_FAMILY: Record<string, SubscriptionPlanFamily> = 
   start_sit: 'af_pro',
   matchup: 'af_pro',
   af_projections: 'af_pro',
+  autocoach: 'af_pro',
   dynasty_projections: 'af_war_room',
   draft_strategy: 'af_war_room',
 }

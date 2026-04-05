@@ -59,6 +59,7 @@ export type SubscriptionFeatureId =
   | 'pro_player_comparison'
   | 'pro_af_projections'
   | 'pro_snap_analysis'
+  | 'pro_autocoach'
   | 'war_room_dynasty_projections'
   | 'war_room_devy_rankings'
   | 'war_room_draft_strategy'
