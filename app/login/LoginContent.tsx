@@ -55,13 +55,6 @@ export default function LoginContent() {
   const postLoginRedirect = resolveSuccessfulLoginRedirect(callbackUrl)
   const isAdminLogin = callbackUrl.startsWith("/admin")
   const passwordReset = searchParams?.get("reset") === "1"
-  const destinationLabel = callbackUrl.startsWith("/brackets")
-    ? t("login.destination.bracket")
-    : callbackUrl.startsWith("/af-legacy")
-      ? t("login.destination.legacy")
-      : callbackUrl.startsWith("/app") || callbackUrl.startsWith("/leagues")
-        ? t("login.destination.webapp")
-        : t("login.destination.home")
 
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
@@ -318,9 +311,7 @@ export default function LoginContent() {
             <p className="mt-1 text-sm text-white/60">
               Sign in to access the Sports App, Brackets, and AI Tools.
             </p>
-            <p className="mt-2 text-xs text-white/45">
-              {t("login.afterSignIn")} <span className="font-medium text-cyan-300/90">{destinationLabel}</span>
-            </p>
+            <p className="mt-2 text-xs text-white/45">{t("login.afterSignInSubtitle")}</p>
           </div>
 
           {configError && (
