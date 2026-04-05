@@ -7,6 +7,7 @@ export const QUEUE_NAMES = {
   NOTIFICATIONS: "notifications",
   SIMULATIONS: "simulations",
   DEVY: "devy",
+  INTEGRITY: "integrity",
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -70,4 +71,19 @@ export interface DevyJobPayload {
   rosterId?: string
   periodKey?: string
   [key: string]: unknown
+}
+
+/** Integrity / collusion / tanking background jobs (BullMQ). */
+export type IntegrityJobType =
+  | "collusion_scan_trade"
+  | "collusion_scan_league"
+  | "tanking_scan_week"
+  | "tanking_scan_league"
+
+export interface IntegrityJobPayload {
+  type: IntegrityJobType
+  leagueId: string
+  tradeTransactionId?: string
+  tradingRosterIds?: string[]
+  weekNumber?: number
 }

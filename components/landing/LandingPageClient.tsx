@@ -18,53 +18,100 @@ const LANDING_COPY = {
       signUp: 'Sign Up',
       dashboard: 'Dashboard',
       admin: 'Admin',
+      forCommissioners: '★ For Commissioners',
     },
-    badge: 'Coming Spring 2026! Early Signups Available',
+    badge: '✦ Now Live — Commissioners Get Early Access',
     hero: {
-      titleTop: 'Fantasy Sports',
-      titleBottom: 'With AI Superpowers',
+      titleTop: 'Run Your League.',
+      titleBottom: 'Win Your League.',
       subtitle:
-        'The only fantasy sports platform with an AI that actually knows your league. Draft smarter, analyze trades, dominate waivers, and win across every sport.',
+        'The only platform built for both the commissioner and the competitor. Manage any league format, arm every manager with AI, and keep every season running on autopilot.',
       primary: 'Sign Up Free',
+      commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
       primaryAuthed: 'Go to Dashboard',
+      reassurance: 'Free for players · Commissioners from $4.99/mo',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA Football', 'NCAA Basketball', 'Soccer'],
     whatIs: {
       eyebrow: 'What is AllFantasy.ai?',
       titleTop: 'One Platform.',
-      titleBottom: 'Every Sport. Every Edge.',
+      titleBottom: 'Built for Commissioners and Competitors Alike.',
       subtitle:
-        'AllFantasy.ai brings real AI into every corner of your fantasy season, from draft day to championship week. Sync your leagues and let the platform do the heavy lifting.',
+        'AllFantasy.ai gives commissioners the tools to run a tight ship and gives every manager in the league an AI edge. Import from Sleeper, Yahoo, or ESPN — your whole league migrates in minutes.',
       pillars: [
         {
           icon: '🏆',
-          title: 'All Leagues',
-          body: 'NFL, NBA, MLB, NHL, Dynasty, Devy, C2C, and more in one platform.',
+          title: 'Every League Format',
+          body: 'Dynasty, Devy, C2C, Salary Cap, Guillotine, Big Brother, Best Ball, and more.',
+        },
+        {
+          icon: '⚡',
+          title: 'Commissioner Control',
+          body: 'Dispersal Drafts, integrity monitoring, weighted lottery, and broadcast tools.',
         },
         {
           icon: '🤖',
-          title: 'Real AI',
-          body: 'Chimmy knows your roster, scoring rules, and matchup context before making recommendations.',
+          title: 'AI for Every Manager',
+          body: 'Chimmy gives every player in your league trade grades, waiver picks, and start/sit help.',
         },
         {
           icon: '📡',
-          title: 'Live Data',
-          body: 'Player news, injuries, trends, and fantasy context update across every supported sport.',
-        },
-        {
-          icon: '🎯',
-          title: 'Real Edges',
-          body: 'Trade grades, waiver priorities, draft strategy, and matchup help tuned to your league.',
+          title: 'Sync Any Platform',
+          body: 'Import your existing Sleeper, Yahoo, or ESPN leagues. No manual setup.',
         },
       ],
     },
-    tools: {
-      eyebrow: 'AI Tools',
-      titleTop: 'Everything You Need to',
-      titleBottom: 'Win Your League',
+    commissioner: {
+      eyebrow: 'For Commissioners',
+      title: 'The Control Room\nYour League Deserves.',
       subtitle:
-        'Six AI-powered tools built for managers who want every advantage.',
+        'Run every corner of your league — from dispersal drafts to integrity monitoring — without lifting a finger.',
+      badge: 'AF Commissioner',
+      badgeBody: 'One subscription covers every league you run. Cancel anytime.',
+      features: [
+        {
+          icon: '🏈',
+          title: 'Dispersal Draft',
+          body: 'Managers leave? Pool their assets and run a live draft — automatically.',
+        },
+        {
+          icon: '🔍',
+          title: 'Integrity Monitoring',
+          body: 'AI watches every trade for collusion. Opt-in anti-tanking keeps competition real.',
+        },
+        {
+          icon: '🎱',
+          title: 'Weighted Lottery',
+          body: 'NBA-style draft order for dynasty year 2+. Kills tanking without killing excitement.',
+        },
+        {
+          icon: '📡',
+          title: 'Global Broadcast',
+          body: 'Send announcements, polls, and events to all your leagues at once.',
+        },
+        {
+          icon: '🤖',
+          title: 'AI Manager',
+          body: 'Orphaned team? AI steps in and manages it until a human takes over.',
+        },
+        {
+          icon: '🛡️',
+          title: 'League Advertising',
+          body: 'Hard-to-fill spots? Post to Find-a-League and reach managers actively looking.',
+        },
+      ],
+      cta: 'Start as Commissioner',
+      ctaHref: '/signup?role=commissioner',
+      secondaryCta: 'View Commissioner Plans',
+      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
+    },
+    tools: {
+      eyebrow: 'AI Tools — For Every Manager',
+      titleTop: 'Every Player Gets',
+      titleBottom: 'An Unfair Advantage.',
+      subtitle:
+        "Six AI tools that work with your league's scoring, roster, and matchup context — not generic advice.",
       cards: [
         {
           icon: '⚖️',
@@ -112,18 +159,20 @@ const LANDING_COPY = {
       previewLabel: 'See how it works',
     },
     stats: [
-      { value: '1M+', label: 'AI analyses run' },
-      { value: '13K+', label: 'Players tracked' },
+      { value: '13+', label: 'League formats supported' },
       { value: '7', label: 'Sports covered' },
+      { value: '1M+', label: 'AI analyses run' },
     ],
     cta: {
-      title: 'Ready to Start Winning?',
+      title: 'Your League. Your Rules. Your AI.',
       body:
-        'Create your free account, sync your league, and let AllFantasy go to work.',
+        'Commissioners get a dedicated control panel. Players get AI that knows their roster. Everyone wins.',
       primary: 'Create Free Account',
+      commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
       primaryAuthed: 'Open App',
       secondaryAuthed: 'Dashboard',
+      commissionerNote: 'Commissioners run up to unlimited leagues under one subscription.',
     },
     footer: {
       privacy: 'Privacy',
@@ -141,53 +190,100 @@ const LANDING_COPY = {
       signUp: 'Crear cuenta',
       dashboard: 'Panel',
       admin: 'Admin',
+      forCommissioners: '★ Para comisionados',
     },
-    badge: 'Llega en primavera de 2026. Registros anticipados disponibles',
+    badge: '✦ Ya disponible — Acceso anticipado para Comisionados',
     hero: {
-      titleTop: 'Fantasy Sports',
-      titleBottom: 'Con superpoderes de IA',
+      titleTop: 'Dirige tu liga.',
+      titleBottom: 'Gana tu liga.',
       subtitle:
-        'La única plataforma de fantasy sports con una IA que realmente conoce tu liga. Draftea mejor, analiza trades, domina waivers y gana en cualquier deporte.',
+        'La única plataforma construida tanto para el comisionado como para el competidor. Gestiona cualquier formato, equipa a cada manager con IA y mantén cada temporada en piloto automático.',
       primary: 'Crear cuenta gratis',
+      commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
       primaryAuthed: 'Ir al panel',
+      reassurance: 'Gratis para jugadores · Comisionados desde $4.99/mes',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'Fútbol NCAA', 'Baloncesto NCAA', 'Soccer'],
     whatIs: {
       eyebrow: '¿Qué es AllFantasy.ai?',
       titleTop: 'Una plataforma.',
-      titleBottom: 'Cada deporte. Cada ventaja.',
+      titleBottom: 'Para comisionados y competidores por igual.',
       subtitle:
-        'AllFantasy.ai lleva IA real a cada parte de tu temporada, desde el draft hasta la final. Sincroniza tus ligas y deja que la plataforma haga el trabajo pesado.',
+        'AllFantasy.ai da a los comisionados las herramientas para gestionar su liga y a cada manager una ventaja de IA. Importa desde Sleeper, Yahoo o ESPN — tu liga completa migra en minutos.',
       pillars: [
         {
           icon: '🏆',
-          title: 'Todas tus ligas',
-          body: 'NFL, NBA, MLB, NHL, Dynasty, Devy, C2C y más en una sola plataforma.',
+          title: 'Todo formato de liga',
+          body: 'Dynasty, Devy, C2C, tope salarial, Guillotine, Big Brother, Best Ball y más.',
+        },
+        {
+          icon: '⚡',
+          title: 'Control del comisionado',
+          body: 'Dispersal drafts, monitoreo de integridad, lotería ponderada y herramientas de broadcast.',
         },
         {
           icon: '🤖',
-          title: 'IA real',
-          body: 'Chimmy conoce tu roster, tu sistema de puntuación y el contexto antes de recomendar.',
+          title: 'IA para cada manager',
+          body: 'Chimmy da a cada jugador de tu liga grades de trades, waivers y ayuda start/sit.',
         },
         {
           icon: '📡',
-          title: 'Datos en vivo',
-          body: 'Noticias, lesiones, tendencias y contexto fantasy actualizados en todos los deportes.',
-        },
-        {
-          icon: '🎯',
-          title: 'Ventajas reales',
-          body: 'Trades, waivers, draft y matchups ajustados a la configuración específica de tu liga.',
+          title: 'Sincroniza cualquier plataforma',
+          body: 'Importa tus ligas de Sleeper, Yahoo o ESPN. Sin configuración manual.',
         },
       ],
     },
-    tools: {
-      eyebrow: 'Herramientas IA',
-      titleTop: 'Todo lo que necesitas para',
-      titleBottom: 'ganar tu liga',
+    commissioner: {
+      eyebrow: 'Para comisionados',
+      title: 'La sala de control\nque tu liga merece.',
       subtitle:
-        'Seis herramientas impulsadas por IA para managers que quieren cada ventaja posible.',
+        'Controla cada rincón de tu liga — desde dispersal drafts hasta monitoreo de integridad — casi sin esfuerzo.',
+      badge: 'AF Commissioner',
+      badgeBody: 'Una suscripción cubre todas las ligas que diriges. Cancela cuando quieras.',
+      features: [
+        {
+          icon: '🏈',
+          title: 'Dispersal draft',
+          body: '¿Se van managers? Reúne sus activos y corre un draft en vivo — automático.',
+        },
+        {
+          icon: '🔍',
+          title: 'Monitoreo de integridad',
+          body: 'La IA revisa cada trade en busca de colusión. Anti-tanking opcional mantiene la competencia real.',
+        },
+        {
+          icon: '🎱',
+          title: 'Lotería ponderada',
+          body: 'Orden de draft estilo NBA para dynasty año 2+. Acaba con el tank sin matar la emoción.',
+        },
+        {
+          icon: '📡',
+          title: 'Broadcast global',
+          body: 'Anuncios, encuestas y eventos a todas tus ligas a la vez.',
+        },
+        {
+          icon: '🤖',
+          title: 'Manager IA',
+          body: '¿Equipo huérfano? La IA lo gestiona hasta que llegue un humano.',
+        },
+        {
+          icon: '🛡️',
+          title: 'Anuncio de ligas',
+          body: '¿Plazas vacías? Publica en Find-a-League y llega a managers que buscan liga.',
+        },
+      ],
+      cta: 'Empezar como comisionado',
+      ctaHref: '/signup?role=commissioner',
+      secondaryCta: 'Ver planes Commissioner',
+      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
+    },
+    tools: {
+      eyebrow: 'Herramientas IA — Para cada manager',
+      titleTop: 'Cada jugador obtiene',
+      titleBottom: 'Una ventaja injusta.',
+      subtitle:
+        'Seis herramientas de IA que trabajan con la puntuación, roster y contexto de tu liga — no consejos genéricos.',
       cards: [
         {
           icon: '⚖️',
@@ -235,18 +331,21 @@ const LANDING_COPY = {
       previewLabel: 'Mira como funciona',
     },
     stats: [
-      { value: '1M+', label: 'Análisis IA ejecutados' },
-      { value: '13K+', label: 'Jugadores rastreados' },
+      { value: '13+', label: 'Formatos de liga' },
       { value: '7', label: 'Deportes cubiertos' },
+      { value: '1M+', label: 'Análisis IA ejecutados' },
     ],
     cta: {
-      title: '¿Listo para empezar a ganar?',
+      title: 'Tu liga. Tus reglas. Tu IA.',
       body:
-        'Crea tu cuenta gratis, sincroniza tu liga y deja que AllFantasy se ponga a trabajar.',
+        'Los comisionados obtienen un panel de control. Los jugadores obtienen IA que conoce su roster. Todos ganan.',
       primary: 'Crear cuenta gratis',
+      commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
       primaryAuthed: 'Abrir app',
       secondaryAuthed: 'Panel',
+      commissionerNote:
+        'Los comisionados pueden dirigir ligas ilimitadas bajo una sola suscripción.',
     },
     footer: {
       privacy: 'Privacidad',
@@ -282,6 +381,7 @@ export default function LandingPageClient() {
   const signupHref = signupUrlWithIntent('/dashboard')
   const loginHref = loginUrlWithIntent('/dashboard')
   const dashboardHref = '/dashboard'
+  const commissionerSignupHref = `/signup?role=commissioner&next=${encodeURIComponent('/dashboard')}`
 
   return (
     <main className="mode-readable min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
@@ -314,6 +414,13 @@ export default function LandingPageClient() {
             <div className="hidden md:flex">
               <LanguageToggle />
             </div>
+            <Link
+              href="#landing-commissioner"
+              className="hidden text-sm font-medium transition hover:opacity-100 sm:inline-flex"
+              style={{ color: '#f59e0b', opacity: 0.85 }}
+            >
+              {copy.nav.forCommissioners}
+            </Link>
             <Link
               href="/admin"
               className="hidden rounded-lg border px-3 py-1.5 text-xs font-medium transition sm:inline-flex"
@@ -490,48 +597,73 @@ export default function LandingPageClient() {
               </Link>
             </div>
           ) : (
-            <div className="flex w-full flex-col items-center gap-3 px-6 sm:w-auto sm:flex-row sm:px-0">
-              <Link
-                href={signupHref}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-                style={{
-                  backgroundImage:
-                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-                  color: 'var(--on-accent-bg)',
-                }}
-                data-testid="landing-hero-sign-up"
-                onClick={() =>
-                  trackLandingCtaClick({
-                    cta_label: copy.hero.primary,
-                    cta_destination: signupHref,
-                    cta_type: 'primary',
-                    source: 'hero',
-                  })
-                }
-              >
-                {copy.hero.primary}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href={loginHref}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-8 py-3.5 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
-                style={{
-                  background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
-                  borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                  color: 'var(--text)',
-                }}
-                data-testid="landing-hero-sign-in"
-                onClick={() =>
-                  trackLandingCtaClick({
-                    cta_label: copy.hero.secondary,
-                    cta_destination: loginHref,
-                    cta_type: 'secondary',
-                    source: 'hero',
-                  })
-                }
-              >
-                {copy.hero.secondary}
-              </Link>
+            <div className="flex w-full flex-col items-center px-6 sm:w-auto sm:px-0">
+              <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+                <Link
+                  href={signupHref}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                  style={{
+                    backgroundImage:
+                      'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                    color: 'var(--on-accent-bg)',
+                  }}
+                  data-testid="landing-hero-sign-up"
+                  onClick={() =>
+                    trackLandingCtaClick({
+                      cta_label: copy.hero.primary,
+                      cta_destination: signupHref,
+                      cta_type: 'primary',
+                      source: 'hero',
+                    })
+                  }
+                >
+                  {copy.hero.primary}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href={commissionerSignupHref}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                  style={{
+                    backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)',
+                    color: '#000',
+                  }}
+                  data-testid="landing-hero-commissioner"
+                  onClick={() =>
+                    trackLandingCtaClick({
+                      cta_label: copy.hero.commissionerPrimary,
+                      cta_destination: commissionerSignupHref,
+                      cta_type: 'primary',
+                      source: 'hero-commissioner',
+                    })
+                  }
+                >
+                  {copy.hero.commissionerPrimary}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href={loginHref}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-8 py-3.5 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
+                  style={{
+                    background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                    color: 'var(--text)',
+                  }}
+                  data-testid="landing-hero-sign-in"
+                  onClick={() =>
+                    trackLandingCtaClick({
+                      cta_label: copy.hero.secondary,
+                      cta_destination: loginHref,
+                      cta_type: 'secondary',
+                      source: 'hero',
+                    })
+                  }
+                >
+                  {copy.hero.secondary}
+                </Link>
+              </div>
+              <p className="mt-3 text-center text-[11px]" style={{ color: 'var(--muted)' }}>
+                {copy.hero.reassurance}
+              </p>
             </div>
           )}
         </div>
@@ -580,7 +712,110 @@ export default function LandingPageClient() {
         </div>
       </section>
 
-      <div className="mx-6 border-t" style={{ borderColor: 'var(--border)' }} />
+      <section
+        className="relative mx-auto max-w-6xl px-6 py-20 sm:px-8"
+        aria-labelledby="landing-commissioner"
+        style={{
+          background: 'var(--panel)',
+          borderRadius: '1.5rem',
+          margin: '0 1.5rem 4px',
+          border: '1px solid color-mix(in srgb, #f59e0b 20%, var(--border))',
+          borderLeft: '3px solid #f59e0b',
+        }}
+      >
+        <div className="mb-12 text-center">
+          <span
+            className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em]"
+            style={{
+              background: 'color-mix(in srgb, #f59e0b 12%, transparent)',
+              borderColor: 'color-mix(in srgb, #f59e0b 30%, transparent)',
+              color: '#f59e0b',
+            }}
+          >
+            <span>★</span> {copy.commissioner.eyebrow}
+          </span>
+          <h2
+            id="landing-commissioner"
+            className="mb-4 whitespace-pre-line text-[40px] font-black leading-[1.0] tracking-[0.02em] sm:text-[52px] md:text-[62px]"
+          >
+            {copy.commissioner.title}
+          </h2>
+          <p className="mx-auto max-w-2xl text-[17px] leading-8" style={{ color: 'var(--muted)' }}>
+            {copy.commissioner.subtitle}
+          </p>
+        </div>
+
+        <div
+          className="grid overflow-hidden rounded-2xl border sm:grid-cols-2 lg:grid-cols-3"
+          style={{ borderColor: 'var(--border)', gap: 1, background: 'var(--border)' }}
+        >
+          {copy.commissioner.features.map((feat) => (
+            <div key={feat.title} className="group px-6 py-7" style={{ background: 'var(--bg)' }}>
+              <div
+                className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border text-xl"
+                style={{
+                  background: 'color-mix(in srgb, #f59e0b 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, #f59e0b 20%, transparent)',
+                }}
+              >
+                {feat.icon}
+              </div>
+              <h3 className="mb-2 text-[15px] font-semibold">{feat.title}</h3>
+              <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>
+                {feat.body}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-col items-center gap-4 text-center">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
+            <Link
+              href={commissionerSignupHref}
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:opacity-90"
+              style={{ backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)' }}
+              onClick={() =>
+                trackLandingCtaClick({
+                  cta_label: copy.commissioner.cta,
+                  cta_destination: commissionerSignupHref,
+                  cta_type: 'primary',
+                  source: 'commissioner-section',
+                })
+              }
+            >
+              {copy.commissioner.cta}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <span
+              className="rounded-xl border px-4 py-2.5 text-xs font-medium"
+              style={{
+                borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                color: 'var(--muted)',
+                background: 'transparent',
+              }}
+            >
+              {copy.commissioner.badgeBody}
+            </span>
+          </div>
+          <Link
+            href={copy.commissioner.secondaryCtaHref}
+            className="text-sm font-semibold transition hover:opacity-90"
+            style={{ color: '#f59e0b' }}
+            onClick={() =>
+              trackLandingCtaClick({
+                cta_label: copy.commissioner.secondaryCta,
+                cta_destination: copy.commissioner.secondaryCtaHref,
+                cta_type: 'secondary',
+                source: 'commissioner-section',
+              })
+            }
+          >
+            {copy.commissioner.secondaryCta}
+          </Link>
+        </div>
+      </section>
+
+      <div className="mx-6 h-px" style={{ background: 'var(--border)' }} />
 
       <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8" aria-labelledby="landing-tools">
         <div className="mb-12 text-center">
@@ -682,48 +917,74 @@ export default function LandingPageClient() {
           <p className="mx-auto mb-10 max-w-2xl text-[17px] leading-8" style={{ color: 'var(--muted)' }}>
             {copy.cta.body}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link
-              href={isAuthenticated ? dashboardHref : signupHref}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-              style={{
-                backgroundImage:
-                  'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
-                color: 'var(--on-accent-bg)',
-              }}
-              data-testid="landing-cta-primary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary,
-                  cta_destination: isAuthenticated ? dashboardHref : signupHref,
-                  cta_type: 'primary',
-                  source: 'cta-band',
-                })
-              }
-            >
-              {isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href={isAuthenticated ? dashboardHref : loginHref}
-              className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
-              style={{
-                background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
-                borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                color: 'var(--text)',
-              }}
-              data-testid="landing-cta-secondary"
-              onClick={() =>
-                trackLandingCtaClick({
-                  cta_label: isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary,
-                  cta_destination: isAuthenticated ? dashboardHref : loginHref,
-                  cta_type: 'secondary',
-                  source: 'cta-band',
-                })
-              }
-            >
-              {isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary}
-            </Link>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href={isAuthenticated ? dashboardHref : signupHref}
+                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
+                  color: 'var(--on-accent-bg)',
+                }}
+                data-testid="landing-cta-primary"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary,
+                    cta_destination: isAuthenticated ? dashboardHref : signupHref,
+                    cta_type: 'primary',
+                    source: 'cta-band',
+                  })
+                }
+              >
+                {isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              {!isAuthenticated ? (
+                <Link
+                  href={commissionerSignupHref}
+                  className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:opacity-90"
+                  style={{ backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)' }}
+                  data-testid="landing-cta-commissioner"
+                  onClick={() =>
+                    trackLandingCtaClick({
+                      cta_label: copy.cta.commissionerPrimary,
+                      cta_destination: commissionerSignupHref,
+                      cta_type: 'primary',
+                      source: 'cta-band-commissioner',
+                    })
+                  }
+                >
+                  {copy.cta.commissionerPrimary}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : null}
+              <Link
+                href={isAuthenticated ? dashboardHref : loginHref}
+                className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
+                style={{
+                  background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
+                  color: 'var(--text)',
+                }}
+                data-testid="landing-cta-secondary"
+                onClick={() =>
+                  trackLandingCtaClick({
+                    cta_label: isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary,
+                    cta_destination: isAuthenticated ? dashboardHref : loginHref,
+                    cta_type: 'secondary',
+                    source: 'cta-band',
+                  })
+                }
+              >
+                {isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary}
+              </Link>
+            </div>
+            {!isAuthenticated ? (
+              <p style={{ color: 'var(--muted)', fontSize: '12px', marginTop: '4px', textAlign: 'center' }}>
+                {copy.cta.commissionerNote}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
