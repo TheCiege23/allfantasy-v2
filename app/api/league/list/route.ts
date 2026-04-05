@@ -12,6 +12,13 @@ export const dynamic = 'force-dynamic'
 
 const VARIANT_NOT_IN = Array.from(EXCLUDED_VARIANTS)
 
+function normalizeSleeperScoring(raw: string | null | undefined): string {
+  const s = (raw ?? '').toLowerCase().trim()
+  if (s === 'ppr') return 'PPR'
+  if (s === 'half_ppr' || s === '0.5_ppr') return 'Half-PPR'
+  return 'Standard'
+}
+
 function extractEntryFeeUsd(settings: unknown): number | null {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null
   const o = settings as Record<string, unknown>
@@ -175,7 +182,7 @@ export async function GET() {
           leagueSize: lg.totalTeams,
           teamCount: lg.totalTeams,
           avatarUrl: null,
-          scoring: lg.scoringType,
+          scoring: normalizeSleeperScoring(lg.scoringType),
           isDynasty: lg.isDynasty,
           syncStatus: lg.syncStatus,
           syncError: lg.syncError,

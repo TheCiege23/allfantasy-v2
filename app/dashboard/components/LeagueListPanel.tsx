@@ -1,11 +1,10 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, Star } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LeagueSidebarCard } from '@/components/league/LeagueSidebarCard'
 import type { UserLeague } from '../types'
-import { LeagueAvatar } from './LeagueAvatar'
 
 const FAVORITES_KEY = 'af-league-favorites'
 const ORDER_KEY = 'af-league-order'
@@ -19,11 +18,6 @@ type LeagueListPanelProps = {
   loading?: boolean
   /** Refetch dashboard league list after a successful Sleeper refresh */
   onLeaguesRefresh?: () => void
-}
-
-type ConceptBadge = {
-  label: string
-  className: string
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -50,79 +44,6 @@ function writeStoredIds(key: string, value: string[]) {
     window.localStorage.setItem(key, JSON.stringify(value))
     window.dispatchEvent(new Event(SYNC_EVENT))
   } catch {}
-}
-
-function getPlatformPill(platform: string | undefined): { label: string; className: string } {
-  const p = (platform || 'allfantasy').toLowerCase()
-  if (p === 'sleeper') return { label: 'Sleeper', className: 'bg-emerald-500/20 text-emerald-400' }
-  if (p === 'yahoo') return { label: 'Yahoo', className: 'bg-violet-500/20 text-violet-400' }
-  if (p === 'espn') return { label: 'ESPN', className: 'bg-red-500/20 text-red-400' }
-  if (p === 'cbs') return { label: 'CBS', className: 'bg-white/10 text-white/50' }
-  return {
-    label: p === 'allfantasy' ? 'AF' : p.replace(/_/g, ' ').slice(0, 12),
-    className: 'bg-white/10 text-white/50',
-  }
-}
-
-function getLeagueStatusDisplay(league: UserLeague): { label: string; className: string } {
-  const s = (league.status || '').toLowerCase().replace(/-/g, '_')
-  if (s === 'pre_draft') {
-    return { label: 'Pre-Draft', className: 'bg-orange-500/20 text-orange-400' }
-  }
-  if (s === 'drafting') {
-    return { label: 'Drafting', className: 'bg-orange-500/20 text-orange-400' }
-  }
-  if (s === 'in_season' || s === 'active') {
-    const w = league.currentWeek
-    return {
-      label: typeof w === 'number' && w > 0 ? `Week ${w}` : 'In Season',
-      className: 'bg-green-500/20 text-green-400',
-    }
-  }
-  if (s === 'complete' || s === 'completed') {
-    return { label: 'Final', className: 'bg-white/10 text-white/40' }
-  }
-  if (s === 'off_season') {
-    return { label: 'Off-Season', className: 'bg-white/10 text-white/40' }
-  }
-  return { label: '—', className: 'bg-white/10 text-white/40' }
-}
-
-function getConceptBadge(league: UserLeague): ConceptBadge {
-  const formatSource = `${league.scoring || ''} ${league.format || ''}`.toLowerCase()
-
-  if (league.isDynasty) {
-    return {
-      label: 'Dynasty',
-      className: 'border-amber-500/30 bg-amber-500/15 text-amber-300',
-    }
-  }
-
-  if (formatSource.includes('guillotine')) {
-    return {
-      label: 'Guillotine',
-      className: 'border-red-500/30 bg-red-500/15 text-red-300',
-    }
-  }
-
-  if (formatSource.includes('best_ball') || formatSource.includes('best ball')) {
-    return {
-      label: 'Best Ball',
-      className: 'border-cyan-500/30 bg-cyan-500/15 text-cyan-300',
-    }
-  }
-
-  if (formatSource.includes('keeper')) {
-    return {
-      label: 'Keeper',
-      className: 'border-violet-500/30 bg-violet-500/15 text-violet-300',
-    }
-  }
-
-  return {
-    label: 'Redraft',
-    className: 'border-white/15 bg-white/10 text-white/50',
-  }
 }
 
 function applySavedOrder(leagues: UserLeague[], orderedIds: string[]) {
@@ -339,15 +260,6 @@ export function LeagueListPanel({
         ) : displayedLeagues.length ? (
           <div className="w-full min-w-0 space-y-1.5">
             {displayedLeagues.map((league) => {
-              const isSelected = league.id === selectedId
-              const isFavorite = favoriteSet.has(league.id)
-              const statusBadge = getLeagueStatusDisplay(league)
-              const conceptBadge = getConceptBadge(league)
-              const platformPill = getPlatformPill(league.platform)
-              const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
-              const seasonLabel =
-                league.season !== undefined && league.season !== null ? String(league.season) : '—'
-              const scoringLabel = league.scoring || 'Standard'
               const isDragging = draggingId === league.id
               const isDropTarget = dropTargetId === league.id && draggingId !== league.id
 
@@ -365,171 +277,34 @@ export function LeagueListPanel({
                     handleDrop(league.id)
                   }}
                   className={`group relative w-full min-w-0 rounded-xl border transition-all duration-150 ${
-                    isDragging ? 'opacity-40' : ''
-                  } ${isDropTarget ? 'border-cyan-500/50' : 'border-transparent'}`}
+                    isDropTarget ? 'border-cyan-500/50' : 'border-transparent'
+                  }`}
                 >
-                  {(league.platform || '').toLowerCase() === 'sleeper' ? (
-                    <button
-                      type="button"
-                      onClick={(e) => void handleRefresh(e, league.id)}
-                      title="Refresh league data from Sleeper"
-                      className={`absolute top-1.5 right-9 z-20 flex h-6 w-6 items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 ${
-                        refreshing[league.id]
-                          ? 'cursor-wait bg-cyan-500/20 text-cyan-400'
-                          : refreshed[league.id]
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-white/[0.08] text-white/40 opacity-0 hover:bg-white/[0.15] hover:text-white group-hover:opacity-100'
-                      }`}
-                      aria-label="Refresh league from Sleeper"
-                    >
-                      {refreshing[league.id] ? (
-                        <span className="h-3 w-3 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
-                      ) : refreshed[league.id] ? (
-                        <span className="text-[10px]">✓</span>
-                      ) : (
-                        <span className="text-[11px]">↻</span>
-                      )}
-                    </button>
-                  ) : null}
-                  <div className="flex w-full min-w-0 items-stretch gap-1">
-                    <div
-                      draggable
-                      onDragStart={(event) => {
+                  <LeagueSidebarCard
+                    league={league}
+                    isSelected={league.id === selectedId}
+                    isFavorite={favoriteSet.has(league.id)}
+                    onSelect={onSelect}
+                    onFavoriteToggle={handleFavoriteToggle}
+                    isDragging={isDragging}
+                    isDropTarget={isDropTarget}
+                    compact={compact}
+                    dragHandleProps={{
+                      draggable: true,
+                      title: 'Drag to reorder',
+                      onDragStart: (e) => {
                         draggedLeagueIdRef.current = league.id
                         setDraggingId(league.id)
-                        event.dataTransfer.effectAllowed = 'move'
-                        event.dataTransfer.setData('text/plain', league.id)
-                      }}
-                      onDragEnd={resetDragState}
-                      className="flex w-4 shrink-0 cursor-grab select-none items-center justify-center self-stretch rounded-md text-white/20 hover:text-white/50 active:cursor-grabbing"
-                      aria-label="Reorder league"
-                      title="Drag to reorder"
-                    >
-                      <span aria-hidden className="flex flex-col items-center gap-0 text-[9px] leading-none">
-                        <span>⋮</span>
-                        <span className="-mt-0.5">⋮</span>
-                      </span>
-                    </div>
-
-                    <Link
-                      href={`/league/${league.id}`}
-                      className={`block min-w-0 max-w-full flex-1 rounded-xl border-l-2 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-cyan-500/40 ${
-                        isSelected
-                          ? 'border-l-cyan-500 bg-cyan-500/[0.08] hover:bg-cyan-500/12'
-                          : 'border-l-transparent hover:bg-white/[0.04]'
-                      } ${
-                        compact
-                          ? 'min-h-[52px] px-2 py-2'
-                          : 'min-w-0 px-2 py-1.5'
-                      }`}
-                      onClick={() => onSelect(league)}
-                      scroll
-                    >
-                      <div className={`flex gap-2 ${compact ? 'items-center' : 'items-start'}`}>
-                        <div className={`shrink-0 ${compact ? '' : 'pt-0.5'}`}>
-                          <LeagueAvatar league={league} size={compact ? 24 : 36} />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-start justify-between gap-1">
-                            <div className="flex min-w-0 flex-1 items-center gap-1">
-                              <p
-                                className={`min-w-0 truncate font-bold text-white/90 ${
-                                  compact ? 'text-[14px]' : 'text-[13px]'
-                                }`}
-                              >
-                                {league.name}
-                              </p>
-                              {compact && league.isCommissioner ? (
-                                <span
-                                  className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-300"
-                                  title="You are commissioner"
-                                >
-                                  ★
-                                </span>
-                              ) : null}
-                            </div>
-                            <span
-                              className={`shrink-0 font-semibold ${
-                                compact
-                                  ? `rounded-md px-1.5 py-0.5 text-[9px] ${statusBadge.className}`
-                                  : `rounded-full px-1.5 py-0.5 text-[9px] ${statusBadge.className}`
-                              }`}
-                            >
-                              {statusBadge.label}
-                            </span>
-                          </div>
-
-                          <div
-                            className={`flex flex-wrap items-center gap-0.5 ${compact ? 'mt-0.5' : 'mt-1 gap-1'}`}
-                          >
-                            <span
-                              className={`rounded font-bold uppercase tracking-wide ${platformPill.className} ${
-                                compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
-                              }`}
-                            >
-                              {platformPill.label}
-                            </span>
-                            <span
-                              className={`rounded bg-white/[0.06] font-semibold uppercase tracking-wide text-white/55 ${
-                                compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
-                              }`}
-                            >
-                              {sportLabel}
-                            </span>
-                            {compact ? (
-                              league.isPaid ? (
-                                <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-1 py-0.5 text-[9px] font-semibold text-emerald-400">
-                                  Paid
-                                </span>
-                              ) : (
-                                <span className="rounded bg-white/[0.04] px-1 py-0.5 text-[9px] font-semibold text-white/25">
-                                  Free
-                                </span>
-                              )
-                            ) : null}
-                            {!compact ? (
-                              <span
-                                className={`inline-flex rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${conceptBadge.className}`}
-                              >
-                                {conceptBadge.label}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <p
-                            className={`truncate text-white/40 ${compact ? 'mt-0.5 text-[10px]' : 'mt-1 text-[10px]'}`}
-                          >
-                            {league.teamCount}-team · {seasonLabel} · {scoringLabel}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        handleFavoriteToggle(league.id)
-                      }}
-                      className={`shrink-0 text-white/55 transition hover:text-white ${
-                        compact ? 'self-center p-0.5' : 'self-start pt-0.5 text-sm leading-none'
-                      }`}
-                      aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
-                    >
-                      {compact ? (
-                        <Star
-                          className={`h-3 w-3 ${isFavorite ? 'fill-amber-400 text-amber-400' : 'text-white/55'}`}
-                          strokeWidth={isFavorite ? 0 : 1.5}
-                        />
-                      ) : isFavorite ? (
-                        '★'
-                      ) : (
-                        '☆'
-                      )}
-                    </button>
-                  </div>
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/plain', league.id)
+                      },
+                      onDragEnd: resetDragState,
+                    }}
+                    showRefreshButton={(league.platform || '').toLowerCase() === 'sleeper'}
+                    isRefreshing={refreshing[league.id] ?? false}
+                    isRefreshed={refreshed[league.id] ?? false}
+                    onRefresh={handleRefresh}
+                  />
                 </div>
               )
             })}
