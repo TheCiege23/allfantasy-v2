@@ -11,6 +11,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './'),
+      // Vitest does not apply Next's server/client split; stub side-effect-only package.
+      'server-only': path.resolve(__dirname, './tests/__mocks__/server-only.ts'),
     },
   },
 })
