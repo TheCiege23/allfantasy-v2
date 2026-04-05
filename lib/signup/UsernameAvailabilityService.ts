@@ -1,5 +1,5 @@
 export type UsernameAvailabilityResult =
-  | { ok: true; available: true; reason: "ok" }
+  | { ok: true; available: true; reason: "ok" | "unchecked"; verified?: boolean }
   | {
       ok: boolean
       available: false

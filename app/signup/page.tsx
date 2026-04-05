@@ -130,7 +130,9 @@ function SignupContent() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
   const [emailVerificationPrepared, setEmailVerificationPrepared] = useState(true)
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "ok" | "taken" | "invalid" | "unvalidated">("idle")
+  const [usernameStatus, setUsernameStatus] = useState<
+    "idle" | "checking" | "ok" | "taken" | "invalid" | "unvalidated" | "unchecked"
+  >("idle")
   const [usernameMessage, setUsernameMessage] = useState<string>("")
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
   const [disclaimerAgreed, setDisclaimerAgreed] = useState(false)
@@ -169,7 +171,7 @@ function SignupContent() {
   const progressPercent = useMemo(() => {
     const fields = [
       !!username.trim(),
-      usernameStatus === "ok" || usernameStatus === "unvalidated",
+      usernameStatus === "ok" || usernameStatus === "unvalidated" || usernameStatus === "unchecked",
       !!email.trim(),
       !!password && passwordStrength.valid,
       password === confirmPassword && confirmPassword.length >= 8,
@@ -330,11 +332,14 @@ function SignupContent() {
         if (cancelled) return
         if (!data.ok) {
           setUsernameStatus("unvalidated")
-          if (data.reason === "db_unavailable") {
-            setUsernameMessage("Username check is temporarily unavailable (database issue).")
-          } else {
-            setUsernameMessage(t("signup.username.unable"))
-          }
+          setUsernameMessage(t("signup.username.unable"))
+          return
+        }
+        if (data.ok && data.available && data.reason === "unchecked") {
+          setUsernameStatus("unchecked")
+          setUsernameMessage(
+            "Couldn't verify availability right now. You can continue — if this name is taken, signup will tell you."
+          )
           return
         }
         if (!data.available) {
@@ -377,7 +382,11 @@ function SignupContent() {
         setError("Enter a username.")
         return false
       }
-      if (usernameStatus !== "ok" && usernameStatus !== "unvalidated") {
+      if (
+        usernameStatus !== "ok" &&
+        usernameStatus !== "unvalidated" &&
+        usernameStatus !== "unchecked"
+      ) {
         setError(usernameMessage || "Choose an available username before continuing.")
         return false
       }
@@ -860,7 +869,13 @@ function SignupContent() {
                     </label>
                     <input
                       value={username}
-                      onChange={(e) => setUsername(e.target.value.replace(/[^A-Za-z0-9_]/g, ""))}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/[^A-Za-z0-9_]/g, "")
+                        setUsername(v)
+                        if (error === "Enter a username." && v.trim().length >= 3) {
+                          setError("")
+                        }
+                      }}
                       className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
                       style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                       placeholder="your_username"
@@ -887,6 +902,11 @@ function SignupContent() {
                         <span className="inline-flex items-center gap-1" style={{ color: "var(--muted2)" }}>
                           <TriangleAlert className="h-3.5 w-3.5" />
                           Could not verify
+                        </span>
+                      )}
+                      {usernameStatus === "unchecked" && (
+                        <span className="text-xs" style={{ color: "var(--muted2)" }}>
+                          Not verified live
                         </span>
                       )}
                     </div>
@@ -1633,7 +1653,9 @@ function SignupContent() {
                     type="submit"
                     disabled={
                       loading ||
-                      (usernameStatus !== "ok" && usernameStatus !== "unvalidated") ||
+                      (usernameStatus !== "ok" &&
+                        usernameStatus !== "unvalidated" &&
+                        usernameStatus !== "unchecked") ||
                       !username.trim() ||
                       !email.trim() ||
                       !password ||
