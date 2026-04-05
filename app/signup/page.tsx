@@ -443,30 +443,27 @@ function SignupContent() {
     setLoading(true)
     setError("")
 
-    const agreementsValidation = validateSignupAgreements({
-      ageConfirmed,
-      disclaimerAgreed,
-      termsAgreed,
-    })
-    if (!agreementsValidation.ok) {
-      setError(agreementsValidation.error)
-      setLoading(false)
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError(t("signup.error.passwordMismatch"))
-      setLoading(false)
-      return
-    }
-
-    if (verificationMethod === "PHONE" && !phoneCodeVerified) {
-      setError("Verify your phone number before creating your account.")
-      setLoading(false)
-      return
-    }
-
     try {
+      const agreementsValidation = validateSignupAgreements({
+        ageConfirmed,
+        disclaimerAgreed,
+        termsAgreed,
+      })
+      if (!agreementsValidation.ok) {
+        setError(agreementsValidation.error)
+        return
+      }
+
+      if (password !== confirmPassword) {
+        setError(t("signup.error.passwordMismatch"))
+        return
+      }
+
+      if (verificationMethod === "PHONE" && !phoneCodeVerified) {
+        setError("Verify your phone number before creating your account.")
+        return
+      }
+
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -492,32 +489,49 @@ function SignupContent() {
       })
 
       const raw = await res.text().catch(() => "")
-      let data: any = {}
+      let data: Record<string, unknown> = {}
       if (raw) {
         try {
-          data = JSON.parse(raw)
+          data = JSON.parse(raw) as Record<string, unknown>
         } catch {
           data = { error: raw }
         }
       }
 
       if (!res.ok) {
-        const backendError = typeof data?.error === "string" ? data.error.trim() : ""
+        const backendError =
+          typeof data?.error === "string" ? data.error.trim() : ""
         setError(backendError || t("common.error.tryAgain"))
-        setLoading(false)
         return
       }
 
       trackSignupConversion(refParam ? "signup_form_referral" : "signup_form")
 
-      // Immediately continue to the authenticated homepage after signup.
+      if (typeof data.emailVerificationPrepared === "boolean") {
+        setEmailVerificationPrepared(data.emailVerificationPrepared)
+      }
+
+      const apiVerificationMethod =
+        typeof data.verificationMethod === "string"
+          ? data.verificationMethod
+          : null
+      const isEmailSignup =
+        verificationMethod === "EMAIL" || apiVerificationMethod === "EMAIL"
+
+      // Email signup: the server creates the user and sends a verification link.
+      // Do not await client signIn here — NextAuth's signIn() can hang on _getSession
+      // or throw while parsing callback URLs, which left the UI with no navigation
+      // and no success state. Show the inbox confirmation screen immediately.
+      if (isEmailSignup) {
+        setSuccess(true)
+        return
+      }
+
       const callbackTarget = resolvePostSignupCallbackUrl({
         redirectAfterSignup,
-        verificationMethod:
-          typeof data?.verificationMethod === "string"
-            ? data.verificationMethod
-            : null,
+        verificationMethod: apiVerificationMethod,
       })
+
       const signInResult = await signIn("credentials", {
         login: email.trim(),
         password,
@@ -527,7 +541,10 @@ function SignupContent() {
 
       if (!signInResult?.error) {
         if (typeof window !== "undefined") {
-          window.localStorage.setItem("af_lang", preferredLanguage === "es" ? "es" : "en")
+          window.localStorage.setItem(
+            "af_lang",
+            preferredLanguage === "es" ? "es" : "en"
+          )
           window.localStorage.setItem("af_mode", mode)
         }
         clearUnifiedAuthDestination()
@@ -535,13 +552,13 @@ function SignupContent() {
         return
       }
 
-      // Show success screen — user must verify email or phone before signing in
-      if (typeof data.emailVerificationPrepared === "boolean") {
-        setEmailVerificationPrepared(data.emailVerificationPrepared)
-      }
+      // e.g. sign-in failed after phone signup — still show success / next steps
       setSuccess(true)
-    } catch {
-      setError(t("common.error.tryAgain"))
+    } catch (err: unknown) {
+      console.error("[signup] Create account failed:", err)
+      const message =
+        err instanceof Error ? err.message.trim() : ""
+      setError(message || t("common.error.tryAgain"))
     } finally {
       setLoading(false)
     }
