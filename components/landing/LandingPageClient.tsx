@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -14,8 +15,8 @@ const LANDING_COPY = {
   en: {
     nav: {
       brand: 'AllFantasy',
-      signIn: 'Sign In',
-      signUp: 'Sign Up',
+      signIn: 'Log In',
+      signUp: 'Get Started',
       dashboard: 'Dashboard',
       admin: 'Admin',
       forCommissioners: '★ For Commissioners',
@@ -26,7 +27,7 @@ const LANDING_COPY = {
       titleBottom: 'Win Your League.',
       subtitle:
         'The only platform built for both the commissioner and the competitor. Manage any league format, arm every manager with AI, and keep every season running on autopilot.',
-      primary: 'Sign Up Free',
+      primary: 'Get Started Free',
       commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
       primaryAuthed: 'Go to Dashboard',
@@ -215,7 +216,7 @@ const LANDING_COPY = {
     nav: {
       brand: 'AllFantasy',
       signIn: 'Iniciar sesión',
-      signUp: 'Crear cuenta',
+      signUp: 'Comenzar',
       dashboard: 'Panel',
       admin: 'Admin',
       forCommissioners: '★ Para comisionados',
@@ -226,7 +227,7 @@ const LANDING_COPY = {
       titleBottom: 'Gana tu liga.',
       subtitle:
         'La única plataforma construida tanto para el comisionado como para el competidor. Gestiona cualquier formato, equipa a cada manager con IA y mantén cada temporada en piloto automático.',
-      primary: 'Crear cuenta gratis',
+      primary: 'Empezar gratis',
       commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
       primaryAuthed: 'Ir al panel',
@@ -434,6 +435,25 @@ export default function LandingPageClient() {
   const { status } = useSession()
   const copy = LANDING_COPY[language === 'es' ? 'es' : 'en']
   const isAuthenticated = status === 'authenticated'
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setIsAdmin(false)
+      return
+    }
+    let cancelled = false
+    fetch('/api/user/me', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && data?.isAdmin) setIsAdmin(true)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated])
+
   const signupHref = signupUrlWithIntent('/dashboard')
   const loginHref = loginUrlWithIntent('/dashboard')
   const dashboardHref = '/dashboard'
@@ -477,23 +497,25 @@ export default function LandingPageClient() {
             >
               {copy.nav.forCommissioners}
             </Link>
-            <Link
-              href="/admin"
-              className="hidden rounded-lg border px-3 py-1.5 text-xs font-medium transition sm:inline-flex"
-              style={{
-                borderColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
-                color: 'var(--muted)',
-                background: 'transparent',
-              }}
-            >
-              <Shield className="mr-1 h-3.5 w-3.5" />
-              {copy.nav.admin}
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="hidden rounded-lg border px-3 py-1.5 text-xs font-medium transition sm:inline-flex"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--border) 75%, transparent)',
+                  color: 'var(--muted)',
+                  background: 'transparent',
+                }}
+              >
+                <Shield className="mr-1 h-3.5 w-3.5" />
+                {copy.nav.admin}
+              </Link>
+            )}
             <div className="flex items-center gap-2 sm:gap-3">
               {isAuthenticated ? (
                 <Link
                   href={dashboardHref}
-                  className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
+                  className="inline-flex rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
                   style={{
                     borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
                     color: 'var(--muted)',
@@ -515,7 +537,7 @@ export default function LandingPageClient() {
                 <>
                   <Link
                     href={loginHref}
-                    className="hidden rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90 sm:inline-flex"
+                    className="inline-flex rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
                     style={{
                       borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
                       color: 'var(--muted)',
@@ -530,12 +552,12 @@ export default function LandingPageClient() {
                         source: 'nav',
                       })
                     }
-                >
-                  {copy.nav.signIn}
+                  >
+                    {copy.nav.signIn}
                   </Link>
                   <Link
                     href={signupHref}
-                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                    className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                     style={{
                       backgroundImage:
                         'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))',
@@ -552,6 +574,7 @@ export default function LandingPageClient() {
                     }
                   >
                     {copy.nav.signUp}
+                    <ArrowRight className="h-4 w-4" aria-hidden />
                   </Link>
                 </>
               )}
@@ -677,32 +700,12 @@ export default function LandingPageClient() {
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
-                  href={commissionerSignupHref}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-8 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-                  style={{
-                    backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)',
-                    color: '#000',
-                  }}
-                  data-testid="landing-hero-commissioner"
-                  onClick={() =>
-                    trackLandingCtaClick({
-                      cta_label: copy.hero.commissionerPrimary,
-                      cta_destination: commissionerSignupHref,
-                      cta_type: 'primary',
-                      source: 'hero-commissioner',
-                    })
-                  }
-                >
-                  {copy.hero.commissionerPrimary}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
                   href={loginHref}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-8 py-3.5 text-sm font-medium transition hover:-translate-y-0.5 sm:w-auto"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-8 py-3.5 text-sm font-medium transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
                   style={{
-                    background: 'color-mix(in srgb, var(--panel) 88%, transparent)',
                     borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)',
-                    color: 'var(--text)',
+                    background: 'transparent',
+                    color: 'var(--muted)',
                   }}
                   data-testid="landing-hero-sign-in"
                   onClick={() =>
