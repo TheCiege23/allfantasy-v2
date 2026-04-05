@@ -39,6 +39,7 @@ export interface AiJobPayload {
   type: AiJobType
   userId?: string
   leagueId?: string
+  /** e.g. autocoach: `{ rosterId?, gameSlateDate?, sport? }` */
   payload: Record<string, unknown>
 }
 

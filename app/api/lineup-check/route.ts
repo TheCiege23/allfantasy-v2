@@ -80,9 +80,24 @@ export async function GET() {
 
   const profile = await prisma.userProfile.findUnique({
     where: { userId },
-    select: { sleeperUserId: true },
+    select: { sleeperUserId: true, autoCoachGlobalEnabled: true },
   })
   const sleeperUserId = profile?.sleeperUserId?.trim() || null
+
+  const autoSettings = await prisma.autoCoachSetting.findMany({
+    where: { userId },
+    include: { league: { select: { autoCoachEnabled: true } } },
+  })
+  const autoCoachByLeague = new Map(
+    autoSettings.map((s) => [
+      s.leagueId,
+      {
+        enabled: s.enabled,
+        blocked: s.blockedByCommissioner,
+        leagueOn: s.league.autoCoachEnabled !== false,
+      },
+    ])
+  )
 
   const leagues = await prisma.league.findMany({
     where: {
@@ -228,7 +243,18 @@ export async function GET() {
       })
     }
 
-    const chimmyAdvice = await chimmyLineupAdvice(league.name ?? 'League', issues.map((i) => i.message))
+    const ac = autoCoachByLeague.get(league.id)
+    const autoCoachEnabledForLeague = Boolean(
+      profile?.autoCoachGlobalEnabled !== false &&
+        ac?.enabled &&
+        ac.leagueOn &&
+        !ac?.blocked
+    )
+
+    let chimmyAdvice = await chimmyLineupAdvice(league.name ?? 'League', issues.map((i) => i.message))
+    if (autoCoachEnabledForLeague && issues.some((i) => i.type === 'injured_starter')) {
+      chimmyAdvice += ' (AutoCoach will handle this swap automatically)'
+    }
 
     if (issues.length > 0) {
       totalIssues += issues.length

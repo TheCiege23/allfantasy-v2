@@ -8,6 +8,9 @@ import { toast } from "sonner"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
 import { discordAvatarUrl } from "@/lib/discord/avatar"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
+import { useEntitlement } from "@/hooks/useEntitlement"
+import { useSubscriptionGateOptional } from "@/hooks/useSubscriptionGate"
+import { SubscriptionGateModal } from "@/components/subscription/SubscriptionGateModal"
 
 const CARD =
   "rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5 mb-4"
@@ -145,6 +148,13 @@ export default function SettingsFullPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("")
   const [deleteBusy, setDeleteBusy] = useState(false)
 
+  const [autoCoachGlobal, setAutoCoachGlobal] = useState(true)
+  const [autoCoachSaving, setAutoCoachSaving] = useState(false)
+  const [autoCoachGateOpen, setAutoCoachGateOpen] = useState(false)
+  const proAutoCoachEnt = useEntitlement("pro_autocoach")
+  const gateOptional = useSubscriptionGateOptional()
+  const hasProAutoCoach = proAutoCoachEnt.hasAccess("pro_autocoach")
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [avatarUploading, setAvatarUploading] = useState(false)
 
@@ -168,6 +178,19 @@ export default function SettingsFullPage() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await fetch("/api/user/autocoach", { cache: "no-store" })
+      if (!res.ok || cancelled) return
+      const j = (await res.json()) as { globalEnabled?: boolean }
+      if (typeof j.globalEnabled === "boolean") setAutoCoachGlobal(j.globalEnabled)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user?.id])
+
+  useEffect(() => {
     if (!profile) return
     setDisplayName(profile.displayName ?? session?.user?.name ?? "")
     setUsername(profile.username ?? "")
@@ -186,6 +209,23 @@ export default function SettingsFullPage() {
 
   const email = profile?.email ?? session?.user?.email ?? ""
   const avatarUrl = profile?.profileImageUrl ?? session?.user?.image ?? null
+
+  const persistAutoCoachGlobal = useCallback(async (next: boolean) => {
+    setAutoCoachSaving(true)
+    try {
+      const res = await fetch("/api/user/autocoach/global", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      })
+      if (res.ok) {
+        const j = (await res.json()) as { globalEnabled?: boolean }
+        if (typeof j.globalEnabled === "boolean") setAutoCoachGlobal(j.globalEnabled)
+      }
+    } finally {
+      setAutoCoachSaving(false)
+    }
+  }, [])
 
   const persistToggle = useCallback(
     async (key: keyof DashboardToggles, next: boolean) => {
@@ -637,6 +677,49 @@ export default function SettingsFullPage() {
             />
           </div>
         </section>
+
+        <section className={CARD}>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">AutoCoach — All Leagues</h2>
+          <p className="mb-3 text-xs text-white/40">
+            Master switch: turn off to pause Chimmy AutoCoach everywhere. When on, your per-league AutoCoach settings
+            apply.
+          </p>
+          <div className="flex items-center justify-between gap-3 py-1">
+            <span className="text-sm text-white/85">⚡ AutoCoach AI</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoCoachGlobal}
+              disabled={autoCoachSaving}
+              onClick={() => {
+                if (!hasProAutoCoach) {
+                  if (gateOptional) gateOptional.gate("pro_autocoach")
+                  else setAutoCoachGateOpen(true)
+                  return
+                }
+                void persistAutoCoachGlobal(!autoCoachGlobal)
+              }}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition-colors ${
+                autoCoachGlobal && hasProAutoCoach ? "bg-cyan-500" : "bg-white/10"
+              } ${!hasProAutoCoach ? "cursor-pointer opacity-50" : ""}`}
+            >
+              <span
+                className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  autoCoachGlobal && hasProAutoCoach ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+          {!hasProAutoCoach ? (
+            <p className="mt-2 text-[11px] text-white/35">
+              Requires AF Pro — tap the toggle to see upgrade options.
+            </p>
+          ) : null}
+        </section>
+
+        {autoCoachGateOpen && !gateOptional ? (
+          <SubscriptionGateModal isOpen onClose={() => setAutoCoachGateOpen(false)} featureId="pro_autocoach" />
+        ) : null}
 
         {/* 4. Appearance */}
         <section className={CARD}>

@@ -26,6 +26,8 @@ export type LeagueSettingsApi = {
     isDynasty: boolean
     leagueType?: string | null
     leagueVariant?: string | null
+    bestBallMode?: boolean | null
+    autoCoachEnabled?: boolean | null
     rosterSize: number | null
     totalRosterSlots: number
     teams: LeagueTeamBrief[]

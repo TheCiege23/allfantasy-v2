@@ -141,6 +141,8 @@ export async function GET(req: NextRequest) {
       teamCount: league.leagueSize ?? league.teams.length,
       isDynasty: league.isDynasty,
       leagueVariant: league.leagueVariant ?? null,
+      bestBallMode: league.bestBallMode ?? null,
+      autoCoachEnabled: league.autoCoachEnabled ?? true,
       rosterSize: league.rosterSize,
       totalRosterSlots,
       sportConfig,

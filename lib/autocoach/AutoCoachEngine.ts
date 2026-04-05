@@ -2,7 +2,7 @@
 // Runs PREGAME ONLY — once any game in a slate starts, no swaps are made.
 // Does NOT apply to Best Ball leagues.
 
-import type { LeagueSport } from '@prisma/client'
+import type { LeagueSport, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
@@ -163,7 +163,7 @@ export async function executeAutoCoachSwap(
     userIds: [userId],
     category: 'autocoach',
     type: 'autocoach_swap',
-    title: '⚡ AutoCoach made a change',
+    title: '⚡ AutoCoach made a swap',
     body: `${playerOut.name} (${playerOut.status}) ↔ ${playerIn.name} in ${leagueName}`,
     severity: 'low',
     actionHref: `/app/league/${leagueId}?tab=team`,
@@ -238,11 +238,12 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
     const ent = await resolver.resolveForUser(setting.userId, 'pro_autocoach')
     if (!ent.hasAccess) continue
 
-    let rosterRow = await prisma.roster.findFirst({
+    const rosterFound = await prisma.roster.findFirst({
       where: { leagueId, platformUserId: setting.userId },
       select: { id: true, playerData: true },
     })
-    if (!rosterRow) continue
+    if (!rosterFound) continue
+    let workingRoster = rosterFound
 
     await prisma.autoCoachSetting.update({
       where: { userId_leagueId: { userId: setting.userId, leagueId } },
@@ -250,7 +251,7 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
     })
 
     for (let pass = 0; pass < 16; pass++) {
-      const sections = getNormalizedLineupSections(rosterRow.playerData)
+      const sections = getNormalizedLineupSections(workingRoster.playerData)
       const starters = sections.starters
       const bench = sections.bench
       const starterIds = starters.map((s) => String(s.id))
@@ -304,7 +305,7 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
         if (!pick) continue
 
         const swap = await executeAutoCoachSwap(
-          rosterRow.id,
+          workingRoster.id,
           setting.userId,
           leagueId,
           league.name ?? 'League',
@@ -318,11 +319,11 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
         results.push(swap)
         swapped = true
 
-        const fresh = await prisma.roster.findUnique({
-          where: { id: rosterRow.id },
+        const fresh: { id: string; playerData: Prisma.JsonValue } | null = await prisma.roster.findUnique({
+          where: { id: workingRoster.id },
           select: { id: true, playerData: true },
         })
-        if (fresh) rosterRow = fresh
+        if (fresh) workingRoster = fresh
         break
       }
       if (!swapped) break

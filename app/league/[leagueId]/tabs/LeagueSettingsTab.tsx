@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import { IntegritySettingsPanel } from '@/components/commissioner/IntegritySettingsPanel'
+import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 import { isLeagueEligibleForDispersalDraft } from '@/lib/league/dispersal-draft-eligibility'
@@ -402,6 +403,23 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   const userRole = data.userRole ?? null
   const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
   const isHeadCommissioner = userRole === 'commissioner'
+
+  const isBestBall = isBestBallLeague(league.leagueVariant ?? null, league.bestBallMode ?? null)
+
+  const handleAutoCoachLeagueToggle = async () => {
+    const next = !(league.autoCoachEnabled ?? true)
+    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/autocoach-settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ autoCoachEnabled: next }),
+    })
+    if (!res.ok) {
+      toast.error('Could not update AutoCoach')
+      return
+    }
+    toast.success(next ? 'AutoCoach allowed for managers' : 'AutoCoach disabled for this league')
+    void refresh()
+  }
 
   const setCoCommissioner = async (memberId: string, next: boolean) => {
     const res = await fetch('/api/league/settings/co-commissioners', {
@@ -1006,6 +1024,56 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           control={<Toggle checked={Boolean(s?.aiRiskUpsideNotes ?? true)} onChange={(v) => void patch({ aiRiskUpsideNotes: v })} />}
         />
       </SettingsSection>
+
+      {isHeadCommissioner ? (
+        isBestBall ? (
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <p className="text-sm font-bold text-white/80">⚡ AutoCoach AI</p>
+            <p className="mt-1 text-xs text-white/45">
+              Not available in Best Ball — lineups optimize automatically for this format.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-bold text-white">
+                  ⚡ AutoCoach AI
+                  <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2 py-0.5 text-[9px] font-bold text-cyan-400">
+                    FREE FOR LEAGUES
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-white/50">
+                  Allow managers to use Chimmy AutoCoach in this league. AutoCoach automatically swaps injured or
+                  inactive starters before games. Managers must have AF Pro to use it.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={league.autoCoachEnabled ?? true}
+                onClick={() => void handleAutoCoachLeagueToggle()}
+                className={[
+                  'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
+                  league.autoCoachEnabled ?? true ? 'border-cyan-400 bg-cyan-500' : 'border-white/20 bg-white/10',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    league.autoCoachEnabled ?? true ? 'translate-x-5' : 'translate-x-0.5',
+                  ].join(' ')}
+                />
+              </button>
+            </div>
+            {!(league.autoCoachEnabled ?? true) ? (
+              <p className="text-[11px] text-amber-400/80">
+                AutoCoach is disabled for this league. Managers cannot use AutoCoach here even with AF Pro.
+              </p>
+            ) : null}
+          </div>
+        )
+      ) : null}
 
       {isHeadCommissioner ? (
         <IntegritySettingsPanel

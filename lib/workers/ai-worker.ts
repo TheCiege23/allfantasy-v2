@@ -10,6 +10,7 @@ export type AiJobResult = {
   processedAt: string;
   type: string;
   error?: string;
+  swapCount?: number;
 };
 
 let aiWorker: Worker<AiJobPayload, AiJobResult> | null = null;
@@ -43,6 +44,22 @@ async function processAiJob(job: Job<AiJobPayload, AiJobResult>): Promise<AiJobR
         processedAt: new Date().toISOString(),
         type,
       };
+    case "autocoach_pregame_scan":
+    case "autocoach_status_check": {
+      const leagueId = data.leagueId;
+      if (!leagueId || typeof leagueId !== "string") {
+        throw new Error("Missing leagueId");
+      }
+      const { runAutoCoachForLeague } = await import("@/lib/autocoach/AutoCoachEngine");
+      const swaps = await runAutoCoachForLeague(leagueId);
+      return {
+        ok: true,
+        jobId: job.id,
+        processedAt: new Date().toISOString(),
+        type,
+        swapCount: swaps.length,
+      };
+    }
     default:
       return {
         ok: false,

@@ -3,6 +3,12 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Settings } from 'lucide-react'
+import { toast } from 'sonner'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
+import { useEntitlement } from '@/hooks/useEntitlement'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
 import type { LeagueTeam } from '@prisma/client'
 import { PlayerImage } from '@/app/components/PlayerImage'
 import { TeamLogo } from '@/app/components/TeamLogo'
@@ -333,6 +339,74 @@ export function TeamTab({
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
   const [payload, setPayload] = useState<DbRosterPayload | SleeperApiPayload | null>(null)
+  const [autoCoachRow, setAutoCoachRow] = useState<{
+    enabled: boolean
+    leagueAutoCoachEnabled: boolean
+    blockedByCommissioner: boolean
+  } | null>(null)
+  const [autoCoachLoading, setAutoCoachLoading] = useState(false)
+  const [localAutoCoachGate, setLocalAutoCoachGate] = useState(false)
+  const proEnt = useEntitlement('pro_autocoach')
+  const gateOptional = useSubscriptionGateOptional()
+  const hasProAutoCoach = proEnt.hasAccess('pro_autocoach')
+  const isBestBall = isBestBallLeague(league.leagueVariant ?? null, league.bestBallMode ?? null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await fetch('/api/user/autocoach', { cache: 'no-store' })
+      if (!res.ok || cancelled) return
+      const j = (await res.json()) as {
+        settings?: Array<{
+          leagueId: string
+          enabled: boolean
+          blockedByCommissioner: boolean
+          league?: { autoCoachEnabled?: boolean | null }
+        }>
+      }
+      const row = j.settings?.find((s) => s.leagueId === league.id)
+      if (row && !cancelled) {
+        setAutoCoachRow({
+          enabled: row.enabled,
+          leagueAutoCoachEnabled: row.league?.autoCoachEnabled !== false,
+          blockedByCommissioner: row.blockedByCommissioner,
+        })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
+
+  const handleAutoCoachToggle = async () => {
+    if (!hasProAutoCoach || isBestBall) return
+    const next = !autoCoachRow?.enabled
+    setAutoCoachLoading(true)
+    try {
+      const res = await fetch('/api/user/autocoach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leagueId: league.id, enabled: next }),
+      })
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        toast.error(typeof j.error === 'string' ? j.error : 'Could not update AutoCoach')
+        return
+      }
+      setAutoCoachRow((prev) =>
+        prev
+          ? { ...prev, enabled: next }
+          : {
+              enabled: next,
+              leagueAutoCoachEnabled: true,
+              blockedByCommissioner: false,
+            }
+      )
+      toast.success(next ? 'AutoCoach on' : 'AutoCoach off')
+    } finally {
+      setAutoCoachLoading(false)
+    }
+  }
 
   const load = useCallback(async () => {
     if (!isSleeper && !userTeam) {
@@ -517,6 +591,68 @@ export function TeamTab({
           </button>
         </div>
       </div>
+
+      <div className="rounded-xl border border-white/[0.08] p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-bold text-white">⚡ AutoCoach AI</p>
+              {!hasProAutoCoach ? <SubscriptionGateBadge featureId="pro_autocoach" /> : null}
+            </div>
+            <p className="mt-0.5 text-xs text-white/50">
+              Auto-swap injured/inactive starters before games. Runs up to 5 minutes before kickoff.
+            </p>
+            {autoCoachRow && autoCoachRow.leagueAutoCoachEnabled === false ? (
+              <p className="mt-1 text-[11px] text-amber-400/70">Disabled by league commissioner.</p>
+            ) : null}
+            {isBestBall ? (
+              <p className="mt-1 text-[11px] text-white/40">Not available in Best Ball leagues.</p>
+            ) : null}
+          </div>
+          {hasProAutoCoach && autoCoachRow?.leagueAutoCoachEnabled !== false && !isBestBall ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(autoCoachRow?.enabled)}
+              disabled={autoCoachLoading}
+              onClick={() => void handleAutoCoachToggle()}
+              className={[
+                'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
+                autoCoachRow?.enabled ? 'border-cyan-400 bg-cyan-500' : 'border-white/20 bg-white/10',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                  autoCoachRow?.enabled ? 'translate-x-5' : 'translate-x-0.5',
+                ].join(' ')}
+              />
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBestBall || autoCoachRow?.leagueAutoCoachEnabled === false}
+              onClick={() => {
+                if (isBestBall || autoCoachRow?.leagueAutoCoachEnabled === false) return
+                if (gateOptional) gateOptional.gate('pro_autocoach')
+                else setLocalAutoCoachGate(true)
+              }}
+              className="relative h-6 w-11 shrink-0 rounded-full border border-white/15 bg-white/10 opacity-50"
+              title={
+                isBestBall
+                  ? 'Not available in Best Ball'
+                  : autoCoachRow?.leagueAutoCoachEnabled === false
+                    ? 'Disabled by commissioner'
+                    : 'Requires AF Pro'
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      {localAutoCoachGate && !gateOptional ? (
+        <SubscriptionGateModal isOpen onClose={() => setLocalAutoCoachGate(false)} featureId="pro_autocoach" />
+      ) : null}
 
       {loading ? <SkeletonRows /> : null}
 
