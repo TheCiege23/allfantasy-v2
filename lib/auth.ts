@@ -1,4 +1,4 @@
-import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions, Profile } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
@@ -30,6 +30,22 @@ function buildSleeperAvatarUrl(avatar: string | null | undefined): string | null
 
 function isDevAuthBypassEnabled(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_BYPASS_ENABLED?.trim() === "true";
+}
+
+/** NextAuth sometimes omits `user.email` in the signIn callback; OAuth `profile` still has it. */
+function resolveOAuthEmailFromCallback(
+  user: { email?: string | null },
+  profile?: Profile | null
+): string | undefined {
+  const fromUser =
+    typeof user.email === "string" && user.email.includes("@") ? user.email.trim() : undefined;
+  const fromProfile =
+    profile &&
+    typeof profile.email === "string" &&
+    profile.email.includes("@")
+      ? profile.email.trim()
+      : undefined;
+  return fromUser ?? fromProfile;
 }
 
 function getDevAuthProfile() {
@@ -278,18 +294,23 @@ export const authOptions: NextAuthOptions = {
   },
   providers,
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (!account) {
         return true;
       }
 
       if (account.provider === "google" || account.provider === "apple") {
         try {
+          const oauthEmail = resolveOAuthEmailFromCallback(user, profile);
+          if (oauthEmail) {
+            user.email = oauthEmail;
+          }
+
           const linkedUser = await linkSocialAccountToAppUser({
             provider: account.provider,
             providerAccountId: account.providerAccountId,
             type: account.type,
-            email: user.email,
+            email: oauthEmail ?? user.email,
             name: user.name,
             image: user.image,
             refreshToken: account.refresh_token,
@@ -345,8 +366,30 @@ export const authOptions: NextAuthOptions = {
      * dropped back on `/login` when `url` resolves incorrectly for the deployment.
      * (NEXTAUTH_URL must match the site origin for OAuth callbacks.)
      */
-    async redirect({ baseUrl }) {
-      return `${baseUrl.replace(/\/$/, "")}/dashboard`;
+    async redirect({ url, baseUrl }) {
+      const base = baseUrl.replace(/\/$/, "");
+      if (!url) {
+        return `${base}/dashboard`;
+      }
+      let pathname = "/";
+      try {
+        pathname = new URL(url).pathname;
+      } catch {
+        pathname = (url.split("?")[0] || "/").startsWith("/")
+          ? url.split("?")[0] || "/"
+          : `/${url.split("?")[0] || ""}`;
+      }
+      // After OAuth, NextAuth may resolve `callbackUrl` to `/login` or `/`; send users into the app.
+      if (pathname === "/login" || pathname === "/") {
+        return `${base}/dashboard`;
+      }
+      if (url.startsWith("/")) {
+        return `${base}${url}`;
+      }
+      if (url.startsWith(base)) {
+        return url;
+      }
+      return `${base}/dashboard`;
     },
   },
   events: {

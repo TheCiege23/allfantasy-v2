@@ -1,8 +1,17 @@
+import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
 import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
+
+const OAUTH_PLACEHOLDER_BCRYPT_ROUNDS = 10;
+
+/** Unusable for credentials login; satisfies any code paths that expect a set password hash. */
+async function hashOAuthOnlyPlaceholder(): Promise<string> {
+  return bcrypt.hash(randomBytes(32).toString("hex"), OAUTH_PLACEHOLDER_BCRYPT_ROUNDS);
+}
 
 export type SocialAccountProvider = "google" | "apple";
 
@@ -172,47 +181,54 @@ export async function linkSocialAccountToAppUser(
   }
 
   if (!user && normalizedEmail) {
-    const username = await reserveUniqueUsername(
-      buildUsernameBase(normalizedEmail, input.name)
-    );
-    const displayName = input.name?.trim() || username;
+    const displayNameBase = input.name?.trim() || "";
+    const select = {
+      id: true,
+      email: true,
+      username: true,
+      displayName: true,
+      avatarUrl: true,
+      emailVerified: true,
+    } as const;
 
-    try {
-      user = await prisma.appUser.create({
-        data: {
-          email: normalizedEmail,
-          username,
-          displayName,
-          avatarUrl: input.image?.trim() || null,
-          emailVerified: new Date(),
-        },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true,
-          emailVerified: true,
-        },
-      });
-    } catch (error) {
-      if (!isUniqueConstraintError(error)) {
-        throw error;
+    const maxAttempts = 6;
+    for (let attempt = 1; attempt <= maxAttempts && !user; attempt += 1) {
+      const username = await reserveUniqueUsername(
+        attempt === 1
+          ? buildUsernameBase(normalizedEmail, input.name)
+          : `${buildUsernameBase(normalizedEmail, input.name)}_${attempt}`
+      );
+      const passwordHash = await hashOAuthOnlyPlaceholder();
+
+      try {
+        user = await prisma.appUser.create({
+          data: {
+            email: normalizedEmail,
+            username,
+            displayName: displayNameBase || username,
+            avatarUrl: input.image?.trim() || null,
+            emailVerified: new Date(),
+            passwordHash,
+          },
+          select,
+        });
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        user = await prisma.appUser.findFirst({
+          where: {
+            email: { equals: normalizedEmail, mode: "insensitive" },
+          },
+          select,
+        });
+
+        if (!user) {
+          // Likely a rare username race: retry with a different reserved username.
+          continue;
+        }
       }
-
-      user = await prisma.appUser.findFirst({
-        where: {
-          email: { equals: normalizedEmail, mode: "insensitive" },
-        },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true,
-          emailVerified: true,
-        },
-      });
     }
   }
 

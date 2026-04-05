@@ -50,6 +50,8 @@ export async function POST(req: Request) {
     )
   }
 
+  console.log("[reset] supabase email:", user.email)
+
   const body = await req.json().catch(() => ({}))
   const newPassword = String(body?.newPassword || "")
   const bodyEmailRaw = typeof body?.email === "string" ? body.email.trim().toLowerCase() : ""
@@ -58,11 +60,51 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "WEAK_PASSWORD", message: "Password does not meet strength rules." }, { status: 400 })
   }
 
-  const emailFromJwt = user.email.toLowerCase()
-  if (bodyEmailRaw && bodyEmailRaw !== emailFromJwt) {
+  const normalizedEmail = user.email.toLowerCase().trim()
+  if (bodyEmailRaw && bodyEmailRaw !== normalizedEmail) {
     return NextResponse.json(
       { error: "EMAIL_MISMATCH", message: "Email does not match the signed-in reset session." },
       { status: 400 }
+    )
+  }
+
+  let row: { id: string } | null = null
+  try {
+    const primaryWhere = { email: user.email.trim() }
+    console.log("[reset] prisma where clause:", primaryWhere)
+    row = await prisma.appUser.findFirst({
+      where: primaryWhere,
+      select: { id: true },
+    })
+    console.log("[reset] app_users row found:", row ? row.id : "NULL")
+
+    if (!row) {
+      const fallbackWhere = {
+        email: { equals: normalizedEmail, mode: "insensitive" as const },
+      }
+      console.log("[reset] prisma where clause:", fallbackWhere)
+      row = await prisma.appUser.findFirst({
+        where: fallbackWhere,
+        select: { id: true },
+      })
+      console.log("[reset] app_users row found:", row ? row.id : "NULL")
+    }
+  } catch (err) {
+    console.error("[sync-neon] prisma findFirst failed:", err)
+    return NextResponse.json(
+      { error: "DB_LOOKUP_FAILED", message: "Could not look up your account." },
+      { status: 500 }
+    )
+  }
+
+  if (!row) {
+    console.error("[sync-neon] No app_users row for email after primary + fallback:", normalizedEmail)
+    return NextResponse.json(
+      {
+        error: "USER_NOT_FOUND",
+        message: "No account found for this email. Please sign up first.",
+      },
+      { status: 404 }
     )
   }
 
@@ -74,32 +116,6 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: "HASH_FAILED", message: "Could not process password." },
       { status: 500 }
-    )
-  }
-
-  let row: { id: string } | null
-  try {
-    row = await prisma.appUser.findFirst({
-      where: { email: { equals: emailFromJwt, mode: "insensitive" } },
-      select: { id: true },
-    })
-  } catch (err) {
-    console.error("[sync-neon] prisma findFirst failed:", err)
-    return NextResponse.json(
-      { error: "DB_LOOKUP_FAILED", message: "Could not look up your account." },
-      { status: 500 }
-    )
-  }
-
-  if (!row) {
-    console.error("[sync-neon] No app_users row for email:", emailFromJwt)
-    return NextResponse.json(
-      {
-        error: "USER_NOT_FOUND",
-        message:
-          "No AllFantasy account found for this email. If you use Google sign-in only, use that to sign in.",
-      },
-      { status: 404 }
     )
   }
 
@@ -119,5 +135,5 @@ export async function POST(req: Request) {
     )
   }
 
-  return NextResponse.json({ ok: true, synced: true, email: emailFromJwt })
+  return NextResponse.json({ ok: true, synced: true, email: normalizedEmail })
 }
