@@ -3,6 +3,10 @@ import type { LegalContentSection } from "@/lib/legal/DisclaimerPageService"
 export const TERMS_PAGE_TITLE = "Terms of Service"
 
 export const TERMS_POLICY_CHECKLIST: LegalContentSection[] = [
+  {
+    heading: "Geographic restrictions",
+    body: "U.S. state laws may fully or partially restrict fantasy sports; see Terms §7.",
+  },
   { heading: "Platform Rules", body: "Use the service lawfully and follow in-product rules." },
   { heading: "Anti-Collusion Policy", body: "Collusion and coordinated manipulation are prohibited." },
   { heading: "Anti-Cheating Policy", body: "Cheating, bot abuse, and unfair automation are prohibited." },

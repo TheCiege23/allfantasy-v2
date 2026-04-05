@@ -7,6 +7,10 @@ export const DISCLAIMER_PAGE_TITLE = "Disclaimer"
 
 export const DISCLAIMER_PAGE_SECTIONS: LegalContentSection[] = [
   {
+    heading: "State law compliance",
+    body: "Washington prohibits all fantasy sports under state law; HI, ID, MT, NV restrict paid fantasy contests — see Disclaimer page for details.",
+  },
+  {
     heading: "Purpose of the Platform",
     body: "AllFantasy is for fantasy sports entertainment and management tools only.",
   },

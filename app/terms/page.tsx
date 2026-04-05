@@ -85,7 +85,66 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">7. No Manipulation or Exploits</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">7. Geographic Restrictions and Eligibility</h2>
+        <p>
+          AllFantasy.ai complies with all applicable U.S. state and local laws regarding fantasy sports. Access to certain features
+          of AllFantasy.ai is restricted based on your geographic location.
+        </p>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">7.1 Fully Restricted States</h3>
+        <p>
+          The following state prohibits ALL fantasy sports activities, including free contests, under state law. AllFantasy.ai is
+          entirely unavailable in this state:
+        </p>
+        <ul className="list-disc list-inside space-y-2 ml-4 mt-2">
+          <li>
+            <strong>Washington State</strong> — Prohibited under RCW 9.46.240. Washington law classifies all fantasy sports as sports
+            wagering. Operating, offering, or advertising fantasy sports, including free contests, is a Class C felony under
+            Washington state law. AllFantasy.ai cannot provide any services to users located in Washington state.
+          </li>
+        </ul>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">7.2 Paid League Restricted States</h3>
+        <p>
+          The following states prohibit paid fantasy sports contests under state law. Residents of these states may create free
+          accounts and use free features, but are prohibited from joining paid leagues, paying entry fees, or purchasing
+          subscriptions:
+        </p>
+        <ul className="list-disc list-inside space-y-2 ml-4 mt-2">
+          <li>
+            <strong>Hawaii</strong> — Paid DFS prohibited per AG Opinion 16-1 (2016).
+          </li>
+          <li>
+            <strong>Idaho</strong> — Paid DFS prohibited per Idaho Code §18-3802 and AG Opinion (May 2016).
+          </li>
+          <li>
+            <strong>Montana</strong> — Paid DFS prohibited per Montana Code §23-5-802.
+          </li>
+          <li>
+            <strong>Nevada</strong> — Paid DFS requires a sports betting license per NV Gaming Control Board ruling (2015). No DFS
+            operator currently holds such a license in Nevada.
+          </li>
+        </ul>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">7.3 VPN and Proxy Usage</h3>
+        <p>
+          Using a VPN, proxy, or any other method to circumvent geographic restrictions while in a restricted state is a violation
+          of these Terms of Service and may constitute a violation of applicable state law. AllFantasy.ai employs VPN and proxy
+          detection technology. Accounts found to be circumventing geographic restrictions may be immediately suspended and any
+          winnings or prizes forfeited.
+        </p>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">7.4 User Representation</h3>
+        <p>
+          By creating an account or accessing AllFantasy.ai, you represent and warrant that you are not located in a state where
+          such access or participation is prohibited by law. If applicable law in your jurisdiction prohibits your participation,
+          you are not authorized to use AllFantasy.ai.
+        </p>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">7.5 Changes in Law</h3>
+        <p>
+          Fantasy sports laws are subject to change. AllFantasy.ai will update its geographic restrictions when state laws change.
+          Updated restrictions take effect immediately. Check this section for the most current list.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">8. No Manipulation or Exploits</h2>
         <p>
           You may not manipulate rankings, scores, or other platform data, or exploit bugs or design flaws to gain an unfair
           advantage. If you discover a vulnerability, you agree to report it to us and not to exploit it.
@@ -93,7 +152,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">8. Paid vs. Free Leagues; Subscriptions and Tokens</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">9. Paid vs. Free Leagues; Subscriptions and Tokens</h2>
         <p>
           AllFantasy may offer free and paid features (e.g., subscriptions, in-app tokens, or premium tiers). Paid features are
           subject to the pricing and payment terms disclosed at the time of purchase. AllFantasy does not collect league dues,
@@ -104,7 +163,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">9. Account Responsibilities</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">10. Account Responsibilities</h2>
         <p>You agree to:</p>
         <ul className="list-disc list-inside space-y-1 ml-4 mt-2">
           <li>Provide accurate information and be at least 18 years old (or the age of majority in your jurisdiction) where required</li>
@@ -115,7 +174,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">10. Content Moderation</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">11. Content Moderation</h2>
         <p>
           We may remove or refuse content (including user-generated content) that violates these Terms or that we deem harmful,
           misleading, or otherwise inappropriate. We are not obligated to host or display any content and may modify or discontinue
@@ -124,7 +183,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">11. Dispute Handling</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">12. Dispute Handling</h2>
         <p>
           Disputes between users (e.g., league or trade disputes) are between those users; we are not obligated to resolve them.
           For disputes with us, you agree to seek resolution in good faith (e.g., by contacting legal@allfantasy.ai) before
@@ -134,7 +193,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">12. Legacy Import and External Data</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">13. Legacy Import and External Data</h2>
         <p>
           Where we offer legacy or historical import (e.g., from Sleeper, Yahoo, ESPN, MFL, Fleaflicker, Fantrax), you are
           responsible for ensuring you have the right to provide that data and that your use complies with those platforms&apos;
@@ -144,7 +203,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">13. Intellectual Property</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">14. Intellectual Property</h2>
         <p>
           AllFantasy content, features, and functionality are our property or our licensors&apos; and are protected by
           intellectual property laws. You may not copy, modify, distribute, or create derivative works without our prior written
@@ -153,7 +212,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">14. User Content</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">15. User Content</h2>
         <p>
           By submitting content to AllFantasy (e.g., feedback, league ideas), you grant us a non-exclusive, worldwide,
           royalty-free license to use, reproduce, modify, and distribute such content in connection with the Service.
@@ -161,7 +220,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">15. Third-Party Platforms</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">16. Third-Party Platforms</h2>
         <p>
           The Service may integrate with third-party fantasy or other platforms. Your use of those platforms is subject to their
           terms and policies. We are not responsible for their practices or content.
@@ -169,7 +228,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">16. Disclaimer of Warranties</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">17. Disclaimer of Warranties</h2>
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-200 text-sm">
           <p className="font-bold mb-2">THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND.</p>
           <p>
@@ -180,7 +239,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">17. Limitation of Liability</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">18. Limitation of Liability</h2>
         <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-200 text-sm">
           IN NO EVENT SHALL ALLFANTASY, ITS OFFICERS, DIRECTORS, EMPLOYEES, OR AGENTS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
           SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOSS OF PROFITS, DATA, OR USE) RESULTING FROM YOUR ACCESS TO
@@ -189,7 +248,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">18. Indemnification</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">19. Indemnification</h2>
         <p>
           You agree to defend, indemnify, and hold harmless AllFantasy and its officers, directors, employees, and agents from
           and against any claims, liabilities, damages, losses, or expenses arising out of your violation of these Terms or your
@@ -198,7 +257,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">19. No Gambling or Betting</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">20. No Gambling or Betting</h2>
         <p>
           AllFantasy is not a gambling or betting service. We do not facilitate or endorse real-money gambling or DFS. Our
           analysis is for entertainment and informational purposes in the context of recreational fantasy sports only.
@@ -206,7 +265,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">20. Termination</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">21. Termination</h2>
         <p>
           We may terminate or suspend your access immediately, without prior notice, for any reason, including breach of these
           Terms.
@@ -214,7 +273,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">21. Platform Updates and Changes</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">22. Platform Updates and Changes</h2>
         <p>
           We may change, suspend, or discontinue features or the Service at any time. We will use reasonable efforts to notify
           users of material changes (e.g., via the Service or email). Your continued use after changes constitutes acceptance.
@@ -223,7 +282,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">22. Severability and Entire Agreement</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">23. Severability and Entire Agreement</h2>
         <p>
           If any provision is held unenforceable, the remaining provisions remain in effect. These Terms, together with our
           <Link href="/disclaimer" className="text-cyan-400 hover:text-cyan-300 mx-1">Disclaimer</Link> and
@@ -233,7 +292,7 @@ export default async function TermsPage({ searchParams }: TermsPageProps) {
       </section>
 
       <section>
-        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">23. Contact</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">24. Contact</h2>
         <p>
           Questions about these Terms? Contact us at:
         </p>

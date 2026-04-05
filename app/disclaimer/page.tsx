@@ -26,6 +26,35 @@ export default async function DisclaimerPage({ searchParams }: DisclaimerPagePro
       backLabel={fromSignup ? "Back to Sign Up" : "Back to Home"}
     >
       <section>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">State Law Compliance — Fantasy Sports Restrictions</h2>
+        <p>
+          AllFantasy.ai is committed to complying with all applicable U.S. state laws regarding fantasy sports. Fantasy sports laws
+          vary significantly by state and are subject to change.
+        </p>
+        <p className="mt-3 font-semibold text-white">Important: Residents of the following states should be aware of specific restrictions:</p>
+        <p className="mt-3">
+          <strong>Washington State:</strong> ALL fantasy sports activities are prohibited under RCW 9.46.240. AllFantasy.ai does not
+          provide services to users located in Washington. Using a VPN or proxy to bypass this restriction may be a violation of
+          Washington state law.
+        </p>
+        <p className="mt-3">
+          <strong>Hawaii, Idaho, Montana, Nevada:</strong> Paid fantasy sports contests are prohibited by state law. Only free
+          fantasy sports play is permitted for residents of these states.
+        </p>
+        <p className="mt-3">
+          This platform does not provide legal advice. Users are responsible for ensuring their participation complies with all
+          applicable local, state, and federal laws. If you are unsure whether participation in fantasy sports is legal in your
+          jurisdiction, consult a licensed attorney.
+        </p>
+        <p className="mt-3">
+          For questions about geographic restrictions, contact:{" "}
+          <a href="mailto:support@allfantasy.ai" className="text-cyan-400 hover:text-cyan-300">
+            support@allfantasy.ai
+          </a>
+        </p>
+      </section>
+
+      <section>
         <h2 className="text-xl sm:text-2xl font-bold text-white mb-3">Purpose of the Platform</h2>
         <p>
           AllFantasy is a platform for <strong>fantasy sports entertainment and management tools</strong>.

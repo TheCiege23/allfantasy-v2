@@ -23,6 +23,8 @@ import {
 } from "@/lib/avatar/ProfileImageUploadStorageService"
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
+import { detectUserState } from "@/lib/geo/detectUserState"
+import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 
 export const runtime = "nodejs"
 
@@ -77,6 +79,43 @@ export async function POST(req: Request) {
     const isE2ERequest =
       process.env.NODE_ENV !== "production" &&
       req.headers.get("x-allfantasy-e2e") === "1"
+
+    let detectedStateCode: string | null = null
+    let stateRestrictionLevel: string | null = null
+    let isStateRestrictedFlag = false
+
+    if (!isE2ERequest) {
+      const geo = await detectUserState(req)
+      detectedStateCode = geo.stateCode
+      if (geo.stateCode && isFullyBlocked(geo.stateCode)) {
+        return NextResponse.json(
+          {
+            error: "GEO_BLOCKED",
+            stateCode: geo.stateCode,
+            message: `Account creation is not available in ${geo.stateCode}. Fantasy sports are prohibited under state law.`,
+          },
+          { status: 451 }
+        )
+      }
+      if (
+        geo.isVpnOrProxy &&
+        geo.stateCode &&
+        (isFullyBlocked(geo.stateCode) || isPaidBlocked(geo.stateCode))
+      ) {
+        return NextResponse.json(
+          {
+            error: "VPN_BLOCKED",
+            message:
+              "VPN or proxy usage is not permitted when accessing AllFantasy.ai from a restricted state.",
+          },
+          { status: 451 }
+        )
+      }
+      if (geo.stateCode && isPaidBlocked(geo.stateCode)) {
+        stateRestrictionLevel = "paid_block"
+        isStateRestrictedFlag = true
+      }
+    }
 
     const ip = getClientIp(req)
     if (!isE2ERequest) {
@@ -252,6 +291,9 @@ export async function POST(req: Request) {
           username,
           passwordHash,
           displayName: displayName?.trim() || username,
+          detectedStateCode,
+          stateRestrictionLevel,
+          isStateRestricted: isStateRestrictedFlag,
         },
         select: { id: true, email: true, username: true },
       })

@@ -163,6 +163,34 @@ const LANDING_COPY = {
       { value: '7', label: 'Sports covered' },
       { value: '1M+', label: 'AI analyses run' },
     ],
+    geoRestrictions: {
+      eyebrow: 'Availability',
+      title: 'State Availability',
+      subtitle: 'AllFantasy.ai complies with all applicable U.S. state laws regarding fantasy sports.',
+      fullBlockTitle: 'Not Available',
+      fullBlockDesc: 'Due to state law, AllFantasy.ai cannot be accessed from these states:',
+      fullBlockStates: [
+        {
+          code: 'WA',
+          name: 'Washington',
+          reason:
+            'All fantasy sports are classified as illegal sports wagering under state law (RCW 9.46.240), including free contests.',
+          badge: 'No Access',
+          badgeColor: 'red',
+        },
+      ],
+      paidBlockTitle: 'Free Access Only',
+      paidBlockDesc:
+        'Residents of these states may create free accounts and participate in free leagues, but cannot join paid leagues or purchase subscriptions:',
+      paidBlockStates: [
+        { code: 'HI', name: 'Hawaii', reason: 'Paid fantasy sports classified as illegal gambling (AG Opinion 16-1, 2016).' },
+        { code: 'ID', name: 'Idaho', reason: 'Paid fantasy sports constitute illegal gambling under Idaho Code §18-3802.' },
+        { code: 'MT', name: 'Montana', reason: 'Paid DFS contests classified as illegal under Montana Code §23-5-802.' },
+        { code: 'NV', name: 'Nevada', reason: 'Paid DFS requires a sports betting license under Nevada Gaming Control Board rules.' },
+      ],
+      disclaimer:
+        'State laws regarding fantasy sports are subject to change. This information reflects our legal review as of 2025. We are not providing legal advice. Contact support@allfantasy.ai with questions.',
+    },
     cta: {
       title: 'Your League. Your Rules. Your AI.',
       body:
@@ -335,6 +363,34 @@ const LANDING_COPY = {
       { value: '7', label: 'Deportes cubiertos' },
       { value: '1M+', label: 'Análisis IA ejecutados' },
     ],
+    geoRestrictions: {
+      eyebrow: 'Disponibilidad',
+      title: 'Disponibilidad por estado',
+      subtitle: 'AllFantasy.ai cumple las leyes estatales de EE. UU. aplicables al fantasy deportivo.',
+      fullBlockTitle: 'No disponible',
+      fullBlockDesc: 'Por ley estatal, AllFantasy.ai no puede ofrecerse desde estos estados:',
+      fullBlockStates: [
+        {
+          code: 'WA',
+          name: 'Washington',
+          reason:
+            'Todas las ligas fantasy se consideran apuestas deportivas ilegales según la ley estatal (RCW 9.46.240), incluidos torneos gratuitos.',
+          badge: 'Sin acceso',
+          badgeColor: 'red',
+        },
+      ],
+      paidBlockTitle: 'Solo acceso gratuito',
+      paidBlockDesc:
+        'Los residentes de estos estados pueden crear cuentas gratuitas y ligas gratuitas, pero no ligas de pago ni suscripciones:',
+      paidBlockStates: [
+        { code: 'HI', name: 'Hawaii', reason: 'Fantasy de pago ilegal según opinión del fiscal general (2016).' },
+        { code: 'ID', name: 'Idaho', reason: 'Fantasy de pago constituye juego ilegal según Idaho Code §18-3802.' },
+        { code: 'MT', name: 'Montana', reason: 'DFS de pago ilegal según Montana Code §23-5-802.' },
+        { code: 'NV', name: 'Nevada', reason: 'DFS de pago requiere licencia de apuestas según la junta de Nevada.' },
+      ],
+      disclaimer:
+        'Las leyes pueden cambiar. Esta información refleja nuestra revisión legal de 2025 y no es asesoría legal. Consultas: support@allfantasy.ai.',
+    },
     cta: {
       title: 'Tu liga. Tus reglas. Tu IA.',
       body:
@@ -890,6 +946,73 @@ export default function LandingPageClient() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-16 sm:px-8">
+        <div className="mb-8 text-center">
+          <p
+            className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em]"
+            style={{ color: "var(--muted)" }}
+          >
+            {copy.geoRestrictions.eyebrow}
+          </p>
+          <h2 className="mb-2 text-[28px] font-black sm:text-[36px]">{copy.geoRestrictions.title}</h2>
+          <p className="mx-auto max-w-2xl text-sm leading-6" style={{ color: "var(--muted)" }}>
+            {copy.geoRestrictions.subtitle}
+          </p>
+        </div>
+
+        <div
+              className="mb-6 rounded-2xl border p-6"
+              style={{
+                borderColor: "color-mix(in srgb, #ef4444 25%, var(--border))",
+                background: "color-mix(in srgb, #ef4444 5%, var(--panel))",
+              }}
+            >
+              <h3 className="mb-2 text-sm font-bold text-red-400">🔴 {copy.geoRestrictions.fullBlockTitle}</h3>
+              <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
+                {copy.geoRestrictions.fullBlockDesc}
+              </p>
+              {copy.geoRestrictions.fullBlockStates.map((s) => (
+                <div key={s.code} className="mb-3 flex items-start gap-3 last:mb-0">
+                  <span className="mt-0.5 rounded border border-red-500/30 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                    {s.code} · {s.name}
+                  </span>
+                  <p className="text-xs leading-5" style={{ color: "var(--muted)" }}>
+                    {s.reason}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div
+              className="rounded-2xl border p-6"
+              style={{
+                borderColor: "color-mix(in srgb, #f59e0b 25%, var(--border))",
+                background: "color-mix(in srgb, #f59e0b 5%, var(--panel))",
+              }}
+            >
+              <h3 className="mb-2 text-sm font-bold text-amber-400">🟡 {copy.geoRestrictions.paidBlockTitle}</h3>
+              <p className="mb-4 text-xs" style={{ color: "var(--muted)" }}>
+                {copy.geoRestrictions.paidBlockDesc}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {copy.geoRestrictions.paidBlockStates.map((s) => (
+                  <div key={s.code} className="flex items-start gap-3">
+                    <span className="mt-0.5 shrink-0 rounded border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                      {s.code} · {s.name}
+                    </span>
+                    <p className="text-xs leading-5" style={{ color: "var(--muted)" }}>
+                      {s.reason}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="mt-4 text-center text-[11px]" style={{ color: "var(--muted2)" }}>
+              {copy.geoRestrictions.disclaimer}
+            </p>
       </section>
 
       <section className="relative overflow-hidden px-6 pb-24 pt-4 text-center sm:px-8" aria-labelledby="landing-cta">

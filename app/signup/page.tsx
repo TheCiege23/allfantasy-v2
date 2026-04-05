@@ -44,6 +44,7 @@ import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { AuthStatusLoadingFallback } from "@/components/auth/AuthStatusShell"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
+import { useGeoRestriction } from "@/lib/geo/useGeoRestriction"
 import {
   ArrowLeft,
   ArrowRight,
@@ -151,6 +152,7 @@ function SignupContent() {
   const [suggestingUsername, setSuggestingUsername] = useState(false)
   const signupConversionTrackedRef = useRef(false)
   const autoTimezoneResolvedRef = useRef(false)
+  const geo = useGeoRestriction()
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
   const stepLabels = useMemo(
@@ -584,6 +586,66 @@ function SignupContent() {
     }
   }
 
+  if (!geo.loading && geo.isFullyBlocked) {
+    const sc = geo.stateCode ?? "WA"
+    return (
+      <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
+        <header
+          className="sticky top-0 z-40 border-b"
+          style={{
+            borderColor: "var(--border)",
+            background: "color-mix(in srgb, var(--bg) 90%, transparent)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+          }}
+        >
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/af-crest.png" alt="AllFantasy crest" className="h-7 w-7 object-contain" />
+              <span
+                className="text-xl font-semibold tracking-[0.08em]"
+                style={{
+                  backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                AllFantasy
+              </span>
+            </Link>
+          </div>
+        </header>
+        <main className="flex justify-center px-4 py-16">
+          <div className="w-full max-w-lg text-center">
+            <img
+              src="/af-crest.png"
+              alt=""
+              className="mx-auto mb-6 h-16 w-16 object-contain opacity-90"
+              style={{ filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))" }}
+            />
+            <h1 className="mb-3 text-2xl font-semibold">
+              🔴 AllFantasy.ai is not available in {geo.stateName ?? sc}
+            </h1>
+            <p className="mb-6 text-sm leading-7" style={{ color: "var(--muted)" }}>
+              State law prohibits fantasy sports services here. Account creation is not available from this location.
+            </p>
+            <Link
+              href={`/geo-blocked?state=${encodeURIComponent(sc)}`}
+              className="inline-flex rounded-xl px-5 py-3 text-sm font-semibold"
+              style={{
+                backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                color: "var(--on-accent-bg)",
+              }}
+            >
+              View details →
+            </Link>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   if (success) {
     const isPhone = verificationMethod === "PHONE"
     return (
@@ -804,6 +866,31 @@ function SignupContent() {
               </div>
             </div>
           )}
+
+          {!geo.loading && geo.isPaidBlocked && geo.stateCode ? (
+            <div
+              className="mb-4 rounded-2xl border p-4 text-sm leading-6"
+              style={{
+                borderColor: "color-mix(in srgb, var(--accent-amber-strong) 35%, transparent)",
+                background: "color-mix(in srgb, var(--accent-amber-strong) 10%, transparent)",
+                color: "var(--muted)",
+              }}
+            >
+              <p className="font-semibold text-amber-200">
+                🟡 Important: You&apos;re in {geo.stateName ?? geo.stateCode}
+              </p>
+              <p className="mt-2">
+                You can create a free account, but paid leagues and subscriptions are not available in your state due to state
+                law.{" "}
+                <Link
+                  href={`/paid-restricted?state=${encodeURIComponent(geo.stateCode)}`}
+                  className="font-medium text-cyan-400 underline"
+                >
+                  Learn more →
+                </Link>
+              </p>
+            </div>
+          ) : null}
 
           <form onSubmit={handleStepFormSubmit} className="space-y-4">
             <section

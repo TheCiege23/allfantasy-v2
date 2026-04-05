@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getStripeClient } from "@/lib/stripe-client"
+import { enforcePaidSubscriptionGeo } from "@/lib/geo/enforcePaidSubscriptionGeo"
 
 export const dynamic = "force-dynamic"
 
@@ -14,8 +15,11 @@ function appOrigin(): string {
   return "http://localhost:3000"
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const geoBlock = await enforcePaidSubscriptionGeo(req)
+    if (geoBlock) return geoBlock
+
     const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

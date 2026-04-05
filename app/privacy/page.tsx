@@ -61,6 +61,29 @@ export default async function PrivacyPage({ searchParams }: PrivacyPageProps) {
         <p className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-300 text-sm">
           <strong>Important:</strong> We never request or store your passwords for third-party platforms. We only access data available through their APIs.
         </p>
+        <h3 className="text-lg font-semibold text-cyan-300 mt-4 mb-2">Geographic Location Data</h3>
+        <p>
+          We collect your approximate geographic location (country, U.S. state/region) for legal compliance purposes. This data is
+          derived from your IP address using Vercel&apos;s network infrastructure and may be supplemented by VPN/proxy detection
+          services.
+        </p>
+        <p className="mt-3">We use this data solely to:</p>
+        <ul className="list-disc list-inside space-y-2 ml-4 mt-2">
+          <li>Comply with state laws restricting fantasy sports participation in certain U.S. states</li>
+          <li>Prevent circumvention of legally required restrictions</li>
+          <li>Provide you with accurate information about available features</li>
+        </ul>
+        <p className="mt-3">
+          We do not sell your geographic data. We do not store precise location data. State-level location data may be stored on
+          your account record for compliance purposes.
+        </p>
+        <p className="mt-3">
+          If you believe your state has been incorrectly identified, contact{" "}
+          <a href="mailto:support@allfantasy.ai" className="text-cyan-400 hover:text-cyan-300">
+            support@allfantasy.ai
+          </a>
+          . We may request verification of your actual location.
+        </p>
       </section>
 
       <section>

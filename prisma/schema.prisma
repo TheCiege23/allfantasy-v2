@@ -2577,6 +2577,11 @@ model AppUser {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  /// US state/region code from geo at signup (compliance; Vercel headers / IP).
+  detectedStateCode     String?
+  isStateRestricted     Boolean   @default(false)
+  stateRestrictionLevel String? // full_block | paid_block
+
   legacyUserId String?     @unique
   legacyUser   LegacyUser? @relation(fields: [legacyUserId], references: [id], onDelete: SetNull)
 

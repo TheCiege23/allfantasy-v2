@@ -11,6 +11,7 @@ import {
 } from "@/lib/monetization/catalog"
 import { resolveSafeReturnPath } from "@/lib/monetization/checkout-urls"
 import { buildStripeCheckoutDestinationForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
+import { enforcePaidSubscriptionGeo } from "@/lib/geo/enforcePaidSubscriptionGeo"
 
 type CheckoutTokensBody = {
   sku?: string
@@ -19,6 +20,9 @@ type CheckoutTokensBody = {
 
 export async function POST(req: Request) {
   try {
+    const geoBlock = await enforcePaidSubscriptionGeo(req)
+    if (geoBlock) return geoBlock
+
     const session = (await getServerSession(authOptions as any)) as
       | { user?: { id?: string; email?: string | null } }
       | null
