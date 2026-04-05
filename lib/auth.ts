@@ -94,30 +94,6 @@ async function ensureDevAuthUser() {
   return user;
 }
 
-/**
- * NextAuth `redirect` callback: safe same-origin redirects only; default signed-in landing is /dashboard
- * (never force / or /app/home when the client omitted a path).
- */
-function resolveSafePostLoginRedirect(url: string, baseUrl: string): string {
-  const raw = typeof url === "string" ? url.trim() : "";
-  if (!raw) {
-    return `${baseUrl}/dashboard`;
-  }
-  // Relative app paths — prepend baseUrl (reject protocol-relative //… URLs)
-  if (raw.startsWith("/") && !raw.startsWith("//")) {
-    return `${baseUrl}${raw}`;
-  }
-  try {
-    const target = new URL(raw);
-    if (target.origin === new URL(baseUrl).origin) {
-      return raw;
-    }
-  } catch {
-    // malformed absolute URL
-  }
-  return `${baseUrl}/dashboard`;
-}
-
 const providers: NextAuthOptions["providers"] = [
   CredentialsProvider({
     id: "credentials",
@@ -289,6 +265,7 @@ if (appleClientId && appleClientSecret) {
   );
 }
 
+/** NextAuth reads `NEXTAUTH_URL` from the environment for OAuth redirects (set in Vercel to your canonical origin). */
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
   session: {
@@ -363,8 +340,13 @@ export const authOptions: NextAuthOptions = {
 
       return session;
     },
-    async redirect({ url, baseUrl }) {
-      return resolveSafePostLoginRedirect(url, baseUrl);
+    /**
+     * After OAuth (e.g. Google), always land on the app dashboard so users are not
+     * dropped back on `/login` when `url` resolves incorrectly for the deployment.
+     * (NEXTAUTH_URL must match the site origin for OAuth callbacks.)
+     */
+    async redirect({ baseUrl }) {
+      return `${baseUrl.replace(/\/$/, "")}/dashboard`;
     },
   },
   events: {

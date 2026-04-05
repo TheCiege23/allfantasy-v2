@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 
+/** Paths that skip geo logic. Includes `/api/auth` so NextAuth + OAuth callbacks are never geo-blocked. */
 const GEO_EXEMPT_PREFIXES = [
   "/geo-blocked",
   "/paid-restricted",

@@ -223,8 +223,12 @@ export default function LoginContent() {
         return
       }
 
+      if (provider === "google" && googleEnabled) {
+        await signIn("google", { callbackUrl: "/dashboard" })
+        return
+      }
+
       if (
-        (provider === "google" && googleEnabled) ||
         (provider === "apple" && appleEnabled) ||
         isSocialProviderEnabled(provider)
       ) {
