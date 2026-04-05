@@ -19,12 +19,20 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const snapshot = await getSettingsSnapshot(session.user.id)
-  if (!snapshot) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
+  try {
+    const snapshot = await getSettingsSnapshot(session.user.id)
+    if (!snapshot) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
 
-  return NextResponse.json(snapshot)
+    return NextResponse.json(snapshot)
+  } catch (err) {
+    console.error("[api/user/settings] error:", err)
+    return NextResponse.json(
+      { error: "Failed to load settings" },
+      { status: 500 }
+    )
+  }
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useSession } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
@@ -210,6 +210,9 @@ export default function SettingsFullPage() {
   const email = profile?.email ?? session?.user?.email ?? ""
   const avatarUrl = profile?.profileImageUrl ?? session?.user?.image ?? null
 
+  const sleeperConnected = !!profile?.sleeperUsername
+  const discordConnected = !!profile?.discordUserId
+
   const persistAutoCoachGlobal = useCallback(async (next: boolean) => {
     setAutoCoachSaving(true)
     try {
@@ -390,44 +393,55 @@ export default function SettingsFullPage() {
     }
   }
 
-  if (loading && !profile) {
-    return (
-      <div className="min-h-screen bg-[#07071a] px-4 py-10 text-white/60">
-        Loading settings…
-      </div>
-    )
-  }
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-[#07071a] px-4 py-10 text-rose-300">
-        {error ?? "Could not load settings."}
-      </div>
-    )
-  }
-
-  const sleeperConnected = !!profile.sleeperUsername
-  const discordConnected = !!profile.discordUserId
-
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
       <div className="mx-auto max-w-xl px-4 py-6 pb-24">
-        <div className="mb-6">
-          <Link
-            href="/dashboard"
-            className="mb-3 inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
+        <div className="mb-6 flex flex-col gap-4 border-b border-white/[0.06] pb-6 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <Link
+              href="/dashboard"
+              className="mb-3 inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              ← Dashboard
+            </Link>
+            <h1 className="text-xl font-bold text-white">Settings</h1>
+          </div>
+          <button
+            type="button"
+            onClick={() => void signOut({ callbackUrl: "/" })}
+            className="shrink-0 self-start rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white/90 transition hover:bg-white/10"
           >
-            <ArrowLeft className="h-4 w-4" />
-            ← Dashboard
-          </Link>
-          <h1 className="text-xl font-bold text-white">Settings</h1>
+            Log out
+          </button>
         </div>
 
-        {error ? (
-          <p className="mb-4 text-sm text-amber-300/90">{error}</p>
-        ) : null}
+        {loading && !profile ? (
+          <p className="text-sm text-white/55">Loading settings…</p>
+        ) : !profile ? (
+          <div className="space-y-4">
+            <div
+              className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100/95"
+              role="alert"
+            >
+              {error ??
+                "Could not load your settings. You can sign out and try again later."}
+            </div>
+            <button
+              type="button"
+              onClick={() => void fetchProfile()}
+              className="rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-2 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/25"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <>
+            {error ? (
+              <p className="mb-4 text-sm text-amber-300/90">{error}</p>
+            ) : null}
 
-        {/* 1. Profile */}
+            {/* 1. Profile */}
         <section className={CARD}>
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-white/50">
             Profile
@@ -862,6 +876,8 @@ export default function SettingsFullPage() {
             </button>
           </div>
         </section>
+          </>
+        )}
       </div>
 
       {deleteOpen ? (

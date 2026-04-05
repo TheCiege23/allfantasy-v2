@@ -248,6 +248,14 @@ export async function POST(req: Request) {
       const isImporterCommissioner =
         Number.isFinite(season) && season >= currentYear && commissionerIds.has(platformLeagueId);
 
+      const numTeamsFromSettings = league.settings?.num_teams;
+      const leagueSize =
+        typeof numTeamsFromSettings === "number" &&
+        Number.isFinite(numTeamsFromSettings) &&
+        numTeamsFromSettings >= 1
+          ? numTeamsFromSettings
+          : 12;
+
       await prisma.league.upsert({
         where: {
           userId_platform_platformLeagueId_season: {
@@ -263,7 +271,7 @@ export async function POST(req: Request) {
           status: league.status || "pre_draft",
           settings: settingsJson,
           scoring,
-          leagueSize: league.settings?.num_teams ?? undefined,
+          leagueSize,
           isDynasty,
           sport: sportEnum,
           leagueVariant: isDynasty ? "dynasty" : "redraft",
@@ -279,7 +287,7 @@ export async function POST(req: Request) {
           platform: "sleeper",
           leagueVariant: isDynasty ? "dynasty" : "redraft",
           scoring,
-          leagueSize: league.settings?.num_teams ?? 12,
+          leagueSize,
           isDynasty,
           status: league.status || "pre_draft",
           settings: settingsJson,

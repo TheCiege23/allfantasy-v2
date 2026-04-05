@@ -51,7 +51,13 @@ export function useSettingsProfile() {
       if (!profileResult.ok) {
         setProfile(null)
         if (!settingsResult.ok) {
-          setError("Failed to load profile")
+          const msg =
+            typeof profileResult.data?.error === "string"
+              ? profileResult.data.error
+              : typeof settingsResult.data?.error === "string"
+                ? settingsResult.data.error
+                : "Failed to load profile"
+          setError(msg)
         }
         return
       }

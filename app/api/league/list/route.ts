@@ -222,17 +222,23 @@ export async function GET() {
       })
       .filter((lg: any) => !lg.hasUnifiedRecord)
 
+    const leagues = [...normalizedGeneric, ...normalizedSleeper]
+    console.log('[league/list] raw count before filter:', leagues.length)
+
     const filteredGeneric = normalizedGeneric.filter(isRealLeague)
     const filteredSleeper = normalizedSleeper.filter(isRealLeague)
+    const filtered = [...filteredGeneric, ...filteredSleeper]
+    console.log('[league/list] after isRealLeague filter:', filtered.length)
+    console.log('[league/list] sample raw league:', JSON.stringify(leagues[0]))
 
-    const leagues = [...filteredGeneric, ...filteredSleeper].sort((a: any, b: any) => {
+    const leaguesSorted = filtered.sort((a: any, b: any) => {
       const aDate = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0
       const bDate = b.lastSyncedAt ? new Date(b.lastSyncedAt).getTime() : 0
       return bDate - aDate
     })
 
     return NextResponse.json({
-      leagues,
+      leagues: leaguesSorted,
       sleeperUserId: profile?.sleeperUserId ?? null,
     })
   } catch (error: any) {

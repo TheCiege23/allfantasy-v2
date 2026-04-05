@@ -26,23 +26,31 @@ export async function GET() {
     )
   }
 
-  const snapshot = await getSettingsSnapshot(session.user.id)
-  const profile = snapshot?.profile ?? null
-  if (!snapshot || !profile) {
-    return NextResponse.json({
-      preferredLanguage: null,
-      timezone: null,
-      themePreference: null,
-    })
-  }
+  try {
+    const snapshot = await getSettingsSnapshot(session.user.id)
+    const profile = snapshot?.profile ?? null
+    if (!snapshot || !profile) {
+      return NextResponse.json({
+        preferredLanguage: null,
+        timezone: null,
+        themePreference: null,
+      })
+    }
 
-  return NextResponse.json({
-    ...profile,
-    settings: snapshot.settings,
-    preferredLanguage: profile.preferredLanguage,
-    timezone: profile.timezone,
-    themePreference: profile.themePreference,
-  })
+    return NextResponse.json({
+      ...profile,
+      settings: snapshot.settings,
+      preferredLanguage: profile.preferredLanguage,
+      timezone: profile.timezone,
+      themePreference: profile.themePreference,
+    })
+  } catch (err) {
+    console.error("[api/user/profile] error:", err)
+    return NextResponse.json(
+      { error: "Failed to load profile" },
+      { status: 500 }
+    )
+  }
 }
 
 type ProfileBody = {

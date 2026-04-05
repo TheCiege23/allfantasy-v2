@@ -89,15 +89,19 @@ export default function ImportPage() {
       });
 
       const text = await res.text();
-      let data: ImportResult & { error?: string };
+      let data: ImportResult & { error?: string; success?: boolean };
       try {
-        data = JSON.parse(text) as ImportResult & { error?: string };
+        data = JSON.parse(text) as ImportResult & { error?: string; success?: boolean };
       } catch {
         throw new Error(`Server error: ${text.slice(0, 150)}`);
       }
 
       if (!res.ok) {
         throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`));
+      }
+
+      if (data.success === true) {
+        router.push("/dashboard");
       }
 
       setResult({
