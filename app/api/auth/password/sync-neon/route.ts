@@ -42,20 +42,24 @@ export async function POST(req: Request) {
   }
 
   const email = user.email.toLowerCase()
-  const passwordHash = await bcrypt.hash(newPassword, 12)
 
   try {
-    const result = await prisma.appUser.updateMany({
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    const row = await prisma.appUser.findFirst({
       where: { email: { equals: email, mode: "insensitive" } },
+      select: { id: true },
+    })
+    if (!row) {
+      console.warn("[sync-neon] No app_users row for email after Supabase password update:", email)
+      return NextResponse.json({ ok: true, synced: false })
+    }
+    await prisma.appUser.update({
+      where: { id: row.id },
       data: { passwordHash },
     })
-    if (result.count === 0) {
-      console.warn("[sync-neon] No app_users row for email after Supabase password update:", email)
-    }
-  } catch (e) {
-    console.error("[sync-neon] prisma update failed:", e)
-    return NextResponse.json({ error: "SYNC_FAILED" }, { status: 500 })
+    return NextResponse.json({ ok: true, synced: true })
+  } catch (err) {
+    console.error("[sync-neon] DB sync failed (non-critical):", err)
+    return NextResponse.json({ ok: true, synced: false })
   }
-
-  return NextResponse.json({ ok: true })
 }

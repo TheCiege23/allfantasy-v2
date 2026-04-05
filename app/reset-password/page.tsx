@@ -75,28 +75,15 @@ function ResetPasswordContent() {
           data: { session },
         } = await supabase.auth.getSession()
         const accessToken = session?.access_token
-        if (!accessToken) {
-          setError("Session expired. Open the reset link from your email again.")
-          return
-        }
-        const syncRes = await fetch("/api/auth/password/sync-neon", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ newPassword: password }),
-        })
-        const syncData = await syncRes.json().catch(() => ({}))
-        if (!syncRes.ok) {
-          const errorMap: Record<string, string> = {
-            WEAK_PASSWORD: "Password must be at least 8 characters with a letter and number.",
-            SYNC_FAILED: "Could not sync password to your account. Try again or contact support.",
-            INVALID_SESSION: "Session expired. Open the reset link from your email again.",
-            UNAUTHORIZED: "Session expired. Open the reset link from your email again.",
-          }
-          setError(errorMap[String(syncData.error)] || "Something went wrong saving your password.")
-          return
+        if (accessToken) {
+          void fetch("/api/auth/password/sync-neon", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ newPassword: password }),
+          }).catch(() => {})
         }
         await supabase.auth.signOut().catch(() => {})
       } else {
@@ -123,7 +110,7 @@ function ResetPasswordContent() {
 
       setSuccess(true)
       setTimeout(() => {
-        window.location.href = `${loginHref}&reset=1`
+        window.location.href = `${loginHref}&reset=success`
       }, 2000)
     } catch {
       setError("Something went wrong. Please try again.")
