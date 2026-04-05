@@ -430,6 +430,7 @@ export function DashboardShell({
                   userImage={userImage}
                   onImport={handleTriggerImport}
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
+                  onSettingsNavigate={() => setMobileRightOpen(false)}
                   onLeaguesRefresh={onLeaguesRefresh}
                 />
               </div>

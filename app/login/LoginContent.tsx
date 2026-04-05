@@ -480,23 +480,21 @@ export default function LoginContent() {
                 </svg>
                 <span>{socialLoadingProvider === "google" ? "Opening..." : "Continue with Google"}</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => void handleSocialProvider("apple")}
-                disabled={socialLoadingProvider !== null}
-                className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border border-neutral-800 bg-black px-4 py-3 text-sm font-medium text-white transition hover:border-neutral-600 hover:bg-neutral-950 disabled:opacity-70"
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="white" aria-hidden="true">
-                  <path d="M12.71 9.43c-.02-2.14 1.75-3.17 1.83-3.22-1-1.46-2.55-1.66-3.1-1.68-1.33-.13-2.6.78-3.27.78-.67 0-1.7-.76-2.8-.74-1.44.02-2.76.83-3.5 2.12-1.5 2.59-.38 6.43 1.07 8.53.71 1.03 1.56 2.18 2.67 2.14 1.07-.04 1.48-.69 2.77-.69 1.3 0 1.67.69 2.81.67 1.15-.02 1.89-1.05 2.59-2.08.82-1.19 1.16-2.34 1.18-2.4-.03-.01-2.26-.87-2.25-3.43z" />
-                  <path d="M10.6 3.12c.59-.71.99-1.7.88-2.69-.85.03-1.88.57-2.49 1.27-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.47 2.5-1.17z" />
-                </svg>
-                <span>{socialLoadingProvider === "apple" ? "Opening..." : "Continue with Apple"}</span>
-              </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {[
+                {
+                  provider: "apple" as const,
+                  label: "Apple",
+                  soonOnly: true,
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 18 18" fill="white" aria-hidden="true">
+                      <path d="M12.71 9.43c-.02-2.14 1.75-3.17 1.83-3.22-1-1.46-2.55-1.66-3.1-1.68-1.33-.13-2.6.78-3.27.78-.67 0-1.7-.76-2.8-.74-1.44.02-2.76.83-3.5 2.12-1.5 2.59-.38 6.43 1.07 8.53.71 1.03 1.56 2.18 2.67 2.14 1.07-.04 1.48-.69 2.77-.69 1.3 0 1.67.69 2.81.67 1.15-.02 1.89-1.05 2.59-2.08.82-1.19 1.16-2.34 1.18-2.4-.03-.01-2.26-.87-2.25-3.43z" />
+                      <path d="M10.6 3.12c.59-.71.99-1.7.88-2.69-.85.03-1.88.57-2.49 1.27-.54.63-1.02 1.63-.89 2.59.94.07 1.9-.47 2.5-1.17z" />
+                    </svg>
+                  ),
+                },
                 {
                   provider: "facebook" as const,
                   label: "Facebook",
@@ -542,22 +540,28 @@ export default function LoginContent() {
                     </svg>
                   ),
                 },
-              ].map((item) => (
-                <button
-                  key={item.provider}
-                  type="button"
-                  onClick={() => void handleSocialProvider(item.provider)}
-                  disabled={socialLoadingProvider !== null}
-                  className="relative flex flex-col items-center gap-1 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-2 py-3 text-white transition hover:border-violet-300/45 hover:bg-[#211a3e] disabled:opacity-70"
-                  title={`Continue with ${item.label}`}
-                >
-                  <span className="absolute right-1 top-1 rounded border border-amber-400/30 bg-amber-500/15 px-1 text-[8px] font-bold uppercase tracking-[0.04em] text-amber-300">
-                    Soon
-                  </span>
-                  {item.icon}
-                  <span className="text-[10px] text-white/60">{item.label}</span>
-                </button>
-              ))}
+              ].map((item) => {
+                const soonOnly = "soonOnly" in item && item.soonOnly === true
+                return (
+                  <button
+                    key={item.provider}
+                    type="button"
+                    onClick={() => {
+                      if (soonOnly) return
+                      void handleSocialProvider(item.provider)
+                    }}
+                    disabled={socialLoadingProvider !== null || soonOnly}
+                    className={`relative flex flex-col items-center gap-1 rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-2 py-3 text-white transition hover:border-violet-300/45 hover:bg-[#211a3e] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-violet-400/30 disabled:hover:bg-[#1c1535]`}
+                    title={soonOnly ? `${item.label} — coming soon` : `Continue with ${item.label}`}
+                  >
+                    <span className="absolute right-1 top-1 rounded border border-amber-400/30 bg-amber-500/15 px-1 text-[8px] font-bold uppercase tracking-[0.04em] text-amber-300">
+                      Soon
+                    </span>
+                    {item.icon}
+                    <span className="text-[10px] text-white/60">{item.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
             <div className="mt-5 rounded-2xl border border-violet-400/20 bg-[#1c1535]/80 p-4">

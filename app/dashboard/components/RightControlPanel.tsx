@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, Settings } from 'lucide-react'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
@@ -29,8 +29,10 @@ export function RightControlPanel({
   userSubtitle,
   onImport,
   onAfterLeagueNavigate,
+  onSettingsNavigate,
   onLeaguesRefresh,
 }: RightControlPanelLayoutProps) {
+  const router = useRouter()
   const resolvedSelectedId = activeLeagueId ?? selectedId
   const subtitle =
     userSubtitle === ''
@@ -80,7 +82,7 @@ export function RightControlPanel({
       */}
 
       <div
-        className="flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-2 py-2"
+        className="relative z-10 flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-2 py-2"
         data-dashboard-user-id={userId}
         data-dashboard-profile-footer
       >
@@ -99,13 +101,18 @@ export function RightControlPanel({
             <p className="truncate text-[12px] leading-tight text-white/40">{subtitle}</p>
           ) : null}
         </div>
-        <Link
-          href="/settings"
+        <button
+          type="button"
+          data-testid="dashboard-right-settings"
           className="flex shrink-0 rounded-lg p-1 transition-colors hover:bg-white/[0.06]"
           aria-label="Settings"
+          onClick={() => {
+            onSettingsNavigate?.()
+            router.push('/settings')
+          }}
         >
           <Settings className="h-3.5 w-3.5 text-white/40 transition-colors hover:text-white/80" />
-        </Link>
+        </button>
       </div>
     </div>
   )

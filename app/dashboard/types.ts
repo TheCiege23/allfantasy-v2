@@ -76,6 +76,8 @@ export type RightControlPanelLayoutProps = {
   userSubtitle?: string | null
   onImport: () => void
   onAfterLeagueNavigate?: () => void
+  /** Called before navigating to Settings (e.g. close mobile leagues sheet). */
+  onSettingsNavigate?: () => void
   /** Refetch league list (e.g. after Sleeper refresh) */
   onLeaguesRefresh?: () => void
 }
