@@ -219,7 +219,7 @@ export async function POST(req: Request) {
       },
     })
   } catch (error) {
-    console.error("[auth][password-reset][request] email send failed", {
+    console.error("[pw-reset] email send failed:", {
       userId: user.id,
       email: user.email,
       error: error instanceof Error ? error.message : String(error),
