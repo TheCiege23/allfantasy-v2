@@ -18,23 +18,9 @@ export async function register(): Promise<void> {
   } catch {
     // Optional; do not block startup
   }
-  // BullMQ workers (including integrity) normally run via `scripts/start-worker.ts`.
-  // Set START_INTEGRITY_WORKER_WITH_NEXT=1 only on a dedicated Node host — not on Vercel serverless.
-  try {
-    if (process.env.START_INTEGRITY_WORKER_WITH_NEXT === "1") {
-      const { startIntegrityWorker } = await import("./lib/workers/integrity-worker");
-      startIntegrityWorker();
-    }
-  } catch {
-    // Non-fatal
-  }
-  // Same pattern as integrity: only on a dedicated Node worker host (not Vercel serverless).
-  try {
-    if (process.env.START_AUTOCOACH_STATUS_WORKER_WITH_NEXT === "1") {
-      const { startAutoCoachStatusWorker } = await import("./lib/workers/autocoach-status-worker");
-      startAutoCoachStatusWorker();
-    }
-  } catch {
-    // Non-fatal
-  }
+  // Do not import BullMQ workers here — webpack bundles instrumentation.ts and would pull
+  // bullmq/ioredis (Node-only: path, child_process, …) into the build and fail.
+  // Run workers via `scripts/start-worker.ts` or a dedicated Node process:
+  //   START_INTEGRITY_WORKER_WITH_NEXT / START_AUTOCOACH_STATUS_WORKER_WITH_NEXT
+  // are honored only when the worker entrypoint is used, not from Next instrumentation.
 }
