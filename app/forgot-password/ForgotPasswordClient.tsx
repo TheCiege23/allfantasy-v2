@@ -115,9 +115,13 @@ export default function ForgotPasswordClient() {
         email: emailValue,
         returnTo: safeReturnTo,
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data?.message || 'Could not send code. Try again.')
+        setError(
+          typeof data?.message === 'string'
+            ? data.message
+            : 'Could not send code. Try again.'
+        )
       } else {
         setStep('enter_code')
         setError(null)
@@ -148,11 +152,16 @@ export default function ForgotPasswordClient() {
         phone: normalized,
         returnTo: safeReturnTo,
       })
+      const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.message || 'Could not send code. Try email reset or try again later.')
+        setError(
+          typeof data?.message === 'string'
+            ? data.message
+            : 'Could not send code. Try email reset or try again later.'
+        )
       } else {
         setStep('enter_code')
+        setError(null)
       }
     } catch {
       setError('Something went wrong. Please try again.')
@@ -323,7 +332,7 @@ export default function ForgotPasswordClient() {
       <RecoveryPage
         backHref={loginHref}
         title="Reset via email"
-        subtitle="Enter your email. If an account exists, we'll only send a code to that address."
+        subtitle="We'll email a reset code only if this address is registered."
         footer={
           <button
             type="button"
@@ -338,7 +347,6 @@ export default function ForgotPasswordClient() {
           </button>
         }
       >
-        <RecoveryError error={error} />
         <RecoveryCard>
           <form onSubmit={handleRequestEmail} className="space-y-4">
             <div>
@@ -346,7 +354,10 @@ export default function ForgotPasswordClient() {
               <div className="relative mt-1.5">
                 <input
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (error) setError(null)
+                  }}
                   type="email"
                   autoComplete="email"
                   className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 pl-10 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
@@ -356,6 +367,9 @@ export default function ForgotPasswordClient() {
                 />
                 <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               </div>
+              {error ? (
+                <p className="mt-1.5 text-xs text-red-200/90">{error}</p>
+              ) : null}
             </div>
             <button
               type="submit"
@@ -385,7 +399,7 @@ export default function ForgotPasswordClient() {
       <RecoveryPage
         backHref={loginHref}
         title="Reset via SMS"
-        subtitle="Enter the phone number on your account and we'll send a 6-digit code."
+        subtitle="We'll text a reset code only if this number is on file."
         footer={
           <button
             type="button"
@@ -401,7 +415,6 @@ export default function ForgotPasswordClient() {
           </button>
         }
       >
-        <RecoveryError error={error} />
         <RecoveryCard>
           <form onSubmit={handleRequestSms} className="space-y-4">
             <div>
@@ -409,7 +422,10 @@ export default function ForgotPasswordClient() {
               <div className="relative mt-1.5">
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    setPhone(e.target.value)
+                    if (error) setError(null)
+                  }}
                   type="tel"
                   autoComplete="tel"
                   className="w-full rounded-[10px] border border-violet-400/30 bg-[#1c1535] px-3.5 py-3 pl-10 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
@@ -419,6 +435,9 @@ export default function ForgotPasswordClient() {
                 />
                 <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
               </div>
+              {error ? (
+                <p className="mt-1.5 text-xs text-red-200/90">{error}</p>
+              ) : null}
             </div>
             <button
               type="submit"
@@ -450,8 +469,8 @@ export default function ForgotPasswordClient() {
         title="Enter code and new password"
         subtitle={
           method === 'email'
-            ? `Check your inbox. If ${email || 'that email'} has an account, a code is on its way. Enter it below with your new password.`
-            : `Check your messages. If this number has an account on file, a code is on its way. Enter it below with your new password.`
+            ? `If ${email.trim() || 'that email'} has an account with us, a reset code is on its way. Check your inbox (and spam folder). Enter the code below with your new password.`
+            : `If this phone number has an account with us, a reset code is on its way. Check your messages. Enter the code below with your new password.`
         }
       >
         <RecoveryError error={error} />

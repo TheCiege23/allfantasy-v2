@@ -7,6 +7,7 @@ import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  try {
   const ip = getClientIp(req)
   const rl = rateLimit(`pw-reset:${ip}`, 5, 600_000)
   if (!rl.success) {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
       ip,
       detail: { limiter: "pw-reset" },
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   const body = await req.json().catch(() => ({}))
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
         phone,
         ip,
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true }, { status: 200 })
     }
     const profile = await (prisma as any).userProfile.findUnique({
       where: { phone },
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
         phone,
         ip,
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true }, { status: 200 })
     }
 
     const code = String(Math.floor(100000 + Math.random() * 900000))
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
           phone,
           ip,
         })
-        return NextResponse.json({ ok: true })
+        return NextResponse.json({ ok: true }, { status: 200 })
       }
       await client.messages.create({
         body: `Your AllFantasy password reset code is: ${code}. It expires in 15 minutes.`,
@@ -96,9 +97,9 @@ export async function POST(req: Request) {
         ip,
         detail: { error: error instanceof Error ? error.message : String(error) },
       })
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true }, { status: 200 })
     }
-    return NextResponse.json({ ok: true, method: "sms" })
+    return NextResponse.json({ ok: true, method: "sms" }, { status: 200 })
   }
 
   if (!email) {
@@ -107,7 +108,7 @@ export async function POST(req: Request) {
       type: "email",
       ip,
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   const user = await (prisma as any).appUser.findUnique({
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
       email,
       ip,
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   const code = String(Math.floor(100000 + Math.random() * 900000))
@@ -201,7 +202,7 @@ export async function POST(req: Request) {
         where: { userId: user.id },
       }).catch(() => {})
       // Same response as unknown email — avoid account enumeration via status codes.
-      return NextResponse.json({ ok: true })
+      return NextResponse.json({ ok: true }, { status: 200 })
     }
     void logPasswordResetAudit({
       outcome: "email_sent",
@@ -235,9 +236,13 @@ export async function POST(req: Request) {
     await (prisma as any).passwordResetToken.deleteMany({
       where: { userId: user.id },
     }).catch(() => {})
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
-  return NextResponse.json({ ok: true, method: "email" })
+  return NextResponse.json({ ok: true, method: "email" }, { status: 200 })
+  } catch (err) {
+    console.error("[password/reset/request] unexpected:", err)
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
 }
 
