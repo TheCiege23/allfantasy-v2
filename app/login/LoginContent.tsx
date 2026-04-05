@@ -17,10 +17,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 import { validateSignInInput } from "@/lib/auth/SignInFormController"
-import {
-  resolveLoginErrorMessage,
-  resolveSleeperLoginErrorMessage,
-} from "@/lib/auth/AuthErrorMessageResolver"
+import { resolveLoginErrorMessage } from "@/lib/auth/AuthErrorMessageResolver"
 import {
   clearUnifiedAuthDestination,
   rememberUnifiedAuthDestination,
@@ -71,8 +68,6 @@ export default function LoginContent() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [sleeperUsername, setSleeperUsername] = useState("")
-  const [sleeperLoading, setSleeperLoading] = useState(false)
   const [devBypassLoading, setDevBypassLoading] = useState(false)
 
   const [adminPassword, setAdminPassword] = useState("")
@@ -182,34 +177,6 @@ export default function LoginContent() {
       setAdminError(err?.message || t("login.error.failed"))
     } finally {
       setAdminLoading(false)
-    }
-  }
-
-  async function handleSleeperLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    const username = sleeperUsername.trim()
-    if (!username) {
-      setError("Enter your Sleeper username.")
-      return
-    }
-    setSleeperLoading(true)
-    try {
-      const result = await signIn("sleeper", {
-        sleeperUsername: username,
-        redirect: false,
-        callbackUrl,
-      })
-      if (result?.error) {
-        setError(resolveSleeperLoginErrorMessage(result.error))
-      } else {
-        clearUnifiedAuthDestination()
-        router.replace(postLoginRedirect)
-      }
-    } catch {
-      setError(t("common.error.tryAgain"))
-    } finally {
-      setSleeperLoading(false)
     }
   }
 
@@ -562,40 +529,6 @@ export default function LoginContent() {
                   </button>
                 )
               })}
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-violet-400/20 bg-[#1c1535]/80 p-4">
-              <form onSubmit={handleSleeperLogin} className="space-y-3">
-                <div>
-                  <label htmlFor="sleeper-username" className="block text-xs font-semibold tracking-[0.02em] text-white/60">
-                    Sleeper username
-                  </label>
-                  <input
-                    id="sleeper-username"
-                    value={sleeperUsername}
-                    onChange={(e) => setSleeperUsername(e.target.value)}
-                    type="text"
-                    autoComplete="username"
-                    disabled={sleeperLoading}
-                    placeholder="@your_sleeper_name"
-                    className="mt-1.5 w-full rounded-[10px] border border-violet-400/30 bg-[#211a3e] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={sleeperLoading || !sleeperUsername.trim()}
-                  className="w-full rounded-[10px] border border-violet-400/30 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
-                >
-                  {sleeperLoading ? (
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t("common.signingIn")}
-                    </span>
-                  ) : (
-                    "Continue with Sleeper"
-                  )}
-                </button>
-              </form>
             </div>
 
             {showDevBypass && (

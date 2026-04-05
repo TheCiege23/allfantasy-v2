@@ -52,22 +52,11 @@ import {
   TriangleAlert,
   Eye,
   EyeOff,
-  Search,
   CheckCircle2,
-  XCircle,
-  User,
   Sparkles,
   X,
   CreditCard,
 } from "lucide-react"
-
-interface SleeperResult {
-  found: boolean
-  username?: string
-  userId?: string
-  displayName?: string
-  avatar?: string | null
-}
 
 const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
   crest: "🏆",
@@ -134,9 +123,6 @@ function SignupContent() {
   const [showDlModal, setShowDlModal] = useState(false)
   const [currentStep, setCurrentStep] = useState<SignupStep>(1)
   const [disclaimerScrolledToEnd, setDisclaimerScrolledToEnd] = useState(false)
-  const [sleeperUsername, setSleeperUsername] = useState("")
-  const [sleeperResult, setSleeperResult] = useState<SleeperResult | null>(null)
-  const [sleeperLooking, setSleeperLooking] = useState(false)
   const [legacyImportMessage, setLegacyImportMessage] = useState<string | null>(null)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "PHONE">("EMAIL")
@@ -203,28 +189,6 @@ function SignupContent() {
       return acc
     }, {})
   }, [])
-
-  const lookupSleeper = useCallback(async () => {
-    if (!sleeperUsername.trim() || sleeperLooking) return
-    setSleeperLooking(true)
-    setSleeperResult(null)
-    setLegacyImportMessage(null)
-    try {
-      const res = await fetch(`/api/auth/sleeper-lookup?username=${encodeURIComponent(sleeperUsername.trim())}`)
-      const data = await res.json().catch(() => ({}))
-      setSleeperResult(data)
-      if (data?.found) {
-        setLegacyImportMessage("Sleeper account linked. We’ll queue import after account creation.")
-      } else {
-        setLegacyImportMessage("Sleeper account not found. You can still create your account and import later.")
-      }
-    } catch {
-      setSleeperResult({ found: false })
-      setLegacyImportMessage("Could not look up Sleeper right now. You can import later from Settings.")
-    } finally {
-      setSleeperLooking(false)
-    }
-  }, [sleeperUsername, sleeperLooking])
 
   const applyUsernameSuggestion = useCallback(async () => {
     const base = username.trim() || "user"
@@ -313,16 +277,6 @@ function SignupContent() {
 
   function handleLegacyImportProviderClick(provider: LegacyImportProvider) {
     setLegacyImportMessage(getLegacyImportProviderMessage(provider))
-  }
-
-  async function runPostSignupProfileSetup() {
-    if (sleeperResult?.found && sleeperResult.username) {
-      await fetch("/api/legacy/import", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sleeper_username: sleeperResult.username }),
-      }).catch(() => null)
-    }
   }
 
   useEffect(() => {
@@ -513,7 +467,6 @@ function SignupContent() {
           password,
           displayName: username.trim(),
           phone: normalizePhoneForSubmit(phone) || undefined,
-          sleeperUsername: sleeperResult?.found ? sleeperResult.username : undefined,
           ageConfirmed,
           verificationMethod,
           phoneVerificationCode:
@@ -564,7 +517,6 @@ function SignupContent() {
       })
 
       if (!signInResult?.error) {
-        await runPostSignupProfileSetup()
         if (typeof window !== "undefined") {
           window.localStorage.setItem("af_lang", preferredLanguage === "es" ? "es" : "en")
           window.localStorage.setItem("af_mode", mode)
@@ -1243,28 +1195,6 @@ function SignupContent() {
                   <p className="mb-3 text-xs leading-5" style={{ color: "var(--muted)" }}>
                     Import your fantasy history to get placed into rankings and level systems. Skip it for now and start at level 1.
                   </p>
-                  <div className="mb-3 flex gap-2">
-                    <input
-                      value={sleeperUsername}
-                      onChange={(e) => {
-                        setSleeperUsername(e.target.value)
-                        setSleeperResult(null)
-                        setLegacyImportMessage(null)
-                      }}
-                      className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none transition"
-                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
-                      placeholder="Sleeper username"
-                    />
-                    <button
-                      type="button"
-                      onClick={lookupSleeper}
-                      disabled={sleeperLooking || !sleeperUsername.trim()}
-                      className="rounded-xl border px-4 py-3 text-sm transition disabled:opacity-50"
-                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
-                    >
-                      {sleeperLooking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                    </button>
-                  </div>
                   <div className="flex flex-wrap gap-2">
                     {LEGACY_IMPORT_PROVIDERS.filter((provider) => provider.id !== "sleeper").map((provider) => (
                       <button
@@ -1287,45 +1217,6 @@ function SignupContent() {
                     </button>
                   </div>
                   {legacyImportMessage && <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>{legacyImportMessage}</p>}
-                  {sleeperResult?.found && (
-                    <div
-                      className="mt-3 flex items-center gap-3 rounded-xl border p-3"
-                      style={{
-                        borderColor: "color-mix(in srgb, var(--accent-emerald-strong) 30%, transparent)",
-                        background: "color-mix(in srgb, var(--accent-emerald-strong) 10%, transparent)",
-                      }}
-                    >
-                      {sleeperResult.avatar ? (
-                        <img src={sleeperResult.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "var(--panel)" }}>
-                          <User className="h-4 w-4" style={{ color: "var(--muted2)" }} />
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium" style={{ color: "var(--accent-emerald-strong)" }}>
-                          {sleeperResult.displayName}
-                        </div>
-                        <div className="text-xs" style={{ color: "var(--muted2)" }}>
-                          @{sleeperResult.username}
-                        </div>
-                      </div>
-                      <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: "var(--accent-emerald-strong)" }} />
-                    </div>
-                  )}
-                  {sleeperResult && !sleeperResult.found && (
-                    <div
-                      className="mt-3 flex items-center gap-2 rounded-xl border p-3 text-sm"
-                      style={{
-                        borderColor: "color-mix(in srgb, var(--accent-red-strong) 30%, transparent)",
-                        background: "color-mix(in srgb, var(--accent-red-strong) 10%, transparent)",
-                        color: "color-mix(in srgb, #fff 88%, var(--accent-red-strong))",
-                      }}
-                    >
-                      <XCircle className="h-4 w-4 shrink-0" />
-                      Sleeper user not found. Check the username and try again.
-                    </div>
-                  )}
                 </div>
 
                 <div className="mt-6 flex gap-3">
