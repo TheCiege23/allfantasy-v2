@@ -1,27 +1,49 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+'use client'
+
+import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { CreateLeagueView } from '@/components/league-creation'
 
-export const dynamic = 'force-dynamic'
+function CreateLeagueContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
 
-export default async function CreateLeaguePage(props: { searchParams?: Promise<{ template?: string; e2eAuth?: string }> | { template?: string; e2eAuth?: string } }) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const sp = props.searchParams ?? {}
-  const resolved = typeof (sp as Promise<{ template?: string; e2eAuth?: string }>).then === 'function'
-    ? await (sp as Promise<{ template?: string; e2eAuth?: string }>)
-    : (sp as { template?: string; e2eAuth?: string })
+  const initialTemplateId = searchParams.get('template') ?? undefined
+  const e2eAuth = searchParams.get('e2eAuth')
   const allowE2EBypass =
-    process.env.NODE_ENV !== 'production' &&
-    resolved?.e2eAuth === '1'
+    process.env.NODE_ENV !== 'production' && e2eAuth === '1'
+
   const userId = session?.user?.id ?? (allowE2EBypass ? 'e2e-user' : undefined)
-  if (!userId) redirect('/login?callbackUrl=/create-league')
-  const initialTemplateId = resolved?.template
+
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!userId) {
+      router.replace('/login?callbackUrl=/create-league')
+    }
+  }, [status, userId, router])
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
+        <div className="flex min-h-screen items-center justify-center px-4 text-sm text-white/60">Loading…</div>
+      </div>
+    )
+  }
+
+  if (!userId) {
+    return (
+      <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
+        <div className="flex min-h-screen items-center justify-center px-4 text-sm text-white/60">Redirecting…</div>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen text-white bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))]">
-      <header className="px-4 pt-4 pb-2">
+    <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
+      <header className="px-4 pb-2 pt-4">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <Link
             href="/app"
@@ -36,5 +58,19 @@ export default async function CreateLeaguePage(props: { searchParams?: Promise<{
       </header>
       <CreateLeagueView userId={userId} initialTemplateId={initialTemplateId} />
     </div>
+  )
+}
+
+export default function CreateLeaguePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
+          <div className="flex min-h-screen items-center justify-center px-4 text-sm text-white/60">Loading…</div>
+        </div>
+      }
+    >
+      <CreateLeagueContent />
+    </Suspense>
   )
 }

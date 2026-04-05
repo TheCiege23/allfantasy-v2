@@ -1,8 +1,9 @@
+/** Prefer pooled runtime URLs first; use DIRECT / non-pooling only as fallbacks (e.g. local dev). */
 const DATABASE_URL_ENV_KEYS = [
-  "DIRECT_URL",
   "DATABASE_URL",
   "POSTGRES_PRISMA_URL",
   "POSTGRES_URL",
+  "DIRECT_URL",
   "POSTGRES_URL_NON_POOLING",
 ] as const
 

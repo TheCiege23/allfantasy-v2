@@ -84,6 +84,7 @@ function applyNonProdConnectionGuardrails(rawUrl: string): string {
 }
 
 function createPrismaClient() {
+  // Runtime URL: resolveDatabaseUrl() prefers DATABASE_URL / pooler keys before DIRECT_URL (see lib/env/database-url.ts).
   const databaseUrl = applyNonProdConnectionGuardrails(getDatabaseUrlOrThrow());
 
   if (!process.env.DATABASE_URL?.trim()) {
