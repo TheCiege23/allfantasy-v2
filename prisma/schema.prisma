@@ -4355,6 +4355,37 @@ model AutoCoachSwapLog {
   @@map("auto_coach_swap_logs")
 }
 
+/// Canonical player inactive-status events for AutoCoach (multi-source aggregation).
+model PlayerStatusEvent {
+  id        String @id @default(cuid())
+
+  externalId   String
+  playerName   String
+  sport        String
+  teamAbbrev   String?
+
+  newStatus      String
+  previousStatus String?
+  statusReason   String?
+
+  source        String
+  sourceUrl     String?
+  sourceRawText String?
+  confidence    Float @default(1.0)
+
+  gameDate   DateTime?
+  detectedAt DateTime @default(now())
+
+  autoCoachTriggered   Boolean   @default(false)
+  autoCoachTriggeredAt DateTime?
+
+  @@index([externalId, detectedAt])
+  @@index([sport, gameDate])
+  @@index([detectedAt])
+  @@index([autoCoachTriggered])
+  @@map("player_status_events")
+}
+
 /// Commissioner-managed draft & league draft-time settings (one row per league).
 model LeagueSettings {
   id       String @id @default(cuid())

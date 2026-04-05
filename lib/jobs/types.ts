@@ -8,6 +8,7 @@ export const QUEUE_NAMES = {
   SIMULATIONS: "simulations",
   DEVY: "devy",
   INTEGRITY: "integrity",
+  AUTOCOACH_STATUS: "autocoach_status",
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -89,4 +90,12 @@ export interface IntegrityJobPayload {
   tradeTransactionId?: string
   tradingRosterIds?: string[]
   weekNumber?: number
+}
+
+/** AutoCoach multi-source status intelligence (BullMQ). */
+export interface AutoCoachStatusJobPayload {
+  type: "status_scan_all_sports" | "status_scan_sport" | "status_scan_player"
+  sport?: string
+  playerId?: string
+  gameDate?: string
 }

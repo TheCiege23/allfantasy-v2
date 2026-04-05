@@ -137,6 +137,10 @@ export function getDevyQueue(): Queue | null {
   return getQueue(QUEUE_NAMES.DEVY);
 }
 
+export function getAutoCoachStatusQueue(): Queue | null {
+  return getQueue(QUEUE_NAMES.AUTOCOACH_STATUS);
+}
+
 /**
  * Named exports to support existing route imports like:
  * import { simulationQueue, redis } from "@/lib/queues/bullmq"

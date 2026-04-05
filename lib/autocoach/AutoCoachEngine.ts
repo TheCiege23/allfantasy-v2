@@ -16,12 +16,14 @@ import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
 import { isGameSlateStarted, toSlateDateUtc } from '@/lib/autocoach/StatusMonitor'
 import type { AutoCoachSwapResult } from '@/lib/autocoach/types'
 
+/** Canonical inactive tokens that trigger AutoCoach (aligned with status intelligence worker). */
 export const AUTOCOACH_SWAP_STATUSES = new Set([
   'OUT',
   'IR',
   'INJURED_RESERVE',
   'INACTIVE',
   'SCRATCHED',
+  'SCRATCH',
   'DNP',
   'DL',
   'IL',
@@ -30,6 +32,36 @@ export const AUTOCOACH_SWAP_STATUSES = new Set([
   'RULED_OUT',
   'INJURED',
   'PUP',
+  'NFI',
+  'PHYSICALLY_UNABLE_TO_PERFORM',
+  'RESERVE',
+  'G_LEAGUE',
+  'TWO_WAY',
+  'BEREAVEMENT',
+  'PATERNITY',
+  'RESTRICTED',
+  '60_DAY_IL',
+  '10_DAY_IL',
+  'LTIR',
+  'SB',
+  'NRSE',
+  'NOT_ROSTER_ELIGIBLE',
+  'DISMISSED',
+  'ACADEMIC',
+  'RED_CARD_SUSPENSION',
+  'INTERNATIONAL_DUTY',
+])
+
+/** User-managed / game-time — never auto-swap on these. */
+export const AUTOCOACH_UNCERTAIN_STATUSES = new Set([
+  'QUESTIONABLE',
+  'DOUBTFUL',
+  'PROBABLE',
+  'GTD',
+  'GAME_TIME_DECISION',
+  'DAY_TO_DAY',
+  'GAME_TIME',
+  'GAMETIME',
 ])
 
 export const BESTBALL_VARIANTS = new Set(['best_ball', 'bestball', 'best-ball'])
@@ -38,7 +70,23 @@ export function normalizeStatusToken(status: string): string {
   return status.toUpperCase().replace(/\s+/g, '_')
 }
 
+export function isUncertainStatusForSwap(status: string): boolean {
+  const t = normalizeStatusToken(status)
+  if (AUTOCOACH_UNCERTAIN_STATUSES.has(t)) return true
+  const lower = status.toLowerCase()
+  if (
+    /questionable|doubtful|probable|game\s*-?\s*time|gtd|day\s*-?\s*to\s*-?\s*day|game\s*time\s*decision/i.test(
+      lower
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
 export function isSwapEligibleStatus(status: string): boolean {
+  if (!status?.trim()) return false
+  if (isUncertainStatusForSwap(status)) return false
   return AUTOCOACH_SWAP_STATUSES.has(normalizeStatusToken(status))
 }
 

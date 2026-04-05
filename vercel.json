@@ -215,6 +215,10 @@
     {
       "path": "/api/cron/autocoach-pregame",
       "schedule": "*/5 6-23 * * *"
+    },
+    {
+      "path": "/api/cron/autocoach-status-scan",
+      "schedule": "*/3 6-23 * * *"
     }
   ]
 }

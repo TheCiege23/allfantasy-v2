@@ -28,4 +28,13 @@ export async function register(): Promise<void> {
   } catch {
     // Non-fatal
   }
+  // Same pattern as integrity: only on a dedicated Node worker host (not Vercel serverless).
+  try {
+    if (process.env.START_AUTOCOACH_STATUS_WORKER_WITH_NEXT === "1") {
+      const { startAutoCoachStatusWorker } = await import("./lib/workers/autocoach-status-worker");
+      startAutoCoachStatusWorker();
+    }
+  } catch {
+    // Non-fatal
+  }
 }
