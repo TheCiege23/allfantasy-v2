@@ -94,27 +94,28 @@ async function ensureDevAuthUser() {
   return user;
 }
 
+/**
+ * NextAuth `redirect` callback: safe same-origin redirects only; default signed-in landing is /dashboard
+ * (never force / or /app/home when the client omitted a path).
+ */
 function resolveSafePostLoginRedirect(url: string, baseUrl: string): string {
-  try {
-    const base = new URL(baseUrl);
-    const resolved = url.startsWith("/") ? new URL(url, baseUrl) : new URL(url);
-
-    if (resolved.origin !== base.origin) {
-      return `${baseUrl}/app/home`;
-    }
-
-    if (resolved.pathname === "/login") {
-      const callbackUrl = resolved.searchParams.get("callbackUrl");
-      if (callbackUrl?.startsWith("/app")) {
-        return new URL(callbackUrl, baseUrl).toString();
-      }
-      return `${baseUrl}/app/home`;
-    }
-
-    return resolved.toString();
-  } catch {
-    return `${baseUrl}/app/home`;
+  const raw = typeof url === "string" ? url.trim() : "";
+  if (!raw) {
+    return `${baseUrl}/dashboard`;
   }
+  // Relative app paths — prepend baseUrl (reject protocol-relative //… URLs)
+  if (raw.startsWith("/") && !raw.startsWith("//")) {
+    return `${baseUrl}${raw}`;
+  }
+  try {
+    const target = new URL(raw);
+    if (target.origin === new URL(baseUrl).origin) {
+      return raw;
+    }
+  } catch {
+    // malformed absolute URL
+  }
+  return `${baseUrl}/dashboard`;
 }
 
 const providers: NextAuthOptions["providers"] = [

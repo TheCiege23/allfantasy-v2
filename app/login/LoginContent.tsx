@@ -35,6 +35,8 @@ function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined):
   if (typeof callbackUrl === "string") {
     const trimmed = callbackUrl.trim()
     if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+      // Plain "/" would send users to the marketing home — default to app dashboard
+      if (trimmed === "/") return "/dashboard"
       return trimmed
     }
   }
@@ -131,7 +133,7 @@ export default function LoginContent() {
         login: login.trim(),
         password,
         redirect: false,
-        callbackUrl,
+        callbackUrl: postLoginRedirect,
       })
 
       if (result?.error) {
@@ -187,7 +189,7 @@ export default function LoginContent() {
     try {
       const result = await signIn("dev-bypass", {
         redirect: false,
-        callbackUrl,
+        callbackUrl: postLoginRedirect,
       })
 
       if (result?.error) {
@@ -214,7 +216,7 @@ export default function LoginContent() {
         await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
+            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
           },
         })
         return
@@ -224,7 +226,7 @@ export default function LoginContent() {
         await supabase.auth.signInWithOAuth({
           provider: "apple",
           options: {
-            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl }) ?? undefined,
+            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
           },
         })
         return
@@ -235,14 +237,14 @@ export default function LoginContent() {
         (provider === "apple" && appleEnabled) ||
         isSocialProviderEnabled(provider)
       ) {
-        await signIn(provider, { callbackUrl })
+        await signIn(provider, { callbackUrl: postLoginRedirect })
         return
       }
 
       router.push(
         buildProviderPendingHref({
           provider,
-          callbackUrl,
+          callbackUrl: postLoginRedirect,
         })
       )
     } finally {

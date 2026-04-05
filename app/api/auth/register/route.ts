@@ -149,6 +149,14 @@ export async function POST(req: Request) {
       referralCode: referralCodeFromBody,
     } = body
 
+    // Accept legacy/alternate keys (e.g. integrations sending termsAccepted).
+    const termsAgreedResolved = Boolean(
+      termsAgreed ?? (body as { termsAccepted?: unknown }).termsAccepted
+    )
+    const disclaimerAgreedResolved = Boolean(
+      disclaimerAgreed ?? (body as { disclaimerAccepted?: unknown }).disclaimerAccepted
+    )
+
     const cookieStore = await cookies()
     const referralCodeFromCookie = cookieStore.get("af_ref")?.value ?? null
     const referralCode = typeof referralCodeFromBody === "string" && referralCodeFromBody.trim()
@@ -186,8 +194,8 @@ export async function POST(req: Request) {
     }
 
     const agreementsValidation = validateAgreementAcceptance({
-      termsAgreed: Boolean(termsAgreed),
-      disclaimerAgreed: Boolean(disclaimerAgreed),
+      termsAgreed: termsAgreedResolved,
+      disclaimerAgreed: disclaimerAgreedResolved,
     })
     if (!agreementsValidation.ok) {
       return NextResponse.json({ error: agreementsValidation.error }, { status: 400 })
