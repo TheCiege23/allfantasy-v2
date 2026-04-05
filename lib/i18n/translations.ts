@@ -21,7 +21,7 @@ export const translations: Record<string, Record<string, string>> = {
     // Login
     "login.title": "Welcome back",
     "login.subtitle": "Sign in once to access WebApp, Bracket, and Legacy.",
-    "login.afterSignInSubtitle": "After sign in, you'll go to your Dashboard.",
+    "login.afterSignInSubtitle": "After sign in, you'll be taken to your Dashboard.",
     "login.error.enterIdentifier": "Enter your email, username, or phone number.",
     "login.error.enterPassword": "Enter your password.",
     "login.error.invalidCredentials": "Invalid email, username, or password.",
@@ -939,7 +939,7 @@ export const translations: Record<string, Record<string, string>> = {
     // Login
     "login.title": "Bienvenido de nuevo",
     "login.subtitle": "Inicia sesión una vez para acceder a WebApp, Bracket y Legacy.",
-    "login.afterSignInSubtitle": "Después de iniciar sesión, irás a tu panel.",
+    "login.afterSignInSubtitle": "Después de iniciar sesión, irás a tu panel principal.",
     "login.error.enterIdentifier": "Ingresa tu correo, usuario o teléfono.",
     "login.error.enterPassword": "Ingresa tu contraseña.",
     "login.error.invalidCredentials": "Correo, usuario o contraseña inválidos.",
