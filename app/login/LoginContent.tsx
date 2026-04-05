@@ -118,7 +118,7 @@ export default function LoginContent() {
     e.preventDefault()
     setError(null)
     if (!login.trim()) {
-      setError("Please enter your email, username, or phone.")
+      setError("Please enter your email, username, or phone number.")
       return
     }
     if (!password.trim()) {
@@ -366,16 +366,10 @@ export default function LoginContent() {
               </div>
 
               <div>
-                <div className="mb-1.5 flex items-center justify-between gap-3">
+                <div className="mb-1.5 flex items-center justify-between">
                   <label htmlFor="login-password" className="text-[13px] font-semibold tracking-[0.02em] text-white/60">
                     {t("common.password")}
                   </label>
-                  <Link
-                    href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`}
-                    className="text-[12.5px] font-medium text-cyan-400 transition hover:opacity-75"
-                  >
-                    {t("login.forgotPassword")}
-                  </Link>
                 </div>
                 <div className="relative">
                   <input
@@ -396,6 +390,14 @@ export default function LoginContent() {
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
+                </div>
+                <div className="mb-2 mt-1 flex justify-end">
+                  <Link
+                    href={`/forgot-password?method=email&returnTo=${encodeURIComponent(callbackUrl)}`}
+                    className="text-sm font-medium text-cyan-400 transition hover:opacity-75"
+                  >
+                    {t("login.forgotPassword")}
+                  </Link>
                 </div>
               </div>
 

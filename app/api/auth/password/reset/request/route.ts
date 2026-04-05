@@ -7,6 +7,7 @@ import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  try {
   const ip = getClientIp(req)
   const rl = rateLimit(`pw-reset:${ip}`, 5, 600_000)
   if (!rl.success) {
@@ -16,7 +17,7 @@ export async function POST(req: Request) {
       ip,
       detail: { limiter: "pw-reset" },
     })
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true }, { status: 200 })
   }
 
   const body = await req.json().catch(() => ({}))

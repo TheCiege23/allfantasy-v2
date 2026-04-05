@@ -135,6 +135,8 @@ function SignupContent() {
   >("idle")
   const [usernameMessage, setUsernameMessage] = useState<string>("")
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
+  /** After user clicks Continue on step 1 — avoids noisy unchecked-DB copy while typing */
+  const [usernameContinueAttempted, setUsernameContinueAttempted] = useState(false)
   const [disclaimerAgreed, setDisclaimerAgreed] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
   const [suggestingUsername, setSuggestingUsername] = useState(false)
@@ -420,6 +422,9 @@ function SignupContent() {
   }
 
   function handleNextStep(step: SignupStep) {
+    if (step === 1) {
+      setUsernameContinueAttempted(true)
+    }
     if (!validateStep(step)) return
     setCurrentStep(Math.min(4, step + 1) as SignupStep)
   }
@@ -498,7 +503,7 @@ function SignupContent() {
       if (!res.ok) {
         if (data.code === "DB_UNAVAILABLE") {
           setError(
-            "Our servers are temporarily unavailable. Please try again in a moment."
+            "Our servers are briefly unavailable. Please try again in a moment."
           )
         } else {
           const backendError =
@@ -894,7 +899,7 @@ function SignupContent() {
                       onChange={(e) => {
                         const v = e.target.value.replace(/[^A-Za-z0-9_]/g, "")
                         setUsername(v)
-                        if (error === "Enter a username." && v.trim().length >= 3) {
+                        if (v.trim().length >= 3) {
                           setError("")
                         }
                       }}
@@ -926,13 +931,18 @@ function SignupContent() {
                           Could not verify
                         </span>
                       )}
-                      {usernameStatus === "unchecked" && (
+                      {usernameStatus === "unchecked" && usernameContinueAttempted && (
                         <span className="text-xs" style={{ color: "var(--muted2)" }}>
                           Not verified live
                         </span>
                       )}
                     </div>
-                    {usernameMessage && <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>{usernameMessage}</p>}
+                    {usernameMessage &&
+                      (usernameStatus !== "unchecked" || usernameContinueAttempted) && (
+                        <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
+                          {usernameMessage}
+                        </p>
+                      )}
                     {usernameStatus === "taken" && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         <button

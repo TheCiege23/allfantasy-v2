@@ -43,8 +43,8 @@ export async function GET(req: Request) {
       status: existing ? "taken" : "ok",
       verified: true,
     })
-  } catch (error) {
-    console.error("[check-username] error:", error)
+  } catch (e) {
+    console.error("[check-username] DB error:", e)
     return NextResponse.json(
       {
         ok: true,
