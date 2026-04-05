@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const assertLeagueMemberMock = vi.fn()
 const requireFeatureEntitlementMock = vi.fn()
@@ -97,7 +98,7 @@ describe("POST /api/trade-evaluator contract", () => {
   it("returns 401 when unauthenticated", async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/trade-evaluator/route")
-    const req = new Request("http://localhost/api/trade-evaluator", {
+    const req = createMockNextRequest("http://localhost/api/trade-evaluator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildValidTradeEvaluatorBody()),
@@ -111,7 +112,7 @@ describe("POST /api/trade-evaluator contract", () => {
   it("returns 403 when user is not a member of league", async () => {
     assertLeagueMemberMock.mockRejectedValueOnce(new Error("Forbidden"))
     const { POST } = await import("@/app/api/trade-evaluator/route")
-    const req = new Request("http://localhost/api/trade-evaluator", {
+    const req = createMockNextRequest("http://localhost/api/trade-evaluator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
@@ -143,7 +144,7 @@ describe("POST /api/trade-evaluator contract", () => {
     })
 
     const { POST } = await import("@/app/api/trade-evaluator/route")
-    const req = new Request("http://localhost/api/trade-evaluator", {
+    const req = createMockNextRequest("http://localhost/api/trade-evaluator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildValidTradeEvaluatorBody()),
@@ -172,7 +173,7 @@ describe("POST /api/trade-evaluator contract", () => {
     })
 
     const { POST } = await import("@/app/api/trade-evaluator/route")
-    const req = new Request("http://localhost/api/trade-evaluator", {
+    const req = createMockNextRequest("http://localhost/api/trade-evaluator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildValidTradeEvaluatorBody()),
@@ -210,7 +211,7 @@ describe("POST /api/trade-evaluator contract", () => {
     })
 
     const { POST } = await import("@/app/api/trade-evaluator/route")
-    const req = new Request("http://localhost/api/trade-evaluator", {
+    const req = createMockNextRequest("http://localhost/api/trade-evaluator", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(

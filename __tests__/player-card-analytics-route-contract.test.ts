@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getPlayerCardAnalyticsMock = vi.fn()
 
 vi.mock('@/lib/player-card-analytics', () => ({
@@ -15,7 +16,7 @@ describe('Player card analytics route contract', () => {
     const { POST } = await import('@/app/api/player-card-analytics/route')
 
     const missingNameRes = await POST(
-      new Request('http://localhost/api/player-card-analytics', {
+      createMockNextRequest('http://localhost/api/player-card-analytics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sport: 'NFL' }),
@@ -25,7 +26,7 @@ describe('Player card analytics route contract', () => {
     await expect(missingNameRes.json()).resolves.toEqual({ error: 'playerName is required' })
 
     const badSportRes = await POST(
-      new Request('http://localhost/api/player-card-analytics', {
+      createMockNextRequest('http://localhost/api/player-card-analytics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerName: 'Patrick Mahomes', sport: 'invalid' }),
@@ -35,7 +36,7 @@ describe('Player card analytics route contract', () => {
     await expect(badSportRes.json()).resolves.toEqual({ error: 'Invalid sport' })
 
     const badSeasonRes = await POST(
-      new Request('http://localhost/api/player-card-analytics', {
+      createMockNextRequest('http://localhost/api/player-card-analytics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerName: 'Patrick Mahomes', season: '20A5' }),
@@ -60,7 +61,7 @@ describe('Player card analytics route contract', () => {
     })
 
     const res = await POST(
-      new Request('http://localhost/api/player-card-analytics', {
+      createMockNextRequest('http://localhost/api/player-card-analytics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMockNextRequest } from '@/__tests__/helpers/createMockNextRequest';
 
 const runTwoPlayerComparisonEngineMock = vi.fn();
 const comparePlayersMultiMock = vi.fn();
@@ -38,7 +39,7 @@ describe('GET /api/player-comparison contract', () => {
 
   it('returns 400 when player params are missing', async () => {
     const { GET } = await import('@/app/api/player-comparison/route');
-    const req = { nextUrl: new URL('http://localhost/api/player-comparison') } as any;
+    const req = createMockNextRequest('http://localhost/api/player-comparison');
     const res = await GET(req);
     expect(res.status).toBe(400);
   });
@@ -67,11 +68,9 @@ describe('GET /api/player-comparison contract', () => {
     });
 
     const { GET } = await import('@/app/api/player-comparison/route');
-    const req = {
-      nextUrl: new URL(
-        'http://localhost/api/player-comparison?playerA=Player%20A&playerB=Player%20B&includeAIExplanation=true'
-      ),
-    } as any;
+    const req = createMockNextRequest(
+      'http://localhost/api/player-comparison?playerA=Player%20A&playerB=Player%20B&includeAIExplanation=true'
+    );
     const res = await GET(req);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -143,7 +142,7 @@ describe('POST /api/player-comparison contract', () => {
     });
 
     const { POST } = await import('@/app/api/player-comparison/route');
-    const req = new Request('http://localhost/api/player-comparison', {
+    const req = createMockNextRequest('http://localhost/api/player-comparison', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -154,7 +153,7 @@ describe('POST /api/player-comparison contract', () => {
       }),
     });
 
-    const res = await POST(req as any);
+    const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.players).toHaveLength(2);
@@ -190,7 +189,7 @@ describe('POST /api/player-comparison contract', () => {
     });
 
     const { POST } = await import('@/app/api/player-comparison/route');
-    const req = new Request('http://localhost/api/player-comparison', {
+    const req = createMockNextRequest('http://localhost/api/player-comparison', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -199,7 +198,7 @@ describe('POST /api/player-comparison contract', () => {
       }),
     });
 
-    const res = await POST(req as any);
+    const res = await POST(req);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.players).toHaveLength(3);

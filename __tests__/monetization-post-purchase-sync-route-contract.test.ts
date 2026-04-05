@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const userSubscriptionFindFirstMock = vi.hoisted(() => vi.fn())
 const tokenLedgerFindFirstMock = vi.hoisted(() => vi.fn())
@@ -64,7 +65,7 @@ describe('GET /api/monetization/post-purchase-sync', () => {
 
   it('returns no_session sync status without session id', async () => {
     const { GET } = await import('@/app/api/monetization/post-purchase-sync/route')
-    const res = await GET(new Request('http://localhost/api/monetization/post-purchase-sync'))
+    const res = await GET(createMockNextRequest('http://localhost/api/monetization/post-purchase-sync'))
 
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -97,7 +98,7 @@ describe('GET /api/monetization/post-purchase-sync', () => {
 
     const { GET } = await import('@/app/api/monetization/post-purchase-sync/route')
     const res = await GET(
-      new Request('http://localhost/api/monetization/post-purchase-sync?session_id=cs_test_123')
+      createMockNextRequest('http://localhost/api/monetization/post-purchase-sync?session_id=cs_test_123')
     )
 
     expect(res.status).toBe(200)

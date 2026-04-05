@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const evaluateUserFeatureAccessMock = vi.fn()
 
@@ -27,7 +28,7 @@ describe("POST /api/subscription/feature-gate contract", () => {
   it("returns 401 when user is unauthenticated", async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/subscription/feature-gate/route")
-    const req = new Request("http://localhost/api/subscription/feature-gate", {
+    const req = createMockNextRequest("http://localhost/api/subscription/feature-gate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ featureId: "ai_chat" }),
@@ -50,7 +51,7 @@ describe("POST /api/subscription/feature-gate contract", () => {
       },
     })
     const { POST } = await import("@/app/api/subscription/feature-gate/route")
-    const req = new Request("http://localhost/api/subscription/feature-gate", {
+    const req = createMockNextRequest("http://localhost/api/subscription/feature-gate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ featureId: "ai_chat" }),
@@ -77,7 +78,7 @@ describe("POST /api/subscription/feature-gate contract", () => {
       },
     })
     const { POST } = await import("@/app/api/subscription/feature-gate/route")
-    const req = new Request("http://localhost/api/subscription/feature-gate", {
+    const req = createMockNextRequest("http://localhost/api/subscription/feature-gate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ featureId: "ai_chat" }),

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const getConnectedTargetsMock = vi.hoisted(() => vi.fn())
 const setAutoPostingMock = vi.hoisted(() => vi.fn())
@@ -39,7 +40,7 @@ describe("Share targets route contract", () => {
     ])
 
     const { POST } = await import("@/app/api/share/targets/route")
-    const req = new Request("http://localhost/api/share/targets", {
+    const req = createMockNextRequest("http://localhost/api/share/targets", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ platform: "instagram", action: "connect" }),
@@ -75,7 +76,7 @@ describe("Share targets route contract", () => {
       ])
 
     const { POST } = await import("@/app/api/share/targets/route")
-    const req = new Request("http://localhost/api/share/targets", {
+    const req = createMockNextRequest("http://localhost/api/share/targets", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ platform: "x", action: "connect" }),
@@ -101,7 +102,7 @@ describe("Share targets route contract", () => {
     ])
 
     const { POST } = await import("@/app/api/share/targets/route")
-    const req = new Request("http://localhost/api/share/targets", {
+    const req = createMockNextRequest("http://localhost/api/share/targets", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ platform: "x", autoPostingEnabled: true }),

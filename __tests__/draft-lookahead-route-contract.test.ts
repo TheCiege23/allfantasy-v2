@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const canAccessLeagueDraftMock = vi.fn()
 const publishDraftIntelStateMock = vi.fn()
@@ -30,7 +31,7 @@ describe('POST /api/draft/lookahead contract', () => {
   it('returns 401 when unauthenticated', async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/draft/lookahead/route')
-    const req = new Request('http://localhost/api/draft/lookahead', {
+    const req = createMockNextRequest('http://localhost/api/draft/lookahead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId: 'league-1' }),
@@ -43,7 +44,7 @@ describe('POST /api/draft/lookahead contract', () => {
     getServerSessionMock.mockResolvedValueOnce({ user: { id: 'user-1' } })
     canAccessLeagueDraftMock.mockResolvedValueOnce(false)
     const { POST } = await import('@/app/api/draft/lookahead/route')
-    const req = new Request('http://localhost/api/draft/lookahead', {
+    const req = createMockNextRequest('http://localhost/api/draft/lookahead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId: 'league-1' }),
@@ -65,7 +66,7 @@ describe('POST /api/draft/lookahead contract', () => {
     sendDraftIntelDmMock.mockResolvedValueOnce({ threadId: 'thread-1', sent: true })
 
     const { POST } = await import('@/app/api/draft/lookahead/route')
-    const req = new Request('http://localhost/api/draft/lookahead', {
+    const req = createMockNextRequest('http://localhost/api/draft/lookahead', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ leagueId: 'league-1', trigger: 'n_minus_5' }),

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const generateMatchupStoryMock = vi.fn()
 
 vi.mock('@/lib/matchup-story-engine', () => ({
@@ -13,7 +14,7 @@ describe('POST /api/simulation/matchup/story contract', () => {
 
   it('returns 400 when payload is invalid', async () => {
     const { POST } = await import('@/app/api/simulation/matchup/story/route')
-    const req = new Request('http://localhost/api/simulation/matchup/story', {
+    const req = createMockNextRequest('http://localhost/api/simulation/matchup/story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamAName: 'Alpha' }),
@@ -33,7 +34,7 @@ describe('POST /api/simulation/matchup/story contract', () => {
     })
 
     const { POST } = await import('@/app/api/simulation/matchup/story/route')
-    const req = new Request('http://localhost/api/simulation/matchup/story', {
+    const req = createMockNextRequest('http://localhost/api/simulation/matchup/story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -64,7 +65,7 @@ describe('POST /api/simulation/matchup/story contract', () => {
     })
 
     const { POST } = await import('@/app/api/simulation/matchup/story/route')
-    const req = new Request('http://localhost/api/simulation/matchup/story', {
+    const req = createMockNextRequest('http://localhost/api/simulation/matchup/story', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

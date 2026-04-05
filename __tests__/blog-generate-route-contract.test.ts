@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const generateBlogDraftMock = vi.hoisted(() => vi.fn())
 const buildBlogSEOMock = vi.hoisted(() => vi.fn())
 const suggestInternalLinksMock = vi.hoisted(() => vi.fn())
@@ -38,7 +39,7 @@ describe("blog generate route contract", () => {
     ])
 
     const { POST } = await import("@/app/api/blog/generate/route")
-    const req = new Request("http://localhost/api/blog/generate", {
+    const req = createMockNextRequest("http://localhost/api/blog/generate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -59,7 +60,7 @@ describe("blog generate route contract", () => {
 
   it("rejects invalid category", async () => {
     const { POST } = await import("@/app/api/blog/generate/route")
-    const req = new Request("http://localhost/api/blog/generate", {
+    const req = createMockNextRequest("http://localhost/api/blog/generate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

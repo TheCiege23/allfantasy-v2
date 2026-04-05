@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const publishFantasyMediaEpisodeMock = vi.hoisted(() => vi.fn())
 const persistRefreshedYouTubeAccessTokenMock = vi.hoisted(() => vi.fn())
@@ -30,7 +31,7 @@ describe("Fantasy media publish route contract", () => {
   it("requires authentication", async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/fantasy-media/episodes/[id]/publish/route")
-    const res = await POST(new Request("http://localhost/api/fantasy-media/episodes/ep-1/publish"), {
+    const res = await POST(createMockNextRequest("http://localhost/api/fantasy-media/episodes/ep-1/publish"), {
       params: Promise.resolve({ id: "ep-1" }),
     })
 
@@ -47,7 +48,7 @@ describe("Fantasy media publish route contract", () => {
     })
 
     const { POST } = await import("@/app/api/fantasy-media/episodes/[id]/publish/route")
-    const req = new Request("http://localhost/api/fantasy-media/episodes/ep-default/publish", {
+    const req = createMockNextRequest("http://localhost/api/fantasy-media/episodes/ep-default/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),
@@ -107,7 +108,7 @@ describe("Fantasy media publish route contract", () => {
     )
 
     const { POST } = await import("@/app/api/fantasy-media/episodes/[id]/publish/route")
-    const req = new Request("http://localhost/api/fantasy-media/episodes/ep-1/publish", {
+    const req = createMockNextRequest("http://localhost/api/fantasy-media/episodes/ep-1/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ destinationType: "youtube" }),
@@ -161,7 +162,7 @@ describe("Fantasy media publish route contract", () => {
     )
 
     const { POST } = await import("@/app/api/fantasy-media/episodes/[id]/publish/route")
-    const req = new Request("http://localhost/api/fantasy-media/episodes/ep-2/publish", {
+    const req = createMockNextRequest("http://localhost/api/fantasy-media/episodes/ep-2/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ destinationType: "x" }),

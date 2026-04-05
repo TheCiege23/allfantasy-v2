@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockNextRequest } from '@/__tests__/helpers/createMockNextRequest'
 
 const getServerSessionMock = vi.fn()
 const checkProviderAvailabilityMock = vi.fn()
@@ -33,7 +34,7 @@ describe('GET /api/ai/providers contract', () => {
     getServerSessionMock.mockResolvedValue(null)
 
     const { GET } = await import('@/app/api/ai/providers/route')
-    const res = await GET()
+    const res = await GET(createMockNextRequest('http://localhost/api/ai/providers'))
 
     expect(res.status).toBe(401)
     await expect(res.json()).resolves.toEqual({ error: 'Unauthorized' })
@@ -50,7 +51,7 @@ describe('GET /api/ai/providers contract', () => {
     isOpenClawGrowthConfiguredMock.mockReturnValue(false)
 
     const { GET } = await import('@/app/api/ai/providers/route')
-    const res = await GET()
+    const res = await GET(createMockNextRequest('http://localhost/api/ai/providers'))
 
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchInlineSnapshot(`
@@ -62,6 +63,11 @@ describe('GET /api/ai/providers contract', () => {
           "openclaw": true,
           "openclawGrowth": false,
         },
+        "endpoints": {
+          "health": "/api/ai/providers/health",
+          "status": "/api/ai/providers/status",
+        },
+        "health": null,
         "providers": [
           {
             "available": true,

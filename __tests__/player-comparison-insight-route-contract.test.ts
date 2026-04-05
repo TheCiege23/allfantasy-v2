@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const requireFeatureEntitlementMock = vi.fn()
 
@@ -48,7 +49,7 @@ describe("POST /api/player-comparison/insight contract", () => {
   it("returns 401 when unauthenticated", async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/player-comparison/insight/route")
-    const req = new Request("http://localhost/api/player-comparison/insight", {
+    const req = createMockNextRequest("http://localhost/api/player-comparison/insight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ players: ["A", "B"], summaryLines: ["line"] }),
@@ -76,7 +77,7 @@ describe("POST /api/player-comparison/insight contract", () => {
       ),
     })
     const { POST } = await import("@/app/api/player-comparison/insight/route")
-    const req = new Request("http://localhost/api/player-comparison/insight", {
+    const req = createMockNextRequest("http://localhost/api/player-comparison/insight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ players: ["A", "B"], summaryLines: ["line"] }),
@@ -92,7 +93,7 @@ describe("POST /api/player-comparison/insight contract", () => {
   it("returns deterministic fallback recommendation when providers unavailable", async () => {
     getServerSessionMock.mockResolvedValueOnce({ user: { id: "user-1" } })
     const { POST } = await import("@/app/api/player-comparison/insight/route")
-    const req = new Request("http://localhost/api/player-comparison/insight", {
+    const req = createMockNextRequest("http://localhost/api/player-comparison/insight", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

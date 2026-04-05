@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const shareableMomentFindFirstMock = vi.hoisted(() => vi.fn())
 const shareableMomentUpdateMock = vi.hoisted(() => vi.fn())
@@ -37,7 +38,7 @@ describe("Share approve route contract", () => {
     getServerSessionMock.mockResolvedValueOnce(null)
 
     const { POST } = await import("@/app/api/share/[shareId]/approve/route")
-    const req = new Request("http://localhost/api/share/share-1/approve", {
+    const req = createMockNextRequest("http://localhost/api/share/share-1/approve", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ approved: true }),
@@ -60,7 +61,7 @@ describe("Share approve route contract", () => {
     getSharePublishLogsMock.mockResolvedValueOnce([{ id: "log-1", status: "success" }])
 
     const { POST } = await import("@/app/api/share/[shareId]/approve/route")
-    const req = new Request("http://localhost/api/share/share-1/approve", {
+    const req = createMockNextRequest("http://localhost/api/share/share-1/approve", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ approved: true }),

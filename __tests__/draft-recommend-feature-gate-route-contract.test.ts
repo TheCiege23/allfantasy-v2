@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const runDraftAIAssistMock = vi.fn()
 const requireFeatureEntitlementMock = vi.fn()
@@ -53,7 +54,7 @@ describe('POST /api/draft/recommend feature gate contract', () => {
   it('returns 401 when unauthenticated', async () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/draft/recommend/route')
-    const req = new Request('http://localhost/api/draft/recommend', {
+    const req = createMockNextRequest('http://localhost/api/draft/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ available: [], teamRoster: [], rosterSlots: [] }),
@@ -75,7 +76,7 @@ describe('POST /api/draft/recommend feature gate contract', () => {
       ),
     })
     const { POST } = await import('@/app/api/draft/recommend/route')
-    const req = new Request('http://localhost/api/draft/recommend', {
+    const req = createMockNextRequest('http://localhost/api/draft/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -93,7 +94,7 @@ describe('POST /api/draft/recommend feature gate contract', () => {
   it('returns recommendation payload when gate allows', async () => {
     getServerSessionMock.mockResolvedValueOnce({ user: { id: 'user-1' } })
     const { POST } = await import('@/app/api/draft/recommend/route')
-    const req = new Request('http://localhost/api/draft/recommend', {
+    const req = createMockNextRequest('http://localhost/api/draft/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

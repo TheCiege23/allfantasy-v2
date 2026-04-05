@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const getGlobalIntelligenceMock = vi.fn()
 
@@ -34,7 +35,7 @@ describe('Global intelligence route contracts', () => {
   it('validates required leagueId', async () => {
     const { POST } = await import('@/app/api/intelligence/global/route')
     const res = await POST(
-      new Request('http://localhost/api/intelligence/global', {
+      createMockNextRequest('http://localhost/api/intelligence/global', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -50,7 +51,7 @@ describe('Global intelligence route contracts', () => {
   it('forwards normalized include, season, and week to engine', async () => {
     const { POST } = await import('@/app/api/intelligence/global/route')
     const res = await POST(
-      new Request('http://localhost/api/intelligence/global', {
+      createMockNextRequest('http://localhost/api/intelligence/global', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -79,7 +80,7 @@ describe('Global intelligence route contracts', () => {
     getServerSessionMock.mockResolvedValueOnce(null)
 
     const res = await POST(
-      new Request('http://localhost/api/intelligence/global', {
+      createMockNextRequest('http://localhost/api/intelligence/global', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leagueId: 'lg-2', include: ['media'] }),

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const suggestLeaguesMock = vi.fn()
 const bracketLeagueFindManyMock = vi.fn()
@@ -35,7 +36,7 @@ describe('League discovery suggest route contracts', () => {
 
     getServerSessionMock.mockResolvedValueOnce(null)
     const unauthRes = await POST(
-      new Request('http://localhost/api/league/discovery/suggest', {
+      createMockNextRequest('http://localhost/api/league/discovery/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -44,7 +45,7 @@ describe('League discovery suggest route contracts', () => {
     expect(unauthRes.status).toBe(401)
 
     const noSourceRes = await POST(
-      new Request('http://localhost/api/league/discovery/suggest', {
+      createMockNextRequest('http://localhost/api/league/discovery/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preferences: { skillLevel: 'intermediate' } }),
@@ -64,7 +65,7 @@ describe('League discovery suggest route contracts', () => {
     })
 
     const res = await POST(
-      new Request('http://localhost/api/league/discovery/suggest', {
+      createMockNextRequest('http://localhost/api/league/discovery/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,7 +124,7 @@ describe('League discovery suggest route contracts', () => {
     })
 
     const res = await POST(
-      new Request('http://localhost/api/league/discovery/suggest', {
+      createMockNextRequest('http://localhost/api/league/discovery/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

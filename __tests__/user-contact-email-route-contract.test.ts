@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const rateLimitMock = vi.hoisted(() => vi.fn(() => ({ success: true })))
 const getClientIpMock = vi.hoisted(() => vi.fn(() => "127.0.0.1"))
@@ -106,7 +107,7 @@ describe("User contact email route contracts", () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "new@example.com" }),
@@ -121,7 +122,7 @@ describe("User contact email route contracts", () => {
     rateLimitMock.mockReturnValueOnce({ success: false })
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "new@example.com" }),
@@ -135,7 +136,7 @@ describe("User contact email route contracts", () => {
   it("validates email format", async () => {
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "bad-email" }),
@@ -149,7 +150,7 @@ describe("User contact email route contracts", () => {
   it("requires current password for password accounts", async () => {
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "new@example.com" }),
@@ -164,7 +165,7 @@ describe("User contact email route contracts", () => {
     bcryptCompareMock.mockResolvedValueOnce(false)
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "new@example.com", currentPassword: "wrong-pass" }),
@@ -179,7 +180,7 @@ describe("User contact email route contracts", () => {
     appUserFindFirstMock.mockResolvedValueOnce({ id: "u2" })
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "taken@example.com", currentPassword: "Password123!" }),
@@ -193,7 +194,7 @@ describe("User contact email route contracts", () => {
   it("returns unchanged when email matches current value", async () => {
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: "OLD@example.com", currentPassword: "Password123!" }),
@@ -218,7 +219,7 @@ describe("User contact email route contracts", () => {
     })
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -259,7 +260,7 @@ describe("User contact email route contracts", () => {
 
     const { POST } = await import("@/app/api/user/contact/email/route")
     const res = await POST(
-      new Request("http://localhost/api/user/contact/email", {
+      createMockNextRequest("http://localhost/api/user/contact/email", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

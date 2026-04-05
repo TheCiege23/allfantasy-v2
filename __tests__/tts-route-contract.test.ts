@@ -1,3 +1,4 @@
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.fn();
@@ -5,7 +6,7 @@ const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
 function buildRequest(body: Record<string, unknown>) {
-  return new Request("http://localhost/api/tts", {
+  return createMockNextRequest("http://localhost/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

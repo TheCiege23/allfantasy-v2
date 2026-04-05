@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const entitlementResolveForUserMock = vi.hoisted(() => vi.fn())
@@ -46,7 +47,7 @@ describe("Resolver-backed entitlement/token routes", () => {
 
   it("subscription entitlements route delegates to resolver and preserves shape", async () => {
     const { GET } = await import("@/app/api/subscription/entitlements/route")
-    const req = new Request("http://localhost/api/subscription/entitlements?feature=ai_chat")
+    const req = createMockNextRequest("http://localhost/api/subscription/entitlements?feature=ai_chat")
     const res = await GET(req)
     expect(res.status).toBe(200)
     await expect(res.json()).resolves.toMatchObject({

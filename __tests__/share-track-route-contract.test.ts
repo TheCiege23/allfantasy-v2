@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const analyticsEventCreateMock = vi.hoisted(() => vi.fn())
 
@@ -33,7 +34,7 @@ describe('share track route contract', () => {
   it('rejects invalid share events', async () => {
     const { POST } = await import('@/app/api/share/track/route')
     const response = await POST(
-      new Request('http://localhost/api/share/track', {
+      createMockNextRequest('http://localhost/api/share/track', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ event: 'invalid_event' }),
@@ -47,7 +48,7 @@ describe('share track route contract', () => {
   it('stores sanitized analytics metadata for valid share events', async () => {
     const { POST } = await import('@/app/api/share/track/route')
     const response = await POST(
-      new Request('http://localhost/api/share/track', {
+      createMockNextRequest('http://localhost/api/share/track', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

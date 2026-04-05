@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getPlatformPowerLeaderboardMock = vi.fn()
 
 vi.mock('@/lib/platform-power-rankings', () => ({
@@ -14,7 +15,7 @@ describe('Platform power rankings route contract', () => {
   it('validates sport query and rejects unsupported sport', async () => {
     const { GET } = await import('@/app/api/platform/power-rankings/route')
     const res = await GET(
-      new Request('http://localhost/api/platform/power-rankings?sport=INVALID') as any
+      createMockNextRequest('http://localhost/api/platform/power-rankings?sport=INVALID') as any
     )
     expect(res.status).toBe(400)
     await expect(res.json()).resolves.toEqual({ error: 'Invalid sport' })
@@ -29,7 +30,7 @@ describe('Platform power rankings route contract', () => {
     })
 
     const res = await GET(
-      new Request('http://localhost/api/platform/power-rankings?sport=nba&limit=25&offset=10') as any
+      createMockNextRequest('http://localhost/api/platform/power-rankings?sport=nba&limit=25&offset=10') as any
     )
 
     expect(res.status).toBe(200)

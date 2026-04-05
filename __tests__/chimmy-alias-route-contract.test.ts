@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const chatChimmyPostMock = vi.fn()
 const runAgentPipelineMock = vi.fn()
 const streamAgentPipelineMock = vi.fn()
@@ -57,7 +58,7 @@ vi.mock("@/lib/tokens/TokenSpendService", () => ({
 }))
 
 function buildJsonRequest(body: Record<string, unknown>) {
-  return new Request("http://localhost/api/chimmy", {
+  return createMockNextRequest("http://localhost/api/chimmy", {
     method: "POST",
     headers: { "Content-Type": "application/json", cookie: "next-auth.session-token=test" },
     body: JSON.stringify(body),

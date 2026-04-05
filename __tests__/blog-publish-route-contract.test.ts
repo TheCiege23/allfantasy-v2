@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const blogArticleFindUniqueMock = vi.hoisted(() => vi.fn())
 const getPublishLogMock = vi.hoisted(() => vi.fn())
 const publishArticleMock = vi.hoisted(() => vi.fn())
@@ -42,7 +43,7 @@ describe("blog publish route contract", () => {
     ])
 
     const { GET } = await import("@/app/api/blog/[articleId]/publish/route")
-    const res = await GET(new Request("http://localhost/api/blog/article-1/publish"), {
+    const res = await GET(createMockNextRequest("http://localhost/api/blog/article-1/publish"), {
       params: Promise.resolve({ articleId: "article-1" }),
     })
 
@@ -63,7 +64,7 @@ describe("blog publish route contract", () => {
     getPublishLogMock.mockResolvedValueOnce([])
 
     const { POST } = await import("@/app/api/blog/[articleId]/publish/route")
-    const req = new Request("http://localhost/api/blog/article-1/publish", {
+    const req = createMockNextRequest("http://localhost/api/blog/article-1/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -91,7 +92,7 @@ describe("blog publish route contract", () => {
     getPublishLogMock.mockResolvedValueOnce([])
 
     const { POST } = await import("@/app/api/blog/[articleId]/publish/route")
-    const req = new Request("http://localhost/api/blog/article-1/publish", {
+    const req = createMockNextRequest("http://localhost/api/blog/article-1/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({}),

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 import { buildStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 
 const constructEventMock = vi.hoisted(() => vi.fn())
@@ -76,7 +77,7 @@ describe("Stripe webhook route contracts", () => {
 
   it("returns 400 when stripe-signature header is missing", async () => {
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       body: "{}",
     })
@@ -89,7 +90,7 @@ describe("Stripe webhook route contracts", () => {
 
   it("routes known purchaseType and marks webhook event processed", async () => {
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       headers: { "stripe-signature": "sig_test" },
       body: "{}",
@@ -122,7 +123,7 @@ describe("Stripe webhook route contracts", () => {
   it("treats already processed event as idempotent duplicate", async () => {
     findUniqueMock.mockResolvedValueOnce({ status: "processed" })
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       headers: { "stripe-signature": "sig_test" },
       body: "{}",
@@ -146,7 +147,7 @@ describe("Stripe webhook route contracts", () => {
       },
     })
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       headers: { "stripe-signature": "sig_test" },
       body: "{}",
@@ -189,7 +190,7 @@ describe("Stripe webhook route contracts", () => {
     })
 
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       headers: { "stripe-signature": "sig_test" },
       body: "{}",
@@ -217,7 +218,7 @@ describe("Stripe webhook route contracts", () => {
       .mockResolvedValueOnce({ id: "row-err" })
 
     const { POST } = await import("@/app/api/stripe/webhook/route")
-    const req = new Request("http://localhost/api/stripe/webhook", {
+    const req = createMockNextRequest("http://localhost/api/stripe/webhook", {
       method: "POST",
       headers: { "stripe-signature": "sig_test" },
       body: "{}",

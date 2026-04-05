@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const leagueFindFirstMock = vi.fn()
 const mockDraftFindFirstMock = vi.fn()
@@ -159,7 +160,7 @@ describe('Mock draft simulate route contract', () => {
     })
 
     const { POST } = await import('@/app/api/mock-draft/simulate/route')
-    const req = new Request('http://localhost/api/mock-draft/simulate', {
+    const req = createMockNextRequest('http://localhost/api/mock-draft/simulate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

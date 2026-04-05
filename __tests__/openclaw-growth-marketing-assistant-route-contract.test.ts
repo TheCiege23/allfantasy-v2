@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const runAiProtectionMock = vi.fn()
 const assertLeagueMemberMock = vi.fn()
@@ -56,7 +57,7 @@ describe('Openclaw growth marketing assistant route contract', () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/ai/openclaw/growth-marketing-assistant/route')
 
-    const req = new Request('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
+    const req = createMockNextRequest('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'hello' }),
@@ -70,7 +71,7 @@ describe('Openclaw growth marketing assistant route contract', () => {
     assertLeagueMemberMock.mockRejectedValueOnce(new Error('Forbidden'))
     const { POST } = await import('@/app/api/ai/openclaw/growth-marketing-assistant/route')
 
-    const req = new Request('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
+    const req = createMockNextRequest('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'hello', leagueId: 'league-1' }),
@@ -91,7 +92,7 @@ describe('Openclaw growth marketing assistant route contract', () => {
 
     const { POST } = await import('@/app/api/ai/openclaw/growth-marketing-assistant/route')
 
-    const req = new Request('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
+    const req = createMockNextRequest('http://localhost/api/ai/openclaw/growth-marketing-assistant', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: 'hello' }),

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const fetchMock = vi.fn()
 const getServerSessionMock = vi.fn()
 
@@ -14,7 +15,7 @@ vi.mock('@/lib/auth', () => ({
 }))
 
 function buildRequest(body: Record<string, unknown>) {
-  return new Request('http://localhost/api/chimmy/voice', {
+  return createMockNextRequest('http://localhost/api/chimmy/voice', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

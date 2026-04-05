@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const rateLimitMock = vi.hoisted(() => vi.fn(() => ({ success: true })))
 const getClientIpMock = vi.hoisted(() => vi.fn(() => "127.0.0.1"))
@@ -62,7 +63,7 @@ describe("User notifications test route contracts", () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import("@/app/api/user/notifications/test/route")
     const res = await POST(
-      new Request("http://localhost/api/user/notifications/test", {
+      createMockNextRequest("http://localhost/api/user/notifications/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ category: "ai_alerts", channels: { inApp: true } }),
@@ -76,7 +77,7 @@ describe("User notifications test route contracts", () => {
     rateLimitMock.mockReturnValueOnce({ success: false })
     const { POST } = await import("@/app/api/user/notifications/test/route")
     const res = await POST(
-      new Request("http://localhost/api/user/notifications/test", {
+      createMockNextRequest("http://localhost/api/user/notifications/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ category: "ai_alerts", channels: { inApp: true } }),
@@ -89,7 +90,7 @@ describe("User notifications test route contracts", () => {
   it("sends requested channels when enabled and available", async () => {
     const { POST } = await import("@/app/api/user/notifications/test/route")
     const res = await POST(
-      new Request("http://localhost/api/user/notifications/test", {
+      createMockNextRequest("http://localhost/api/user/notifications/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -123,7 +124,7 @@ describe("User notifications test route contracts", () => {
 
     const { POST } = await import("@/app/api/user/notifications/test/route")
     const res = await POST(
-      new Request("http://localhost/api/user/notifications/test", {
+      createMockNextRequest("http://localhost/api/user/notifications/test", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

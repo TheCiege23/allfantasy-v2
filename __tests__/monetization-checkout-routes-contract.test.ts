@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 import { parseStripeCheckoutClientReferenceId } from "@/lib/monetization/StripeCheckoutLinkRegistry"
 
 const getServerSessionMock = vi.hoisted(() => vi.fn())
@@ -21,10 +22,10 @@ describe("Monetization checkout routes", () => {
 
   it("resolves subscription checkout link for valid subscription sku", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/subscription/route")
-    const req = new Request("http://localhost/api/monetization/checkout/subscription", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/subscription", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "af_pro_monthly", returnPath: "/pricing?from=upgrade" }),
+      body: { sku: "af_pro_monthly", returnPath: "/pricing?from=upgrade" },
     })
     const res = await POST(req)
 
@@ -50,10 +51,10 @@ describe("Monetization checkout routes", () => {
 
   it("rejects token sku on subscription checkout route", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/subscription/route")
-    const req = new Request("http://localhost/api/monetization/checkout/subscription", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/subscription", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "af_tokens_10" }),
+      body: { sku: "af_tokens_10" },
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -62,10 +63,10 @@ describe("Monetization checkout routes", () => {
 
   it("resolves token checkout link for valid token pack sku", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/tokens/route")
-    const req = new Request("http://localhost/api/monetization/checkout/tokens", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/tokens", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "af_tokens_10", returnPath: "https://malicious.example.com" }),
+      body: { sku: "af_tokens_10", returnPath: "https://malicious.example.com" },
     })
     const res = await POST(req)
 
@@ -90,10 +91,10 @@ describe("Monetization checkout routes", () => {
 
   it("rejects subscription sku on token checkout route", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/tokens/route")
-    const req = new Request("http://localhost/api/monetization/checkout/tokens", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/tokens", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "af_pro_monthly" }),
+      body: { sku: "af_pro_monthly" },
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -102,10 +103,10 @@ describe("Monetization checkout routes", () => {
 
   it("rejects prohibited intent-like sku via compliance guardrail", async () => {
     const { POST } = await import("@/app/api/monetization/checkout/tokens/route")
-    const req = new Request("http://localhost/api/monetization/checkout/tokens", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/tokens", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "dues_pack" }),
+      body: { sku: "dues_pack" },
     })
     const res = await POST(req)
     expect(res.status).toBe(400)
@@ -116,10 +117,10 @@ describe("Monetization checkout routes", () => {
 
   it("rejects payout and prize_pool settlement intents", async () => {
     const { POST: postSubscription } = await import("@/app/api/monetization/checkout/subscription/route")
-    const payoutReq = new Request("http://localhost/api/monetization/checkout/subscription", {
+    const payoutReq = createMockNextRequest("http://localhost/api/monetization/checkout/subscription", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "payout_distribution" }),
+      body: { sku: "payout_distribution" },
     })
     const payoutRes = await postSubscription(payoutReq)
     expect(payoutRes.status).toBe(400)
@@ -128,10 +129,10 @@ describe("Monetization checkout routes", () => {
     })
 
     const { POST: postTokens } = await import("@/app/api/monetization/checkout/tokens/route")
-    const prizeReq = new Request("http://localhost/api/monetization/checkout/tokens", {
+    const prizeReq = createMockNextRequest("http://localhost/api/monetization/checkout/tokens", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "prize_pool_setup" }),
+      body: { sku: "prize_pool_setup" },
     })
     const prizeRes = await postTokens(prizeReq)
     expect(prizeRes.status).toBe(400)
@@ -143,10 +144,10 @@ describe("Monetization checkout routes", () => {
   it("fails safely when checkout link mapping is missing", async () => {
     delete process.env.STRIPE_CHECKOUT_LINK_AF_PRO_MONTHLY
     const { POST } = await import("@/app/api/monetization/checkout/subscription/route")
-    const req = new Request("http://localhost/api/monetization/checkout/subscription", {
+    const req = createMockNextRequest("http://localhost/api/monetization/checkout/subscription", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sku: "af_pro_monthly" }),
+      body: { sku: "af_pro_monthly" },
     })
     const res = await POST(req)
     expect(res.status).toBe(503)

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const userProfileFindUniqueMock = vi.fn()
 const appUserFindUniqueMock = vi.fn()
 const passwordResetTokenFindFirstMock = vi.fn()
@@ -26,7 +27,7 @@ describe('Password reset verify-code route contracts', () => {
   it('requires identifier and code', async () => {
     const { POST } = await import('@/app/api/auth/password/reset/verify-code/route')
     const res = await POST(
-      new Request('http://localhost/api/auth/password/reset/verify-code', {
+      createMockNextRequest('http://localhost/api/auth/password/reset/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
@@ -46,7 +47,7 @@ describe('Password reset verify-code route contracts', () => {
     })
 
     const res = await POST(
-      new Request('http://localhost/api/auth/password/reset/verify-code', {
+      createMockNextRequest('http://localhost/api/auth/password/reset/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: 'test@example.com', code: '123456' }),
@@ -62,7 +63,7 @@ describe('Password reset verify-code route contracts', () => {
     userProfileFindUniqueMock.mockResolvedValueOnce(null)
 
     const res = await POST(
-      new Request('http://localhost/api/auth/password/reset/verify-code', {
+      createMockNextRequest('http://localhost/api/auth/password/reset/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: '+15551234567', code: '123456' }),

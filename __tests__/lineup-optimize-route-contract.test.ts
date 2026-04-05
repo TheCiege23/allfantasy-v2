@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const assertLeagueMemberMock = vi.fn()
 
@@ -24,7 +25,7 @@ describe('POST /api/lineup/optimize contract', () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/lineup/optimize/route')
 
-    const req = new Request('http://localhost/api/lineup/optimize', {
+    const req = createMockNextRequest('http://localhost/api/lineup/optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -42,7 +43,7 @@ describe('POST /api/lineup/optimize contract', () => {
     assertLeagueMemberMock.mockRejectedValueOnce(new Error('Forbidden'))
     const { POST } = await import('@/app/api/lineup/optimize/route')
 
-    const req = new Request('http://localhost/api/lineup/optimize', {
+    const req = createMockNextRequest('http://localhost/api/lineup/optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -61,7 +62,7 @@ describe('POST /api/lineup/optimize contract', () => {
     assertLeagueMemberMock.mockResolvedValueOnce(undefined)
     const { POST } = await import('@/app/api/lineup/optimize/route')
 
-    const req = new Request('http://localhost/api/lineup/optimize', {
+    const req = createMockNextRequest('http://localhost/api/lineup/optimize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -1,5 +1,3 @@
-import "server-only"
-
 import type { GeoDetectionResult } from "./geoTypes"
 
 export type { GeoDetectionResult } from "./geoTypes"

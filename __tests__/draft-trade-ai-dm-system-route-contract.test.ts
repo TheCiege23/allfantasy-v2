@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const canAccessLeagueDraftMock = vi.fn()
 const getCurrentUserRosterIdForLeagueMock = vi.fn()
@@ -156,7 +157,7 @@ describe('Draft trade AI DM system contract', () => {
     })
 
     const { POST } = await import('@/app/api/leagues/[leagueId]/draft/trade-proposals/route')
-    const req = new Request('http://localhost/api/leagues/league-1/draft/trade-proposals', {
+    const req = createMockNextRequest('http://localhost/api/leagues/league-1/draft/trade-proposals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -228,7 +229,7 @@ describe('Draft trade AI DM system contract', () => {
     })
 
     const { POST } = await import('@/app/api/leagues/[leagueId]/draft/trade-proposals/[proposalId]/review/route')
-    const req = new Request(
+    const req = createMockNextRequest(
       'http://localhost/api/leagues/league-1/draft/trade-proposals/tp-1/review',
       {
         method: 'POST',

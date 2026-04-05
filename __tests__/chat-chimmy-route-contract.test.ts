@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const runAiProtectionMock = vi.fn()
 const runUnifiedOrchestrationMock = vi.fn()
@@ -84,7 +85,7 @@ vi.mock("@/lib/supabaseClient", () => ({
 }))
 
 function buildMultipartRequest(formData?: FormData) {
-  return new Request("http://localhost/api/chat/chimmy", {
+  return createMockNextRequest("http://localhost/api/chat/chimmy", {
     method: "POST",
     body: formData ?? new FormData(),
   })

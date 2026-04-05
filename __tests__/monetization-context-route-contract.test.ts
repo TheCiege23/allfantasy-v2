@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const resolveForUserMock = vi.fn()
 const resolveTokenBalanceMock = vi.fn()
@@ -81,7 +82,7 @@ describe("GET /api/monetization/context", () => {
 
     const { GET } = await import("@/app/api/monetization/context/route")
     const res = await GET(
-      new Request("http://localhost/api/monetization/context?feature=ai_chat&ruleCode=ai_chimmy_chat_message")
+      createMockNextRequest("http://localhost/api/monetization/context?feature=ai_chat&ruleCode=ai_chimmy_chat_message")
     )
 
     expect(res.status).toBe(200)
@@ -115,7 +116,7 @@ describe("GET /api/monetization/context", () => {
 
     const { GET } = await import("@/app/api/monetization/context/route")
     const res = await GET(
-      new Request("http://localhost/api/monetization/context?ruleCode=ai_chimmy_chat_message")
+      createMockNextRequest("http://localhost/api/monetization/context?ruleCode=ai_chimmy_chat_message")
     )
 
     expect(res.status).toBe(200)

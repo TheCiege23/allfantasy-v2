@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const getSharePublishLogsMock = vi.hoisted(() => vi.fn())
 const publishShareToPlatformMock = vi.hoisted(() => vi.fn())
@@ -29,7 +30,7 @@ describe("Share publish route contract", () => {
     getSharePublishLogsMock.mockResolvedValueOnce([{ id: "log-1", platform: "x", status: "success" }])
 
     const { GET } = await import("@/app/api/share/publish/route")
-    const req = new Request("http://localhost/api/share/publish?shareId=share-1")
+    const req = createMockNextRequest("http://localhost/api/share/publish?shareId=share-1")
     const res = await GET(req)
 
     expect(res.status).toBe(200)
@@ -49,7 +50,7 @@ describe("Share publish route contract", () => {
     getSharePublishLogsMock.mockResolvedValueOnce([{ id: "log-2", platform: "x", status: "success" }])
 
     const { POST } = await import("@/app/api/share/publish/route")
-    const req = new Request("http://localhost/api/share/publish", {
+    const req = createMockNextRequest("http://localhost/api/share/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "publish", shareId: "share-1", platform: "x" }),
@@ -74,7 +75,7 @@ describe("Share publish route contract", () => {
     })
 
     const { POST } = await import("@/app/api/share/publish/route")
-    const req = new Request("http://localhost/api/share/publish", {
+    const req = createMockNextRequest("http://localhost/api/share/publish", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "retry", logId: "log-1" }),

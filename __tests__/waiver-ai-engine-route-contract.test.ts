@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest"
 const getServerSessionMock = vi.fn()
 const assertLeagueMemberMock = vi.fn()
 const runWaiverAIServiceMock = vi.fn()
@@ -44,7 +45,7 @@ describe('POST /api/waiver-ai/engine contract', () => {
     getServerSessionMock.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/waiver-ai/engine/route')
 
-    const req = new Request('http://localhost/api/waiver-ai/engine', {
+    const req = createMockNextRequest('http://localhost/api/waiver-ai/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -63,7 +64,7 @@ describe('POST /api/waiver-ai/engine contract', () => {
     assertLeagueMemberMock.mockRejectedValueOnce(new Error('Forbidden'))
     const { POST } = await import('@/app/api/waiver-ai/engine/route')
 
-    const req = new Request('http://localhost/api/waiver-ai/engine', {
+    const req = createMockNextRequest('http://localhost/api/waiver-ai/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -110,7 +111,7 @@ describe('POST /api/waiver-ai/engine contract', () => {
     })
 
     const { POST } = await import('@/app/api/waiver-ai/engine/route')
-    const req = new Request('http://localhost/api/waiver-ai/engine', {
+    const req = createMockNextRequest('http://localhost/api/waiver-ai/engine', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
