@@ -1,51 +1,21 @@
 'use client'
 
 import { X } from 'lucide-react'
+import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { ProLeagueLink } from '@/components/dashboard/ProLeagueLink'
-
-export type LineupIssueRow = {
-  type: string
-  message: string
-  playerName?: string
-  position?: string
-  severity: 'critical' | 'warning' | 'info'
-}
-
-export type LineupCheckLeaguePayload = {
-  leagueId: string
-  leagueName: string
-  leagueAvatar: string | null
-  sport: string
-  issues: LineupIssueRow[]
-  chimmyAdvice: string
-}
-
-export type LineupCheckPayload = {
-  totalIssues: number
-  leagues: LineupCheckLeaguePayload[]
-  scannedLeagues?: number
-}
-
-function severityIcon(sev: LineupIssueRow['severity']) {
-  if (sev === 'critical') return '🔴'
-  if (sev === 'warning') return '🟡'
-  return '🔵'
-}
 
 type Props = {
   isOpen: boolean
   onClose: () => void
-  data: LineupCheckPayload | null
+  data: WaiverDashboardResponse | null
   loading: boolean
   hasProAccess: boolean
 }
 
-export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess }: Props) {
+export function WaiverRecommendationsModal({ isOpen, onClose, data, loading, hasProAccess }: Props) {
   if (!isOpen) return null
 
-  const scanned = data?.scannedLeagues ?? 0
-  const leagues = data?.leagues ?? []
-  const total = data?.totalIssues ?? 0
+  const recs = data?.recommendations ?? []
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
@@ -53,7 +23,7 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
         className="relative max-h-[80vh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0f1521] shadow-2xl"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="lineup-issues-title"
+        aria-labelledby="waiver-rec-title"
       >
         <button
           type="button"
@@ -65,15 +35,11 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
         </button>
 
         <div className="border-b border-white/[0.06] px-5 pb-4 pt-5 pr-12">
-          <h2 id="lineup-issues-title" className="text-[17px] font-bold text-white">
-            ⚠️ Lineup Issues
+          <h2 id="waiver-rec-title" className="text-[17px] font-bold text-white">
+            📋 Waiver recommendations
           </h2>
           <p className="mt-1 text-[12px] text-white/50">
-            {loading
-              ? 'Checking your leagues…'
-              : total === 0 && leagues.length === 0
-                ? 'No lineup problems found in your connected leagues.'
-                : `${total} issue${total === 1 ? '' : 's'} across ${leagues.length} league${leagues.length === 1 ? '' : 's'}`}
+            {loading ? 'Loading your leagues…' : `${recs.length} connected league${recs.length === 1 ? '' : 's'}`}
           </p>
         </div>
 
@@ -84,18 +50,12 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                 <div key={i} className="h-28 animate-pulse rounded-xl bg-white/[0.05]" />
               ))}
             </div>
-          ) : leagues.length === 0 ? (
-            <p className="text-center text-[13px] text-emerald-300/90">
-              ✅ All lineups look good! Chimmy checked {scanned > 0 ? `all ${scanned} connected Sleeper ` : 'your '}
-              league{scanned === 1 ? '' : 's'}.
-            </p>
+          ) : recs.length === 0 ? (
+            <p className="text-center text-[13px] text-emerald-300/90">✅ No waiver recommendations right now.</p>
           ) : (
             <div className="space-y-3">
-              {leagues.map((lg) => (
-                <div
-                  key={lg.leagueId}
-                  className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4"
-                >
+              {recs.map((lg) => (
+                <div key={lg.leagueId} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
                   <div className="flex gap-3">
                     <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white/10">
                       {lg.leagueAvatar ? (
@@ -109,20 +69,44 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14px] font-bold text-white">{lg.leagueName}</p>
                       <p className="text-[11px] text-white/40">
-                        {lg.sport} · Sleeper
+                        {lg.sport} · {lg.platform}
                       </p>
                     </div>
                   </div>
 
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-white/35">Issues</p>
-                  <ul className="mt-1 space-y-1">
-                    {lg.issues.map((issue, idx) => (
-                      <li key={`${issue.type}-${idx}`} className="text-[12px] text-white/75">
-                        <span className="mr-1">{severityIcon(issue.severity)}</span>
-                        {issue.message}
-                      </li>
-                    ))}
-                  </ul>
+                  {lg.pickups.length > 0 && (
+                    <>
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-white/35">Recommended pickups</p>
+                      <div className="mt-1 space-y-1.5">
+                        {lg.pickups.map((p) => (
+                          <div key={p.playerId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[12px]">
+                            <span className="text-green-400">+ {p.playerName}</span>
+                            <span className="text-white/40">
+                              {p.position} · {p.team}
+                            </span>
+                            <span className="text-[10px] text-white/35">{p.addReason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {lg.drops.length > 0 && (
+                    <>
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-white/35">Drop candidates</p>
+                      <div className="mt-1 space-y-1">
+                        {lg.drops.map((d) => (
+                          <div key={d.playerId} className="text-[12px]">
+                            <span className="text-red-400">− {d.playerName}</span>
+                            <span className="text-white/40">
+                              {' '}
+                              {d.position} · {d.team}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                   <div className="mt-3 rounded-lg border border-cyan-500/[0.12] bg-cyan-500/[0.06] p-3">
                     <div className="flex gap-2">
@@ -142,20 +126,20 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                       onClick={() =>
                         window.dispatchEvent(
                           new CustomEvent('af-chimmy-shortcut', {
-                            detail: { prompt: `Give me full lineup help for ${lg.leagueName} — starters, injuries, and matchup strategy.` },
+                            detail: { prompt: `Give me detailed waiver wire advice for ${lg.leagueName}` },
                           })
                         )
                       }
                       className="text-[11px] font-semibold text-cyan-400 transition hover:text-cyan-300"
                     >
-                      → Ask Chimmy for full lineup help
+                      → Ask Chimmy for full waiver analysis
                     </button>
                     <ProLeagueLink
                       leagueId={lg.leagueId}
                       leagueName={lg.leagueName}
-                      label="Fix this lineup →"
+                      label="Open league →"
                       hasProAccess={hasProAccess}
-                      href={`/league/${lg.leagueId}?tab=team`}
+                      href={`/league/${lg.leagueId}?tab=players`}
                     />
                   </div>
                 </div>

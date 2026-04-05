@@ -2,15 +2,20 @@
 
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
 import { AIShortcutsGrid } from './AIShortcutsGrid'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
+import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
+import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
+const STRIP_FETCH_STALE_MS = 5 * 60_000
 
 type OnboardingState = {
   step1: boolean
@@ -264,12 +269,26 @@ export function DashboardOverview({
   onTriggerImport,
   onOpenChimmy,
 }: DashboardOverviewProps) {
+  const { hasPro } = useEntitlements()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
   const [lineupLoading, setLineupLoading] = useState(false)
+
+  const [waiverModalOpen, setWaiverModalOpen] = useState(false)
+  const [waiverData, setWaiverData] = useState<WaiverDashboardResponse | null>(null)
+  const [waiverLoading, setWaiverLoading] = useState(false)
+
+  const [tradeModalOpen, setTradeModalOpen] = useState(false)
+  const [tradeData, setTradeData] = useState<TradesDashboardResponse | null>(null)
+  const [tradeLoading, setTradeLoading] = useState(false)
+
+  const lineupFetchedAt = useRef<number | null>(null)
+  const waiverFetchedAt = useRef<number | null>(null)
+  const tradeFetchedAt = useRef<number | null>(null)
+
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
@@ -351,18 +370,120 @@ export function DashboardOverview({
 
   const handleLineupIssuesClick = useCallback(() => {
     setLineupModalOpen(true)
-    if (lineupData !== null) return
+    const now = Date.now()
+    const fresh =
+      lineupData !== null &&
+      lineupFetchedAt.current !== null &&
+      now - lineupFetchedAt.current < STRIP_FETCH_STALE_MS
+    if (fresh) return
     setLineupLoading(true)
     void fetch('/api/lineup-check', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('lineup-check'))))
-      .then((data: LineupCheckPayload) => setLineupData(data))
-      .catch(() => setLineupData({ totalIssues: 0, leagues: [], scannedLeagues: 0 }))
+      .then((data: LineupCheckPayload) => {
+        setLineupData(data)
+        lineupFetchedAt.current = Date.now()
+      })
+      .catch(() => {
+        setLineupData({ totalIssues: 0, leagues: [], scannedLeagues: 0 })
+        lineupFetchedAt.current = Date.now()
+      })
       .finally(() => setLineupLoading(false))
   }, [lineupData])
+
+  const handleWaiverClick = useCallback(() => {
+    setWaiverModalOpen(true)
+    const now = Date.now()
+    const fresh =
+      waiverData !== null &&
+      waiverFetchedAt.current !== null &&
+      now - waiverFetchedAt.current < STRIP_FETCH_STALE_MS
+    if (fresh) return
+    setWaiverLoading(true)
+    void fetch('/api/dashboard/waivers', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('waivers'))))
+      .then((d: WaiverDashboardResponse) => {
+        setWaiverData(d)
+        waiverFetchedAt.current = Date.now()
+      })
+      .catch(() => {
+        setWaiverData({ totalLeagues: 0, recommendations: [] })
+        waiverFetchedAt.current = Date.now()
+      })
+      .finally(() => setWaiverLoading(false))
+  }, [waiverData])
+
+  const handleTradeClick = useCallback(() => {
+    setTradeModalOpen(true)
+    const now = Date.now()
+    const fresh =
+      tradeData !== null &&
+      tradeFetchedAt.current !== null &&
+      now - tradeFetchedAt.current < STRIP_FETCH_STALE_MS
+    if (fresh) return
+    setTradeLoading(true)
+    void fetch('/api/dashboard/trades', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('trades'))))
+      .then((d: TradesDashboardResponse) => {
+        setTradeData(d)
+        tradeFetchedAt.current = Date.now()
+      })
+      .catch(() => {
+        setTradeData({ totalPending: 0, trades: [] })
+        tradeFetchedAt.current = Date.now()
+      })
+      .finally(() => setTradeLoading(false))
+  }, [tradeData])
+
+  useEffect(() => {
+    if (!lineupModalOpen && !waiverModalOpen && !tradeModalOpen) return
+    const interval = window.setInterval(() => {
+      if (lineupModalOpen) {
+        void fetch('/api/lineup-check', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: LineupCheckPayload | null) => {
+            if (d) {
+              setLineupData(d)
+              lineupFetchedAt.current = Date.now()
+            }
+          })
+          .catch(() => {})
+      }
+      if (waiverModalOpen) {
+        void fetch('/api/dashboard/waivers', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: WaiverDashboardResponse | null) => {
+            if (d) {
+              setWaiverData(d)
+              waiverFetchedAt.current = Date.now()
+            }
+          })
+          .catch(() => {})
+      }
+      if (tradeModalOpen) {
+        void fetch('/api/dashboard/trades', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d: TradesDashboardResponse | null) => {
+            if (d) {
+              setTradeData(d)
+              tradeFetchedAt.current = Date.now()
+            }
+          })
+          .catch(() => {})
+      }
+    }, 30_000)
+    return () => window.clearInterval(interval)
+  }, [lineupModalOpen, waiverModalOpen, tradeModalOpen])
 
   const lineupChipState =
     lineupData === null ? 'preview' : lineupData.totalIssues > 0 ? 'issues' : 'clear'
   const lineupChipCount = lineupData === null ? leagues.length : lineupData.totalIssues
+
+  const waiverChipCount = useMemo(() => {
+    if (!waiverData?.recommendations?.length) return 0
+    return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
+  }, [waiverData])
+
+  const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
@@ -509,6 +630,10 @@ export function DashboardOverview({
           lineupChipState={lineupChipState}
           lineupCount={lineupChipCount}
           onLineupIssuesClick={handleLineupIssuesClick}
+          waiverCount={waiverChipCount}
+          onWaiverClick={handleWaiverClick}
+          pendingTradeCount={pendingTradeChipCount}
+          onTradesClick={handleTradeClick}
         />
 
         <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
@@ -534,6 +659,23 @@ export function DashboardOverview({
         onClose={() => setLineupModalOpen(false)}
         data={lineupData}
         loading={lineupLoading}
+        hasProAccess={hasPro}
+      />
+
+      <WaiverRecommendationsModal
+        isOpen={waiverModalOpen}
+        onClose={() => setWaiverModalOpen(false)}
+        data={waiverData}
+        loading={waiverLoading}
+        hasProAccess={hasPro}
+      />
+
+      <PendingTradesModal
+        isOpen={tradeModalOpen}
+        onClose={() => setTradeModalOpen(false)}
+        data={tradeData}
+        loading={tradeLoading}
+        hasProAccess={hasPro}
       />
     </div>
   )

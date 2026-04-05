@@ -130,13 +130,16 @@ export async function GET() {
     const issues: LineupIssue[] = []
 
     try {
-      const [rostersRes, matchRes] = await Promise.all([
+      const [rostersRes, matchRes, leagueInfoRes] = await Promise.all([
         fetch(`${SLEEPER}/league/${encodeURIComponent(lid)}/rosters`, { next: { revalidate: 30 } }),
         fetch(`${SLEEPER}/league/${encodeURIComponent(lid)}/matchups/${nflWeek}`, { next: { revalidate: 30 } }),
+        fetch(`${SLEEPER}/league/${encodeURIComponent(lid)}`, { next: { revalidate: 120 } }),
       ])
 
       const rosters = rostersRes.ok ? ((await rostersRes.json()) as SleeperRoster[]) : []
       const matchups = matchRes.ok ? ((await matchRes.json()) as SleeperMatchup[]) : []
+      const leagueInfo = leagueInfoRes.ok ? ((await leagueInfoRes.json()) as { roster_positions?: string[] }) : null
+      const rosterPositions = Array.isArray(leagueInfo?.roster_positions) ? leagueInfo.roster_positions : []
 
       const roster = Array.isArray(rosters)
         ? rosters.find((r) => String(r.owner_id) === String(ownerSleeperId))
@@ -166,7 +169,7 @@ export async function GET() {
             sport: 'NFL',
             externalId: { in: starterIds.slice(0, 30) },
           },
-          select: { externalId: true, name: true, status: true },
+          select: { externalId: true, name: true, status: true, position: true },
         })
         const byId = new Map(rows.map((r) => [r.externalId, r]))
         for (const pid of starterIds) {
@@ -179,6 +182,41 @@ export async function GET() {
               playerName: p?.name ?? undefined,
               severity: 'critical',
             })
+          }
+          if (st === 'QUESTIONABLE') {
+            issues.push({
+              type: 'questionable_starter',
+              message: `${p?.name ?? 'Player'} is Questionable — monitor injury report`,
+              playerName: p?.name ?? undefined,
+              severity: 'warning',
+            })
+          }
+          if (st === 'DOUBTFUL') {
+            issues.push({
+              type: 'doubtful_starter',
+              message: `${p?.name ?? 'Player'} is Doubtful — strongly consider a replacement`,
+              playerName: p?.name ?? undefined,
+              severity: 'warning',
+            })
+          }
+        }
+
+        if (rosterPositions.length > 0) {
+          const starterLine = Array.isArray(starters) ? starters : []
+          for (let i = 0; i < Math.min(starterLine.length, rosterPositions.length); i++) {
+            const pid = starterLine[i]
+            if (!pid || typeof pid !== 'string') continue
+            const slot = String(rosterPositions[i] ?? '').toUpperCase()
+            const p = byId.get(pid)
+            const pos = (p?.position ?? '').toUpperCase()
+            if (slot === 'RB' && pos === 'K') {
+              issues.push({
+                type: 'illegal_starter',
+                message: `${p?.name ?? 'Player'} is in an RB slot but is a kicker — fix the lineup`,
+                playerName: p?.name ?? undefined,
+                severity: 'critical',
+              })
+            }
           }
         }
       }
