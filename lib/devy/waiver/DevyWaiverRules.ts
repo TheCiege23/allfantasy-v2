@@ -2,8 +2,8 @@
  * PROMPT 3: Waiver/FA rules for devy leagues.
  * - Vets on waivers: current dynasty behavior.
  * - Rookies after rookie draft: waiver/FA per league rules.
- * - Devy players: NOT on standard waivers unless supplementalDevyFAEnabled.
- * - When supplemental devy FA enabled: FAAB or waiver priority, NCAA devy-eligible and not rostered only.
+ * - Devy players: NOT on standard waivers unless dispersalDevyFAEnabled.
+ * - When dispersal devy FA enabled: FAAB or waiver priority, NCAA devy-eligible and not rostered only.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -28,12 +28,12 @@ export async function validateDevyWaiverClaim(args: {
 
   if (!devyPlayer) return { allowed: true }
 
-  if (!config.supplementalDevyFAEnabled) {
-    return { allowed: false, reason: 'Devy players are not available via waivers unless supplemental devy FA is enabled.' }
+  if (!config.dispersalDevyFAEnabled) {
+    return { allowed: false, reason: 'Devy players are not available via waivers unless dispersal devy FA is enabled.' }
   }
 
   if (!devyPlayer.devyEligible || devyPlayer.graduatedToNFL) {
-    return { allowed: false, reason: 'Only NCAA devy-eligible players (not yet graduated) can be added via supplemental devy FA.' }
+    return { allowed: false, reason: 'Only NCAA devy-eligible players (not yet graduated) can be added via dispersal devy FA.' }
   }
 
   const rosters = args.allRosters ?? (await prisma.roster.findMany({

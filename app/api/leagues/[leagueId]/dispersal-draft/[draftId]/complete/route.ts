@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
-import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
+import { requireDispersalDraftForLeague } from '@/lib/league/dispersal-draft-route-helpers'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import { prisma } from '@/lib/prisma'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(_req: Request, ctx: { params: Promise<{ leagueId: string; draftId: string }> }) {
-  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  const ent = await requireEntitlement('commissioner_dispersal_draft')
   if (ent instanceof NextResponse) return ent
   const userId = ent
 
@@ -22,13 +22,13 @@ export async function POST(_req: Request, ctx: { params: Promise<{ leagueId: str
   }
 
   try {
-    await requireSupplementalDraftForLeague(draftId, leagueId)
+    await requireDispersalDraftForLeague(draftId, leagueId)
   } catch (e) {
     const status = (e as Error & { status?: number }).status ?? 404
     return NextResponse.json({ error: 'Draft not found' }, { status })
   }
 
-  await prisma.supplementalDraft.update({
+  await prisma.dispersalDraft.update({
     where: { id: draftId },
     data: {
       status: 'completed',
@@ -36,7 +36,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ leagueId: str
     },
   })
 
-  await SupplementalDraftEngine.completeDraft(draftId)
-  const state = await SupplementalDraftEngine.getDraftState(draftId)
+  await DispersalDraftEngine.completeDraft(draftId)
+  const state = await DispersalDraftEngine.getDraftState(draftId)
   return NextResponse.json({ ok: true, draft: state })
 }

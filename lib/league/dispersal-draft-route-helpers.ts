@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
-export async function requireSupplementalDraftForLeague(draftId: string, leagueId: string) {
-  const draft = await prisma.supplementalDraft.findFirst({
+export async function requireDispersalDraftForLeague(draftId: string, leagueId: string) {
+  const draft = await prisma.dispersalDraft.findFirst({
     where: { id: draftId, leagueId },
     select: { id: true },
   })

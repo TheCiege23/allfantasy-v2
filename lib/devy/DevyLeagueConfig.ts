@@ -61,7 +61,7 @@ function defaultCommissionerSettings(sport: LeagueSport): DevyCommissionerSettin
     rookiePickTradeRules: 'allowed',
     nflDevyExcludeKDST: false,
     promotionTiming: 'manager_choice_before_rookie_draft',
-    supplementalDevyFAEnabled: false,
+    dispersalDevyFAEnabled: false,
     rightsExpirationEnabled: false,
     returnToSchoolHandling: 'restore_rights',
     taxiProRookiesScoreInBestBall: false,
@@ -123,7 +123,7 @@ export async function getDevyConfig(leagueId: string): Promise<DevyLeagueConfigS
       rookiePickTradeRules: row.rookiePickTradeRules as DevyCommissionerSettings['rookiePickTradeRules'],
       nflDevyExcludeKDST: row.nflDevyExcludeKDST,
       promotionTiming: (row as any).promotionTiming ?? 'manager_choice_before_rookie_draft',
-      supplementalDevyFAEnabled: (row as any).supplementalDevyFAEnabled ?? false,
+      dispersalDevyFAEnabled: (row as any).dispersalDevyFAEnabled ?? false,
       rightsExpirationEnabled: (row as any).rightsExpirationEnabled ?? false,
       returnToSchoolHandling: ((row as any).returnToSchoolHandling ?? 'restore_rights') as DevyCommissionerSettings['returnToSchoolHandling'],
       taxiProRookiesScoreInBestBall: (row as any).taxiProRookiesScoreInBestBall ?? false,
@@ -165,7 +165,7 @@ export async function upsertDevyConfig(
     rookiePickTradeRules: string
     nflDevyExcludeKDST: boolean
     promotionTiming: string
-    supplementalDevyFAEnabled: boolean
+    dispersalDevyFAEnabled: boolean
     rightsExpirationEnabled: boolean
     returnToSchoolHandling: string
     taxiProRookiesScoreInBestBall: boolean
@@ -215,7 +215,7 @@ export async function upsertDevyConfig(
       rookiePickTradeRules: input.rookiePickTradeRules ?? 'allowed',
       nflDevyExcludeKDST: input.nflDevyExcludeKDST ?? false,
       promotionTiming: input.promotionTiming ?? 'manager_choice_before_rookie_draft',
-      supplementalDevyFAEnabled: input.supplementalDevyFAEnabled ?? false,
+      dispersalDevyFAEnabled: input.dispersalDevyFAEnabled ?? false,
       rightsExpirationEnabled: input.rightsExpirationEnabled ?? false,
       returnToSchoolHandling: input.returnToSchoolHandling ?? 'restore_rights',
       taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall ?? false,
@@ -242,7 +242,7 @@ export async function upsertDevyConfig(
       ...(input.rookiePickTradeRules !== undefined && { rookiePickTradeRules: input.rookiePickTradeRules }),
       ...(input.nflDevyExcludeKDST !== undefined && { nflDevyExcludeKDST: input.nflDevyExcludeKDST }),
       ...(input.promotionTiming !== undefined && { promotionTiming: input.promotionTiming }),
-      ...(input.supplementalDevyFAEnabled !== undefined && { supplementalDevyFAEnabled: input.supplementalDevyFAEnabled }),
+      ...(input.dispersalDevyFAEnabled !== undefined && { dispersalDevyFAEnabled: input.dispersalDevyFAEnabled }),
       ...(input.rightsExpirationEnabled !== undefined && { rightsExpirationEnabled: input.rightsExpirationEnabled }),
       ...(input.returnToSchoolHandling !== undefined && { returnToSchoolHandling: input.returnToSchoolHandling }),
       ...(input.taxiProRookiesScoreInBestBall !== undefined && { taxiProRookiesScoreInBestBall: input.taxiProRookiesScoreInBestBall }),

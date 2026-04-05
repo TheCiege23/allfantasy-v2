@@ -1,5 +1,5 @@
 /**
- * Supplemental draft state machine (configure → in progress → complete).
+ * Dispersal draft state machine (configure → in progress → complete).
  * Server-only: uses Prisma + crypto.
  */
 
@@ -11,7 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 
 import { buildAssetPoolFromRosters } from './assetPoolBuilder'
-import type { SupplementalAsset, SupplementalDraftConfig, SupplementalDraftState } from './types'
+import type { DispersalAsset, DispersalDraftConfig, DispersalDraftState } from './types'
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -22,9 +22,9 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-function parseAssetPool(raw: unknown): SupplementalAsset[] {
+function parseAssetPool(raw: unknown): DispersalAsset[] {
   if (!Array.isArray(raw)) return []
-  return raw as SupplementalAsset[]
+  return raw as DispersalAsset[]
 }
 
 function buildLinearDraftOrder(baseOrder: string[], rounds: number): string[] {
@@ -37,7 +37,7 @@ function buildLinearDraftOrder(baseOrder: string[], rounds: number): string[] {
 
 /** Rounds from spec: countable = players + draft picks (exclude FAAB from divisor); ensure enough slots for FAAB too. */
 function computeRoundsPicksPerRound(
-  assets: SupplementalAsset[],
+  assets: DispersalAsset[],
   participantCount: number
 ): { totalRounds: number; picksPerRound: number } {
   const n = Math.max(1, participantCount)
@@ -77,7 +77,7 @@ async function rowToState(row: {
     isPassed: boolean
     pickedAt: Date | null
   }[]
-}): Promise<SupplementalDraftState> {
+}): Promise<DispersalDraftState> {
   const assetPool = parseAssetPool(row.assetPool)
   const draftOrder = row.draftOrder
   const currentRosterId = getCurrentRosterId(draftOrder, row.currentPickIndex, row.passedRosterIds)
@@ -88,8 +88,8 @@ async function rowToState(row: {
   return {
     id: row.id,
     leagueId: row.leagueId,
-    scenario: row.scenario as SupplementalDraftState['scenario'],
-    status: row.status as SupplementalDraftState['status'],
+    scenario: row.scenario as DispersalDraftState['scenario'],
+    status: row.status as DispersalDraftState['status'],
     participantRosterIds: row.participantRosterIds,
     passedRosterIds: row.passedRosterIds,
     draftOrder: row.draftOrder,
@@ -148,7 +148,7 @@ function advanceToNextSlot(
   return i
 }
 
-function allAssetsClaimed(assets: SupplementalAsset[]): boolean {
+function allAssetsClaimed(assets: DispersalAsset[]): boolean {
   if (assets.length === 0) return true
   return assets.every((a) => !a.isAvailable)
 }
@@ -201,15 +201,15 @@ function draftPickMatchesAsset(raw: unknown, pickId: string): boolean {
   return id === pickId
 }
 
-export class SupplementalDraftEngine {
+export class DispersalDraftEngine {
   static async createDraft(
-    config: SupplementalDraftConfig,
+    config: DispersalDraftConfig,
     commissionerUserId: string
-  ): Promise<SupplementalDraftState> {
+  ): Promise<DispersalDraftState> {
     const { assets } = await buildAssetPoolFromRosters(config.leagueId, config.sourceRosterIds)
     const participants = [...new Set(config.participantRosterIds)]
     if (participants.length === 0) {
-      throw new Error('Supplemental draft requires at least one participant roster')
+      throw new Error('Dispersal draft requires at least one participant roster')
     }
 
     let baseOrder: string[] = []
@@ -226,7 +226,7 @@ export class SupplementalDraftEngine {
     const { totalRounds, picksPerRound } = computeRoundsPicksPerRound(assets, baseOrder.length)
     const draftOrder = buildLinearDraftOrder(baseOrder, totalRounds)
 
-    const draft = await prisma.supplementalDraft.create({
+    const draft = await prisma.dispersalDraft.create({
       data: {
         leagueId: config.leagueId,
         scenario: config.scenario,
@@ -251,8 +251,8 @@ export class SupplementalDraftEngine {
     return rowToState(draft)
   }
 
-  static async startDraft(draftId: string, commissionerUserId: string): Promise<SupplementalDraftState> {
-    const row = await prisma.supplementalDraft.findFirst({
+  static async startDraft(draftId: string, commissionerUserId: string): Promise<DispersalDraftState> {
+    const row = await prisma.dispersalDraft.findFirst({
       where: { id: draftId, createdByUserId: commissionerUserId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
@@ -268,7 +268,7 @@ export class SupplementalDraftEngine {
     }
     for (const p of participants) {
       if (isOrphanPlatformUserId(p.platformUserId)) {
-        throw new Error('Cannot start supplemental draft while a participant slot is still orphaned')
+        throw new Error('Cannot start dispersal draft while a participant slot is still orphaned')
       }
     }
 
@@ -278,7 +278,7 @@ export class SupplementalDraftEngine {
       nextIndex++
     }
 
-    const updated = await prisma.supplementalDraft.update({
+    const updated = await prisma.dispersalDraft.update({
       where: { id: draftId },
       data: {
         status: 'in_progress',
@@ -291,10 +291,10 @@ export class SupplementalDraftEngine {
     return rowToState(updated)
   }
 
-  static async makePick(draftId: string, rosterId: string, assetId: string): Promise<SupplementalDraftState> {
+  static async makePick(draftId: string, rosterId: string, assetId: string): Promise<DispersalDraftState> {
     const after = await prisma.$transaction(
       async (tx) => {
-        const row = await tx.supplementalDraft.findUnique({
+        const row = await tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
@@ -302,7 +302,7 @@ export class SupplementalDraftEngine {
         if (row.status !== 'in_progress') throw new Error('Draft is not active')
         if (!row.participantRosterIds.includes(rosterId)) throw new Error('Roster is not a participant in this draft')
         if (row.passedRosterIds.includes(rosterId)) {
-          throw new Error('You have passed out of this supplemental draft')
+          throw new Error('You have passed out of this dispersal draft')
         }
 
         const assets = parseAssetPool(row.assetPool)
@@ -319,9 +319,9 @@ export class SupplementalDraftEngine {
           const passed = [...new Set([...row.passedRosterIds, rosterId])]
           const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, passed)
 
-          await tx.supplementalDraftPick.create({
+          await tx.dispersalDraftPick.create({
             data: {
-              supplementalDraftId: draftId,
+              dispersalDraftId: draftId,
               pickNumber: pickNo,
               round,
               pickInRound,
@@ -332,7 +332,7 @@ export class SupplementalDraftEngine {
           })
           await tx.roster.updateMany({
             where: { id: rosterId, leagueId: row.leagueId },
-            data: { supplementalDraftPasses: true },
+            data: { dispersalDraftPasses: true },
           })
 
           let status: string = row.status
@@ -346,7 +346,7 @@ export class SupplementalDraftEngine {
             completedAt = new Date()
           }
 
-          await tx.supplementalDraft.update({
+          await tx.dispersalDraft.update({
             where: { id: draftId },
             data: {
               passedRosterIds: passed,
@@ -374,9 +374,9 @@ export class SupplementalDraftEngine {
 
           const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
 
-          await tx.supplementalDraftPick.create({
+          await tx.dispersalDraftPick.create({
             data: {
-              supplementalDraftId: draftId,
+              dispersalDraftId: draftId,
               pickNumber: pickNo,
               round,
               pickInRound,
@@ -396,7 +396,7 @@ export class SupplementalDraftEngine {
             completedAt = new Date()
           }
 
-          await tx.supplementalDraft.update({
+          await tx.dispersalDraft.update({
             where: { id: draftId },
             data: {
               assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
@@ -407,7 +407,7 @@ export class SupplementalDraftEngine {
           })
         }
 
-        return tx.supplementalDraft.findUnique({
+        return tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
@@ -421,7 +421,7 @@ export class SupplementalDraftEngine {
 
     if (!after) throw new Error('Draft not found')
     if (after.status === 'completed') {
-      await SupplementalDraftEngine.completeDraft(draftId)
+      await DispersalDraftEngine.completeDraft(draftId)
     }
     return rowToState(after)
   }
@@ -429,10 +429,10 @@ export class SupplementalDraftEngine {
   /**
    * Auto-advance when the pick timer expires — does NOT add the manager to passedRosterIds (one turn only).
    */
-  static async advancePickOnTimeout(draftId: string, rosterId: string): Promise<SupplementalDraftState> {
+  static async advancePickOnTimeout(draftId: string, rosterId: string): Promise<DispersalDraftState> {
     const after = await prisma.$transaction(
       async (tx) => {
-        const row = await tx.supplementalDraft.findUnique({
+        const row = await tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
@@ -442,7 +442,7 @@ export class SupplementalDraftEngine {
         if (row.pickTimeSeconds <= 0) throw new Error('No pick timer configured')
         const current = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
         if (!current || current !== rosterId) throw new Error('Not your pick')
-        if (row.passedRosterIds.includes(rosterId)) throw new Error('You have passed out of this supplemental draft')
+        if (row.passedRosterIds.includes(rosterId)) throw new Error('You have passed out of this dispersal draft')
 
         const assets = parseAssetPool(row.assetPool)
         const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
@@ -450,9 +450,9 @@ export class SupplementalDraftEngine {
         const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
         const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
 
-        await tx.supplementalDraftPick.create({
+        await tx.dispersalDraftPick.create({
           data: {
-            supplementalDraftId: draftId,
+            dispersalDraftId: draftId,
             pickNumber: pickNo,
             round,
             pickInRound,
@@ -470,7 +470,7 @@ export class SupplementalDraftEngine {
           completedAt = new Date()
         }
 
-        await tx.supplementalDraft.update({
+        await tx.dispersalDraft.update({
           where: { id: draftId },
           data: {
             currentPickIndex: nextIndex,
@@ -479,7 +479,7 @@ export class SupplementalDraftEngine {
           },
         })
 
-        return tx.supplementalDraft.findUnique({
+        return tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
@@ -493,7 +493,7 @@ export class SupplementalDraftEngine {
 
     if (!after) throw new Error('Draft not found')
     if (after.status === 'completed') {
-      await SupplementalDraftEngine.completeDraft(draftId)
+      await DispersalDraftEngine.completeDraft(draftId)
     }
     return rowToState(after)
   }
@@ -504,7 +504,7 @@ export class SupplementalDraftEngine {
    */
   static async removePassByCommissioner(draftId: string, rosterId: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
-      const row = await tx.supplementalDraft.findUnique({ where: { id: draftId } })
+      const row = await tx.dispersalDraft.findUnique({ where: { id: draftId } })
       if (!row) throw new Error('Draft not found')
       if (row.status !== 'in_progress' && row.status !== 'configuring') {
         throw new Error('Draft is not active')
@@ -513,13 +513,13 @@ export class SupplementalDraftEngine {
       const passed = row.passedRosterIds.filter((id) => id !== rosterId)
 
       if (row.status !== 'in_progress') {
-        await tx.supplementalDraft.update({
+        await tx.dispersalDraft.update({
           where: { id: draftId },
           data: { passedRosterIds: passed },
         })
         await tx.roster.updateMany({
           where: { id: rosterId, leagueId: row.leagueId },
-          data: { supplementalDraftPasses: false },
+          data: { dispersalDraftPasses: false },
         })
         return
       }
@@ -543,7 +543,7 @@ export class SupplementalDraftEngine {
         }
       }
 
-      await tx.supplementalDraft.update({
+      await tx.dispersalDraft.update({
         where: { id: draftId },
         data: {
           passedRosterIds: passed,
@@ -552,7 +552,7 @@ export class SupplementalDraftEngine {
       })
       await tx.roster.updateMany({
         where: { id: rosterId, leagueId: row.leagueId },
-        data: { supplementalDraftPasses: false },
+        data: { dispersalDraftPasses: false },
       })
     })
   }
@@ -564,10 +564,10 @@ export class SupplementalDraftEngine {
     commissionerOverride: boolean = false
   ): Promise<void> {
     if (commissionerOverride) {
-      await SupplementalDraftEngine.removePassByCommissioner(draftId, rosterId)
+      await DispersalDraftEngine.removePassByCommissioner(draftId, rosterId)
       return
     }
-    const row = await prisma.supplementalDraft.findUnique({ where: { id: draftId } })
+    const row = await prisma.dispersalDraft.findUnique({ where: { id: draftId } })
     if (!row) throw new Error('Draft not found')
 
     const passed = row.passedRosterIds.includes(rosterId)
@@ -575,19 +575,19 @@ export class SupplementalDraftEngine {
       : [...row.passedRosterIds, rosterId]
 
     await prisma.$transaction([
-      prisma.supplementalDraft.update({
+      prisma.dispersalDraft.update({
         where: { id: draftId },
         data: { passedRosterIds: passed },
       }),
       prisma.roster.updateMany({
         where: { id: rosterId, leagueId: row.leagueId },
-        data: { supplementalDraftPasses: true },
+        data: { dispersalDraftPasses: true },
       }),
     ])
   }
 
   static async completeDraft(draftId: string): Promise<void> {
-    const row = await prisma.supplementalDraft.findUnique({ where: { id: draftId } })
+    const row = await prisma.dispersalDraft.findUnique({ where: { id: draftId } })
     if (!row || row.status !== 'completed') return
 
     const assets = parseAssetPool(row.assetPool)
@@ -690,7 +690,7 @@ export class SupplementalDraftEngine {
                 name: asset.playerName,
                 position: asset.playerPosition,
                 team: asset.playerTeam,
-                source: 'supplemental_draft',
+                source: 'dispersal_draft',
               })
             }
             root.players = players
@@ -762,7 +762,7 @@ export class SupplementalDraftEngine {
               isTradedPick: asset.isTradedPick ?? false,
               is_traded: asset.isTradedPick ?? false,
               label: asset.pickLabel,
-              source: 'supplemental_draft',
+              source: 'dispersal_draft',
             }
             if (!draftPicks.some((raw) => draftPickMatchesAsset(raw, pickId))) {
               draftPicks.push(row)
@@ -813,7 +813,7 @@ export class SupplementalDraftEngine {
         data: {
           settings: {
             ...prev,
-            supplementalDraftLastCompletion: {
+            dispersalDraftLastCompletion: {
               draftId,
               completedAt: new Date().toISOString(),
               waiverWirePlayerIds: unclaimedPlayerIds,
@@ -828,13 +828,13 @@ export class SupplementalDraftEngine {
 
       await tx.roster.updateMany({
         where: { leagueId: row.leagueId },
-        data: { supplementalDraftPasses: false },
+        data: { dispersalDraftPasses: false },
       })
     })
   }
 
-  static async getDraftState(draftId: string): Promise<SupplementalDraftState | null> {
-    const row = await prisma.supplementalDraft.findUnique({
+  static async getDraftState(draftId: string): Promise<DispersalDraftState | null> {
+    const row = await prisma.dispersalDraft.findUnique({
       where: { id: draftId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
@@ -842,8 +842,8 @@ export class SupplementalDraftEngine {
     return rowToState(row)
   }
 
-  static async getActiveDraftForLeague(leagueId: string): Promise<SupplementalDraftState | null> {
-    const row = await prisma.supplementalDraft.findFirst({
+  static async getActiveDraftForLeague(leagueId: string): Promise<DispersalDraftState | null> {
+    const row = await prisma.dispersalDraft.findFirst({
       where: {
         leagueId,
         status: { in: ['pending', 'configuring', 'in_progress'] },

@@ -7,7 +7,7 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import {
   buildAssetPoolFromRosters,
   computeSuggestedDraftShape,
-} from '@/lib/supplemental-draft/assetPoolBuilder'
+} from '@/lib/dispersal-draft/assetPoolBuilder'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
@@ -15,7 +15,7 @@ import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
-  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  const ent = await requireEntitlement('commissioner_dispersal_draft')
   if (ent instanceof NextResponse) return ent
   const userId = ent
 

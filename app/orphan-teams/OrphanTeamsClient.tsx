@@ -59,12 +59,12 @@ type OrphanedTeamsApiResponse = {
     faabRemaining: number
   }[]
   orphanCount: number
-  hasActiveSuppDraft: boolean
-  activeSuppDraftId: string | null
+  hasActiveDispersalDraft: boolean
+  activeDispersalDraftId: string | null
   canAdvertise: boolean
   canAssignAI: boolean
-  canRunSuppDraft: boolean
-  suppDraftGated: boolean
+  canRunDispersalDraft: boolean
+  dispersalDraftGated: boolean
 }
 
 function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
@@ -169,8 +169,8 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
 
   const orphanCount = data.orphanCount
   const isDisabled = orphanCount < 2
-  const isGated = data.suppDraftGated || !hasCommissioner
-  const canLaunchSuppDraft = !isGated && data.canRunSuppDraft
+  const isGated = data.dispersalDraftGated || !hasCommissioner
+  const canLaunchDispersalDraft = !isGated && data.canRunDispersalDraft
 
   const toggle = (set: Dispatch<SetStateAction<Set<string>>>, id: string) => {
     set((prev) => {
@@ -307,16 +307,16 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
             </div>
 
             <div className="rounded-xl border border-white/10 bg-[#080f1f] p-4">
-              <h4 className="text-sm font-semibold text-white">🏈 Supplemental Draft</h4>
+              <h4 className="text-sm font-semibold text-white">🏈 Dispersal Draft</h4>
               <p className="mt-2 text-[11px] leading-relaxed text-white/50">
                 Pool all orphaned team assets and draft them among remaining managers.
               </p>
 
-              {data.hasActiveSuppDraft && data.activeSuppDraftId ? (
+              {data.hasActiveDispersalDraft && data.activeDispersalDraftId ? (
                 <div className="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-3">
-                  <p className="text-xs font-semibold text-emerald-100">A supplemental draft is in progress.</p>
+                  <p className="text-xs font-semibold text-emerald-100">A dispersal draft is in progress.</p>
                   <Link
-                    href={`/league/${leagueId}/supplemental-draft/${data.activeSuppDraftId}`}
+                    href={`/league/${leagueId}/dispersal-draft/${data.activeDispersalDraftId}`}
                     className="mt-2 inline-flex rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100"
                   >
                     Resume draft →
@@ -328,24 +328,24 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <button
                         type="button"
-                        onClick={() => openGate('commissioner_supplemental_draft')}
+                        onClick={() => openGate('commissioner_dispersal_draft')}
                         className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/90 hover:bg-white/[0.07]"
                       >
-                        🏈 Supplemental Draft
+                        🏈 Dispersal Draft
                       </button>
                       <SubscriptionGateBadge
-                        featureId="commissioner_supplemental_draft"
-                        onClick={() => openGate('commissioner_supplemental_draft')}
+                        featureId="commissioner_dispersal_draft"
+                        onClick={() => openGate('commissioner_dispersal_draft')}
                       />
                     </div>
                   ) : (
                     <button
                       type="button"
-                      disabled={isDisabled || !canLaunchSuppDraft}
-                      onClick={() => router.push(`/league/${leagueId}/supplemental-draft/setup`)}
+                      disabled={isDisabled || !canLaunchDispersalDraft}
+                      onClick={() => router.push(`/league/${leagueId}/dispersal-draft/setup`)}
                       className="w-full rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-xs font-bold text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      🏈 Run Supplemental Draft →
+                      🏈 Run Dispersal Draft →
                     </button>
                   )}
                   {isDisabled ? (
@@ -353,7 +353,7 @@ function CommissionerLeagueOrphanPanel({ leagueId }: { leagueId: string }) {
                   ) : null}
                   {isGated && !isDisabled ? (
                     <p className="mt-2 text-[11px] text-amber-200/70">
-                      AF Commissioner subscription required to run supplemental drafts.
+                      AF Commissioner subscription required to run dispersal drafts.
                     </p>
                   ) : null}
                 </div>

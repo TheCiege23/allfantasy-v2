@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isCommissioner } from '@/lib/commissioner/permissions'
-import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
+import { requireDispersalDraftForLeague } from '@/lib/league/dispersal-draft-route-helpers'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   if (!leagueId || !draftId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
   try {
-    await requireSupplementalDraftForLeague(draftId, leagueId)
+    await requireDispersalDraftForLeague(draftId, leagueId)
   } catch (e) {
     const status = (e as Error & { status?: number }).status ?? 404
     return NextResponse.json({ error: 'Draft not found' }, { status })
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   if (remove) {
     if (!comm) return NextResponse.json({ error: 'Only the commissioner can remove pass status.' }, { status: 403 })
     try {
-      await SupplementalDraftEngine.removePassByCommissioner(draftId, rosterId)
-      const state = await SupplementalDraftEngine.getDraftState(draftId)
+      await DispersalDraftEngine.removePassByCommissioner(draftId, rosterId)
+      const state = await DispersalDraftEngine.getDraftState(draftId)
       return NextResponse.json({ ok: true, draft: state })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Pass update failed'
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   }
 
   try {
-    const state = await SupplementalDraftEngine.makePick(draftId, rosterId, 'PASS')
+    const state = await DispersalDraftEngine.makePick(draftId, rosterId, 'PASS')
     return NextResponse.json({ ok: true, draft: state })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Pass update failed'

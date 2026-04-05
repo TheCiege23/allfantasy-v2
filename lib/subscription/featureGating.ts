@@ -96,7 +96,7 @@ export function getUpgradeUrlForFeature(featureId: SubscriptionFeatureId): strin
   return getGateDef(featureId).upgradeUrl
 }
 
-/** Same as pricing CTAs: base path + `?highlight=` when the catalog defines one (e.g. supplemental draft). */
+/** Same as pricing CTAs: base path + `?highlight=` when the catalog defines one (e.g. dispersal draft). */
 export function getUpgradeUrlWithHighlightForFeature(featureId: SubscriptionFeatureId): string {
   const def = getGateDef(featureId)
   const h = typeof def.highlightParam === "string" && def.highlightParam.length > 0 ? def.highlightParam : undefined

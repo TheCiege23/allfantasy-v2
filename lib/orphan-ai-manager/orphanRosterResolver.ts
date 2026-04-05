@@ -12,7 +12,7 @@ export function isOrphanPlatformUserId(platformUserId: string): boolean {
   return typeof platformUserId === 'string' && platformUserId.startsWith(ORPHAN_PREFIX)
 }
 
-/** Roster slot run by supplemental-draft AI manager flow (not a human user id). */
+/** Roster slot run by dispersal-draft AI manager flow (not a human user id). */
 export function isAiManagerPlatformUserId(platformUserId: string): boolean {
   return typeof platformUserId === 'string' && platformUserId.startsWith(AI_MANAGER_PREFIX)
 }

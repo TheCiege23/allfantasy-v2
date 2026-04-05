@@ -1,5 +1,5 @@
 /**
- * POST: commissioner — league downsizing prep (merge rosters / mark dissolved for supplemental draft).
+ * POST: commissioner — league downsizing prep (merge rosters / mark dissolved for dispersal draft).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -7,7 +7,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
-import { isLeagueEligibleForSupplementalDraft } from '@/lib/league/supplemental-draft-eligibility'
+import { isLeagueEligibleForDispersalDraft } from '@/lib/league/dispersal-draft-eligibility'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
@@ -54,7 +54,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-  const eligible = isLeagueEligibleForSupplementalDraft(league)
+  const eligible = isLeagueEligibleForDispersalDraft(league)
   const [rosters, teams] = await Promise.all([
     prisma.roster.findMany({
       where: { leagueId },
@@ -86,7 +86,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
-  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  const ent = await requireEntitlement('commissioner_dispersal_draft')
   if (ent instanceof NextResponse) return ent
   const userId = ent
 
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-  if (!isLeagueEligibleForSupplementalDraft(league)) {
+  if (!isLeagueEligibleForDispersalDraft(league)) {
     return NextResponse.json(
       { error: 'Downsize tooling applies to dynasty / devy / C2C / salary-style leagues.' },
       { status: 400 }
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
           platformUserId: `orphan-${fromId}`,
           settings: mergeLeagueSettings(fromRoster.settings, {
             dissolvedForDownsize: true,
-            pendingSupplementalPool: true,
+            pendingDispersalPool: true,
           }),
         },
       })

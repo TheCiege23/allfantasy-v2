@@ -2648,7 +2648,7 @@ model AppUser {
   zombieUniversesCreated         ZombieUniverse[]           @relation("ZombieUniverseCreator")
   bigBrotherChatCommandLogs      BigBrotherChatCommandLog[]
   devyImportSessionsCommissioned DevyImportSession[]        @relation("DevyImportSessionCommissioner")
-  supplementalDraftsCreated      SupplementalDraft[]       @relation("SupplementalDraftCreator")
+  dispersalDraftsCreated         DispersalDraft[]           @relation("DispersalDraftCreator")
 
   @@map("app_users")
 }
@@ -3867,9 +3867,9 @@ model UserProfile {
   /// AF Commissioner subscription — unlocks premium league AI / playoff options.
   afCommissionerSub Boolean @default(false)
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
-  afProSub           Boolean @default(false)
+  afProSub          Boolean @default(false)
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
-  afWarRoomSub       Boolean @default(false)
+  afWarRoomSub      Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4029,17 +4029,17 @@ model League {
   leagueType String? @default("redraft")
   devyYear   String?
 
-  medianGame              Boolean @default(false)
-  allowPreDraftMoves      Boolean @default(true)
-  preventBenchDrops       Boolean @default(false)
-  lockAllMoves            Boolean @default(false)
-  supplementalDraftRounds Int?    @default(0)
-  taxiSlots               Int?    @default(0)
-  taxiAllowNonRookies     Boolean @default(false)
-  taxiYearsLimit          Int?    @default(2)
-  taxiDeadlineWeek        Int?    @default(0)
-  overrideInviteCapacity  Boolean @default(false)
-  disableInviteLinks      Boolean @default(false)
+  medianGame             Boolean @default(false)
+  allowPreDraftMoves     Boolean @default(true)
+  preventBenchDrops      Boolean @default(false)
+  lockAllMoves           Boolean @default(false)
+  dispersalDraftRounds   Int?    @default(0) @map("supplementalDraftRounds")
+  taxiSlots              Int?    @default(0)
+  taxiAllowNonRookies    Boolean @default(false)
+  taxiYearsLimit         Int?    @default(2)
+  taxiDeadlineWeek       Int?    @default(0)
+  overrideInviteCapacity Boolean @default(false)
+  disableInviteLinks     Boolean @default(false)
 
   aiChimmyEnabled            Boolean @default(true)
   aiWaiverSuggestions        Boolean @default(false)
@@ -4201,7 +4201,7 @@ model League {
   mockDrafts                  MockDraft[]
   draftSessions               DraftSession[]
   chatMessages                LeagueChatMessage[]
-  supplementalDrafts          SupplementalDraft[]
+  dispersalDrafts             DispersalDraft[]
   discordLeagueChannels       DiscordLeagueChannel[]
   aiCommissionerConfig        AiCommissionerConfig?
   aiCommissionerAlerts        AiCommissionerAlert[]
@@ -4220,6 +4220,8 @@ model League {
   redraftWaiverClaims       RedraftWaiverClaim[]
   redraftLeagueTrades       RedraftLeagueTrade[]
   redraftLeagueTransactions RedraftLeagueTransaction[]
+  integrityFlags            IntegrityFlag[]
+  integritySettings         LeagueIntegritySettings?
   keeperRecords             KeeperRecord[]
   keeperSelectionSessions   KeeperSelectionSession[]
   keeperEligibilities       KeeperEligibility[]
@@ -4237,6 +4239,61 @@ model League {
   @@index([status])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+/// AI integrity monitoring — collusion / tanking flags (no chat content; evidence is on-field only).
+model IntegrityFlag {
+  id                String   @id @default(cuid())
+  leagueId          String
+  flagType          String // collusion | tanking
+  severity          String // low | medium | high
+  status            String   @default("open") // open | commissioner_reviewed | dismissed | escalated
+  affectedRosterIds String[]
+  affectedTeamNames String[]
+  summary           String   @db.Text
+  evidenceJson      Json
+  aiConfidence      Float
+
+  tradeTransactionId String?
+
+  commissionerNote   String?   @db.Text
+  commissionerUserId String?
+  reviewedAt         DateTime?
+  notifiedAt         DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
+  @@index([leagueId, flagType])
+  @@index([createdAt])
+  @@map("integrity_flags")
+}
+
+model LeagueIntegritySettings {
+  id       String @id @default(cuid())
+  leagueId String @unique
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  collusionMonitoringEnabled Boolean @default(true)
+  collusionSensitivity       String  @default("medium") // low | medium | high
+
+  tankingMonitorEnabled     Boolean @default(false)
+  tankingSensitivity        String  @default("medium")
+  tankingStartWeek          Int?
+  tankingIllegalLineupCheck Boolean @default(true)
+  tankingBenchPatternCheck  Boolean @default(true)
+  tankingWaiverPatternCheck Boolean @default(false)
+
+  lastCollusionScanAt DateTime?
+  lastTankingScanAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("league_integrity_settings")
 }
 
 /// Commissioner-managed draft & league draft-time settings (one row per league).
@@ -4991,26 +5048,26 @@ model ChatEmoji {
 /// League chat (main app League). Syncs with draft chat when liveDraftChatSyncEnabled during active draft.
 /// Rich media (gifId, attachments, poll) — store in `metadata` until migrated; see prisma/seeds/chat-media.ts header SQL.
 model LeagueChatMessage {
-  id               String   @id @default(cuid())
-  leagueId         String
-  league           League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  userId           String
-  user             AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message          String   @db.Text
-  type             String   @default("text") @db.VarChar(32)
-  imageUrl         String?  @db.Text
-  metadata         Json?
+  id                String   @id @default(cuid())
+  leagueId          String
+  league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  userId            String
+  user              AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message           String   @db.Text
+  type              String   @default("text") @db.VarChar(32)
+  imageUrl          String?  @db.Text
+  metadata          Json?
   /// 'draft' = draft-only (when sync off); null = league chat (or draft when sync on)
-  source           String?  @db.VarChar(16)
-  discordMessageId String?  @db.VarChar(64)
-  sourceDiscord    Boolean  @default(false)
+  source            String?  @db.VarChar(16)
+  discordMessageId  String?  @db.VarChar(64)
+  sourceDiscord     Boolean  @default(false)
   /// @chimmy private thread — only `visibleToUserId` should see the row when true.
-  isPrivate          Boolean  @default(false)
-  visibleToUserId    String?
-  messageSubtype     String?  @db.VarChar(32)
-  mentionedUserIds   String[] @default([])
-  globalBroadcastId  String?  @db.VarChar(64)
-  createdAt        DateTime @default(now())
+  isPrivate         Boolean  @default(false)
+  visibleToUserId   String?
+  messageSubtype    String?  @db.VarChar(32)
+  mentionedUserIds  String[] @default([])
+  globalBroadcastId String?  @db.VarChar(64)
+  createdAt         DateTime @default(now())
 
   @@index([leagueId])
   @@index([leagueId, source])
@@ -5019,15 +5076,15 @@ model LeagueChatMessage {
   @@map("league_chat_messages")
 }
 
-/// Commissioner-run supplemental draft: orphaned / dissolved team assets pooled for linear draft.
-model SupplementalDraft {
-  id                   String    @id @default(cuid())
-  leagueId             String
-  scenario             String    @db.VarChar(32) // orphan_teams | league_downsizing
-  status               String    @default("pending") @db.VarChar(24) // pending | configuring | in_progress | completed | cancelled
+/// Commissioner-run dispersal draft: orphaned / dissolved team assets pooled for linear draft.
+model DispersalDraft {
+  id       String @id @default(cuid())
+  leagueId String
+  scenario String @db.VarChar(32) // orphan_teams | league_downsizing
+  status   String @default("pending") @db.VarChar(24) // pending | configuring | in_progress | completed | cancelled
 
   participantRosterIds String[]
-  passedRosterIds        String[] @default([])
+  passedRosterIds      String[] @default([])
 
   draftOrder       String[]
   currentPickIndex Int      @default(0)
@@ -5037,45 +5094,45 @@ model SupplementalDraft {
   sourceRosterIds String[]
   assetPool       Json     @default("[]")
 
-  orderMode       String   @default("randomized") @db.VarChar(24) // randomized | commissioner_set
-  draftType       String   @default("linear") @db.VarChar(16)
-  pickTimeSeconds Int      @default(120)
+  orderMode         String  @default("randomized") @db.VarChar(24) // randomized | commissioner_set
+  draftType         String  @default("linear") @db.VarChar(16)
+  pickTimeSeconds   Int     @default(120)
   autoPickOnTimeout Boolean @default(true)
 
   createdByUserId String
-  createdBy       AppUser   @relation("SupplementalDraftCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  createdBy       AppUser   @relation("DispersalDraftCreator", fields: [createdByUserId], references: [id], onDelete: Cascade)
   startedAt       DateTime?
   completedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  picks  SupplementalDraftPick[]
+  league League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  picks  DispersalDraftPick[]
 
   @@index([leagueId])
   @@index([status])
   @@map("supplemental_drafts")
 }
 
-model SupplementalDraftPick {
-  id                  String   @id @default(cuid())
-  supplementalDraftId String
-  pickNumber          Int
-  round               Int
-  pickInRound         Int
-  rosterId            String
+model DispersalDraftPick {
+  id               String @id @default(cuid())
+  dispersalDraftId String @map("supplementalDraftId")
+  pickNumber       Int
+  round            Int
+  pickInRound      Int
+  rosterId         String
 
-  assetType        String?  @db.VarChar(24) // player | draft_pick | faab
-  assetId          String?  @db.VarChar(128)
-  assetDisplayName String?  @db.VarChar(256)
-  isPassed         Boolean  @default(false)
+  assetType        String? @db.VarChar(24) // player | draft_pick | faab
+  assetId          String? @db.VarChar(128)
+  assetDisplayName String? @db.VarChar(256)
+  isPassed         Boolean @default(false)
 
   pickedAt DateTime?
 
-  supplementalDraft SupplementalDraft @relation(fields: [supplementalDraftId], references: [id], onDelete: Cascade)
+  dispersalDraft DispersalDraft @relation(fields: [dispersalDraftId], references: [id], onDelete: Cascade)
 
-  @@unique([supplementalDraftId, pickNumber])
-  @@index([supplementalDraftId, rosterId])
+  @@unique([dispersalDraftId, pickNumber])
+  @@index([dispersalDraftId, rosterId])
   @@map("supplemental_draft_picks")
 }
 
@@ -5202,19 +5259,19 @@ model FindLeagueListing {
 }
 
 model Roster {
-  id             String   @id @default(uuid())
-  leagueId       String
-  league         League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  platformUserId String
-  playerData     Json
+  id                   String   @id @default(uuid())
+  leagueId             String
+  league               League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  platformUserId       String
+  playerData           Json
   /// Optional commissioner flags: `isAdvertised`, `aiManaged`, `aiManagerType`, etc.
-  settings       Json?
-  faabRemaining  Int?
-  waiverPriority Int?
-  /// True when this roster has clicked Pass in the active supplemental draft (cleared when draft ends).
-  supplementalDraftPasses Boolean @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  settings             Json?
+  faabRemaining        Int?
+  waiverPriority       Int?
+  /// True when this roster has clicked Pass in the active dispersal draft (cleared when draft ends).
+  dispersalDraftPasses Boolean  @default(false) @map("supplementalDraftPasses")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
@@ -7741,7 +7798,7 @@ model DevyLeagueConfig {
   /// PROMPT 3: When to apply promotion: immediate_after_pro_draft | rollover | manager_choice_before_rookie_draft
   promotionTiming               String   @default("manager_choice_before_rookie_draft") @db.VarChar(48)
   /// Allow devy players (NCAA, not rostered) on waivers/FA when enabled; FAAB or priority per league.
-  supplementalDevyFAEnabled     Boolean  @default(false)
+  dispersalDevyFAEnabled        Boolean  @default(false) @map("supplementalDevyFAEnabled")
   /// If enabled, rights expire after configured period when not promoted (commissioner tool to clean).
   rightsExpirationEnabled       Boolean  @default(false)
   /// PROMPT 3: When player returns to school: restore_rights | hold_rights | commissioner
@@ -9626,19 +9683,19 @@ model PlatformChatThreadMember {
 }
 
 model PlatformChatMessage {
-  id           String   @id @default(uuid())
-  threadId     String
-  senderUserId String?
-  messageType  String   @default("text")
-  body         String
-  metadata     Json?
-  isPrivate          Boolean  @default(false)
-  visibleToUserId    String?
-  messageSubtype     String?  @db.VarChar(32)
-  mentionedUserIds   String[] @default([])
-  globalBroadcastId  String?  @db.VarChar(64)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(uuid())
+  threadId          String
+  senderUserId      String?
+  messageType       String   @default("text")
+  body              String
+  metadata          Json?
+  isPrivate         Boolean  @default(false)
+  visibleToUserId   String?
+  messageSubtype    String?  @db.VarChar(32)
+  mentionedUserIds  String[] @default([])
+  globalBroadcastId String?  @db.VarChar(64)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   thread PlatformChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender AppUser?           @relation("PlatformChatMessageSender", fields: [senderUserId], references: [id], onDelete: SetNull)
@@ -10720,17 +10777,17 @@ model DraftAutopickSetting {
 // ── AllFantasy redraft league engine (distinct from legacy WaiverClaim / LeagueTrade models) ──
 
 model SportConfig {
-  id        String @id @default(cuid())
-  sport     String @unique
+  id          String  @id @default(cuid())
+  sport       String  @unique
   /// Human-readable label (e.g. "NFL Football")
-  displayName String @default("")
+  displayName String  @default("")
   /// URL slug — unique when set (seed backfills per sport)
-  slug      String? @unique
+  slug        String? @unique
 
   /// Legacy redraft: weekly | daily | per_match
   lineupFrequency String
   /// Legacy: points | categories — mirrors defaultScoringSystem when possible
-  scoringType String
+  scoringType     String
 
   /// Centralized defaults (see lib/sportConfig)
   defaultScoringSystem     String @default("points")
@@ -10748,25 +10805,25 @@ model SportConfig {
   defaultMatchupPeriodDays Int    @default(7)
   lineupLockType           String @default("per_player_kickoff")
 
-  supportsRedraft       Boolean @default(true)
-  supportsDynasty       Boolean @default(false)
-  supportsKeeper        Boolean @default(false)
-  supportsDevy          Boolean @default(false)
-  supportsC2C           Boolean @default(false)
-  supportsIDP           Boolean @default(false)
-  supportsSuperflex     Boolean @default(false)
-  supportsTEPremium     Boolean @default(false)
-  supportsPPR           Boolean @default(false)
-  supportsCategories    Boolean @default(false)
-  supportsDailyLineups  Boolean @default(false)
+  supportsRedraft      Boolean @default(true)
+  supportsDynasty      Boolean @default(false)
+  supportsKeeper       Boolean @default(false)
+  supportsDevy         Boolean @default(false)
+  supportsC2C          Boolean @default(false)
+  supportsIDP          Boolean @default(false)
+  supportsSuperflex    Boolean @default(false)
+  supportsTEPremium    Boolean @default(false)
+  supportsPPR          Boolean @default(false)
+  supportsCategories   Boolean @default(false)
+  supportsDailyLineups Boolean @default(false)
 
   commissionerSettings Json?
   aiMetadata           Json?
 
-  hasIR         Boolean @default(true)
-  hasTaxi       Boolean @default(false)
-  hasBye        Boolean @default(false)
-  maxRosterSize Int     @default(15)
+  hasIR            Boolean @default(true)
+  hasTaxi          Boolean @default(false)
+  hasBye           Boolean @default(false)
+  maxRosterSize    Int     @default(15)
   defaultPositions Json
   statCategories   Json
 
@@ -11542,23 +11599,23 @@ model WeatherCache {
 }
 
 model AFProjectionSnapshot {
-  id                 String   @id @default(cuid())
-  playerId           String
-  playerName         String
-  sport              String
-  position           String
-  week               Int?
-  season             Int
-  eventId            String?
+  id         String  @id @default(cuid())
+  playerId   String
+  playerName String
+  sport      String
+  position   String
+  week       Int?
+  season     Int
+  eventId    String?
 
   baselineProjection Float
-  weatherAdjustment  Float    @default(0)
+  weatherAdjustment  Float @default(0)
   afProjection       Float
 
   weatherCacheId    String?
   adjustmentFactors Json?
   adjustmentReason  String?
-  confidenceLevel   String   @default("medium")
+  confidenceLevel   String  @default("medium")
 
   isOutdoorGame Boolean @default(true)
   venueOverride Boolean @default(false)

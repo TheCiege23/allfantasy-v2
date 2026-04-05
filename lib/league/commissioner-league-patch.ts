@@ -32,7 +32,7 @@ export type CommissionerSettingsFormData = {
   allowPreDraftMoves?: boolean | null
   preventBenchDrops?: boolean | null
   lockAllMoves?: boolean | null
-  supplementalDraftRounds?: number | null
+  dispersalDraftRounds?: number | null
   taxiSlots?: number | null
   taxiAllowNonRookies?: boolean | null
   taxiYearsLimit?: number | null
@@ -104,7 +104,7 @@ export function commissionerLeagueFieldsFromRow(
     | 'allowPreDraftMoves'
     | 'preventBenchDrops'
     | 'lockAllMoves'
-    | 'supplementalDraftRounds'
+    | 'dispersalDraftRounds'
     | 'taxiSlots'
     | 'taxiAllowNonRookies'
     | 'taxiYearsLimit'
@@ -172,7 +172,7 @@ export function commissionerLeagueFieldsFromRow(
     allowPreDraftMoves: league.allowPreDraftMoves,
     preventBenchDrops: league.preventBenchDrops,
     lockAllMoves: league.lockAllMoves,
-    supplementalDraftRounds: league.supplementalDraftRounds,
+    dispersalDraftRounds: league.dispersalDraftRounds,
     taxiSlots: league.taxiSlots,
     taxiAllowNonRookies: league.taxiAllowNonRookies,
     taxiYearsLimit: league.taxiYearsLimit,
@@ -241,7 +241,7 @@ const LEAGUE_PATCH_KEYS: (keyof Prisma.LeagueUpdateInput)[] = [
   'allowPreDraftMoves',
   'preventBenchDrops',
   'lockAllMoves',
-  'supplementalDraftRounds',
+  'dispersalDraftRounds',
   'taxiSlots',
   'taxiAllowNonRookies',
   'taxiYearsLimit',

@@ -1,5 +1,5 @@
 /**
- * GET: commissioner-only — orphan team summary + supplemental draft eligibility.
+ * GET: commissioner-only — orphan team summary + dispersal draft eligibility.
  */
 
 import { NextResponse } from 'next/server'
@@ -7,8 +7,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
-import { buildAssetPoolFromRosters } from '@/lib/supplemental-draft/assetPoolBuilder'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
+import { buildAssetPoolFromRosters } from '@/lib/dispersal-draft/assetPoolBuilder'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
 import { prisma } from '@/lib/prisma'
 
@@ -42,10 +42,10 @@ export async function GET(_req: Request, ctx: { params: Promise<{ leagueId: stri
   const orphanIds = await getOrphanRosterIdsForLeague(leagueId)
 
   const resolver = new EntitlementResolver()
-  const suppAccess = await resolver.resolveForUser(userId, 'commissioner_supplemental_draft')
-  const suppDraftGated = !suppAccess.hasAccess
+  const dispersalAccess = await resolver.resolveForUser(userId, 'commissioner_dispersal_draft')
+  const dispersalDraftGated = !dispersalAccess.hasAccess
 
-  const active = await SupplementalDraftEngine.getActiveDraftForLeague(leagueId)
+  const active = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
 
   const orphanedTeams = await Promise.all(
     orphanIds.map(async (rosterId) => {
@@ -74,11 +74,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ leagueId: stri
   return NextResponse.json({
     orphanedTeams,
     orphanCount,
-    hasActiveSuppDraft: active != null,
-    activeSuppDraftId: active?.id ?? null,
+    hasActiveDispersalDraft: active != null,
+    activeDispersalDraftId: active?.id ?? null,
     canAdvertise: orphanCount >= 1,
     canAssignAI: orphanCount >= 1,
-    canRunSuppDraft: orphanCount >= 2 && suppAccess.hasAccess,
-    suppDraftGated,
+    canRunDispersalDraft: orphanCount >= 2 && dispersalAccess.hasAccess,
+    dispersalDraftGated,
   })
 }

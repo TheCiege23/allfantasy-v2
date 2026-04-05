@@ -53,10 +53,10 @@ export async function getCurrentUserRosterIdForLeague(
 }
 
 /**
- * Supplemental draft: only the roster owner may submit picks (no commissioner proxy).
+ * Dispersal draft: only the roster owner may submit picks (no commissioner proxy).
  * Caller must also enforce turn order and `passedRosterIds` in the engine.
  */
-export async function canSubmitSupplementalPickForUser(
+export async function canSubmitDispersalPickForUser(
   leagueId: string,
   userId: string | undefined,
   rosterId: string

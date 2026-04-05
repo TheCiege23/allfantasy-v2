@@ -25,7 +25,7 @@ interface DevyConfig {
   rookiePickTradeRules: string
   nflDevyExcludeKDST: boolean
   promotionTiming: string
-  supplementalDevyFAEnabled: boolean
+  dispersalDevyFAEnabled: boolean
   rightsExpirationEnabled: boolean
   returnToSchoolHandling?: string
   taxiProRookiesScoreInBestBall: boolean
@@ -294,12 +294,12 @@ export function DevySettingsPanel({ leagueId, isCommissioner, onSaved }: Props) 
       <label className="flex items-center gap-2">
         <input
           type="checkbox"
-          checked={config.supplementalDevyFAEnabled ?? false}
-          onChange={(e) => update({ supplementalDevyFAEnabled: e.target.checked })}
+          checked={config.dispersalDevyFAEnabled ?? false}
+          onChange={(e) => update({ dispersalDevyFAEnabled: e.target.checked })}
           disabled={!isCommissioner}
           className="rounded border-white/20"
         />
-        <span className="text-sm text-white/80">Supplemental devy FA (waivers for NCAA devy)</span>
+        <span className="text-sm text-white/80">Dispersal devy FA (waivers for NCAA devy)</span>
       </label>
       <label className="flex items-center gap-2">
         <input

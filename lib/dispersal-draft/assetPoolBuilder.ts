@@ -1,5 +1,5 @@
 /**
- * Build supplemental draft asset pool from orphaned/dissolved `Roster` rows.
+ * Build dispersal draft asset pool from orphaned/dissolved `Roster` rows.
  *
  * Players live in `Roster.playerData` (JSON array or `{ players: [] }` shape).
  * Future/traded draft picks may appear under `draftPicks` | `futurePicks` on the same JSON object
@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto'
 
 import { prisma } from '@/lib/prisma'
 
-import type { SupplementalAsset } from './types'
+import type { DispersalAsset } from './types'
 
 function newPoolId(): string {
   return randomUUID()
@@ -23,7 +23,7 @@ function asRecord(v: unknown): Record<string, unknown> | null {
 }
 
 /** Normalize a single player row from legacy `playerData` arrays (Sleeper-style and variants). */
-function rowToPlayerAsset(sourceRosterId: string, raw: unknown): SupplementalAsset | null {
+function rowToPlayerAsset(sourceRosterId: string, raw: unknown): DispersalAsset | null {
   const o = asRecord(raw)
   if (!o) return null
   const playerId =
@@ -55,23 +55,23 @@ function rowToPlayerAsset(sourceRosterId: string, raw: unknown): SupplementalAss
 /**
  * Extract player rows from `playerData`: top-level array or nested `players` / `roster`.
  */
-export function extractPlayersFromPlayerData(playerData: unknown, sourceRosterId: string): SupplementalAsset[] {
+export function extractPlayersFromPlayerData(playerData: unknown, sourceRosterId: string): DispersalAsset[] {
   if (playerData == null) return []
   if (Array.isArray(playerData)) {
-    return playerData.map((raw) => rowToPlayerAsset(sourceRosterId, raw)).filter((a): a is SupplementalAsset => Boolean(a))
+    return playerData.map((raw) => rowToPlayerAsset(sourceRosterId, raw)).filter((a): a is DispersalAsset => Boolean(a))
   }
   const root = asRecord(playerData)
   if (!root) return []
   const nested = root.players ?? root.roster ?? root.lineup
   if (Array.isArray(nested)) {
-    return nested.map((raw) => rowToPlayerAsset(sourceRosterId, raw)).filter((a): a is SupplementalAsset => Boolean(a))
+    return nested.map((raw) => rowToPlayerAsset(sourceRosterId, raw)).filter((a): a is DispersalAsset => Boolean(a))
   }
   return []
 }
 
 type RawDraftPick = Record<string, unknown>
 
-function rawToDraftPickAsset(sourceRosterId: string, raw: unknown): SupplementalAsset | null {
+function rawToDraftPickAsset(sourceRosterId: string, raw: unknown): DispersalAsset | null {
   const o = asRecord(raw)
   if (!o) return null
   const pickId =
@@ -127,7 +127,7 @@ function rawToDraftPickAsset(sourceRosterId: string, raw: unknown): Supplemental
 /**
  * Extract future/traded draft pick rows from roster JSON when present.
  */
-export function extractDraftPicksFromPlayerData(playerData: unknown, sourceRosterId: string): SupplementalAsset[] {
+export function extractDraftPicksFromPlayerData(playerData: unknown, sourceRosterId: string): DispersalAsset[] {
   if (playerData == null) return []
   const root = asRecord(playerData)
   const lists: unknown[] = []
@@ -137,7 +137,7 @@ export function extractDraftPicksFromPlayerData(playerData: unknown, sourceRoste
       if (Array.isArray(v)) lists.push(...v)
     }
   }
-  const out: SupplementalAsset[] = []
+  const out: DispersalAsset[] = []
   for (const raw of lists) {
     const a = rawToDraftPickAsset(sourceRosterId, raw)
     if (a) out.push(a)
@@ -149,14 +149,14 @@ export async function buildAssetPoolFromRosters(
   leagueId: string,
   sourceRosterIds: string[]
 ): Promise<{
-  assets: SupplementalAsset[]
+  assets: DispersalAsset[]
   totalCount: number
   playerCount: number
   draftPickCount: number
   faabCount: number
   totalFaab: number
 }> {
-  const assets: SupplementalAsset[] = []
+  const assets: DispersalAsset[] = []
   let playerCount = 0
   let draftPickCount = 0
   let faabCount = 0
@@ -209,9 +209,9 @@ export async function buildAssetPoolFromRosters(
   }
 }
 
-/** Same round geometry as `SupplementalDraftEngine` (linear draft). */
+/** Same round geometry as `DispersalDraftEngine` (linear draft). */
 export function computeSuggestedDraftShape(
-  assets: SupplementalAsset[],
+  assets: DispersalAsset[],
   participantCount: number
 ): { suggestedRounds: number; suggestedPicksPerRound: number } {
   const n = Math.max(1, participantCount)

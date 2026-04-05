@@ -1,14 +1,14 @@
 /**
- * Supplemental draft — orphaned / dissolved team asset pool and live draft state.
+ * Dispersal draft — orphaned / dissolved team asset pool and live draft state.
  */
 
-export type SupplementalScenario = 'orphan_teams' | 'league_downsizing'
+export type DispersalScenario = 'orphan_teams' | 'league_downsizing'
 
-export type SupplementalAssetType = 'player' | 'draft_pick' | 'faab'
+export type DispersalAssetType = 'player' | 'draft_pick' | 'faab'
 
-export type SupplementalAsset = {
+export type DispersalAsset = {
   id: string
-  assetType: SupplementalAssetType
+  assetType: DispersalAssetType
   sourceRosterId: string
 
   playerId?: string
@@ -31,9 +31,9 @@ export type SupplementalAsset = {
   isAvailable: boolean
 }
 
-export type SupplementalDraftConfig = {
+export type DispersalDraftConfig = {
   leagueId: string
-  scenario: SupplementalScenario
+  scenario: DispersalScenario
   sourceRosterIds: string[]
   participantRosterIds: string[]
   orderMode: 'randomized' | 'commissioner_set'
@@ -42,10 +42,10 @@ export type SupplementalDraftConfig = {
   autoPickOnTimeout: boolean
 }
 
-export type SupplementalDraftState = {
+export type DispersalDraftState = {
   id: string
   leagueId: string
-  scenario: SupplementalScenario
+  scenario: DispersalScenario
   status: 'pending' | 'configuring' | 'in_progress' | 'completed' | 'cancelled'
   participantRosterIds: string[]
   passedRosterIds: string[]
@@ -53,7 +53,7 @@ export type SupplementalDraftState = {
   currentPickIndex: number
   totalRounds: number
   picksPerRound: number
-  assetPool: SupplementalAsset[]
+  assetPool: DispersalAsset[]
   sourceRosterIds: string[]
   picks: {
     pickNumber: number

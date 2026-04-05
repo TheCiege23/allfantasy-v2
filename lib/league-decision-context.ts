@@ -7,7 +7,7 @@
  *   output but must NOT infer beyond what this context provides.
  * - Grok (used for narrative/social posts) never receives this context directly.
  * - The trade evaluator injects the summarized context into the OpenAI prompt as
- *   supplemental data — it does not replace the tier system or veto layer.
+ *   auxiliary data — it does not replace the tier system or veto layer.
  *
  * DATA FLOW:
  *   Sleeper API + FantasyCalc → buildLeagueDecisionContext() → summarizeLeagueDecisionContext()

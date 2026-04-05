@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
-import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
+import { requireDispersalDraftForLeague } from '@/lib/league/dispersal-draft-route-helpers'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,13 +20,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ leagueId: stri
   }
 
   try {
-    await requireSupplementalDraftForLeague(draftId, leagueId)
+    await requireDispersalDraftForLeague(draftId, leagueId)
   } catch (e) {
     const status = (e as Error & { status?: number }).status ?? 404
     return NextResponse.json({ error: 'Draft not found' }, { status })
   }
 
-  const state = await SupplementalDraftEngine.getDraftState(draftId)
+  const state = await DispersalDraftEngine.getDraftState(draftId)
   if (!state) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
   return NextResponse.json(state)
 }

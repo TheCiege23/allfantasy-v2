@@ -1,6 +1,6 @@
 /**
- * GET: Active supplemental draft for league, or null.
- * POST: Create supplemental draft (commissioner + entitlement + dynasty + orphans).
+ * GET: Active dispersal draft for league, or null.
+ * POST: Create dispersal draft (commissioner + entitlement + dynasty + orphans).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
@@ -10,9 +10,9 @@ import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { getOrphanRosterIdsForLeague, isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
-import { isSupplementalDraftDynastyEligible } from '@/lib/supplemental-draft/dynastyEligibility'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
-import type { SupplementalDraftConfig } from '@/lib/supplemental-draft/types'
+import { isDispersalDraftDynastyEligible } from '@/lib/dispersal-draft/dynastyEligibility'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
+import type { DispersalDraftConfig } from '@/lib/dispersal-draft/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,12 +28,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const draft = await SupplementalDraftEngine.getActiveDraftForLeague(leagueId)
+  const draft = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
   return NextResponse.json({ draft })
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
-  const ent = await requireEntitlement('commissioner_supplemental_draft')
+  const ent = await requireEntitlement('commissioner_dispersal_draft')
   if (ent instanceof NextResponse) return ent
   const commissionerUserId = ent
 
@@ -50,16 +50,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-  if (!isSupplementalDraftDynastyEligible(league)) {
-    return NextResponse.json({ error: 'Supplemental draft requires a dynasty league' }, { status: 400 })
+  if (!isDispersalDraftDynastyEligible(league)) {
+    return NextResponse.json({ error: 'Dispersal draft requires a dynasty league' }, { status: 400 })
   }
 
   const orphanIds = await getOrphanRosterIdsForLeague(leagueId)
   const orphanSet = new Set(orphanIds)
 
-  const active = await SupplementalDraftEngine.getActiveDraftForLeague(leagueId)
+  const active = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
   if (active) {
-    return NextResponse.json({ error: 'A supplemental draft is already active' }, { status: 409 })
+    return NextResponse.json({ error: 'A dispersal draft is already active' }, { status: 409 })
   }
 
   const allRosters = await prisma.roster.findMany({
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     .filter((r) => !isOrphanPlatformUserId(r.platformUserId))
     .map((r) => r.id)
 
-  const body = (await req.json().catch(() => ({}))) as Partial<SupplementalDraftConfig> & {
+  const body = (await req.json().catch(() => ({}))) as Partial<DispersalDraftConfig> & {
     sourceRosterIds?: string[]
     participantRosterIds?: string[]
   }
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
 
   if (participantRosterIds.length === 0) {
     return NextResponse.json(
-      { error: 'Supplemental draft needs at least one non-orphan team to participate' },
+      { error: 'Dispersal draft needs at least one non-orphan team to participate' },
       { status: 400 }
     )
   }
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   const autoPickOnTimeout = body.autoPickOnTimeout !== false
   const scenario = body.scenario === 'league_downsizing' ? 'league_downsizing' : 'orphan_teams'
 
-  const config: SupplementalDraftConfig = {
+  const config: DispersalDraftConfig = {
     leagueId,
     scenario,
     sourceRosterIds,
@@ -134,7 +134,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   }
 
   try {
-    const draft = await SupplementalDraftEngine.createDraft(config, commissionerUserId)
+    const draft = await DispersalDraftEngine.createDraft(config, commissionerUserId)
     return NextResponse.json({ draft })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create draft'

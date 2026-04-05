@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import {
-  canSubmitSupplementalPickForUser,
+  canSubmitDispersalPickForUser,
   getCurrentUserRosterIdForLeague,
 } from '@/lib/live-draft-engine/auth'
-import { requireSupplementalDraftForLeague } from '@/lib/league/supplemental-draft-route-helpers'
-import { SupplementalDraftEngine } from '@/lib/supplemental-draft/SupplementalDraftEngine'
+import { requireDispersalDraftForLeague } from '@/lib/league/dispersal-draft-route-helpers'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   if (!leagueId || !draftId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
   try {
-    await requireSupplementalDraftForLeague(draftId, leagueId)
+    await requireDispersalDraftForLeague(draftId, leagueId)
   } catch (e) {
     const status = (e as Error & { status?: number }).status ?? 404
     return NextResponse.json({ error: 'Draft not found' }, { status })
@@ -36,12 +36,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     rosterId = mine
   }
 
-  if (!(await canSubmitSupplementalPickForUser(leagueId, userId, rosterId))) {
+  if (!(await canSubmitDispersalPickForUser(leagueId, userId, rosterId))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   try {
-    const state = await SupplementalDraftEngine.makePick(draftId, rosterId, assetId)
+    const state = await DispersalDraftEngine.makePick(draftId, rosterId, assetId)
     return NextResponse.json(state)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Pick failed'

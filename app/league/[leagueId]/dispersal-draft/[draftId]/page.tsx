@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
-import type { SupplementalAsset, SupplementalDraftState } from '@/lib/supplemental-draft/types'
+import type { DispersalAsset, DispersalDraftState } from '@/lib/dispersal-draft/types'
 
 const POLL_MS = 5000 as const
 
@@ -19,12 +19,12 @@ function rosterNameMap(teams: LeagueSettingsBrief['league']['teams']): (rid: str
   return (rid: string) => byExt.get(rid) ?? byId.get(rid) ?? `Team ${rid.slice(0, 6)}`
 }
 
-export default function SupplementalDraftLivePage() {
+export default function DispersalDraftLivePage() {
   const params = useParams<{ leagueId: string; draftId: string }>()
   const leagueId = params.leagueId
   const draftId = params.draftId
 
-  const [state, setState] = useState<SupplementalDraftState | null>(null)
+  const [state, setState] = useState<DispersalDraftState | null>(null)
   const [settings, setSettings] = useState<LeagueSettingsBrief | null>(null)
   const [myRosterId, setMyRosterId] = useState<string | null>(null)
   const [tab, setTab] = useState<'all' | 'player' | 'draft_pick' | 'faab'>('all')
@@ -34,10 +34,10 @@ export default function SupplementalDraftLivePage() {
   const timeoutSentForPickRef = useRef<string | null>(null)
 
   const loadState = useCallback(async () => {
-    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/state`, {
+    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/state`, {
       cache: 'no-store',
     })
-    const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
+    const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
     if (!res.ok) {
       const err = (json as { error?: string }).error ?? 'Could not load draft'
       setPollError(err)
@@ -117,14 +117,14 @@ export default function SupplementalDraftLivePage() {
     void (async () => {
       try {
         const res = await fetch(
-          `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/timeout`,
+          `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/timeout`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rosterId: myRosterId }),
           }
         )
-        const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
+        const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
         if (!res.ok) {
           timeoutSentForPickRef.current = null
           return
@@ -147,7 +147,7 @@ export default function SupplementalDraftLivePage() {
   const participants = state?.participantRosterIds ?? []
 
   const pool = state?.assetPool ?? []
-  const filtered: SupplementalAsset[] = useMemo(() => {
+  const filtered: DispersalAsset[] = useMemo(() => {
     if (tab === 'all') return pool.filter((a) => a.isAvailable)
     return pool.filter((a) => a.isAvailable && a.assetType === tab)
   }, [pool, tab])
@@ -166,16 +166,16 @@ export default function SupplementalDraftLivePage() {
     setPickBusy(true)
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/pick`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/pick`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ assetId }),
         }
       )
-      const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
+      const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Pick failed')
-      setState(json as SupplementalDraftState)
+      setState(json as DispersalDraftState)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Pick failed')
     } finally {
@@ -185,18 +185,18 @@ export default function SupplementalDraftLivePage() {
 
   const submitPass = async () => {
     if (!myRosterId) return
-    if (!window.confirm('Pass for the rest of this supplemental draft?')) return
+    if (!window.confirm('Pass for the rest of this dispersal draft?')) return
     setPickBusy(true)
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/pass`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/pass`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rosterId: myRosterId }),
         }
       )
-      const json = (await res.json().catch(() => ({}))) as { draft?: SupplementalDraftState; error?: string }
+      const json = (await res.json().catch(() => ({}))) as { draft?: DispersalDraftState; error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Pass failed')
       if (json.draft) setState(json.draft)
       else await loadState()
@@ -211,14 +211,14 @@ export default function SupplementalDraftLivePage() {
     setPickBusy(true)
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/pass`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/pass`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rosterId, remove: true }),
         }
       )
-      const json = (await res.json().catch(() => ({}))) as { draft?: SupplementalDraftState; error?: string }
+      const json = (await res.json().catch(() => ({}))) as { draft?: DispersalDraftState; error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Update failed')
       if (json.draft) setState(json.draft)
     } catch (e: unknown) {
@@ -232,7 +232,7 @@ export default function SupplementalDraftLivePage() {
     setPickBusy(true)
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/complete`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/complete`,
         { method: 'POST' }
       )
       if (!res.ok) {
@@ -252,10 +252,10 @@ export default function SupplementalDraftLivePage() {
     setPickBusy(true)
     try {
       const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/${encodeURIComponent(draftId)}/start`,
+        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/start`,
         { method: 'POST' }
       )
-      const json = (await res.json().catch(() => ({}))) as SupplementalDraftState & { error?: string }
+      const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Start failed')
       setState(json)
     } catch (e: unknown) {
@@ -277,7 +277,7 @@ export default function SupplementalDraftLivePage() {
             <p className="mt-2 text-[11px] text-white/45">Retrying every {POLL_MS / 1000}s…</p>
           </div>
         ) : (
-          'Loading supplemental draft…'
+          'Loading dispersal draft…'
         )}
       </main>
     )
@@ -287,7 +287,7 @@ export default function SupplementalDraftLivePage() {
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 text-white">
         <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-6 text-center">
-          <h1 className="text-xl font-semibold text-emerald-100">✅ Supplemental draft complete</h1>
+          <h1 className="text-xl font-semibold text-emerald-100">✅ Dispersal draft complete</h1>
         </div>
         <div className="overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full text-left text-xs">
@@ -345,7 +345,7 @@ export default function SupplementalDraftLivePage() {
               onClick={() => void startDraft()}
               className="mt-3 rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-4 py-2 text-xs font-bold text-cyan-100"
             >
-              Start supplemental draft
+              Start dispersal draft
             </button>
           ) : (
             <p className="mt-2 text-xs text-white/55">Waiting for the commissioner to start.</p>

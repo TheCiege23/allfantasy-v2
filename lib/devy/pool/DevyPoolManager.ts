@@ -53,7 +53,7 @@ export interface PoolBuildResult<T> {
  * Build the devy draft pool for a league:
  * - NCAA devy-eligible, not graduated (devyEligible = true, graduatedToNFL = false for NFL or devyEligible = true for NBA)
  * - Position-filtered by sport adapter
- * - Not currently rostered by any team in this league (unless supplemental FA; checked separately)
+ * - Not currently rostered by any team in this league (unless extra devy FA; checked separately)
  * - Not already holding rights via devy draft (they already have a roster slot)
  */
 export async function buildDevyPool(

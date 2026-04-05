@@ -8,7 +8,7 @@ import { isWaiverFrozenForRoster } from "@/lib/survivor/SurvivorEffectEngine"
 /**
  * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
  * Guillotine: chopped (eliminated) rosters cannot submit claims.
- * Devy: devy players not claimable unless league has supplemental devy FA enabled.
+ * Devy: devy players not claimable unless league has dispersal devy FA enabled.
  */
 export async function createClaim(
   leagueId: string,

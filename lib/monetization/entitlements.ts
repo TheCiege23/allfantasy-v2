@@ -148,15 +148,25 @@ export const ENTITLEMENTS = {
     upgradeLabel: 'Get AF Commissioner',
     highlightParam: 'c2c_ai',
   },
-  commissioner_supplemental_draft: {
-    key: 'commissioner_supplemental_draft',
-    label: 'Supplemental Draft',
+  commissioner_dispersal_draft: {
+    key: 'commissioner_dispersal_draft',
+    label: 'Dispersal Draft',
     description:
-      'Set up and run a supplemental draft for orphaned teams or league downsizing. Requires AF Commissioner subscription.',
+      'Set up and run a dispersal draft for orphaned teams or league downsizing. Requires AF Commissioner subscription.',
     requiredPlan: ['af_commissioner', 'af_all_access'],
     upgradeUrl: '/commissioner-upgrade',
     upgradeLabel: 'Get AF Commissioner',
-    highlightParam: 'supplemental_draft',
+    highlightParam: 'dispersal_draft',
+  },
+  commissioner_integrity_monitoring: {
+    key: 'commissioner_integrity_monitoring',
+    label: 'Integrity Monitoring',
+    description:
+      'AI-powered anti-collusion and anti-tanking monitoring for your leagues. Automatically analyzes trades and weekly lineups for suspicious patterns using on-field data only.',
+    requiredPlan: ['af_commissioner', 'af_all_access'],
+    upgradeUrl: '/commissioner-upgrade',
+    upgradeLabel: 'Get AF Commissioner',
+    highlightParam: 'integrity_monitoring',
   },
   pro_draft_ai: {
     key: 'pro_draft_ai',

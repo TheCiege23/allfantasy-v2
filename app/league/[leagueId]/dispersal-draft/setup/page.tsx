@@ -25,10 +25,10 @@ import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGat
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
-import type { SupplementalAsset, SupplementalScenario } from '@/lib/supplemental-draft/types'
+import type { DispersalAsset, DispersalScenario } from '@/lib/dispersal-draft/types'
 
 type PreviewResponse = {
-  assets: SupplementalAsset[]
+  assets: DispersalAsset[]
   playerCount: number
   draftPickCount: number
   totalFaab: number
@@ -70,13 +70,13 @@ function SortableParticipant({
   )
 }
 
-export default function SupplementalDraftSetupPage() {
+export default function DispersalDraftSetupPage() {
   const params = useParams<{ leagueId: string }>()
   const router = useRouter()
   const leagueId = params.leagueId
 
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
-  const [scenario, setScenario] = useState<SupplementalScenario | null>(null)
+  const [scenario, setScenario] = useState<DispersalScenario | null>(null)
   const [orphanPayload, setOrphanPayload] = useState<{
     orphanedTeams: { rosterId: string; teamName: string }[]
     orphanCount: number
@@ -95,7 +95,7 @@ export default function SupplementalDraftSetupPage() {
   const gateOptional = useSubscriptionGateOptional()
   const [localGate, setLocalGate] = useState<SubscriptionFeatureId | null>(null)
 
-  const openSuppGate = (id: SubscriptionFeatureId) => {
+  const openDispersalGate = (id: SubscriptionFeatureId) => {
     gateOptional?.gate(id) ?? setLocalGate(id)
   }
 
@@ -148,7 +148,7 @@ export default function SupplementalDraftSetupPage() {
 
   useEffect(() => {
     if (orphanPayload != null && orphanPayload.orphanCount < 2) {
-      toast.error('Supplemental draft needs at least 2 orphaned teams.')
+      toast.error('Dispersal draft needs at least 2 orphaned teams.')
       router.replace(`/league/${leagueId}`)
     }
   }, [orphanPayload, leagueId, router])
@@ -157,7 +157,7 @@ export default function SupplementalDraftSetupPage() {
     if (!orphanPayload) return
     if (scenario !== 'orphan_teams') return
     if (orphanPayload.orphanCount >= 2) return
-    toast.error('At least two orphaned teams are required for a supplemental draft.')
+    toast.error('At least two orphaned teams are required for a dispersal draft.')
     router.replace(`/league/${leagueId}`)
   }, [orphanPayload, scenario, leagueId, router])
 
@@ -190,7 +190,7 @@ export default function SupplementalDraftSetupPage() {
     }
     setPreviewLoading(true)
     try {
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft/preview`, {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceRosterIds }),
@@ -243,20 +243,20 @@ export default function SupplementalDraftSetupPage() {
     }
     setLaunching(true)
     try {
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/supplemental-draft`, {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       const json = (await res.json().catch(() => ({}))) as { draft?: { id: string }; error?: string }
       if (res.status === 402) {
-        openSuppGate('commissioner_supplemental_draft')
+        openDispersalGate('commissioner_dispersal_draft')
         return
       }
       if (!res.ok) throw new Error(json.error ?? 'Could not create draft')
       const draftId = json.draft?.id
       if (!draftId) throw new Error('Missing draft id')
-      router.push(`/league/${leagueId}/supplemental-draft/${draftId}`)
+      router.push(`/league/${leagueId}/dispersal-draft/${draftId}`)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Launch failed')
     } finally {
@@ -275,7 +275,7 @@ export default function SupplementalDraftSetupPage() {
       ) : null}
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Supplemental draft setup</h1>
+          <h1 className="text-xl font-semibold">Dispersal draft setup</h1>
           <p className="text-xs text-white/50">Step {step} of 5</p>
         </div>
         <Link href={`/league/${leagueId}`} className="text-xs text-cyan-300/90 hover:underline">
@@ -319,7 +319,7 @@ export default function SupplementalDraftSetupPage() {
             <div>
               <p className="text-sm font-medium">League downsizing</p>
               <p className="text-xs text-white/50">
-                Shrink the league first, then run a supplemental draft from dissolved rosters. Use the downsizing tool
+                Shrink the league first, then run a dispersal draft from dissolved rosters. Use the downsizing tool
                 if you still need to merge teams.
               </p>
             </div>
@@ -486,7 +486,7 @@ export default function SupplementalDraftSetupPage() {
             onClick={() => void launch()}
             className="w-full rounded-xl border border-cyan-400/40 bg-cyan-500/20 py-3 text-sm font-bold text-cyan-50 hover:bg-cyan-500/30 disabled:opacity-50"
           >
-            {launching ? 'Launching…' : '🏈 Launch supplemental draft'}
+            {launching ? 'Launching…' : '🏈 Launch dispersal draft'}
           </button>
         </div>
       ) : null}

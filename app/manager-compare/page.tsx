@@ -1262,13 +1262,13 @@ export default function ManagerComparePage() {
     [currentComparison, selectedFormats, statsA, statsB]
   )
 
-  const resetSupplementalData = useCallback(() => {
+  const resetAuxiliaryData = useCallback(() => {
     setContextState({ loading: false, data: null, error: null })
     setDnaState({ loading: false, data: null, error: null })
     setOpponentState({ loading: false, data: null, error: null })
   }, [])
 
-  const hydrateSupplementalContext = useCallback(
+  const hydrateAuxiliaryContext = useCallback(
     async (managerA: string, managerB: string, fromSeason: number, toSeason: number) => {
       setContextState({ loading: true, data: null, error: null })
       setDnaState({ loading: false, data: null, error: null })
@@ -1466,7 +1466,7 @@ export default function ManagerComparePage() {
       setRetryAfterSec(null)
       setCopiedShare(false)
       setResult(null)
-      resetSupplementalData()
+      resetAuxiliaryData()
       setAnimateBars(false)
 
       const phaseTimers = [
@@ -1512,7 +1512,7 @@ export default function ManagerComparePage() {
           setRecentComparisons(upsertRecentComparison(recentEntry))
         }
 
-        void hydrateSupplementalContext(nextA, nextB, nextFrom, nextTo)
+        void hydrateAuxiliaryContext(nextA, nextB, nextFrom, nextTo)
       } catch (requestError) {
         setError(requestError instanceof Error ? requestError.message : 'Manager comparison failed.')
       } finally {
@@ -1520,7 +1520,7 @@ export default function ManagerComparePage() {
         setLoading(false)
       }
     },
-    [enabledFormats, hydrateSupplementalContext, resetSupplementalData, seasonFrom, seasonTo, status, usernameA, usernameB]
+    [enabledFormats, hydrateAuxiliaryContext, resetAuxiliaryData, seasonFrom, seasonTo, status, usernameA, usernameB]
   )
 
   useEffect(() => {

@@ -48,7 +48,7 @@ export default function LeagueDownsizePage() {
     return selected.map((rid) => {
       const mode = assign[rid]
       const team = data?.rosters.find((r) => r.rosterId === rid)
-      if (mode === 'pool') return { rid, line: `${team?.teamName ?? rid} → supplemental pool` }
+      if (mode === 'pool') return { rid, line: `${team?.teamName ?? rid} → dispersal pool` }
       const target = data?.rosters.find((r) => r.rosterId === mode)
       return { rid, line: `${team?.teamName ?? rid} → merge into ${target?.teamName ?? mode}` }
     })
@@ -81,7 +81,7 @@ export default function LeagueDownsizePage() {
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((json as { error?: string }).error ?? 'Downsize failed')
       toast.success('League downsizing applied.')
-      router.push(`/league/${leagueId}/supplemental-draft/setup`)
+      router.push(`/league/${leagueId}/dispersal-draft/setup`)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Downsize failed')
     } finally {
@@ -121,7 +121,7 @@ export default function LeagueDownsizePage() {
         <div>
           <h1 className="text-xl font-semibold">League downsizing</h1>
           <p className="text-xs text-white/50">
-            Current size: {data.currentSize} teams. Shrink the league, merge rosters, or send assets to the supplemental
+            Current size: {data.currentSize} teams. Shrink the league, merge rosters, or send assets to the dispersal
             pool.
           </p>
         </div>

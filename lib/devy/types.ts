@@ -63,7 +63,7 @@ export interface DevyCommissionerSettings {
   nflDevyExcludeKDST: boolean
   /** PROMPT 3: When to apply promotion. */
   promotionTiming: PromotionTiming
-  supplementalDevyFAEnabled: boolean
+  dispersalDevyFAEnabled: boolean
   rightsExpirationEnabled: boolean
   /** PROMPT 3: When player returns to school: restore_rights | hold_rights | commissioner. */
   returnToSchoolHandling: 'restore_rights' | 'hold_rights' | 'commissioner'

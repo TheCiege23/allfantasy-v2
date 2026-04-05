@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
-import { isLeagueEligibleForSupplementalDraft } from '@/lib/league/supplemental-draft-eligibility'
+import { isLeagueEligibleForDispersalDraft } from '@/lib/league/dispersal-draft-eligibility'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import type { DraftOrderSlotRow } from '@/lib/draft/pick-order'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
@@ -128,10 +128,10 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   const [maxPfWarning, setMaxPfWarning] = useState<string | null>(null)
   const [orphanApi, setOrphanApi] = useState<{
     orphanCount: number
-    hasActiveSuppDraft: boolean
-    activeSuppDraftId: string | null
-    canRunSuppDraft: boolean
-    suppDraftGated: boolean
+    hasActiveDispersalDraft: boolean
+    activeDispersalDraftId: string | null
+    canRunDispersalDraft: boolean
+    dispersalDraftGated: boolean
     totalAssets: number
   } | null>(null)
   const [localSubGate, setLocalSubGate] = useState<SubscriptionFeatureId | null>(null)
@@ -171,9 +171,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
     void refresh()
   }, [refresh])
 
-  const isSuppDraftLeague = useMemo(() => {
+  const isDispersalDraftLeague = useMemo(() => {
     if (!data?.league) return false
-    return isLeagueEligibleForSupplementalDraft({
+    return isLeagueEligibleForDispersalDraft({
       isDynasty: data.league.isDynasty,
       leagueType: data.league.leagueType ?? null,
       leagueVariant: data.league.leagueVariant ?? null,
@@ -181,7 +181,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   }, [data?.league])
 
   useEffect(() => {
-    if (!leagueId || !isSuppDraftLeague || data?.userRole !== 'commissioner') {
+    if (!leagueId || !isDispersalDraftLeague || data?.userRole !== 'commissioner') {
       setOrphanApi(null)
       return
     }
@@ -190,10 +190,10 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/orphaned-teams`, { cache: 'no-store' })
       const json = (await res.json().catch(() => ({}))) as {
         orphanCount?: number
-        hasActiveSuppDraft?: boolean
-        activeSuppDraftId?: string | null
-        canRunSuppDraft?: boolean
-        suppDraftGated?: boolean
+        hasActiveDispersalDraft?: boolean
+        activeDispersalDraftId?: string | null
+        canRunDispersalDraft?: boolean
+        dispersalDraftGated?: boolean
         orphanedTeams?: { playerCount?: number; draftPickCount?: number; faabRemaining?: number }[]
       }
       if (!res.ok || cancelled) return
@@ -208,19 +208,19 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
       )
       setOrphanApi({
         orphanCount: json.orphanCount ?? 0,
-        hasActiveSuppDraft: Boolean(json.hasActiveSuppDraft),
-        activeSuppDraftId: json.activeSuppDraftId ?? null,
-        canRunSuppDraft: Boolean(json.canRunSuppDraft),
-        suppDraftGated: Boolean(json.suppDraftGated),
+        hasActiveDispersalDraft: Boolean(json.hasActiveDispersalDraft),
+        activeDispersalDraftId: json.activeDispersalDraftId ?? null,
+        canRunDispersalDraft: Boolean(json.canRunDispersalDraft),
+        dispersalDraftGated: Boolean(json.dispersalDraftGated),
         totalAssets,
       })
     })()
     return () => {
       cancelled = true
     }
-  }, [data?.userRole, isSuppDraftLeague, leagueId])
+  }, [data?.userRole, isDispersalDraftLeague, leagueId])
 
-  const openSuppGate = (id: SubscriptionFeatureId) => {
+  const openDispersalGate = (id: SubscriptionFeatureId) => {
     gateOptional?.gate(id) ?? setLocalSubGate(id)
   }
 
@@ -765,46 +765,46 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         </div>
       </SettingsSection>
 
-      {isSuppDraftLeague && isHeadCommissioner && orphanApi ? (
+      {isDispersalDraftLeague && isHeadCommissioner && orphanApi ? (
         <div
           className={[
             'rounded-xl border p-4 mt-4',
-            orphanApi.hasActiveSuppDraft && orphanApi.activeSuppDraftId
+            orphanApi.hasActiveDispersalDraft && orphanApi.activeDispersalDraftId
               ? 'border-emerald-500/25 bg-emerald-500/[0.04]'
               : orphanApi.orphanCount < 2
                 ? [
                     'border-white/[0.06] opacity-50',
-                    orphanApi.hasActiveSuppDraft ? null : 'pointer-events-none',
+                    orphanApi.hasActiveDispersalDraft ? null : 'pointer-events-none',
                   ]
                     .filter(Boolean)
                     .join(' ')
-                : orphanApi.suppDraftGated
+                : orphanApi.dispersalDraftGated
                   ? 'border-amber-500/20 bg-amber-500/[0.03]'
                   : 'border-cyan-500/20 bg-cyan-500/[0.03]',
           ].join(' ')}
-          data-testid="league-settings-supplemental-draft"
+          data-testid="league-settings-dispersal-draft"
         >
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h4 className="text-sm font-bold text-white">🏈 Supplemental Draft</h4>
+              <h4 className="text-sm font-bold text-white">🏈 Dispersal Draft</h4>
               <p className="text-xs text-white/50 mt-0.5">
                 For orphaned teams or league downsizing. Pool assets and draft them among new managers.
               </p>
             </div>
-            {orphanApi.suppDraftGated ? (
+            {orphanApi.dispersalDraftGated ? (
               <SubscriptionGateBadge
-                featureId="commissioner_supplemental_draft"
-                onClick={() => openSuppGate('commissioner_supplemental_draft')}
+                featureId="commissioner_dispersal_draft"
+                onClick={() => openDispersalGate('commissioner_dispersal_draft')}
               />
             ) : null}
           </div>
 
-          {orphanApi.hasActiveSuppDraft && orphanApi.activeSuppDraftId ? (
+          {orphanApi.hasActiveDispersalDraft && orphanApi.activeDispersalDraftId ? (
             <div className="mt-3 space-y-2">
               <p className="text-xs font-semibold text-emerald-200/90">Draft in Progress</p>
               <div className="flex flex-wrap gap-2">
                 <Link
-                  href={`/league/${leagueId}/supplemental-draft/${orphanApi.activeSuppDraftId}`}
+                  href={`/league/${leagueId}/dispersal-draft/${orphanApi.activeDispersalDraftId}`}
                   className="inline-flex rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100"
                 >
                   Open draft room →
@@ -813,15 +813,15 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
             </div>
           ) : null}
 
-          {orphanApi.orphanCount < 2 && !orphanApi.hasActiveSuppDraft ? (
+          {orphanApi.orphanCount < 2 && !orphanApi.hasActiveDispersalDraft ? (
             <p className="text-xs text-white/30 mt-2">
               {orphanApi.orphanCount === 0
                 ? 'Requires 2+ orphaned teams — currently 0.'
-                : '1 orphaned team — need at least 2 to run supplemental draft.'}
+                : '1 orphaned team — need at least 2 to run dispersal draft.'}
             </p>
           ) : null}
 
-          {orphanApi.orphanCount >= 2 && !orphanApi.suppDraftGated && !orphanApi.hasActiveSuppDraft ? (
+          {orphanApi.orphanCount >= 2 && !orphanApi.dispersalDraftGated && !orphanApi.hasActiveDispersalDraft ? (
             <>
               <p className="text-xs text-green-400/80 mt-2">
                 ✓ {orphanApi.orphanCount} orphaned teams detected — {orphanApi.totalAssets} assets available
@@ -834,22 +834,22 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
                   Manage Orphaned Teams
                 </Link>
                 <Link
-                  href={`/league/${leagueId}/supplemental-draft/setup`}
+                  href={`/league/${leagueId}/dispersal-draft/setup`}
                   className="rounded-xl bg-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/30"
                 >
-                  Set Up Supplemental Draft →
+                  Set Up Dispersal Draft →
                 </Link>
               </div>
             </>
           ) : null}
 
-          {orphanApi.suppDraftGated && !orphanApi.hasActiveSuppDraft ? (
+          {orphanApi.dispersalDraftGated && !orphanApi.hasActiveDispersalDraft ? (
             <div className="mt-3">
               <p className="text-xs text-amber-200/70">
-                AF Commissioner subscription required to run supplemental drafts.
+                AF Commissioner subscription required to run dispersal drafts.
               </p>
               <Link
-                href="/commissioner-upgrade?highlight=supplemental_draft"
+                href="/commissioner-upgrade?highlight=dispersal_draft"
                 className="mt-2 inline-flex rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/15"
               >
                 View AF Commissioner Plans →
@@ -919,7 +919,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
       >
         <SettingsRow
           label="Available Players"
-          faqText="All Players = full pool. Rookies Only = dynasty rookie draft. Veterans Only = supplemental."
+          faqText="All Players = full pool. Rookies Only = dynasty rookie draft. Veterans Only = dispersal."
           control={
             <Select value={String(s?.playerPool ?? 'all')} onChange={(v) => void patch({ playerPool: v })}>
               <option value="all">All Players</option>

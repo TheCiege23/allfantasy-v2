@@ -4,8 +4,8 @@ type LeagueEligibilityFields = {
   leagueVariant: string | null
 }
 
-/** Explicit variants that may run supplemental draft when not flagged `isDynasty` (still blocked for standard redraft). */
-const SUPPLEMENTAL_DRAFT_VARIANT_EXACT = new Set([
+/** Explicit variants that may run dispersal draft when not flagged `isDynasty` (still blocked for standard redraft). */
+const DISPERSAL_DRAFT_VARIANT_EXACT = new Set([
   'dynasty',
   'devy',
   'c2c',
@@ -15,15 +15,15 @@ const SUPPLEMENTAL_DRAFT_VARIANT_EXACT = new Set([
 ])
 
 /**
- * Supplemental draft is for dynasty-style leagues — never standard redraft-only leagues.
+ * Dispersal draft is for dynasty-style leagues — never standard redraft-only leagues.
  */
-export function isLeagueEligibleForSupplementalDraft(league: LeagueEligibilityFields): boolean {
+export function isLeagueEligibleForDispersalDraft(league: LeagueEligibilityFields): boolean {
   if (league.isDynasty === true) return true
   const lt = (league.leagueType ?? '').toLowerCase()
   if (lt === 'redraft') return false
   const lv = (league.leagueVariant ?? '').trim().toLowerCase()
   if (!lv) return false
-  if (SUPPLEMENTAL_DRAFT_VARIANT_EXACT.has(lv)) return true
+  if (DISPERSAL_DRAFT_VARIANT_EXACT.has(lv)) return true
   // Compound / legacy labels (e.g. merged_devy_c2c, devy_dynasty)
   if (
     lv.includes('devy') ||
@@ -40,10 +40,10 @@ export function isLeagueEligibleForSupplementalDraft(league: LeagueEligibilityFi
 }
 
 /** UI helper: quick check on `leagueVariant` string alone (does not know `isDynasty` / `leagueType`). */
-export function leagueVariantMatchesSupplementalDraft(leagueVariant: string | null | undefined): boolean {
+export function leagueVariantMatchesDispersalDraft(leagueVariant: string | null | undefined): boolean {
   if (!leagueVariant) return false
   const lv = leagueVariant.trim().toLowerCase()
-  if (SUPPLEMENTAL_DRAFT_VARIANT_EXACT.has(lv)) return true
+  if (DISPERSAL_DRAFT_VARIANT_EXACT.has(lv)) return true
   return (
     lv.includes('devy') ||
     lv.includes('c2c') ||
