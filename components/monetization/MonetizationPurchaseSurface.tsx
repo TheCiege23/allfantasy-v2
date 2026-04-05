@@ -18,6 +18,7 @@ import {
   trackTokenPurchaseClicked,
   trackUpgradeEntryClicked,
 } from "@/lib/monetization-analytics";
+import { useGeoRestriction } from "@/lib/geo/useGeoRestriction";
 
 export type PlanFamily = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access";
 
@@ -147,6 +148,9 @@ export default function MonetizationPurchaseSurface({
     successMessage: "Purchase complete. We refreshed your access and token balance.",
   });
 
+  const geo = useGeoRestriction();
+  const blockPaidCommerce = geo.isPaidBlocked && !geo.loading;
+
   const searchParams = useSearchParams();
   const highlightParam = searchParams.get("highlight");
 
@@ -243,6 +247,10 @@ export default function MonetizationPurchaseSurface({
   }, [focusPlanFamily, pagePath]);
 
   async function startCheckout(productType: "subscription" | "token_pack", sku: string) {
+    if (blockPaidCommerce) {
+      setCheckoutError("Paid purchases are not available in your state. You can still use free features.");
+      return;
+    }
     setCheckoutError(null);
     setPendingSku(sku);
     const item = itemBySku.get(sku);
@@ -303,6 +311,26 @@ export default function MonetizationPurchaseSurface({
           </h1>
           <p className="mt-2 text-sm text-white/55 sm:text-base">{subtitle}</p>
         </div>
+        {blockPaidCommerce ? (
+          <section
+            className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-left text-sm text-amber-100"
+            data-testid="geo-paid-restriction-banner"
+          >
+            <p className="font-semibold text-amber-50">
+              Paid plans are not available{geo.stateName ? ` in ${geo.stateName}` : " in your state"}
+            </p>
+            <p className="mt-1 text-amber-100/90">
+              State law restricts paid fantasy sports products from your location. You can still use AllFantasy for free — create
+              an account, join free leagues, and use core tools.
+            </p>
+            <Link
+              href={geo.stateCode ? `/paid-restricted?state=${encodeURIComponent(geo.stateCode)}` : "/paid-restricted"}
+              className="mt-2 inline-block text-xs font-semibold text-cyan-300 hover:text-cyan-200"
+            >
+              Learn more
+            </Link>
+          </section>
+        ) : null}
         {postPurchaseSync.state.phase !== "idle" ? (
           <section
             className={`mb-4 rounded-xl border px-4 py-3 text-sm ${
@@ -447,7 +475,7 @@ export default function MonetizationPurchaseSurface({
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", monthly.sku)}
-                            disabled={pendingSku != null || !monthly.stripePriceConfigured}
+                            disabled={pendingSku != null || !monthly.stripePriceConfigured || blockPaidCommerce}
                             className="mt-2 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`pricing-subscription-cta-${monthly.sku}`}
                           >
@@ -464,7 +492,7 @@ export default function MonetizationPurchaseSurface({
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", yearly.sku)}
-                            disabled={pendingSku != null || !yearly.stripePriceConfigured}
+                            disabled={pendingSku != null || !yearly.stripePriceConfigured || blockPaidCommerce}
                             className="mt-2 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`pricing-subscription-cta-${yearly.sku}`}
                           >
@@ -495,7 +523,7 @@ export default function MonetizationPurchaseSurface({
                     <button
                       type="button"
                       onClick={() => startCheckout("token_pack", pack.sku)}
-                      disabled={pendingSku != null || !pack.stripePriceConfigured}
+                      disabled={pendingSku != null || !pack.stripePriceConfigured || blockPaidCommerce}
                       className="mt-3 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                       data-testid={`pricing-token-cta-${pack.sku}`}
                     >
