@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import type { Session } from 'next-auth'
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -15,7 +16,7 @@ const LANDING_COPY = {
   en: {
     nav: {
       brand: 'AllFantasy',
-      signIn: 'Log In',
+      signIn: 'Sign In',
       signUp: 'Get Started',
       dashboard: 'Dashboard',
       admin: 'Admin',
@@ -227,10 +228,11 @@ const LANDING_COPY = {
       titleBottom: 'Gana tu liga.',
       subtitle:
         'La única plataforma construida tanto para el comisionado como para el competidor. Gestiona cualquier formato, equipa a cada manager con IA y mantén cada temporada en piloto automático.',
-      primary: 'Empezar gratis',
+      primary: 'Empezar gratis →',
       commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
-      primaryAuthed: 'Ir al panel',
+      alreadyHaveAccount: '¿Ya tienes cuenta? Inicia sesión',
+      primaryAuthed: 'Ir al panel →',
       reassurance: 'Gratis para jugadores · Comisionados desde $4.99/mes',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'Fútbol NCAA', 'Baloncesto NCAA', 'Soccer'],
@@ -430,11 +432,19 @@ function GradientWord({ children }: { children: ReactNode }) {
   )
 }
 
-export default function LandingPageClient() {
+type LandingPageClientProps = {
+  /** From getServerSession() so nav/hero match auth before client session hydrates */
+  initialSession?: Session | null
+}
+
+export default function LandingPageClient({
+  initialSession = null,
+}: LandingPageClientProps) {
   const { language } = useLanguage()
   const { status } = useSession()
   const copy = LANDING_COPY[language === 'es' ? 'es' : 'en']
-  const isAuthenticated = status === 'authenticated'
+  const isAuthenticated =
+    status === 'loading' ? Boolean(initialSession?.user) : status === 'authenticated'
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {

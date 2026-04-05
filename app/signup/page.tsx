@@ -335,7 +335,7 @@ function SignupContent() {
           setUsernameMessage(t("signup.username.unable"))
           return
         }
-        if (data.ok && data.available && data.reason === "unchecked") {
+        if (data.status === "unchecked" || (data.ok && data.available && data.reason === "unchecked")) {
           setUsernameStatus("unchecked")
           setUsernameMessage(
             "Couldn't verify availability right now. You can continue — if this name is taken, signup will tell you."
@@ -488,20 +488,25 @@ function SignupContent() {
         }),
       })
 
-      const raw = await res.text().catch(() => "")
       let data: Record<string, unknown> = {}
-      if (raw) {
-        try {
-          data = JSON.parse(raw) as Record<string, unknown>
-        } catch {
-          data = { error: raw }
-        }
+      try {
+        data = (await res.json()) as Record<string, unknown>
+      } catch {
+        data = {}
       }
 
       if (!res.ok) {
-        const backendError =
-          typeof data?.error === "string" ? data.error.trim() : ""
-        setError(backendError || t("common.error.tryAgain"))
+        if (data.code === "DB_UNAVAILABLE") {
+          setError(
+            "Our servers are temporarily unavailable. Please try again in a moment."
+          )
+        } else {
+          const backendError =
+            typeof data.error === "string" ? data.error.trim() : ""
+          setError(
+            backendError || "Account creation failed. Please try again."
+          )
+        }
         return
       }
 

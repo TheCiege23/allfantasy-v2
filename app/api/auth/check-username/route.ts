@@ -10,28 +10,28 @@ function normalizeUsername(u: string) {
 }
 
 export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const raw = searchParams.get("username") || ""
+  const username = normalizeUsername(raw)
+
+  if (!username) {
+    return NextResponse.json({ ok: false, available: false, reason: "empty" })
+  }
+
+  if (username.length < 3 || username.length > 30) {
+    return NextResponse.json({ ok: true, available: false, reason: "length" })
+  }
+
+  if (!/^[A-Za-z0-9_]+$/.test(username)) {
+    return NextResponse.json({ ok: true, available: false, reason: "charset" })
+  }
+
+  if (containsProfanity(username)) {
+    return NextResponse.json({ ok: true, available: false, reason: "profanity" })
+  }
+
   try {
-    const { searchParams } = new URL(req.url)
-    const raw = searchParams.get("username") || ""
-    const username = normalizeUsername(raw)
-
-    if (!username) {
-      return NextResponse.json({ ok: false, available: false, reason: "empty" })
-    }
-
-    if (username.length < 3 || username.length > 30) {
-      return NextResponse.json({ ok: true, available: false, reason: "length" })
-    }
-
-    if (!/^[A-Za-z0-9_]+$/.test(username)) {
-      return NextResponse.json({ ok: true, available: false, reason: "charset" })
-    }
-
-    if (containsProfanity(username)) {
-      return NextResponse.json({ ok: true, available: false, reason: "profanity" })
-    }
-
-    const existing = await prisma.appUser.findUnique({
+    const existing = await prisma.appUser.findFirst({
       where: { username },
       select: { id: true },
     })
@@ -40,17 +40,20 @@ export async function GET(req: Request) {
       ok: true,
       available: !existing,
       reason: existing ? "taken" : "ok",
+      status: existing ? "taken" : "ok",
       verified: true,
     })
   } catch (error) {
     console.error("[check-username] error:", error)
-    // Optimistic: do not block signup; /api/auth/register still enforces uniqueness.
-    return NextResponse.json({
-      ok: true,
-      available: true,
-      reason: "unchecked",
-      verified: false,
-    })
+    return NextResponse.json(
+      {
+        ok: true,
+        available: true,
+        reason: "unchecked",
+        status: "unchecked",
+        verified: false,
+      },
+      { status: 200 }
+    )
   }
 }
-

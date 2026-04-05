@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
+import type { Session } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { PageJsonLd } from '@/components/seo/JsonLd'
+import { authOptions } from '@/lib/auth'
 import {
   buildSeoMeta,
   getSoftwareApplicationSchema,
@@ -55,11 +58,13 @@ const HOME_SOFTWARE_APP_SCHEMA = getSoftwareApplicationSchema({
   applicationCategory: 'SportsApplication',
 })
 
-export default function HomePage() {
+export default async function HomePage() {
+  const initialSession = (await getServerSession(authOptions as never)) as Session | null
+
   return (
     <>
       <PageJsonLd schemas={[HOME_WEBPAGE_SCHEMA, HOME_SOFTWARE_APP_SCHEMA]} />
-      <LandingPageClient />
+      <LandingPageClient initialSession={initialSession} />
     </>
   )
 }
