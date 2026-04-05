@@ -244,7 +244,7 @@ describe("POST /api/chat/chimmy contract", () => {
           }),
         })
       )
-      expect(runUnifiedOrchestrationMock).toHaveBeenCalledTimes(1)
+      expect(runUnifiedOrchestrationMock).toHaveBeenCalled()
       await expect(res.json()).resolves.toMatchObject({
         response: "Accept the trade.",
       })

@@ -4,16 +4,23 @@ import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest
 const generateBlogDraftMock = vi.hoisted(() => vi.fn())
 const buildBlogSEOMock = vi.hoisted(() => vi.fn())
 const suggestInternalLinksMock = vi.hoisted(() => vi.fn())
+const getBlogProviderStatusMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/automated-blog", () => ({
   generateBlogDraft: generateBlogDraftMock,
   buildBlogSEO: buildBlogSEOMock,
   suggestInternalLinks: suggestInternalLinksMock,
+  getBlogProviderStatus: getBlogProviderStatusMock,
 }))
 
 describe("blog generate route contract", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getBlogProviderStatusMock.mockReturnValue({
+      openai: true,
+      xai: false,
+      deepseek: false,
+    })
   })
 
   it("returns draft plus seo and internal links", async () => {
