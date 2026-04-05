@@ -16,11 +16,15 @@ describe('Sign-in and recovery controllers', () => {
   it('validates unified login identifier and password requirements', () => {
     expect(validateSignInInput({ login: '', password: 'x' })).toEqual({
       ok: false,
-      error: 'Enter your email, username, or mobile number.',
+      error: 'Please enter your email, username, or phone.',
     })
     expect(validateSignInInput({ login: 'user', password: '' })).toEqual({
       ok: false,
-      error: 'Enter your password.',
+      error: 'Please enter your password.',
+    })
+    expect(validateSignInInput({ login: 'user', password: '   ' })).toEqual({
+      ok: false,
+      error: 'Please enter your password.',
     })
     expect(validateSignInInput({ login: 'user', password: 'secret' })).toEqual({
       ok: true,

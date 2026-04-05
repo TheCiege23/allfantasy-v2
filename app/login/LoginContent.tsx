@@ -117,6 +117,14 @@ export default function LoginContent() {
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!login.trim()) {
+      setError("Please enter your email, username, or phone.")
+      return
+    }
+    if (!password.trim()) {
+      setError("Please enter your password.")
+      return
+    }
     const validation = validateSignInInput({ login, password })
     if (!validation.ok) {
       setError(validation.error ?? t("common.error.tryAgain"))
@@ -402,7 +410,7 @@ export default function LoginContent() {
 
               <button
                 type="submit"
-                disabled={loading || !login.trim() || !password}
+                disabled={loading || !login.trim() || !password.trim()}
                 className="flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3.5 text-base font-bold text-white transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (

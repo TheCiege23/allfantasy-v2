@@ -10,13 +10,13 @@ export function validateSignInInput(input: SignInValidationInput): {
   if (!input.login.trim()) {
     return {
       ok: false,
-      error: 'Enter your email, username, or mobile number.',
+      error: 'Please enter your email, username, or phone.',
     }
   }
-  if (!input.password) {
+  if (!input.password.trim()) {
     return {
       ok: false,
-      error: 'Enter your password.',
+      error: 'Please enter your password.',
     }
   }
   return { ok: true }

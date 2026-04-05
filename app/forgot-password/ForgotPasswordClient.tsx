@@ -104,7 +104,10 @@ export default function ForgotPasswordClient() {
     e.preventDefault()
     setError(null)
     const emailValue = email.trim().toLowerCase()
-    if (!emailValue) return
+    if (!emailValue) {
+      setError('Please enter your email address.')
+      return
+    }
     setLoading(true)
     setCodeVerified(false)
     try {
@@ -117,6 +120,7 @@ export default function ForgotPasswordClient() {
         setError(data?.message || 'Could not send code. Try again.')
       } else {
         setStep('enter_code')
+        setError(null)
       }
     } catch {
       setError('Something went wrong. Please try again.')
@@ -128,6 +132,10 @@ export default function ForgotPasswordClient() {
   async function handleRequestSms(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!phone.trim()) {
+      setError('Please enter your phone number.')
+      return
+    }
     const normalized = normalizePhoneE164(phone)
     if (!isValidPhoneE164(normalized)) {
       setError('Enter a valid phone number with country code (e.g. +1 555 123 4567).')
@@ -315,7 +323,7 @@ export default function ForgotPasswordClient() {
       <RecoveryPage
         backHref={loginHref}
         title="Reset via email"
-        subtitle="Enter your email and we'll send a 6-digit recovery code."
+        subtitle="Enter your email. If an account exists, we'll only send a code to that address."
         footer={
           <button
             type="button"
@@ -442,8 +450,8 @@ export default function ForgotPasswordClient() {
         title="Enter code and new password"
         subtitle={
           method === 'email'
-            ? `We sent a code to ${email || 'your email'}. Enter it below with your new password.`
-            : `We sent a code to ${phone || 'your phone'}. Enter it below with your new password.`
+            ? `Check your inbox. If ${email || 'that email'} has an account, a code is on its way. Enter it below with your new password.`
+            : `Check your messages. If this number has an account on file, a code is on its way. Enter it below with your new password.`
         }
       >
         <RecoveryError error={error} />

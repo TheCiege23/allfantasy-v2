@@ -200,13 +200,8 @@ export async function POST(req: Request) {
       await (prisma as any).passwordResetToken.deleteMany({
         where: { userId: user.id },
       }).catch(() => {})
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Unable to send password reset email right now. Please try again later.",
-        },
-        { status: 500 }
-      )
+      // Same response as unknown email — avoid account enumeration via status codes.
+      return NextResponse.json({ ok: true })
     }
     void logPasswordResetAudit({
       outcome: "email_sent",
@@ -240,13 +235,7 @@ export async function POST(req: Request) {
     await (prisma as any).passwordResetToken.deleteMany({
       where: { userId: user.id },
     }).catch(() => {})
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "Unable to send password reset email right now. Please try again later.",
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ ok: true })
   }
 
   return NextResponse.json({ ok: true, method: "email" })
