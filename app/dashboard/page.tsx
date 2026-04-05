@@ -9,6 +9,7 @@ import {
   getDashboardMissingEnvVars,
   getDashboardRuntimeIssue,
 } from '@/lib/dashboard/runtime-issues'
+import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -26,27 +27,29 @@ export default async function DashboardPage() {
     )
   }
 
-  try {
-    const session = (await getServerSession(authOptions as never)) as {
-      user?: {
-        id?: string
-        name?: string | null
-        email?: string | null
-        image?: string | null
-      }
-    } | null
-
-    if (!session?.user?.id) {
-      redirect('/login?callbackUrl=/dashboard')
+  const session = (await getServerSession(authOptions as never)) as {
+    user?: {
+      id?: string
+      name?: string | null
+      email?: string | null
+      image?: string | null
     }
+  } | null
 
+  if (!session?.user?.id) {
+    redirect('/login?callbackUrl=/dashboard')
+  }
+
+  const userId = session.user.id
+
+  try {
     const dbUser = await prisma.appUser.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { avatarUrl: true },
     })
 
     const userProfile = await prisma.userProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
       select: { discordUserId: true },
     })
 
@@ -54,13 +57,17 @@ export default async function DashboardPage() {
 
     return (
       <DashboardShell
-        userId={session.user.id}
+        userId={userId}
         userName={session.user.name ?? session.user.email ?? 'Manager'}
         userImage={userImage}
         discordConnected={Boolean(userProfile?.discordUserId)}
       />
     )
   } catch (error) {
+    if (isAppRouterRedirectError(error)) {
+      throw error
+    }
+
     const issue = getDashboardRuntimeIssue(error)
     if (issue) {
       return (
@@ -72,6 +79,13 @@ export default async function DashboardPage() {
       )
     }
 
-    throw error
+    console.error('[dashboard] data load failed:', error)
+
+    return (
+      <DashboardUnavailableState
+        title="Dashboard temporarily unavailable"
+        message="We couldn't load your dashboard. Please try again in a moment."
+      />
+    )
   }
 }

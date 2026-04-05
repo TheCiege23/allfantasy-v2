@@ -429,9 +429,8 @@ export async function POST(req: Request) {
         const { getResendClient } = await import("@/lib/resend-client")
         const { client, fromEmail } = await getResendClient()
 
-        const { getBaseUrl } = await import("@/lib/get-base-url")
-        const baseUrl = getBaseUrl()
-        const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}`
+        const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
+        const verifyUrl = `${USER_FACING_SITE_ORIGIN}/verify/email?token=${encodeURIComponent(rawToken)}`
 
         await client.emails.send({
           from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",

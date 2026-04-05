@@ -54,13 +54,8 @@ export async function POST(req: Request) {
   await (prisma as any).emailVerifyToken.deleteMany({ where: { userId } }).catch(() => {})
   await (prisma as any).emailVerifyToken.create({ data: { userId, tokenHash, expiresAt } })
 
-  const { getBaseUrl } = await import("@/lib/get-base-url")
-  const baseUrl = getBaseUrl()
-  if (!baseUrl) {
-    return NextResponse.json({ error: "MISSING_BASE_URL" }, { status: 500 })
-  }
-
-  const verifyUrl = `${baseUrl}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
+  const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
+  const verifyUrl = `${USER_FACING_SITE_ORIGIN}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
 
   const { getResendClient } = await import("@/lib/resend-client")
   const { client, fromEmail } = await getResendClient()

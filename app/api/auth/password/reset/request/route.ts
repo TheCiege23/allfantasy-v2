@@ -146,6 +146,7 @@ export async function POST(req: Request) {
   })
 
   try {
+    const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
     const { getResendClient } = await import("@/lib/resend-client")
     const { client } = await getResendClient()
 
@@ -175,6 +176,7 @@ export async function POST(req: Request) {
       <p class="muted">Use this one-time code in the AllFantasy password reset screen.</p>
       <div class="code">${code}</div>
       <p class="muted" style="font-size:13px;margin-top:16px;">Code expires in 15 minutes.</p>
+      <p class="muted" style="font-size:13px;margin-top:12px;"><a href="${USER_FACING_SITE_ORIGIN}/auth/callback?next=/reset-password" style="color:#22d3ee;">Open AllFantasy to finish resetting your password</a></p>
     </div>
     <div class="footer">
       <p>If you didn't request this, you can ignore it.</p>
