@@ -3,7 +3,49 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { getDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
+import { checkDynastyLotteryEligibility } from '@/lib/draft-lottery/dynastyYearGuard'
 import { normalizeToSupportedSport, DEFAULT_SPORT } from '@/lib/sport-scope'
+
+export type WeightedLotterySlotEntry = { slot: number; rosterId: string; displayName: string }
+
+/**
+ * When dynasty rookie order is weighted lottery and a prior run is stored, use that slot order
+ * for new draft sessions. Never applies on startup / year-1 leagues (guard).
+ */
+export async function resolveWeightedLotterySlotOrderForLeague(
+  leagueId: string
+): Promise<WeightedLotterySlotEntry[] | null> {
+  const eligibility = await checkDynastyLotteryEligibility(leagueId)
+  if (!eligibility.eligible) return null
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: {
+      isDynasty: true,
+      leagueVariant: true,
+      settings: true,
+      dynastyConfig: { select: { rookiePickOrderMethod: true } },
+    },
+  })
+  if (!league) return null
+
+  const isDynasty =
+    league.isDynasty ||
+    (league.leagueVariant != null &&
+      ['devy_dynasty', 'merged_devy_c2c'].includes(String(league.leagueVariant).toLowerCase()))
+  if (!isDynasty) return null
+  if (league.dynastyConfig?.rookiePickOrderMethod !== 'weighted_lottery') return null
+
+  const { lotteryLastResult } = await getDraftOrderModeAndLotteryConfig(leagueId)
+  const order = lotteryLastResult?.slotOrder
+  if (!Array.isArray(order) || order.length === 0) return null
+
+  return order.map((e) => ({
+    slot: Number(e.slot),
+    rosterId: String(e.rosterId),
+    displayName: String(e.displayName ?? ''),
+  }))
+}
 
 export type DraftRouteType = 'snake' | 'auction' | 'lottery'
 

@@ -3,19 +3,31 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import type { DraftOrderMode, WeightedLotteryConfig } from './types'
+import type { DraftOrderMode, WeightedLotteryConfig, WeightedLotteryResult } from './types'
 import { DEFAULT_WEIGHTED_LOTTERY_CONFIG } from './types'
 
 const KEY_ORDER_MODE = 'draft_order_mode'
 const KEY_LOTTERY_CONFIG = 'draft_lottery_config'
 const KEY_LOTTERY_LAST_SEED = 'draft_lottery_last_seed'
 const KEY_LOTTERY_LAST_RUN_AT = 'draft_lottery_last_run_at'
+const KEY_LOTTERY_LAST_RESULT = 'draft_lottery_last_result'
+
+export function getDraftLotteryLastResultFromSettings(
+  settings: Record<string, unknown> | null | undefined
+): WeightedLotteryResult | null {
+  const raw = settings?.[KEY_LOTTERY_LAST_RESULT]
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  if (!Array.isArray(o.slotOrder)) return null
+  return raw as unknown as WeightedLotteryResult
+}
 
 export async function getDraftOrderModeAndLotteryConfig(leagueId: string): Promise<{
   draftOrderMode: DraftOrderMode
   lotteryConfig: WeightedLotteryConfig
   lotteryLastSeed: string | null
   lotteryLastRunAt: string | null
+  lotteryLastResult: WeightedLotteryResult | null
 }> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -45,6 +57,7 @@ export async function getDraftOrderModeAndLotteryConfig(leagueId: string): Promi
     lotteryConfig,
     lotteryLastSeed: typeof settings[KEY_LOTTERY_LAST_SEED] === 'string' ? settings[KEY_LOTTERY_LAST_SEED] : null,
     lotteryLastRunAt: typeof settings[KEY_LOTTERY_LAST_RUN_AT] === 'string' ? settings[KEY_LOTTERY_LAST_RUN_AT] : null,
+    lotteryLastResult: getDraftLotteryLastResultFromSettings(settings),
   }
 }
 
@@ -55,6 +68,7 @@ export async function setDraftOrderModeAndLotteryConfig(
     lotteryConfig?: Partial<WeightedLotteryConfig>
     lotteryLastSeed?: string | null
     lotteryLastRunAt?: string | null
+    lotteryLastResult?: WeightedLotteryResult | null
   }
 ): Promise<void> {
   const league = await prisma.league.findUnique({
@@ -71,6 +85,7 @@ export async function setDraftOrderModeAndLotteryConfig(
   }
   if (patch.lotteryLastSeed !== undefined) next[KEY_LOTTERY_LAST_SEED] = patch.lotteryLastSeed
   if (patch.lotteryLastRunAt !== undefined) next[KEY_LOTTERY_LAST_RUN_AT] = patch.lotteryLastRunAt
+  if (patch.lotteryLastResult !== undefined) next[KEY_LOTTERY_LAST_RESULT] = patch.lotteryLastResult
 
   await prisma.league.update({
     where: { id: leagueId },

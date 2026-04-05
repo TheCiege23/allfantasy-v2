@@ -1,6 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { LotteryReveal } from '@/components/draft/LotteryReveal'
+import type {
+  LotteryEligibilityMode,
+  LotteryWeightingMode,
+  WeightedLotteryConfig,
+  WeightedLotteryResult,
+  LotteryEligibleTeam,
+} from '@/lib/draft-lottery/types'
+import { DEFAULT_WEIGHTED_LOTTERY_CONFIG } from '@/lib/draft-lottery/types'
 
 type Effective = {
   leagueSize: number | null
@@ -46,6 +55,14 @@ type DynastySettingsResponse = {
   }
   draftOrderAuditLog?: { id: string; season: number; userId: string; reason: string | null; createdAt: string }[]
   isDynasty?: boolean
+  lotteryEligibility?: { eligible: boolean; reason: string; isStartupLeague: boolean }
+  weightedLotterySettings?: {
+    draftOrderMode: string
+    lotteryConfig: WeightedLotteryConfig
+    lotteryLastSeed: string | null
+    lotteryLastRunAt: string | null
+    lotteryLastResult: WeightedLotteryResult | null
+  }
 }
 
 export default function DynastySettingsPanel({
@@ -60,6 +77,11 @@ export default function DynastySettingsPanel({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [patch, setPatch] = useState<Record<string, unknown>>({})
+  const [lotteryConfig, setLotteryConfig] = useState<WeightedLotteryConfig | null>(null)
+  const [lotteryPreview, setLotteryPreview] = useState<LotteryEligibleTeam[] | null>(null)
+  const [lotteryLoading, setLotteryLoading] = useState(false)
+  const [lotteryResult, setLotteryResult] = useState<WeightedLotteryResult | null>(null)
+  const [showLotteryReveal, setShowLotteryReveal] = useState(false)
 
   const load = useCallback(async () => {
     if (!leagueId) return
@@ -86,6 +108,73 @@ export default function DynastySettingsPanel({
     void load()
   }, [load])
 
+  const effectiveRookiePickOrder = useMemo(() => {
+    const p = patch.rookiePickOrderMethod
+    if (typeof p === 'string' && p.length > 0) return p
+    return data?.effective?.rookiePickOrderMethod ?? ''
+  }, [patch.rookiePickOrderMethod, data?.effective?.rookiePickOrderMethod])
+
+  useEffect(() => {
+    const w = data?.weightedLotterySettings?.lotteryConfig
+    if (w && typeof w === 'object') {
+      setLotteryConfig({ ...DEFAULT_WEIGHTED_LOTTERY_CONFIG, ...w })
+    }
+  }, [data?.weightedLotterySettings?.lotteryConfig])
+
+  useEffect(() => {
+    if (effectiveRookiePickOrder !== 'weighted_lottery') return
+    setLotteryConfig((prev) => prev ?? { ...DEFAULT_WEIGHTED_LOTTERY_CONFIG, ...(data?.weightedLotterySettings?.lotteryConfig ?? {}) })
+  }, [effectiveRookiePickOrder, data?.weightedLotterySettings?.lotteryConfig])
+
+  const handlePreviewLotteryOdds = async () => {
+    if (!leagueId || !lotteryConfig) return
+    setLotteryLoading(true)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft-lottery/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: lotteryConfig }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof json?.error === 'string' ? json.error : 'Preview failed')
+        setLotteryPreview(null)
+        return
+      }
+      setLotteryPreview(Array.isArray(json.eligible) ? json.eligible : [])
+    } finally {
+      setLotteryLoading(false)
+    }
+  }
+
+  const handleRunLottery = async () => {
+    if (!leagueId) return
+    if (
+      !window.confirm(
+        'Run the weighted lottery now? This will set the rookie draft order. This action cannot be undone.'
+      )
+    ) {
+      return
+    }
+    setLotteryLoading(true)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft-lottery/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      })
+      const json = await res.json().catch(() => null)
+      if (res.ok && json && typeof json === 'object' && Array.isArray((json as WeightedLotteryResult).slotOrder)) {
+        setLotteryResult(json as WeightedLotteryResult)
+        setShowLotteryReveal(true)
+      } else {
+        setError(typeof (json as { error?: string })?.error === 'string' ? (json as { error: string }).error : 'Run failed')
+      }
+    } finally {
+      setLotteryLoading(false)
+    }
+  }
+
   const save = useCallback(async () => {
     if (!leagueId || !isCommissioner || Object.keys(patch).length === 0) return
     setSaving(true)
@@ -96,6 +185,14 @@ export default function DynastySettingsPanel({
         body: JSON.stringify(patch),
       })
       if (res.ok) {
+        const method = patch.rookiePickOrderMethod ?? data?.effective?.rookiePickOrderMethod
+        if (method === 'weighted_lottery' && lotteryConfig) {
+          await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft-lottery/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lotteryConfig }),
+          }).catch(() => {})
+        }
         setPatch({})
         await load()
       } else {
@@ -107,7 +204,7 @@ export default function DynastySettingsPanel({
     } finally {
       setSaving(false)
     }
-  }, [leagueId, isCommissioner, patch, load])
+  }, [leagueId, isCommissioner, patch, load, lotteryConfig, data?.effective?.rookiePickOrderMethod])
 
   if (loading) {
     return (
@@ -240,7 +337,7 @@ export default function DynastySettingsPanel({
             <div className="mt-2 flex flex-wrap gap-2">
               <select
                 className="rounded border border-white/20 bg-black/40 px-2 py-1 text-xs text-white"
-                value={effective.rookiePickOrderMethod}
+                value={effectiveRookiePickOrder || effective.rookiePickOrderMethod}
                 onChange={(e) => setPatch((p) => ({ ...p, rookiePickOrderMethod: e.target.value }))}
               >
                 {constants.rookiePickOrderMethods.map((m) => (
@@ -272,6 +369,185 @@ export default function DynastySettingsPanel({
                 Max PF for non-playoff
               </label>
             </div>
+          )}
+
+          {(effectiveRookiePickOrder === 'weighted_lottery' || effective?.rookiePickOrderMethod === 'weighted_lottery') && (
+            <div className="mt-4 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎱</span>
+                <h4 className="text-sm font-semibold text-cyan-300">Weighted Lottery Settings</h4>
+              </div>
+
+              {data.lotteryEligibility?.isStartupLeague && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  ⚠️ Weighted lottery is only available for established dynasty leagues (year 2+). This appears to
+                  be a startup league.
+                </div>
+              )}
+
+              <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-white/55 space-y-1">
+                <p className="font-semibold text-white/70">How it works</p>
+                <p>
+                  Non-playoff teams receive lottery balls based on their record. Worst teams get more balls but the
+                  worst team is NOT guaranteed the #1 pick. This reduces tanking incentives.
+                </p>
+                <p>Remaining picks after the lottery block use reverse standings order from the engine.</p>
+              </div>
+
+              {lotteryConfig && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex flex-col gap-1 text-xs text-white/70">
+                    Teams in lottery
+                    <select
+                      className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      value={lotteryConfig.lotteryTeamCount ?? 6}
+                      onChange={(e) =>
+                        setLotteryConfig((c) =>
+                          c
+                            ? { ...c, lotteryTeamCount: Number(e.target.value) }
+                            : { ...DEFAULT_WEIGHTED_LOTTERY_CONFIG, lotteryTeamCount: Number(e.target.value) }
+                        )
+                      }
+                    >
+                      {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                        <option key={n} value={n}>
+                          {n} teams
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-xs text-white/70">
+                    Lottery picks (top N)
+                    <select
+                      className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      value={lotteryConfig.lotteryPickCount ?? 6}
+                      onChange={(e) =>
+                        setLotteryConfig((c) =>
+                          c
+                            ? { ...c, lotteryPickCount: Number(e.target.value) }
+                            : { ...DEFAULT_WEIGHTED_LOTTERY_CONFIG, lotteryPickCount: Number(e.target.value) }
+                        )
+                      }
+                    >
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                        <option key={n} value={n}>
+                          Top {n} pick{n > 1 ? 's' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-xs text-white/70">
+                    Weighting method
+                    <select
+                      className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      value={lotteryConfig.weightingMode ?? 'inverse_standings'}
+                      onChange={(e) =>
+                        setLotteryConfig((c) =>
+                          c
+                            ? { ...c, weightingMode: e.target.value as LotteryWeightingMode }
+                            : { ...DEFAULT_WEIGHTED_LOTTERY_CONFIG, weightingMode: e.target.value as LotteryWeightingMode }
+                        )
+                      }
+                    >
+                      <option value="inverse_standings">Inverse standings (standard)</option>
+                      <option value="inverse_points_for">Inverse points scored</option>
+                      <option value="inverse_max_pf">Inverse max PF</option>
+                    </select>
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-xs text-white/70">
+                    Eligibility
+                    <select
+                      className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                      value={lotteryConfig.eligibilityMode ?? 'non_playoff'}
+                      onChange={(e) =>
+                        setLotteryConfig((c) =>
+                          c
+                            ? { ...c, eligibilityMode: e.target.value as LotteryEligibilityMode }
+                            : {
+                                ...DEFAULT_WEIGHTED_LOTTERY_CONFIG,
+                                eligibilityMode: e.target.value as LotteryEligibilityMode,
+                              }
+                        )
+                      }
+                    >
+                      <option value="non_playoff">Non-playoff teams only</option>
+                      <option value="bottom_n">Bottom N teams</option>
+                      <option value="all_teams">All teams</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              {isCommissioner && data.lotteryEligibility?.eligible && (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => void handlePreviewLotteryOdds()}
+                    disabled={lotteryLoading || !lotteryConfig}
+                    className="rounded-lg border border-white/20 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/[0.10] transition disabled:opacity-50"
+                  >
+                    {lotteryLoading ? 'Loading…' : 'Preview lottery odds →'}
+                  </button>
+
+                  {lotteryPreview && lotteryPreview.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-white/60 mb-2 uppercase tracking-wider">
+                        Lottery Odds Preview
+                      </p>
+                      <div className="rounded-lg border border-white/[0.08] overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-white/[0.06] bg-white/[0.03]">
+                              <th className="px-3 py-2 text-left text-white/50 font-medium">Team</th>
+                              <th className="px-3 py-2 text-right text-white/50 font-medium">Record</th>
+                              <th className="px-3 py-2 text-right text-white/50 font-medium">Balls</th>
+                              <th className="px-3 py-2 text-right text-white/50 font-medium">Odds #1</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {lotteryPreview.map((team, i) => (
+                              <tr
+                                key={team.rosterId}
+                                className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02]"
+                              >
+                                <td className="px-3 py-2 text-white/80 font-medium">{team.displayName}</td>
+                                <td className="px-3 py-2 text-right text-white/50">
+                                  {team.wins}-{team.losses}
+                                </td>
+                                <td className="px-3 py-2 text-right text-white/70">{team.weight}</td>
+                                <td className="px-3 py-2 text-right">
+                                  <span
+                                    className={`font-semibold ${i === 0 ? 'text-cyan-400' : 'text-white/60'}`}
+                                  >
+                                    {team.oddsPercent.toFixed(1)}%
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => void handleRunLottery()}
+                        disabled={lotteryLoading}
+                        className="mt-3 w-full rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 px-4 py-2.5 text-sm font-bold text-white hover:from-cyan-400 hover:to-violet-400 transition disabled:opacity-50"
+                      >
+                        🎱 Run Weighted Lottery
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {lotteryResult && showLotteryReveal && (
+            <LotteryReveal result={lotteryResult} onClose={() => setShowLotteryReveal(false)} />
           )}
         </div>
       )}

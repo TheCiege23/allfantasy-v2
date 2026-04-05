@@ -1,16 +1,18 @@
 /**
- * POST: Run weighted lottery. Optionally finalize (write slotOrder to draft session).
- * Commissioner only for finalize.
+ * POST: Run weighted lottery (commissioner). Body: { seed?: string; confirm: boolean }
  */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
-import { getDraftOrderModeAndLotteryConfig, setDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
+import {
+  getDraftOrderModeAndLotteryConfig,
+  setDraftOrderModeAndLotteryConfig,
+} from '@/lib/draft-lottery/lotteryConfigStorage'
 import { runWeightedLottery } from '@/lib/draft-lottery/WeightedDraftLotteryEngine'
+import { checkDynastyLotteryEligibility } from '@/lib/draft-lottery/dynastyYearGuard'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 
 export const dynamic = 'force-dynamic'
@@ -29,14 +31,23 @@ export async function POST(
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const body = await req.json().catch(() => ({}))
-  const finalize = Boolean(body.finalize)
-  const seed = typeof body.seed === 'string' && body.seed.trim() ? body.seed.trim() : `lottery-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+  const commissioner = await isCommissioner(leagueId, userId)
+  if (!commissioner) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
-  if (finalize) {
-    const commissioner = await isCommissioner(leagueId, userId)
-    if (!commissioner) return NextResponse.json({ error: 'Commissioner only to finalize lottery' }, { status: 403 })
+  const lotteryEligibility = await checkDynastyLotteryEligibility(leagueId)
+  if (!lotteryEligibility.eligible) {
+    return NextResponse.json({ error: lotteryEligibility.reason }, { status: 403 })
   }
+
+  const body = (await req.json().catch(() => ({}))) as { seed?: string; confirm?: boolean }
+  if (body.confirm !== true) {
+    return NextResponse.json({ error: 'confirm must be true' }, { status: 400 })
+  }
+
+  const seed =
+    typeof body.seed === 'string' && body.seed.trim()
+      ? body.seed.trim()
+      : `${leagueId}-${Date.now()}-${userId}`
 
   const { lotteryConfig } = await getDraftOrderModeAndLotteryConfig(leagueId)
   const config = { ...lotteryConfig, enabled: true, randomSeed: seed, auditSeed: seed }
@@ -44,17 +55,26 @@ export async function POST(
   const result = await runWeightedLottery(leagueId, config, seed)
   if (!result) return NextResponse.json({ error: 'Could not run lottery' }, { status: 500 })
 
-  if (finalize) {
-    const draftSession = await prisma.draftSession.findUnique({
-      where: { leagueId },
-      select: { id: true, status: true },
-    })
-    if (!draftSession || draftSession.status !== 'pre_draft') {
-      return NextResponse.json(
-        { error: 'No draft session in pre_draft status. Create or reset draft first.' },
-        { status: 400 }
-      )
-    }
+  const runAtIso = new Date().toISOString()
+
+  await setDraftOrderModeAndLotteryConfig(leagueId, {
+    draftOrderMode: 'weighted_lottery',
+    lotteryLastSeed: seed,
+    lotteryLastRunAt: runAtIso,
+    lotteryLastResult: result,
+    lotteryConfig: { auditSeed: seed, randomSeed: seed },
+  })
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { season: true },
+  })
+  const sessionRow = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { id: true, status: true },
+  })
+
+  if (sessionRow?.status === 'pre_draft') {
     const slotOrder = result.slotOrder as SlotOrderEntry[]
     await prisma.draftSession.update({
       where: { leagueId },
@@ -64,21 +84,10 @@ export async function POST(
         updatedAt: new Date(),
       },
     })
-    await setDraftOrderModeAndLotteryConfig(leagueId, {
-      lotteryLastSeed: seed,
-      lotteryLastRunAt: result.runAt,
-      lotteryLastResult: result,
-      lotteryConfig: { auditSeed: seed, randomSeed: seed },
-    })
   }
 
   return NextResponse.json({
-    lotteryDraws: result.lotteryDraws,
-    fallbackOrder: result.fallbackOrder,
-    slotOrder: result.slotOrder,
-    seed: result.seed,
-    runAt: result.runAt,
-    finalized: finalize,
-    oddsSnapshot: result.oddsSnapshot,
+    ...result,
+    leagueSeason: league?.season ?? null,
   })
 }

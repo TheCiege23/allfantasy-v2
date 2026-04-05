@@ -17,6 +17,11 @@ import {
   getDraftOrderAuditLog,
   ROOKIE_PICK_ORDER_METHODS,
 } from '@/lib/dynasty-core/DynastySettingsService'
+import { checkDynastyLotteryEligibility } from '@/lib/draft-lottery/dynastyYearGuard'
+import {
+  getDraftOrderModeAndLotteryConfig,
+  setDraftOrderModeAndLotteryConfig,
+} from '@/lib/draft-lottery/lotteryConfigStorage'
 import { prisma } from '@/lib/prisma'
 import { DYNASTY_SUPPORTED_TEAM_SIZES, VETO_RECOMMENDATION_COPY } from '@/lib/dynasty-core/constants'
 import { TAXI_ELIGIBILITY_YEARS_OPTIONS, TAXI_LOCK_BEHAVIOR_OPTIONS } from '@/lib/taxi/constants'
@@ -47,12 +52,21 @@ export async function GET(
     league.isDynasty ||
     (league.leagueVariant && ['devy_dynasty', 'merged_devy_c2c'].includes(String(league.leagueVariant).toLowerCase()))
 
-  const [effective, auditLog] = await Promise.all([
+  const [effective, auditLog, lotteryEligibility, weightedLotterySettings] = await Promise.all([
     getEffectiveDynastySettings(leagueId),
     isDynasty ? getDraftOrderAuditLog(leagueId, 20) : Promise.resolve([]),
+    checkDynastyLotteryEligibility(leagueId),
+    isDynasty ? getDraftOrderModeAndLotteryConfig(leagueId).catch(() => null) : Promise.resolve(null),
   ])
 
   const sport = (league.sport as string) ?? 'NFL'
+
+  const rookiePickOrderMethods = [
+    ...ROOKIE_PICK_ORDER_METHODS,
+    ...(lotteryEligibility.eligible
+      ? [{ value: 'weighted_lottery', label: '🎱 Weighted Lottery (NBA-style, year 2+)' }]
+      : []),
+  ]
 
   return NextResponse.json({
     effective: effective ?? undefined,
@@ -63,13 +77,19 @@ export async function GET(
     },
     constants: {
       supportedTeamSizes: [...DYNASTY_SUPPORTED_TEAM_SIZES],
-      rookiePickOrderMethods: [...ROOKIE_PICK_ORDER_METHODS],
+      rookiePickOrderMethods,
       vetoRecommendationCopy: VETO_RECOMMENDATION_COPY,
       taxiEligibilityYearsOptions: [...TAXI_ELIGIBILITY_YEARS_OPTIONS],
       taxiLockBehaviorOptions: [...TAXI_LOCK_BEHAVIOR_OPTIONS],
     },
     draftOrderAuditLog: auditLog,
     isDynasty,
+    lotteryEligibility: {
+      eligible: lotteryEligibility.eligible,
+      reason: lotteryEligibility.reason,
+      isStartupLeague: lotteryEligibility.isStartupLeague,
+    },
+    weightedLotterySettings: weightedLotterySettings ?? undefined,
   })
 }
 
@@ -98,6 +118,8 @@ export async function PUT(
     league.isDynasty ||
     (league.leagueVariant && ['devy_dynasty', 'merged_devy_c2c'].includes(String(league.leagueVariant).toLowerCase()))
   if (!isDynasty) return NextResponse.json({ error: 'Not a dynasty league' }, { status: 400 })
+
+  const priorDynasty = await prisma.dynastyLeagueConfig.findUnique({ where: { leagueId } })
 
   const settingsPatch: Record<string, unknown> = {}
   if (body.roster_format_type != null) settingsPatch.roster_format_type = String(body.roster_format_type)
@@ -151,6 +173,22 @@ export async function PUT(
   if (body.taxiScoringOn != null) dynastyPayload.taxiScoringOn = Boolean(body.taxiScoringOn)
   if (body.taxiDeadlineWeek !== undefined) dynastyPayload.taxiDeadlineWeek = body.taxiDeadlineWeek === null ? null : Number(body.taxiDeadlineWeek)
   if (body.taxiPromotionDeadlineWeek !== undefined) dynastyPayload.taxiPromotionDeadlineWeek = body.taxiPromotionDeadlineWeek === null ? null : Number(body.taxiPromotionDeadlineWeek)
+
+  if (body.rookiePickOrderMethod != null) {
+    const method = String(body.rookiePickOrderMethod)
+    if (method === 'weighted_lottery') {
+      const el = await checkDynastyLotteryEligibility(leagueId)
+      if (!el.eligible) {
+        return NextResponse.json({ error: el.reason }, { status: 400 })
+      }
+      await setDraftOrderModeAndLotteryConfig(leagueId, {
+        draftOrderMode: 'weighted_lottery',
+        lotteryConfig: { enabled: true },
+      })
+    } else if (priorDynasty?.rookiePickOrderMethod === 'weighted_lottery' && method !== 'weighted_lottery') {
+      await setDraftOrderModeAndLotteryConfig(leagueId, { draftOrderMode: 'randomize' })
+    }
+  }
 
   const config = await upsertDynastyConfig(leagueId, dynastyPayload)
 

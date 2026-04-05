@@ -61,6 +61,7 @@ export async function runDraftLottery(
       draftOrderMode: 'weighted_lottery',
       lotteryLastSeed: seed,
       lotteryLastRunAt: result.runAt,
+      lotteryLastResult: result,
       lotteryConfig: {
         auditSeed: seed,
         randomSeed: seed,

@@ -21,6 +21,7 @@ import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { draftOrderSlotsToSlotOrder } from '@/lib/league/league-settings-draft-sync'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
+import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 
 export async function getOrCreateDraftSession(leagueId: string): Promise<{
   session: { id: string; leagueId: string; status: string; slotOrder: unknown; teamCount: number; rounds: number; draftType: string; thirdRoundReversal: boolean; timerSeconds: number | null; timerEndAt: Date | null; pausedRemainingSeconds: number | null; version: number; updatedAt: Date }
@@ -112,6 +113,11 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
     if (fromSettings.length > 0) {
       slotOrder = fromSettings
     }
+  }
+
+  const lotterySlotOrder = await resolveWeightedLotterySlotOrderForLeague(leagueId).catch(() => null)
+  if (lotterySlotOrder && lotterySlotOrder.length > 0) {
+    slotOrder = lotterySlotOrder
   }
 
   session = await (prisma as any).draftSession.create({

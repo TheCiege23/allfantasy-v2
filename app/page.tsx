@@ -1,11 +1,16 @@
 import type { Metadata } from 'next'
-import LandingPageClient from '@/components/landing/LandingPageClient'
-
-/** Avoids a Next.js 14 RSC static-generation webpack-runtime error on `/` (module factory undefined during Flight deserialization). */
-export const dynamic = 'force-dynamic'
-import { buildSeoMeta } from '@/lib/seo'
-import { getSoftwareApplicationSchema, getWebPageSchema } from '@/lib/seo'
+import dynamic from 'next/dynamic'
 import { PageJsonLd } from '@/components/seo/JsonLd'
+import {
+  buildSeoMeta,
+  getSoftwareApplicationSchema,
+  getWebPageSchema,
+} from '@/lib/seo'
+
+/** Separate chunk avoids Next 14 RSC static prerender webpack-runtime `undefined.call` when resolving the landing client graph. */
+const LandingPageClient = dynamic(() => import('@/components/landing/LandingPageClient'), {
+  ssr: true,
+})
 
 export const metadata: Metadata = buildSeoMeta({
   title: 'AllFantasy.ai — AI-Powered Fantasy Sports | NFL, NBA, NHL, MLB & More',

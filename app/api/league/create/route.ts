@@ -581,6 +581,10 @@ export async function POST(req: Request) {
     } catch {
       /* non-fatal */
     }
+    const foundingSeason = new Date().getFullYear();
+    if (effectiveDynasty) {
+      (initialSettings as Record<string, unknown>).startup_season = foundingSeason;
+    }
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -596,6 +600,7 @@ export async function POST(req: Request) {
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
+        ...(effectiveDynasty ? { season: foundingSeason } : {}),
       },
     });
 
