@@ -212,16 +212,7 @@ export default function LoginContent() {
       const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
       const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
 
-      if (provider === "google" && isSupabaseConfigured) {
-        await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
-          },
-        })
-        return
-      }
-
+      // Google: always NextAuth so getServerSession / dashboard receive the same session (not Supabase-only OAuth).
       if (provider === "apple" && isSupabaseConfigured) {
         await supabase.auth.signInWithOAuth({
           provider: "apple",
