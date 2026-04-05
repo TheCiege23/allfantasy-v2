@@ -130,13 +130,16 @@ export async function POST(req: Request) {
   const tokenHash = sha256Hex(code)
   const expiresAt = new Date(Date.now() + 1000 * 60 * 15)
 
-  await (prisma as any).passwordResetToken.deleteMany({
-    where: { userId: user.id },
-  }).catch(() => {})
+  try {
+    await (prisma as any).passwordResetToken.deleteMany({ where: { userId: user.id } }).catch(() => {})
+    await (prisma as any).passwordResetToken.create({
+      data: { userId: user.id, tokenHash, expiresAt },
+    })
+  } catch (dbErr) {
+    console.error("[pw-reset] DB error creating token:", dbErr)
+    return NextResponse.json({ ok: true }, { status: 200 })
+  }
 
-  await (prisma as any).passwordResetToken.create({
-    data: { userId: user.id, tokenHash, expiresAt },
-  })
   void logPasswordResetAudit({
     outcome: "email_token_created",
     type: "email",
