@@ -445,7 +445,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ sleeperUsername }),
+          body: JSON.stringify({ username: sleeperUsername, sleeperUsername }),
         })
         const importData = (await importRes.json().catch(() => ({}))) as {
           jobId?: string
@@ -468,9 +468,8 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         return true
       } catch (err: unknown) {
         setImportError(err instanceof Error ? err.message : 'Import failed')
-        return false
-      } finally {
         setImporting(false)
+        return false
       }
     },
     [onImportSuccess, router]
@@ -490,8 +489,10 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
 
     setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
-    await runClientSideImport(state.username.trim().toLowerCase())
-    setState((current) => ({ ...current, loading: false }))
+    const started = await runClientSideImport(state.username.trim().toLowerCase())
+    if (!started) {
+      setState((current) => ({ ...current, loading: false }))
+    }
   }, [router, runClientSideImport, selectedPlatform.label, state.platform, state.username])
 
   if (isImporting) {

@@ -15,28 +15,37 @@ export function LegacyImportProgressWidget() {
 
   useEffect(() => {
     let active = true
-    async function fetchStatus() {
-      setLoading(true)
+    let pollTimeout: ReturnType<typeof setTimeout> | null = null
+    const ACTIVE_IMPORT_STATUSES = new Set(['running', 'processing', 'in_progress', 'pending', 'queued'])
+
+    async function fetchStatus(isInitialLoad: boolean) {
+      if (isInitialLoad) setLoading(true)
       setError(null)
       try {
         const res = await fetch('/api/user/legacy-import-status', { cache: 'no-store' })
         if (!res.ok) throw new Error('Failed to fetch import status')
         const data = await res.json()
         if (!active) return
-        setStatus(data.sleeperImportStatus || null)
-      } catch (e) {
+        const nextStatus = data.sleeperImportStatus || null
+        setStatus(nextStatus)
+        if (ACTIVE_IMPORT_STATUSES.has(nextStatus?.status)) {
+          pollTimeout = setTimeout(() => {
+            void fetchStatus(false)
+          }, 5000)
+        }
+      } catch {
         if (!active) return
         setError('Could not load import status')
       } finally {
-        if (!active) return
+        if (!active || !isInitialLoad) return
         setLoading(false)
       }
     }
-    fetchStatus()
-    const interval = setInterval(fetchStatus, 5000)
+
+    void fetchStatus(true)
     return () => {
       active = false
-      clearInterval(interval)
+      if (pollTimeout) clearTimeout(pollTimeout)
     }
   }, [])
 
