@@ -37,6 +37,8 @@ interface RankResponse {
   tierName?: string | null
   xpTotal?: number | null
   xpLevel?: number | null
+  rankProcessing?: boolean
+  rankCalculatedAt?: string | null
   careerStats?: {
     seasonsPlayed: number
     totalWins: number
@@ -486,6 +488,22 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
   )
 }
 
+function ProcessingImportState() {
+  return (
+    <div className="space-y-6">
+      <div className="rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-[#0a1228] to-[#07071a] p-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-500/35 border-t-cyan-400" />
+        </div>
+        <h2 className="text-xl font-black text-white">Import in progress</h2>
+        <p className="mt-2 text-sm text-white/50">
+          Syncing rosters and brackets from Sleeper, then calculating your rank. This page updates automatically.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function EmptyRankState({ onImported }: { onImported: () => void }) {
   return (
     <div className="space-y-6">
@@ -615,37 +633,55 @@ function MyRankingsPageInner() {
   const [overviewProfile, setOverviewProfile] = useState<CompositeProfile | null>(null)
   const [legacyUsername, setLegacyUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [importProcessing, setImportProcessing] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importBannerDismissed, setImportBannerDismissed] = useState(false)
 
   const justImported = searchParams.get('imported') === 'true'
 
-  const loadRank = useCallback(async () => {
-    setLoading(true)
+  const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true
+    if (!silent) setLoading(true)
     try {
       const response = await fetch('/api/user/rank', { cache: 'no-store' })
       const data = (await response.json().catch(() => ({}))) as RankResponse
-      if (response.ok && data.rank) {
-        setRank(data.rank)
-        setOverviewProfile(data.overviewProfile ?? null)
-        setLegacyUsername(data.legacyUsername ?? null)
+      if (response.ok) {
+        setImportProcessing(data.rankProcessing === true)
+        if (data.rank) {
+          setRank(data.rank)
+          setOverviewProfile(data.overviewProfile ?? null)
+          setLegacyUsername(data.legacyUsername ?? null)
+        } else {
+          setRank(null)
+          setOverviewProfile(null)
+          setLegacyUsername(data.legacyUsername ?? null)
+        }
       } else {
         setRank(null)
         setOverviewProfile(null)
         setLegacyUsername(null)
+        setImportProcessing(false)
       }
     } catch {
       setRank(null)
       setOverviewProfile(null)
       setLegacyUsername(null)
+      setImportProcessing(false)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     void loadRank()
   }, [loadRank])
+
+  useEffect(() => {
+    if (!justImported) return
+    if (!importProcessing) return
+    const id = window.setInterval(() => void loadRank({ silent: true }), 5000)
+    return () => window.clearInterval(id)
+  }, [justImported, importProcessing, loadRank])
 
   const username =
     legacyUsername ||
@@ -672,17 +708,34 @@ function MyRankingsPageInner() {
     <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         {justImported && !importBannerDismissed ? (
-          <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-emerald-100">
-              Import complete! Your rank has been calculated.
-            </p>
+          <div
+            className={`mb-6 flex flex-col gap-2 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
+              importProcessing
+                ? 'border-cyan-500/35 bg-cyan-500/10'
+                : 'border-emerald-500/30 bg-emerald-500/10'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              {importProcessing ? (
+                <div className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-300" />
+              ) : null}
+              <p className={`text-sm font-semibold ${importProcessing ? 'text-cyan-100' : 'text-emerald-100'}`}>
+                {importProcessing
+                  ? 'Import in progress — syncing Sleeper history and calculating your rank…'
+                  : 'Import complete! Your rank has been calculated.'}
+              </p>
+            </div>
             <button
               type="button"
               onClick={() => {
                 setImportBannerDismissed(true)
                 router.replace('/dashboard/rankings', { scroll: false })
               }}
-              className="shrink-0 text-xs font-semibold text-emerald-200/80 underline-offset-2 hover:text-emerald-50 hover:underline"
+              className={`shrink-0 text-xs font-semibold underline-offset-2 hover:underline ${
+                importProcessing
+                  ? 'text-cyan-200/80 hover:text-cyan-50'
+                  : 'text-emerald-200/80 hover:text-emerald-50'
+              }`}
             >
               Dismiss
             </button>
@@ -714,7 +767,16 @@ function MyRankingsPageInner() {
           </p>
         </div>
 
-        {!rank || showImport ? (
+        {showImport ? (
+          <EmptyRankState
+            onImported={() => {
+              setShowImport(false)
+              void loadRank()
+            }}
+          />
+        ) : !rank && importProcessing && justImported ? (
+          <ProcessingImportState />
+        ) : !rank ? (
           <EmptyRankState
             onImported={() => {
               setShowImport(false)

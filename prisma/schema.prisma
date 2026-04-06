@@ -3875,6 +3875,8 @@ model UserProfile {
   careerSeasonsPlayed       Int?      @map("career_seasons_played")
   careerLeaguesPlayed       Int?      @map("career_leagues_played")
   rankCalculatedAt          DateTime? @map("rank_calculated_at")
+  /// True while Phase 2 (roster/detail sync + rank calc) runs after fast Phase 1 league list import.
+  leagueImportDetailPending Boolean   @default(false) @map("league_import_detail_pending")
   onboardingStep            String? // welcome | app_walkthrough | sport_selection | tool_suggestions | league_prompt | completed
   onboardingCompletedAt     DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }

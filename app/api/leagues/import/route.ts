@@ -1,23 +1,18 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { Prisma, LeagueSport } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
-import { syncLegacyLeagueFromSleeper } from "@/lib/legacy-import";
-import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
-import { runWithConcurrency } from "@/lib/async-utils";
-import type { SleeperLeague as SleeperLeagueApi } from "@/lib/sleeper-client";
-import { copyLegacyStatsToImportedLeague } from "@/lib/leagues/copyLegacyStatsToImportedLeague";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Vercel Pro / Enterprise: extend serverless timeout for multi-year Sleeper scans + legacy roster sync. */
-export const maxDuration = 120;
+/** Phase 1: league list + minimal upserts only (Phase 2 is `/api/leagues/import/sync`). */
+export const maxDuration = 60;
 
 const LAUNCH_YEAR = 2017;
 const SPORTS = ["nfl", "nba"] as const;
@@ -333,35 +328,27 @@ export async function POST(req: Request) {
       }
     }
 
-    console.log(`[import] Done. Imported: ${importedCount}, Skipped: ${skipped.length}`);
+    console.log(`[import] Phase 1 done. Minimal rows: ${importedCount}, Skipped: ${skipped.length}`);
 
-    await runWithConcurrency(leaguesToImport, 4, async (league) => {
-      try {
-        const s = seasonOf(league);
-        if (!Number.isFinite(s)) return;
-        const lid = String(league.league_id ?? "");
-        await syncLegacyLeagueFromSleeper(
-          resolvedLegacy.id,
-          sleeperId,
-          league as SleeperLeagueApi,
-          s,
-        );
-        await copyLegacyStatsToImportedLeague(userId, resolvedLegacy.id, sleeperId, lid, s);
-      } catch (e: unknown) {
-        console.warn("[import] legacy league sync failed for", league?.league_id, e);
+    const leagueKeyMap = new Map<string, { platformLeagueId: string; season: number }>();
+    for (const l of leaguesToImport) {
+      const s = seasonOf(l);
+      if (!Number.isFinite(s)) continue;
+      const id = String(l.league_id ?? "");
+      const key = `${id}:${s}`;
+      if (!leagueKeyMap.has(key)) {
+        leagueKeyMap.set(key, { platformLeagueId: id, season: s });
       }
-    });
-
-    try {
-      await computeAndSaveRank(userId);
-    } catch (e: unknown) {
-      console.warn("[import] computeAndSaveRank failed (non-fatal):", e);
     }
+    const leagueKeys = [...leagueKeyMap.values()];
 
-    try {
-      await refreshUserRankingsContext(userId);
-    } catch (e: unknown) {
-      console.warn("[import] rankings refresh failed (non-fatal):", e);
+    const jobId = randomUUID();
+
+    if (leagueKeys.length > 0) {
+      await prisma.userProfile.update({
+        where: { userId },
+        data: { leagueImportDetailPending: true },
+      });
     }
 
     const uniqueSeasons = new Set(
@@ -385,6 +372,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      status: "processing" as const,
+      jobId,
+      leagueCount: importedCount,
+      leagueKeys,
       imported: importedCount,
       seasons: uniqueSeasons,
       sports: sportCounts,

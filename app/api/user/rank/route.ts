@@ -105,20 +105,32 @@ export async function GET() {
   const userId = session.user.id
 
   try {
-    const appUser = await prisma.appUser.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        legacyUserId: true,
-        username: true,
-        displayName: true,
-        legacyUser: {
-          select: {
-            sleeperUsername: true,
+    const [appUser, profileFlags] = await Promise.all([
+      prisma.appUser.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          legacyUserId: true,
+          username: true,
+          displayName: true,
+          legacyUser: {
+            select: {
+              sleeperUsername: true,
+            },
           },
         },
-      },
-    })
+      }),
+      prisma.userProfile.findUnique({
+        where: { userId },
+        select: {
+          leagueImportDetailPending: true,
+          rankCalculatedAt: true,
+        },
+      }),
+    ])
+
+    const rankProcessing = profileFlags?.leagueImportDetailPending === true
+    const rankCalculatedAtIso = profileFlags?.rankCalculatedAt?.toISOString() ?? null
 
     if (!appUser?.legacyUserId) {
       return NextResponse.json({
@@ -129,6 +141,8 @@ export async function GET() {
         xpTotal: null,
         xpLevel: null,
         careerStats: null,
+        rankProcessing: false,
+        rankCalculatedAt: null,
       })
     }
 
@@ -138,13 +152,16 @@ export async function GET() {
 
     if (!rankCache) {
       return NextResponse.json({
-        imported: false,
+        imported: true,
         rank: null,
         tier: null,
         tierName: null,
         xpTotal: null,
         xpLevel: null,
         careerStats: null,
+        rankProcessing,
+        rankCalculatedAt: rankCalculatedAtIso,
+        legacyUsername: appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null,
       })
     }
 
@@ -284,6 +301,8 @@ export async function GET() {
       xpLevel: rankCache.careerLevel,
       careerStats,
       rank,
+      rankProcessing,
+      rankCalculatedAt: rankCalculatedAtIso,
       legacyUsername: appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null,
       overviewProfile: leagueRecords.length > 0 ? computeCompositeProfile(leagueRecords) : null,
     })

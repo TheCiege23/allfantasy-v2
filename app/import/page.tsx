@@ -17,6 +17,9 @@ type ImportResult = {
   commissionerLeagues?: number;
   historicalLeagues?: number;
   skippedNotCommissioner?: number;
+  status?: string;
+  jobId?: string;
+  leagueKeys?: Array<{ platformLeagueId: string; season: number }>;
 };
 
 function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
@@ -89,9 +92,9 @@ export default function ImportPage() {
       });
 
       const text = await res.text();
-      let data: ImportResult & { error?: string; success?: boolean };
+      let data: ImportResult & { error?: string; success?: boolean; leagueKeys?: unknown; leagueCount?: number };
       try {
-        data = JSON.parse(text) as ImportResult & { error?: string; success?: boolean };
+        data = JSON.parse(text) as ImportResult & { error?: string; success?: boolean; leagueKeys?: unknown; leagueCount?: number };
       } catch {
         throw new Error(`Server error: ${text.slice(0, 150)}`);
       }
@@ -101,11 +104,40 @@ export default function ImportPage() {
       }
 
       if (data.success === true) {
+        const keys = Array.isArray(data.leagueKeys)
+          ? data.leagueKeys.filter(
+              (k): k is { platformLeagueId: string; season: number } =>
+                k != null &&
+                typeof k === "object" &&
+                typeof (k as { platformLeagueId?: string }).platformLeagueId === "string" &&
+                typeof (k as { season?: number }).season === "number"
+            )
+          : [];
+        if (keys.length > 0) {
+          void fetch("/api/leagues/import/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ leagueKeys: keys }),
+          }).catch(() => undefined);
+        }
         router.push("/dashboard/rankings?imported=true");
       }
 
+      const leagueKeysParsed =
+        Array.isArray(data.leagueKeys) &&
+        data.leagueKeys.every(
+          (k) =>
+            k &&
+            typeof k === "object" &&
+            typeof (k as { platformLeagueId?: string }).platformLeagueId === "string" &&
+            typeof (k as { season?: number }).season === "number"
+        )
+          ? (data.leagueKeys as ImportResult["leagueKeys"])
+          : undefined;
+
       setResult({
-        imported: data.imported ?? 0,
+        imported: data.imported ?? data.leagueCount ?? 0,
         seasons: data.seasons ?? 0,
         sports: data.sports ?? {},
         years: Array.isArray(data.years) ? data.years : [],
@@ -114,6 +146,9 @@ export default function ImportPage() {
         historicalLeagues: typeof data.historicalLeagues === "number" ? data.historicalLeagues : undefined,
         skippedNotCommissioner:
           typeof data.skippedNotCommissioner === "number" ? data.skippedNotCommissioner : undefined,
+        status: typeof data.status === "string" ? data.status : undefined,
+        jobId: typeof data.jobId === "string" ? data.jobId : undefined,
+        leagueKeys: leagueKeysParsed,
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Import failed. Please try again.");
@@ -206,7 +241,7 @@ export default function ImportPage() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    Importing... this takes ~20 seconds
+                    Saving leagues… usually under 10 seconds
                   </span>
                 ) : (
                   "Import All Leagues"
@@ -221,9 +256,14 @@ export default function ImportPage() {
 
               {result ? (
                 <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
-                  <p className="mb-1 text-[16px] font-bold text-green-400">✅ Import Complete!</p>
+                  <p className="mb-1 text-[16px] font-bold text-green-400">
+                    {result.status === "processing" ? "✅ Leagues saved — syncing details…" : "✅ Import Complete!"}
+                  </p>
                   <p className="mb-1 text-[13px] text-white/70">
-                    {result.imported} leagues imported across {result.seasons} seasons
+                    {result.imported} leagues queued across {result.seasons} seasons
+                    {result.status === "processing"
+                      ? ". Rank and stats update in the background on your Rankings page."
+                      : ""}
                   </p>
                   {Object.keys(result.sports).length > 0 ? (
                     <p className="mb-3 text-[11px] text-white/40">
