@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Crown, Loader2, CheckCircle2, History } from 'lucide-react';
+import { Crown, Loader2, CheckCircle2, History, HelpCircle } from 'lucide-react';
+import { StepHelp } from '@/components/league-creation-wizard/StepHelp';
 
 export default function LegacyImportForm({ userId }: { userId: string }) {
   const [platform, setPlatform] = useState<'sleeper' | 'espn'>('sleeper');
@@ -181,10 +183,30 @@ export default function LegacyImportForm({ userId }: { userId: string }) {
 
       <Card className="border-purple-500/30 bg-black/40 backdrop-blur-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-3 text-xl">
-            <History className="h-5 w-5 text-purple-400" />
-            Multi-Season Legacy Import
-          </CardTitle>
+          <div className="flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-3 text-xl">
+              <History className="h-5 w-5 text-purple-400" />
+              Multi-Season Legacy Import
+            </div>
+            <StepHelp title="How does legacy import work?">
+              <div className="text-xs text-white/90 space-y-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <HelpCircle className="h-4 w-4 text-cyan-300" />
+                  <span className="font-semibold text-cyan-200">How Legacy Import Works</span>
+                </div>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Enter your Sleeper username and click Import.</li>
+                  <li>All leagues and seasons (where you are a participant or commissioner) are imported from Sleeper, not just leagues you own.</li>
+                  <li>The most recent season and a general ranking are shown immediately; the rest import in the background.</li>
+                  <li>You will be redirected to the Rankings page, but import progress and results will also appear on your dashboard as they complete.</li>
+                  <li>When the import is fully complete, you will receive a notification in the notifications tab.</li>
+                  <li>You do <b>not</b> need to be a commissioner for your leagues to be imported.</li>
+                  <li>If you have a lot of history, the process may take a few minutes. You can continue using the site while it runs.</li>
+                </ul>
+                <div className="mt-2 text-cyan-200">The Sleeper API is the source of truth for your import.</div>
+              </div>
+            </StepHelp>
+          </div>
           <CardDescription>
             Import multiple seasons at once to build your complete dynasty history
           </CardDescription>

@@ -438,13 +438,35 @@ html {
   scroll-behavior: smooth;
 }
 
+
 body {
   color: rgb(var(--foreground-rgb));
   background: var(--bg);
   min-height: 100vh;
   min-height: 100dvh;
   -webkit-tap-highlight-color: rgba(6, 182, 212, 0.15);
+  font-size: 18px;
+  line-height: 1.6;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.dashboard-header-bold {
+  font-weight: 900 !important;
+  letter-spacing: -0.01em;
+}
+
+/* Header color classes for dashboard sections */
+.header-league { color: #22d3ee !important; }
+.header-chimmy { color: #f59e0b !important; }
+.header-huddle { color: #a78bfa !important; }
+.header-dms { color: #34d399 !important; }
+.header-myleagues { color: #f87171 !important; }
 
 /* Mobile/safari: full-height panels use dynamic viewport to avoid address-bar jump */
 .h-fill-dynamic {

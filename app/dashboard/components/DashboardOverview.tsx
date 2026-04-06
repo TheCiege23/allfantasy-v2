@@ -12,6 +12,7 @@ import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
+import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -275,6 +276,7 @@ function RankingWidget({
         <ArrowRight className="h-4 w-4" />
       </Link>
     </div>
+    <LegacyImportProgressWidget />
   )
 }
 
@@ -637,12 +639,7 @@ export function DashboardOverview({
             >
               Find League
             </Link>
-            <Link
-              href="/dashboard/dispersal"
-              className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100"
-            >
-              Dispersal drafts
-            </Link>
+            {/* Dispersal drafts link removed from dashboard overview */}
           </div>
         </section>
 

@@ -63,3 +63,4 @@ app/player-values/*.json
 !app/player-values/.gitkeep
 
 .vercel
+.vercel

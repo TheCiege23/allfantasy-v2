@@ -36,23 +36,27 @@ function ChimmyVoicePicker({
   const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef} className="relative z-[100]">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
         aria-expanded={open}
         aria-haspopup="listbox"
+        tabIndex={0}
       >
         {selectedVoice.name}
-        <span className="text-[9px] text-white/30" aria-hidden>
+        <span className="text-[9px] text-white/30 ml-1" aria-hidden>
           ▾
         </span>
       </button>
 
-      {open ? (
+      {open && (
         <div
-          className="absolute bottom-full left-0 z-50 mb-1 w-[200px] overflow-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
+          className="absolute bottom-full left-0 z-[200] mb-1 w-[220px] overflow-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
           role="listbox"
           aria-label="Chimmy voice"
         >
@@ -65,9 +69,10 @@ function ChimmyVoicePicker({
               type="button"
               role="option"
               aria-selected={voice.id === selectedVoiceId}
-              onClick={() => {
-                onVoiceChange(voice.id)
-                setOpen(false)
+              onClick={(e) => {
+                e.stopPropagation();
+                onVoiceChange(voice.id);
+                setOpen(false);
               }}
               className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
                 voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
@@ -91,9 +96,9 @@ function ChimmyVoicePicker({
             <p className="text-[9px] text-white/20">More voices at elevenlabs.io</p>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
-  )
+  );
 }
 
 function ChimmyLeagueContextBar({
@@ -309,9 +314,9 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('league')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-league transition-colors ${
             activeTab === 'league'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="League chat tab"
@@ -321,9 +326,9 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('chimmy')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-chimmy transition-colors ${
             activeTab === 'chimmy'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="Chimmy tab"
@@ -333,9 +338,9 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('af_huddle')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-huddle transition-colors ${
             activeTab === 'af_huddle'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="AF Huddle tab"
@@ -346,9 +351,9 @@ export function LeftChatPanel({
         <button
           type="button"
           onClick={() => setActiveTab('dms')}
-          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[14px] font-medium transition-colors ${
+          className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-dms transition-colors ${
             activeTab === 'dms'
-              ? 'border-b-2 border-cyan-500 bg-white/[0.03] text-white'
+              ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
           aria-label="Direct messages tab"
