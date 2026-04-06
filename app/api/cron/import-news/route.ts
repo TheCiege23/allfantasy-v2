@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { SUPPORTED_SPORTS } from '@/lib/workers/api-config'

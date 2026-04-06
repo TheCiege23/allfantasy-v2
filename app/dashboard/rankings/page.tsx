@@ -352,6 +352,43 @@ type TierVisual = {
   desc: string
 }
 
+type SleeperLeague = {
+  league_id?: string
+  name?: string
+  total_rosters?: number
+  settings?: { playoff_teams?: number }
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+async function fetchJsonWithTimeout<T>(
+  url: string,
+  init?: RequestInit,
+  opts: { timeoutMs?: number; retries?: number } = {}
+): Promise<T> {
+  const timeoutMs = opts.timeoutMs ?? 12000
+  const retries = opts.retries ?? 1
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal })
+      if (!response.ok) throw new Error(`Sleeper request failed (${response.status})`)
+      return (await response.json()) as T
+    } catch (error) {
+      const isLastAttempt = attempt === retries
+      if (isLastAttempt) throw error
+      await sleep(250 * (attempt + 1))
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
+  throw new Error('Sleeper request failed')
+}
+
 function getTierConfigByLevel(level: number): TierVisual {
   const row = RANK_LEVELS.find((e) => e.level === level) ?? RANK_LEVELS[0]
   const glow = `${row.color}55`
@@ -441,21 +478,24 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
       setCurrentXp(null)
 
       try {
-        const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername)}`)
-        if (!userRes.ok) throw new Error('Sleeper user not found')
-        const sleeperUser = (await userRes.json()) as { user_id?: string }
+        const sleeperUser = await fetchJsonWithTimeout<{ user_id?: string }>(
+          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername)}`
+        )
         const sleeperUserId = sleeperUser.user_id
         if (!sleeperUserId) throw new Error('Sleeper user not found')
 
         const currentYear = new Date().getFullYear()
         const years = Array.from({ length: currentYear - 2016 }, (_, i) => 2017 + i)
         const seasonsWithLeagues: number[] = []
+        const leaguesBySeason = new Map<number, SleeperLeague[]>()
 
         for (const year of years) {
-          const r = await fetch(`https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${year}`)
-          const data = await r.json()
+          const data = await fetchJsonWithTimeout<unknown>(
+            `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${year}`
+          )
           if (Array.isArray(data) && data.length > 0) {
             seasonsWithLeagues.push(year)
+            leaguesBySeason.set(year, data as SleeperLeague[])
           }
         }
 
@@ -471,11 +511,8 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
           setSeasonIndex(i)
 
           try {
-            const leagueRes = await fetch(
-              `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${season}`
-            )
-            const sleeperLeagues = await leagueRes.json()
-            if (!Array.isArray(sleeperLeagues)) continue
+            const sleeperLeagues = leaguesBySeason.get(season) ?? []
+            if (sleeperLeagues.length === 0) continue
 
             const leagueRecords: Array<{
               platformLeagueId: string
@@ -491,17 +528,13 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               importPointsFor: number | null
             }> = []
 
-            for (const league of sleeperLeagues as Array<{
-              league_id?: string
-              name?: string
-              total_rosters?: number
-              settings?: { playoff_teams?: number }
-            }>) {
+            for (const league of sleeperLeagues) {
               try {
                 const lid = league.league_id
                 if (!lid) continue
-                const rosterRes = await fetch(`https://api.sleeper.app/v1/league/${lid}/rosters`)
-                const rosters = await rosterRes.json()
+                const rosters = await fetchJsonWithTimeout<unknown>(
+                  `https://api.sleeper.app/v1/league/${lid}/rosters`
+                )
                 const mine = Array.isArray(rosters)
                   ? (rosters as Array<{
                       owner_id?: string
@@ -539,6 +572,8 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                 })
               } catch {
                 // skip individual league error
+              } finally {
+                await sleep(100)
               }
             }
 
@@ -584,7 +619,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
             console.error(`[import] season ${season}:`, seasonErr)
           }
 
-          await new Promise((r) => setTimeout(r, 300))
+          await sleep(300)
         }
 
         setImporting(false)
@@ -614,10 +649,8 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
 
     setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
-    const importSucceeded = await runClientSideImport(state.username.trim().toLowerCase())
-    if (!importSucceeded) {
-      setState((current) => ({ ...current, loading: false }))
-    }
+    await runClientSideImport(state.username.trim().toLowerCase())
+    setState((current) => ({ ...current, loading: false }))
   }, [router, runClientSideImport, selectedPlatform.label, state.platform, state.username])
 
   if (isImporting) {
