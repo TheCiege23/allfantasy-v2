@@ -81,3 +81,15 @@ export function getAllowedElevenLabsVoiceIds(): Set<string> {
   if (env) ids.add(env)
   return ids
 }
+
+/** Server-side: persist only voice IDs that TTS will accept. */
+export function isSelectableChimmyTtsVoiceId(id: string): boolean {
+  const t = id.trim()
+  if (!t) return false
+  return getAllowedElevenLabsVoiceIds().has(t)
+}
+
+/** Client-side: preset list only (env-only IDs are not selectable in UI). */
+export function isPresetChimmyTtsVoiceId(id: string): boolean {
+  return CHIMMY_VOICES.some((v) => v.id === id)
+}

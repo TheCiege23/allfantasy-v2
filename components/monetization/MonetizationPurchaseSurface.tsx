@@ -19,6 +19,7 @@ import {
   trackUpgradeEntryClicked,
 } from "@/lib/monetization-analytics";
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction";
+import { Check } from "lucide-react";
 
 export type PlanFamily = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access";
 
@@ -112,6 +113,12 @@ const PLAN_FAMILY_EXPLANATIONS: Record<PlanFamily, string> = {
   af_all_access: "Combined access across AF Pro, AF Commissioner, and AF War Room workflows.",
 };
 
+const PRICING_CONVERSION_BULLETS: readonly string[] = [
+  "Chimmy AI for waivers, trades, and matchup breakdowns",
+  "Commissioner-grade controls and league automation",
+  "Stripe checkout for subscriptions — league dues & payouts on FanCred",
+];
+
 function formatUsd(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
@@ -131,11 +138,14 @@ export default function MonetizationPurchaseSurface({
   title,
   subtitle,
   focusPlanFamily = null,
+  conversionHero = false,
 }: {
   pagePath: string;
   title: string;
   subtitle: string;
   focusPlanFamily?: PlanFamily | null;
+  /** Richer marketing header + value props (e.g. `/pricing`). */
+  conversionHero?: boolean;
 }) {
   const [payload, setPayload] = useState<CatalogPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -288,29 +298,103 @@ export default function MonetizationPurchaseSurface({
       </div>
 
       <div className="relative mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 sm:mb-8">
-          <Link
-            href="/"
-            className="inline-flex min-h-[44px] items-center gap-2 text-sm text-white/50 transition hover:text-white/80"
-          >
-            <span aria-hidden>&larr;</span> Back to Home
-          </Link>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <Link href="/pricing" className="rounded-lg border border-white/15 bg-white/[0.03] px-3 py-1.5 text-white/80 hover:bg-white/[0.08]">
-              Pricing
-            </Link>
-            <Link href="/tokens" className="rounded-lg border border-white/15 bg-white/[0.03] px-3 py-1.5 text-white/80 hover:bg-white/[0.08]">
-              Tokens
-            </Link>
-          </div>
-        </div>
+        {conversionHero ? (
+          <>
+            <header className="mb-8 flex flex-col gap-4 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-center sm:justify-between">
+              <Link
+                href="/"
+                className="group flex min-h-[44px] max-w-fit items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 transition hover:border-cyan-400/25 hover:bg-white/[0.07]"
+                data-testid="pricing-link-home"
+              >
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-purple-600/25 text-lg text-white/95 ring-1 ring-white/10"
+                  aria-hidden
+                >
+                  ✦
+                </span>
+                <span className="text-left">
+                  <span className="block text-sm font-semibold text-white group-hover:text-cyan-200">AllFantasy.ai</span>
+                  <span className="text-xs text-white/45">← Back to home</span>
+                </span>
+              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/signup"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 text-sm font-semibold text-[#041018] shadow-lg shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-cyan-500"
+                  data-testid="pricing-cta-signup"
+                >
+                  Create free account
+                </Link>
+                <Link
+                  href={`/login?next=${encodeURIComponent(pagePath)}`}
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/20 bg-white/[0.06] px-4 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+                  data-testid="pricing-cta-signin"
+                >
+                  Sign in
+                </Link>
+              </div>
+            </header>
 
-        <div className="mb-6 text-center sm:mb-8">
-          <h1 className="bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl md:text-4xl">
-            {title}
-          </h1>
-          <p className="mt-2 text-sm text-white/55 sm:text-base">{subtitle}</p>
-        </div>
+            <div className="mb-10 text-center">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/90">AllFantasy Premium</p>
+              <h1 className="mt-3 bg-gradient-to-br from-white via-white to-white/75 bg-clip-text text-3xl font-bold leading-tight text-transparent sm:text-4xl md:text-5xl">
+                {title}
+              </h1>
+              <p className="mx-auto mt-3 max-w-2xl text-base text-white/60 sm:text-lg">{subtitle}</p>
+              <ul className="mx-auto mt-8 max-w-3xl space-y-3 text-left sm:mt-10">
+                {PRICING_CONVERSION_BULLETS.map((line) => (
+                  <li
+                    key={line}
+                    className="flex gap-3 rounded-xl border border-white/[0.07] bg-[#0a1220]/80 px-4 py-3 text-sm text-white/85"
+                  >
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">
+                      <Check className="h-3.5 w-3.5" aria-hidden />
+                    </span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-8 text-xs text-white/40">
+                Already exploring?{" "}
+                <Link href="/" className="font-medium text-cyan-300/90 underline-offset-2 hover:underline">
+                  Return to the main site
+                </Link>
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-2 sm:mb-8">
+              <Link
+                href="/"
+                className="inline-flex min-h-[44px] items-center gap-2 text-sm text-white/50 transition hover:text-white/80"
+              >
+                <span aria-hidden>&larr;</span> Back to Home
+              </Link>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Link
+                  href="/pricing"
+                  className="rounded-lg border border-white/15 bg-white/[0.03] px-3 py-1.5 text-white/80 hover:bg-white/[0.08]"
+                >
+                  Pricing
+                </Link>
+                <Link
+                  href="/tokens"
+                  className="rounded-lg border border-white/15 bg-white/[0.03] px-3 py-1.5 text-white/80 hover:bg-white/[0.08]"
+                >
+                  Tokens
+                </Link>
+              </div>
+            </div>
+
+            <div className="mb-6 text-center sm:mb-8">
+              <h1 className="bg-gradient-to-r from-white via-white/90 to-white/70 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl md:text-4xl">
+                {title}
+              </h1>
+              <p className="mt-2 text-sm text-white/55 sm:text-base">{subtitle}</p>
+            </div>
+          </>
+        )}
         {blockPaidCommerce ? (
           <section
             className="mb-4 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-left text-sm text-amber-100"

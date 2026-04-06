@@ -3,6 +3,7 @@ import {
   getFanCredBoundaryDisclosureShort,
   getFanCredCommissionerSetupNotice,
 } from "@/lib/legal/FanCredBoundaryDisclosure";
+import { getFanCredPublicUrl } from "@/lib/legal/fancredPublicUrl";
 
 export function CommissionerFanCredSetupNotice({
   dataTestId,
@@ -13,7 +14,7 @@ export function CommissionerFanCredSetupNotice({
 }) {
   const shortDisclosure = getFanCredBoundaryDisclosureShort();
   const commissionerSetupNotice = getFanCredCommissionerSetupNotice();
-  const fanCredHref = process.env.NEXT_PUBLIC_FANCRED_URL || "https://fancred.com";
+  const fanCredHref = getFanCredPublicUrl();
 
   return (
     <section

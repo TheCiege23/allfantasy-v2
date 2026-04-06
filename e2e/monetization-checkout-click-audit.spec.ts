@@ -444,7 +444,7 @@ test.describe('@monetization checkout click audit', () => {
       await expect(page.getByTestId('monetization-fancred-link')).toBeVisible()
       await expect(page.getByTestId('monetization-fancred-link')).toHaveAttribute(
         'href',
-        /fancred\.com/
+        /fancred\.app/
       )
       await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeVisible()
       await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeEnabled()

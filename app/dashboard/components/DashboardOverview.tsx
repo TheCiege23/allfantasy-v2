@@ -14,6 +14,13 @@ import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
 import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
+import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
+import { ConnectPlatformsModal } from './ConnectPlatformsModal'
+import {
+  hasAnyFavoriteSport,
+  readFavoriteSportsSelection,
+} from '@/lib/dashboard/favorite-sports-storage'
+import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -115,12 +122,6 @@ function getPlatformBadge(platform: string) {
     default:
       return '🏈'
   }
-}
-
-function buildReferralUrl(userName: string) {
-  if (typeof window === 'undefined') return ''
-  const encodedRef = encodeURIComponent(userName.trim().toLowerCase().replace(/\s+/g, '-'))
-  return `${window.location.origin}/signup?ref=${encodedRef}`
 }
 
 function RankingWidget({
@@ -286,12 +287,15 @@ export function DashboardOverview({
   userName,
   leagues,
   onTriggerImport,
-  onOpenChimmy,
+  onOpenChimmy: _onOpenChimmy,
 }: DashboardOverviewProps) {
   const { hasPro } = useEntitlements()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
+  const [sportsModalOpen, setSportsModalOpen] = useState(false)
+  const [platformModalOpen, setPlatformModalOpen] = useState(false)
+  const [inviteCopied, setInviteCopied] = useState(false)
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
   const [lineupLoading, setLineupLoading] = useState(false)
@@ -313,6 +317,31 @@ export function DashboardOverview({
     setOnboarding(readOnboardingState())
   }, [])
 
+  useEffect(() => {
+    const fav = readFavoriteSportsSelection()
+    if (!hasAnyFavoriteSport(fav)) return
+    setOnboarding((prev) => {
+      if (prev.step1) return prev
+      const next = { ...prev, step1: true }
+      writeOnboardingState(next)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (leagues.length === 0) return
+    setOnboarding((prev) => {
+      if (prev.step2 && prev.step3) return prev
+      const next = {
+        ...prev,
+        step2: true,
+        step3: true,
+      }
+      writeOnboardingState(next)
+      return next
+    })
+  }, [leagues.length])
+
   const updateOnboardingStep = (step: keyof OnboardingState, value = true) => {
     setOnboarding((current) => {
       const next = { ...current, [step]: value }
@@ -326,17 +355,16 @@ export function DashboardOverview({
       {
         id: 'step1',
         label: 'Select favorite sports',
-        description: 'Tell AllFantasy which sports you care about most.',
+        description: 'Tell AllFantasy which sports you care about most — including sports we don’t officially support yet.',
         done: onboarding.step1,
-        ctaHref: '/settings?tab=sports',
-        ctaLabel: 'Open',
+        ctaLabel: 'Choose',
       },
       {
         id: 'step2',
         label: 'Connect a platform',
-        description: 'Import your history and unlock your dashboard ranking.',
+        description: 'Sleeper, Discord, Yahoo, ESPN, Fantrax, MFL, Fleaflicker — import or link accounts.',
         done: onboarding.step2,
-        ctaLabel: 'Import',
+        ctaLabel: 'Connect',
       },
       {
         id: 'step3',
@@ -349,19 +377,21 @@ export function DashboardOverview({
       {
         id: 'step4',
         label: 'Try an AI action',
-        description: 'Open Chimmy and ask for your first piece of guidance.',
+        description: 'Open the AF AI Tools hub — Chimmy, trade AI, waivers, draft helper, and more.',
         done: onboarding.step4,
+        ctaHref: '/ai/tools',
         ctaLabel: 'Open',
       },
       {
         id: 'step5',
         label: 'Invite a friend',
-        description: 'Share your AllFantasy invite link with another manager.',
+        description:
+          'Copy a unique invite link to text, email, or social — sends friends to the AllFantasy home page.',
         done: onboarding.step5,
-        ctaLabel: 'Copy',
+        ctaLabel: inviteCopied ? 'Copied!' : 'Copy',
       },
     ],
-    [onboarding]
+    [onboarding, inviteCopied]
   )
 
   const completedCount = checklistSteps.filter((step) => step.done).length
@@ -372,18 +402,15 @@ export function DashboardOverview({
     onTriggerImport()
   }
 
-  const handleOpenChimmy = () => {
-    updateOnboardingStep('step4')
-    onOpenChimmy()
-  }
-
   const handleCopyReferral = async () => {
-    const referralUrl = buildReferralUrl(userName)
-    if (!referralUrl) return
+    const inviteUrl = buildLandingInviteUrl()
+    if (!inviteUrl) return
 
     try {
-      await navigator.clipboard.writeText(referralUrl)
+      await navigator.clipboard.writeText(inviteUrl)
       updateOnboardingStep('step5')
+      setInviteCopied(true)
+      window.setTimeout(() => setInviteCopied(false), 2500)
     } catch {}
   }
 
@@ -556,25 +583,37 @@ export function DashboardOverview({
                     </div>
 
                     {!step.done ? (
-                      step.id === 'step2' ? (
+                      step.id === 'step1' ? (
                         <button
                           type="button"
-                          onClick={handleImport}
+                          data-testid="get-started-sports-cta"
+                          onClick={() => setSportsModalOpen(true)}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
                           {step.ctaLabel}
                         </button>
-                      ) : step.id === 'step4' ? (
+                      ) : step.id === 'step2' ? (
                         <button
                           type="button"
-                          onClick={handleOpenChimmy}
+                          data-testid="get-started-connect-cta"
+                          onClick={() => setPlatformModalOpen(true)}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
                           {step.ctaLabel}
                         </button>
+                      ) : step.id === 'step4' && step.ctaHref ? (
+                        <Link
+                          href={step.ctaHref}
+                          data-testid="get-started-af-ai-tools-cta"
+                          onClick={() => updateOnboardingStep('step4')}
+                          className="text-xs font-semibold text-cyan-400 hover:underline"
+                        >
+                          {step.ctaLabel}
+                        </Link>
                       ) : step.id === 'step5' ? (
                         <button
                           type="button"
+                          data-testid="get-started-invite-copy"
                           onClick={() => void handleCopyReferral()}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
@@ -584,7 +623,6 @@ export function DashboardOverview({
                         <Link
                           href={step.ctaHref}
                           onClick={() => {
-                            if (step.id === 'step1') updateOnboardingStep('step1')
                             if (step.id === 'step3') updateOnboardingStep('step3')
                           }}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
@@ -592,6 +630,22 @@ export function DashboardOverview({
                           {step.ctaLabel}
                         </Link>
                       ) : null
+                    ) : step.id === 'step1' ? (
+                      <button
+                        type="button"
+                        onClick={() => setSportsModalOpen(true)}
+                        className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
+                      >
+                        Edit
+                      </button>
+                    ) : step.id === 'step2' ? (
+                      <button
+                        type="button"
+                        onClick={() => setPlatformModalOpen(true)}
+                        className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
+                      >
+                        Add
+                      </button>
                     ) : null}
                   </div>
                 ))}
@@ -696,6 +750,17 @@ export function DashboardOverview({
         data={tradeData}
         loading={tradeLoading}
         hasProAccess={hasPro}
+      />
+
+      <FavoriteSportsOnboardingModal
+        open={sportsModalOpen}
+        onClose={() => setSportsModalOpen(false)}
+        onSaved={() => updateOnboardingStep('step1')}
+      />
+      <ConnectPlatformsModal
+        open={platformModalOpen}
+        onClose={() => setPlatformModalOpen(false)}
+        onMarkConnectIntent={() => updateOnboardingStep('step2')}
       />
     </div>
   )

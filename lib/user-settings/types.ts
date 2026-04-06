@@ -108,6 +108,8 @@ export interface UserProfileForSettings {
   careerChampionships?: number | null
   careerSeasonsPlayed?: number | null
   careerLeaguesPlayed?: number | null
+  /** ElevenLabs voice id for Chimmy TTS; null = use default / local only before sync. */
+  chimmyTtsVoiceId: string | null
   settings: UserSettingsRecord | null
   updatedAt: Date
 }
@@ -143,6 +145,8 @@ export interface ProfileUpdatePayload {
   clearSleeperLink?: boolean
   /** Auto sign-out after idle period; null or 0 = off. */
   sessionIdleTimeoutMinutes?: number | null
+  /** ElevenLabs `voice_id` for Chimmy; null clears to default voice behavior. */
+  chimmyTtsVoiceId?: string | null
 }
 
 export interface UserSettingsUpdatePayload {

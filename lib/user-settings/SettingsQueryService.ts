@@ -80,6 +80,7 @@ async function queryBaseProfile(
           careerChampionships: true,
           careerSeasonsPlayed: true,
           careerLeaguesPlayed: true,
+          chimmyTtsVoiceId: true,
         },
       },
     },
@@ -144,6 +145,10 @@ async function queryBaseProfile(
     careerChampionships: profile?.careerChampionships ?? null,
     careerSeasonsPlayed: profile?.careerSeasonsPlayed ?? null,
     careerLeaguesPlayed: profile?.careerLeaguesPlayed ?? null,
+    chimmyTtsVoiceId:
+      typeof profile?.chimmyTtsVoiceId === "string" && profile.chimmyTtsVoiceId.trim()
+        ? profile.chimmyTtsVoiceId.trim()
+        : null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }
@@ -219,6 +224,7 @@ async function queryBaseProfileMinimal(
     careerChampionships: null,
     careerSeasonsPlayed: null,
     careerLeaguesPlayed: null,
+    chimmyTtsVoiceId: null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }

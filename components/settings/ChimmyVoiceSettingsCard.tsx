@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useChimmyTtsVoiceSync } from '@/hooks/useChimmyTtsVoiceSync'
 import {
   DEFAULT_VOICE_CONFIG,
   getVoiceConfig,
   saveVoiceConfig,
   type VoiceConfig,
 } from '@/lib/chimmy-voice'
+import { CHIMMY_VOICES } from '@/lib/tts/voices'
 
 export default function ChimmyVoiceSettingsCard() {
+  const { voiceId: chimmyTtsVoiceId, setVoiceId: setChimmyTtsVoiceId } = useChimmyTtsVoiceSync()
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>(() => getVoiceConfig())
   const [previewPlaying, setPreviewPlaying] = useState(false)
   const previewAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -61,9 +64,31 @@ export default function ChimmyVoiceSettingsCard() {
       <div>
         <h3 className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Chimmy Voice</h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--muted)' }}>
-          Chimmy can speak responses aloud using Allison&apos;s voice: energetic, clear, and bubbly.
+          Choose the ElevenLabs voice for spoken replies. Your choice syncs across devices when you&apos;re signed in.
         </p>
       </div>
+
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-medium" style={{ color: 'var(--muted2)' }}>
+          Voice character
+        </span>
+        <select
+          value={chimmyTtsVoiceId}
+          onChange={(e) => setChimmyTtsVoiceId(e.target.value)}
+          data-testid="chimmy-tts-voice-select"
+          className="w-full max-w-md rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: 'var(--border)', background: 'var(--panel)', color: 'var(--text)' }}
+        >
+          {CHIMMY_VOICES.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name} — {v.description}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>
+          In chat, you can tap Play on any reply even when voice is off, or use &quot;Play last reply&quot; under the composer.
+        </p>
+      </label>
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -72,7 +97,7 @@ export default function ChimmyVoiceSettingsCard() {
           className="rounded-lg border px-3 py-2 text-xs font-medium"
           style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
         >
-          {previewPlaying ? 'Playing preview…' : "Preview Allison's voice"}
+          {previewPlaying ? 'Playing preview…' : 'Preview sample audio'}
         </button>
         <button
           type="button"
@@ -91,7 +116,7 @@ export default function ChimmyVoiceSettingsCard() {
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Enable voice playback</p>
           <p className="text-xs" style={{ color: 'var(--muted)' }}>
-            Keeps Allison play controls available in Chimmy chat.
+            Keeps play controls available in Chimmy chat.
           </p>
         </div>
         <input

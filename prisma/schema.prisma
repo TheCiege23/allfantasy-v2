@@ -3945,6 +3945,9 @@ model UserProfile {
   /// Master switch: when false, AutoCoach does not run for any league (per-league prefs preserved).
   autoCoachGlobalEnabled Boolean @default(true)
 
+  /// ElevenLabs `voice_id` for Chimmy TTS; synced across devices with dashboard/settings picker.
+  chimmyTtsVoiceId String? @map("chimmy_tts_voice_id")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

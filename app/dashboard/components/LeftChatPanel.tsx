@@ -1,17 +1,15 @@
 'use client'
 
 import { ChevronDown, ChevronRight, Inbox, MessageCircle, Users, VolumeX } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ChimmyChat from '@/app/components/ChimmyChat'
 import { DiscordIcon } from '@/app/components/icons/DiscordIcon'
 import type { LeftChatPanelLayoutProps, UserLeague } from '../types'
 import { LeagueAvatar } from './LeagueAvatar'
 import { LeagueChatInPanel } from './LeagueChatInPanel'
-import {
-  CHIMMY_VOICES,
-  CHIMMY_VOICE_ID_STORAGE_KEY,
-  DEFAULT_VOICE_ID,
-} from '@/lib/tts/voices'
+import { CHIMMY_VOICES } from '@/lib/tts/voices'
+import { useChimmyTtsVoiceSync } from '@/hooks/useChimmyTtsVoiceSync'
 
 function ChimmyVoicePicker({
   selectedVoiceId,
@@ -21,27 +19,114 @@ function ChimmyVoicePicker({
   onVoiceChange: (voiceId: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const updateMenuPosition = useCallback(() => {
+    const el = buttonRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const width = Math.max(220, r.width)
+    const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8))
+    const gap = 8
+    const maxMenuH = Math.min(320, window.innerHeight - 16)
+    const estimatedMenuHeight = Math.min(maxMenuH, 56 + CHIMMY_VOICES.length * 52 + 48)
+    const spaceBelow = window.innerHeight - r.bottom - gap
+    const spaceAbove = r.top - gap
+    const openUp = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow
+    const top = openUp
+      ? Math.max(gap, r.top - estimatedMenuHeight - 6)
+      : Math.min(r.bottom + 6, window.innerHeight - maxMenuH - gap)
+    setMenuPos({ top, left, width })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPos(null)
+      return
+    }
+    updateMenuPosition()
+    const onScrollOrResize = () => updateMenuPosition()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [open, updateMenuPosition])
 
   useEffect(() => {
-    const close = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+    if (!open) return
+    const onPointerDown = (e: PointerEvent) => {
+      const t = e.target as Node
+      if (buttonRef.current?.contains(t) || menuRef.current?.contains(t)) return
+      setOpen(false)
     }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [])
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [open])
 
   const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
 
+  const menu =
+    open && menuPos && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-[10000] max-h-[min(320px,calc(100vh-16px))] overflow-y-auto overflow-x-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl [scrollbar-gutter:stable]"
+            style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+            role="listbox"
+            aria-label="Chimmy voice"
+          >
+            <p className="sticky top-0 z-[1] border-b border-white/[0.06] bg-[#0f1521] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
+              Chimmy Voice
+            </p>
+            {CHIMMY_VOICES.map((voice) => (
+              <button
+                key={voice.id}
+                type="button"
+                role="option"
+                aria-selected={voice.id === selectedVoiceId}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onVoiceChange(voice.id)
+                  setOpen(false)
+                }}
+                className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
+                  voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-semibold text-white">{voice.name}</span>
+                    <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
+                </div>
+                {voice.id === selectedVoiceId ? (
+                  <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            ))}
+            <div className="border-t border-white/[0.06] px-3 py-2">
+              <p className="text-[9px] text-white/20">Powered by ElevenLabs</p>
+            </div>
+          </div>,
+          document.body
+        )
+      : null
+
   return (
-    <div ref={wrapRef} className="relative z-[100]">
+    <div className="relative z-[100]">
       <button
+        ref={buttonRef}
         type="button"
         onClick={(e) => {
-          e.stopPropagation();
-          setOpen((o) => !o);
+          e.stopPropagation()
+          setOpen((o) => !o)
         }}
         className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
         aria-expanded={open}
@@ -49,56 +134,13 @@ function ChimmyVoicePicker({
         tabIndex={0}
       >
         {selectedVoice.name}
-        <span className="text-[9px] text-white/30 ml-1" aria-hidden>
+        <span className="ml-1 text-[9px] text-white/30" aria-hidden>
           ▾
         </span>
       </button>
-
-      {open && (
-        <div
-          className="absolute bottom-full left-0 z-[200] mb-1 w-[220px] overflow-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
-          role="listbox"
-          aria-label="Chimmy voice"
-        >
-          <p className="border-b border-white/[0.06] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
-            Chimmy Voice
-          </p>
-          {CHIMMY_VOICES.map((voice) => (
-            <button
-              key={voice.id}
-              type="button"
-              role="option"
-              aria-selected={voice.id === selectedVoiceId}
-              onClick={(e) => {
-                e.stopPropagation();
-                onVoiceChange(voice.id);
-                setOpen(false);
-              }}
-              className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
-                voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[12px] font-semibold text-white">{voice.name}</span>
-                  <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
-                </div>
-                <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
-              </div>
-              {voice.id === selectedVoiceId ? (
-                <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
-                  ✓
-                </span>
-              ) : null}
-            </button>
-          ))}
-          <div className="border-t border-white/[0.06] px-3 py-2">
-            <p className="text-[9px] text-white/20">More voices at elevenlabs.io</p>
-          </div>
-        </div>
-      )}
+      {menu}
     </div>
-  );
+  )
 }
 
 function ChimmyLeagueContextBar({
@@ -283,27 +325,7 @@ export function LeftChatPanel({
   const activeChimmyLeague =
     leagues.find((l) => l.id === activeChimmyLeagueId) ?? leagues[0] ?? null
 
-  const [selectedVoiceId, setSelectedVoiceId] = useState(DEFAULT_VOICE_ID)
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CHIMMY_VOICE_ID_STORAGE_KEY)
-      if (saved && CHIMMY_VOICES.some((v) => v.id === saved)) {
-        setSelectedVoiceId(saved)
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  const handleVoiceChange = (voiceId: string) => {
-    setSelectedVoiceId(voiceId)
-    try {
-      localStorage.setItem(CHIMMY_VOICE_ID_STORAGE_KEY, voiceId)
-    } catch {
-      /* ignore */
-    }
-  }
+  const { voiceId: selectedVoiceId, setVoiceId: handleVoiceChange } = useChimmyTtsVoiceSync()
 
   return (
     <div
