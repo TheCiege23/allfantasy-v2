@@ -220,6 +220,29 @@ export function LeagueSummaryPanel({ state, creationPreset }: LeagueSummaryPanel
       </SummarySection>
 
       <SummarySection title="Sport & format">
+        <SummaryRow
+          label="Starting point"
+          value={
+            state.setupSource === 'copy_league'
+              ? 'Copied from another AllFantasy league'
+              : state.setupSource === 'external_guide'
+                ? 'Import reference (use /import for full sync)'
+                : 'New league'
+          }
+        />
+        <SummaryRow label="Timezone" value={state.leagueTimezone ?? 'America/New_York'} />
+        <SummaryRow
+          label="Scoring style shortcut"
+          value={
+            state.platformStyleMirror === 'espn'
+              ? 'ESPN-style'
+              : state.platformStyleMirror === 'yahoo'
+                ? 'Yahoo-style'
+                : state.platformStyleMirror === 'sleeper'
+                  ? 'Sleeper-style'
+                  : 'AllFantasy default'
+          }
+        />
         <SummaryRow label="Sport" value={state.sport} />
         <SummaryRow label="League type" value={LEAGUE_TYPE_LABELS[state.leagueType]} />
         <SummaryRow label="Draft type" value={DRAFT_TYPE_LABELS[state.draftType]} />

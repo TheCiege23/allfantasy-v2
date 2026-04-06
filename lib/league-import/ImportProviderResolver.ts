@@ -12,6 +12,8 @@ const PROVIDER_ALIASES: Record<string, ImportProvider> = {
   mfl: 'mfl',
   myfantasyleague: 'mfl',
   'my-fantasy-league': 'mfl',
+  fleaflicker: 'fleaflicker',
+  'fleaflicker.com': 'fleaflicker',
 }
 
 export function resolveProvider(platform: string): ImportProvider | null {

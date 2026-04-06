@@ -1,46 +1,18 @@
 "use client";
 
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import SleeperImportForm from "@/components/SleeperImportForm";
 import { UnifiedImportPanel } from "@/components/UnifiedImportPanel";
+import { fetchImportPreview } from "@/lib/league-import/LeagueCreationImportSubmissionService";
 import type { ImportProvider } from '@/lib/league-import/types';
 
 
-const PROVIDERS: ImportProvider[] = ["sleeper", "espn", "yahoo", "fantrax", "mfl"];
-
-type ImportResult = {
-  imported: number;
-  seasons: number;
-  sports: Record<string, number>;
-  years: number[];
-  displayName: string;
-  commissionerLeagues?: number;
-  historicalLeagues?: number;
-  skippedNotCommissioner?: number;
-  status?: string;
-  jobId?: string;
-  leagueKeys?: Array<{ platformLeagueId: string; season: number }>;
-};
-
-function getImportErrorMessage(data: { error?: string } | null | undefined, fallback: string) {
-  if (data?.error === "VERIFICATION_REQUIRED") {
-    return "Verify your email or phone before importing leagues.";
-  }
-  if (data?.error === "AGE_REQUIRED") {
-    return "Confirm that you are 18+ before importing leagues.";
-  }
-  if (
-    data?.error === "UNAUTHENTICATED" ||
-    data?.error === "Unauthorized" ||
-    data?.error === "You must be logged in to import" ||
-    data?.error === "Authentication required"
-  ) {
-    return "Sign in to import leagues.";
-  }
-  return data?.error || fallback;
-}
+/** Bulk phased job is Sleeper-only; other providers use Fetch & Preview (single league). */
+const PREVIEW_PROVIDERS: ImportProvider[] = ["espn", "yahoo", "fantrax", "mfl", "fleaflicker"];
 
 export default function ImportPage() {
   const { data: session, status } = useSession();
@@ -48,8 +20,8 @@ export default function ImportPage() {
 
 
   const [loadingProvider, setLoadingProvider] = useState<ImportProvider | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewInfo, setPreviewInfo] = useState<{ provider: ImportProvider; leagueName: string } | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -74,53 +46,15 @@ export default function ImportPage() {
   async function handleUnifiedImport(provider: ImportProvider, sourceInput: string) {
     setLoadingProvider(provider);
     setError(null);
-    setResult(null);
+    setPreviewInfo(null);
     try {
-      let body: any = {};
-      if (provider === 'sleeper') {
-        body = { username: sourceInput.trim(), platform: 'sleeper' };
-      } else if (provider === 'espn') {
-        body = { leagueId: sourceInput.trim(), platform: 'espn' };
-      } else if (provider === 'yahoo') {
-        body = { leagueKey: sourceInput.trim(), platform: 'yahoo' };
-      } else if (provider === 'fantrax') {
-        body = { source: sourceInput.trim(), platform: 'fantrax' };
-      } else if (provider === 'mfl') {
-        body = { leagueId: sourceInput.trim(), platform: 'mfl' };
+      const preview = await fetchImportPreview(provider, sourceInput);
+      if (!preview.ok) {
+        throw new Error(preview.error || "Preview failed");
       }
-      const res = await fetch('/api/leagues/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      });
-      const text = await res.text();
-      let data: ImportResult & { error?: string; success?: boolean; leagueKeys?: unknown; leagueCount?: number };
-      try {
-        data = JSON.parse(text) as ImportResult & { error?: string; success?: boolean; leagueKeys?: unknown; leagueCount?: number };
-      } catch {
-        throw new Error(`Server error: ${text.slice(0, 150)}`);
-      }
-      if (!res.ok) {
-        throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`));
-      }
-      if (data.success && typeof data.jobId === 'string' && data.jobId.length > 0) {
-        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(data.jobId)}`);
-        return;
-      }
-      setResult({
-        imported: data.imported ?? data.leagueCount ?? 0,
-        seasons: data.seasons ?? 0,
-        sports: data.sports ?? {},
-        years: Array.isArray(data.years) ? data.years : [],
-        displayName: data.displayName ?? sourceInput,
-        commissionerLeagues: typeof data.commissionerLeagues === 'number' ? data.commissionerLeagues : undefined,
-        historicalLeagues: typeof data.historicalLeagues === 'number' ? data.historicalLeagues : undefined,
-        skippedNotCommissioner: typeof data.skippedNotCommissioner === 'number' ? data.skippedNotCommissioner : undefined,
-        status: typeof data.status === 'string' ? data.status : undefined,
-        jobId: typeof data.jobId === 'string' ? data.jobId : undefined,
-        leagueKeys: Array.isArray(data.leagueKeys) ? data.leagueKeys : undefined,
-      });
+      const payload = preview.data as { league?: { name?: string } } | undefined;
+      const leagueName = payload?.league?.name?.trim() || "League";
+      setPreviewInfo({ provider, leagueName });
     } catch (e: any) {
       setError(e instanceof Error ? e.message : 'Import failed. Please try again.');
     } finally {
@@ -134,59 +68,51 @@ export default function ImportPage() {
         <h1 className="mb-4 bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-center text-5xl font-bold text-transparent">
           Import Your League
         </h1>
-        <p className="mb-12 text-center text-gray-400">
-          Import from any supported provider below. All imports are processed sequentially.
+        <p className="mb-2 text-center text-gray-400">
+          Sleeper has the broadest automated import (all seasons we find). ESPN currently imports teams and weekly scores;
+          Yahoo, Fantrax, MFL, and Fleaflicker use preview + League Sync flows.
+        </p>
+        <p className="mb-10 text-center text-[13px] text-white/45">
+          Connect external accounts in{' '}
+          <Link href="/settings" className="text-cyan-400/90 underline hover:text-cyan-300">
+            Settings
+          </Link>
+          .
+        </p>
+
+        <div className="mb-14">
+          <SleeperImportForm />
+        </div>
+
+        <h2 className="mb-2 text-center text-lg font-semibold text-white">Other platforms</h2>
+        <p className="mb-6 text-center text-[13px] text-white/50">
+          Paste a league ID or key, then Fetch & Preview. Private leagues often need cookies or API keys saved in League Sync first.
         </p>
         <UnifiedImportPanel
-          providers={PROVIDERS}
+          providers={PREVIEW_PROVIDERS}
           onImport={handleUnifiedImport}
           loadingProvider={loadingProvider}
         />
+        {previewInfo && (
+          <div className="mt-6 rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+            <p className="mb-1 text-[15px] font-semibold text-cyan-200">Preview loaded</p>
+            <p className="mb-3 text-[13px] text-white/75">
+              {previewInfo.leagueName} ({previewInfo.provider})
+            </p>
+            <p className="mb-3 text-[12px] text-white/45">
+              Continue in Create League to finish importing this league into AllFantasy, or use League Sync for ongoing sync.
+            </p>
+            <Link
+              href="/create-league"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
+            >
+              Continue to Create League →
+            </Link>
+          </div>
+        )}
         {error && (
           <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
             <p className="text-[13px] text-red-400">⚠ {error}</p>
-          </div>
-        )}
-        {result && (
-          <div className="mt-6 rounded-xl border border-green-500/20 bg-green-500/10 p-4">
-            <p className="mb-1 text-[16px] font-bold text-green-400">
-              {result.status === 'processing' ? '✅ Leagues saved — syncing details…' : '✅ Import Complete!'}
-            </p>
-            <p className="mb-1 text-[13px] text-white/70">
-              {result.imported} leagues queued across {result.seasons} seasons
-              {result.status === 'processing'
-                ? '. Rank and stats update in the background on your Rankings page.'
-                : ''}
-            </p>
-            {Object.keys(result.sports).length > 0 && (
-              <p className="mb-3 text-[11px] text-white/40">
-                {Object.entries(result.sports)
-                  .map(([s, n]) => `${s}: ${n} league${n !== 1 ? 's' : ''}`)
-                  .join(' · ')}
-              </p>
-            )}
-            {result.commissionerLeagues != null && result.historicalLeagues != null && (
-              <p className="mt-1 text-[12px] text-white/40">
-                Commissioner leagues: {result.commissionerLeagues} current season ·{' '}
-                {result.historicalLeagues} historical seasons included
-              </p>
-            )}
-            {result.skippedNotCommissioner != null && result.skippedNotCommissioner > 0 && (
-              <p className="mt-1 text-[11px] text-amber-400/80">
-                ⚠ {result.skippedNotCommissioner} current-season league
-                {result.skippedNotCommissioner !== 1 ? 's' : ''} skipped — you are not the commissioner
-              </p>
-            )}
-            <a
-              href={
-                result.jobId
-                  ? `/dashboard/rankings?jobId=${encodeURIComponent(result.jobId)}`
-                  : '/dashboard/rankings'
-              }
-              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
-            >
-              View rank & legacy profile →
-            </a>
           </div>
         )}
       </div>

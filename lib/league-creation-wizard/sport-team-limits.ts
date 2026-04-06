@@ -13,16 +13,18 @@ const MAX_TEAMS_BY_SPORT: Record<string, number> = {
   SOCCER: 20,
 }
 
-const COMMON_SIZES = [4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32] as const
-
 export function getMaxTeamsForSport(sport: string): number {
   return MAX_TEAMS_BY_SPORT[sport] ?? 20
 }
 
-/** Selectable team counts for UI (4 … max for sport). */
+/** Every integer team count from 4 through the sport maximum (one manager per team). */
 export function getTeamCountOptionsForSport(sport: string): number[] {
   const max = getMaxTeamsForSport(sport)
-  return COMMON_SIZES.filter((n) => n <= max)
+  const out: number[] = []
+  for (let n = 4; n <= max; n += 1) {
+    out.push(n)
+  }
+  return out
 }
 
 export function clampTeamCountForSport(sport: string, teamCount: number): number {

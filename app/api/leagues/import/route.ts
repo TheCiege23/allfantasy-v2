@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
 import { processImportJob } from "@/lib/import/processImportJob";
+import { SLEEPER_IMPORT_SPORTS } from "@/lib/league-import/sleeper/import-sports";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,6 +39,19 @@ export async function POST(req: Request) {
       body = (await req.json()) as Record<string, unknown>;
     } catch {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const platformRaw =
+      typeof body.platform === "string" ? String(body.platform).trim().toLowerCase() : "";
+    if (platformRaw && platformRaw !== "sleeper") {
+      return NextResponse.json(
+        {
+          error:
+            "Bulk multi-season import runs on Sleeper only. Use Fetch & Preview on the Import page for ESPN, Yahoo, Fantrax, or MFL, or connect accounts in Settings.",
+          code: "BULK_IMPORT_SLEEPER_ONLY",
+        },
+        { status: 400 },
+      );
     }
 
     const raw =
@@ -99,16 +113,23 @@ export async function POST(req: Request) {
     const currentYear = new Date().getFullYear();
     const seasons: number[] = [];
     for (let year = LAUNCH_YEAR; year <= currentYear; year++) {
-      try {
-        const r = await fetch(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/nfl/${year}`,
-          { signal: abortAfter(4000), headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" } },
-        );
-        const data = r.ok ? await r.json() : [];
-        if (Array.isArray(data) && data.length > 0) seasons.push(year);
-      } catch {
-        /* skip year */
+      let hasLeagues = false;
+      for (const sport of SLEEPER_IMPORT_SPORTS) {
+        if (hasLeagues) break;
+        try {
+          const r = await fetch(
+            `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${sport}/${year}`,
+            { signal: abortAfter(4000), headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" } },
+          );
+          const data = r.ok ? await r.json() : [];
+          if (Array.isArray(data) && data.length > 0) {
+            hasLeagues = true;
+          }
+        } catch {
+          /* skip sport/year */
+        }
       }
+      if (hasLeagues) seasons.push(year);
     }
 
     if (seasons.length === 0) {
@@ -166,7 +187,11 @@ export async function POST(req: Request) {
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Import failed";
-    console.error("[import] error:", msg);
-    return NextResponse.json({ error: "Import failed" }, { status: 500 });
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("[import] error:", msg, stack);
+    return NextResponse.json(
+      { error: msg.length > 0 && msg !== "Import failed" ? msg : "Import failed" },
+      { status: 500 },
+    );
   }
 }

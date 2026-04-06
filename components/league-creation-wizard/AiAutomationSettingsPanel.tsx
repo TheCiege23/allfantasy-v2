@@ -26,6 +26,15 @@ const AUTOMATION_PRESET_LABEL: Record<AutomationDraftPreset, string> = {
   full: 'Full draft assistance (all alerts and reminders on)',
 }
 
+const AUTOMATION_PRESET_DETAIL: Record<AutomationDraftPreset, string> = {
+  alerts_only:
+    'Notify managers when they are on the clock or when picks complete — no autopick from queue and no slow-draft nudges.',
+  standard:
+    'Alerts plus autopick from your saved queue when time expires (common redraft default). Slow-draft reminder emails stay off unless you enable full.',
+  full:
+    'Everything in Standard, plus slow-draft reminders so long drafts do not stall overnight.',
+}
+
 function presetToSettings(preset: AutomationDraftPreset): Partial<WizardAutomationSettings> {
   switch (preset) {
     case 'alerts_only':
@@ -175,6 +184,7 @@ export function AiAutomationSettingsPanel({
               ))}
             </SelectContent>
           </Select>
+          <p className="text-xs text-white/55 leading-relaxed">{AUTOMATION_PRESET_DETAIL[preset]}</p>
           <p className="text-xs text-white/50">
             These options only affect draft notifications and autopick — no subscription required.
           </p>

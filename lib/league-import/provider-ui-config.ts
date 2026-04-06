@@ -16,6 +16,7 @@ export const IMPORT_PROVIDER_UI_OPTIONS: {
   { provider: 'yahoo', label: 'Yahoo', available: true },
   { provider: 'fantrax', label: 'Fantrax', available: true },
   { provider: 'mfl', label: 'MyFantasyLeague (MFL)', available: true },
+  { provider: 'fleaflicker', label: 'Fleaflicker', available: false },
 ];
 
 export function getImportProviderLabel(provider: ImportProvider): string {

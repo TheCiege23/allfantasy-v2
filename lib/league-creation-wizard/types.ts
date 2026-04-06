@@ -18,7 +18,15 @@ export type WizardStepId =
   | 'ai_settings'
   | 'automation'
   | 'privacy'
+  /** Combined draft + draft AI + automation + privacy (streamlined 5-step flow). */
+  | 'draft_privacy'
   | 'review'
+
+/** Where the user is drawing inspiration from at league setup. */
+export type WizardSetupSource = 'fresh' | 'copy_league' | 'external_guide'
+
+/** Mirror common host defaults for scoring/roster presets (AllFantasy = platform defaults). */
+export type PlatformStyleMirror = 'af' | 'espn' | 'yahoo' | 'sleeper'
 
 export type LeagueTypeId =
   | 'redraft'
@@ -168,6 +176,14 @@ export interface WizardPrivacySettings {
 
 export interface LeagueCreationWizardState {
   step: WizardStepId
+  /** Starting point: build fresh, clone an AF league’s settings, or use the full import flow elsewhere. */
+  setupSource: WizardSetupSource
+  /** When `setupSource` is `copy_league`, the source league id (AllFantasy leagues only). */
+  copyFromLeagueId: string | null
+  /** IANA timezone for waivers, drafts, and league clock. */
+  leagueTimezone: string
+  /** Visual preset for scoring defaults (maps to variant / presets per sport). */
+  platformStyleMirror: PlatformStyleMirror
   sport: LeagueSport | string
   leagueType: LeagueTypeId
   draftType: DraftTypeId
@@ -193,14 +209,12 @@ export interface LeagueCreationWizardState {
   templateSettingsOverrides?: Record<string, unknown>
 }
 
-/** Streamlined flow: sport includes format + draft style; AI + draft automation share one step. */
+/** Five-step flow: setup → identity → scoring → draft/privacy/AI → review. */
 export const WIZARD_STEP_ORDER = [
   'sport',
   'team_setup',
   'scoring',
-  'draft_settings',
-  'ai_settings',
-  'privacy',
+  'draft_privacy',
   'review',
 ] as const satisfies readonly WizardStepId[]
 

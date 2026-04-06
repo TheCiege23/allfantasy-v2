@@ -30,6 +30,9 @@ function getImportErrorMessage(data: { error?: string } | null | undefined, fall
   ) {
     return 'Sign in to import leagues.'
   }
+  if (data?.error === 'No leagues found') {
+    return 'No Sleeper leagues found for this account in any scanned season. If you only play NBA (or another sport), try again — we scan NFL, NBA, NHL, MLB, and MLS.'
+  }
   return data?.error || fallback
 }
 
@@ -120,7 +123,7 @@ export default function SleeperImportForm() {
 
         <ul className="space-y-1 text-sm text-slate-400">
           <li className="flex gap-2">
-            <span className="text-emerald-500">✓</span> All sports we scan on Sleeper (NFL, NBA)
+            <span className="text-emerald-500">✓</span> All major Sleeper API sports we scan (NFL, NBA, NHL, MLB, MLS)
           </li>
           <li className="flex gap-2">
             <span className="text-emerald-500">✓</span> All seasons ({SLEEPER_LAUNCH_YEAR} → {scanEndYear})

@@ -5,6 +5,7 @@ import { FantraxAdapter } from './adapters/fantrax/FantraxAdapter'
 import { MflAdapter } from './adapters/mfl/MflAdapter'
 import { SleeperLeagueImportAdapter } from './adapters/sleeper/SleeperLeagueImportAdapter'
 import { YahooAdapter } from './adapters/yahoo/YahooAdapter'
+import { FleaflickerAdapter } from './adapters/fleaflicker/FleaflickerAdapter'
 import { IMPORT_PROVIDERS } from './types'
 
 const registry: Record<ImportProvider, ILeagueImportAdapter<unknown>> = {
@@ -13,6 +14,7 @@ const registry: Record<ImportProvider, ILeagueImportAdapter<unknown>> = {
   yahoo: YahooAdapter as ILeagueImportAdapter<unknown>,
   fantrax: FantraxAdapter as ILeagueImportAdapter<unknown>,
   mfl: MflAdapter as ILeagueImportAdapter<unknown>,
+  fleaflicker: FleaflickerAdapter as ILeagueImportAdapter<unknown>,
 }
 
 export function getAdapter(provider: ImportProvider): ILeagueImportAdapter<unknown> {

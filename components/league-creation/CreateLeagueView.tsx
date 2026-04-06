@@ -177,10 +177,13 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
   };
 
   return (
-    <div className="mx-auto max-w-lg px-4 pb-6 pt-2 space-y-6">
-      <div className="space-y-1">
-        <h2 className="text-4xl font-black tracking-tight text-white">Set Up Your League</h2>
-        <p className="text-sm text-white/65">Keep everything you already have, now with a cleaner visual flow.</p>
+    <div className="mx-auto max-w-2xl px-4 pb-8 pt-2 space-y-6">
+      <div className="space-y-2">
+        <h2 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Create your league</h2>
+        <p className="text-sm text-white/65 leading-relaxed">
+          Five steps: sport and setup, league details, scoring, draft and privacy, then review. Import from another site
+          anytime from the import page.
+        </p>
       </div>
 
       <LeagueCreationModeSelector

@@ -3,7 +3,7 @@
  * with source tracking for sync and history.
  */
 
-export const IMPORT_PROVIDERS = ['sleeper', 'espn', 'yahoo', 'fantrax', 'mfl'] as const
+export const IMPORT_PROVIDERS = ['sleeper', 'espn', 'yahoo', 'fantrax', 'mfl', 'fleaflicker'] as const
 export type ImportProvider = (typeof IMPORT_PROVIDERS)[number]
 
 export interface SourceTracking {

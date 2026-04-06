@@ -585,6 +585,12 @@ export async function POST(req: Request) {
     if (effectiveDynasty) {
       (initialSettings as Record<string, unknown>).startup_season = foundingSeason;
     }
+    const leagueTimezone =
+      typeof (initialSettings as Record<string, unknown>).league_timezone === 'string' &&
+      String((initialSettings as Record<string, unknown>).league_timezone).trim().length > 0
+        ? String((initialSettings as Record<string, unknown>).league_timezone).trim()
+        : 'America/New_York';
+
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
@@ -598,6 +604,7 @@ export async function POST(req: Request) {
         sport,
         leagueVariant: resolvedVariant,
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
+        timezone: leagueTimezone,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
         ...(effectiveDynasty ? { season: foundingSeason } : {}),

@@ -12,6 +12,22 @@ import { StepHeader } from './StepHelp'
 
 const ROSTER_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30] as const
 
+/** Shown as quick-tap chips; full range stays in the dropdown. */
+const QUICK_TEAM_PICKS = [4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32] as const
+
+const COMMON_TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern' },
+  { value: 'America/Chicago', label: 'Central' },
+  { value: 'America/Denver', label: 'Mountain' },
+  { value: 'America/Los_Angeles', label: 'Pacific' },
+  { value: 'America/Phoenix', label: 'Arizona' },
+  { value: 'America/Anchorage', label: 'Alaska' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii' },
+  { value: 'America/Toronto', label: 'Toronto' },
+  { value: 'America/Vancouver', label: 'Vancouver' },
+  { value: 'Europe/London', label: 'London' },
+] as const
+
 export type TeamSizeSelectorProps = {
   /** Used to cap league size (one manager per team), ESPN / Sleeper–style limits per sport. */
   sport: string
@@ -19,10 +35,13 @@ export type TeamSizeSelectorProps = {
   teamCount: number
   rosterSize: number | null
   tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
+  /** IANA timezone for league schedule and waivers. */
+  leagueTimezone: string
   onNameChange: (name: string) => void
   onTeamCountChange: (n: number) => void
   onRosterSizeChange: (n: number | null) => void
   onTradeReviewModeChange: (mode: 'none' | 'commissioner' | 'league_vote' | 'instant') => void
+  onTimezoneChange: (tz: string) => void
 }
 
 /**
@@ -34,20 +53,23 @@ export function TeamSizeSelector({
   teamCount,
   rosterSize,
   tradeReviewMode,
+  leagueTimezone,
   onNameChange,
   onTeamCountChange,
   onRosterSizeChange,
   onTradeReviewModeChange,
+  onTimezoneChange,
 }: TeamSizeSelectorProps) {
   const teamCounts = getTeamCountOptionsForSport(sport)
   const maxTeams = getMaxTeamsForSport(sport)
   const safeTeamCount = clampTeamCountForSport(sport, teamCount)
+  const quickPicks = QUICK_TEAM_PICKS.filter((n) => n <= maxTeams && n >= 4)
   return (
     <div className="space-y-6">
       <h3 className="sr-only">Team setup</h3>
       <StepHeader
         title="Name your league"
-        description="Don't worry. You will be able to change this later."
+        description="Choose a display name, league size, and timezone for waivers and draft clocks."
         help={
           <>
             Roster size is usually set by your scoring preset (e.g. PPR). Override it here only if you need a custom number of bench or total spots.
@@ -75,13 +97,13 @@ export function TeamSizeSelector({
             <p className="text-base text-white/65">You can change it later in settings.</p>
           </div>
           <Label className="text-cyan-300">Quick team size picks</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {teamCounts.map((n) => (
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {quickPicks.map((n) => (
               <button
                 key={n}
                 type="button"
                 onClick={() => onTeamCountChange(n)}
-                className={`min-h-[56px] rounded-2xl border text-center text-xl font-black transition ${
+                className={`min-h-[48px] rounded-2xl border text-center text-lg font-black transition ${
                   safeTeamCount === n
                     ? 'border-cyan-300 bg-cyan-400/10 text-white shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
                     : 'border-white/10 bg-white/[0.03] text-white/90 hover:bg-white/[0.06]'
@@ -91,6 +113,26 @@ export function TeamSizeSelector({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-white/90">League timezone</Label>
+          <Select value={leagueTimezone} onValueChange={onTimezoneChange}>
+            <SelectTrigger
+              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+              aria-label="League timezone"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMON_TIMEZONES.map((z) => (
+                <SelectItem key={z.value} value={z.value}>
+                  {z.label} ({z.value.replace(/_/g, ' ')})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-white/50">Used for waiver processing times and draft scheduling.</p>
         </div>
 
         <div className="space-y-1.5">
