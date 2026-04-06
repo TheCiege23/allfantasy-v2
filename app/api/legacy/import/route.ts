@@ -7,6 +7,7 @@ import { resolveOrCreateLegacyUser } from '@/lib/legacy-user-resolver';
 import { logUserEvent } from '@/lib/user-events';
 import { requireVerifiedUser } from '@/lib/auth-guard';
 import { linkAfUserToLegacy } from '@/lib/legacy/linkAfUserToLegacy';
+import { isMissingDatabaseObjectError } from '@/lib/prisma/schema-drift';
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/import", tool: "LegacyImport" })(async (request: NextRequest) => {
   try {
@@ -68,13 +69,28 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/import", tool: "Legacy
     const linkedNew = await linkAfUserToLegacy(auth.userId, resolved)
     if (!linkedNew.ok) return linkedNew.response
 
-    const job = await prisma.legacyImportJob.create({
-      data: {
-        userId: resolved.id,
-        status: 'queued',
-        progress: 0,
-      },
-    });
+    let job: { id: string };
+    try {
+      job = await prisma.legacyImportJob.create({
+        data: {
+          userId: resolved.id,
+          status: 'queued',
+          progress: 0,
+        },
+      });
+    } catch (e: unknown) {
+      if (isMissingDatabaseObjectError(e)) {
+        console.error('[legacy/import] DB schema out of date — run prisma migrate deploy:', e);
+        return NextResponse.json(
+          {
+            error: 'League import is unavailable until the database is updated. Try again after the next deploy.',
+            code: 'IMPORT_SCHEMA_UPDATE_REQUIRED',
+          },
+          { status: 503 },
+        );
+      }
+      throw e;
+    }
 
     trackLegacyToolUsage('legacy_import', resolved.id, null, {
       username: resolved.sleeperUsername,

@@ -33,6 +33,12 @@ function getImportErrorMessage(data: { error?: string } | null | undefined, fall
   if (data?.error === 'No leagues found') {
     return 'No Sleeper leagues found for this account in any scanned season. If you only play NBA (or another sport), try again — we scan NFL, NBA, NHL, MLB, and MLS.'
   }
+  if (
+    (data as { code?: string })?.code === 'IMPORT_SCHEMA_UPDATE_REQUIRED' ||
+    String(data?.error ?? '').includes('IMPORT_SCHEMA_UPDATE_REQUIRED')
+  ) {
+    return 'League import is temporarily unavailable while we update our servers. Please try again in a little while.'
+  }
   return data?.error || fallback
 }
 

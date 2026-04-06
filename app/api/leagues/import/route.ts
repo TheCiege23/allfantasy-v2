@@ -6,6 +6,7 @@ import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
 import { processImportJob } from "@/lib/import/processImportJob";
 import { SLEEPER_IMPORT_SPORTS } from "@/lib/league-import/sleeper/import-sports";
+import { isMissingDatabaseObjectError } from "@/lib/prisma/schema-drift";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -136,29 +137,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No leagues found" }, { status: 404 });
     }
 
-    const job = await prisma.legacyImportJob.create({
-      data: {
-        userId: resolvedLegacy.id,
-        appUserId: userId,
-        status: "running",
-        progress: 0,
-        totalSeasons: seasons.length,
-        seasonsCompleted: 0,
-        totalLeaguesSaved: 0,
-        startedAt: new Date(),
-      },
-    });
-
+    let job: { id: string };
     try {
-      await prisma.importJobSeason.createMany({
-        data: seasons.map((season) => ({
-          jobId: job.id,
-          season,
-          status: "pending",
-        })),
+      job = await prisma.legacyImportJob.create({
+        data: {
+          userId: resolvedLegacy.id,
+          appUserId: userId,
+          status: "running",
+          progress: 0,
+          totalSeasons: seasons.length,
+          seasonsCompleted: 0,
+          totalLeaguesSaved: 0,
+          startedAt: new Date(),
+        },
       });
+
+      try {
+        await prisma.importJobSeason.createMany({
+          data: seasons.map((season) => ({
+            jobId: job.id,
+            season,
+            status: "pending",
+          })),
+        });
+      } catch (e: unknown) {
+        console.warn("[import] importJobSeason seed:", e);
+      }
     } catch (e: unknown) {
-      console.warn("[import] importJobSeason seed:", e);
+      if (isMissingDatabaseObjectError(e)) {
+        console.error(
+          "[import] LegacyImportJob schema out of date — apply migration 20260410130000_repair_legacy_import_job_schema (npm run db:migrate:deploy):",
+          e,
+        );
+        return NextResponse.json(
+          {
+            error:
+              "League import is unavailable until the database is updated. Our team has been notified — try again after the next deploy.",
+            code: "IMPORT_SCHEMA_UPDATE_REQUIRED",
+          },
+          { status: 503 },
+        );
+      }
+      throw e;
     }
 
     void processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
