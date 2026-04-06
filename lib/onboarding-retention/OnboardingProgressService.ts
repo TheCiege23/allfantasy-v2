@@ -119,16 +119,12 @@ export async function getChecklistState(userId: string): Promise<OnboardingCheck
   const preferredSports = profile?.preferredSports
   const hasSports = Array.isArray(preferredSports) && preferredSports.length > 0
 
-  // Platform connect logic: check if all major platforms are linked
+  // Platform connect logic: check if major platforms are linked (only sleeper and discord available)
   const platformsToCheck = [
     profile?.sleeperUsername,
-    profile?.discordUserId,
-    profile?.espnUsername,
-    profile?.yahooUsername,
-    profile?.mflUsername,
-    profile?.fantraxUsername
+    profile?.discordUserId
   ]
-  const allPlatformsConnected = platformsToCheck.filter(Boolean).length >= 2 // Adjust threshold as needed
+  const allPlatformsConnected = platformsToCheck.filter(Boolean).length >= 1 // Adjust threshold as needed
 
   const completed: Record<OnboardingChecklistTaskId, boolean> = {
     select_sports: hasSports,
