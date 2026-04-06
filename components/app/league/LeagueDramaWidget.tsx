@@ -227,7 +227,7 @@ export function LeagueDramaWidget({
                 </Link>
                 {e.dramaType === 'TRADE_FALLOUT' && (
                   <Link
-                    href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                    href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
                     className="rounded border border-purple-500/25 px-1.5 py-0.5 text-[9px] text-purple-200 hover:bg-purple-500/10"
                   >
                     Trade context

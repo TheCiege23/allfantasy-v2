@@ -266,7 +266,7 @@ export default function PlayerFinderPanel({ open = false, onClose }: PlayerFinde
                       </div>
                       <div className="mt-1 flex flex-wrap gap-2 text-[10px]">
                         <Link
-                          href={`/app/league/${encodeURIComponent(p.leagueId)}`}
+                          href={`/league/${encodeURIComponent(p.leagueId)}`}
                           className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 transition-colors"
                           style={{
                             borderColor: "var(--border)",

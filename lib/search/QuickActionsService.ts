@@ -85,7 +85,7 @@ export const UNIVERSAL_QUICK_ACTIONS: QuickActionItem[] = [
   {
     id: "webapp",
     label: "WebApp",
-    href: "/app/home",
+    href: "/dashboard",
     description: "Leagues and roster",
     category: "nav",
     keywords: ["sports", "app"],

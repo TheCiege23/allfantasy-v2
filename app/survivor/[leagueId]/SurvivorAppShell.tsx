@@ -83,7 +83,7 @@ function SurvivorAppShellInner({
     { href: `${base}/jury`, label: 'Jury', icon: '⚖️', show: showJuryTab, dot: false, home: false },
     { href: `${base}/episodes`, label: 'Episodes', icon: '📜', show: true, dot: false, home: false },
     {
-      href: `/app/league/${leagueId}`,
+      href: `/league/${leagueId}`,
       label: 'Commissioner',
       icon: '⚙️',
       show: ctx.isCommissioner,
@@ -270,7 +270,7 @@ function SurvivorAppShellInner({
               </Link>
               {ctx.isCommissioner ? (
                 <Link
-                  href={`/app/league/${leagueId}`}
+                  href={`/league/${leagueId}`}
                   className="rounded-xl border border-amber-500/25 px-4 py-3 text-[14px] text-amber-100"
                   onClick={() => setMoreOpen(false)}
                 >

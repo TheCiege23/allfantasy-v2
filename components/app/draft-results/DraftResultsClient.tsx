@@ -91,7 +91,7 @@ export function DraftResultsClient({
     <div className="mx-auto max-w-4xl px-4 py-6 pb-24">
       <header className="mb-6">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="mb-3 inline-flex items-center gap-1 text-sm text-white/60 hover:text-cyan-400"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -224,7 +224,7 @@ export function DraftResultsClient({
           Draft room
         </Link>
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="inline-flex items-center gap-2 text-sm text-white/60 hover:underline"
         >
           Back to league

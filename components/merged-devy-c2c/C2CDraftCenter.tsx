@@ -64,7 +64,7 @@ export function C2CDraftCenter({
         <span className="text-xs text-white/50">Snake or linear per league settings. Class depth and risk labels in sidebar when viewing draft board.</span>
       </div>
       <Link
-        href={`/app/league/${leagueId}?tab=Draft`}
+        href={`/league/${leagueId}?tab=Draft`}
         className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
       >
         Open draft room

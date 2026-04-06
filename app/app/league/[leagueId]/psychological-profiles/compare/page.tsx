@@ -143,7 +143,7 @@ export default function PsychologicalProfileComparePage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-semibold text-white">Manager Style Comparison</h1>
           <Link
-            href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings`}
+            href={`/league/${encodeURIComponent(leagueId)}?tab=Settings`}
             className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
           >
             Back

@@ -412,14 +412,14 @@ export function HallOfFameSection(props: {
         <p className="text-xs text-zinc-500 mt-2">
           Legacy scores (championships, playoffs, consistency) are in the{" "}
           <Link
-            href={`/app/league/${encodeURIComponent(props.leagueId)}?tab=Legacy`}
+            href={`/league/${encodeURIComponent(props.leagueId)}?tab=Legacy`}
             className="text-amber-400 hover:underline font-medium"
           >
             Legacy
           </Link>{" "}
           tab. Trust scores:{" "}
           <Link
-            href={`/app/league/${encodeURIComponent(props.leagueId)}?tab=Settings&settingsTab=${encodeURIComponent("Reputation")}`}
+            href={`/league/${encodeURIComponent(props.leagueId)}?tab=Settings&settingsTab=${encodeURIComponent("Reputation")}`}
             className="text-cyan-400 hover:underline"
           >
             Settings → Reputation

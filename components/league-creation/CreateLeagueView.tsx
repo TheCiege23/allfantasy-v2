@@ -123,7 +123,7 @@ export function CreateLeagueView({ userId, initialTemplateId }: CreateLeagueView
     const data = result.data as { league?: { id?: string } };
     const leagueId = data?.league?.id;
     setTimeout(() => {
-      if (leagueId) router.push(`/app/league/${leagueId}`);
+      if (leagueId) router.push(`/league/${leagueId}`);
       else router.push('/app');
     }, 800);
   };

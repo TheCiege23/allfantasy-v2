@@ -17,3 +17,4 @@ export type {
   LegacyProviderStatus,
   LegacyImportStatusResponse,
 } from "./types"
+export { LegacyProviderImportHelp } from "./LegacyProviderImportHelp"

@@ -12,10 +12,10 @@ describe("Unified auth integration services", () => {
     expect(
       resolvePostAuthIntentDestination({
         callbackUrl: "https://bad.site",
-        next: "/app/home",
+        next: "/dashboard",
         returnTo: "/brackets",
       })
-    ).toBe("/app/home")
+    ).toBe("/dashboard")
 
     expect(
       resolvePostAuthIntentDestination({

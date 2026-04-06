@@ -163,7 +163,7 @@ export function DevyCommissionerTools({ leagueId }: Props) {
       </div>
 
       <Link
-        href={`/app/league/${leagueId}?tab=Settings&devy=audit`}
+        href={`/league/${leagueId}?tab=Settings&devy=audit`}
         className="block text-sm text-white/70 hover:text-white"
       >
         View audit log →

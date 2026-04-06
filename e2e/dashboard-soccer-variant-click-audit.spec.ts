@@ -116,9 +116,9 @@ test('shows Soccer grouped card with Standard variant and click-through to leagu
   const soccerCard = soccerSection.getByRole('link', { name: new RegExp(soccerLeagueName) }).first()
   await expect(soccerCard).toBeVisible({ timeout: 45_000 })
   await expect(soccerCard).toContainText('Standard')
-  await expect(soccerCard).toHaveAttribute('href', new RegExp(`^/app/league/${soccerLeagueId}$`))
+  await expect(soccerCard).toHaveAttribute('href', new RegExp(`^/league/${soccerLeagueId}$`))
 
   await soccerCard.click()
-  await expect(page).toHaveURL(new RegExp(`/app/league/${soccerLeagueId}$`), { timeout: 45_000 })
+  await expect(page).toHaveURL(new RegExp(`/league/${soccerLeagueId}$`), { timeout: 45_000 })
   await expect(page.getByRole('button', { name: 'Overview', exact: true })).toBeVisible({ timeout: 30_000 })
 })

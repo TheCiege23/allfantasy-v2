@@ -148,7 +148,7 @@ async function enqueueSwapNotification(
         title: '⚡ AutoCoach made a swap',
         body: `${playerOutName} (${status}) ↔ ${playerInName} in ${leagueName}`,
         severity: 'low',
-        actionHref: `/app/league/${leagueId}?tab=team`,
+        actionHref: `/league/${leagueId}?tab=team`,
         actionLabel: 'View lineup',
         meta: { leagueId, swapLogId },
       },

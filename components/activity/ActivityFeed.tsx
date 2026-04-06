@@ -108,7 +108,7 @@ export default function ActivityFeed({
                     </span>
                     {item.leagueId && item.leagueName && (
                       <Link
-                        href={`/app/league/${item.leagueId}`}
+                        href={`/league/${item.leagueId}`}
                         className="inline-flex items-center gap-1 text-[10px] font-medium"
                         style={{ color: "var(--accent-cyan-strong)" }}
                       >

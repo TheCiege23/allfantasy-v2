@@ -31,7 +31,7 @@ function getProductFallbackHref(
 ): string {
   if (product === "bracket") return withSportContext("/brackets", sport)
   if (product === "legacy") return withSportContext("/af-legacy", sport)
-  if (product === "app") return withSportContext("/app/home", sport)
+  if (product === "app") return withSportContext("/dashboard", sport)
   return withSportContext("/dashboard", sport)
 }
 
@@ -74,7 +74,7 @@ export function getNotificationDestination(n: PlatformNotification): Notificatio
   }
   if (leagueId) {
     return {
-      href: withSportContext(`/app/league/${leagueId}`, sport),
+      href: withSportContext(`/league/${leagueId}`, sport),
       label: "Open league",
     }
   }

@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     const isLeague = isLeagueVirtualRoom(threadId)
     const leagueId = isLeague ? getLeagueIdFromVirtualRoom(threadId) : null
     const actionHref = isLeague && leagueId
-      ? `/app/league/${encodeURIComponent(leagueId)}`
+      ? `/league/${encodeURIComponent(leagueId)}`
       : `/messages?thread=${encodeURIComponent(threadId)}&message=${encodeURIComponent(messageId)}`
     const bodyText = isLeague
       ? `${senderName} mentioned you in a league chat.`

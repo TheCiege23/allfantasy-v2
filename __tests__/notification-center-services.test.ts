@@ -86,7 +86,7 @@ describe("notification center services", () => {
         meta: { leagueId: "league-123", sport: "nba" },
       })
     )
-    expect(league).toEqual({ href: "/app/league/league-123?sport=NBA", label: "Open league" })
+    expect(league).toEqual({ href: "/league/league-123?sport=NBA", label: "Open league" })
 
     const draft = getNotificationDestination(
       makeNotification({

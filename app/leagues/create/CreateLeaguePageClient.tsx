@@ -254,7 +254,7 @@ export function CreateLeaguePageClient() {
         throw new Error(data.error || 'Failed to create league')
       }
 
-      router.push(`/app/league/${data.league.id}`)
+      router.push(`/league/${data.league.id}`)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create league')
     } finally {

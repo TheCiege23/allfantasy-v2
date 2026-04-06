@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         title: '📡 League announcement',
         body: `${commissionerName} posted an announcement in ${league.name ?? 'your league'}.`,
         severity: 'low',
-        actionHref: `/app/league/${encodeURIComponent(league.id)}`,
+        actionHref: `/league/${encodeURIComponent(league.id)}`,
         actionLabel: 'View message',
         meta: { leagueId: league.id, globalBroadcastId: broadcastId },
       })

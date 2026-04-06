@@ -183,7 +183,7 @@ export default function PlatformHallOfFamePanel() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {entry.leagueId && (
                       <Link
-                        href={`/app/league/${encodeURIComponent(entry.leagueId)}?tab=Hall of Fame`}
+                        href={`/league/${encodeURIComponent(entry.leagueId)}?tab=Hall of Fame`}
                         className="text-amber-300 hover:underline"
                       >
                         Open league HoF
@@ -224,7 +224,7 @@ export default function PlatformHallOfFamePanel() {
                   <p className="mt-1 text-white/70">{moment.summary ?? "No summary provided."}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Link
-                      href={`/app/league/${encodeURIComponent(moment.leagueId)}?tab=Hall of Fame`}
+                      href={`/league/${encodeURIComponent(moment.leagueId)}?tab=Hall of Fame`}
                       className="text-amber-300 hover:underline"
                     >
                       Open league HoF

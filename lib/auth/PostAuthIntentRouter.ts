@@ -27,11 +27,22 @@ function isSafeInternalPath(value: string | null | undefined): value is string {
 function resolveIntentAlias(intent: string | null | undefined): string | null {
   if (!intent || typeof intent !== "string") return null
   const normalized = intent.trim().toLowerCase()
-  if (SPORTS_APP_INTENTS.has(normalized)) return "/app/home"
+  if (SPORTS_APP_INTENTS.has(normalized)) return "/dashboard"
   if (BRACKET_INTENTS.has(normalized)) return "/brackets"
   if (LEGACY_INTENTS.has(normalized)) return "/af-legacy"
   if (ADMIN_INTENTS.has(normalized)) return "/admin"
   return null
+}
+
+/** Old bookmarks and emails used `/app` and `/app/home`; canonical hub is `/dashboard`. */
+function remapDeprecatedAppRoutes(safe: string): string {
+  const q = safe.indexOf("?")
+  const path = q === -1 ? safe : safe.slice(0, q)
+  const search = q === -1 ? "" : safe.slice(q)
+  if (path === "/app" || path === "/app/home") {
+    return `/dashboard${search}`
+  }
+  return safe
 }
 
 function normalizeCandidate(
@@ -39,7 +50,7 @@ function normalizeCandidate(
   isAdmin: boolean | undefined
 ): string | null {
   if (!isSafeInternalPath(value)) return null
-  const safe = safeRedirectPath(value)
+  const safe = remapDeprecatedAppRoutes(safeRedirectPath(value))
   if (safe.startsWith("/admin") && isAdmin === false) {
     return DEFAULT_POST_AUTH_ROUTE
   }

@@ -13,8 +13,8 @@ import type { DraftAlertPayload, TradeAlertPayload, MatchupReminderPayload } fro
 import type { NotificationCategoryId } from "@/lib/notification-settings/types"
 
 const DRAFT_ROOM_PATH = (leagueId: string) => `/app/league/${leagueId}/draft`
-const LEAGUE_PATH = (leagueId: string) => `/app/league/${leagueId}`
-const LEAGUE_LINEUP_PATH = (leagueId: string) => `/app/league/${leagueId}?tab=Lineup`
+const LEAGUE_PATH = (leagueId: string) => `/league/${leagueId}`
+const LEAGUE_LINEUP_PATH = (leagueId: string) => `/league/${leagueId}?tab=Lineup`
 
 export interface SendDraftAlertOptions {
   leagueId: string

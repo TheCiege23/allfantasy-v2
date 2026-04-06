@@ -121,7 +121,7 @@ test.describe("@feed fantasy content feed click audit", () => {
           type: "matchup_card",
           title: "Matchup card: week outlook",
           body: "Matchup card destination check.",
-          href: "/app/home",
+          href: "/dashboard",
           sport: "NFL",
           leagueId: "league-1",
           leagueName: "Audit League",
@@ -248,7 +248,7 @@ test.describe("@feed fantasy content feed click audit", () => {
       expect.arrayContaining([
         "/blog/soccer-recap",
         "/chimmy",
-        "/app/home",
+        "/dashboard",
       ])
     )
 

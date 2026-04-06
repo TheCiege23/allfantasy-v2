@@ -87,7 +87,7 @@ export function DevyDraftCenter({
             {tabs.find((t) => t.id === tab)?.rounds} rounds · {tabs.find((t) => t.id === tab)?.type}
           </p>
           <Link
-            href={`/app/league/${leagueId}?tab=Draft`}
+            href={`/league/${leagueId}?tab=Draft`}
             className="mt-3 inline-block rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
           >
             Go to Draft

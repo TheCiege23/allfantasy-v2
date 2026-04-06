@@ -108,7 +108,7 @@ export default function PartnerMatchView({ leagueId }: { leagueId: string }) {
                     Style context
                   </Link>
                   <Link
-                    href={`/app/league/${encodeURIComponent(
+                    href={`/league/${encodeURIComponent(
                       leagueId
                     )}?tab=Settings&settingsTab=${encodeURIComponent(
                       'Reputation'

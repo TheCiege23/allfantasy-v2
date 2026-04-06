@@ -85,7 +85,7 @@ export default function RecordBookDetailPage() {
       <div className="p-4">
         <p className="text-red-200">{error ?? "Record not found"}</p>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Record%20Books`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Record%20Books`}
           className="mt-2 inline-flex items-center gap-1 text-cyan-400 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Record Books
@@ -97,7 +97,7 @@ export default function RecordBookDetailPage() {
   return (
     <div className="space-y-4 p-4">
       <Link
-        href={`/app/league/${encodeURIComponent(leagueId)}?tab=Record%20Books`}
+        href={`/league/${encodeURIComponent(leagueId)}?tab=Record%20Books`}
         className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Record Books

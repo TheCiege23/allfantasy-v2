@@ -26,6 +26,16 @@ export function isNavItemActive(pathname: string | null, href: string): boolean 
   if (!pathname) return false
   if (pathname === href) return true
   if (href === "/dashboard" && pathname === "/") return false
+  if (href === "/dashboard") {
+    return (
+      pathname === "/dashboard" ||
+      pathname.startsWith("/dashboard/") ||
+      pathname === "/leagues" ||
+      pathname.startsWith("/leagues/") ||
+      pathname.startsWith("/league/") ||
+      pathname.startsWith("/import")
+    )
+  }
   if (href === "/app") {
     return (
       pathname === "/app" ||

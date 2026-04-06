@@ -78,8 +78,8 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
 
   const names = summary?.rosterDisplayNames ?? {}
   const tribeChatHref = summary?.myTribeSource
-    ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
-    : `/app/league/${leagueId}?tab=Chat`
+    ? `/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
+    : `/league/${leagueId}?tab=Chat`
 
   return (
     <div className="space-y-6">
@@ -99,7 +99,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
       {/* Quick links: Chat, Tribe chat entry, Settings, AI, Waivers */}
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`/app/league/${leagueId}?tab=Chat`}
+          href={`/league/${leagueId}?tab=Chat`}
           className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-950/50"
         >
           <MessageSquare className="h-4 w-4" /> League Chat
@@ -111,19 +111,19 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
           <Users className="h-4 w-4" /> Tribe Chat
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Settings`}
+          href={`/league/${leagueId}?tab=Settings`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Settings className="h-4 w-4" /> Settings
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Intelligence`}
+          href={`/league/${leagueId}?tab=Intelligence`}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
         >
           <Sparkles className="h-4 w-4" /> AI Host
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Waivers`}
+          href={`/league/${leagueId}?tab=Waivers`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Zap className="h-4 w-4" /> Waivers

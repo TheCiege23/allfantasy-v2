@@ -97,7 +97,7 @@ export default function LegacyBreakdownPage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${leagueId}?tab=Legacy`}
+          href={`/league/${leagueId}?tab=Legacy`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Legacy
@@ -121,13 +121,13 @@ export default function LegacyBreakdownPage() {
     <div className="space-y-4 p-4 max-w-2xl">
       <div className="flex flex-wrap items-center gap-2">
         <Link
-          href={`/app/league/${leagueId}?tab=Legacy`}
+          href={`/league/${leagueId}?tab=Legacy`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Legacy
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Legacy`}
+          href={`/league/${leagueId}?tab=Legacy`}
           className="text-sm text-amber-400 hover:underline"
         >
           Legacy tab
@@ -135,13 +135,13 @@ export default function LegacyBreakdownPage() {
         {record.entityType === "MANAGER" && (
           <>
             <Link
-              href={`/app/league/${leagueId}?tab=Settings&settingsTab=${encodeURIComponent("Reputation")}`}
+              href={`/league/${leagueId}?tab=Settings&settingsTab=${encodeURIComponent("Reputation")}`}
               className="text-sm text-cyan-400 hover:underline"
             >
               Trust (Reputation)
             </Link>
             <Link
-              href={`/app/league/${leagueId}?tab=Hall of Fame`}
+              href={`/league/${leagueId}?tab=Hall of Fame`}
               className="text-sm text-amber-400 hover:underline"
             >
               Hall of Fame

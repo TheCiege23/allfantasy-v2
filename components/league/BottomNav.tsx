@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Flame, ScrollText, ShieldCheck, Trophy, UserCircle2 } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { id: 'fantasy', label: 'Fantasy', href: '/app/home', icon: Trophy },
+  { id: 'fantasy', label: 'Fantasy', href: '/dashboard', icon: Trophy },
   { id: 'scores', label: 'Scores', href: '/app/legacy-score', icon: ShieldCheck },
   { id: 'picks', label: 'Picks', href: '/brackets', icon: ScrollText },
   { id: 'feed', label: 'Feed', href: '/feed', icon: Flame },

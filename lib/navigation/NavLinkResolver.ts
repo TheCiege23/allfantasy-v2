@@ -12,7 +12,6 @@ export interface NavLinkItem {
 export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
   { href: "/profile", label: "Profile" },
-  { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
   { href: "/af-legacy", label: "Legacy" },
   { href: "/tools-hub", label: "Tools" },
@@ -24,7 +23,6 @@ export const PRIMARY_NAV_ITEMS: NavLinkItem[] = [
 /** Product switcher items (compact product links in header). */
 export const PRODUCT_NAV_ITEMS: NavLinkItem[] = [
   { href: "/dashboard", label: "Home" },
-  { href: "/app", label: "WebApp" },
   { href: "/brackets", label: "Bracket" },
   { href: "/af-legacy", label: "Legacy" },
 ]

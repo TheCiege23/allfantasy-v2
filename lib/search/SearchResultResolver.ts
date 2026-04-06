@@ -88,7 +88,7 @@ const STATIC_PAGES: SearchResultItem[] = [
   {
     id: "app",
     label: "WebApp",
-    href: "/app/home",
+    href: "/dashboard",
     category: "page",
     keywords: ["sports", "app", "roster"],
     description: "League manager workspace",

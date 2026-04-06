@@ -146,7 +146,7 @@ export default function SurvivorIslandHomePage() {
             {us ? <SurvivorStatusBadge variant={headerBadgeVariant} /> : null}
             {ctx.isCommissioner ? (
               <Link
-                href={`/app/league/${leagueId}`}
+                href={`/league/${leagueId}`}
                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-lg text-white/60"
                 aria-label="Commissioner settings"
               >

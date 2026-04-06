@@ -115,8 +115,8 @@ test('shows grouped multi-sport dashboard ordering without DB dependency', async
   await expect(mlbCard).toBeVisible({ timeout: 45_000 })
   await expect(nhlSection).toBeVisible()
   await expect(mlbSection).toBeVisible()
-  await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/app/league/${nhlLeagueId}$`))
-  await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/app/league/${mlbLeagueId}$`))
+  await expect(nhlCard).toHaveAttribute('href', new RegExp(`^/league/${nhlLeagueId}$`))
+  await expect(mlbCard).toHaveAttribute('href', new RegExp(`^/league/${mlbLeagueId}$`))
 
   const headingOrder = await page.getByRole('heading', { level: 3 }).evaluateAll((nodes) =>
     nodes.map((node) => node.textContent?.trim() || '').filter(Boolean)

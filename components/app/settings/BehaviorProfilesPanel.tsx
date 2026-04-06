@@ -297,7 +297,7 @@ export default function BehaviorProfilesPanel({ leagueId }: LeagueTabProps) {
                     Why this profile?
                   </Link>
                   <Link
-                    href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                    href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
                     className="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-200 hover:bg-cyan-500/20"
                   >
                     Trade context

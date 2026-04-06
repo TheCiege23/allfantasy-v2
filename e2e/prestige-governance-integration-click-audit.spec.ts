@@ -147,7 +147,7 @@ test.describe('@prestige Prompt43 integration click audit', () => {
             title: 'NFL Commissioner Weekly Recap',
             body: 'Weekly recap context for prestige integration test.',
             bullets: [],
-            actionHref: `/app/league/${leagueId}?tab=Commissioner`,
+            actionHref: `/league/${leagueId}?tab=Commissioner`,
             actionLabel: 'Open Commissioner',
           },
           matchupSummaries: [],

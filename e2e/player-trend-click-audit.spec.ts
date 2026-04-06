@@ -245,7 +245,7 @@ test.describe('@player-trend full click audit', () => {
     await page.getByRole('combobox', { name: 'Sport' }).selectOption('SOCCER')
     await page.getByRole('combobox', { name: 'Timeframe' }).selectOption('24h')
     await page.getByRole('button', { name: 'Refresh' }).click()
-    await expect(page.getByRole('link', { name: 'Back to app home' })).toHaveAttribute('href', '/app/home')
+    await expect(page.getByRole('link', { name: 'Back to app home' })).toHaveAttribute('href', '/dashboard')
 
     await page.goto('/waiver-ai')
     await expect(page.getByRole('link', { name: 'Meta insights' })).toHaveAttribute(

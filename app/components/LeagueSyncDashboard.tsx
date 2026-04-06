@@ -251,7 +251,7 @@ export default function LeagueSyncDashboard() {
   const openLeague = async (league: League) => {
     const targetLeagueId = league.unifiedLeagueId ?? league.navigationLeagueId;
     if (targetLeagueId) {
-      router.push(`/app/league/${targetLeagueId}`);
+      router.push(`/league/${targetLeagueId}`);
       return;
     }
 
@@ -266,7 +266,7 @@ export default function LeagueSyncDashboard() {
       if (data.success && data.unifiedLeagueId) {
         toast.success(`"${data.name || 'League'}" is ready.`);
         await fetchLeagues();
-        router.push(`/app/league/${data.unifiedLeagueId}`);
+        router.push(`/league/${data.unifiedLeagueId}`);
       } else {
         toast.error(data.error || 'Unable to prepare this league');
       }

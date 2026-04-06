@@ -55,7 +55,7 @@ test.describe('@playoff playoff settings quick links', () => {
     await expect(standingsLink).toBeVisible()
     await expect(standingsLink).toHaveAttribute(
       'href',
-      new RegExp(`^/app/league/${leagueId}\\?tab=Standings%20%2F%20Playoffs$`)
+      new RegExp(`^/league/${leagueId}\\?tab=Standings%20%2F%20Playoffs$`)
     )
 
     const bracketLink = page.getByRole('link', { name: /open bracket/i })

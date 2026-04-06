@@ -41,7 +41,7 @@ function buildWeeklyRecapPost(input: {
     title: `${input.sport} Commissioner Weekly Recap`,
     body: `Week-in-review for season ${input.season}: matchup momentum, waiver outcomes, draft movement, and trade fairness signals for league ${input.leagueId}.`,
     bullets,
-    actionHref: `/app/league/${encodeURIComponent(input.leagueId)}?tab=Commissioner`,
+    actionHref: `/league/${encodeURIComponent(input.leagueId)}?tab=Commissioner`,
     actionLabel: 'Open Commissioner',
   }
 }

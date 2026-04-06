@@ -61,9 +61,9 @@ export default function TeamTab({
           </div>
         </div>
         <div className="grid grid-cols-3 divide-x divide-white/10 border-t border-white/10">
-          <ActionLink href={`/app/league/${leagueId}?tab=PLAYERS&playersTab=trade`} label="Trade" icon={<Repeat2 className="h-4 w-4" />} badge={1} />
-          <ActionLink href={`/app/league/${leagueId}?tab=LEAGUE`} label="Trans." icon={<Rows3 className="h-4 w-4" />} />
-          <ActionLink href={`/app/league/${leagueId}?tab=LEAGUE`} label="News" icon={<Newspaper className="h-4 w-4" />} />
+          <ActionLink href={`/league/${leagueId}?tab=PLAYERS&playersTab=trade`} label="Trade" icon={<Repeat2 className="h-4 w-4" />} badge={1} />
+          <ActionLink href={`/league/${leagueId}?tab=LEAGUE`} label="Trans." icon={<Rows3 className="h-4 w-4" />} />
+          <ActionLink href={`/league/${leagueId}?tab=LEAGUE`} label="News" icon={<Newspaper className="h-4 w-4" />} />
         </div>
       </section>
 

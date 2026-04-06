@@ -20,7 +20,7 @@ export default async function SnakeDraftPage({
   }
 
   const context = await resolveDraftRouteContext(draftId, userId)
-  if (!context) redirect('/app')
+  if (!context) redirect('/dashboard')
 
   return (
     <div className="min-h-screen">

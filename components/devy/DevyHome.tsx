@@ -127,7 +127,7 @@ export function DevyHome({ leagueId, isCommissioner, rosterId }: DevyHomeProps) 
           <p className="mt-1 text-sm text-white/70">{draftPhaseInfo.description}</p>
           <p className="mt-1 text-xs text-white/50">Status: {draftPhaseInfo.status}</p>
           <Link
-            href={`/app/league/${leagueId}?tab=Draft`}
+            href={`/league/${leagueId}?tab=Draft`}
             className="mt-3 inline-block rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
           >
             Go to Draft
@@ -158,7 +158,7 @@ export function DevyHome({ leagueId, isCommissioner, rosterId }: DevyHomeProps) 
       {isCommissioner && <DevyCommissionerTools leagueId={leagueId} />}
 
       <Link
-        href={`/app/league/${leagueId}?tab=Settings`}
+        href={`/league/${leagueId}?tab=Settings`}
         className="block rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 hover:bg-white/10"
       >
         League settings

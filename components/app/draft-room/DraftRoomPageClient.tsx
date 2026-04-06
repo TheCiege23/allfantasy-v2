@@ -1259,7 +1259,7 @@ export function DraftRoomPageClient({
         <p className="mt-2 text-sm text-white/50">
           Commissioner can create and start a draft from league settings or the draft tab.
         </p>
-        <Link href={`/app/league/${leagueId}`} className="mt-4 inline-block text-cyan-400 hover:underline">
+        <Link href={`/league/${leagueId}`} className="mt-4 inline-block text-cyan-400 hover:underline">
           Back to league
         </Link>
       </div>
@@ -1539,7 +1539,7 @@ export function DraftRoomPageClient({
             useQueueLoading={autopickExpiredLoading}
             onResync={handleResync}
             resyncLoading={resyncLoading}
-            backHref={`/app/league/${leagueId}`}
+            backHref={`/league/${leagueId}`}
           />
         </>
       }

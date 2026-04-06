@@ -196,7 +196,7 @@ async function fanOutCommissionerNotices(input: {
     input.createdAlerts.length === 1 ? '' : 's'
   }`
   const body = top.map((alert) => `[${alert.severity}] ${alert.headline}`).join(' | ')
-  const href = `/app/league/${encodeURIComponent(input.leagueId)}?tab=Commissioner`
+  const href = `/league/${encodeURIComponent(input.leagueId)}?tab=Commissioner`
 
   if (input.mode === 'in_app' || input.mode === 'both') {
     await dispatchNotification({

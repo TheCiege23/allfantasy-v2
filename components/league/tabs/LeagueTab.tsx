@@ -48,7 +48,7 @@ export default function LeagueTab({
 
       <div className="flex items-center justify-between">
         <Link
-          href={`/app/league/${leagueId}?tab=LEAGUE`}
+          href={`/league/${leagueId}?tab=LEAGUE`}
           className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#00D4AA]/30 bg-[#0F3D35] px-4 py-2 text-[14px] font-semibold text-[#00D4AA]"
         >
           ✦ AI Power Rankings

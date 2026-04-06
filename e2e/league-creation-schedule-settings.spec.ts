@@ -198,7 +198,7 @@ test.describe('@schedule league creation schedule step', () => {
     await expect(page.getByRole('button', { name: /create league/i })).toBeVisible()
 
     await page.getByRole('button', { name: /create league/i }).click()
-    await page.waitForURL(`**/app/league/${createdLeagueId}`)
+    await page.waitForURL(`**/league/${createdLeagueId}`)
 
     expect(capturedSettings).toBeTruthy()
     expect(capturedSettings).toMatchObject({

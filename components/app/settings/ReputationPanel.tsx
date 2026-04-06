@@ -429,19 +429,19 @@ export default function ReputationPanel({ leagueId }: LeagueTabProps) {
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Hall of Fame`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Hall of Fame`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
         >
           <Award className="h-3.5 w-3.5" /> Hall of Fame
         </Link>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Legacy`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Legacy`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
         >
           <TrendingUp className="h-3.5 w-3.5" /> Legacy leaderboard
         </Link>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Commissioner`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Commissioner`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/15 px-3 py-1.5 text-xs font-medium text-purple-200 hover:bg-purple-500/25"
         >
           <Shield className="h-3.5 w-3.5" /> Commissioner trust view
@@ -583,7 +583,7 @@ export default function ReputationPanel({ leagueId }: LeagueTabProps) {
               <FileText className="h-3 w-3" /> Legacy breakdown
             </Link>
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+              href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
               className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25"
             >
               Trade fairness context

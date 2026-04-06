@@ -55,17 +55,17 @@ export function DevyLeagueHomeCards({
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      <Card title="Devy Draft Countdown" href={`/app/league/${leagueId}?tab=Draft`}>
+      <Card title="Devy Draft Countdown" href={`/league/${leagueId}?tab=Draft`}>
         <p className="mt-2 text-xs text-white/70">
           {devyDraftDate ? `Scheduled: ${devyDraftDate}` : 'Date TBD'}
         </p>
       </Card>
-      <Card title="Rookie Draft Countdown" href={`/app/league/${leagueId}?tab=Draft`}>
+      <Card title="Rookie Draft Countdown" href={`/league/${leagueId}?tab=Draft`}>
         <p className="mt-2 text-xs text-white/70">
           {rookieDraftDate ? `Scheduled: ${rookieDraftDate}` : 'Date TBD'}
         </p>
       </Card>
-      <Card title="Promotion Window" href={`/app/league/${leagueId}`}>
+      <Card title="Promotion Window" href={`/league/${leagueId}`}>
         <p className="mt-2 text-xs text-white/70">
           {promotionWindowOpen ? 'Open' : 'Closed'}
           {promotionEligibleCount > 0 && ` · ${promotionEligibleCount} eligible`}

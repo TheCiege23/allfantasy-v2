@@ -87,7 +87,7 @@ export default function AwardDetailPage() {
       <div className="p-4">
         <p className="text-red-200">{error ?? "Award not found"}</p>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Awards`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Awards`}
           className="mt-2 inline-flex items-center gap-1 text-cyan-400 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Awards
@@ -99,7 +99,7 @@ export default function AwardDetailPage() {
   return (
     <div className="space-y-4 p-4">
       <Link
-        href={`/app/league/${encodeURIComponent(leagueId)}?tab=Awards`}
+        href={`/league/${encodeURIComponent(leagueId)}?tab=Awards`}
         className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Awards

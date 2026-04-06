@@ -85,7 +85,7 @@ export async function POST(req: Request) {
         type: 'trade_proposal',
         title: 'New trade proposal',
         body: 'You received a trade proposal. Open the league to review.',
-        actionHref: `/app/league/${leagueId}?tab=Trades`,
+        actionHref: `/league/${leagueId}?tab=Trades`,
         actionLabel: 'View trade',
         meta: { leagueId, shareId: share.id },
         severity: 'medium',

@@ -24,17 +24,17 @@ describe('Unified auth flow controllers', () => {
     expect(
       resolveLoginCallbackUrl({
         callbackUrl: 'https://bad.site',
-        next: '/app/home',
+        next: '/dashboard',
       })
-    ).toBe('/app/home')
+    ).toBe('/dashboard')
   })
 
   it('resolves signup destination from next or callback fallback', () => {
     expect(
       resolveSignupRedirectPath({
-        next: '/app/home',
+        next: '/dashboard',
       })
-    ).toBe('/app/home')
+    ).toBe('/dashboard')
 
     expect(
       resolveSignupRedirectPath({
@@ -53,10 +53,10 @@ describe('Unified auth flow controllers', () => {
 
     expect(
       resolvePostSignupCallbackUrl({
-        redirectAfterSignup: '/app/home',
+        redirectAfterSignup: '/dashboard',
         verificationMethod: 'EMAIL',
       })
-    ).toBe('/app/home')
+    ).toBe('/dashboard')
   })
 
   it('normalizes and validates phone values for SMS reset', () => {
@@ -74,9 +74,9 @@ describe('Unified auth flow controllers', () => {
   it('resolves auth session fallback destination', () => {
     expect(
       resolveAuthSessionDestination({
-        callbackUrl: '/app/home',
+        callbackUrl: '/dashboard',
       })
-    ).toBe('/app/home')
+    ).toBe('/dashboard')
     expect(
       resolveAuthSessionDestination({
         callbackUrl: 'https://evil.site',

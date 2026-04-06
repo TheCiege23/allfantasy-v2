@@ -156,7 +156,7 @@ export default function PsychologicalProfileDetailPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings`}
+              href={`/league/${encodeURIComponent(leagueId)}?tab=Settings`}
               className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
             >
               Back
@@ -213,7 +213,7 @@ export default function PsychologicalProfileDetailPage() {
                   Open drama context
                 </Link>
                 <Link
-                  href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                  href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
                   className="rounded border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200 hover:bg-cyan-500/20"
                 >
                   Open trade context

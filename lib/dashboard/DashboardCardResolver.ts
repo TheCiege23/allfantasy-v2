@@ -25,7 +25,7 @@ export const PRODUCT_LAUNCHER_CARDS: DashboardCardConfig[] = [
   {
     id: "webapp",
     title: "WebApp",
-    href: "/app/home",
+    href: "/dashboard",
     product: "webapp",
     description: "League management, roster, waivers, trades, and draft.",
     highlight: "AI highlight: waiver adds with immediate lineup impact.",

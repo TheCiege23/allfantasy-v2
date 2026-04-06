@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
         title: '@all in league chat',
         body: `${senderName} mentioned everyone in the league chat.`,
         severity: 'low',
-        actionHref: `/app/league/${encodeURIComponent(leagueId)}`,
+        actionHref: `/league/${encodeURIComponent(leagueId)}`,
         actionLabel: 'Open chat',
         meta: { leagueId, messageId: created.id },
       })

@@ -124,7 +124,7 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
     return null
   }
 
-  const linkHref = leagueId ? `/app/league/${leagueId}?tab=Matchups` : "/leagues"
+  const linkHref = leagueId ? `/league/${leagueId}?tab=Matchups` : "/leagues"
 
   return (
     <section className="rounded-2xl border border-cyan-400/35 bg-gradient-to-r from-cyan-500/15 via-cyan-500/5 to-transparent p-3 text-xs shadow-[0_12px_30px_rgba(8,47,73,0.7)]">

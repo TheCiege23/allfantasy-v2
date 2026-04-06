@@ -288,7 +288,7 @@ async function notifyLeagueManagers(input: {
     type: input.type,
     title: input.title,
     body: input.body,
-    actionHref: `/app/league/${input.leagueId}`,
+    actionHref: `/league/${input.leagueId}`,
     actionLabel: 'Open league',
     meta: input.meta,
     severity: 'medium',

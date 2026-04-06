@@ -503,7 +503,7 @@ function SuccessStep({ leagueName, leagueId, onReset }: {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="flex-1 rounded-2xl py-3.5 text-sm font-black text-center transition-all active:scale-[0.98]"
           style={{ background: 'linear-gradient(135deg, #059669, #0891b2)', boxShadow: '0 8px 24px rgba(5,150,105,0.3)' }}
         >

@@ -165,8 +165,8 @@ test.describe('@commissioner commissioner lineup full-shell regression', () => {
       })
     })
 
-    await page.goto(`/app/league/${leagueId}?tab=Commissioner`)
-    await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Commissioner`))
+    await page.goto(`/league/${leagueId}?tab=Commissioner`)
+    await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Commissioner`))
     await expect(page.getByTestId('commissioner-lineup-lock-rule-input')).toBeVisible()
     await expect(page.getByTestId('commissioner-lineup-lock-rule-input')).toHaveValue('first_game')
     await expect(

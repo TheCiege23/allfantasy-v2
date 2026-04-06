@@ -132,7 +132,7 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
     )
   }
 
-  const baseUrl = `/app/league/${leagueId}`
+  const baseUrl = `/league/${leagueId}`
   const draftControlsUrl = `/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`
   const freeSettingsTabs = [
     { tab: 'General', label: 'General' },

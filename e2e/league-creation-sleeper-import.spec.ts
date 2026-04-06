@@ -255,8 +255,8 @@ test('creates league from Sleeper import via creation UI', async ({ page }) => {
   await expect(page.getByText(/manager one/i)).toBeVisible()
 
   await page.getByRole('button', { name: /create league from import/i }).click()
-  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+  await page.waitForURL(`**/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${mockedLeagueId}$`))
 })
 
 test('creates league from ESPN import via creation UI', async ({ page }) => {
@@ -294,8 +294,8 @@ test('creates league from ESPN import via creation UI', async ({ page }) => {
     leagueName: /import preview: e2e espn league/i,
   })
   await page.getByRole('button', { name: /create league from import/i }).click()
-  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+  await page.waitForURL(`**/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${mockedLeagueId}$`))
 })
 
 test('creates league from Yahoo import via creation UI', async ({ page }) => {
@@ -333,8 +333,8 @@ test('creates league from Yahoo import via creation UI', async ({ page }) => {
     leagueName: /import preview: e2e yahoo league/i,
   })
   await page.getByRole('button', { name: /create league from import/i }).click()
-  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+  await page.waitForURL(`**/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${mockedLeagueId}$`))
 })
 
 test('creates league from Fantrax import via creation UI', async ({ page }) => {
@@ -372,8 +372,8 @@ test('creates league from Fantrax import via creation UI', async ({ page }) => {
     leagueName: /import preview: e2e fantrax league/i,
   })
   await page.getByRole('button', { name: /create league from import/i }).click()
-  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+  await page.waitForURL(`**/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${mockedLeagueId}$`))
 })
 
 test('creates league from MFL import via creation UI', async ({ page }) => {
@@ -411,8 +411,8 @@ test('creates league from MFL import via creation UI', async ({ page }) => {
     leagueName: /import preview: e2e mfl league/i,
   })
   await page.getByRole('button', { name: /create league from import/i }).click()
-  await page.waitForURL(`**/app/league/${mockedLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${mockedLeagueId}$`))
+  await page.waitForURL(`**/league/${mockedLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${mockedLeagueId}$`))
 })
 
 test('supports retry, back, and mode cancel actions in import flow', async ({ page }) => {

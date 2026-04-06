@@ -103,8 +103,8 @@ test('@db player-trend indicators work in authenticated league shell tabs', asyn
     })
   })
 
-  await page.goto(`/app/league/${leagueId}?tab=Draft`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Draft`))
+  await page.goto(`/league/${leagueId}?tab=Draft`)
+  await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Draft`))
   await expect(page.getByText('Draft trend indicators')).toBeVisible({ timeout: 45_000 })
 
   const draftTimeframe = page.getByLabel('Draft trend timeframe')
@@ -124,7 +124,7 @@ test('@db player-trend indicators work in authenticated league shell tabs', asyn
   )
 
   await page.getByRole('button', { name: 'Trades', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Trades`))
+  await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Trades`))
   await expect(page.getByText('Trade trend indicators')).toBeVisible({ timeout: 45_000 })
 
   const tradePanel = page.locator('section').filter({ hasText: 'Trade trend indicators' }).first()
@@ -137,7 +137,7 @@ test('@db player-trend indicators work in authenticated league shell tabs', asyn
   )
 
   await page.getByRole('button', { name: 'Roster', exact: true }).click()
-  await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Roster`))
+  await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Roster`))
   const rosterPanel = page.locator('div').filter({ hasText: 'Roster strategy widget' }).first()
   await expect(rosterPanel).toBeVisible({ timeout: 45_000 })
   await rosterPanel.getByLabel('Roster strategy timeframe').selectOption('24h')

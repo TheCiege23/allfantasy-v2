@@ -389,13 +389,13 @@ export default function ScheduleSettingsPanel({ leagueId }: { leagueId: string }
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
         <a
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Matchups`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Matchups`}
           className="rounded border border-white/15 px-2 py-1 text-white/75 hover:bg-white/10"
         >
           Open matchups / schedule
         </a>
         <a
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Standings%20%2F%20Playoffs`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Standings%20%2F%20Playoffs`}
           className="rounded border border-white/15 px-2 py-1 text-white/75 hover:bg-white/10"
         >
           Open standings / playoffs

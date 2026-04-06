@@ -8,7 +8,7 @@ export const DRAFT_WAR_ROOM_LEGACY_URL = '/af-legacy?tab=mock-draft'
 
 /** URL to open league draft tab (app) with war room panel. */
 export function getLeagueDraftTabUrl(leagueId: string): string {
-  return `/app/league/${encodeURIComponent(leagueId)}?tab=Draft`
+  return `/league/${encodeURIComponent(leagueId)}?tab=Draft`
 }
 
 /**

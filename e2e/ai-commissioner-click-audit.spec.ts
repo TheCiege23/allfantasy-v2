@@ -94,7 +94,7 @@ test.describe('@commissioner ai commissioner click audit', () => {
           '1 recent trade scanned for fairness.',
           '2 draft commentary note(s) generated from recent picks.',
         ],
-        actionHref: `/app/league/${leagueId}?tab=Commissioner`,
+        actionHref: `/league/${leagueId}?tab=Commissioner`,
         actionLabel: 'Open Commissioner',
       },
       matchupSummaries: [

@@ -113,25 +113,25 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
       {/* Quick links */}
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`/app/league/${leagueId}?tab=Chat`}
+          href={`/league/${leagueId}?tab=Chat`}
           className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-950/50"
         >
           <MessageSquare className="h-4 w-4" /> League Chat
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Settings`}
+          href={`/league/${leagueId}?tab=Settings`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Settings className="h-4 w-4" /> Settings
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Intelligence`}
+          href={`/league/${leagueId}?tab=Intelligence`}
           className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-950/30 px-4 py-2 text-sm text-rose-200 hover:bg-rose-950/50"
         >
           <Sparkles className="h-4 w-4" /> AI Tools
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Waivers`}
+          href={`/league/${leagueId}?tab=Waivers`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Zap className="h-4 w-4" /> Waivers

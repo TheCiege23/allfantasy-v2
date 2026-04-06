@@ -468,7 +468,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
           </p>
         </div>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Settings`}
           className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs text-white/75 hover:bg-white/10"
         >
           Back to settings
@@ -882,7 +882,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
                         >
                           <span className="text-white/85">{managerId}</span>
                           <Link
-                            href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings&settingsTab=${encodeURIComponent('Reputation')}&reputationManagerId=${encodeURIComponent(managerId)}`}
+                            href={`/league/${encodeURIComponent(leagueId)}?tab=Settings&settingsTab=${encodeURIComponent('Reputation')}&reputationManagerId=${encodeURIComponent(managerId)}`}
                             className="text-cyan-200 underline underline-offset-2"
                             data-testid={`ai-commissioner-alert-manager-trust-${alert.alertId}-${managerId}`}
                           >
@@ -903,7 +903,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                   {alert.relatedTradeId ? (
                     <Link
-                      href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                      href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
                       className="underline underline-offset-2"
                     >
                       Open trade review context
@@ -911,7 +911,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
                   ) : null}
                   {alert.relatedMatchupId ? (
                     <Link
-                      href={`/app/league/${encodeURIComponent(leagueId)}?tab=Matchups`}
+                      href={`/league/${encodeURIComponent(leagueId)}?tab=Matchups`}
                       className="underline underline-offset-2"
                     >
                       Open matchup context

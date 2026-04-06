@@ -924,7 +924,7 @@ export function PostDraftView({
           Draft grades & rankings
         </Link>
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="inline-flex items-center gap-2 text-white/60 hover:underline text-sm"
         >
           Back to league

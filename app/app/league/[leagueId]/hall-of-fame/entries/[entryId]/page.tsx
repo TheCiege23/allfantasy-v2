@@ -98,7 +98,7 @@ export default function HallOfFameEntryDetailPage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${leagueId}?tab=Hall of Fame`}
+          href={`/league/${leagueId}?tab=Hall of Fame`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to Hall of Fame
@@ -111,7 +111,7 @@ export default function HallOfFameEntryDetailPage() {
   return (
     <div className="space-y-4 p-4 max-w-2xl">
       <Link
-        href={`/app/league/${leagueId}?tab=Hall of Fame`}
+        href={`/league/${leagueId}?tab=Hall of Fame`}
         className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
       >
         <ArrowLeft className="h-4 w-4" /> Back to Hall of Fame

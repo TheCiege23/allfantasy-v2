@@ -155,7 +155,7 @@ export default function LeagueDramaDashboardPage() {
             </p>
           </div>
           <Link
-            href={`/app/league/${encodeURIComponent(leagueId)}`}
+            href={`/league/${encodeURIComponent(leagueId)}`}
             className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
           >
             <ArrowLeft className="h-3.5 w-3.5" />

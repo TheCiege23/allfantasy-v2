@@ -25,7 +25,7 @@ export const DASHBOARD_QUICK_ACTIONS: QuickActionConfig[] = [
   {
     id: "open_webapp",
     label: "Open WebApp",
-    href: "/app/home",
+    href: "/dashboard",
     description: "Leagues, roster, waivers, trades.",
   },
   {

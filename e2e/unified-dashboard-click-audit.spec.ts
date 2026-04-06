@@ -82,7 +82,7 @@ test.describe("@dashboard unified dashboard click audit", () => {
               id: "a1",
               title: "League trend update",
               summary: "Waiver market heating up",
-              href: "/app/home",
+              href: "/dashboard",
               type: "feed",
               publishedAt: new Date().toISOString(),
             },
@@ -170,9 +170,9 @@ test.describe("@dashboard unified dashboard click audit", () => {
 
     // League card click
     const leagueCard = soccerGroup.getByRole("link", { name: new RegExp(soccerLeagueName) }).first()
-    await expect(leagueCard).toHaveAttribute("href", new RegExp(`^/app/league/${soccerLeagueId}$`))
-    await page.goto(`/app/league/${soccerLeagueId}`)
-    await expect(page).toHaveURL(new RegExp(`/app/league/${soccerLeagueId}$`), { timeout: 20_000 })
+    await expect(leagueCard).toHaveAttribute("href", new RegExp(`^/league/${soccerLeagueId}$`))
+    await page.goto(`/league/${soccerLeagueId}`)
+    await expect(page).toHaveURL(new RegExp(`/league/${soccerLeagueId}$`), { timeout: 20_000 })
     await page.goto("/e2e/dashboard-soccer-grouping")
     await expect(page).toHaveURL(/\/e2e\/dashboard-soccer-grouping/)
 

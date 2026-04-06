@@ -197,8 +197,8 @@ test.describe('@waiver league creation waiver step', () => {
     await expect(page.getByRole('button', { name: /create league/i })).toBeVisible()
 
     await page.getByRole('button', { name: /create league/i }).click()
-    await page.waitForURL(`**/app/league/${createdLeagueId}`)
-    await expect(page).toHaveURL(new RegExp(`/app/league/${createdLeagueId}$`))
+    await page.waitForURL(`**/league/${createdLeagueId}`)
+    await expect(page).toHaveURL(new RegExp(`/league/${createdLeagueId}$`))
 
     expect(capturedSettings).toBeTruthy()
     expect(capturedSettings).toMatchObject({

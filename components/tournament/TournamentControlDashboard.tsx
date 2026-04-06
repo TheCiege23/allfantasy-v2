@@ -177,7 +177,7 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
                 )}
               </div>
               <Link
-                href={`/app/league/${row.leagueId}`}
+                href={`/league/${row.leagueId}`}
                 className="text-xs text-amber-400 hover:text-amber-300"
               >
                 Open league →

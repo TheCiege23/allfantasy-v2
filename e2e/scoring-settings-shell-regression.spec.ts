@@ -179,8 +179,8 @@ test.describe('@scoring scoring settings full-shell regression', () => {
       })
     })
 
-    await page.goto(`/app/league/${leagueId}?tab=Settings`)
-    await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Settings`))
+    await page.goto(`/league/${leagueId}?tab=Settings`)
+    await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Settings`))
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'Scoring Settings', exact: true }).click()

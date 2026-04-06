@@ -52,7 +52,7 @@ export default function GMEconomyPanel({ leagueId }: LeagueTabProps) {
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Career`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Career`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25"
         >
           <ExternalLink className="h-3.5 w-3.5" /> Open Career tab

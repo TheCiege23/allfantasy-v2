@@ -26,7 +26,7 @@ async function enqueueIntegrityNotification(
           flagType === "collusion" ? "⚠️ Potential collusion detected" : "⚠️ Potential tanking detected",
         body: summary,
         severity,
-        actionHref: `/app/league/${leagueId}/commissioner/integrity`,
+        actionHref: `/league/${leagueId}/commissioner/integrity`,
         actionLabel: "Review flag",
         meta: { leagueId, flagId, flagType },
       },

@@ -72,8 +72,8 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
   const { handleApiResponse } = useAfSubGate('commissioner_ai_narration')
 
   const chatHref = summary.myTribeSource
-    ? `/app/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
-    : `/app/league/${leagueId}?tab=Chat`
+    ? `/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
+    : `/league/${leagueId}?tab=Chat`
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -197,7 +197,7 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
       </section>
 
       <Link
-        href={`/app/league/${leagueId}?tab=Intelligence`}
+        href={`/league/${leagueId}?tab=Intelligence`}
         className="block rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80 hover:bg-white/10"
       >
         Full AI Tools (Intelligence tab) →

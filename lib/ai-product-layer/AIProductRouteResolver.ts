@@ -81,7 +81,7 @@ export function getAIProductHrefForFeature(featureKey: ToolAIEntryKey | string, 
     return `/app/league/${encodeURIComponent(context.leagueId)}/draft`;
   }
   if ((featureKey === 'matchup' || featureKey === 'simulation') && context?.leagueId) {
-    return `/app/league/${encodeURIComponent(context.leagueId)}?tab=Matchups`;
+    return `/league/${encodeURIComponent(context.leagueId)}?tab=Matchups`;
   }
   const base = FEATURE_ROUTES[featureKey] ?? AI_HUB_HREF;
   return appendAIProductContextToHref(base, context);

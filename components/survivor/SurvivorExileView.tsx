@@ -131,7 +131,7 @@ export function SurvivorExileView({ leagueId, summary }: SurvivorExileViewProps)
             Exile league commissioner (Boss) can adjust tokens and return rules. FAAB/team claim flow runs in the Exile league.
           </p>
           <Link
-            href={`/app/league/${exileLeagueId}`}
+            href={`/league/${exileLeagueId}`}
             className="inline-flex items-center gap-2 text-sm text-amber-300 hover:underline"
           >
             Open Exile League <ArrowRight className="h-4 w-4" />

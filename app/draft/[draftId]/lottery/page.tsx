@@ -20,7 +20,7 @@ export default async function LotteryDraftPage({
   }
 
   const context = await resolveDraftRouteContext(draftId, userId)
-  if (!context) redirect('/app')
+  if (!context) redirect('/dashboard')
   if (context.kind === 'mock') {
     redirect(`/mock-draft?draftId=${encodeURIComponent(context.draftId)}`)
   }

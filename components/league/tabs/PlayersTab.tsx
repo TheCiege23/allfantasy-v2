@@ -335,7 +335,7 @@ export default function PlayersTab({
           <div className="flex items-center justify-between">
             <h2 className="text-[26px] font-semibold text-white">Trade Block</h2>
             <Link
-              href={`/app/league/${leagueId}?tab=PLAYERS&playersTab=trade`}
+              href={`/league/${leagueId}?tab=PLAYERS&playersTab=trade`}
               className="rounded-full border border-[#00D4AA] px-4 py-2 text-[14px] font-semibold text-[#00D4AA]"
             >
               TRADE

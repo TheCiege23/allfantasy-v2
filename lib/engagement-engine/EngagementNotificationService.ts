@@ -19,7 +19,7 @@ export async function sendDailyDigest(params: {
   const href = params.actionHref
     ? getDeepLinkRedirect(params.actionHref, "/dashboard")
     : params.leagueId
-      ? `/app/league/${params.leagueId}`
+      ? `/league/${params.leagueId}`
       : "/dashboard"
   await dispatchNotification({
     userIds: [params.userId],
@@ -43,7 +43,7 @@ export async function sendLeagueReminder(params: {
   body?: string
   actionLabel?: string
 }): Promise<boolean> {
-  const href = getDeepLinkRedirect(`/app/league/${params.leagueId}`, "/dashboard")
+  const href = getDeepLinkRedirect(`/league/${params.leagueId}`, "/dashboard")
   await dispatchNotification({
     userIds: [params.userId],
     category: "lineup_reminders",
@@ -70,7 +70,7 @@ export async function sendAIInsight(params: {
   const href = params.actionHref
     ? getDeepLinkRedirect(params.actionHref, "/af-legacy")
     : params.leagueId
-      ? `/app/league/${params.leagueId}`
+      ? `/league/${params.leagueId}`
       : "/af-legacy"
   await dispatchNotification({
     userIds: [params.userId],

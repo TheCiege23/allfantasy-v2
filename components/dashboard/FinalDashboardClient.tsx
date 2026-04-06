@@ -110,7 +110,7 @@ export default function FinalDashboardClient() {
     [buildLeagueContextHref, firstLeague?.id]
   )
 
-  const aiSuggestionsHref = firstLeague?.id ? `/app/league/${firstLeague.id}?tab=Advisor` : '/app/coach'
+  const aiSuggestionsHref = firstLeague?.id ? `/league/${firstLeague.id}?tab=Advisor` : '/app/coach'
   const tradeSuggestionHref = buildLeagueContextHref('/trade-evaluator')
   const waiverSuggestionHref = buildLeagueContextHref('/waiver-ai')
 
@@ -153,13 +153,13 @@ export default function FinalDashboardClient() {
           <p className="mt-2 text-sm text-white/50">Sign in to see leagues, drafts, matchups, and AI suggestions.</p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/login?callbackUrl=/app/home"
+              href="/login?callbackUrl=/dashboard"
               className="min-h-[44px] inline-flex items-center justify-center rounded-xl border border-white/20 px-5 py-2.5 text-sm font-medium text-white hover:bg-white/10 transition-premium focus-ring touch-manipulation"
             >
               Sign in
             </Link>
             <Link
-              href="/signup?callbackUrl=/app/home"
+              href="/signup?callbackUrl=/dashboard"
               className="min-h-[44px] inline-flex items-center justify-center rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-semibold text-black hover:bg-cyan-400 active:scale-[0.98] transition-premium focus-ring touch-manipulation"
             >
               Sign up
@@ -280,7 +280,7 @@ export default function FinalDashboardClient() {
                     {group.leagues.slice(0, MAX_LEAGUES_PER_GROUP).map((league) => (
                       <li key={league.id}>
                         <Link
-                          href={`/app/league/${league.id}`}
+                          href={`/league/${league.id}`}
                           className="flex items-center gap-2 px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
                         >
                           <Trophy className="h-3.5 w-3.5 text-white/35 shrink-0" />
@@ -351,7 +351,7 @@ export default function FinalDashboardClient() {
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Live matchups</h2>
-              <Link href={firstLeague ? `/app/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'} className="text-xs text-white/55 hover:text-white/80">
+              <Link href={firstLeague ? `/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'} className="text-xs text-white/55 hover:text-white/80">
                 Open matchups
               </Link>
             </div>
@@ -366,7 +366,7 @@ export default function FinalDashboardClient() {
                   return (
                     <Link
                       key={`${item.leagueId}:${item.seasonYear}:${item.week}`}
-                      href={`/app/league/${item.leagueId}?tab=Matchups`}
+                      href={`/league/${item.leagueId}?tab=Matchups`}
                       className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">
@@ -383,7 +383,7 @@ export default function FinalDashboardClient() {
               </div>
             ) : (
               <Link
-                href={firstLeague ? `/app/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'}
+                href={firstLeague ? `/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'}
                 className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">

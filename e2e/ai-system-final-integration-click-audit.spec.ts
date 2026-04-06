@@ -71,7 +71,7 @@ test.describe('@ai ai system final integration click audit', () => {
               id: 'a1',
               title: 'League trend update',
               summary: 'Waiver market heating up',
-              href: '/app/home',
+              href: '/dashboard',
               type: 'feed',
               publishedAt: new Date().toISOString(),
             },

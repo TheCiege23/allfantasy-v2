@@ -92,7 +92,7 @@ export function SubscriptionEntitlementHarnessClient() {
           />
         ) : (
           <Link
-            href="/app/home"
+            href="/dashboard"
             className="mt-3 inline-flex rounded-lg bg-cyan-500/80 px-3 py-2 text-sm font-semibold text-[#041322]"
             data-testid="entitled-feature-link"
           >

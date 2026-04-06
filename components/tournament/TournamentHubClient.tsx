@@ -264,7 +264,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                     {conf.leagues.map((tl) => (
                       <li key={tl.id}>
                         <Link
-                          href={`/app/league/${tl.leagueId}`}
+                          href={`/league/${tl.leagueId}`}
                           className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
                         >
                           {tl.league.name ?? `League ${tl.orderInConference + 1}`}
@@ -343,7 +343,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                     {list.map((l) => (
                       <li key={l.leagueId}>
                         <Link
-                          href={`/app/league/${l.leagueId}`}
+                          href={`/league/${l.leagueId}`}
                           className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
                         >
                           {l.leagueName ?? l.leagueId}

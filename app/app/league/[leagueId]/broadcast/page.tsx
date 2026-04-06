@@ -216,7 +216,7 @@ export default function LeagueBroadcastPage() {
           </button>
         </div>
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Overview`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Overview`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-950/30 px-3 py-2 text-sm text-red-300 hover:bg-red-950/50"
         >
           <LogOut className="h-4 w-4" /> Exit broadcast

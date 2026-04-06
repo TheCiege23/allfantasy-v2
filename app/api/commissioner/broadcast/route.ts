@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
         type: 'commissioner_broadcast',
         title: 'Commissioner announcement',
         body: message,
-        actionHref: `/app/league/${leagueId}`,
+        actionHref: `/league/${leagueId}`,
         actionLabel: 'Open league',
         meta: { leagueId },
         severity: 'medium',

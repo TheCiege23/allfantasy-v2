@@ -48,13 +48,13 @@ test.describe('@schedule schedule settings quick links', () => {
 
     const matchupsLink = page.getByRole('link', { name: /open matchups \/ schedule/i })
     await expect(matchupsLink).toBeVisible()
-    await expect(matchupsLink).toHaveAttribute('href', `/app/league/${leagueId}?tab=Matchups`)
+    await expect(matchupsLink).toHaveAttribute('href', `/league/${leagueId}?tab=Matchups`)
 
     const standingsLink = page.getByRole('link', { name: /open standings \/ playoffs/i })
     await expect(standingsLink).toBeVisible()
     await expect(standingsLink).toHaveAttribute(
       'href',
-      new RegExp(`^/app/league/${leagueId}\\?tab=Standings%20%2F%20Playoffs$`)
+      new RegExp(`^/league/${leagueId}\\?tab=Standings%20%2F%20Playoffs$`)
     )
   })
 })

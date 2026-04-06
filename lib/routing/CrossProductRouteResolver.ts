@@ -16,7 +16,12 @@ export interface ProductRouteConfig {
 
 export const PRODUCT_ROUTE_CONFIGS: ProductRouteConfig[] = [
   { productId: "home", label: "Home", entryRoute: "/dashboard", pathPrefixes: ["/dashboard"] },
-  { productId: "webapp", label: "WebApp", entryRoute: "/app/home", pathPrefixes: ["/app", "/leagues"] },
+  {
+    productId: "webapp",
+    label: "WebApp",
+    entryRoute: "/dashboard",
+    pathPrefixes: ["/dashboard", "/league", "/leagues", "/import"],
+  },
   { productId: "bracket", label: "Bracket", entryRoute: "/brackets", pathPrefixes: ["/brackets", "/bracket"] },
   { productId: "legacy", label: "Legacy", entryRoute: "/af-legacy", pathPrefixes: ["/af-legacy", "/legacy"] },
 ]

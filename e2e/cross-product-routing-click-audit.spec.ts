@@ -82,7 +82,7 @@ test.describe("@db @routing cross-product routing click audit", () => {
               product: "app",
               read: false,
               createdAt: new Date().toISOString(),
-              meta: { actionHref: "/app/home", actionLabel: "Open app" },
+              meta: { actionHref: "/dashboard", actionLabel: "Open app" },
             },
             {
               id: "n-blocked",
@@ -119,8 +119,8 @@ test.describe("@db @routing cross-product routing click audit", () => {
     const header = page.locator("header").first()
     const productSwitcher = header.getByLabel("Product switcher")
 
-    await productSwitcher.locator('a[href="/app/home"]').click()
-    await expect(page).toHaveURL(/\/app\/home/, { timeout: 20_000 })
+    await productSwitcher.locator('a[href="/dashboard"]').click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
 
     await page.goto("/settings?tab=profile")
     await productSwitcher.locator('a[href="/brackets"]').click()
@@ -139,16 +139,12 @@ test.describe("@db @routing cross-product routing click audit", () => {
     await productSwitcher.locator('a[href="/dashboard"]').click()
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
 
-    await page.goto("/settings?tab=profile")
-    await header.locator('a[href="/app"]').first().click()
-    await expect(page).toHaveURL(/\/app/, { timeout: 20_000 })
-
     await page.goto("/dashboard")
     const launcherSection = page.locator('[data-dashboard-section="product-launchers"]').first()
     await expect(launcherSection).toBeVisible()
 
-    await launcherSection.locator('a[href="/app/home"]').first().click()
-    await expect(page).toHaveURL(/\/app\/home/, { timeout: 20_000 })
+    await launcherSection.locator('a[href="/dashboard"]').first().click()
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 })
 
     await page.goto("/dashboard")
     await launcherSection.locator('a[href="/brackets"]').first().click()

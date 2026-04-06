@@ -60,7 +60,7 @@ export function SalaryCapRulesView({
         )}
 
         <a
-          href={`/app/league/${leagueId}?tab=Settings`}
+          href={`/league/${leagueId}?tab=Settings`}
           className="mt-4 inline-block text-sm text-cyan-400 hover:underline"
         >
           League Settings →

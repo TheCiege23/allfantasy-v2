@@ -92,7 +92,7 @@ const PREVIEWS = [
     id: 'league-dashboard',
     titleKey: 'landing.previews.leagueDashboard.title',
     descriptionKey: 'landing.previews.leagueDashboard.description',
-    href: '/app/home',
+    href: '/dashboard',
     icon: LayoutDashboard,
     snippetKey: 'landing.previews.leagueDashboard.snippet',
     image: '/branding/allfantasy-colorful-logo.png',

@@ -222,7 +222,7 @@ export function buildAiStoryAndRankingPlaceholders(sportFilter: string | null): 
       type: "matchup_card" as const,
       title: "Matchup preview",
       body: "View weekly matchups and projections for your league.",
-      href: "/app/home",
+      href: "/dashboard",
       sport,
       leagueId: null,
       leagueName: null,

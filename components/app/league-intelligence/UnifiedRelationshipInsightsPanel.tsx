@@ -303,7 +303,7 @@ export function UnifiedRelationshipInsightsPanel({ leagueId }: { leagueId: strin
                     </Link>
                   )}
                   <Link
-                    href={`/app/league/${encodeURIComponent(leagueId)}?tab=Trades`}
+                    href={`/league/${encodeURIComponent(leagueId)}?tab=Trades`}
                     className="rounded border border-white/20 bg-white/5 px-2 py-0.5 text-[10px] text-white/75 hover:bg-white/10"
                   >
                     Trade context

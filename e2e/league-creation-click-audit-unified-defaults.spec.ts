@@ -415,8 +415,8 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
 
   // Success path + redirect.
   await page.getByRole('button', { name: /create league/i }).click()
-  await page.waitForURL(`**/app/league/${createdLeagueId}`)
-  await expect(page).toHaveURL(new RegExp(`/app/league/${createdLeagueId}$`))
+  await page.waitForURL(`**/league/${createdLeagueId}`)
+  await expect(page).toHaveURL(new RegExp(`/league/${createdLeagueId}$`))
 
   expect(createRequests.length).toBeGreaterThan(1)
   const latest = createRequests[createRequests.length - 1] ?? {}
@@ -560,7 +560,7 @@ test('applies selected template settings snapshot into create payload', async ({
 
   await expect(page.getByText(/review & create/i)).toBeVisible()
   await page.getByRole('button', { name: /create league/i }).click()
-  await page.waitForURL(`**/app/league/${createdLeagueId}`)
+  await page.waitForURL(`**/league/${createdLeagueId}`)
 
   const latest = createRequests[createRequests.length - 1] ?? {}
   const settings = latest.settings ?? {}
@@ -615,7 +615,7 @@ test('mobile viewport click audit validates and creates league', async ({ page }
   await page.getByRole('button', { name: /create league/i }).click()
   await expect(page.getByText(/validation failed for audit test/i)).toBeVisible()
   await page.getByRole('button', { name: /create league/i }).click()
-  await page.waitForURL(`**/app/league/${createdLeagueId}`)
+  await page.waitForURL(`**/league/${createdLeagueId}`)
 
   const latest = createRequests[createRequests.length - 1] ?? {}
   const settings = latest.settings ?? {}

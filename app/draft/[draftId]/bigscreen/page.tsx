@@ -20,7 +20,7 @@ export default async function DraftBigScreenPage({
   }
 
   const context = await resolveDraftRouteContext(draftId, userId)
-  if (!context) redirect('/app')
+  if (!context) redirect('/dashboard')
   if (context.kind === 'mock') {
     redirect(`/mock-draft/${encodeURIComponent(context.draftId)}/replay`)
   }

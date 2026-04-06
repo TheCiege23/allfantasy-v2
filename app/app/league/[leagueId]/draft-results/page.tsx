@@ -33,13 +33,13 @@ export default async function DraftResultsPage({
   if (!userId) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/app/league/${leagueId}/draft-results`)}`)
   }
-  if (!leagueId) redirect('/app')
+  if (!leagueId) redirect('/dashboard')
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
     select: { id: true, name: true, sport: true, leagueVariant: true, settings: true },
   })
-  if (!league) redirect('/app')
+  if (!league) redirect('/dashboard')
 
   const settings = (league.settings ?? {}) as Record<string, unknown>
   const isGuillotine =

@@ -249,7 +249,7 @@ export default function PlayoffSettingsPanel({ leagueId }: { leagueId: string })
       )}
       <div className="mt-2 flex flex-wrap gap-2">
         <a
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=Standings%20%2F%20Playoffs`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=Standings%20%2F%20Playoffs`}
           className="rounded border border-white/20 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10"
         >
           Open standings / playoffs

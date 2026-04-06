@@ -111,7 +111,7 @@ export default function DramaEventDetailPage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to league
@@ -125,7 +125,7 @@ export default function DramaEventDetailPage() {
     <div className="space-y-4 p-4 max-w-2xl mx-auto">
       <div className="flex flex-wrap items-center gap-3">
         <Link
-          href={`/app/league/${leagueId}`}
+          href={`/league/${leagueId}`}
           className="inline-flex items-center gap-1 text-sm text-cyan-300 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to league
@@ -177,7 +177,7 @@ export default function DramaEventDetailPage() {
           )}
           {event.relatedMatchupId && (
             <Link
-              href={`/app/league/${leagueId}?tab=Matchups`}
+              href={`/league/${leagueId}?tab=Matchups`}
               className="rounded border border-white/20 bg-white/5 px-2 py-1 text-xs text-white/75 hover:bg-white/10"
             >
               Open matchup context
@@ -185,7 +185,7 @@ export default function DramaEventDetailPage() {
           )}
           {event.dramaType === 'TRADE_FALLOUT' && (
             <Link
-              href={`/app/league/${leagueId}?tab=Trades`}
+              href={`/league/${leagueId}?tab=Trades`}
               className="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/20"
             >
               Open trade fallout context

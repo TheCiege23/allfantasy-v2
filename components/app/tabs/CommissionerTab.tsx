@@ -81,7 +81,7 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
 
   const base = `/api/commissioner/leagues/${encodeURIComponent(leagueId)}`
   const draftControlsUrl = `/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`
-  const leagueBase = `/app/league/${encodeURIComponent(leagueId)}`
+  const leagueBase = `/league/${encodeURIComponent(leagueId)}`
   const { hasAccess } = useEntitlement()
 
   useEffect(() => {
@@ -330,19 +330,19 @@ export default function CommissionerTab({ leagueId }: LeagueTabProps) {
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Settings&settingsTab=${encodeURIComponent('Reputation')}`}
+              href={`/league/${encodeURIComponent(leagueId)}?tab=Settings&settingsTab=${encodeURIComponent('Reputation')}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/15 px-3 py-1.5 text-xs font-medium text-cyan-200 hover:bg-cyan-500/25"
             >
               <Shield className="h-3.5 w-3.5" /> Trust scores (Reputation)
             </Link>
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Legacy`}
+              href={`/league/${encodeURIComponent(leagueId)}?tab=Legacy`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
             >
               <TrendingUp className="h-3.5 w-3.5" /> Legacy leaderboard
             </Link>
             <Link
-              href={`/app/league/${encodeURIComponent(leagueId)}?tab=Hall of Fame`}
+              href={`/league/${encodeURIComponent(leagueId)}?tab=Hall of Fame`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
             >
               <Award className="h-3.5 w-3.5" /> Hall of Fame

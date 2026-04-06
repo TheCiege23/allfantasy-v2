@@ -191,7 +191,7 @@ export default function PlatformLegacyLeaderboardPanel() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {row.leagueId && (
                     <Link
-                      href={`/app/league/${encodeURIComponent(row.leagueId)}?tab=Legacy`}
+                      href={`/league/${encodeURIComponent(row.leagueId)}?tab=Legacy`}
                       className="text-amber-300 hover:underline"
                     >
                       Open league Legacy tab

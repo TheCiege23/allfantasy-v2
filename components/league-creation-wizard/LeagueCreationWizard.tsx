@@ -709,7 +709,7 @@ export function LeagueCreationWizard({
       const leagueId = data.league?.id
       if (leagueId) {
         onSuccess?.(leagueId)
-        router.push(`/app/league/${leagueId}`)
+        router.push(`/league/${leagueId}`)
       } else {
         setError('League created but no ID returned')
       }

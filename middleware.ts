@@ -64,8 +64,45 @@ function isExemptPath(pathname: string): boolean {
   return false
 }
 
+/**
+ * `/app` marketing shell and duplicate routes are deprecated; dashboard + `/league/*` are canonical.
+ * See docs or APP_DEPRECATION_DELETE_LIST in repo notes when removing `app/app/**` files.
+ */
+function redirectDeprecatedAppRoutes(request: NextRequest): NextResponse | null {
+  const url = request.nextUrl.clone()
+  const { pathname } = url
+
+  if (pathname === "/app" || pathname === "/app/") {
+    url.pathname = "/dashboard"
+    return NextResponse.redirect(url)
+  }
+  if (pathname === "/dashboard") {
+    url.pathname = "/dashboard"
+    return NextResponse.redirect(url)
+  }
+  if (pathname.startsWith("/app/leagues")) {
+    url.pathname = pathname.slice(4)
+    return NextResponse.redirect(url)
+  }
+  if (pathname.startsWith("/app/power-rankings")) {
+    url.pathname = pathname.slice(4)
+    return NextResponse.redirect(url)
+  }
+  const leagueRoot = pathname.match(/^\/app\/league\/([^/]+)$/)
+  if (leagueRoot) {
+    url.pathname = `/league/${leagueRoot[1]}`
+    return NextResponse.redirect(url)
+  }
+  return null
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  const appRedirect = redirectDeprecatedAppRoutes(request)
+  if (appRedirect) {
+    return appRedirect
+  }
 
   if (isExemptPath(pathname)) {
     return NextResponse.next()

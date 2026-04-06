@@ -9,13 +9,36 @@ import {
 import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_AUTOMATION_SETTINGS,
+  DEFAULT_COMMISSIONER_PREFERENCES,
   DEFAULT_DRAFT_SETTINGS,
   DEFAULT_PLAYOFF_SETTINGS,
   DEFAULT_PRIVACY_SETTINGS,
   DEFAULT_SCHEDULE_SETTINGS,
   DEFAULT_WAIVER_SETTINGS,
   type LeagueCreationWizardState,
+  type WizardCommissionerPreferences,
 } from '@/lib/league-creation-wizard/types'
+
+const COMMISSIONER_PREF_LABELS: Record<keyof WizardCommissionerPreferences, string> = {
+  leagueAutomation: 'League automation',
+  integrityMonitoring: 'Integrity monitoring',
+  weeklyRecaps: 'Weekly recaps',
+  draftCopilot: 'Draft copilot',
+  matchupNarration: 'Matchup narration',
+  fairnessAudit: 'Fairness audit',
+  powerRankingsAi: 'AI power rankings',
+  constitutionAssistant: 'Rules assistant',
+}
+
+function buildCommissionerPreferencesSummary(prefs: WizardCommissionerPreferences): string {
+  const enabled = (Object.entries(prefs) as [keyof WizardCommissionerPreferences, boolean][])
+    .filter(([, on]) => on)
+    .map(([k]) => COMMISSIONER_PREF_LABELS[k])
+  if (enabled.length === 0) {
+    return 'None selected — enable anytime with AF Commissioner in league settings'
+  }
+  return `${enabled.length} on: ${enabled.join(' · ')}`
+}
 
 export type LeagueSummaryPanelProps = {
   state: LeagueCreationWizardState
@@ -152,6 +175,9 @@ export function LeagueSummaryPanel({ state, creationPreset }: LeagueSummaryPanel
     automationSettings.autopickFromQueueEnabled ? 'Queue autopick on' : 'Queue autopick off',
     automationSettings.slowDraftRemindersEnabled ? 'Slow reminders on' : 'Slow reminders off',
   ].join(' · ')
+  const commissionerSummary = buildCommissionerPreferencesSummary(
+    state.commissionerPreferences ?? DEFAULT_COMMISSIONER_PREFERENCES,
+  )
 
   return (
     <div className="space-y-6">
@@ -185,6 +211,11 @@ export function LeagueSummaryPanel({ state, creationPreset }: LeagueSummaryPanel
           label="Automation settings"
           value={automationSummary}
           testId="league-summary-automation-settings"
+        />
+        <SummaryRow
+          label="AF Commissioner AI"
+          value={commissionerSummary}
+          testId="league-summary-commissioner-prefs"
         />
       </SummarySection>
 

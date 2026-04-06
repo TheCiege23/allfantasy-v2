@@ -28,23 +28,22 @@ function makeNotification(
 describe("cross-product routing services", () => {
   it("uses canonical switch targets for each product", () => {
     expect(getProductSwitchHref("home")).toBe("/dashboard")
-    expect(getProductSwitchHref("webapp")).toBe("/app/home")
+    expect(getProductSwitchHref("webapp")).toBe("/dashboard")
     expect(getProductSwitchHref("bracket")).toBe("/brackets")
     expect(getProductSwitchHref("legacy")).toBe("/af-legacy")
 
     expect(getProductSwitchItems()).toEqual([
       { productId: "home", href: "/dashboard", label: "Home" },
-      { productId: "webapp", href: "/app/home", label: "WebApp" },
       { productId: "bracket", href: "/brackets", label: "Bracket" },
       { productId: "legacy", href: "/af-legacy", label: "Legacy" },
     ])
   })
 
-  it("keeps webapp context active across /app and /leagues routes", () => {
-    expect(isPathInProduct("/app/home", "webapp")).toBe(true)
+  it("keeps webapp context active across /dashboard and /leagues routes", () => {
+    expect(isPathInProduct("/dashboard", "webapp")).toBe(true)
     expect(isPathInProduct("/leagues/league-1", "webapp")).toBe(true)
     expect(getProductFromPath("/leagues/league-1")).toBe("webapp")
-    expect(isNavItemActive("/leagues/league-1", "/app")).toBe(true)
+    expect(isNavItemActive("/leagues/league-1", "/dashboard")).toBe(true)
   })
 
   it("returns safe unauthorized fallbacks", () => {
@@ -69,9 +68,9 @@ describe("cross-product routing services", () => {
     const allowed = getNotificationDestination(
       makeNotification({
         product: "app",
-        meta: { actionHref: "/app/home?sport=SOCCER", actionLabel: "Open app" },
+        meta: { actionHref: "/dashboard?sport=SOCCER", actionLabel: "Open app" },
       })
     )
-    expect(allowed).toEqual({ href: "/app/home?sport=SOCCER", label: "Open app" })
+    expect(allowed).toEqual({ href: "/dashboard?sport=SOCCER", label: "Open app" })
   })
 })

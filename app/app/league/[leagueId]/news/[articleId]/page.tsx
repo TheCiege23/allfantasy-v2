@@ -109,7 +109,7 @@ export default function LeagueNewsArticlePage() {
     return (
       <div className="space-y-4 p-4">
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=News`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=News`}
           className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to News
@@ -123,7 +123,7 @@ export default function LeagueNewsArticlePage() {
     <div className="mx-auto max-w-3xl space-y-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
-          href={`/app/league/${encodeURIComponent(leagueId)}?tab=News`}
+          href={`/league/${encodeURIComponent(leagueId)}?tab=News`}
           className="inline-flex items-center gap-1 text-sm text-cyan-400 hover:underline"
         >
           <ArrowLeft className="h-4 w-4" /> Back to News

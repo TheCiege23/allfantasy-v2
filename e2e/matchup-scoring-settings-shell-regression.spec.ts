@@ -159,15 +159,15 @@ test.describe('@matchups matchup scoring-settings shell regression', () => {
       })
     })
 
-    await page.goto(`/app/league/${leagueId}?tab=Matchups`)
-    await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Matchups`))
+    await page.goto(`/league/${leagueId}?tab=Matchups`)
+    await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Matchups`))
     await page.getByRole('button', { name: 'Matchups', exact: true }).click()
     await expect(page.getByTestId('matchup-card-mu-shell-1')).toBeVisible()
     await expect(page.getByTestId('matchup-detail-title')).toContainText('Alpha FC')
     await expect(page.getByTestId('matchup-scoring-settings-link')).toBeVisible()
 
     await page.getByTestId('matchup-scoring-settings-link').click()
-    await expect(page).toHaveURL(new RegExp(`/app/league/${leagueId}\\?tab=Settings`))
+    await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Settings`))
     await expect(page.getByRole('heading', { name: 'General Settings', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: 'Scoring Settings', exact: true }).click()

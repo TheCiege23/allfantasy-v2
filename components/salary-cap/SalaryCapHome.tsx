@@ -114,25 +114,25 @@ export function SalaryCapHome({ leagueId }: SalaryCapHomeProps) {
       {/* Quick links */}
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`/app/league/${leagueId}?tab=Chat`}
+          href={`/league/${leagueId}?tab=Chat`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <MessageSquare className="h-4 w-4" /> Chat
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Waivers`}
+          href={`/league/${leagueId}?tab=Waivers`}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
         >
           <Zap className="h-4 w-4" /> Waivers
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Trades`}
+          href={`/league/${leagueId}?tab=Trades`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           Trades
         </Link>
         <Link
-          href={`/app/league/${leagueId}?tab=Settings`}
+          href={`/league/${leagueId}?tab=Settings`}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <Settings className="h-4 w-4" /> Settings

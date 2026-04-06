@@ -13,7 +13,7 @@ export default async function LeagueDraftPage({
   searchParams?: Promise<{ e2eAuth?: string; sport?: string; variant?: string }> | { e2eAuth?: string; sport?: string; variant?: string }
 }) {
   const { leagueId } = await params
-  if (!leagueId) redirect('/app')
+  if (!leagueId) redirect('/dashboard')
 
   const resolvedSearchParams = searchParams ?? {}
   const resolvedQuery =
@@ -61,7 +61,7 @@ export default async function LeagueDraftPage({
     where: { id: leagueId },
     select: { id: true, name: true, sport: true, isDynasty: true, leagueVariant: true },
   })
-  if (!league) redirect('/app')
+  if (!league) redirect('/dashboard')
 
   const commissioner = await isCommissioner(leagueId, userId)
   const variant = (league.leagueVariant ?? '').toUpperCase()

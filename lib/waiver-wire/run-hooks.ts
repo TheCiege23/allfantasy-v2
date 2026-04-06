@@ -40,7 +40,7 @@ export async function onWaiverRunComplete(
         type: "waiver_processed",
         title: `Waivers processed${leagueName}`,
         body: message,
-        actionHref: `/app/league/${leagueId}`,
+        actionHref: `/league/${leagueId}`,
         actionLabel: "Open league",
         meta: { leagueId, awarded, total: results.length },
         severity: "medium",

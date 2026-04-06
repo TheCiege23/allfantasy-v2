@@ -7,7 +7,9 @@ import {
   getLegacyProviderName,
   getImportStatusLabel,
   getProviderStatus,
+  LegacyProviderImportHelp,
   type LegacyImportStatusResponse,
+  type LegacyProviderId,
 } from '@/lib/legacy-import-settings'
 import { StepHelp } from '@/components/league-creation-wizard/StepHelp'
 import Link from 'next/link'
@@ -409,7 +411,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     })()
   }, [])
 
-  const handleLegacyProviderImport = async (providerId: string) => {
+  const handleLegacyProviderImport = async (providerId: LegacyProviderId) => {
     setImporting((prev) => ({ ...prev, [providerId]: true }))
     setImportError((prev) => ({ ...prev, [providerId]: null }))
     try {
@@ -442,16 +444,14 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         if (!importedAnySport) {
           throw new Error(sawNoLeagues ? 'No Sleeper leagues found for this account' : 'Import failed')
         }
-      } else if (providerId === 'espn') {
-        // Add ESPN import logic here
-        throw new Error('ESPN import coming soon')
       } else {
-        throw new Error('Import for this provider coming soon')
+        throw new Error('Use the Import page for this provider — link below.')
       }
       setLegacyStatus(await refreshLegacyImportStatus())
       onImportSuccess()
-    } catch (e: any) {
-      setImportError((prev) => ({ ...prev, [providerId]: e.message || 'Import failed' }))
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Import failed'
+      setImportError((prev) => ({ ...prev, [providerId]: msg }))
     } finally {
       setImporting((prev) => ({ ...prev, [providerId]: false }))
     }
@@ -479,30 +479,52 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               <div key={providerId} className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2 relative">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-bold text-white text-base">{name}</span>
-                  <StepHelp title={`How to import from ${name}`}>Import instructions for {name} will appear here.</StepHelp>
+                  <StepHelp title={`How to import from ${name}`}>
+                    <LegacyProviderImportHelp providerId={providerId} />
+                  </StepHelp>
                 </div>
                 <div className="text-xs text-white/50 mb-1">Status: {importStatusLabel}</div>
                 {imported ? (
                   <div className="text-green-400 text-xs font-semibold">Imported</div>
-                ) : (
+                ) : providerId === 'sleeper' ? (
                   <>
                     <input
                       type="text"
                       value={importInputs[providerId] || ''}
-                      onChange={e => setImportInputs(inputs => ({ ...inputs, [providerId]: e.target.value }))}
-                      placeholder={providerId === 'sleeper' ? 'Sleeper username' : providerId === 'espn' ? 'ESPN League ID' : 'Account/League ID'}
+                      onChange={(e) =>
+                        setImportInputs((inputs) => ({ ...inputs, [providerId]: e.target.value }))
+                      }
+                      placeholder="Sleeper username"
                       className="w-full rounded border border-white/10 bg-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
                       disabled={isDisabled}
                     />
-                    {importError[providerId] && <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>}
+                    {importError[providerId] && (
+                      <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>
+                    )}
                     <button
                       type="button"
-                      onClick={() => handleLegacyProviderImport(providerId)}
+                      onClick={() => void handleLegacyProviderImport(providerId)}
                       disabled={isDisabled || !importInputs[providerId]?.trim()}
                       className="mt-2 w-full rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white disabled:opacity-40"
                     >
                       {importing[providerId] ? 'Importing…' : `Import from ${name}`}
                     </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-white/45 leading-snug">
+                      ESPN, Yahoo, MFL, Fantrax, and Fleaflicker use the same secure import flow as the main Import page
+                      (league id / key and account access).
+                    </p>
+                    {importError[providerId] ? (
+                      <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>
+                    ) : null}
+                    <Link
+                      href="/import"
+                      className="mt-2 flex w-full items-center justify-center rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white hover:opacity-95"
+                    >
+                      Open import tool →
+                    </Link>
                   </>
                 )}
               </div>

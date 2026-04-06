@@ -75,7 +75,7 @@ export default function JoinByCodePage() {
             setMessage(data.alreadyMember ? 'You are already in this league.' : 'You joined the league.')
             if (data.leagueId && !data.creatorLeagueId) {
               setTimeout(() => {
-                window.location.href = `/app/league/${data.leagueId}`
+                window.location.href = `/league/${data.leagueId}`
               }, 1500)
             }
             return
@@ -292,7 +292,7 @@ export default function JoinByCodePage() {
           </p>
           {joinedLeagueId && (
             <Link
-              href={`/app/league/${joinedLeagueId}`}
+              href={`/league/${joinedLeagueId}`}
               className="inline-block rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
             >
               Open league

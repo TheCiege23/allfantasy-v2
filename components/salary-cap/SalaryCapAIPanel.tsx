@@ -161,7 +161,7 @@ export function SalaryCapAIPanel({
       </section>
 
       <a
-        href={`/app/league/${leagueId}?tab=Intelligence`}
+        href={`/league/${leagueId}?tab=Intelligence`}
         className="inline-block text-sm text-cyan-400 hover:underline"
       >
         More AI tools (Intelligence tab) →
