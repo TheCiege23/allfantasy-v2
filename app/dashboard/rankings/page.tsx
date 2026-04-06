@@ -7,7 +7,6 @@ import {
   getLegacyProviderName,
   getImportStatusLabel,
   getProviderStatus,
-  getLegacyProviderHelpHref,
   type LegacyImportStatusResponse,
 } from '@/lib/legacy-import-settings'
 import { StepHelp } from '@/components/league-creation-wizard/StepHelp'
@@ -155,14 +154,6 @@ function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
     }
   }
   return null
-}
-
-interface ImportState {
-  platform: 'sleeper' | 'yahoo' | 'mfl' | 'fantrax' | 'espn'
-  username: string
-  loading: boolean
-  error: string | null
-  successMessage: string | null
 }
 
 type ImportJobProgressResponse = {
@@ -345,14 +336,6 @@ function ImportProgressPanel({
   )
 }
 
-const PLATFORMS = [
-  { id: 'sleeper', label: 'Sleeper', emoji: '🌙' },
-  { id: 'yahoo', label: 'Yahoo', emoji: '🏈' },
-  { id: 'mfl', label: 'MFL', emoji: '🏆' },
-  { id: 'fantrax', label: 'Fantrax', emoji: '📊' },
-  { id: 'espn', label: 'ESPN', emoji: '🔴' },
-] as const
-
 type TierVisual = {
   tier: number
   name: string
@@ -410,7 +393,7 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
   )
 }
 
-function ImportPanel({ onImportSuccess: _onImportSuccess }: { onImportSuccess: () => void }) {
+function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
   const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [importInputs, setImportInputs] = useState<Record<string, string>>({})
@@ -447,6 +430,7 @@ function ImportPanel({ onImportSuccess: _onImportSuccess }: { onImportSuccess: (
         throw new Error('Import for this provider coming soon')
       }
       setLegacyStatus(await refreshLegacyImportStatus())
+      onImportSuccess()
     } catch (e: any) {
       setImportError((prev) => ({ ...prev, [providerId]: e.message || 'Import failed' }))
     } finally {
