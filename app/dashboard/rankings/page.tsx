@@ -155,24 +155,6 @@ interface ImportState {
   successMessage: string | null
 }
 
-function mapLegacyImportError(payload: Record<string, unknown>, status: number): string {
-  const code = typeof payload.error === 'string' ? payload.error : ''
-  if (status === 401 || code === 'UNAUTHENTICATED') return 'Sign in to import your legacy profile.'
-  if (code === 'VERIFICATION_REQUIRED')
-    return 'Verify your email or phone in Settings before importing.'
-  if (code === 'AGE_REQUIRED') return 'Confirm you are 18+ in Settings before importing.'
-  if (status === 409)
-    return typeof payload.error === 'string'
-      ? payload.error
-      : 'This Sleeper account is linked to another AllFantasy user.'
-  if (status === 429) return 'Too many attempts. Try again in a minute.'
-  if (status === 404) {
-    if (code.includes('No Sleeper NFL leagues')) return code
-    return typeof payload.error === 'string' ? payload.error : 'Sleeper username not found. Check spelling (e.g. TheCiege24).'
-  }
-  return typeof payload.error === 'string' ? payload.error : 'Import failed'
-}
-
 type ImportJobProgressResponse = {
   status: string
   progress: number
