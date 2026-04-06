@@ -149,9 +149,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
 
     const requestedDraftType = typeof body.draftType === 'string' ? body.draftType.trim().toLowerCase() : ''
     if (requestedDraftType && requestedDraftType !== 'linear') {
-      return NextResponse.json({ error: 'Unsupported draftType. Only "linear" is currently supported.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'draftType "snake" is not implemented for dispersal drafts yet; use "linear".' },
+        { status: 400 }
+      )
     }
-    const draftType: DispersalDraftConfig['draftType'] = requestedDraftType || 'linear'
+    const draftType: DispersalDraftConfig['draftType'] = 'linear'
 
     const config: DispersalDraftConfig = {
       leagueId,
