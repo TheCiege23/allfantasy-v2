@@ -13,13 +13,16 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    // Deprecated: Remove before TypeScript 7.0
     "downlevelIteration": true,
-    "ignoreDeprecations": "5.0",
+    // Silence deprecation warnings for TS 6.x
+    "ignoreDeprecations": "6.0",
     "plugins": [
       {
         "name": "next"
       }
     ],
+    // Deprecated: Remove before TypeScript 7.0
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
