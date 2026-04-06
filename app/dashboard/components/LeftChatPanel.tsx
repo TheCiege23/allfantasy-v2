@@ -125,6 +125,7 @@ function ChimmyVoicePicker({
         ref={buttonRef}
         type="button"
         onClick={(e) => {
+          console.debug('[ChimmyVoicePicker] Dropdown button clicked');
           e.stopPropagation()
           setOpen((o) => !o)
         }}
