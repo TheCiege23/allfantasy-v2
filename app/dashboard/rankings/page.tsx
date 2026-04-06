@@ -1503,6 +1503,17 @@ function MyRankingsPageInner() {
     return () => window.clearInterval(id)
   }, [justImported, importProcessing, loadRank])
 
+  useEffect(() => {
+    const waitingForTier = !rank && apiImported && !apiTier && !rankFetchError
+    if (!waitingForTier) {
+      setImportStuck(false)
+      return
+    }
+    setImportStuck(false)
+    const timeoutId = window.setTimeout(() => setImportStuck(true), 45000)
+    return () => window.clearTimeout(timeoutId)
+  }, [rank, apiImported, apiTier, rankFetchError])
+
   /** Tier pending after import: poll /api/user/rank (max 10 tries, 3s apart). */
   useEffect(() => {
     if (rank) return
@@ -1683,7 +1694,12 @@ function MyRankingsPageInner() {
           importStuck ? (
             <RankImportTimeoutState />
           ) : (
-            <CalculatingRankState onRetry={() => void loadRank({ silent: true })} />
+            <CalculatingRankState
+              onRetry={() => {
+                setImportStuck(false)
+                void loadRank({ silent: true })
+              }}
+            />
           )
         ) : !apiImported ? (
           <EmptyRankState

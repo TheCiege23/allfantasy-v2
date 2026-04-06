@@ -41,6 +41,9 @@ export async function POST(req: NextRequest) {
     if (season == null || !Array.isArray(leagues)) {
       return NextResponse.json({ error: 'season and leagues required' }, { status: 400 })
     }
+    if (leagues.length > 200) {
+      return NextResponse.json({ error: 'Too many leagues in one request (max 200)' }, { status: 400 })
+    }
 
     if (typeof sleeperUserId === 'string' && sleeperUserId.trim()) {
       await prisma.userProfile

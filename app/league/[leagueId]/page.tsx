@@ -117,50 +117,24 @@ export default async function LeaguePage({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {activeDraft ? (
-        <div
-          style={{
-            background: '#E6F1FB',
-            border: '1px solid #185FA5',
-            borderRadius: 8,
-            padding: '10px 16px',
-            marginBottom: 16,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ color: '#0C447C', fontWeight: 500 }}>
-            {activeDraft.status === 'in_progress'
-              ? 'Dispersal draft is live!'
-              : 'Dispersal draft is scheduled'}
-          </span>
-          <a
-            href={`/league/${leagueId}/dispersal-draft/${activeDraft.id}`}
-            style={{ color: '#185FA5', fontWeight: 500, fontSize: 13 }}
-          >
-            Join Draft Room →
-          </a>
-        </div>
-      ) : null}
-    <LeagueShell
-      league={league}
-      userTeam={userTeam}
-      isOwner={isOwner}
-      isCommissioner={isCommissioner}
-      isHeadCommissioner={isHeadCommissioner}
-      allLeagues={allLeagues}
-      userId={userId}
-      userName={session.user.name ?? session.user.email ?? 'Manager'}
-      userImage={userImage}
-      draftDateIso={draftDateIso}
-      sleeperCommissionerId={sleeperCommissionerId}
-      sleeperUsersByPlatformId={sleeperUsersByPlatformId}
-      currentSleeperUserId={currentSleeperUserId}
-      discordConnected={Boolean(userProfile?.discordUserId)}
-      zombieChimmyPrefill={zombieChimmyPrefill}
-      dispersalDraftInProgress={null}
-    />
+      <LeagueShell
+        league={league}
+        userTeam={userTeam}
+        isOwner={isOwner}
+        isCommissioner={isCommissioner}
+        isHeadCommissioner={isHeadCommissioner}
+        allLeagues={allLeagues}
+        userId={userId}
+        userName={session.user.name ?? session.user.email ?? 'Manager'}
+        userImage={userImage}
+        draftDateIso={draftDateIso}
+        sleeperCommissionerId={sleeperCommissionerId}
+        sleeperUsersByPlatformId={sleeperUsersByPlatformId}
+        currentSleeperUserId={currentSleeperUserId}
+        discordConnected={Boolean(userProfile?.discordUserId)}
+        zombieChimmyPrefill={zombieChimmyPrefill}
+        dispersalDraftInProgress={activeDraft ? { draftId: activeDraft.id, status: activeDraft.status } : null}
+      />
     </div>
   )
 }
