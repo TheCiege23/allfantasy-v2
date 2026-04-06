@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { fetchWithChain } from '@/lib/workers/api-chain'
-import { API_CHAIN_TTLS, SUPPORTED_SPORTS, toApiChainSport } from '@/lib/workers/api-config'
+import { API_CHAIN_TTLS, SUPPORTED_SPORTS, apiChainSportToDbSport, toApiChainSport } from '@/lib/workers/api-config'
 import type { ApiChainSport, ApiDataType } from '@/lib/workers/api-config'
 
 export const dynamic = 'force-dynamic'
@@ -43,7 +43,7 @@ async function handleSports(req: {
   })
 
   return NextResponse.json({
-    sport: chainSport,
+    sport: apiChainSportToDbSport(chainSport),
     dataType,
     fromCache: result.fromCache,
     cacheAge: result.cacheAge ?? null,

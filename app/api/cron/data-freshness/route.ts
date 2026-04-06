@@ -18,9 +18,11 @@ export async function GET(req: NextRequest) {
   const results: Record<string, string> = {}
   let refreshed = 0
   let errors = 0
+  let attempts = 0
 
   for (const sport of SUPPORTED_SPORTS) {
     for (const dataType of REFRESH_DATA_TYPES) {
+      attempts++
       try {
         await fetchWithChain({ sport, dataType, forceRefresh: true })
         results[`${sport}/${dataType}`] = 'ok'
@@ -35,5 +37,6 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[data-freshness] refreshed=${refreshed} errors=${errors}`)
-  return NextResponse.json({ refreshed, errors, results })
+  const status = attempts > 0 && errors === attempts ? 500 : 200
+  return NextResponse.json({ refreshed, errors, results }, { status })
 }

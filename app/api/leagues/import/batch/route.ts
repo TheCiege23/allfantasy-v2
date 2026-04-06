@@ -6,6 +6,7 @@ import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { runWithConcurrency } from '@/lib/async-utils'
 import { SLEEPER_IMPORT_SPORTS, SLEEPER_SPORT_BY_SUPPORTED } from '@/lib/league-import/sleeper/import-sports'
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -41,6 +42,10 @@ type SleeperRosterApi = {
   co_owners?: string[]
   settings?: Record<string, unknown>
 }
+
+const MIN_ALLOWED_SEASON = 2000
+const MAX_ALLOWED_SEASON_BUFFER = 1
+const PLATFORM_LEAGUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 const SUPPORTED_BY_SLEEPER_SPORT: Record<string, SupportedSport> = {
   nfl: 'NFL',
@@ -80,6 +85,21 @@ function toIntegerOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function toValidatedSeason(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isInteger(parsed)) return null
+  const maxSeason = new Date().getFullYear() + MAX_ALLOWED_SEASON_BUFFER
+  if (parsed < MIN_ALLOWED_SEASON || parsed > maxSeason) return null
+  return parsed
+}
+
+function toValidatedPlatformLeagueId(value: unknown): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null
+  const normalized = String(value).trim()
+  if (!normalized) return null
+  return PLATFORM_LEAGUE_ID_PATTERN.test(normalized) ? normalized : null
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
@@ -101,8 +121,17 @@ export async function POST(req: NextRequest) {
     if (season == null || !Array.isArray(leagues)) {
       return NextResponse.json({ error: 'season and leagues required' }, { status: 400 })
     }
+    const validatedSeason = toValidatedSeason(season)
+    if (validatedSeason == null) {
+      return NextResponse.json({ error: 'Invalid season' }, { status: 400 })
+    }
     if (leagues.length > 200) {
       return NextResponse.json({ error: 'Too many leagues in one request (max 200)' }, { status: 400 })
+    }
+    for (const league of leagues) {
+      if (!toValidatedPlatformLeagueId(league?.platformLeagueId)) {
+        return NextResponse.json({ error: 'Invalid platformLeagueId' }, { status: 400 })
+      }
     }
 
     const sleeperUserIdTrimmed = typeof sleeperUserId === 'string' ? sleeperUserId.trim() : ''
@@ -117,6 +146,22 @@ export async function POST(req: NextRequest) {
 
     if (!resolvedSleeperUserId) {
       return NextResponse.json({ error: 'sleeperUserId required' }, { status: 400 })
+    }
+
+    const rl = consumeRateLimit({
+      scope: 'leagues',
+      action: 'import_batch',
+      sleeperUsername: userId,
+      ip: getClientIp(req),
+      maxRequests: 3,
+      windowMs: 60_000,
+      includeIpInKey: true,
+    })
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Please wait before importing again.', retryAfterSec: rl.retryAfterSec },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec || 60) } }
+      )
     }
 
     await prisma.userProfile.upsert({
@@ -138,7 +183,7 @@ export async function POST(req: NextRequest) {
     for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
       try {
         const userLeaguesRes = await fetch(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/${sleeperSport}/${season}`,
+          `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/${sleeperSport}/${validatedSeason}`,
           { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } }
         )
         if (!userLeaguesRes.ok) continue
@@ -158,7 +203,7 @@ export async function POST(req: NextRequest) {
 
     const saveResults = await runWithConcurrency(leagues, 8, async (league) => {
       try {
-        const platformLeagueId = String(league.platformLeagueId ?? '')
+        const platformLeagueId = toValidatedPlatformLeagueId(league.platformLeagueId)
         if (!platformLeagueId) return 0
 
         const requestedSport =
@@ -189,6 +234,29 @@ export async function POST(req: NextRequest) {
           typeof sleeperLeague.sport === 'string' ? sleeperLeague.sport : null,
           requestedSport ?? league.sport
         )
+        const hintedFinalStanding = toIntegerOrNull(league.importFinalStanding)
+        const hintedWins = toNumber(league.importWins, 0)
+        const hintedLosses = toNumber(league.importLosses, 0)
+        const hintedTies = toNumber(league.importTies, 0)
+        const hintedMadePlayoffs =
+          typeof league.importMadePlayoffs === 'boolean'
+            ? league.importMadePlayoffs
+            : hintedFinalStanding != null
+              ? hintedFinalStanding <= Math.max(1, Math.ceil((league.leagueSize || 12) / 3))
+              : false
+        const hintedWonChampionship =
+          typeof league.importWonChampionship === 'boolean'
+            ? league.importWonChampionship
+            : hintedFinalStanding === 1
+        const hintedPointsFor =
+          league.importPointsFor == null ? null : toNumber(league.importPointsFor, Number.NaN)
+        let wins = hintedWins
+        let losses = hintedLosses
+        let ties = hintedTies
+        let finalStanding = hintedFinalStanding
+        let madePlayoffs = hintedMadePlayoffs
+        let wonChampionship = hintedWonChampionship
+        let pf = Number.isFinite(hintedPointsFor) ? hintedPointsFor : null
 
         const rosterRes = await fetch(
           `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/rosters`,
@@ -197,8 +265,7 @@ export async function POST(req: NextRequest) {
             signal: AbortSignal.timeout(4500),
           }
         ).catch(() => null)
-        if (!rosterRes?.ok) return 0
-        const rosters = (await rosterRes.json().catch(() => [])) as SleeperRosterApi[]
+        const rosters = rosterRes?.ok ? ((await rosterRes.json().catch(() => [])) as SleeperRosterApi[]) : []
         const mine = Array.isArray(rosters)
           ? rosters.find((row) => {
               const ownerId = row?.owner_id != null ? String(row.owner_id) : ''
@@ -218,16 +285,18 @@ export async function POST(req: NextRequest) {
             ? sleeperLeague.settings.playoff_teams
             : Math.max(1, Math.ceil(totalTeams / 3))
 
-        const settings = (mine?.settings ?? {}) as Record<string, unknown>
-        const wins = toNumber(settings.wins, 0)
-        const losses = toNumber(settings.losses, 0)
-        const ties = toNumber(settings.ties, 0)
-        const finalStanding = toIntegerOrNull(settings.final_standing ?? settings.rank)
-        const madePlayoffs = finalStanding != null ? finalStanding <= playoffTeams : false
-        const wonChampionship = finalStanding === 1
-        const fpts = toNumber(settings.fpts, NaN)
-        const fptsDecimal = toNumber(settings.fpts_decimal, 0)
-        const pf = Number.isFinite(fpts) ? fpts + fptsDecimal / 100 : null
+        if (mine) {
+          const settings = (mine.settings ?? {}) as Record<string, unknown>
+          wins = toNumber(settings.wins, wins)
+          losses = toNumber(settings.losses, losses)
+          ties = toNumber(settings.ties, ties)
+          finalStanding = toIntegerOrNull(settings.final_standing ?? settings.rank) ?? finalStanding
+          madePlayoffs = finalStanding != null ? finalStanding <= playoffTeams : madePlayoffs
+          wonChampionship = finalStanding === 1
+          const fpts = toNumber(settings.fpts, Number.NaN)
+          const fptsDecimal = toNumber(settings.fpts_decimal, 0)
+          pf = Number.isFinite(fpts) ? fpts + fptsDecimal / 100 : pf
+        }
 
         await prisma.league.upsert({
           where: {
@@ -235,7 +304,7 @@ export async function POST(req: NextRequest) {
               userId,
               platform: 'sleeper',
               platformLeagueId,
-              season,
+              season: validatedSeason,
             },
           },
           update: {
@@ -257,7 +326,7 @@ export async function POST(req: NextRequest) {
             platformLeagueId,
             name: sleeperLeague.name ?? league.name,
             sport: resolvedLeagueSport,
-            season,
+            season: validatedSeason,
             leagueSize: totalTeams,
             importWins: wins,
             importLosses: losses,
@@ -281,7 +350,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      season,
+      season: validatedSeason,
       saved,
       rankTier: rankResult?.rankTier ?? null,
       xpLevel: rankResult?.xpLevel ?? null,
