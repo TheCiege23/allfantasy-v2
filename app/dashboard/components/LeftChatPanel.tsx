@@ -18,29 +18,59 @@ function ChimmyVoicePicker({
   selectedVoiceId: string
   onVoiceChange: (voiceId: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
 
-  const updateMenuPosition = useCallback(() => {
-    const el = buttonRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const width = Math.max(220, r.width)
-    const left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - width - 8))
-    const gap = 8
-    const maxMenuH = Math.min(320, window.innerHeight - 16)
-    const estimatedMenuHeight = Math.min(maxMenuH, 56 + CHIMMY_VOICES.length * 52 + 48)
-    const spaceBelow = window.innerHeight - r.bottom - gap
-    const spaceAbove = r.top - gap
-    const openUp = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow
-    const top = openUp
-      ? Math.max(gap, r.top - estimatedMenuHeight - 6)
-      const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
+  return (
+    <div className="relative z-[100]">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+        aria-haspopup="listbox"
+        tabIndex={0}
+        style={{ marginBottom: 4 }}
+      >
+        {selectedVoice.name}
+        <span className="ml-1 text-[9px] text-white/30" aria-hidden>
+          ▾
         </span>
       </button>
-      {menu}
+      <div
+        className="absolute left-0 mt-1 w-full max-w-xs rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl z-[10000]"
+        role="listbox"
+        aria-label="Chimmy voice"
+      >
+        <p className="sticky top-0 z-[1] border-b border-white/[0.06] bg-[#0f1521] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
+          Chimmy Voice
+        </p>
+        {CHIMMY_VOICES.map((voice) => (
+          <button
+            key={voice.id}
+            type="button"
+            role="option"
+            aria-selected={voice.id === selectedVoiceId}
+            onClick={() => onVoiceChange(voice.id)}
+            className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
+              voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
+            }`}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-semibold text-white">{voice.name}</span>
+                <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
+              </div>
+              <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
+            </div>
+            {voice.id === selectedVoiceId ? (
+              <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
+                ✓
+              </span>
+            ) : null}
+          </button>
+        ))}
+        <div className="border-t border-white/[0.06] px-3 py-2">
+          <p className="text-[9px] text-white/20">Powered by ElevenLabs</p>
+        </div>
+      </div>
     </div>
   )
 }
