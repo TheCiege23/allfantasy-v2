@@ -147,7 +147,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     const autoPickOnTimeout = body.autoPickOnTimeout !== false
     const scenario = body.scenario === 'league_downsizing' ? 'league_downsizing' : 'orphan_teams'
 
-    const draftType = typeof body.draftType === 'string' && body.draftType.trim() ? body.draftType.trim() : 'linear'
+    const requestedDraftType = typeof body.draftType === 'string' ? body.draftType.trim().toLowerCase() : ''
+    if (requestedDraftType && requestedDraftType !== 'linear') {
+      return NextResponse.json({ error: 'Unsupported draftType. Only "linear" is currently supported.' }, { status: 400 })
+    }
+    const draftType: DispersalDraftConfig['draftType'] = requestedDraftType || 'linear'
 
     const config: DispersalDraftConfig = {
       leagueId,
