@@ -62,7 +62,7 @@ export function getNotificationDestination(n: PlatformNotification): Notificatio
 
   if (leagueId && n.type?.startsWith("draft_")) {
     return {
-      href: withSportContext(`/app/league/${leagueId}/draft`, sport),
+      href: withSportContext(`/league/${leagueId}/draft`, sport),
       label: (meta.actionLabel as string) ?? "Open draft",
     }
   }

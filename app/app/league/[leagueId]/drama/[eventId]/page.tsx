@@ -131,7 +131,7 @@ export default function DramaEventDetailPage() {
           <ArrowLeft className="h-4 w-4" /> Back to league
         </Link>
         <Link
-          href={`/app/league/${leagueId}/drama`}
+          href={`/league/${leagueId}/drama`}
           className="inline-flex items-center gap-1 text-sm text-amber-200 hover:underline"
         >
           Open drama timeline
