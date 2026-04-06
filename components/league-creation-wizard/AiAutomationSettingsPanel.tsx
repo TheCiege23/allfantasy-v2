@@ -22,7 +22,7 @@ export type AutomationDraftPreset = 'alerts_only' | 'standard' | 'full'
 
 const AUTOMATION_PRESET_LABEL: Record<AutomationDraftPreset, string> = {
   alerts_only: 'Draft alerts only',
-  standard: 'Standard (alerts, queue autopick, reminders)',
+  standard: 'Standard (alerts, queue autopick)',
   full: 'Full draft assistance (all alerts and reminders on)',
 }
 
@@ -38,7 +38,7 @@ function presetToSettings(preset: AutomationDraftPreset): Partial<WizardAutomati
       return {
         draftNotificationsEnabled: true,
         autopickFromQueueEnabled: true,
-        slowDraftRemindersEnabled: true,
+        slowDraftRemindersEnabled: false,
       }
     case 'full':
     default:
