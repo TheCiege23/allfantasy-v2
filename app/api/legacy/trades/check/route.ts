@@ -1,7 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import OpenAI from 'openai'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 
 type SleeperTransaction = {
@@ -66,10 +66,7 @@ function getPlayerName(playerId: string, players: Record<string, SleeperPlayer>)
   return p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || playerId
 }
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+const openai = getOpenAIRouteClient()
 
 async function analyzeTrade(
   playersGiven: string[],

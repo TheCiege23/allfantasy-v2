@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import {
   TradePartnerRequestSchema,
   TradePartnerResponseSchema,
@@ -9,10 +9,7 @@ import {
 } from '@/lib/trade-partner-prompt';
 import { rateLimit } from '@/lib/rate-limit';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+const openai = getOpenAIRouteClient();
 
 export const POST = withApiUsage({ endpoint: "/api/trade-partner", tool: "TradePartner" })(async (request: NextRequest) => {
   try {

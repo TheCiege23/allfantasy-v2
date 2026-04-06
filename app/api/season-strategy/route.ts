@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
-import OpenAI from 'openai'
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { authOptions } from '@/lib/auth'
 import {
   getLeagueInfo,
@@ -27,10 +27,7 @@ import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@
 
 export const runtime = 'nodejs'
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-})
+const openai = getOpenAIRouteClient()
 
 const API_SPORTS = ['nfl', 'nhl', 'nba', 'mlb', 'ncaaf', 'ncaab', 'soccer'] as const
 type ApiSport = (typeof API_SPORTS)[number]

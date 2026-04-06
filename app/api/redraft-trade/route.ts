@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { z } from 'zod';
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
 import { trackLegacyToolUsage } from '@/lib/analytics-server';
@@ -16,10 +16,7 @@ import {
 } from '@/lib/redraft-tiers';
 import { AI_CORE_PERSONALITY, getModeInstructions, SIGNATURE_PHRASES } from '@/lib/ai-personality';
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
-});
+const openai = getOpenAIRouteClient();
 
 const PlayerInputSchema = z.object({
   name: z.string(),

@@ -1,6 +1,6 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { prisma } from "@/lib/prisma"
 import { rateLimit } from "@/lib/rate-limit"
 import { trackLegacyToolUsage } from "@/lib/analytics-server"
@@ -30,14 +30,7 @@ import {
   type LegacyScreenName,
 } from "@/lib/legacy-tool/screen-contracts"
 
-const openai = new OpenAI({
-  apiKey:
-    process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY,
-  baseURL:
-    process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ||
-    process.env.OPENAI_BASE_URL ||
-    "https://api.openai.com/v1",
-})
+const openai = getOpenAIRouteClient()
 
 const LEGACY_AI_SYSTEM_PROMPT = `
 ${AI_CORE_PERSONALITY}
