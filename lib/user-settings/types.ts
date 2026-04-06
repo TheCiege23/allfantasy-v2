@@ -82,6 +82,8 @@ export interface UserProfileForSettings {
   hasPassword: boolean
   profileComplete: boolean
   sleeperUsername: string | null
+  /** Sleeper platform user id when linked */
+  sleeperUserId: string | null
   sleeperLinkedAt: Date | null
   discordUserId: string | null
   discordUsername: string | null

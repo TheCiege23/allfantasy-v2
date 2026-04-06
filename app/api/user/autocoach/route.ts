@@ -9,44 +9,50 @@ import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const profile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { autoCoachGlobalEnabled: true },
-  })
+    const profile = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { autoCoachGlobalEnabled: true },
+    })
 
-  const settings = await prisma.autoCoachSetting.findMany({
-    where: { userId },
-    include: {
-      league: {
-        select: {
-          id: true,
-          name: true,
-          autoCoachEnabled: true,
-          leagueVariant: true,
-          bestBallMode: true,
+    const settings = await prisma.autoCoachSetting.findMany({
+      where: { userId },
+      include: {
+        league: {
+          select: {
+            id: true,
+            name: true,
+            autoCoachEnabled: true,
+            leagueVariant: true,
+            bestBallMode: true,
+          },
         },
       },
-    },
-    orderBy: { updatedAt: 'desc' },
-  })
+      orderBy: { updatedAt: 'desc' },
+    })
 
-  return NextResponse.json({
-    globalEnabled: profile?.autoCoachGlobalEnabled ?? true,
-    settings: settings.map((s) => ({
-      id: s.id,
-      leagueId: s.leagueId,
-      enabled: s.enabled,
-      blockedByCommissioner: s.blockedByCommissioner,
-      lastRunAt: s.lastRunAt?.toISOString() ?? null,
-      lastSwapAt: s.lastSwapAt?.toISOString() ?? null,
-      totalSwapsMade: s.totalSwapsMade,
-      league: s.league,
-    })),
-  })
+    return NextResponse.json({
+      globalEnabled: profile?.autoCoachGlobalEnabled ?? true,
+      settings: settings.map((s) => ({
+        id: s.id,
+        leagueId: s.leagueId,
+        enabled: s.enabled,
+        blockedByCommissioner: s.blockedByCommissioner,
+        lastRunAt: s.lastRunAt?.toISOString() ?? null,
+        lastSwapAt: s.lastSwapAt?.toISOString() ?? null,
+        totalSwapsMade: s.totalSwapsMade,
+        league: s.league,
+      })),
+    })
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[autocoach GET]', e.message, e.stack)
+    return NextResponse.json({ error: 'Failed to load AutoCoach settings' }, { status: 500 })
+  }
 }
 
 export async function POST(req: NextRequest) {

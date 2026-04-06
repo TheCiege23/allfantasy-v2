@@ -12,6 +12,12 @@ function logFullError(context: string, err: unknown) {
   console.error(context, '[api/user/rank] FULL ERROR:', JSON.stringify(payload, null, 2))
 }
 
+/** `NextResponse.json` cannot serialize BigInt — normalize Prisma bigint fields. */
+function jsonSafeXp(n: bigint | number | null | undefined): number {
+  if (n == null) return 0
+  return typeof n === 'bigint' ? Number(n) : Number.isFinite(n) ? n : 0
+}
+
 function tierNullResponse() {
   return NextResponse.json({
     tier: null,
@@ -46,7 +52,7 @@ function tierNullResponse() {
 
 /** Full 25-level payload for `/api/user/rank` (STEP 3). */
 function userRankLevelPayloadFromProfile(p: ProfileRankDenormResult) {
-  const xp = p.xpTotal != null ? Number(p.xpTotal) : 0
+  const xp = jsonSafeXp(p.xpTotal)
   const lv = getLevelFromXp(xp)
   return {
     tier: lv.tier,
@@ -423,9 +429,9 @@ export async function GET(request: Request) {
           appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
         const xpNum =
           denormEarly?.xpTotal != null
-            ? Number(denormEarly.xpTotal)
-            : Number(
-                denormEarly && 'legacyCareerXp' in denormEarly ? denormEarly.legacyCareerXp ?? 0 : 0,
+            ? jsonSafeXp(denormEarly.xpTotal)
+            : jsonSafeXp(
+                denormEarly && 'legacyCareerXp' in denormEarly ? denormEarly.legacyCareerXp : null,
               )
         const lv = getLevelFromXp(xpNum)
         const careerStats = careerStatsFromProfileDenorm(denormEarly!)
@@ -433,7 +439,9 @@ export async function GET(request: Request) {
           careerTier: lv.tierGroup,
           careerTierName: lv.name,
           careerLevel: denormEarly?.xpLevel ?? lv.level,
-          careerXp: String(denormEarly?.legacyCareerXp ?? denormEarly?.xpTotal ?? 0),
+          careerXp: String(
+            jsonSafeXp(denormEarly?.legacyCareerXp ?? denormEarly?.xpTotal),
+          ),
           aiReportGrade: 'B',
           aiScore: 70,
           aiInsight: 'Import your leagues to generate your AI insight.',
@@ -520,15 +528,15 @@ export async function GET(request: Request) {
       if (tierLabel) {
         const xpNum =
           denorm?.xpTotal != null
-            ? Number(denorm.xpTotal)
-            : Number(denorm && 'legacyCareerXp' in denorm ? denorm.legacyCareerXp ?? 0 : 0)
+            ? jsonSafeXp(denorm.xpTotal)
+            : jsonSafeXp(denorm && 'legacyCareerXp' in denorm ? denorm.legacyCareerXp : null)
         const lv = getLevelFromXp(xpNum)
         const careerStats = careerStatsFromProfileDenorm(denorm!)
         const rank = {
           careerTier: lv.tierGroup,
           careerTierName: lv.name,
           careerLevel: denorm?.xpLevel ?? lv.level,
-          careerXp: String(denorm?.legacyCareerXp ?? denorm?.xpTotal ?? 0),
+          careerXp: String(jsonSafeXp(denorm?.legacyCareerXp ?? denorm?.xpTotal)),
           aiReportGrade: 'B',
           aiScore: 70,
           aiInsight: 'Import your leagues to generate your AI insight.',
@@ -730,7 +738,7 @@ export async function GET(request: Request) {
       careerTier: lv.tierGroup,
       careerTierName: lv.name,
       careerLevel: rankCache.careerLevel ?? lv.level,
-      careerXp: careerXpBig.toString(),
+      careerXp: String(jsonSafeXp(careerXpBig)),
       aiReportGrade: scoreToLetterGrade(aiScore),
       aiScore,
       aiInsight,
