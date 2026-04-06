@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { withApiUsage } from '@/lib/telemetry/usage'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { API_CHAIN_TTLS, SUPPORTED_SPORTS, toApiChainSport } from '@/lib/workers/api-config'
 import type { ApiDataType } from '@/lib/workers/api-config'
@@ -79,10 +80,11 @@ async function handleSports(req: {
   })
 }
 
-export async function GET(req: NextRequest) {
+const getSportsHandler = async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
     const forceRefresh = searchParams.get('refresh') === 'true'
+    const identifier = searchParams.get('id') || undefined
     let options: Record<string, unknown> | undefined
     const optionsRaw = searchParams.get('options')
     if (optionsRaw) {
@@ -93,10 +95,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const mergedOptions = options ? { ...options } : {}
+    if (identifier) {
+      mergedOptions.id ??= identifier
+      mergedOptions.identifier ??= identifier
+      mergedOptions.search ??= identifier
+      mergedOptions.playerName ??= identifier
+    }
+
     return await handleSports({
       sport: searchParams.get('sport') ?? 'nfl',
       dataType: searchParams.get('type') ?? 'players',
-      options,
+      options: Object.keys(mergedOptions).length > 0 ? mergedOptions : undefined,
       forceRefresh,
     })
   } catch (err: unknown) {
@@ -106,7 +116,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+const postSportsHandler = async (req: NextRequest) => {
   try {
     const body = (await req.json().catch(() => ({}))) as {
       sport?: string
@@ -128,3 +138,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
+
+export const GET = withApiUsage({ endpoint: '/api/sports', tool: 'Sports' })(getSportsHandler)
+export const POST = withApiUsage({ endpoint: '/api/sports', tool: 'Sports' })(postSportsHandler)
