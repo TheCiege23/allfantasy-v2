@@ -45,8 +45,12 @@ export default function NotificationBell() {
   const panelId = "notification-center-drawer"
 
   const pollUnread = useCallback(async () => {
-    const n = await fetchUnreadTotal()
-    setServerUnreadCount(n)
+    try {
+      const n = await fetchUnreadTotal()
+      setServerUnreadCount(n)
+    } catch {
+      setServerUnreadCount((c) => c ?? 0)
+    }
   }, [])
 
   useEffect(() => {
@@ -98,9 +102,11 @@ export default function NotificationBell() {
     }
   }, [pathname])
 
-  const handleBellClick = async () => {
+  const handleBellClick = () => {
     const next = !open
-    if (next) {
+    setOpen(next)
+    if (!next) return
+    void (async () => {
       try {
         await fetch("/api/user/notifications", {
           method: "PATCH",
@@ -113,8 +119,7 @@ export default function NotificationBell() {
       } catch {
         /* still open panel */
       }
-    }
-    setOpen(next)
+    })()
   }
 
   return (

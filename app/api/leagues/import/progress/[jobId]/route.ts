@@ -68,7 +68,15 @@ export async function GET(
       lastRankLevel: job.lastRankLevel,
       lastXpTotal: job.lastXpTotal ?? 0,
       completedAt: job.completedAt,
-      seasons,
+      seasons: seasons.map((s) => ({
+        ...s,
+        leagueCount: s.leagueCount ?? 0,
+        wins: s.wins ?? 0,
+        losses: s.losses ?? 0,
+        championships: s.championships ?? 0,
+        playoffApps: s.playoffApps ?? 0,
+        xpEarned: s.xpEarned ?? 0,
+      })),
     })
   } catch (err: unknown) {
     const e = err instanceof Error ? err : new Error(String(err))
