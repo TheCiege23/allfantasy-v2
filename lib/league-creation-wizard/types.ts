@@ -194,7 +194,7 @@ export interface LeagueCreationWizardState {
 }
 
 /** Streamlined flow: sport includes format + draft style; AI + draft automation share one step. */
-export const WIZARD_STEP_ORDER: WizardStepId[] = [
+export const WIZARD_STEP_ORDER = [
   'sport',
   'team_setup',
   'scoring',
@@ -202,7 +202,10 @@ export const WIZARD_STEP_ORDER: WizardStepId[] = [
   'ai_settings',
   'privacy',
   'review',
-]
+] as const satisfies readonly WizardStepId[]
+
+/** Steps actually shown in the current wizard flow (subset of {@link WizardStepId}). */
+export type WizardActiveStepId = (typeof WIZARD_STEP_ORDER)[number]
 
 export const DEFAULT_DRAFT_SETTINGS: WizardDraftSettings = {
   rounds: 15,

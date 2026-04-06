@@ -352,7 +352,7 @@ export function LeagueCreationWizard({
     loading: creationPresetLoading,
     error: creationPresetError,
   } = useSportPreset(state.sport as any, effectiveLeagueVariant)
-  const stepIndex = WIZARD_STEP_ORDER.indexOf(state.step)
+  const stepIndex = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
   const currentStepNumber = stepIndex + 1
   const totalSteps = WIZARD_STEP_ORDER.length
   const stepLabel =
@@ -409,13 +409,13 @@ export function LeagueCreationWizard({
       })
       return
     }
-    const idx = WIZARD_STEP_ORDER.indexOf(state.step)
+    const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
     if (idx < WIZARD_STEP_ORDER.length - 1) go(WIZARD_STEP_ORDER[idx + 1]!)
     else go('review')
   }, [state.step, go, stepValidationError])
 
   const goBack = useCallback(() => {
-    const idx = WIZARD_STEP_ORDER.indexOf(state.step)
+    const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
     if (idx > 0) go(WIZARD_STEP_ORDER[idx - 1]!)
   }, [state.step, go])
 
