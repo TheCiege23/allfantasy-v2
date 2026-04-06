@@ -8,6 +8,7 @@ import {
   getImportStatusLabel,
   getProviderStatus,
   getLegacyProviderHelpHref,
+  type LegacyImportStatusResponse,
 } from '@/lib/legacy-import-settings'
 import { StepHelp } from '@/components/league-creation-wizard/StepHelp'
 import Link from 'next/link'
@@ -409,11 +410,9 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
   )
 }
 
-function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
-  const router = useRouter()
-  const [legacyStatus, setLegacyStatus] = useState(null)
+function ImportPanel({ onImportSuccess: _onImportSuccess }: { onImportSuccess: () => void }) {
+  const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [importInputs, setImportInputs] = useState<Record<string, string>>({})
   const [importing, setImporting] = useState<Record<string, boolean>>({})
   const [importError, setImportError] = useState<Record<string, string | null>>({})
@@ -426,7 +425,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     })()
   }, [])
 
-  const handleImport = async (providerId: string) => {
+  const handleLegacyProviderImport = async (providerId: string) => {
     setImporting((prev) => ({ ...prev, [providerId]: true }))
     setImportError((prev) => ({ ...prev, [providerId]: null }))
     try {
@@ -453,167 +452,6 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     } finally {
       setImporting((prev) => ({ ...prev, [providerId]: false }))
     }
-  }
-
-  const runClientSideImport = useCallback(
-    async (sleeperUsername: string) => {
-      setImporting(true)
-      setImportError(null)
-      setTotalSeasons(0)
-      setCurrentSeason(null)
-      setSeasonIndex(0)
-      setLeaguesSaved(0)
-      setCompletedSeasons([])
-      setCurrentLevel(null)
-      setCurrentTier(null)
-      setCurrentXp(null)
-
-      try {
-        const importRes = await fetch('/api/leagues/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ username: sleeperUsername, sleeperUsername }),
-        })
-        const importData = (await importRes.json().catch(() => ({}))) as {
-          jobId?: string
-          totalSeasons?: number
-          error?: string
-        }
-        if (!importRes.ok) {
-          throw new Error(
-            typeof importData.error === 'string' ? importData.error : 'Failed to start Sleeper import'
-          )
-        }
-        const jobId = typeof importData.jobId === 'string' ? importData.jobId.trim() : ''
-        if (!jobId) {
-          throw new Error('Import started but no job id was returned')
-        }
-        setTotalSeasons(typeof importData.totalSeasons === 'number' ? importData.totalSeasons : 0)
-
-        onImportSuccess()
-        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(jobId)}`)
-        return true
-      } catch (err: unknown) {
-        setImportError(err instanceof Error ? err.message : 'Import failed')
-        setImporting(false)
-        return false
-      }
-    },
-    [onImportSuccess, router]
-  )
-
-  const handleImport = useCallback(async () => {
-    if (!state.username.trim()) return
-
-    if (state.platform !== 'sleeper') {
-      setState((current) => ({
-        ...current,
-        error: `${selectedPlatform.label} needs the full AF Legacy import flow right now. We'll take you there.`,
-      }))
-      router.push('/af-legacy')
-      return
-    }
-
-    setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
-
-    const started = await runClientSideImport(state.username.trim().toLowerCase())
-    if (!started) {
-      setState((current) => ({ ...current, loading: false }))
-    }
-  }, [router, runClientSideImport, selectedPlatform.label, state.platform, state.username])
-
-  if (isImporting) {
-    const pct =
-      totalSeasons > 0 ? Math.round((seasonIndex / totalSeasons) * 100) : 0
-    return (
-      <div
-        className="rounded-2xl border border-white/8 bg-gradient-to-br from-[#12082a] to-[#0a0a1e] p-6 shadow-2xl"
-        data-testid="client-import-progress"
-      >
-        <div style={{ textAlign: 'center', padding: 32 }}>
-          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#f8fafc' }}>
-            Importing your history...
-          </div>
-          <div style={{ fontSize: 13, color: 'gray', marginBottom: 20 }}>
-            {currentSeason != null
-              ? `Season ${currentSeason} (${seasonIndex + 1} of ${totalSeasons})`
-              : 'Discovering seasons...'}
-          </div>
-
-          <div
-            style={{
-              height: 8,
-              background: '#eee',
-              borderRadius: 4,
-              margin: '0 auto 20px',
-              maxWidth: 400,
-            }}
-          >
-            <div
-              style={{
-                height: '100%',
-                borderRadius: 4,
-                width: `${pct}%`,
-                background: '#185FA5',
-                transition: 'width 0.5s',
-              }}
-            />
-          </div>
-
-          {currentLevel != null ? (
-            <div style={{ fontSize: 14, color: '#185FA5' }}>
-              Current rank: Level {currentLevel}
-              {currentTier ? ` · ${currentTier}` : ''}
-              {currentXp != null ? <span> · {currentXp.toLocaleString()} XP</span> : null}
-            </div>
-          ) : null}
-
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              marginTop: 16,
-            }}
-          >
-            {completedSeasons.map((s) => (
-              <span
-                key={s.season}
-                style={{
-                  background: '#EAF3DE',
-                  color: '#27500A',
-                  padding: '3px 10px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-              >
-                ✓ {s.season} ({s.leagues} leagues)
-              </span>
-            ))}
-            {currentSeason != null && !completedSeasons.find((x) => x.season === currentSeason) ? (
-              <span
-                style={{
-                  background: '#E6F1FB',
-                  color: '#0C447C',
-                  padding: '3px 10px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                  border: '1px solid #185FA5',
-                }}
-              >
-                ⟳ {currentSeason}...
-              </span>
-            ) : null}
-          </div>
-
-          <div style={{ marginTop: 16, fontSize: 13, color: 'gray' }}>
-            {leaguesSaved} leagues saved so far
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -656,7 +494,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                     {importError[providerId] && <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>}
                     <button
                       type="button"
-                      onClick={() => handleImport(providerId)}
+                      onClick={() => handleLegacyProviderImport(providerId)}
                       disabled={isDisabled || !importInputs[providerId]?.trim()}
                       className="mt-2 w-full rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white disabled:opacity-40"
                     >
