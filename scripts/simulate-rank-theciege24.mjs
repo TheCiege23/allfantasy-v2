@@ -1,5 +1,5 @@
 /**
- * Simulation: Sleeper NFL leagues 2017–2025 for TheCiege24, then same tier logic as calculateAndSaveRank.
+ * Simulation: Sleeper NFL leagues 2017–2025 for TheCiege24, then same XP + level logic as calculateAndSaveRank.
  * Run: node scripts/simulate-rank-theciege24.mjs
  */
 const SLEEPER_USER_ID = "591462610482806784"
@@ -22,31 +22,24 @@ async function main() {
   const n = leagues.length
   console.log("\nTotal league-season rows (mock DB rows):", n)
 
-  // Without import_wins from DB, calculateAndSaveRank uses zeros unless columns filled — mirror "rows only" tier thresholds
   const careerWins = 0
-  const careerLosses = 0
   const careerChampionships = 0
   const careerPlayoffAppearances = 0
   const careerSeasonsPlayed = n
   const careerLeaguesPlayed = new Set(leagues.map((l) => l.season)).size
+  const leagueSizeBonus = 0
 
-  const xpTotal =
+  const xpNum =
     careerWins * 10 +
-    careerChampionships * 100 +
-    careerPlayoffAppearances * 25 +
-    careerSeasonsPlayed * 5
+    careerPlayoffAppearances * 30 +
+    careerChampionships * 200 +
+    careerLeaguesPlayed * 10 +
+    leagueSizeBonus
 
-  let rankTier = "T6"
-  if (careerChampionships >= 3) rankTier = "T1"
-  else if (careerChampionships >= 1) rankTier = "T2"
-  else if (careerPlayoffAppearances >= 3) rankTier = "T3"
-  else if (careerSeasonsPlayed >= 5) rankTier = "T4"
-  else if (careerSeasonsPlayed >= 2) rankTier = "T5"
-
-  console.log("\n--- calculateAndSaveRank-style result (W/L/chips not in Sleeper list API) ---")
-  console.log("distinct seasons with at least one league:", careerLeaguesPlayed)
-  console.log("xpTotal (formula):", xpTotal)
-  console.log("resulting tier:", rankTier)
+  console.log("\n--- calculateAndSaveRank-style (no W/L/chips from list API) ---")
+  console.log("distinct seasons:", careerLeaguesPlayed)
+  console.log("league row count:", careerSeasonsPlayed)
+  console.log("xpNum (formula):", xpNum)
 }
 
 main().catch((e) => {

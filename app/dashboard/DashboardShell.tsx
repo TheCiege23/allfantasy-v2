@@ -52,7 +52,7 @@ function parseSeasonValue(raw: unknown): number | string {
 
 function DashboardLegacyRankBadge() {
   const [state, setState] = useState<'loading' | 'ranked' | 'empty'>('loading')
-  const [rank, setRank] = useState<{ label: string; name: string } | null>(null)
+  const [rank, setRank] = useState<{ label: string; name: string; bg: string; fg: string } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -63,20 +63,30 @@ function DashboardLegacyRankBadge() {
           imported?: boolean
           tier?: string | null
           tierName?: string | null
-          rank?: { careerTier: number; careerTierName: string }
+          level?: number | null
+          levelName?: string | null
+          color?: string | null
+          bgColor?: string | null
+          rank?: { careerTier: number; careerTierName: string; careerLevel?: number }
         } | null) => {
           if (!active || !data) {
             setState('empty')
             return
           }
           const tierCode = data.tier?.trim()
-          if (data.imported && (tierCode || data.rank)) {
-            const label = tierCode ?? `T${data.rank?.careerTier ?? 1}`
+          if (data.imported && (typeof data.level === 'number' || tierCode || data.rank)) {
+            const label =
+              typeof data.level === 'number' && data.levelName?.trim()
+                ? `L${data.level}`
+                : tierCode ?? `L${data.rank?.careerLevel ?? data.rank?.careerTier ?? 1}`
             const name =
+              data.levelName?.trim() ||
               data.tierName?.trim() ||
               data.rank?.careerTierName ||
-              (tierCode ? `Tier ${tierCode}` : 'Ranked')
-            setRank({ label, name })
+              (tierCode ? String(tierCode) : 'Ranked')
+            const bg = data.bgColor?.trim() || 'rgba(255,255,255,0.08)'
+            const fg = data.color?.trim() || 'rgba(255,255,255,0.9)'
+            setRank({ label, name, bg, fg })
             setState('ranked')
             return
           }
@@ -116,13 +126,17 @@ function DashboardLegacyRankBadge() {
   return (
     <Link
       href="/dashboard/rankings"
-      className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15"
+      className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-95"
+      style={{
+        background: rank.bg,
+        color: rank.fg,
+        borderColor: `${rank.fg}33`,
+      }}
       data-testid="dashboard-legacy-tier-badge"
     >
-      <span className="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-black text-white">
-        {rank.label}
+      <span className="truncate">
+        {rank.label} · {rank.name}
       </span>
-      <span className="truncate text-white/90">{rank.name}</span>
     </Link>
   )
 }

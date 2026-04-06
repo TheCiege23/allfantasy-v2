@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { getLevelFromXp } from '@/lib/rank/levels'
 
 /** Returned `xpTotal` is the numeric XP total (same value persisted as BigInt on `user_profiles`). */
 export type CalculateRankResult = {
@@ -14,8 +15,8 @@ export type CalculateRankResult = {
 }
 
 /**
- * Computes T1–T6 tier + XP from imported `League` rows and persists to `user_profiles`.
- * Variable names match DB columns: `careerSeasonsPlayed` = league row count, `careerLeaguesPlayed` = distinct seasons.
+ * XP from imported `League` rows; level/tier from `getLevelFromXp`.
+ * DB columns: `careerSeasonsPlayed` = league row count, `careerLeaguesPlayed` = distinct seasons.
  */
 export async function calculateAndSaveRank(userId: string): Promise<CalculateRankResult | null> {
   try {
@@ -31,6 +32,7 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
         importPointsFor: true,
         season: true,
         platform: true,
+        leagueSize: true,
       },
     })
 
@@ -43,20 +45,22 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
     const careerSeasonsPlayed = leagues.length
     const careerLeaguesPlayed = new Set(leagues.map((l) => l.season)).size
 
+    const leagueSizeBonus = leagues.reduce((sum, l) => {
+      const teams = l.leagueSize ?? 12
+      return sum + Math.max(0, teams - 10) * 2
+    }, 0)
+
     const xpNum =
       careerWins * 10 +
-      careerChampionships * 100 +
-      careerPlayoffAppearances * 25 +
-      careerSeasonsPlayed * 5
-    const xpTotal = BigInt(xpNum)
-    const xpLevel = Math.floor(xpNum / 100) + 1
+      careerPlayoffAppearances * 30 +
+      careerChampionships * 200 +
+      careerLeaguesPlayed * 10 +
+      leagueSizeBonus
 
-    let rankTier = 'T6'
-    if (careerChampionships >= 3) rankTier = 'T1'
-    else if (careerChampionships >= 1) rankTier = 'T2'
-    else if (careerPlayoffAppearances >= 3) rankTier = 'T3'
-    else if (careerSeasonsPlayed >= 5) rankTier = 'T4'
-    else if (careerSeasonsPlayed >= 2) rankTier = 'T5'
+    const xpTotal = BigInt(xpNum)
+    const levelResult = getLevelFromXp(xpNum)
+    const rankTier = levelResult.tier
+    const xpLevel = levelResult.level
 
     try {
       await prisma.userProfile.upsert({

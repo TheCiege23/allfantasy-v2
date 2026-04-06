@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { computeCompositeProfile, type LeagueRecord } from '@/lib/legacy/overview-scoring'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
+import { getLevelFromXp } from '@/lib/rank/levels'
 import { prisma } from '@/lib/prisma'
 
 function logFullError(context: string, err: unknown) {
@@ -14,6 +15,21 @@ function logFullError(context: string, err: unknown) {
 function tierNullResponse() {
   return NextResponse.json({
     tier: null,
+    level: null,
+    levelName: null,
+    tierGroup: null,
+    color: null,
+    bgColor: null,
+    xpIntoLevel: null,
+    xpForLevel: null,
+    progressPct: null,
+    nextLevelName: null,
+    careerWins: null,
+    careerLosses: null,
+    careerChampionships: null,
+    careerPlayoffAppearances: null,
+    careerSeasonsPlayed: null,
+    careerLeaguesPlayed: null,
     stats: null,
     careerStats: null,
     imported: false,
@@ -28,21 +44,30 @@ function tierNullResponse() {
   })
 }
 
-const TIER_SHOWCASE_NAMES: Record<string, string> = {
-  T1: 'Dynasty',
-  T2: 'Champion',
-  T3: 'Playoff Performer',
-  T4: 'All-Pro',
-  T5: 'Veteran',
-  T6: 'Starter',
-}
-
-function tierNameFromCode(tier: string | null | undefined): string | null {
-  if (!tier?.trim()) return null
-  const m = /^T(\d+)/i.exec(tier.trim())
-  if (!m) return null
-  const n = Math.min(6, Math.max(1, parseInt(m[1], 10)))
-  return TIER_SHOWCASE_NAMES[`T${n}`] ?? null
+/** Full 25-level payload for `/api/user/rank` (STEP 3). */
+function userRankLevelPayloadFromProfile(p: ProfileRankDenormResult) {
+  const xp = p.xpTotal != null ? Number(p.xpTotal) : 0
+  const lv = getLevelFromXp(xp)
+  return {
+    tier: lv.tier,
+    level: p.xpLevel ?? lv.level,
+    levelName: lv.name,
+    tierGroup: lv.tierGroup,
+    color: lv.color,
+    bgColor: lv.bgColor,
+    xpTotal: xp,
+    xpIntoLevel: lv.xpIntoLevel,
+    xpForLevel: lv.xpForLevel,
+    progressPct: lv.progressPct,
+    nextLevelName: lv.nextLevel?.name ?? null,
+    careerWins: p.careerWins,
+    careerLosses: p.careerLosses,
+    careerChampionships: p.careerChampionships,
+    careerPlayoffAppearances: p.careerPlayoffAppearances,
+    careerSeasonsPlayed: p.careerSeasonsPlayed,
+    careerLeaguesPlayed: p.careerLeaguesPlayed,
+    rankCalculatedAt: p.rankCalculatedAt?.toISOString() ?? null,
+  }
 }
 
 function clampScore(value: unknown, fallback = 70) {
@@ -396,41 +421,18 @@ export async function GET(request: Request) {
       if (tierLabelEarly) {
         const legacyUsernameEarly =
           appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
-        const tierMatch = /^T(\d+)/i.exec(tierLabelEarly)
-        let careerTierNum = 1
-        if (
-          denormEarly &&
-          'legacyCareerTier' in denormEarly &&
-          typeof denormEarly.legacyCareerTier === 'number'
-        ) {
-          careerTierNum = denormEarly.legacyCareerTier
-        } else if (tierMatch) {
-          careerTierNum = Math.min(10, Math.max(1, parseInt(tierMatch[1], 10)))
-        }
-        const tier = `T${Math.min(6, Math.max(1, careerTierNum))}` as
-          | 'T1'
-          | 'T2'
-          | 'T3'
-          | 'T4'
-          | 'T5'
-          | 'T6'
         const xpNum =
           denormEarly?.xpTotal != null
             ? Number(denormEarly.xpTotal)
             : Number(
                 denormEarly && 'legacyCareerXp' in denormEarly ? denormEarly.legacyCareerXp ?? 0 : 0,
               )
+        const lv = getLevelFromXp(xpNum)
         const careerStats = careerStatsFromProfileDenorm(denormEarly!)
-        const tierNameResolved =
-          tierNameFromCode(tier) ??
-          (denormEarly && 'legacyCareerTierName' in denormEarly
-            ? denormEarly.legacyCareerTierName
-            : null) ??
-          'Veteran'
         const rank = {
-          careerTier: careerTierNum,
-          careerTierName: tierNameResolved,
-          careerLevel: denormEarly?.legacyCareerLevel ?? denormEarly?.xpLevel ?? 1,
+          careerTier: lv.tierGroup,
+          careerTierName: lv.name,
+          careerLevel: denormEarly?.xpLevel ?? lv.level,
           careerXp: String(denormEarly?.legacyCareerXp ?? denormEarly?.xpTotal ?? 0),
           aiReportGrade: 'B',
           aiScore: 70,
@@ -445,17 +447,17 @@ export async function GET(request: Request) {
           playoffAppearances: careerStats.playoffAppearances,
           importedAt: denormEarly?.rankCalculatedAt?.toISOString() ?? null,
         }
+        const levelPayload = userRankLevelPayloadFromProfile(denormEarly!)
         return NextResponse.json({
           imported: true,
-          tier,
-          tierName: tierNameResolved,
-          xpTotal: xpNum,
-          xpLevel: denormEarly?.legacyCareerLevel ?? denormEarly?.xpLevel ?? 1,
+          ...levelPayload,
+          tierName: lv.name,
+          xpLevel: levelPayload.level,
           careerStats,
           stats: careerStats,
           rank,
           rankProcessing,
-          rankCalculatedAt: denormEarly?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
+          rankCalculatedAt: levelPayload.rankCalculatedAt ?? rankCalculatedAtIso,
           legacyUsername: legacyUsernameEarly,
           overviewProfile: null,
         })
@@ -472,9 +474,24 @@ export async function GET(request: Request) {
         imported: hasLeagues,
         rank: null,
         tier: null,
-        tierName: null,
+        level: null,
+        levelName: null,
+        tierGroup: null,
+        color: null,
+        bgColor: null,
         xpTotal: null,
         xpLevel: null,
+        xpIntoLevel: null,
+        xpForLevel: null,
+        progressPct: null,
+        nextLevelName: null,
+        careerWins: null,
+        careerLosses: null,
+        careerChampionships: null,
+        careerPlayoffAppearances: null,
+        careerSeasonsPlayed: null,
+        careerLeaguesPlayed: null,
+        tierName: null,
         careerStats: null,
         stats: null,
         rankProcessing: false,
@@ -501,27 +518,16 @@ export async function GET(request: Request) {
       const denorm = denormCatchup
       const tierLabel = denorm?.rankTier?.trim()
       if (tierLabel) {
-        const tierMatch = /^T(\d+)/i.exec(tierLabel)
-        let careerTierNum = 1
-        if (denorm && 'legacyCareerTier' in denorm && typeof denorm.legacyCareerTier === 'number') {
-          careerTierNum = denorm.legacyCareerTier
-        } else if (tierMatch) {
-          careerTierNum = Math.min(10, Math.max(1, parseInt(tierMatch[1], 10)))
-        }
-        const tier = `T${Math.min(6, Math.max(1, careerTierNum))}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
         const xpNum =
           denorm?.xpTotal != null
             ? Number(denorm.xpTotal)
             : Number(denorm && 'legacyCareerXp' in denorm ? denorm.legacyCareerXp ?? 0 : 0)
+        const lv = getLevelFromXp(xpNum)
         const careerStats = careerStatsFromProfileDenorm(denorm!)
-        const tierNameResolved =
-          tierNameFromCode(tier) ??
-          (denorm && 'legacyCareerTierName' in denorm ? denorm.legacyCareerTierName : null) ??
-          'Veteran'
         const rank = {
-          careerTier: careerTierNum,
-          careerTierName: tierNameResolved,
-          careerLevel: denorm?.legacyCareerLevel ?? denorm?.xpLevel ?? 1,
+          careerTier: lv.tierGroup,
+          careerTierName: lv.name,
+          careerLevel: denorm?.xpLevel ?? lv.level,
           careerXp: String(denorm?.legacyCareerXp ?? denorm?.xpTotal ?? 0),
           aiReportGrade: 'B',
           aiScore: 70,
@@ -536,17 +542,17 @@ export async function GET(request: Request) {
           playoffAppearances: careerStats.playoffAppearances,
           importedAt: denorm?.rankCalculatedAt?.toISOString() ?? null,
         }
+        const levelPayload = userRankLevelPayloadFromProfile(denorm!)
         return NextResponse.json({
           imported: true,
-          tier,
-          tierName: tierNameResolved,
-          xpTotal: xpNum,
-          xpLevel: denorm?.legacyCareerLevel ?? denorm?.xpLevel ?? 1,
+          ...levelPayload,
+          tierName: lv.name,
+          xpLevel: levelPayload.level,
           careerStats,
           stats: careerStats,
           rank,
           rankProcessing,
-          rankCalculatedAt: denorm?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
+          rankCalculatedAt: levelPayload.rankCalculatedAt ?? rankCalculatedAtIso,
           legacyUsername,
           overviewProfile: null,
         })
@@ -556,9 +562,24 @@ export async function GET(request: Request) {
         imported: true,
         rank: null,
         tier: null,
-        tierName: null,
+        level: null,
+        levelName: null,
+        tierGroup: null,
+        color: null,
+        bgColor: null,
         xpTotal: null,
         xpLevel: null,
+        xpIntoLevel: null,
+        xpForLevel: null,
+        progressPct: null,
+        nextLevelName: null,
+        careerWins: null,
+        careerLosses: null,
+        careerChampionships: null,
+        careerPlayoffAppearances: null,
+        careerSeasonsPlayed: null,
+        careerLeaguesPlayed: null,
+        tierName: null,
         careerStats: null,
         stats: null,
         rankProcessing,
@@ -698,22 +719,17 @@ export async function GET(request: Request) {
       }
     }
 
-    const ct = rankCache.careerTier ?? 1
-    const tierNum = Math.min(6, Math.max(1, ct))
-    const tier = `T${tierNum}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
-    const tierNames = ['Dynasty', 'Champion', 'Playoff Performer', 'All-Pro', 'Veteran', 'Starter'] as const
-    const tierName =
-      rankCache.careerTier != null && rankCache.careerTier >= 1 && rankCache.careerTier <= 6
-        ? tierNames[rankCache.careerTier - 1]
-        : rankCache.careerTierName ?? tierNameFromCode(tier)
-
     const careerXpBig = rankCache.careerXp ?? 0n
     const xpTotalNum = Number(careerXpBig)
+    const lv = getLevelFromXp(xpTotalNum)
+    const d = denormCatchup
+    const tier = lv.tier
+    const tierName = lv.name
 
     const rank = {
-      careerTier: rankCache.careerTier,
-      careerTierName: rankCache.careerTierName,
-      careerLevel: rankCache.careerLevel,
+      careerTier: lv.tierGroup,
+      careerTierName: lv.name,
+      careerLevel: rankCache.careerLevel ?? lv.level,
       careerXp: careerXpBig.toString(),
       aiReportGrade: scoreToLetterGrade(aiScore),
       aiScore,
@@ -739,17 +755,37 @@ export async function GET(request: Request) {
       }
     }
 
+    const levelPayload = {
+      tier,
+      level: rankCache.careerLevel ?? lv.level,
+      levelName: lv.name,
+      tierGroup: lv.tierGroup,
+      color: lv.color,
+      bgColor: lv.bgColor,
+      xpTotal: xpTotalNum,
+      xpIntoLevel: lv.xpIntoLevel,
+      xpForLevel: lv.xpForLevel,
+      progressPct: lv.progressPct,
+      nextLevelName: lv.nextLevel?.name ?? null,
+      careerWins: d?.careerWins ?? careerStats.totalWins,
+      careerLosses: d?.careerLosses ?? careerStats.totalLosses,
+      careerChampionships: d?.careerChampionships ?? careerStats.championships,
+      careerPlayoffAppearances: d?.careerPlayoffAppearances ?? careerStats.playoffAppearances,
+      careerSeasonsPlayed: d?.careerSeasonsPlayed ?? careerStats.leaguesPlayed,
+      careerLeaguesPlayed: d?.careerLeaguesPlayed ?? careerStats.seasonsPlayed,
+      rankCalculatedAt: d?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
+    }
+
     return NextResponse.json({
       imported: true,
-      tier,
+      ...levelPayload,
       tierName,
-      xpTotal: xpTotalNum,
-      xpLevel: rankCache.careerLevel,
+      xpLevel: levelPayload.level,
       careerStats,
       stats: careerStats,
       rank,
       rankProcessing,
-      rankCalculatedAt: rankCalculatedAtIso,
+      rankCalculatedAt: levelPayload.rankCalculatedAt,
       legacyUsername,
       overviewProfile,
     })

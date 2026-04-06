@@ -8,6 +8,7 @@ import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
 import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
+import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
 
 interface PlayerRank {
   careerTier: number
@@ -37,6 +38,21 @@ interface RankResponse {
   tierName?: string | null
   xpTotal?: number | null
   xpLevel?: number | null
+  level?: number | null
+  levelName?: string | null
+  tierGroup?: number | null
+  color?: string | null
+  bgColor?: string | null
+  xpIntoLevel?: number | null
+  xpForLevel?: number | null
+  progressPct?: number | null
+  nextLevelName?: string | null
+  careerWins?: number | null
+  careerLosses?: number | null
+  careerChampionships?: number | null
+  careerPlayoffAppearances?: number | null
+  careerSeasonsPlayed?: number | null
+  careerLeaguesPlayed?: number | null
   rankProcessing?: boolean
   rankCalculatedAt?: string | null
   error?: string
@@ -51,41 +67,69 @@ interface RankResponse {
   stats?: RankResponse['careerStats']
 }
 
-const TIER_IMPORT_LABELS: Record<string, { name: string; emoji: string }> = {
-  T1: { name: 'Dynasty', emoji: '👑' },
-  T2: { name: 'Champion', emoji: '🏆' },
-  T3: { name: 'Playoff Performer', emoji: '🔥' },
-  T4: { name: 'All-Pro', emoji: '⭐' },
-  T5: { name: 'Veteran', emoji: '🛡️' },
-  T6: { name: 'Starter', emoji: '▶️' },
+/** Normalized 25-level payload from `/api/user/rank`. */
+type RankLevelApiPayload = {
+  tier: string
+  level: number
+  levelName: string
+  tierGroup: number
+  color: string
+  bgColor: string
+  xpTotal: number
+  xpIntoLevel: number
+  xpForLevel: number
+  progressPct: number
+  nextLevelName: string | null
+  careerWins: number | null
+  careerLosses: number | null
+  careerChampionships: number | null
+  careerPlayoffAppearances: number | null
+  careerSeasonsPlayed: number | null
+  careerLeaguesPlayed: number | null
+  rankCalculatedAt: string | null
 }
 
-function tierBadgeMeta(tier: string | null | undefined): { name: string; emoji: string } {
-  const m = /^T(\d+)/i.exec(String(tier ?? '').trim())
-  const key = m ? `T${Math.min(6, Math.max(1, parseInt(m[1], 10)))}` : 'T6'
-  return TIER_IMPORT_LABELS[key] ?? TIER_IMPORT_LABELS.T6
-}
-
-function tierLabelFromCode(tier: string | null | undefined): string {
-  if (!tier?.trim()) return 'Veteran'
-  const m = /^T(\d+)/i.exec(tier.trim())
-  const key = m ? `T${Math.min(6, Math.max(1, parseInt(m[1], 10)))}` : 'T6'
-  return TIER_IMPORT_LABELS[key]?.name ?? 'Veteran'
+function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload | null {
+  const xp = data.xpTotal ?? 0
+  const lv = getLevelFromXp(xp)
+  if (!data.tier?.trim() && typeof data.level !== 'number') return null
+  const level = typeof data.level === 'number' ? data.level : lv.level
+  const row = RANK_LEVELS.find((r) => r.level === level) ?? lv
+  return {
+    tier: data.tier?.trim() || row.tier,
+    level,
+    levelName: data.levelName?.trim() ?? row.name,
+    tierGroup: data.tierGroup ?? row.tierGroup,
+    color: data.color ?? row.color,
+    bgColor: data.bgColor ?? row.bgColor,
+    xpTotal: xp,
+    xpIntoLevel: data.xpIntoLevel ?? lv.xpIntoLevel,
+    xpForLevel: data.xpForLevel ?? lv.xpForLevel,
+    progressPct: data.progressPct ?? lv.progressPct,
+    nextLevelName: data.nextLevelName ?? lv.nextLevel?.name ?? null,
+    careerWins: data.careerWins ?? data.careerStats?.totalWins ?? null,
+    careerLosses: data.careerLosses ?? data.careerStats?.totalLosses ?? null,
+    careerChampionships: data.careerChampionships ?? data.careerStats?.championships ?? null,
+    careerPlayoffAppearances: data.careerPlayoffAppearances ?? data.careerStats?.playoffAppearances ?? null,
+    careerSeasonsPlayed: data.careerSeasonsPlayed ?? data.careerStats?.leaguesPlayed ?? null,
+    careerLeaguesPlayed: data.careerLeaguesPlayed ?? data.careerStats?.seasonsPlayed ?? null,
+    rankCalculatedAt: data.rankCalculatedAt ?? null,
+  }
 }
 
 /** When API returns tier + stats but omits nested `rank` (older clients), build a display rank. */
 function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
   if (data.rank) return data.rank
   const cs = data.careerStats ?? data.stats ?? null
-  if (data.tier) {
-    const xpNum = data.xpTotal ?? 0
-    const m = /^T(\d+)/.exec(data.tier)
-    const careerTier = m ? Math.min(10, Math.max(1, parseInt(m[1], 10))) : 1
-    const tierName = data.tierName?.trim() || tierLabelFromCode(data.tier)
+  const xpNum = data.xpTotal ?? 0
+  const lv = getLevelFromXp(xpNum)
+  if (data.tier?.trim() || typeof data.level === 'number') {
+    const level = typeof data.level === 'number' ? data.level : lv.level
+    const row = RANK_LEVELS.find((r) => r.level === level) ?? lv
     return {
-      careerTier,
-      careerTierName: tierName,
-      careerLevel: data.xpLevel ?? 1,
+      careerTier: data.tierGroup ?? row.tierGroup,
+      careerTierName: data.levelName?.trim() || data.tierName?.trim() || row.name,
+      careerLevel: level,
       careerXp: String(xpNum),
       aiReportGrade: 'B',
       aiScore: 70,
@@ -126,19 +170,6 @@ function mapLegacyImportError(payload: Record<string, unknown>, status: number):
   return typeof payload.error === 'string' ? payload.error : 'Import failed'
 }
 
-const TIERS = [
-  { tier: 1, name: 'Dynasty', color: '#c084fc', glow: 'rgba(192,132,252,0.40)', badge: '👑', desc: 'Generational. The standard everyone chases.' },
-  { tier: 2, name: 'Champion', color: '#06b6d4', glow: 'rgba(6,182,212,0.30)', badge: '🏆', desc: 'Titles. Rings. Respect.' },
-  { tier: 3, name: 'Playoff Performer', color: '#ef4444', glow: 'rgba(239,68,68,0.30)', badge: '🔥', desc: 'Built for the moment. Wins when it matters.' },
-  { tier: 4, name: 'All-Pro', color: '#f59e0b', glow: 'rgba(245,158,11,0.30)', badge: '⭐', desc: 'Elite across formats and platforms.' },
-  { tier: 5, name: 'Veteran', color: '#fbbf24', glow: 'rgba(251,191,36,0.30)', badge: '🎖️', desc: 'Experience that shows up when it counts.' },
-  { tier: 6, name: 'Starter', color: '#34d399', glow: 'rgba(52,211,153,0.30)', badge: '▶️', desc: 'A reliable presence in any league.' },
-  { tier: 7, name: 'Rookie', color: '#60a5fa', glow: 'rgba(96,165,250,0.30)', badge: '🐣', desc: 'First taste of real competition.' },
-  { tier: 8, name: 'Camp Invite', color: '#818cf8', glow: 'rgba(129,140,248,0.30)', badge: '⛺', desc: 'Competing for a roster spot.' },
-  { tier: 9, name: 'Undrafted Free Agent', color: '#a78bfa', glow: 'rgba(167,139,250,0.30)', badge: '📋', desc: 'You know the game. Time to prove it.' },
-  { tier: 10, name: 'Practice Squad', color: '#94a3b8', glow: 'rgba(148,163,184,0.30)', badge: '🎮', desc: 'Everyone starts here. Get your reps in.' },
-] as const
-
 const PLATFORMS = [
   { id: 'sleeper', label: 'Sleeper', emoji: '🌙' },
   { id: 'yahoo', label: 'Yahoo', emoji: '🏈' },
@@ -147,20 +178,30 @@ const PLATFORMS = [
   { id: 'espn', label: 'ESPN', emoji: '🔴' },
 ] as const
 
-function toTierNameKey(value: string | null | undefined) {
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+type TierVisual = {
+  tier: number
+  name: string
+  color: string
+  glow: string
+  badge: string
+  desc: string
 }
 
-function getTierConfigByTier(tier: number) {
-  return TIERS.find((entry) => entry.tier === tier) ?? TIERS[TIERS.length - 1]
+function getTierConfigByLevel(level: number): TierVisual {
+  const row = RANK_LEVELS.find((e) => e.level === level) ?? RANK_LEVELS[0]
+  const glow = `${row.color}55`
+  return {
+    tier: row.level,
+    name: row.name,
+    color: row.color,
+    glow,
+    badge: getLevelIcon(row.tierGroup),
+    desc: row.tier,
+  }
 }
 
-function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName'>) {
-  const byName = TIERS.find((entry) => toTierNameKey(entry.name) === toTierNameKey(rank.careerTierName))
-  return byName ?? getTierConfigByTier(rank.careerTier)
+function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 'careerLevel'>) {
+  return getTierConfigByLevel(rank.careerLevel)
 }
 
 function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md' | 'lg' }) {
@@ -187,48 +228,8 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
       >
         <span className={sizes.emoji}>{cfg.badge}</span>
         <span className={`${sizes.tier} font-bold mt-0.5`} style={{ color: cfg.color }}>
-          TIER {cfg.tier}
+          LV {rank.careerLevel}
         </span>
-      </div>
-    </div>
-  )
-}
-
-function TierLadder({ rank }: { rank: PlayerRank }) {
-  const activeKey = toTierNameKey(rank.careerTierName)
-
-  return (
-    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5">
-      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Ranking Ladder</p>
-      <div className="space-y-1.5">
-        {TIERS.map((tier) => {
-          const isActive = toTierNameKey(tier.name) === activeKey
-          const isLocked = tier.tier < getTierConfig(rank).tier
-          return (
-            <div
-              key={tier.tier}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 transition-all"
-              style={isActive ? { background: tier.glow, boxShadow: `inset 0 0 0 1px ${tier.color}` } : undefined}
-            >
-              <span className={`text-base ${isLocked && !isActive ? 'opacity-40' : ''}`}>{tier.badge}</span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className={`text-xs font-semibold truncate ${isLocked && !isActive ? 'text-white/35' : 'text-white/80'}`}
-                  style={isActive ? { color: tier.color } : undefined}
-                >
-                  {tier.name}
-                </div>
-                <div className="text-[10px] text-white/30 truncate">{tier.desc}</div>
-              </div>
-              <span
-                className={`text-[10px] font-bold ${isLocked && !isActive ? 'text-white/20' : 'text-white/35'}`}
-                style={isActive ? { color: tier.color } : undefined}
-              >
-                T{tier.tier}
-              </span>
-            </div>
-          )
-        })}
       </div>
     </div>
   )
@@ -418,8 +419,8 @@ function CareerStats({ rank }: { rank: PlayerRank }) {
 
 function LeagueAccessRules({ rank }: { rank: PlayerRank }) {
   const cfg = getTierConfig(rank)
-  const tierUp = getTierConfigByTier(Math.max(1, cfg.tier - 1))
-  const tierDown = getTierConfigByTier(Math.min(10, cfg.tier + 1))
+  const tierUp = getTierConfigByLevel(Math.max(1, rank.careerLevel - 1))
+  const tierDown = getTierConfigByLevel(Math.min(25, rank.careerLevel + 1))
 
   return (
     <div
@@ -473,13 +474,10 @@ function LeagueAccessRules({ rank }: { rank: PlayerRank }) {
 function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
   const cfg = getTierConfig(rank)
   const xp = Number(rank.careerXp)
-  const currentTierIndex = Math.max(0, Math.min(9, cfg.tier - 1))
-  const currentThreshold = currentTierIndex * 1500
-  const nextThreshold = Math.min(15000, currentThreshold + 1500)
-  const xpProgress =
-    nextThreshold > currentThreshold
-      ? Math.min(100, Math.max(0, ((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100))
-      : 100
+  const lv = getLevelFromXp(xp)
+  const xpProgress = lv.progressPct
+  const nextRow = RANK_LEVELS.find((r) => r.level === rank.careerLevel + 1)
+  const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xp) : 0
 
   return (
     <div
@@ -515,7 +513,11 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
               />
             </div>
             <div className="text-[10px] text-white/30 mt-1 text-right">
-              {cfg.tier > 1 ? `${Math.max(0, nextThreshold - xp).toLocaleString()} XP to ${getTierConfigByTier(cfg.tier - 1).name}` : 'Max showcase tier reached'}
+              {nextRow
+                ? `${xpToNext.toLocaleString()} XP to ${nextRow.name}`
+                : rank.careerLevel >= 25
+                  ? 'Max level reached'
+                  : '—'}
             </div>
           </div>
         </div>
@@ -581,66 +583,153 @@ function CalculatingRankState({ onRetry }: { onRetry: () => void }) {
   )
 }
 
-function ImportRankSnapshotCard({ rank }: { rank: PlayerRank }) {
-  const tierCode = `T${Math.min(6, Math.max(1, rank.careerTier))}`
-  const meta = tierBadgeMeta(tierCode)
-  const xp = Number(rank.careerXp)
-  const level = rank.careerLevel
-  const nextLevelXp = level * 100
-  const prevLevelXp = Math.max(0, (level - 1) * 100)
-  const barPct =
-    nextLevelXp > prevLevelXp
-      ? Math.min(100, Math.max(0, ((xp - prevLevelXp) / (nextLevelXp - prevLevelXp)) * 100))
-      : 100
+function LevelJourneyStrip({ currentLevel }: { currentLevel: number }) {
+  return (
+    <div className="mt-5">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/35">Level journey</p>
+      <div className="flex gap-1 overflow-x-auto pb-2 pt-0.5 [scrollbar-width:thin]">
+        {RANK_LEVELS.map((row) => {
+          const done = row.level < currentLevel
+          const active = row.level === currentLevel
+          return (
+            <div
+              key={row.level}
+              title={`${row.level}. ${row.name}`}
+              className="flex h-9 min-w-[2.25rem] shrink-0 flex-col items-center justify-center rounded-lg border text-[9px] font-bold"
+              style={{
+                borderColor: active ? row.color : 'rgba(255,255,255,0.08)',
+                background: done ? `${row.color}35` : active ? `${row.color}22` : 'rgba(255,255,255,0.03)',
+                color: active ? row.color : done ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)',
+                boxShadow: active ? `0 0 0 1px ${row.color}55` : undefined,
+              }}
+            >
+              <span className="leading-none">{row.level}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
+function TwentyFiveLevelRankCard({ payload }: { payload: RankLevelApiPayload }) {
+  const icon = getLevelIcon(payload.tierGroup)
+  const seasons = payload.careerLeaguesPlayed ?? 0
   const cells = [
-    { label: 'Seasons', value: String(rank.seasonsPlayed ?? 0) },
-    { label: 'Wins', value: String(rank.totalWins ?? 0) },
-    { label: 'Losses', value: String(rank.totalLosses ?? 0) },
-    { label: 'Championships', value: String(rank.championshipCount ?? 0) },
+    { label: 'Seasons', value: String(seasons) },
+    { label: 'Wins', value: String(payload.careerWins ?? 0) },
+    { label: 'Losses', value: String(payload.careerLosses ?? 0) },
+    { label: 'Championships', value: String(payload.careerChampionships ?? 0) },
     {
-      label: 'Playoff appearances',
-      value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
+      label: 'Playoff Apps',
+      value: payload.careerPlayoffAppearances != null ? String(payload.careerPlayoffAppearances) : '—',
     },
   ]
+  const nextRow = RANK_LEVELS.find((r) => r.level === payload.level + 1)
+  const xpToNext = nextRow ? Math.max(0, nextRow.minXp - payload.xpTotal) : 0
 
   return (
     <div
-      className="rounded-2xl border border-white/10 bg-[#0a1228]/80 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className="rounded-2xl border-2 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
       data-testid="import-rank-snapshot-card"
+      style={{
+        background: payload.bgColor,
+        borderColor: payload.color,
+      }}
     >
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-center gap-3 text-center sm:text-left">
-          <span className="text-4xl" aria-hidden>
-            {meta.emoji}
-          </span>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/80">Your rank</p>
-            <p className="text-lg font-black text-white">{rank.careerTierName}</p>
-            <p className="text-[11px] text-white/40">{meta.name}</p>
-          </div>
+      <div className="text-center">
+        <div className="text-5xl font-black tabular-nums" style={{ color: payload.color }}>
+          {payload.level}
         </div>
-        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-black text-white">
-          {tierCode}
+        <p className="mt-1 text-lg font-bold text-[#0a0a12]" style={{ color: '#0a0a12' }}>
+          {payload.levelName}
+        </p>
+        <p className="text-sm font-semibold opacity-80" style={{ color: payload.color }}>
+          {payload.tier}
+        </p>
+        <div className="mt-3 flex justify-center text-3xl" aria-hidden>
+          {icon}
         </div>
       </div>
-      <div className="mt-5">
-        <div className="mb-1 flex justify-between text-[11px] text-white/45">
-          <span>Level {level}</span>
-          <span>{xp.toLocaleString()} XP</span>
+
+      <div className="mt-6">
+        <div className="mb-1 flex justify-between text-[11px] font-medium opacity-70">
+          <span style={{ color: '#0a0a12' }}>
+            {payload.xpIntoLevel.toLocaleString()} / {payload.xpForLevel.toLocaleString()} XP in level
+          </span>
+          <span style={{ color: '#0a0a12' }}>{payload.progressPct}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+        <div className="h-2.5 overflow-hidden rounded-full bg-black/10">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500/80 to-violet-500/80 transition-all"
-            style={{ width: `${barPct}%` }}
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${payload.progressPct}%`,
+              background: payload.color,
+            }}
           />
         </div>
+        <p className="mt-2 text-center text-[11px] font-medium opacity-75" style={{ color: '#0a0a12' }}>
+          {nextRow
+            ? `${xpToNext.toLocaleString()} XP to ${payload.nextLevelName ?? nextRow.name}`
+            : payload.level >= 25
+              ? 'Max level'
+              : '—'}
+        </p>
       </div>
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+
+      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {cells.map((c) => (
-          <div key={c.label} className="rounded-xl border border-white/6 bg-white/[0.03] p-3 text-center">
-            <div className="text-lg font-bold text-white">{c.value}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/40">{c.label}</div>
+          <div
+            key={c.label}
+            className="rounded-xl border border-black/10 bg-white/60 p-3 text-center backdrop-blur-sm"
+          >
+            <div className="text-lg font-bold text-[#0a0a12]">{c.value}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-[#0a0a12]/50">{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <LevelJourneyStrip currentLevel={payload.level} />
+    </div>
+  )
+}
+
+function RankingSystemOverview() {
+  const tierGroups = useMemo(() => {
+    const order: string[] = []
+    const map = new Map<string, (typeof RANK_LEVELS)[number][]>()
+    for (const row of RANK_LEVELS) {
+      if (!map.has(row.tier)) {
+        order.push(row.tier)
+        map.set(row.tier, [])
+      }
+      map.get(row.tier)!.push(row)
+    }
+    return { order, map }
+  }, [])
+
+  return (
+    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5 max-h-[min(70vh,560px)] overflow-y-auto">
+      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">The Ranking System</p>
+      <div className="space-y-5">
+        {tierGroups.order.map((tierName) => (
+          <div key={tierName}>
+            <p className="text-[11px] font-bold text-cyan-300/90 mb-2 flex items-center gap-2">
+              <span>{getLevelIcon((tierGroups.map.get(tierName) ?? [])[0]?.tierGroup ?? 1)}</span>
+              {tierName}
+            </p>
+            <ul className="space-y-1.5">
+              {tierGroups.map.get(tierName)?.map((row) => (
+                <li
+                  key={row.level}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-white/6 bg-white/[0.03] px-2.5 py-1.5 text-[11px]"
+                >
+                  <span className="font-mono text-white/50 w-6 shrink-0">{row.level}</span>
+                  <span className="flex-1 text-white/80 truncate">{row.name}</span>
+                  <span className="text-[10px] text-white/35 shrink-0">{row.minXp.toLocaleString()} XP</span>
+                </li>
+              ))}
+            </ul>
           </div>
         ))}
       </div>
@@ -675,21 +764,7 @@ function EmptyRankState({ onImported }: { onImported: () => void }) {
         <ImportPanel onImportSuccess={onImported} />
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5">
-            <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">The Ranking System</p>
-            <div className="space-y-1.5">
-              {TIERS.map((tier) => (
-                <div key={tier.tier} className="flex items-center gap-3 rounded-xl px-3 py-2">
-                  <span className="text-base">{tier.badge}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-semibold text-white/70 truncate">{tier.name}</div>
-                    <div className="text-[10px] text-white/30 truncate">{tier.desc}</div>
-                  </div>
-                  <span className="text-[10px] font-bold text-white/20">T{tier.tier}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RankingSystemOverview />
         </div>
       </div>
 
@@ -710,6 +785,7 @@ function EmptyRankState({ onImported }: { onImported: () => void }) {
 
 function FullRankView({
   rank,
+  levelRank,
   username,
   overviewProfile,
   onReimport,
@@ -717,6 +793,7 @@ function FullRankView({
   recalculateLoading,
 }: {
   rank: PlayerRank
+  levelRank: RankLevelApiPayload | null
   username: string
   overviewProfile: CompositeProfile | null
   onReimport: () => void
@@ -725,12 +802,11 @@ function FullRankView({
 }) {
   return (
     <div className="space-y-6">
-      <ImportRankSnapshotCard rank={rank} />
+      {levelRank ? <TwentyFiveLevelRankCard payload={levelRank} /> : null}
       <RankHero rank={rank} username={username} />
 
       <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
         <div className="space-y-4">
-          <TierLadder rank={rank} />
           <CareerStats rank={rank} />
           <LeagueAccessRules rank={rank} />
         </div>
@@ -769,7 +845,7 @@ function FullRankView({
                   className="rounded-xl px-4 py-2 text-xs font-bold border border-cyan-500/35 text-cyan-200 hover:border-cyan-400/50 hover:text-white transition-all disabled:opacity-40"
                   data-testid="rank-recalculate-button"
                 >
-                  {recalculateLoading ? 'Recalculating…' : 'Recalculate Rank'}
+                  {recalculateLoading ? 'Recalculating…' : 'Recalculate'}
                 </button>
               ) : null}
               <button
@@ -802,6 +878,7 @@ function MyRankingsPageInner() {
   const [recalculateLoading, setRecalculateLoading] = useState(false)
   const [apiImported, setApiImported] = useState(false)
   const [apiTier, setApiTier] = useState<string | null>(null)
+  const [levelRank, setLevelRank] = useState<RankLevelApiPayload | null>(null)
   const justImported = searchParams.get('imported') === 'true'
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
@@ -815,6 +892,7 @@ function MyRankingsPageInner() {
         setImportProcessing(data.rankProcessing === true)
         setApiImported(data.imported === true)
         setApiTier(data.tier ?? null)
+        setLevelRank(rankLevelPayloadFromResponse(data))
         const displayRank = playerRankFromApiResponse(data)
         if (displayRank) {
           setRank(displayRank)
@@ -833,6 +911,7 @@ function MyRankingsPageInner() {
         setImportProcessing(false)
         setApiImported(false)
         setApiTier(null)
+        setLevelRank(null)
       }
     } catch {
       setRankFetchError(true)
@@ -842,6 +921,7 @@ function MyRankingsPageInner() {
       setImportProcessing(false)
       setApiImported(false)
       setApiTier(null)
+      setLevelRank(null)
     } finally {
       if (!silent) setLoading(false)
     }
@@ -998,6 +1078,7 @@ function MyRankingsPageInner() {
         ) : rank ? (
           <FullRankView
             rank={rank}
+            levelRank={levelRank}
             username={username}
             overviewProfile={overviewProfile}
             onReimport={() => setShowImport(true)}
