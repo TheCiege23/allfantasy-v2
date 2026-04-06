@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
         return 0
       }
     })
-    const saved = saveResults.reduce((sum, value) => sum + value, 0)
+    const saved = saveResults.reduce<number>((sum, value) => sum + value, 0)
 
     const rankResult = await calculateAndSaveRank(userId).catch(() => null)
 
