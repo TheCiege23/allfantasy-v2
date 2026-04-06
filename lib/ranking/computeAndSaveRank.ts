@@ -104,8 +104,6 @@ export async function computeAndSaveRank(
     }
   })
 
-  if (leagueHistory.length === 0) return
-
   const seasonsImported = new Set(legacyUser.leagues.map((league) => league.season)).size || 1
   const rosterRows = Array.from(rosterByLeagueId.values())
 

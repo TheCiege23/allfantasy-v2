@@ -39,6 +39,7 @@ interface RankResponse {
   xpLevel?: number | null
   rankProcessing?: boolean
   rankCalculatedAt?: string | null
+  error?: string
   careerStats?: {
     seasonsPlayed: number
     totalWins: number
@@ -47,6 +48,34 @@ interface RankResponse {
     playoffAppearances: number
     leaguesPlayed: number
   } | null
+}
+
+/** When API returns tier + stats but omits nested `rank` (older clients), build a display rank. */
+function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
+  if (data.rank) return data.rank
+  if (data.tier && data.xpTotal != null && data.tierName) {
+    const m = /^T(\d+)/.exec(data.tier)
+    const careerTier = m ? Math.min(10, Math.max(1, parseInt(m[1], 10))) : 1
+    const cs = data.careerStats
+    return {
+      careerTier,
+      careerTierName: data.tierName,
+      careerLevel: data.xpLevel ?? 1,
+      careerXp: String(data.xpTotal),
+      aiReportGrade: 'B',
+      aiScore: 70,
+      aiInsight: 'Import your leagues to generate your AI insight.',
+      winRate: 0,
+      playoffRate: 0,
+      championshipCount: cs?.championships ?? 0,
+      seasonsPlayed: cs?.seasonsPlayed ?? 0,
+      totalWins: cs?.totalWins,
+      totalLosses: cs?.totalLosses,
+      playoffAppearances: cs?.playoffAppearances,
+      importedAt: data.rankCalculatedAt ?? null,
+    }
+  }
+  return null
 }
 
 interface ImportState {
@@ -634,6 +663,7 @@ function MyRankingsPageInner() {
   const [legacyUsername, setLegacyUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [importProcessing, setImportProcessing] = useState(false)
+  const [rankFetchError, setRankFetchError] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importBannerDismissed, setImportBannerDismissed] = useState(false)
 
@@ -646,9 +676,11 @@ function MyRankingsPageInner() {
       const response = await fetch('/api/user/rank', { cache: 'no-store' })
       const data = (await response.json().catch(() => ({}))) as RankResponse
       if (response.ok) {
+        setRankFetchError(false)
         setImportProcessing(data.rankProcessing === true)
-        if (data.rank) {
-          setRank(data.rank)
+        const displayRank = playerRankFromApiResponse(data)
+        if (displayRank) {
+          setRank(displayRank)
           setOverviewProfile(data.overviewProfile ?? null)
           setLegacyUsername(data.legacyUsername ?? null)
         } else {
@@ -657,12 +689,14 @@ function MyRankingsPageInner() {
           setLegacyUsername(data.legacyUsername ?? null)
         }
       } else {
+        setRankFetchError(true)
         setRank(null)
         setOverviewProfile(null)
         setLegacyUsername(null)
         setImportProcessing(false)
       }
     } catch {
+      setRankFetchError(true)
       setRank(null)
       setOverviewProfile(null)
       setLegacyUsername(null)
@@ -710,19 +744,37 @@ function MyRankingsPageInner() {
         {justImported && !importBannerDismissed ? (
           <div
             className={`mb-6 flex flex-col gap-2 rounded-2xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${
-              importProcessing
-                ? 'border-cyan-500/35 bg-cyan-500/10'
-                : 'border-emerald-500/30 bg-emerald-500/10'
+              rankFetchError
+                ? 'border-amber-500/35 bg-amber-500/10'
+                : importProcessing
+                  ? 'border-cyan-500/35 bg-cyan-500/10'
+                  : rank
+                    ? 'border-emerald-500/30 bg-emerald-500/10'
+                    : 'border-white/15 bg-white/[0.04]'
             }`}
           >
             <div className="flex items-start gap-3">
-              {importProcessing ? (
+              {importProcessing && !rankFetchError ? (
                 <div className="mt-0.5 h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-300" />
               ) : null}
-              <p className={`text-sm font-semibold ${importProcessing ? 'text-cyan-100' : 'text-emerald-100'}`}>
-                {importProcessing
-                  ? 'Import in progress — syncing Sleeper history and calculating your rank…'
-                  : 'Import complete! Your rank has been calculated.'}
+              <p
+                className={`text-sm font-semibold ${
+                  rankFetchError
+                    ? 'text-amber-100'
+                    : importProcessing
+                      ? 'text-cyan-100'
+                      : rank
+                        ? 'text-emerald-100'
+                        : 'text-white/70'
+                }`}
+              >
+                {rankFetchError
+                  ? 'Could not load your rank (server error). Try refreshing the page or try again in a moment.'
+                  : importProcessing
+                    ? 'Import in progress — syncing Sleeper history and calculating your rank…'
+                    : rank
+                      ? 'Import complete! Your rank has been calculated.'
+                      : 'Import finished — rank data is still updating. This page refreshes automatically.'}
               </p>
             </div>
             <button
@@ -732,9 +784,13 @@ function MyRankingsPageInner() {
                 router.replace('/dashboard/rankings', { scroll: false })
               }}
               className={`shrink-0 text-xs font-semibold underline-offset-2 hover:underline ${
-                importProcessing
-                  ? 'text-cyan-200/80 hover:text-cyan-50'
-                  : 'text-emerald-200/80 hover:text-emerald-50'
+                rankFetchError
+                  ? 'text-amber-200/80 hover:text-amber-50'
+                  : importProcessing
+                    ? 'text-cyan-200/80 hover:text-cyan-50'
+                    : rank
+                      ? 'text-emerald-200/80 hover:text-emerald-50'
+                      : 'text-white/40 hover:text-white/70'
               }`}
             >
               Dismiss
@@ -774,21 +830,21 @@ function MyRankingsPageInner() {
               void loadRank()
             }}
           />
-        ) : !rank && importProcessing && justImported ? (
-          <ProcessingImportState />
-        ) : !rank ? (
-          <EmptyRankState
-            onImported={() => {
-              setShowImport(false)
-              void loadRank()
-            }}
-          />
-        ) : (
+        ) : rank ? (
           <FullRankView
             rank={rank}
             username={username}
             overviewProfile={overviewProfile}
             onReimport={() => setShowImport(true)}
+          />
+        ) : !rank && importProcessing && justImported && !rankFetchError ? (
+          <ProcessingImportState />
+        ) : (
+          <EmptyRankState
+            onImported={() => {
+              setShowImport(false)
+              void loadRank()
+            }}
           />
         )}
       </div>

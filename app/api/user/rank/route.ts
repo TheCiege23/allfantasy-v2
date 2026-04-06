@@ -40,7 +40,7 @@ function firstInsightValue(value: unknown): string | null {
   return null
 }
 
-function buildLeagueRecord(league: {
+type LegacyLeagueRowForRank = {
   season: number
   leagueType: string | null
   scoringType: string | null
@@ -57,7 +57,9 @@ function buildLeagueRecord(league: {
     finalStanding: number | null
     playoffSeed: number | null
   }>
-}): LeagueRecord | null {
+}
+
+function buildLeagueRecord(league: LegacyLeagueRowForRank): LeagueRecord | null {
   const roster = league.rosters[0]
   if (!roster) return null
 
@@ -93,6 +95,56 @@ export type UserRankCareerStats = {
 
 export const dynamic = 'force-dynamic'
 
+async function loadProfileRankFlags(userId: string): Promise<{
+  rankProcessing: boolean
+  rankCalculatedAtIso: string | null
+}> {
+  try {
+    const profileFlags = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: {
+        leagueImportDetailPending: true,
+        rankCalculatedAt: true,
+      },
+    })
+    return {
+      rankProcessing: profileFlags?.leagueImportDetailPending === true,
+      rankCalculatedAtIso: profileFlags?.rankCalculatedAt?.toISOString() ?? null,
+    }
+  } catch (err: unknown) {
+    console.error('[api/user/rank] userProfile flags query failed (missing columns?):', err)
+    return { rankProcessing: false, rankCalculatedAtIso: null }
+  }
+}
+
+/** Denormalized rank on user_profiles — used when rank cache row is missing or as UI fallback. */
+async function loadProfileRankDenorm(userId: string) {
+  try {
+    return await prisma.userProfile.findUnique({
+      where: { userId },
+      select: {
+        rankTier: true,
+        xpTotal: true,
+        xpLevel: true,
+        legacyCareerTier: true,
+        legacyCareerTierName: true,
+        legacyCareerLevel: true,
+        legacyCareerXp: true,
+        careerWins: true,
+        careerLosses: true,
+        careerChampionships: true,
+        careerPlayoffAppearances: true,
+        careerSeasonsPlayed: true,
+        careerLeaguesPlayed: true,
+        rankCalculatedAt: true,
+      },
+    })
+  } catch (err: unknown) {
+    console.error('[api/user/rank] userProfile denorm rank fields query failed:', err)
+    return null
+  }
+}
+
 export async function GET() {
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string }
@@ -120,17 +172,10 @@ export async function GET() {
           },
         },
       }),
-      prisma.userProfile.findUnique({
-        where: { userId },
-        select: {
-          leagueImportDetailPending: true,
-          rankCalculatedAt: true,
-        },
-      }),
+      loadProfileRankFlags(userId),
     ])
 
-    const rankProcessing = profileFlags?.leagueImportDetailPending === true
-    const rankCalculatedAtIso = profileFlags?.rankCalculatedAt?.toISOString() ?? null
+    const { rankProcessing, rankCalculatedAtIso } = profileFlags
 
     if (!appUser?.legacyUserId) {
       return NextResponse.json({
@@ -146,11 +191,62 @@ export async function GET() {
       })
     }
 
+    const legacyUsername =
+      appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
+
     const rankCache = await prisma.legacyUserRankCache.findUnique({
       where: { legacyUserId: appUser.legacyUserId },
     })
 
     if (!rankCache) {
+      const denorm = await loadProfileRankDenorm(userId)
+      const tierLabel = denorm?.rankTier?.trim()
+      if (tierLabel) {
+        const tierMatch = /^T(\d+)/i.exec(tierLabel)
+        const careerTierNum = denorm?.legacyCareerTier ?? (tierMatch ? Math.min(10, Math.max(1, parseInt(tierMatch[1], 10))) : 1)
+        const tier = `T${Math.min(6, Math.max(1, careerTierNum))}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
+        const xpNum = denorm?.xpTotal != null ? Number(denorm.xpTotal) : Number(denorm?.legacyCareerXp ?? 0)
+        const careerStats: UserRankCareerStats = {
+          seasonsPlayed: denorm?.careerSeasonsPlayed ?? 0,
+          totalWins: denorm?.careerWins ?? 0,
+          totalLosses: denorm?.careerLosses ?? 0,
+          championships: denorm?.careerChampionships ?? 0,
+          playoffAppearances: denorm?.careerPlayoffAppearances ?? 0,
+          leaguesPlayed: denorm?.careerLeaguesPlayed ?? 0,
+        }
+        const rank = {
+          careerTier: careerTierNum,
+          careerTierName: denorm?.legacyCareerTierName ?? 'Veteran',
+          careerLevel: denorm?.legacyCareerLevel ?? denorm?.xpLevel ?? 1,
+          careerXp: String(denorm?.legacyCareerXp ?? denorm?.xpTotal ?? 0),
+          aiReportGrade: 'B',
+          aiScore: 70,
+          aiInsight: 'Import your leagues to generate your AI insight.',
+          winRate: 0,
+          playoffRate: 0,
+          championshipCount: careerStats.championships,
+          seasonsPlayed: careerStats.seasonsPlayed,
+          totalWins: careerStats.totalWins,
+          totalLosses: careerStats.totalLosses,
+          totalTies: 0,
+          playoffAppearances: careerStats.playoffAppearances,
+          importedAt: denorm?.rankCalculatedAt?.toISOString() ?? null,
+        }
+        return NextResponse.json({
+          imported: true,
+          tier,
+          tierName: denorm?.legacyCareerTierName ?? 'Veteran',
+          xpTotal: xpNum,
+          xpLevel: denorm?.xpLevel ?? denorm?.legacyCareerLevel ?? 1,
+          careerStats,
+          rank,
+          rankProcessing,
+          rankCalculatedAt: denorm?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
+          legacyUsername,
+          overviewProfile: null,
+        })
+      }
+
       return NextResponse.json({
         imported: true,
         rank: null,
@@ -161,76 +257,107 @@ export async function GET() {
         careerStats: null,
         rankProcessing,
         rankCalculatedAt: rankCalculatedAtIso,
-        legacyUsername: appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null,
+        legacyUsername,
       })
     }
 
-    const importedLeagueRows = await prisma.league.findMany({
-      where: {
-        userId,
-        platform: 'sleeper',
-        importWins: { not: null },
-      },
-      select: {
-        season: true,
-        importWins: true,
-        importLosses: true,
-        importTies: true,
-        importMadePlayoffs: true,
-        importWonChampionship: true,
-      },
-    })
+    let importedLeagueRows: Array<{
+      season: number
+      importWins: number | null
+      importLosses: number | null
+      importTies: number | null
+      importMadePlayoffs: boolean | null
+      importWonChampionship: boolean | null
+    }> = []
 
-    const [aiReport, legacyLeagues] = await Promise.all([
-      prisma.legacyAIReport.findFirst({
-        where: { userId: appUser.legacyUserId },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          rating: true,
-          title: true,
-          summary: true,
-          insights: true,
-          shareText: true,
+    try {
+      importedLeagueRows = await prisma.league.findMany({
+        where: {
+          userId,
+          platform: 'sleeper',
+          importWins: { not: null },
         },
-      }),
-      prisma.legacyLeague.findMany({
-        where: { userId: appUser.legacyUserId },
-        orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
         select: {
-          id: true,
           season: true,
-          leagueType: true,
-          scoringType: true,
-          specialtyFormat: true,
-          isSF: true,
-          isTEP: true,
-          teamCount: true,
-          playoffTeams: true,
-          rosters: {
-            where: { isOwner: true },
-            take: 1,
-            select: {
-              wins: true,
-              losses: true,
-              ties: true,
-              isChampion: true,
-              finalStanding: true,
-              playoffSeed: true,
+          importWins: true,
+          importLosses: true,
+          importTies: true,
+          importMadePlayoffs: true,
+          importWonChampionship: true,
+        },
+      })
+    } catch (err: unknown) {
+      console.error('[api/user/rank] imported League rows query failed (import_* columns on leagues?):', err)
+      importedLeagueRows = []
+    }
+
+    let aiReport: {
+      rating: number | null
+      title: string | null
+      summary: string | null
+      insights: unknown
+      shareText: string | null
+    } | null = null
+
+    let legacyLeagues: LegacyLeagueRowForRank[] = []
+
+    try {
+      const [ai, legs] = await Promise.all([
+        prisma.legacyAIReport.findFirst({
+          where: { userId: appUser.legacyUserId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            rating: true,
+            title: true,
+            summary: true,
+            insights: true,
+            shareText: true,
+          },
+        }),
+        prisma.legacyLeague.findMany({
+          where: { userId: appUser.legacyUserId },
+          orderBy: [{ season: 'desc' }, { updatedAt: 'desc' }],
+          select: {
+            id: true,
+            season: true,
+            leagueType: true,
+            scoringType: true,
+            specialtyFormat: true,
+            isSF: true,
+            isTEP: true,
+            teamCount: true,
+            playoffTeams: true,
+            rosters: {
+              where: { isOwner: true },
+              take: 1,
+              select: {
+                wins: true,
+                losses: true,
+                ties: true,
+                isChampion: true,
+                finalStanding: true,
+                playoffSeed: true,
+              },
             },
           },
-        },
-      }),
-    ])
+        }),
+      ])
+      aiReport = ai
+      legacyLeagues = legs
+    } catch (err: unknown) {
+      console.error('[api/user/rank] legacy AI report / legacy leagues query failed:', err)
+    }
 
-    const leagueRecords = legacyLeagues
-      .map(buildLeagueRecord)
-      .filter((record): record is LeagueRecord => record != null)
+    const leagueRecords =
+      legacyLeagues
+        ?.map(buildLeagueRecord)
+        .filter((record): record is LeagueRecord => record != null) ?? []
 
     const totalWins = leagueRecords.reduce((sum, league) => sum + league.wins, 0)
     const totalLosses = leagueRecords.reduce((sum, league) => sum + league.losses, 0)
     const totalTies = leagueRecords.reduce((sum, league) => sum + (league.ties ?? 0), 0)
     const totalGames = totalWins + totalLosses + totalTies
-    const seasonsPlayedLegacy = new Set(legacyLeagues.map((league) => league.season)).size
+    const seasonsPlayedLegacy = new Set((legacyLeagues ?? []).map((league) => league.season)).size
     const championshipCount = leagueRecords.filter((league) => league.is_champion).length
     const playoffCount = leagueRecords.filter((league) => league.made_playoffs).length
     const winRate = totalGames > 0 ? (totalWins / totalGames) * 100 : 0
@@ -265,20 +392,22 @@ export async function GET() {
       }
     }
 
-    const tier = `T${Math.min(6, Math.max(1, rankCache.careerTier))}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
+    const tierNum = Math.min(6, Math.max(1, rankCache.careerTier ?? 1))
+    const tier = `T${tierNum}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
     const tierNames = ['Dynasty', 'Champion', 'Playoff Performer', 'All-Pro', 'Veteran', 'Starter'] as const
     const tierName =
       rankCache.careerTier >= 1 && rankCache.careerTier <= 6
         ? tierNames[rankCache.careerTier - 1]
         : rankCache.careerTierName
 
-    const xpTotalNum = Number(rankCache.careerXp)
+    const careerXpBig = rankCache.careerXp ?? 0n
+    const xpTotalNum = Number(careerXpBig)
 
     const rank = {
       careerTier: rankCache.careerTier,
       careerTierName: rankCache.careerTierName,
       careerLevel: rankCache.careerLevel,
-      careerXp: rankCache.careerXp.toString(),
+      careerXp: careerXpBig.toString(),
       aiReportGrade: scoreToLetterGrade(aiScore),
       aiScore,
       aiInsight,
@@ -293,6 +422,16 @@ export async function GET() {
       importedAt: rankCache.lastCalculatedAt?.toISOString() ?? null,
     }
 
+    let overviewProfile: ReturnType<typeof computeCompositeProfile> | null = null
+    if (leagueRecords.length > 0) {
+      try {
+        overviewProfile = computeCompositeProfile(leagueRecords)
+      } catch (err: unknown) {
+        console.error('[api/user/rank] computeCompositeProfile failed:', err)
+        overviewProfile = null
+      }
+    }
+
     return NextResponse.json({
       imported: true,
       tier,
@@ -303,11 +442,14 @@ export async function GET() {
       rank,
       rankProcessing,
       rankCalculatedAt: rankCalculatedAtIso,
-      legacyUsername: appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null,
-      overviewProfile: leagueRecords.length > 0 ? computeCompositeProfile(leagueRecords) : null,
+      legacyUsername,
+      overviewProfile,
     })
-  } catch (error) {
-    console.error('[api/user/rank] failed:', error)
+  } catch (err: unknown) {
+    console.error('[api/user/rank] error:', err)
+    if (err instanceof Error && err.stack) {
+      console.error('[api/user/rank] stack:', err.stack)
+    }
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
