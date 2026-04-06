@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
     const rl = consumeRateLimit({
       scope: 'leagues',
       action: 'import_batch',
-      sleeperUsername: userId,
+      sleeperUsername: sleeperUsernameTrimmed || resolvedSleeperUserId,
       ip: getClientIp(req),
       maxRequests: 3,
       windowMs: 60_000,

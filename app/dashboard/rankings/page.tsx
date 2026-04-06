@@ -7,10 +7,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
 import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
-import { SLEEPER_IMPORT_SPORTS } from '@/lib/league-import/sleeper/import-sports'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 interface PlayerRank {
   careerTier: number
@@ -354,63 +352,6 @@ type TierVisual = {
   desc: string
 }
 
-type SleeperLeague = {
-  league_id?: string
-  sport?: string
-  name?: string
-  total_rosters?: number
-  settings?: { playoff_teams?: number; num_teams?: number }
-}
-
-type SleeperRoster = {
-  owner_id?: string
-  co_owners?: string[]
-  settings?: Record<string, unknown>
-}
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-
-function toImportNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-function toImportIntegerOrNull(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value)
-  if (value == null) return null
-  const parsed = Number.parseInt(String(value), 10)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-async function fetchJsonWithTimeout<T>(
-  url: string,
-  init?: RequestInit,
-  opts: { timeoutMs?: number; retries?: number } = {}
-): Promise<T> {
-  const timeoutMs = opts.timeoutMs ?? 12000
-  const retries = opts.retries ?? 1
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal })
-      if (!response.ok) throw new Error(`Sleeper request failed (${response.status})`)
-      return (await response.json()) as T
-    } catch (error) {
-      const isLastAttempt = attempt === retries
-      if (isLastAttempt) throw error
-      await sleep(250 * (attempt + 1))
-    } finally {
-      clearTimeout(timeoutId)
-    }
-  }
-
-  throw new Error('Sleeper request failed')
-}
-
 function getTierConfigByLevel(level: number): TierVisual {
   const row = RANK_LEVELS.find((e) => e.level === level) ?? RANK_LEVELS[0]
   const glow = `${row.color}55`
@@ -500,179 +441,36 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
       setCurrentXp(null)
 
       try {
-        const sleeperUser = await fetchJsonWithTimeout<{ user_id?: string }>(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername)}`
-        )
-        const sleeperUserId = sleeperUser.user_id
-        if (!sleeperUserId) throw new Error('Sleeper user not found')
-
-        const currentYear = new Date().getFullYear()
-        const years = Array.from({ length: currentYear - 2016 }, (_, i) => 2017 + i)
-        const seasonsWithLeagues: number[] = []
-        const leaguesBySeason = new Map<number, SleeperLeague[]>()
-
-        for (const year of years) {
-          const seasonLeaguesById = new Map<string, SleeperLeague>()
-          for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
-            const data = await fetchJsonWithTimeout<unknown>(
-              `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/${sleeperSport}/${year}`
-            ).catch(() => [])
-            if (!Array.isArray(data)) continue
-            for (const league of data as SleeperLeague[]) {
-              const leagueId = typeof league.league_id === 'string' ? league.league_id : ''
-              if (!leagueId || seasonLeaguesById.has(leagueId)) continue
-              seasonLeaguesById.set(leagueId, {
-                ...league,
-                sport: typeof league.sport === 'string' ? league.sport : sleeperSport,
-              })
-            }
-          }
-          if (seasonLeaguesById.size > 0) {
-            seasonsWithLeagues.push(year)
-            leaguesBySeason.set(year, Array.from(seasonLeaguesById.values()))
-          }
+        const importRes = await fetch('/api/leagues/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ sleeperUsername }),
+        })
+        const importData = (await importRes.json().catch(() => ({}))) as {
+          jobId?: string
+          totalSeasons?: number
+          error?: string
         }
-
-        if (seasonsWithLeagues.length === 0) {
-          throw new Error('No Sleeper leagues found for this username')
+        if (!importRes.ok) {
+          throw new Error(
+            typeof importData.error === 'string' ? importData.error : 'Failed to start Sleeper import'
+          )
         }
-
-        setTotalSeasons(seasonsWithLeagues.length)
-
-        for (let i = 0; i < seasonsWithLeagues.length; i++) {
-          const season = seasonsWithLeagues[i]
-          setCurrentSeason(season)
-          setSeasonIndex(i)
-
-          try {
-            const sleeperLeagues = leaguesBySeason.get(season) ?? []
-            if (sleeperLeagues.length === 0) continue
-
-            const leagueRecords: Array<{
-              platformLeagueId: string
-              name: string
-              sport: string
-              season: number
-              leagueSize: number
-              importWins: number
-              importLosses: number
-              importTies: number
-              importMadePlayoffs: boolean
-              importWonChampionship: boolean
-              importFinalStanding: number | null
-              importPointsFor: number | null
-            }> = []
-
-            for (const league of sleeperLeagues) {
-              const lid = league.league_id
-              if (!lid) continue
-              const totalTeams =
-                typeof league.total_rosters === 'number' && league.total_rosters >= 1
-                  ? league.total_rosters
-                  : typeof league.settings?.num_teams === 'number' && league.settings.num_teams >= 1
-                    ? league.settings.num_teams
-                    : 12
-              const playoffTeams =
-                typeof league.settings?.playoff_teams === 'number' && league.settings.playoff_teams >= 1
-                  ? league.settings.playoff_teams
-                  : Math.max(1, Math.ceil(totalTeams / 3))
-              const leagueSport = normalizeToSupportedSport(league.sport)
-              const rostersPayload = await fetchJsonWithTimeout<unknown>(
-                `https://api.sleeper.app/v1/league/${encodeURIComponent(String(lid))}/rosters`,
-                undefined,
-                { timeoutMs: 4500, retries: 0 }
-              ).catch(() => [])
-              const rosters = Array.isArray(rostersPayload) ? (rostersPayload as SleeperRoster[]) : []
-              const myRoster = rosters.find((row) => {
-                const ownerId = row?.owner_id != null ? String(row.owner_id) : ''
-                const coOwners = Array.isArray(row?.co_owners) ? row.co_owners.map(String) : []
-                return ownerId === sleeperUserId || coOwners.includes(sleeperUserId)
-              })
-              const rosterSettings = (myRoster?.settings ?? {}) as Record<string, unknown>
-              const importWins = toImportNumber(rosterSettings.wins, 0)
-              const importLosses = toImportNumber(rosterSettings.losses, 0)
-              const importTies = toImportNumber(rosterSettings.ties, 0)
-              const importFinalStanding = toImportIntegerOrNull(
-                rosterSettings.final_standing ?? rosterSettings.rank
-              )
-              const importMadePlayoffs =
-                importFinalStanding != null ? importFinalStanding <= playoffTeams : false
-              const importWonChampionship = importFinalStanding === 1
-              const fpts = toImportNumber(rosterSettings.fpts, Number.NaN)
-              const fptsDecimal = toImportNumber(rosterSettings.fpts_decimal, 0)
-              const importPointsFor = Number.isFinite(fpts) ? fpts + fptsDecimal / 100 : null
-
-              leagueRecords.push({
-                platformLeagueId: String(lid),
-                name: league.name ?? `League ${lid}`,
-                sport: leagueSport,
-                season,
-                leagueSize: totalTeams,
-                importWins,
-                importLosses,
-                importTies,
-                importMadePlayoffs,
-                importWonChampionship,
-                importFinalStanding,
-                importPointsFor,
-              })
-            }
-
-            if (leagueRecords.length === 0) continue
-
-            const isLastSeason = i === seasonsWithLeagues.length - 1
-            const batchRes = await fetch('/api/leagues/import/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({
-                season,
-                leagues: leagueRecords,
-                sleeperUserId,
-                sleeperUsername,
-                isLastSeason,
-              }),
-            })
-            const batchData = (await batchRes.json().catch(() => ({}))) as {
-              saved?: number
-              xpLevel?: number
-              rankTier?: string | null
-              xpTotal?: number | null
-              error?: string
-            }
-            if (!batchRes.ok) {
-              throw new Error(
-                typeof batchData.error === 'string' ? batchData.error : 'Failed to save import batch'
-              )
-            }
-
-            if (batchData.xpLevel != null) {
-              setCurrentLevel(batchData.xpLevel)
-              setCurrentTier(batchData.rankTier ?? null)
-              setCurrentXp(batchData.xpTotal ?? null)
-            }
-
-            const savedLeaguesForSeason = typeof batchData.saved === 'number' ? batchData.saved : 0
-            setCompletedSeasons((prev) => [
-              ...prev,
-              { season, leagues: savedLeaguesForSeason, level: batchData.xpLevel },
-            ])
-            setLeaguesSaved((prev) => prev + savedLeaguesForSeason)
-          } catch (seasonErr) {
-            console.error(`[import] season ${season}:`, seasonErr)
-          }
-
-          await sleep(300)
+        const jobId = typeof importData.jobId === 'string' ? importData.jobId.trim() : ''
+        if (!jobId) {
+          throw new Error('Import started but no job id was returned')
         }
+        setTotalSeasons(typeof importData.totalSeasons === 'number' ? importData.totalSeasons : 0)
 
-        setImporting(false)
         onImportSuccess()
-        router.push('/dashboard/rankings?imported=true&done=true')
+        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(jobId)}`)
         return true
       } catch (err: unknown) {
         setImportError(err instanceof Error ? err.message : 'Import failed')
-        setImporting(false)
         return false
+      } finally {
+        setImporting(false)
       }
     },
     [onImportSuccess, router]
