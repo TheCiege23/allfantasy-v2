@@ -39,6 +39,10 @@ type RankPayload = {
     playoffRate: number
     championshipCount: number
     seasonsPlayed: number
+    totalWins?: number
+    totalLosses?: number
+    totalTies?: number
+    playoffAppearances?: number
     importedAt: string | null
   } | null
   overviewProfile?: {
@@ -196,6 +200,12 @@ function RankingWidget({
     ) ?? { wins: 0, losses: 0, ties: 0 }
 
   const record = `${totals.wins}-${totals.losses}${totals.ties ? `-${totals.ties}` : ''}`
+  const careerRecord =
+    payload.rank.totalWins != null && payload.rank.totalLosses != null
+      ? `${payload.rank.totalWins}-${payload.rank.totalLosses}${
+          (payload.rank.totalTies ?? 0) > 0 ? `-${payload.rank.totalTies}` : ''
+        }`
+      : record
 
   return (
     <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
@@ -243,12 +253,17 @@ function RankingWidget({
       </div>
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/60">
-        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">{record}</div>
         <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-          {payload.rank.championshipCount} championships
+          <span className="block text-[9px] uppercase tracking-wide text-white/35">Record</span>
+          {careerRecord}
         </div>
         <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-          {payload.rank.seasonsPlayed} leagues
+          <span className="block text-[9px] uppercase tracking-wide text-white/35">Titles</span>
+          {payload.rank.championshipCount}
+        </div>
+        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+          <span className="block text-[9px] uppercase tracking-wide text-white/35">Seasons</span>
+          {payload.rank.seasonsPlayed}
         </div>
       </div>
 

@@ -82,10 +82,19 @@ function buildLeagueRecord(league: {
   }
 }
 
+export type UserRankCareerStats = {
+  seasonsPlayed: number
+  totalWins: number
+  totalLosses: number
+  championships: number
+  playoffAppearances: number
+  leaguesPlayed: number
+}
+
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const session = (await getServerSession(authOptions as any)) as {
+  const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string }
   } | null
 
@@ -93,10 +102,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const userId = session.user.id
+
   try {
     const appUser = await prisma.appUser.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
+        id: true,
         legacyUserId: true,
         username: true,
         displayName: true,
@@ -109,7 +121,15 @@ export async function GET() {
     })
 
     if (!appUser?.legacyUserId) {
-      return NextResponse.json({ rank: null, imported: false })
+      return NextResponse.json({
+        imported: false,
+        rank: null,
+        tier: null,
+        tierName: null,
+        xpTotal: null,
+        xpLevel: null,
+        careerStats: null,
+      })
     }
 
     const rankCache = await prisma.legacyUserRankCache.findUnique({
@@ -117,8 +137,32 @@ export async function GET() {
     })
 
     if (!rankCache) {
-      return NextResponse.json({ rank: null, imported: false })
+      return NextResponse.json({
+        imported: false,
+        rank: null,
+        tier: null,
+        tierName: null,
+        xpTotal: null,
+        xpLevel: null,
+        careerStats: null,
+      })
     }
+
+    const importedLeagueRows = await prisma.league.findMany({
+      where: {
+        userId,
+        platform: 'sleeper',
+        importWins: { not: null },
+      },
+      select: {
+        season: true,
+        importWins: true,
+        importLosses: true,
+        importTies: true,
+        importMadePlayoffs: true,
+        importWonChampionship: true,
+      },
+    })
 
     const [aiReport, legacyLeagues] = await Promise.all([
       prisma.legacyAIReport.findFirst({
@@ -169,7 +213,7 @@ export async function GET() {
     const totalLosses = leagueRecords.reduce((sum, league) => sum + league.losses, 0)
     const totalTies = leagueRecords.reduce((sum, league) => sum + (league.ties ?? 0), 0)
     const totalGames = totalWins + totalLosses + totalTies
-    const seasonsPlayed = new Set(legacyLeagues.map((league) => league.season)).size
+    const seasonsPlayedLegacy = new Set(legacyLeagues.map((league) => league.season)).size
     const championshipCount = leagueRecords.filter((league) => league.is_champion).length
     const playoffCount = leagueRecords.filter((league) => league.made_playoffs).length
     const winRate = totalGames > 0 ? (totalWins / totalGames) * 100 : 0
@@ -182,6 +226,37 @@ export async function GET() {
       aiReport?.shareText?.trim() ||
       'Import your leagues to generate your AI insight.'
 
+    let careerStats: UserRankCareerStats
+    if (importedLeagueRows.length > 0) {
+      const seasonsPlayed = new Set(importedLeagueRows.map((r) => r.season)).size
+      careerStats = {
+        seasonsPlayed,
+        totalWins: importedLeagueRows.reduce((s, r) => s + (r.importWins ?? 0), 0),
+        totalLosses: importedLeagueRows.reduce((s, r) => s + (r.importLosses ?? 0), 0),
+        championships: importedLeagueRows.filter((r) => r.importWonChampionship === true).length,
+        playoffAppearances: importedLeagueRows.filter((r) => r.importMadePlayoffs === true).length,
+        leaguesPlayed: importedLeagueRows.length,
+      }
+    } else {
+      careerStats = {
+        seasonsPlayed: seasonsPlayedLegacy,
+        totalWins,
+        totalLosses,
+        championships: championshipCount,
+        playoffAppearances: playoffCount,
+        leaguesPlayed: leagueRecords.length,
+      }
+    }
+
+    const tier = `T${Math.min(6, Math.max(1, rankCache.careerTier))}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
+    const tierNames = ['Dynasty', 'Champion', 'Playoff Performer', 'All-Pro', 'Veteran', 'Starter'] as const
+    const tierName =
+      rankCache.careerTier >= 1 && rankCache.careerTier <= 6
+        ? tierNames[rankCache.careerTier - 1]
+        : rankCache.careerTierName
+
+    const xpTotalNum = Number(rankCache.careerXp)
+
     const rank = {
       careerTier: rankCache.careerTier,
       careerTierName: rankCache.careerTierName,
@@ -193,12 +268,21 @@ export async function GET() {
       winRate: Math.round(winRate * 10) / 10,
       playoffRate: Math.round(playoffRate * 10) / 10,
       championshipCount,
-      seasonsPlayed,
+      seasonsPlayed: careerStats.seasonsPlayed,
+      totalWins: careerStats.totalWins,
+      totalLosses: careerStats.totalLosses,
+      totalTies,
+      playoffAppearances: careerStats.playoffAppearances,
       importedAt: rankCache.lastCalculatedAt?.toISOString() ?? null,
     }
 
     return NextResponse.json({
       imported: true,
+      tier,
+      tierName,
+      xpTotal: xpTotalNum,
+      xpLevel: rankCache.careerLevel,
+      careerStats,
       rank,
       legacyUsername: appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null,
       overviewProfile: leagueRecords.length > 0 ? computeCompositeProfile(leagueRecords) : null,

@@ -6,11 +6,18 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
+import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
+import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
+import { syncLegacyLeagueFromSleeper } from "@/lib/legacy-import";
+import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
+import { runWithConcurrency } from "@/lib/async-utils";
+import type { SleeperLeague as SleeperLeagueApi } from "@/lib/sleeper-client";
+import { copyLegacyStatsToImportedLeague } from "@/lib/leagues/copyLegacyStatsToImportedLeague";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-/** Vercel Pro / Enterprise: extend serverless timeout for multi-year Sleeper scans. */
-export const maxDuration = 60;
+/** Vercel Pro / Enterprise: extend serverless timeout for multi-year Sleeper scans + legacy roster sync. */
+export const maxDuration = 120;
 
 const LAUNCH_YEAR = 2017;
 const SPORTS = ["nfl", "nba"] as const;
@@ -22,7 +29,7 @@ type SleeperUserApi = {
   avatar?: string | null;
 };
 
-interface SleeperLeague {
+interface SleeperLeagueRow {
   league_id?: string | number;
   name?: string;
   sport?: string;
@@ -47,7 +54,7 @@ function abortAfter(ms: number): AbortSignal {
   return c.signal;
 }
 
-function mapSport(league: SleeperLeague): LeagueSport {
+function mapSport(league: SleeperLeagueRow): LeagueSport {
   const raw = String(league.sport || league._sport || "nfl").toLowerCase();
   if (raw === "nba") return LeagueSport.NBA;
   return LeagueSport.NFL;
@@ -61,7 +68,7 @@ function scoringFromSettings(ss?: Record<string, number> | null): string {
   return "standard";
 }
 
-function seasonOf(league: SleeperLeague): number {
+function seasonOf(league: SleeperLeagueRow): number {
   const raw = league.season ?? league._year;
   const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
   return Number.isFinite(n) ? n : NaN;
@@ -137,6 +144,18 @@ export async function POST(req: Request) {
       console.warn("[import] Could not save sleeperUserId:", e);
     }
 
+    const resolvedLegacy = await resolveOrCreateLegacyUser(username);
+    if (!resolvedLegacy) {
+      return NextResponse.json(
+        { error: "Could not resolve Sleeper legacy profile for this username." },
+        { status: 502 },
+      );
+    }
+    const linkedLegacy = await linkAfUserToLegacy(userId, resolvedLegacy, { skipComputeRank: true });
+    if (!linkedLegacy.ok) {
+      return linkedLegacy.response;
+    }
+
     const thisYear = new Date().getFullYear();
     const years: number[] = [];
     for (let y = LAUNCH_YEAR; y <= thisYear + 1; y++) years.push(y);
@@ -151,16 +170,16 @@ export async function POST(req: Request) {
         })
           .then((res) => (res.ok ? res.json() : Promise.resolve([])))
           .then((leagues: unknown) => {
-            if (!Array.isArray(leagues)) return [] as SleeperLeague[];
-            return leagues.map((l) => ({ ...(l as object), _sport: sport, _year: year })) as SleeperLeague[];
+            if (!Array.isArray(leagues)) return [] as SleeperLeagueRow[];
+            return leagues.map((l) => ({ ...(l as object), _sport: sport, _year: year })) as SleeperLeagueRow[];
           })
-          .catch(() => [] as SleeperLeague[])
+          .catch(() => [] as SleeperLeagueRow[])
       )
     );
 
     const results = await Promise.allSettled(fetchPromises);
     const allLeagues = results
-      .filter((r): r is PromiseFulfilledResult<SleeperLeague[]> => r.status === "fulfilled")
+      .filter((r): r is PromiseFulfilledResult<SleeperLeagueRow[]> => r.status === "fulfilled")
       .flatMap((r) => r.value)
       .filter((l) => Boolean(l?.league_id));
 
@@ -176,7 +195,7 @@ export async function POST(req: Request) {
       return Number.isFinite(s) && s >= currentYear;
     });
 
-    const uniqueCurrentByLeagueId = new Map<string, SleeperLeague>();
+    const uniqueCurrentByLeagueId = new Map<string, SleeperLeagueRow>();
     for (const l of currentEraLeagues) {
       const id = String(l.league_id);
       if (!uniqueCurrentByLeagueId.has(id)) uniqueCurrentByLeagueId.set(id, l);
@@ -227,7 +246,7 @@ export async function POST(req: Request) {
     const sportCounts: Record<string, number> = {};
     const skipped: string[] = [];
 
-    async function upsertOne(league: SleeperLeague): Promise<{ ok: true; sport: string } | { ok: false }> {
+    async function upsertOne(league: SleeperLeagueRow): Promise<{ ok: true; sport: string } | { ok: false }> {
       const sportEnum = mapSport(league);
       const sportLabel = sportEnum === LeagueSport.NBA ? "NBA" : "NFL";
       const rawSeason = league.season ?? league._year;
@@ -315,6 +334,29 @@ export async function POST(req: Request) {
     }
 
     console.log(`[import] Done. Imported: ${importedCount}, Skipped: ${skipped.length}`);
+
+    await runWithConcurrency(leaguesToImport, 4, async (league) => {
+      try {
+        const s = seasonOf(league);
+        if (!Number.isFinite(s)) return;
+        const lid = String(league.league_id ?? "");
+        await syncLegacyLeagueFromSleeper(
+          resolvedLegacy.id,
+          sleeperId,
+          league as SleeperLeagueApi,
+          s,
+        );
+        await copyLegacyStatsToImportedLeague(userId, resolvedLegacy.id, sleeperId, lid, s);
+      } catch (e: unknown) {
+        console.warn("[import] legacy league sync failed for", league?.league_id, e);
+      }
+    });
+
+    try {
+      await computeAndSaveRank(userId);
+    } catch (e: unknown) {
+      console.warn("[import] computeAndSaveRank failed (non-fatal):", e);
+    }
 
     try {
       await refreshUserRankingsContext(userId);

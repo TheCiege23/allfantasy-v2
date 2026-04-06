@@ -1,23 +1,23 @@
 ﻿-- CreateEnum
-CREATE TYPE "FeedbackReason" AS ENUM ('OVERVALUED', 'TOO_RISKY', 'NOT_MY_STYLE', 'BAD_ROSTER_FIT', 'OTHER');
+CREATE TYPE IF NOT EXISTS "FeedbackReason" AS ENUM ('OVERVALUED', 'TOO_RISKY', 'NOT_MY_STYLE', 'BAD_ROSTER_FIT', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "VoteType" AS ENUM ('UP', 'DOWN');
+CREATE TYPE IF NOT EXISTS "VoteType" AS ENUM ('UP', 'DOWN');
 
 -- CreateEnum
-CREATE TYPE "TradeOfferMode" AS ENUM ('INSTANT', 'STRUCTURED', 'TRADE_HUB', 'TRADE_IDEAS', 'PROPOSAL_GENERATOR');
+CREATE TYPE IF NOT EXISTS "TradeOfferMode" AS ENUM ('INSTANT', 'STRUCTURED', 'TRADE_HUB', 'TRADE_IDEAS', 'PROPOSAL_GENERATOR');
 
 -- CreateEnum
-CREATE TYPE "TradeOutcome" AS ENUM ('ACCEPTED', 'REJECTED', 'EXPIRED', 'COUNTERED', 'UNKNOWN');
+CREATE TYPE IF NOT EXISTS "TradeOutcome" AS ENUM ('ACCEPTED', 'REJECTED', 'EXPIRED', 'COUNTERED', 'UNKNOWN');
 
 -- CreateEnum
-CREATE TYPE "VerificationMethod" AS ENUM ('EMAIL', 'PHONE');
+CREATE TYPE IF NOT EXISTS "VerificationMethod" AS ENUM ('EMAIL', 'PHONE');
 
 -- CreateEnum
-CREATE TYPE "LeagueSport" AS ENUM ('NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER');
+CREATE TYPE IF NOT EXISTS "LeagueSport" AS ENUM ('NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER');
 
 -- CreateTable
-CREATE TABLE "EarlyAccessSignup" (
+CREATE TABLE IF NOT EXISTS "EarlyAccessSignup" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT,
@@ -35,7 +35,7 @@ CREATE TABLE "EarlyAccessSignup" (
 );
 
 -- CreateTable
-CREATE TABLE "VisitorLocation" (
+CREATE TABLE IF NOT EXISTS "VisitorLocation" (
     "id" TEXT NOT NULL,
     "ipAddress" TEXT NOT NULL,
     "city" TEXT,
@@ -52,7 +52,7 @@ CREATE TABLE "VisitorLocation" (
 );
 
 -- CreateTable
-CREATE TABLE "QuestionnaireResponse" (
+CREATE TABLE IF NOT EXISTS "QuestionnaireResponse" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "favoriteSport" TEXT NOT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE "QuestionnaireResponse" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsDataCache" (
+CREATE TABLE IF NOT EXISTS "SportsDataCache" (
     "key" TEXT NOT NULL,
     "data" JSONB NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE "SportsDataCache" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsTeam" (
+CREATE TABLE IF NOT EXISTS "SportsTeam" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -99,7 +99,7 @@ CREATE TABLE "SportsTeam" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsPlayer" (
+CREATE TABLE IF NOT EXISTS "SportsPlayer" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -126,7 +126,7 @@ CREATE TABLE "SportsPlayer" (
 );
 
 -- CreateTable
-CREATE TABLE "PlayerIdentityMap" (
+CREATE TABLE IF NOT EXISTS "PlayerIdentityMap" (
     "id" TEXT NOT NULL,
     "canonicalName" TEXT NOT NULL,
     "normalizedName" TEXT NOT NULL,
@@ -151,7 +151,7 @@ CREATE TABLE "PlayerIdentityMap" (
 );
 
 -- CreateTable
-CREATE TABLE "player_team_history" (
+CREATE TABLE IF NOT EXISTS "player_team_history" (
     "id" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
     "sport" TEXT NOT NULL DEFAULT 'nfl',
@@ -165,7 +165,7 @@ CREATE TABLE "player_team_history" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsGame" (
+CREATE TABLE IF NOT EXISTS "SportsGame" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -191,7 +191,7 @@ CREATE TABLE "SportsGame" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsInjury" (
+CREATE TABLE IF NOT EXISTS "SportsInjury" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -217,7 +217,7 @@ CREATE TABLE "SportsInjury" (
 );
 
 -- CreateTable
-CREATE TABLE "SportsNews" (
+CREATE TABLE IF NOT EXISTS "SportsNews" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -246,7 +246,7 @@ CREATE TABLE "SportsNews" (
 );
 
 -- CreateTable
-CREATE TABLE "sports_players" (
+CREATE TABLE IF NOT EXISTS "sports_players" (
     "id" VARCHAR(128) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "name" VARCHAR(128) NOT NULL,
@@ -271,7 +271,7 @@ CREATE TABLE "sports_players" (
 );
 
 -- CreateTable
-CREATE TABLE "team_assets" (
+CREATE TABLE IF NOT EXISTS "team_assets" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "team_code" VARCHAR(32) NOT NULL,
@@ -288,7 +288,7 @@ CREATE TABLE "team_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "injury_reports" (
+CREATE TABLE IF NOT EXISTS "injury_reports" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "player_id" VARCHAR(128) NOT NULL,
@@ -307,7 +307,7 @@ CREATE TABLE "injury_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "adp_data" (
+CREATE TABLE IF NOT EXISTS "adp_data" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "format" VARCHAR(32) NOT NULL,
@@ -327,7 +327,7 @@ CREATE TABLE "adp_data" (
 );
 
 -- CreateTable
-CREATE TABLE "player_news" (
+CREATE TABLE IF NOT EXISTS "player_news" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "player_id" VARCHAR(128),
@@ -345,7 +345,7 @@ CREATE TABLE "player_news" (
 );
 
 -- CreateTable
-CREATE TABLE "api_rate_limits" (
+CREATE TABLE IF NOT EXISTS "api_rate_limits" (
     "id" TEXT NOT NULL,
     "provider" VARCHAR(32) NOT NULL,
     "endpoint" VARCHAR(128) NOT NULL,
@@ -359,7 +359,7 @@ CREATE TABLE "api_rate_limits" (
 );
 
 -- CreateTable
-CREATE TABLE "api_call_log" (
+CREATE TABLE IF NOT EXISTS "api_call_log" (
     "id" TEXT NOT NULL,
     "provider" VARCHAR(32) NOT NULL,
     "endpoint" VARCHAR(128) NOT NULL,
@@ -373,7 +373,7 @@ CREATE TABLE "api_call_log" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyUser" (
+CREATE TABLE IF NOT EXISTS "LegacyUser" (
     "id" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
     "sleeperUserId" TEXT NOT NULL,
@@ -387,7 +387,7 @@ CREATE TABLE "LegacyUser" (
 );
 
 -- CreateTable
-CREATE TABLE "UserEvent" (
+CREATE TABLE IF NOT EXISTS "UserEvent" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "eventType" TEXT NOT NULL,
@@ -398,7 +398,7 @@ CREATE TABLE "UserEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "legacy_user_rank_cache" (
+CREATE TABLE IF NOT EXISTS "legacy_user_rank_cache" (
     "legacy_user_id" TEXT NOT NULL,
     "career_xp" BIGINT NOT NULL DEFAULT 0,
     "career_level" INTEGER NOT NULL DEFAULT 0,
@@ -420,7 +420,7 @@ CREATE TABLE "legacy_user_rank_cache" (
 );
 
 -- CreateTable
-CREATE TABLE "PlatformIdentity" (
+CREATE TABLE IF NOT EXISTS "PlatformIdentity" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
@@ -440,7 +440,7 @@ CREATE TABLE "PlatformIdentity" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyImportJob" (
+CREATE TABLE IF NOT EXISTS "LegacyImportJob" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'queued',
@@ -457,7 +457,7 @@ CREATE TABLE "LegacyImportJob" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyLeague" (
+CREATE TABLE IF NOT EXISTS "LegacyLeague" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperLeagueId" TEXT NOT NULL,
@@ -483,7 +483,7 @@ CREATE TABLE "LegacyLeague" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyRoster" (
+CREATE TABLE IF NOT EXISTS "LegacyRoster" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" INTEGER NOT NULL DEFAULT 0,
@@ -507,7 +507,7 @@ CREATE TABLE "LegacyRoster" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacySeasonSummary" (
+CREATE TABLE IF NOT EXISTS "LegacySeasonSummary" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" INTEGER NOT NULL DEFAULT 0,
@@ -531,7 +531,7 @@ CREATE TABLE "LegacySeasonSummary" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyAIReport" (
+CREATE TABLE IF NOT EXISTS "LegacyAIReport" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "reportType" TEXT NOT NULL,
@@ -546,7 +546,7 @@ CREATE TABLE "LegacyAIReport" (
 );
 
 -- CreateTable
-CREATE TABLE "AnalyticsEvent" (
+CREATE TABLE IF NOT EXISTS "AnalyticsEvent" (
     "id" TEXT NOT NULL,
     "event" TEXT NOT NULL,
     "path" TEXT,
@@ -563,7 +563,7 @@ CREATE TABLE "AnalyticsEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeNotification" (
+CREATE TABLE IF NOT EXISTS "TradeNotification" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -593,7 +593,7 @@ CREATE TABLE "TradeNotification" (
 );
 
 -- CreateTable
-CREATE TABLE "EmailPreference" (
+CREATE TABLE IF NOT EXISTS "EmailPreference" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "legacyUserId" TEXT,
@@ -611,7 +611,7 @@ CREATE TABLE "EmailPreference" (
 );
 
 -- CreateTable
-CREATE TABLE "AIUserProfile" (
+CREATE TABLE IF NOT EXISTS "AIUserProfile" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperUsername" TEXT,
@@ -633,7 +633,7 @@ CREATE TABLE "AIUserProfile" (
 );
 
 -- CreateTable
-CREATE TABLE "trade_suggestion_votes" (
+CREATE TABLE IF NOT EXISTS "trade_suggestion_votes" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tradeText" TEXT NOT NULL,
@@ -653,7 +653,7 @@ CREATE TABLE "trade_suggestion_votes" (
 );
 
 -- CreateTable
-CREATE TABLE "trade_feedback" (
+CREATE TABLE IF NOT EXISTS "trade_feedback" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tradeText" TEXT,
@@ -672,7 +672,7 @@ CREATE TABLE "trade_feedback" (
 );
 
 -- CreateTable
-CREATE TABLE "trade_profiles" (
+CREATE TABLE IF NOT EXISTS "trade_profiles" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "summary" TEXT NOT NULL,
@@ -686,7 +686,7 @@ CREATE TABLE "trade_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "AILeagueContext" (
+CREATE TABLE IF NOT EXISTS "AILeagueContext" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" TEXT NOT NULL DEFAULT 'NFL',
@@ -705,7 +705,7 @@ CREATE TABLE "AILeagueContext" (
 );
 
 -- CreateTable
-CREATE TABLE "AITeamStateSnapshot" (
+CREATE TABLE IF NOT EXISTS "AITeamStateSnapshot" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "teamId" TEXT NOT NULL,
@@ -724,7 +724,7 @@ CREATE TABLE "AITeamStateSnapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_memories" (
+CREATE TABLE IF NOT EXISTS "ai_memories" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -738,7 +738,7 @@ CREATE TABLE "ai_memories" (
 );
 
 -- CreateTable
-CREATE TABLE "AIMemoryEvent" (
+CREATE TABLE IF NOT EXISTS "AIMemoryEvent" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
     "leagueId" TEXT,
@@ -754,7 +754,7 @@ CREATE TABLE "AIMemoryEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "AIUserFeedback" (
+CREATE TABLE IF NOT EXISTS "AIUserFeedback" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -768,7 +768,7 @@ CREATE TABLE "AIUserFeedback" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeFeedback" (
+CREATE TABLE IF NOT EXISTS "TradeFeedback" (
     "id" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -784,7 +784,7 @@ CREATE TABLE "TradeFeedback" (
 );
 
 -- CreateTable
-CREATE TABLE "TradePreferences" (
+CREATE TABLE IF NOT EXISTS "TradePreferences" (
     "id" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
     "youthVsProduction" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -802,7 +802,7 @@ CREATE TABLE "TradePreferences" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueTradeHistory" (
+CREATE TABLE IF NOT EXISTS "LeagueTradeHistory" (
     "id" TEXT NOT NULL,
     "sleeperLeagueId" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
@@ -822,7 +822,7 @@ CREATE TABLE "LeagueTradeHistory" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueTrade" (
+CREATE TABLE IF NOT EXISTS "LeagueTrade" (
     "id" TEXT NOT NULL,
     "historyId" TEXT NOT NULL,
     "transactionId" TEXT NOT NULL,
@@ -854,7 +854,7 @@ CREATE TABLE "LeagueTrade" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeLearningInsight" (
+CREATE TABLE IF NOT EXISTS "TradeLearningInsight" (
     "id" TEXT NOT NULL,
     "insightType" TEXT NOT NULL,
     "playerName" TEXT,
@@ -878,7 +878,7 @@ CREATE TABLE "TradeLearningInsight" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeLearningStats" (
+CREATE TABLE IF NOT EXISTS "TradeLearningStats" (
     "id" TEXT NOT NULL,
     "season" INTEGER NOT NULL,
     "totalTradesAnalyzed" INTEGER NOT NULL DEFAULT 0,
@@ -911,7 +911,7 @@ CREATE TABLE "TradeLearningStats" (
 );
 
 -- CreateTable
-CREATE TABLE "TradePreAnalysisCache" (
+CREATE TABLE IF NOT EXISTS "TradePreAnalysisCache" (
     "id" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
     "sleeperLeagueId" TEXT NOT NULL,
@@ -935,7 +935,7 @@ CREATE TABLE "TradePreAnalysisCache" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueTypeSubmission" (
+CREATE TABLE IF NOT EXISTS "LeagueTypeSubmission" (
     "id" TEXT NOT NULL,
     "leagueTypeName" TEXT NOT NULL,
     "tagline" TEXT NOT NULL,
@@ -973,7 +973,7 @@ CREATE TABLE "LeagueTypeSubmission" (
 );
 
 -- CreateTable
-CREATE TABLE "LegacyFeedback" (
+CREATE TABLE IF NOT EXISTS "LegacyFeedback" (
     "id" TEXT NOT NULL,
     "feedbackType" TEXT NOT NULL,
     "tool" TEXT NOT NULL,
@@ -1012,7 +1012,7 @@ CREATE TABLE "LegacyFeedback" (
 );
 
 -- CreateTable
-CREATE TABLE "YahooConnection" (
+CREATE TABLE IF NOT EXISTS "YahooConnection" (
     "id" TEXT NOT NULL,
     "yahooUserId" TEXT NOT NULL,
     "displayName" TEXT,
@@ -1027,7 +1027,7 @@ CREATE TABLE "YahooConnection" (
 );
 
 -- CreateTable
-CREATE TABLE "YahooLeague" (
+CREATE TABLE IF NOT EXISTS "YahooLeague" (
     "id" TEXT NOT NULL,
     "yahooLeagueKey" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -1049,7 +1049,7 @@ CREATE TABLE "YahooLeague" (
 );
 
 -- CreateTable
-CREATE TABLE "YahooTeam" (
+CREATE TABLE IF NOT EXISTS "YahooTeam" (
     "id" TEXT NOT NULL,
     "yahooTeamKey" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -1074,7 +1074,7 @@ CREATE TABLE "YahooTeam" (
 );
 
 -- CreateTable
-CREATE TABLE "MFLConnection" (
+CREATE TABLE IF NOT EXISTS "MFLConnection" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "mflUsername" TEXT NOT NULL,
@@ -1087,7 +1087,7 @@ CREATE TABLE "MFLConnection" (
 );
 
 -- CreateTable
-CREATE TABLE "InsightEvent" (
+CREATE TABLE IF NOT EXISTS "InsightEvent" (
     "id" TEXT NOT NULL,
     "eventType" TEXT NOT NULL,
     "insightId" TEXT,
@@ -1109,7 +1109,7 @@ CREATE TABLE "InsightEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "AIIssue" (
+CREATE TABLE IF NOT EXISTS "AIIssue" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -1133,7 +1133,7 @@ CREATE TABLE "AIIssue" (
 );
 
 -- CreateTable
-CREATE TABLE "AIIssueFeedback" (
+CREATE TABLE IF NOT EXISTS "AIIssueFeedback" (
     "id" TEXT NOT NULL,
     "issueId" TEXT NOT NULL,
     "feedbackText" TEXT NOT NULL,
@@ -1148,7 +1148,7 @@ CREATE TABLE "AIIssueFeedback" (
 );
 
 -- CreateTable
-CREATE TABLE "FantraxUser" (
+CREATE TABLE IF NOT EXISTS "FantraxUser" (
     "id" TEXT NOT NULL,
     "fantraxUsername" TEXT NOT NULL,
     "displayName" TEXT,
@@ -1159,7 +1159,7 @@ CREATE TABLE "FantraxUser" (
 );
 
 -- CreateTable
-CREATE TABLE "FantraxLeague" (
+CREATE TABLE IF NOT EXISTS "FantraxLeague" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueName" TEXT NOT NULL,
@@ -1189,7 +1189,7 @@ CREATE TABLE "FantraxLeague" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_trade_tendencies" (
+CREATE TABLE IF NOT EXISTS "manager_trade_tendencies" (
     "user_id" TEXT NOT NULL,
     "leagues_played" INTEGER DEFAULT 0,
     "trades_sent" INTEGER DEFAULT 0,
@@ -1204,7 +1204,7 @@ CREATE TABLE "manager_trade_tendencies" (
 );
 
 -- CreateTable
-CREATE TABLE "user_trade_reputation" (
+CREATE TABLE IF NOT EXISTS "user_trade_reputation" (
     "user_id" TEXT NOT NULL,
     "trades_sent" INTEGER DEFAULT 0,
     "trades_accepted" INTEGER DEFAULT 0,
@@ -1216,7 +1216,7 @@ CREATE TABLE "user_trade_reputation" (
 );
 
 -- CreateTable
-CREATE TABLE "SleeperImportCache" (
+CREATE TABLE IF NOT EXISTS "SleeperImportCache" (
     "id" TEXT NOT NULL,
     "sleeperUsername" VARCHAR(64) NOT NULL,
     "sleeperLeagueId" VARCHAR(64) NOT NULL,
@@ -1231,7 +1231,7 @@ CREATE TABLE "SleeperImportCache" (
 );
 
 -- CreateTable
-CREATE TABLE "trade_block_entries" (
+CREATE TABLE IF NOT EXISTS "trade_block_entries" (
     "id" TEXT NOT NULL,
     "sleeperLeagueId" VARCHAR(64) NOT NULL,
     "rosterId" INTEGER NOT NULL,
@@ -1249,7 +1249,7 @@ CREATE TABLE "trade_block_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "trade_analysis_snapshots" (
+CREATE TABLE IF NOT EXISTS "trade_analysis_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sleeperUsername" VARCHAR(64) NOT NULL,
@@ -1264,7 +1264,7 @@ CREATE TABLE "trade_analysis_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "share_rewards" (
+CREATE TABLE IF NOT EXISTS "share_rewards" (
     "id" TEXT NOT NULL,
     "sleeperUsername" VARCHAR(64) NOT NULL,
     "leagueId" VARCHAR(64),
@@ -1280,7 +1280,7 @@ CREATE TABLE "share_rewards" (
 );
 
 -- CreateTable
-CREATE TABLE "decision_logs" (
+CREATE TABLE IF NOT EXISTS "decision_logs" (
     "id" TEXT NOT NULL,
     "userId" VARCHAR(64) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -1305,7 +1305,7 @@ CREATE TABLE "decision_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "decision_outcomes" (
+CREATE TABLE IF NOT EXISTS "decision_outcomes" (
     "id" TEXT NOT NULL,
     "decisionLogId" TEXT NOT NULL,
     "rosterValueBefore" DOUBLE PRECISION,
@@ -1325,7 +1325,7 @@ CREATE TABLE "decision_outcomes" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeOfferEvent" (
+CREATE TABLE IF NOT EXISTS "TradeOfferEvent" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "mode" "TradeOfferMode" NOT NULL,
@@ -1358,7 +1358,7 @@ CREATE TABLE "TradeOfferEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeOutcomeEvent" (
+CREATE TABLE IF NOT EXISTS "TradeOutcomeEvent" (
     "id" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "leagueId" VARCHAR(64),
@@ -1374,7 +1374,7 @@ CREATE TABLE "TradeOutcomeEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "ModelMetricsDaily" (
+CREATE TABLE IF NOT EXISTS "ModelMetricsDaily" (
     "id" TEXT NOT NULL,
     "day" TIMESTAMP(3) NOT NULL,
     "mode" "TradeOfferMode" NOT NULL,
@@ -1396,7 +1396,7 @@ CREATE TABLE "ModelMetricsDaily" (
 );
 
 -- CreateTable
-CREATE TABLE "LearnedWeights" (
+CREATE TABLE IF NOT EXISTS "LearnedWeights" (
     "id" TEXT NOT NULL,
     "leagueClass" VARCHAR(16) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -1416,7 +1416,7 @@ CREATE TABLE "LearnedWeights" (
 );
 
 -- CreateTable
-CREATE TABLE "RankingWeightsWeekly" (
+CREATE TABLE IF NOT EXISTS "RankingWeightsWeekly" (
     "id" TEXT NOT NULL,
     "weekStart" TIMESTAMP(3) NOT NULL,
     "segmentKey" VARCHAR(32) NOT NULL,
@@ -1434,7 +1434,7 @@ CREATE TABLE "RankingWeightsWeekly" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueDemandWeekly" (
+CREATE TABLE IF NOT EXISTS "LeagueDemandWeekly" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "weekStart" TIMESTAMP(3) NOT NULL,
@@ -1450,7 +1450,7 @@ CREATE TABLE "LeagueDemandWeekly" (
 );
 
 -- CreateTable
-CREATE TABLE "NarrativeValidationLog" (
+CREATE TABLE IF NOT EXISTS "NarrativeValidationLog" (
     "id" TEXT NOT NULL,
     "offerEventId" VARCHAR(64),
     "mode" VARCHAR(32) NOT NULL,
@@ -1463,7 +1463,7 @@ CREATE TABLE "NarrativeValidationLog" (
 );
 
 -- CreateTable
-CREATE TABLE "pecr_logs" (
+CREATE TABLE IF NOT EXISTS "pecr_logs" (
     "id" TEXT NOT NULL,
     "feature" VARCHAR(64) NOT NULL,
     "intent" VARCHAR(64) NOT NULL,
@@ -1482,7 +1482,7 @@ CREATE TABLE "pecr_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_codebase_edits" (
+CREATE TABLE IF NOT EXISTS "ai_codebase_edits" (
     "id" TEXT NOT NULL,
     "filePath" TEXT NOT NULL,
     "editedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1495,7 +1495,7 @@ CREATE TABLE "ai_codebase_edits" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_repo_memory" (
+CREATE TABLE IF NOT EXISTS "ai_repo_memory" (
     "id" TEXT NOT NULL,
     "memory" TEXT NOT NULL,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -1504,7 +1504,7 @@ CREATE TABLE "ai_repo_memory" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_dna" (
+CREATE TABLE IF NOT EXISTS "manager_dna" (
     "id" TEXT NOT NULL,
     "sleeperUsername" TEXT NOT NULL,
     "sleeperUserId" VARCHAR(64),
@@ -1526,7 +1526,7 @@ CREATE TABLE "manager_dna" (
 );
 
 -- CreateTable
-CREATE TABLE "opponent_tendencies" (
+CREATE TABLE IF NOT EXISTS "opponent_tendencies" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" INTEGER NOT NULL,
@@ -1546,7 +1546,7 @@ CREATE TABLE "opponent_tendencies" (
 );
 
 -- CreateTable
-CREATE TABLE "strategy_snapshots" (
+CREATE TABLE IF NOT EXISTS "strategy_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" INTEGER NOT NULL,
@@ -1572,7 +1572,7 @@ CREATE TABLE "strategy_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "player_season_stats" (
+CREATE TABLE IF NOT EXISTS "player_season_stats" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
@@ -1595,7 +1595,7 @@ CREATE TABLE "player_season_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "trending_players" (
+CREATE TABLE IF NOT EXISTS "trending_players" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL DEFAULT 'nfl',
     "sleeperId" TEXT NOT NULL,
@@ -1619,7 +1619,7 @@ CREATE TABLE "trending_players" (
 );
 
 -- CreateTable
-CREATE TABLE "depth_charts" (
+CREATE TABLE IF NOT EXISTS "depth_charts" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "team" TEXT NOT NULL,
@@ -1637,7 +1637,7 @@ CREATE TABLE "depth_charts" (
 );
 
 -- CreateTable
-CREATE TABLE "team_season_stats" (
+CREATE TABLE IF NOT EXISTS "team_season_stats" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "team" TEXT NOT NULL,
@@ -1667,7 +1667,7 @@ CREATE TABLE "team_season_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "ProviderSyncState" (
+CREATE TABLE IF NOT EXISTS "ProviderSyncState" (
     "id" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "sport" TEXT,
@@ -1691,7 +1691,7 @@ CREATE TABLE "ProviderSyncState" (
 );
 
 -- CreateTable
-CREATE TABLE "AiOutput" (
+CREATE TABLE IF NOT EXISTS "AiOutput" (
     "id" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "role" TEXT NOT NULL,
@@ -1711,7 +1711,7 @@ CREATE TABLE "AiOutput" (
 );
 
 -- CreateTable
-CREATE TABLE "guardian_interventions" (
+CREATE TABLE IF NOT EXISTS "guardian_interventions" (
     "id" TEXT NOT NULL,
     "userId" VARCHAR(64) NOT NULL,
     "leagueId" VARCHAR(64),
@@ -1733,7 +1733,7 @@ CREATE TABLE "guardian_interventions" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_insights" (
+CREATE TABLE IF NOT EXISTS "ai_insights" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperUsername" TEXT,
@@ -1754,7 +1754,7 @@ CREATE TABLE "ai_insights" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_badges" (
+CREATE TABLE IF NOT EXISTS "ai_badges" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperUsername" TEXT,
@@ -1771,7 +1771,7 @@ CREATE TABLE "ai_badges" (
 );
 
 -- CreateTable
-CREATE TABLE "simulation_runs" (
+CREATE TABLE IF NOT EXISTS "simulation_runs" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperUsername" TEXT,
@@ -1788,7 +1788,7 @@ CREATE TABLE "simulation_runs" (
 );
 
 -- CreateTable
-CREATE TABLE "chat_conversations" (
+CREATE TABLE IF NOT EXISTS "chat_conversations" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sleeperUsername" TEXT,
@@ -1803,7 +1803,7 @@ CREATE TABLE "chat_conversations" (
 );
 
 -- CreateTable
-CREATE TABLE "chat_history" (
+CREATE TABLE IF NOT EXISTS "chat_history" (
     "id" TEXT NOT NULL,
     "conversationId" TEXT NOT NULL,
     "userId" TEXT,
@@ -1817,7 +1817,7 @@ CREATE TABLE "chat_history" (
 );
 
 -- CreateTable
-CREATE TABLE "WeeklyMatchup" (
+CREATE TABLE IF NOT EXISTS "WeeklyMatchup" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "seasonYear" INTEGER NOT NULL,
@@ -1834,7 +1834,7 @@ CREATE TABLE "WeeklyMatchup" (
 );
 
 -- CreateTable
-CREATE TABLE "rankings_snapshots" (
+CREATE TABLE IF NOT EXISTS "rankings_snapshots" (
     "id" BIGSERIAL NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -1852,7 +1852,7 @@ CREATE TABLE "rankings_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "rankings_weights_snapshot" (
+CREATE TABLE IF NOT EXISTS "rankings_weights_snapshot" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" TEXT NOT NULL,
@@ -1866,7 +1866,7 @@ CREATE TABLE "rankings_weights_snapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "season_results" (
+CREATE TABLE IF NOT EXISTS "season_results" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" TEXT NOT NULL,
@@ -1882,7 +1882,7 @@ CREATE TABLE "season_results" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_grades" (
+CREATE TABLE IF NOT EXISTS "draft_grades" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" TEXT NOT NULL,
@@ -1896,7 +1896,7 @@ CREATE TABLE "draft_grades" (
 );
 
 -- CreateTable
-CREATE TABLE "hall_of_fame" (
+CREATE TABLE IF NOT EXISTS "hall_of_fame" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -1912,7 +1912,7 @@ CREATE TABLE "hall_of_fame" (
 );
 
 -- CreateTable
-CREATE TABLE "hall_of_fame_entries" (
+CREATE TABLE IF NOT EXISTS "hall_of_fame_entries" (
     "id" TEXT NOT NULL,
     "entityType" VARCHAR(32) NOT NULL,
     "entityId" VARCHAR(128) NOT NULL,
@@ -1930,7 +1930,7 @@ CREATE TABLE "hall_of_fame_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "hall_of_fame_moments" (
+CREATE TABLE IF NOT EXISTS "hall_of_fame_moments" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -1947,7 +1947,7 @@ CREATE TABLE "hall_of_fame_moments" (
 );
 
 -- CreateTable
-CREATE TABLE "legacy_score_records" (
+CREATE TABLE IF NOT EXISTS "legacy_score_records" (
     "id" TEXT NOT NULL,
     "entityType" VARCHAR(32) NOT NULL,
     "entityId" VARCHAR(128) NOT NULL,
@@ -1966,7 +1966,7 @@ CREATE TABLE "legacy_score_records" (
 );
 
 -- CreateTable
-CREATE TABLE "legacy_evidence_records" (
+CREATE TABLE IF NOT EXISTS "legacy_evidence_records" (
     "id" TEXT NOT NULL,
     "entityType" VARCHAR(32) NOT NULL,
     "entityId" VARCHAR(128) NOT NULL,
@@ -1980,7 +1980,7 @@ CREATE TABLE "legacy_evidence_records" (
 );
 
 -- CreateTable
-CREATE TABLE "ApiUsageEvent" (
+CREATE TABLE IF NOT EXISTS "ApiUsageEvent" (
     "id" BIGSERIAL NOT NULL,
     "ts" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "userId" TEXT,
@@ -2001,7 +2001,7 @@ CREATE TABLE "ApiUsageEvent" (
 );
 
 -- CreateTable
-CREATE TABLE "ApiUsageRollup" (
+CREATE TABLE IF NOT EXISTS "ApiUsageRollup" (
     "id" BIGSERIAL NOT NULL,
     "bucketStart" TIMESTAMP(3) NOT NULL,
     "bucketType" TEXT NOT NULL,
@@ -2024,7 +2024,7 @@ CREATE TABLE "ApiUsageRollup" (
 );
 
 -- CreateTable
-CREATE TABLE "Player" (
+CREATE TABLE IF NOT EXISTS "Player" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -2056,7 +2056,7 @@ CREATE TABLE "Player" (
 );
 
 -- CreateTable
-CREATE TABLE "DevyPlayer" (
+CREATE TABLE IF NOT EXISTS "DevyPlayer" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "normalizedName" TEXT NOT NULL,
@@ -2149,7 +2149,7 @@ CREATE TABLE "DevyPlayer" (
 );
 
 -- CreateTable
-CREATE TABLE "DevyAdp" (
+CREATE TABLE IF NOT EXISTS "DevyAdp" (
     "id" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
     "adp" DOUBLE PRECISION NOT NULL,
@@ -2161,7 +2161,7 @@ CREATE TABLE "DevyAdp" (
 );
 
 -- CreateTable
-CREATE TABLE "RookieClass" (
+CREATE TABLE IF NOT EXISTS "RookieClass" (
     "year" INTEGER NOT NULL,
     "strength" DOUBLE PRECISION NOT NULL,
     "qbDepth" DOUBLE PRECISION NOT NULL,
@@ -2174,7 +2174,7 @@ CREATE TABLE "RookieClass" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeOutcomeTraining" (
+CREATE TABLE IF NOT EXISTS "TradeOutcomeTraining" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "proposerRosterId" TEXT NOT NULL,
@@ -2192,7 +2192,7 @@ CREATE TABLE "TradeOutcomeTraining" (
 );
 
 -- CreateTable
-CREATE TABLE "TradeShare" (
+CREATE TABLE IF NOT EXISTS "TradeShare" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
     "analysis" JSONB NOT NULL,
@@ -2205,7 +2205,7 @@ CREATE TABLE "TradeShare" (
 );
 
 -- CreateTable
-CREATE TABLE "EngineSnapshot" (
+CREATE TABLE IF NOT EXISTS "EngineSnapshot" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "type" VARCHAR(32) NOT NULL,
@@ -2218,7 +2218,7 @@ CREATE TABLE "EngineSnapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "PlayerAnalyticsSnapshot" (
+CREATE TABLE IF NOT EXISTS "PlayerAnalyticsSnapshot" (
     "id" TEXT NOT NULL,
     "normalizedName" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -2278,7 +2278,7 @@ CREATE TABLE "PlayerAnalyticsSnapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "app_users" (
+CREATE TABLE IF NOT EXISTS "app_users" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "emailVerified" TIMESTAMP(3),
@@ -2298,7 +2298,7 @@ CREATE TABLE "app_users" (
 );
 
 -- CreateTable
-CREATE TABLE "growth_attributions" (
+CREATE TABLE IF NOT EXISTS "growth_attributions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "source" VARCHAR(32) NOT NULL,
@@ -2310,7 +2310,7 @@ CREATE TABLE "growth_attributions" (
 );
 
 -- CreateTable
-CREATE TABLE "invite_links" (
+CREATE TABLE IF NOT EXISTS "invite_links" (
     "id" TEXT NOT NULL,
     "type" VARCHAR(24) NOT NULL,
     "token" VARCHAR(32) NOT NULL,
@@ -2328,7 +2328,7 @@ CREATE TABLE "invite_links" (
 );
 
 -- CreateTable
-CREATE TABLE "invite_link_events" (
+CREATE TABLE IF NOT EXISTS "invite_link_events" (
     "id" TEXT NOT NULL,
     "inviteLinkId" TEXT NOT NULL,
     "eventType" VARCHAR(32) NOT NULL,
@@ -2340,7 +2340,7 @@ CREATE TABLE "invite_link_events" (
 );
 
 -- CreateTable
-CREATE TABLE "creator_profiles" (
+CREATE TABLE IF NOT EXISTS "creator_profiles" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "handle" TEXT NOT NULL,
@@ -2367,7 +2367,7 @@ CREATE TABLE "creator_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "creator_leagues" (
+CREATE TABLE IF NOT EXISTS "creator_leagues" (
     "id" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     "type" VARCHAR(16) NOT NULL,
@@ -2394,7 +2394,7 @@ CREATE TABLE "creator_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "creator_invites" (
+CREATE TABLE IF NOT EXISTS "creator_invites" (
     "id" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     "creatorLeagueId" TEXT,
@@ -2409,7 +2409,7 @@ CREATE TABLE "creator_invites" (
 );
 
 -- CreateTable
-CREATE TABLE "creator_league_members" (
+CREATE TABLE IF NOT EXISTS "creator_league_members" (
     "id" TEXT NOT NULL,
     "creatorLeagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2420,7 +2420,7 @@ CREATE TABLE "creator_league_members" (
 );
 
 -- CreateTable
-CREATE TABLE "creator_analytics_events" (
+CREATE TABLE IF NOT EXISTS "creator_analytics_events" (
     "id" TEXT NOT NULL,
     "creatorId" TEXT NOT NULL,
     "eventType" VARCHAR(32) NOT NULL,
@@ -2432,7 +2432,7 @@ CREATE TABLE "creator_analytics_events" (
 );
 
 -- CreateTable
-CREATE TABLE "referral_codes" (
+CREATE TABLE IF NOT EXISTS "referral_codes" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -2450,7 +2450,7 @@ CREATE TABLE "referral_codes" (
 );
 
 -- CreateTable
-CREATE TABLE "referrals" (
+CREATE TABLE IF NOT EXISTS "referrals" (
     "id" TEXT NOT NULL,
     "referrerId" TEXT NOT NULL,
     "referredUserId" TEXT,
@@ -2471,7 +2471,7 @@ CREATE TABLE "referrals" (
 );
 
 -- CreateTable
-CREATE TABLE "referral_events" (
+CREATE TABLE IF NOT EXISTS "referral_events" (
     "id" TEXT NOT NULL,
     "referrerId" TEXT NOT NULL,
     "referredUserId" TEXT,
@@ -2487,7 +2487,7 @@ CREATE TABLE "referral_events" (
 );
 
 -- CreateTable
-CREATE TABLE "referral_reward_rules" (
+CREATE TABLE IF NOT EXISTS "referral_reward_rules" (
     "id" TEXT NOT NULL,
     "key" VARCHAR(64) NOT NULL,
     "type" VARCHAR(48) NOT NULL,
@@ -2513,7 +2513,7 @@ CREATE TABLE "referral_reward_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "referral_rewards" (
+CREATE TABLE IF NOT EXISTS "referral_rewards" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "referralId" TEXT,
@@ -2531,7 +2531,7 @@ CREATE TABLE "referral_rewards" (
 );
 
 -- CreateTable
-CREATE TABLE "auth_accounts" (
+CREATE TABLE IF NOT EXISTS "auth_accounts" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -2549,7 +2549,7 @@ CREATE TABLE "auth_accounts" (
 );
 
 -- CreateTable
-CREATE TABLE "auth_sessions" (
+CREATE TABLE IF NOT EXISTS "auth_sessions" (
     "id" TEXT NOT NULL,
     "sessionToken" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2559,14 +2559,14 @@ CREATE TABLE "auth_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "auth_verification_tokens" (
+CREATE TABLE IF NOT EXISTS "auth_verification_tokens" (
     "identifier" TEXT NOT NULL,
     "token" TEXT NOT NULL,
     "expires" TIMESTAMP(3) NOT NULL
 );
 
 -- CreateTable
-CREATE TABLE "BracketTournament" (
+CREATE TABLE IF NOT EXISTS "BracketTournament" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "season" INTEGER NOT NULL,
@@ -2579,7 +2579,7 @@ CREATE TABLE "BracketTournament" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketNode" (
+CREATE TABLE IF NOT EXISTS "BracketNode" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "round" INTEGER NOT NULL,
@@ -2599,7 +2599,7 @@ CREATE TABLE "BracketNode" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketLeague" (
+CREATE TABLE IF NOT EXISTS "BracketLeague" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "ownerId" TEXT NOT NULL,
@@ -2617,7 +2617,7 @@ CREATE TABLE "BracketLeague" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketLeagueMember" (
+CREATE TABLE IF NOT EXISTS "BracketLeagueMember" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2628,7 +2628,7 @@ CREATE TABLE "BracketLeagueMember" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketEntry" (
+CREATE TABLE IF NOT EXISTS "BracketEntry" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2648,7 +2648,7 @@ CREATE TABLE "BracketEntry" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketEntrySnapshot" (
+CREATE TABLE IF NOT EXISTS "BracketEntrySnapshot" (
     "id" TEXT NOT NULL,
     "entryId" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
@@ -2666,7 +2666,7 @@ CREATE TABLE "BracketEntrySnapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_pick_popularity" (
+CREATE TABLE IF NOT EXISTS "bracket_pick_popularity" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -2682,7 +2682,7 @@ CREATE TABLE "bracket_pick_popularity" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_simulation_snapshot" (
+CREATE TABLE IF NOT EXISTS "bracket_simulation_snapshot" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -2698,7 +2698,7 @@ CREATE TABLE "bracket_simulation_snapshot" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_leaderboards" (
+CREATE TABLE IF NOT EXISTS "bracket_leaderboards" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -2714,7 +2714,7 @@ CREATE TABLE "bracket_leaderboards" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_health_snapshots" (
+CREATE TABLE IF NOT EXISTS "bracket_health_snapshots" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -2728,7 +2728,7 @@ CREATE TABLE "bracket_health_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketPick" (
+CREATE TABLE IF NOT EXISTS "BracketPick" (
     "id" TEXT NOT NULL,
     "entryId" TEXT NOT NULL,
     "nodeId" TEXT NOT NULL,
@@ -2741,7 +2741,7 @@ CREATE TABLE "BracketPick" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_league_messages" (
+CREATE TABLE IF NOT EXISTS "bracket_league_messages" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2756,7 +2756,7 @@ CREATE TABLE "bracket_league_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_message_reactions" (
+CREATE TABLE IF NOT EXISTS "bracket_message_reactions" (
     "id" TEXT NOT NULL,
     "messageId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -2767,7 +2767,7 @@ CREATE TABLE "bracket_message_reactions" (
 );
 
 -- CreateTable
-CREATE TABLE "BracketPayment" (
+CREATE TABLE IF NOT EXISTS "BracketPayment" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -2784,7 +2784,7 @@ CREATE TABLE "BracketPayment" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_feed_events" (
+CREATE TABLE IF NOT EXISTS "bracket_feed_events" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -2798,7 +2798,7 @@ CREATE TABLE "bracket_feed_events" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_risk_profiles" (
+CREATE TABLE IF NOT EXISTS "bracket_risk_profiles" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "riskTolerance" TEXT NOT NULL DEFAULT 'balanced',
@@ -2812,7 +2812,7 @@ CREATE TABLE "bracket_risk_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "simulation_results" (
+CREATE TABLE IF NOT EXISTS "simulation_results" (
     "id" TEXT NOT NULL,
     "bracketId" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
@@ -2828,7 +2828,7 @@ CREATE TABLE "simulation_results" (
 );
 
 -- CreateTable
-CREATE TABLE "bracket_challenges" (
+CREATE TABLE IF NOT EXISTS "bracket_challenges" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "challengerEntryId" TEXT NOT NULL,
@@ -2841,7 +2841,7 @@ CREATE TABLE "bracket_challenges" (
 );
 
 -- CreateTable
-CREATE TABLE "user_follows" (
+CREATE TABLE IF NOT EXISTS "user_follows" (
     "id" TEXT NOT NULL,
     "followerId" TEXT NOT NULL,
     "followeeId" TEXT NOT NULL,
@@ -2851,7 +2851,7 @@ CREATE TABLE "user_follows" (
 );
 
 -- CreateTable
-CREATE TABLE "activity_events" (
+CREATE TABLE IF NOT EXISTS "activity_events" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT,
     "entryId" TEXT,
@@ -2865,7 +2865,7 @@ CREATE TABLE "activity_events" (
 );
 
 -- CreateTable
-CREATE TABLE "reaction_events" (
+CREATE TABLE IF NOT EXISTS "reaction_events" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT,
     "entryId" TEXT,
@@ -2879,7 +2879,7 @@ CREATE TABLE "reaction_events" (
 );
 
 -- CreateTable
-CREATE TABLE "user_rivalries" (
+CREATE TABLE IF NOT EXISTS "user_rivalries" (
     "id" TEXT NOT NULL,
     "userAId" TEXT NOT NULL,
     "userBId" TEXT NOT NULL,
@@ -2892,7 +2892,7 @@ CREATE TABLE "user_rivalries" (
 );
 
 -- CreateTable
-CREATE TABLE "rivalry_records" (
+CREATE TABLE IF NOT EXISTS "rivalry_records" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -2907,7 +2907,7 @@ CREATE TABLE "rivalry_records" (
 );
 
 -- CreateTable
-CREATE TABLE "rivalry_events" (
+CREATE TABLE IF NOT EXISTS "rivalry_events" (
     "id" TEXT NOT NULL,
     "rivalryId" TEXT NOT NULL,
     "eventType" VARCHAR(48) NOT NULL,
@@ -2921,7 +2921,7 @@ CREATE TABLE "rivalry_events" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_psych_profiles" (
+CREATE TABLE IF NOT EXISTS "manager_psych_profiles" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
@@ -2938,7 +2938,7 @@ CREATE TABLE "manager_psych_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "profile_evidence_records" (
+CREATE TABLE IF NOT EXISTS "profile_evidence_records" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -2953,7 +2953,7 @@ CREATE TABLE "profile_evidence_records" (
 );
 
 -- CreateTable
-CREATE TABLE "drama_events" (
+CREATE TABLE IF NOT EXISTS "drama_events" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -2971,7 +2971,7 @@ CREATE TABLE "drama_events" (
 );
 
 -- CreateTable
-CREATE TABLE "drama_timeline_records" (
+CREATE TABLE IF NOT EXISTS "drama_timeline_records" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -2983,7 +2983,7 @@ CREATE TABLE "drama_timeline_records" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_reputation_records" (
+CREATE TABLE IF NOT EXISTS "manager_reputation_records" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
@@ -3005,7 +3005,7 @@ CREATE TABLE "manager_reputation_records" (
 );
 
 -- CreateTable
-CREATE TABLE "reputation_evidence_records" (
+CREATE TABLE IF NOT EXISTS "reputation_evidence_records" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -3020,7 +3020,7 @@ CREATE TABLE "reputation_evidence_records" (
 );
 
 -- CreateTable
-CREATE TABLE "reputation_config_records" (
+CREATE TABLE IF NOT EXISTS "reputation_config_records" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3033,7 +3033,7 @@ CREATE TABLE "reputation_config_records" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_franchise_profiles" (
+CREATE TABLE IF NOT EXISTS "manager_franchise_profiles" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "totalCareerSeasons" INTEGER NOT NULL DEFAULT 0,
@@ -3049,7 +3049,7 @@ CREATE TABLE "manager_franchise_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "gm_progression_events" (
+CREATE TABLE IF NOT EXISTS "gm_progression_events" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3062,7 +3062,7 @@ CREATE TABLE "gm_progression_events" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_xp_profiles" (
+CREATE TABLE IF NOT EXISTS "manager_xp_profiles" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "totalXP" INTEGER NOT NULL DEFAULT 0,
@@ -3074,7 +3074,7 @@ CREATE TABLE "manager_xp_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "xp_events" (
+CREATE TABLE IF NOT EXISTS "xp_events" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "eventType" VARCHAR(64) NOT NULL,
@@ -3086,7 +3086,7 @@ CREATE TABLE "xp_events" (
 );
 
 -- CreateTable
-CREATE TABLE "award_records" (
+CREATE TABLE IF NOT EXISTS "award_records" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3100,7 +3100,7 @@ CREATE TABLE "award_records" (
 );
 
 -- CreateTable
-CREATE TABLE "record_book_entries" (
+CREATE TABLE IF NOT EXISTS "record_book_entries" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -3114,7 +3114,7 @@ CREATE TABLE "record_book_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "manager_wallets" (
+CREATE TABLE IF NOT EXISTS "manager_wallets" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "currencyBalance" INTEGER NOT NULL DEFAULT 0,
@@ -3126,7 +3126,7 @@ CREATE TABLE "manager_wallets" (
 );
 
 -- CreateTable
-CREATE TABLE "marketplace_items" (
+CREATE TABLE IF NOT EXISTS "marketplace_items" (
     "id" TEXT NOT NULL,
     "itemType" VARCHAR(64) NOT NULL,
     "itemName" VARCHAR(128) NOT NULL,
@@ -3140,7 +3140,7 @@ CREATE TABLE "marketplace_items" (
 );
 
 -- CreateTable
-CREATE TABLE "purchase_records" (
+CREATE TABLE IF NOT EXISTS "purchase_records" (
     "id" TEXT NOT NULL,
     "managerId" VARCHAR(128) NOT NULL,
     "itemId" TEXT NOT NULL,
@@ -3151,7 +3151,7 @@ CREATE TABLE "purchase_records" (
 );
 
 -- CreateTable
-CREATE TABLE "media_articles" (
+CREATE TABLE IF NOT EXISTS "media_articles" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3164,7 +3164,7 @@ CREATE TABLE "media_articles" (
 );
 
 -- CreateTable
-CREATE TABLE "blog_articles" (
+CREATE TABLE IF NOT EXISTS "blog_articles" (
     "articleId" TEXT NOT NULL,
     "title" VARCHAR(512) NOT NULL,
     "slug" VARCHAR(512) NOT NULL,
@@ -3184,7 +3184,7 @@ CREATE TABLE "blog_articles" (
 );
 
 -- CreateTable
-CREATE TABLE "blog_drafts" (
+CREATE TABLE IF NOT EXISTS "blog_drafts" (
     "draftId" TEXT NOT NULL,
     "articleId" VARCHAR(64) NOT NULL,
     "title" VARCHAR(512) NOT NULL,
@@ -3204,7 +3204,7 @@ CREATE TABLE "blog_drafts" (
 );
 
 -- CreateTable
-CREATE TABLE "blog_publish_logs" (
+CREATE TABLE IF NOT EXISTS "blog_publish_logs" (
     "publishId" TEXT NOT NULL,
     "articleId" VARCHAR(64) NOT NULL,
     "actionType" VARCHAR(32) NOT NULL,
@@ -3215,7 +3215,7 @@ CREATE TABLE "blog_publish_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "broadcast_sessions" (
+CREATE TABLE IF NOT EXISTS "broadcast_sessions" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3226,7 +3226,7 @@ CREATE TABLE "broadcast_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "commentary_entries" (
+CREATE TABLE IF NOT EXISTS "commentary_entries" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -3240,7 +3240,7 @@ CREATE TABLE "commentary_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "user_profiles" (
+CREATE TABLE IF NOT EXISTS "user_profiles" (
     "userId" TEXT NOT NULL,
     "displayName" TEXT,
     "phone" TEXT,
@@ -3284,7 +3284,7 @@ CREATE TABLE "user_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "discord_guild_links" (
+CREATE TABLE IF NOT EXISTS "discord_guild_links" (
     "id" TEXT NOT NULL,
     "guildId" TEXT NOT NULL,
     "guildName" TEXT,
@@ -3295,7 +3295,7 @@ CREATE TABLE "discord_guild_links" (
 );
 
 -- CreateTable
-CREATE TABLE "discord_league_channels" (
+CREATE TABLE IF NOT EXISTS "discord_league_channels" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "guildId" TEXT NOT NULL,
@@ -3313,7 +3313,7 @@ CREATE TABLE "discord_league_channels" (
 );
 
 -- CreateTable
-CREATE TABLE "discord_message_links" (
+CREATE TABLE IF NOT EXISTS "discord_message_links" (
     "id" TEXT NOT NULL,
     "leagueMessageId" TEXT,
     "discordMessageId" TEXT,
@@ -3326,7 +3326,7 @@ CREATE TABLE "discord_message_links" (
 );
 
 -- CreateTable
-CREATE TABLE "pending_signups" (
+CREATE TABLE IF NOT EXISTS "pending_signups" (
     "email" TEXT NOT NULL,
     "displayName" TEXT,
     "phone" TEXT,
@@ -3336,7 +3336,7 @@ CREATE TABLE "pending_signups" (
 );
 
 -- CreateTable
-CREATE TABLE "email_verify_tokens" (
+CREATE TABLE IF NOT EXISTS "email_verify_tokens" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
@@ -3347,7 +3347,7 @@ CREATE TABLE "email_verify_tokens" (
 );
 
 -- CreateTable
-CREATE TABLE "password_reset_tokens" (
+CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "tokenHash" TEXT NOT NULL,
@@ -3358,7 +3358,7 @@ CREATE TABLE "password_reset_tokens" (
 );
 
 -- CreateTable
-CREATE TABLE "leagues" (
+CREATE TABLE IF NOT EXISTS "leagues" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
@@ -3508,7 +3508,7 @@ CREATE TABLE "leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "integrity_flags" (
+CREATE TABLE IF NOT EXISTS "integrity_flags" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "flagType" TEXT NOT NULL,
@@ -3531,7 +3531,7 @@ CREATE TABLE "integrity_flags" (
 );
 
 -- CreateTable
-CREATE TABLE "league_integrity_settings" (
+CREATE TABLE IF NOT EXISTS "league_integrity_settings" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "collusionMonitoringEnabled" BOOLEAN NOT NULL DEFAULT true,
@@ -3551,7 +3551,7 @@ CREATE TABLE "league_integrity_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "auto_coach_settings" (
+CREATE TABLE IF NOT EXISTS "auto_coach_settings" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -3567,7 +3567,7 @@ CREATE TABLE "auto_coach_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "auto_coach_swap_logs" (
+CREATE TABLE IF NOT EXISTS "auto_coach_swap_logs" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -3590,7 +3590,7 @@ CREATE TABLE "auto_coach_swap_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "player_status_events" (
+CREATE TABLE IF NOT EXISTS "player_status_events" (
     "id" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
     "playerName" TEXT NOT NULL,
@@ -3612,7 +3612,7 @@ CREATE TABLE "player_status_events" (
 );
 
 -- CreateTable
-CREATE TABLE "league_settings" (
+CREATE TABLE IF NOT EXISTS "league_settings" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "draftDateUtc" TIMESTAMP(3),
@@ -3656,7 +3656,7 @@ CREATE TABLE "league_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "league_seasons" (
+CREATE TABLE IF NOT EXISTS "league_seasons" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" INTEGER NOT NULL,
@@ -3678,7 +3678,7 @@ CREATE TABLE "league_seasons" (
 );
 
 -- CreateTable
-CREATE TABLE "league_storylines" (
+CREATE TABLE IF NOT EXISTS "league_storylines" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" INTEGER,
@@ -3696,7 +3696,7 @@ CREATE TABLE "league_storylines" (
 );
 
 -- CreateTable
-CREATE TABLE "league_matchup_previews" (
+CREATE TABLE IF NOT EXISTS "league_matchup_previews" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" INTEGER,
@@ -3714,7 +3714,7 @@ CREATE TABLE "league_matchup_previews" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_recaps" (
+CREATE TABLE IF NOT EXISTS "draft_recaps" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "draftSessionId" TEXT,
@@ -3730,7 +3730,7 @@ CREATE TABLE "draft_recaps" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_declarations" (
+CREATE TABLE IF NOT EXISTS "keeper_declarations" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -3752,7 +3752,7 @@ CREATE TABLE "keeper_declarations" (
 );
 
 -- CreateTable
-CREATE TABLE "scoring_settings_snapshots" (
+CREATE TABLE IF NOT EXISTS "scoring_settings_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" INTEGER,
@@ -3770,7 +3770,7 @@ CREATE TABLE "scoring_settings_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "league_intro_views" (
+CREATE TABLE IF NOT EXISTS "league_intro_views" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -3781,7 +3781,7 @@ CREATE TABLE "league_intro_views" (
 );
 
 -- CreateTable
-CREATE TABLE "league_templates" (
+CREATE TABLE IF NOT EXISTS "league_templates" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "name" VARCHAR(120) NOT NULL,
@@ -3794,7 +3794,7 @@ CREATE TABLE "league_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "tournaments" (
+CREATE TABLE IF NOT EXISTS "tournaments" (
     "id" TEXT NOT NULL,
     "name" VARCHAR(120) NOT NULL,
     "sport" VARCHAR(8) NOT NULL,
@@ -3813,7 +3813,7 @@ CREATE TABLE "tournaments" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_conferences" (
+CREATE TABLE IF NOT EXISTS "tournament_conferences" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -3827,7 +3827,7 @@ CREATE TABLE "tournament_conferences" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_leagues" (
+CREATE TABLE IF NOT EXISTS "tournament_leagues" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "conferenceId" TEXT NOT NULL,
@@ -3842,7 +3842,7 @@ CREATE TABLE "tournament_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_rounds" (
+CREATE TABLE IF NOT EXISTS "tournament_rounds" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "roundIndex" INTEGER NOT NULL,
@@ -3859,7 +3859,7 @@ CREATE TABLE "tournament_rounds" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_announcements" (
+CREATE TABLE IF NOT EXISTS "tournament_announcements" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "authorId" TEXT,
@@ -3875,7 +3875,7 @@ CREATE TABLE "tournament_announcements" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_audit_logs" (
+CREATE TABLE IF NOT EXISTS "tournament_audit_logs" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "actorId" TEXT,
@@ -3889,7 +3889,7 @@ CREATE TABLE "tournament_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_participants" (
+CREATE TABLE IF NOT EXISTS "tournament_participants" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -3915,7 +3915,7 @@ CREATE TABLE "tournament_participants" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shells" (
+CREATE TABLE IF NOT EXISTS "tournament_shells" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -3961,7 +3961,7 @@ CREATE TABLE "tournament_shells" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_conferences" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_conferences" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -3979,7 +3979,7 @@ CREATE TABLE "tournament_shell_conferences" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_rounds" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_rounds" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "roundNumber" INTEGER NOT NULL,
@@ -4002,7 +4002,7 @@ CREATE TABLE "tournament_shell_rounds" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_leagues" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_leagues" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "conferenceId" TEXT,
@@ -4028,7 +4028,7 @@ CREATE TABLE "tournament_shell_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_participants" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_participants" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -4055,7 +4055,7 @@ CREATE TABLE "tournament_shell_participants" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_league_participants" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_league_participants" (
     "id" TEXT NOT NULL,
     "tournamentLeagueId" TEXT NOT NULL,
     "participantId" TEXT NOT NULL,
@@ -4079,7 +4079,7 @@ CREATE TABLE "tournament_shell_league_participants" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_advancement_groups" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_advancement_groups" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "conferenceId" TEXT,
@@ -4099,7 +4099,7 @@ CREATE TABLE "tournament_shell_advancement_groups" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_name_records" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_name_records" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
@@ -4115,7 +4115,7 @@ CREATE TABLE "tournament_shell_name_records" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_announcements" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_announcements" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "roundNumber" INTEGER,
@@ -4133,7 +4133,7 @@ CREATE TABLE "tournament_shell_announcements" (
 );
 
 -- CreateTable
-CREATE TABLE "tournament_shell_audit_logs" (
+CREATE TABLE IF NOT EXISTS "tournament_shell_audit_logs" (
     "id" TEXT NOT NULL,
     "tournamentId" TEXT NOT NULL,
     "roundNumber" INTEGER,
@@ -4149,7 +4149,7 @@ CREATE TABLE "tournament_shell_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "chat_gifs" (
+CREATE TABLE IF NOT EXISTS "chat_gifs" (
     "id" TEXT NOT NULL,
     "giphyId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
@@ -4165,7 +4165,7 @@ CREATE TABLE "chat_gifs" (
 );
 
 -- CreateTable
-CREATE TABLE "chat_emojis" (
+CREATE TABLE IF NOT EXISTS "chat_emojis" (
     "id" TEXT NOT NULL,
     "char" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -4178,7 +4178,7 @@ CREATE TABLE "chat_emojis" (
 );
 
 -- CreateTable
-CREATE TABLE "league_chat_messages" (
+CREATE TABLE IF NOT EXISTS "league_chat_messages" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -4200,7 +4200,7 @@ CREATE TABLE "league_chat_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "supplemental_drafts" (
+CREATE TABLE IF NOT EXISTS "supplemental_drafts" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "scenario" VARCHAR(32) NOT NULL,
@@ -4227,7 +4227,7 @@ CREATE TABLE "supplemental_drafts" (
 );
 
 -- CreateTable
-CREATE TABLE "supplemental_draft_picks" (
+CREATE TABLE IF NOT EXISTS "supplemental_draft_picks" (
     "id" TEXT NOT NULL,
     "supplementalDraftId" TEXT NOT NULL,
     "pickNumber" INTEGER NOT NULL,
@@ -4244,7 +4244,7 @@ CREATE TABLE "supplemental_draft_picks" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_commissioner_configs" (
+CREATE TABLE IF NOT EXISTS "ai_commissioner_configs" (
     "configId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" "LeagueSport" NOT NULL DEFAULT 'NFL',
@@ -4261,7 +4261,7 @@ CREATE TABLE "ai_commissioner_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_commissioner_alerts" (
+CREATE TABLE IF NOT EXISTS "ai_commissioner_alerts" (
     "alertId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" "LeagueSport" NOT NULL DEFAULT 'NFL',
@@ -4282,7 +4282,7 @@ CREATE TABLE "ai_commissioner_alerts" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_commissioner_action_logs" (
+CREATE TABLE IF NOT EXISTS "ai_commissioner_action_logs" (
     "actionId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" "LeagueSport" NOT NULL DEFAULT 'NFL',
@@ -4296,7 +4296,7 @@ CREATE TABLE "ai_commissioner_action_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueInvite" (
+CREATE TABLE IF NOT EXISTS "LeagueInvite" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "token" TEXT NOT NULL,
@@ -4311,7 +4311,7 @@ CREATE TABLE "LeagueInvite" (
 );
 
 -- CreateTable
-CREATE TABLE "LeagueManagerClaim" (
+CREATE TABLE IF NOT EXISTS "LeagueManagerClaim" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "afUserId" TEXT NOT NULL,
@@ -4324,7 +4324,7 @@ CREATE TABLE "LeagueManagerClaim" (
 );
 
 -- CreateTable
-CREATE TABLE "find_league_listings" (
+CREATE TABLE IF NOT EXISTS "find_league_listings" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -4339,7 +4339,7 @@ CREATE TABLE "find_league_listings" (
 );
 
 -- CreateTable
-CREATE TABLE "rosters" (
+CREATE TABLE IF NOT EXISTS "rosters" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "platformUserId" TEXT NOT NULL,
@@ -4355,7 +4355,7 @@ CREATE TABLE "rosters" (
 );
 
 -- CreateTable
-CREATE TABLE "league_teams" (
+CREATE TABLE IF NOT EXISTS "league_teams" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -4386,7 +4386,7 @@ CREATE TABLE "league_teams" (
 );
 
 -- CreateTable
-CREATE TABLE "league_divisions" (
+CREATE TABLE IF NOT EXISTS "league_divisions" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "tierLevel" INTEGER NOT NULL DEFAULT 1,
@@ -4397,7 +4397,7 @@ CREATE TABLE "league_divisions" (
 );
 
 -- CreateTable
-CREATE TABLE "promotion_rules" (
+CREATE TABLE IF NOT EXISTS "promotion_rules" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "fromTierLevel" INTEGER NOT NULL DEFAULT 1,
@@ -4409,7 +4409,7 @@ CREATE TABLE "promotion_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "team_performances" (
+CREATE TABLE IF NOT EXISTS "team_performances" (
     "id" TEXT NOT NULL,
     "teamId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -4424,7 +4424,7 @@ CREATE TABLE "team_performances" (
 );
 
 -- CreateTable
-CREATE TABLE "league_auths" (
+CREATE TABLE IF NOT EXISTS "league_auths" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "platform" TEXT NOT NULL,
@@ -4440,7 +4440,7 @@ CREATE TABLE "league_auths" (
 );
 
 -- CreateTable
-CREATE TABLE "league_waiver_settings" (
+CREATE TABLE IF NOT EXISTS "league_waiver_settings" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "waiverType" TEXT NOT NULL DEFAULT 'standard',
@@ -4459,7 +4459,7 @@ CREATE TABLE "league_waiver_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_league_configs" (
+CREATE TABLE IF NOT EXISTS "guillotine_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "eliminationStartWeek" INTEGER NOT NULL DEFAULT 1,
@@ -4480,7 +4480,7 @@ CREATE TABLE "guillotine_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_roster_states" (
+CREATE TABLE IF NOT EXISTS "guillotine_roster_states" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4494,7 +4494,7 @@ CREATE TABLE "guillotine_roster_states" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_period_scores" (
+CREATE TABLE IF NOT EXISTS "guillotine_period_scores" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4508,7 +4508,7 @@ CREATE TABLE "guillotine_period_scores" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_event_logs" (
+CREATE TABLE IF NOT EXISTS "guillotine_event_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "eventType" VARCHAR(64) NOT NULL,
@@ -4519,7 +4519,7 @@ CREATE TABLE "guillotine_event_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "salary_cap_league_configs" (
+CREATE TABLE IF NOT EXISTS "salary_cap_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "mode" VARCHAR(24) NOT NULL DEFAULT 'dynasty',
@@ -4554,7 +4554,7 @@ CREATE TABLE "salary_cap_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "salary_cap_team_ledgers" (
+CREATE TABLE IF NOT EXISTS "salary_cap_team_ledgers" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4571,7 +4571,7 @@ CREATE TABLE "salary_cap_team_ledgers" (
 );
 
 -- CreateTable
-CREATE TABLE "player_contracts" (
+CREATE TABLE IF NOT EXISTS "player_contracts" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4597,7 +4597,7 @@ CREATE TABLE "player_contracts" (
 );
 
 -- CreateTable
-CREATE TABLE "salary_cap_event_logs" (
+CREATE TABLE IF NOT EXISTS "salary_cap_event_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4609,7 +4609,7 @@ CREATE TABLE "salary_cap_event_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "salary_cap_lottery_results" (
+CREATE TABLE IF NOT EXISTS "salary_cap_lottery_results" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4622,7 +4622,7 @@ CREATE TABLE "salary_cap_lottery_results" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_league_configs" (
+CREATE TABLE IF NOT EXISTS "survivor_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "mode" VARCHAR(24) NOT NULL DEFAULT 'redraft',
@@ -4653,7 +4653,7 @@ CREATE TABLE "survivor_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_tribes" (
+CREATE TABLE IF NOT EXISTS "survivor_tribes" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4672,7 +4672,7 @@ CREATE TABLE "survivor_tribes" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_tribe_members" (
+CREATE TABLE IF NOT EXISTS "survivor_tribe_members" (
     "id" TEXT NOT NULL,
     "tribeId" TEXT NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4683,7 +4683,7 @@ CREATE TABLE "survivor_tribe_members" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_idols" (
+CREATE TABLE IF NOT EXISTS "survivor_idols" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4718,7 +4718,7 @@ CREATE TABLE "survivor_idols" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_idol_ledger_entries" (
+CREATE TABLE IF NOT EXISTS "survivor_idol_ledger_entries" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "idolId" TEXT NOT NULL,
@@ -4732,7 +4732,7 @@ CREATE TABLE "survivor_idol_ledger_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_tribal_councils" (
+CREATE TABLE IF NOT EXISTS "survivor_tribal_councils" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4767,7 +4767,7 @@ CREATE TABLE "survivor_tribal_councils" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_votes" (
+CREATE TABLE IF NOT EXISTS "survivor_votes" (
     "id" TEXT NOT NULL,
     "councilId" TEXT NOT NULL,
     "leagueId" VARCHAR(64),
@@ -4787,7 +4787,7 @@ CREATE TABLE "survivor_votes" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_exile_leagues" (
+CREATE TABLE IF NOT EXISTS "survivor_exile_leagues" (
     "id" TEXT NOT NULL,
     "mainLeagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4798,7 +4798,7 @@ CREATE TABLE "survivor_exile_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_exile_tokens" (
+CREATE TABLE IF NOT EXISTS "survivor_exile_tokens" (
     "id" TEXT NOT NULL,
     "exileLeagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4811,7 +4811,7 @@ CREATE TABLE "survivor_exile_tokens" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_jury_members" (
+CREATE TABLE IF NOT EXISTS "survivor_jury_members" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4822,7 +4822,7 @@ CREATE TABLE "survivor_jury_members" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_audit_logs" (
+CREATE TABLE IF NOT EXISTS "survivor_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4834,7 +4834,7 @@ CREATE TABLE "survivor_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_challenges" (
+CREATE TABLE IF NOT EXISTS "survivor_challenges" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -4869,7 +4869,7 @@ CREATE TABLE "survivor_challenges" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_challenge_submissions" (
+CREATE TABLE IF NOT EXISTS "survivor_challenge_submissions" (
     "id" TEXT NOT NULL,
     "challengeId" TEXT NOT NULL,
     "leagueId" VARCHAR(64),
@@ -4886,7 +4886,7 @@ CREATE TABLE "survivor_challenge_submissions" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_tribe_chat_members" (
+CREATE TABLE IF NOT EXISTS "survivor_tribe_chat_members" (
     "id" TEXT NOT NULL,
     "tribeId" TEXT NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -4898,7 +4898,7 @@ CREATE TABLE "survivor_tribe_chat_members" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_players" (
+CREATE TABLE IF NOT EXISTS "survivor_players" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -4930,7 +4930,7 @@ CREATE TABLE "survivor_players" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_jury_sessions" (
+CREATE TABLE IF NOT EXISTS "survivor_jury_sessions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
@@ -4947,7 +4947,7 @@ CREATE TABLE "survivor_jury_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_jury_votes" (
+CREATE TABLE IF NOT EXISTS "survivor_jury_votes" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "jurorUserId" TEXT NOT NULL,
@@ -4959,7 +4959,7 @@ CREATE TABLE "survivor_jury_votes" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_host_messages" (
+CREATE TABLE IF NOT EXISTS "survivor_host_messages" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "channelType" TEXT NOT NULL,
@@ -4976,7 +4976,7 @@ CREATE TABLE "survivor_host_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_chat_channels" (
+CREATE TABLE IF NOT EXISTS "survivor_chat_channels" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -4993,7 +4993,7 @@ CREATE TABLE "survivor_chat_channels" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_tribe_swaps" (
+CREATE TABLE IF NOT EXISTS "survivor_tribe_swaps" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5008,7 +5008,7 @@ CREATE TABLE "survivor_tribe_swaps" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_token_pool_picks" (
+CREATE TABLE IF NOT EXISTS "survivor_token_pool_picks" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5025,7 +5025,7 @@ CREATE TABLE "survivor_token_pool_picks" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_exile_islands" (
+CREATE TABLE IF NOT EXISTS "survivor_exile_islands" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT false,
@@ -5041,7 +5041,7 @@ CREATE TABLE "survivor_exile_islands" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_exile_weekly_entries" (
+CREATE TABLE IF NOT EXISTS "survivor_exile_weekly_entries" (
     "id" TEXT NOT NULL,
     "exileId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -5058,7 +5058,7 @@ CREATE TABLE "survivor_exile_weekly_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_power_templates" (
+CREATE TABLE IF NOT EXISTS "survivor_power_templates" (
     "id" TEXT NOT NULL,
     "powerType" TEXT NOT NULL,
     "powerLabel" TEXT NOT NULL,
@@ -5089,7 +5089,7 @@ CREATE TABLE "survivor_power_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_season_arc_templates" (
+CREATE TABLE IF NOT EXISTS "survivor_season_arc_templates" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "playerCount" INTEGER NOT NULL,
@@ -5102,7 +5102,7 @@ CREATE TABLE "survivor_season_arc_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_challenge_templates" (
+CREATE TABLE IF NOT EXISTS "survivor_challenge_templates" (
     "id" TEXT NOT NULL,
     "challengeKey" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -5131,7 +5131,7 @@ CREATE TABLE "survivor_challenge_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_power_balances" (
+CREATE TABLE IF NOT EXISTS "survivor_power_balances" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "activePowerCount" INTEGER NOT NULL DEFAULT 0,
@@ -5147,7 +5147,7 @@ CREATE TABLE "survivor_power_balances" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_twist_events" (
+CREATE TABLE IF NOT EXISTS "survivor_twist_events" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5163,7 +5163,7 @@ CREATE TABLE "survivor_twist_events" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_audit_entries" (
+CREATE TABLE IF NOT EXISTS "survivor_audit_entries" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "week" INTEGER,
@@ -5184,7 +5184,7 @@ CREATE TABLE "survivor_audit_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_game_states" (
+CREATE TABLE IF NOT EXISTS "survivor_game_states" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "phase" TEXT NOT NULL DEFAULT 'pre_draft',
@@ -5229,7 +5229,7 @@ CREATE TABLE "survivor_game_states" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_phase_transitions" (
+CREATE TABLE IF NOT EXISTS "survivor_phase_transitions" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "fromPhase" TEXT NOT NULL,
@@ -5244,7 +5244,7 @@ CREATE TABLE "survivor_phase_transitions" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_notifications" (
+CREATE TABLE IF NOT EXISTS "survivor_notifications" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "recipientUserId" TEXT,
@@ -5265,7 +5265,7 @@ CREATE TABLE "survivor_notifications" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_chat_messages" (
+CREATE TABLE IF NOT EXISTS "survivor_chat_messages" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "channelId" TEXT NOT NULL,
@@ -5290,7 +5290,7 @@ CREATE TABLE "survivor_chat_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_chat_reactions" (
+CREATE TABLE IF NOT EXISTS "survivor_chat_reactions" (
     "id" TEXT NOT NULL,
     "messageId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5301,7 +5301,7 @@ CREATE TABLE "survivor_chat_reactions" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_commissioner_actions" (
+CREATE TABLE IF NOT EXISTS "survivor_commissioner_actions" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "commissionerId" TEXT NOT NULL,
@@ -5319,7 +5319,7 @@ CREATE TABLE "survivor_commissioner_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_season_snapshots" (
+CREATE TABLE IF NOT EXISTS "survivor_season_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -5348,7 +5348,7 @@ CREATE TABLE "survivor_season_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "survivor_weekly_scores" (
+CREATE TABLE IF NOT EXISTS "survivor_weekly_scores" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5369,7 +5369,7 @@ CREATE TABLE "survivor_weekly_scores" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_league_configs" (
+CREATE TABLE IF NOT EXISTS "big_brother_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "hohChallengeDayOfWeek" INTEGER,
@@ -5410,7 +5410,7 @@ CREATE TABLE "big_brother_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_cycles" (
+CREATE TABLE IF NOT EXISTS "big_brother_cycles" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -5437,7 +5437,7 @@ CREATE TABLE "big_brother_cycles" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_eviction_votes" (
+CREATE TABLE IF NOT EXISTS "big_brother_eviction_votes" (
     "id" TEXT NOT NULL,
     "cycleId" TEXT NOT NULL,
     "voterRosterId" VARCHAR(64) NOT NULL,
@@ -5448,7 +5448,7 @@ CREATE TABLE "big_brother_eviction_votes" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_jury_members" (
+CREATE TABLE IF NOT EXISTS "big_brother_jury_members" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -5460,7 +5460,7 @@ CREATE TABLE "big_brother_jury_members" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_finale_votes" (
+CREATE TABLE IF NOT EXISTS "big_brother_finale_votes" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "juryRosterId" VARCHAR(64) NOT NULL,
@@ -5471,7 +5471,7 @@ CREATE TABLE "big_brother_finale_votes" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_audit_logs" (
+CREATE TABLE IF NOT EXISTS "big_brother_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -5483,7 +5483,7 @@ CREATE TABLE "big_brother_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "big_brother_chat_command_logs" (
+CREATE TABLE IF NOT EXISTS "big_brother_chat_command_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5498,7 +5498,7 @@ CREATE TABLE "big_brother_chat_command_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_universes" (
+CREATE TABLE IF NOT EXISTS "zombie_universes" (
     "id" TEXT NOT NULL,
     "name" VARCHAR(128) NOT NULL,
     "sport" VARCHAR(12) NOT NULL DEFAULT 'NFL',
@@ -5524,7 +5524,7 @@ CREATE TABLE "zombie_universes" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_universe_levels" (
+CREATE TABLE IF NOT EXISTS "zombie_universe_levels" (
     "id" TEXT NOT NULL,
     "universeId" TEXT NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -5547,7 +5547,7 @@ CREATE TABLE "zombie_universe_levels" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_leagues" (
+CREATE TABLE IF NOT EXISTS "zombie_leagues" (
     "id" TEXT NOT NULL,
     "universeId" TEXT,
     "levelId" TEXT,
@@ -5597,7 +5597,7 @@ CREATE TABLE "zombie_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_whisperer_records" (
+CREATE TABLE IF NOT EXISTS "zombie_whisperer_records" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5623,7 +5623,7 @@ CREATE TABLE "zombie_whisperer_records" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_infection_events" (
+CREATE TABLE IF NOT EXISTS "zombie_infection_events" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5647,7 +5647,7 @@ CREATE TABLE "zombie_infection_events" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_weekly_resolutions" (
+CREATE TABLE IF NOT EXISTS "zombie_weekly_resolutions" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5671,7 +5671,7 @@ CREATE TABLE "zombie_weekly_resolutions" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_item_templates" (
+CREATE TABLE IF NOT EXISTS "zombie_item_templates" (
     "id" TEXT NOT NULL,
     "itemType" TEXT NOT NULL,
     "category" TEXT NOT NULL,
@@ -5693,7 +5693,7 @@ CREATE TABLE "zombie_item_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_universe_stats" (
+CREATE TABLE IF NOT EXISTS "zombie_universe_stats" (
     "id" TEXT NOT NULL,
     "universeId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5728,7 +5728,7 @@ CREATE TABLE "zombie_universe_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_movement_records" (
+CREATE TABLE IF NOT EXISTS "zombie_movement_records" (
     "id" TEXT NOT NULL,
     "universeId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -5748,7 +5748,7 @@ CREATE TABLE "zombie_movement_records" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_announcements" (
+CREATE TABLE IF NOT EXISTS "zombie_announcements" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "universeId" TEXT,
@@ -5767,7 +5767,7 @@ CREATE TABLE "zombie_announcements" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_name_records" (
+CREATE TABLE IF NOT EXISTS "zombie_name_records" (
     "id" TEXT NOT NULL,
     "universeId" TEXT,
     "leagueId" TEXT,
@@ -5783,7 +5783,7 @@ CREATE TABLE "zombie_name_records" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_paid_configs" (
+CREATE TABLE IF NOT EXISTS "zombie_paid_configs" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "buyInAmount" DOUBLE PRECISION NOT NULL,
@@ -5807,7 +5807,7 @@ CREATE TABLE "zombie_paid_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_rules_templates" (
+CREATE TABLE IF NOT EXISTS "zombie_rules_templates" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
     "rosterSize" INTEGER NOT NULL DEFAULT 15,
@@ -5835,7 +5835,7 @@ CREATE TABLE "zombie_rules_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_rules_documents" (
+CREATE TABLE IF NOT EXISTS "zombie_rules_documents" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -5865,7 +5865,7 @@ CREATE TABLE "zombie_rules_documents" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_audit_entries" (
+CREATE TABLE IF NOT EXISTS "zombie_audit_entries" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "universeId" TEXT,
@@ -5891,7 +5891,7 @@ CREATE TABLE "zombie_audit_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_free_reward_configs" (
+CREATE TABLE IF NOT EXISTS "zombie_free_reward_configs" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "currencyLabel" TEXT NOT NULL DEFAULT 'Outbreak Points',
@@ -5908,7 +5908,7 @@ CREATE TABLE "zombie_free_reward_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_ambush_actions" (
+CREATE TABLE IF NOT EXISTS "zombie_ambush_actions" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5931,7 +5931,7 @@ CREATE TABLE "zombie_ambush_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_bashing_events" (
+CREATE TABLE IF NOT EXISTS "zombie_bashing_events" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5960,7 +5960,7 @@ CREATE TABLE "zombie_bashing_events" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_mauling_events" (
+CREATE TABLE IF NOT EXISTS "zombie_mauling_events" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "week" INTEGER NOT NULL,
@@ -5987,7 +5987,7 @@ CREATE TABLE "zombie_mauling_events" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_chimmy_actions" (
+CREATE TABLE IF NOT EXISTS "zombie_chimmy_actions" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "userId" TEXT NOT NULL,
@@ -6012,7 +6012,7 @@ CREATE TABLE "zombie_chimmy_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_commissioner_notifications" (
+CREATE TABLE IF NOT EXISTS "zombie_commissioner_notifications" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "commissionerId" TEXT NOT NULL,
@@ -6034,7 +6034,7 @@ CREATE TABLE "zombie_commissioner_notifications" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_event_animations" (
+CREATE TABLE IF NOT EXISTS "zombie_event_animations" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "week" INTEGER NOT NULL,
@@ -6054,7 +6054,7 @@ CREATE TABLE "zombie_event_animations" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_league_configs" (
+CREATE TABLE IF NOT EXISTS "zombie_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "universeId" VARCHAR(64),
@@ -6081,7 +6081,7 @@ CREATE TABLE "zombie_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_league_configs" (
+CREATE TABLE IF NOT EXISTS "idp_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "positionMode" VARCHAR(24) NOT NULL DEFAULT 'standard',
@@ -6101,7 +6101,7 @@ CREATE TABLE "idp_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "dynasty_league_configs" (
+CREATE TABLE IF NOT EXISTS "dynasty_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "regularSeasonWeeks" INTEGER NOT NULL DEFAULT 14,
@@ -6128,7 +6128,7 @@ CREATE TABLE "dynasty_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "dynasty_draft_order_audit_logs" (
+CREATE TABLE IF NOT EXISTS "dynasty_draft_order_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -6142,7 +6142,7 @@ CREATE TABLE "dynasty_draft_order_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_player_eligibility" (
+CREATE TABLE IF NOT EXISTS "idp_player_eligibility" (
     "id" TEXT NOT NULL,
     "sportsPlayerId" VARCHAR(64) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -6155,7 +6155,7 @@ CREATE TABLE "idp_player_eligibility" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_best_ball_lineup_snapshots" (
+CREATE TABLE IF NOT EXISTS "idp_best_ball_lineup_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -6169,7 +6169,7 @@ CREATE TABLE "idp_best_ball_lineup_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_settings_audit_logs" (
+CREATE TABLE IF NOT EXISTS "idp_settings_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "configId" TEXT NOT NULL,
@@ -6184,7 +6184,7 @@ CREATE TABLE "idp_settings_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_cap_configs" (
+CREATE TABLE IF NOT EXISTS "idp_cap_configs" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "totalCap" DOUBLE PRECISION NOT NULL DEFAULT 200.0,
@@ -6214,7 +6214,7 @@ CREATE TABLE "idp_cap_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_salary_records" (
+CREATE TABLE IF NOT EXISTS "idp_salary_records" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6239,7 +6239,7 @@ CREATE TABLE "idp_salary_records" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_dead_money" (
+CREATE TABLE IF NOT EXISTS "idp_dead_money" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6258,7 +6258,7 @@ CREATE TABLE "idp_dead_money" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_cap_projections" (
+CREATE TABLE IF NOT EXISTS "idp_cap_projections" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6273,7 +6273,7 @@ CREATE TABLE "idp_cap_projections" (
 );
 
 -- CreateTable
-CREATE TABLE "idp_cap_transactions" (
+CREATE TABLE IF NOT EXISTS "idp_cap_transactions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6294,7 +6294,7 @@ CREATE TABLE "idp_cap_transactions" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_league_configs" (
+CREATE TABLE IF NOT EXISTS "devy_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "dynastyOnly" BOOLEAN NOT NULL DEFAULT true,
@@ -6340,7 +6340,7 @@ CREATE TABLE "devy_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_leagues" (
+CREATE TABLE IF NOT EXISTS "devy_leagues" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "isDynastyOnly" BOOLEAN NOT NULL DEFAULT true,
@@ -6377,7 +6377,7 @@ CREATE TABLE "devy_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_player_states" (
+CREATE TABLE IF NOT EXISTS "devy_player_states" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6407,7 +6407,7 @@ CREATE TABLE "devy_player_states" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_taxi_slots" (
+CREATE TABLE IF NOT EXISTS "devy_taxi_slots" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6426,7 +6426,7 @@ CREATE TABLE "devy_taxi_slots" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_devy_slots" (
+CREATE TABLE IF NOT EXISTS "devy_devy_slots" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6449,7 +6449,7 @@ CREATE TABLE "devy_devy_slots" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_rookie_transitions" (
+CREATE TABLE IF NOT EXISTS "devy_rookie_transitions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT,
@@ -6470,7 +6470,7 @@ CREATE TABLE "devy_rookie_transitions" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_draft_picks" (
+CREATE TABLE IF NOT EXISTS "devy_draft_picks" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "pickType" TEXT NOT NULL,
@@ -6489,7 +6489,7 @@ CREATE TABLE "devy_draft_picks" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_import_sessions" (
+CREATE TABLE IF NOT EXISTS "devy_import_sessions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "commissionerId" TEXT NOT NULL,
@@ -6504,7 +6504,7 @@ CREATE TABLE "devy_import_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_import_sources" (
+CREATE TABLE IF NOT EXISTS "devy_import_sources" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "sourceType" TEXT NOT NULL,
@@ -6519,7 +6519,7 @@ CREATE TABLE "devy_import_sources" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_player_mappings" (
+CREATE TABLE IF NOT EXISTS "devy_player_mappings" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "externalId" TEXT NOT NULL,
@@ -6541,7 +6541,7 @@ CREATE TABLE "devy_player_mappings" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_manager_mappings" (
+CREATE TABLE IF NOT EXISTS "devy_manager_mappings" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "externalUsername" TEXT NOT NULL,
@@ -6558,7 +6558,7 @@ CREATE TABLE "devy_manager_mappings" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_merge_conflicts" (
+CREATE TABLE IF NOT EXISTS "devy_merge_conflicts" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "conflictType" TEXT NOT NULL,
@@ -6575,7 +6575,7 @@ CREATE TABLE "devy_merge_conflicts" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_imported_seasons" (
+CREATE TABLE IF NOT EXISTS "devy_imported_seasons" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
@@ -6593,7 +6593,7 @@ CREATE TABLE "devy_imported_seasons" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_rights" (
+CREATE TABLE IF NOT EXISTS "devy_rights" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -6614,7 +6614,7 @@ CREATE TABLE "devy_rights" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_lifecycle_events" (
+CREATE TABLE IF NOT EXISTS "devy_lifecycle_events" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "eventType" VARCHAR(48) NOT NULL,
@@ -6628,7 +6628,7 @@ CREATE TABLE "devy_lifecycle_events" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_commissioner_overrides" (
+CREATE TABLE IF NOT EXISTS "devy_commissioner_overrides" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "devyPlayerId" VARCHAR(64) NOT NULL,
@@ -6645,7 +6645,7 @@ CREATE TABLE "devy_commissioner_overrides" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_draft_histories" (
+CREATE TABLE IF NOT EXISTS "devy_draft_histories" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "draftKind" VARCHAR(24) NOT NULL,
@@ -6661,7 +6661,7 @@ CREATE TABLE "devy_draft_histories" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_class_strength_snapshots" (
+CREATE TABLE IF NOT EXISTS "devy_class_strength_snapshots" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(8) NOT NULL,
     "seasonYear" INTEGER NOT NULL,
@@ -6672,7 +6672,7 @@ CREATE TABLE "devy_class_strength_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "devy_best_ball_lineup_snapshots" (
+CREATE TABLE IF NOT EXISTS "devy_best_ball_lineup_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -6685,7 +6685,7 @@ CREATE TABLE "devy_best_ball_lineup_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_league_configs" (
+CREATE TABLE IF NOT EXISTS "c2c_league_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "dynastyOnly" BOOLEAN NOT NULL DEFAULT true,
@@ -6744,7 +6744,7 @@ CREATE TABLE "c2c_league_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_scoring_logs" (
+CREATE TABLE IF NOT EXISTS "c2c_scoring_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -6762,7 +6762,7 @@ CREATE TABLE "c2c_scoring_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_leagues" (
+CREATE TABLE IF NOT EXISTS "c2c_leagues" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "isDynastyOnly" BOOLEAN NOT NULL DEFAULT true,
@@ -6795,7 +6795,7 @@ CREATE TABLE "c2c_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_player_states" (
+CREATE TABLE IF NOT EXISTS "c2c_player_states" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -6828,7 +6828,7 @@ CREATE TABLE "c2c_player_states" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_matchup_scores" (
+CREATE TABLE IF NOT EXISTS "c2c_matchup_scores" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "matchupId" TEXT NOT NULL,
@@ -6850,7 +6850,7 @@ CREATE TABLE "c2c_matchup_scores" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_draft_picks" (
+CREATE TABLE IF NOT EXISTS "c2c_draft_picks" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "pickSide" TEXT NOT NULL,
@@ -6868,7 +6868,7 @@ CREATE TABLE "c2c_draft_picks" (
 );
 
 -- CreateTable
-CREATE TABLE "c2c_transition_records" (
+CREATE TABLE IF NOT EXISTS "c2c_transition_records" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT,
@@ -6889,7 +6889,7 @@ CREATE TABLE "c2c_transition_records" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_league_teams" (
+CREATE TABLE IF NOT EXISTS "zombie_league_teams" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "zombieLeagueId" TEXT,
@@ -6927,7 +6927,7 @@ CREATE TABLE "zombie_league_teams" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_team_items" (
+CREATE TABLE IF NOT EXISTS "zombie_team_items" (
     "id" TEXT NOT NULL,
     "teamStatusId" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
@@ -6948,7 +6948,7 @@ CREATE TABLE "zombie_team_items" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_infection_logs" (
+CREATE TABLE IF NOT EXISTS "zombie_infection_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "zombieLeagueId" TEXT,
@@ -6963,7 +6963,7 @@ CREATE TABLE "zombie_infection_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_resource_ledgers" (
+CREATE TABLE IF NOT EXISTS "zombie_resource_ledgers" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "zombieLeagueId" TEXT,
@@ -6981,7 +6981,7 @@ CREATE TABLE "zombie_resource_ledgers" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_resource_ledger_entries" (
+CREATE TABLE IF NOT EXISTS "zombie_resource_ledger_entries" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -6997,7 +6997,7 @@ CREATE TABLE "zombie_resource_ledger_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_weekly_winnings" (
+CREATE TABLE IF NOT EXISTS "zombie_weekly_winnings" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "zombieLeagueId" TEXT,
@@ -7011,7 +7011,7 @@ CREATE TABLE "zombie_weekly_winnings" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_movement_projections" (
+CREATE TABLE IF NOT EXISTS "zombie_movement_projections" (
     "id" TEXT NOT NULL,
     "universeId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -7027,7 +7027,7 @@ CREATE TABLE "zombie_movement_projections" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_ambush_events" (
+CREATE TABLE IF NOT EXISTS "zombie_ambush_events" (
     "id" TEXT NOT NULL,
     "zombieLeagueId" TEXT NOT NULL,
     "week" INTEGER NOT NULL,
@@ -7042,7 +7042,7 @@ CREATE TABLE "zombie_ambush_events" (
 );
 
 -- CreateTable
-CREATE TABLE "zombie_audit_logs" (
+CREATE TABLE IF NOT EXISTS "zombie_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "universeId" VARCHAR(64),
@@ -7055,7 +7055,7 @@ CREATE TABLE "zombie_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "roster_templates" (
+CREATE TABLE IF NOT EXISTS "roster_templates" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -7066,7 +7066,7 @@ CREATE TABLE "roster_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "roster_template_slots" (
+CREATE TABLE IF NOT EXISTS "roster_template_slots" (
     "id" TEXT NOT NULL,
     "templateId" TEXT NOT NULL,
     "slotName" VARCHAR(32) NOT NULL,
@@ -7083,7 +7083,7 @@ CREATE TABLE "roster_template_slots" (
 );
 
 -- CreateTable
-CREATE TABLE "league_roster_configs" (
+CREATE TABLE IF NOT EXISTS "league_roster_configs" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "templateId" TEXT NOT NULL,
@@ -7094,7 +7094,7 @@ CREATE TABLE "league_roster_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "scoring_templates" (
+CREATE TABLE IF NOT EXISTS "scoring_templates" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -7105,7 +7105,7 @@ CREATE TABLE "scoring_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "scoring_rules" (
+CREATE TABLE IF NOT EXISTS "scoring_rules" (
     "id" TEXT NOT NULL,
     "templateId" TEXT NOT NULL,
     "statKey" VARCHAR(48) NOT NULL,
@@ -7117,7 +7117,7 @@ CREATE TABLE "scoring_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "league_scoring_overrides" (
+CREATE TABLE IF NOT EXISTS "league_scoring_overrides" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "statKey" VARCHAR(48) NOT NULL,
@@ -7128,7 +7128,7 @@ CREATE TABLE "league_scoring_overrides" (
 );
 
 -- CreateTable
-CREATE TABLE "sport_feature_flags" (
+CREATE TABLE IF NOT EXISTS "sport_feature_flags" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "supportsBestBall" BOOLEAN NOT NULL DEFAULT false,
@@ -7150,7 +7150,7 @@ CREATE TABLE "sport_feature_flags" (
 );
 
 -- CreateTable
-CREATE TABLE "schedule_templates" (
+CREATE TABLE IF NOT EXISTS "schedule_templates" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -7174,7 +7174,7 @@ CREATE TABLE "schedule_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "season_calendars" (
+CREATE TABLE IF NOT EXISTS "season_calendars" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "name" VARCHAR(64) NOT NULL,
@@ -7191,7 +7191,7 @@ CREATE TABLE "season_calendars" (
 );
 
 -- CreateTable
-CREATE TABLE "game_schedules" (
+CREATE TABLE IF NOT EXISTS "game_schedules" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -7214,7 +7214,7 @@ CREATE TABLE "game_schedules" (
 );
 
 -- CreateTable
-CREATE TABLE "player_game_stats" (
+CREATE TABLE IF NOT EXISTS "player_game_stats" (
     "id" TEXT NOT NULL,
     "playerId" VARCHAR(64) NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
@@ -7230,7 +7230,7 @@ CREATE TABLE "player_game_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "team_game_stats" (
+CREATE TABLE IF NOT EXISTS "team_game_stats" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "gameId" VARCHAR(64) NOT NULL,
@@ -7244,7 +7244,7 @@ CREATE TABLE "team_game_stats" (
 );
 
 -- CreateTable
-CREATE TABLE "stat_ingestion_jobs" (
+CREATE TABLE IF NOT EXISTS "stat_ingestion_jobs" (
     "id" TEXT NOT NULL,
     "sportType" VARCHAR(12) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -7261,7 +7261,7 @@ CREATE TABLE "stat_ingestion_jobs" (
 );
 
 -- CreateTable
-CREATE TABLE "player_meta_trends" (
+CREATE TABLE IF NOT EXISTS "player_meta_trends" (
     "id" TEXT NOT NULL,
     "playerId" VARCHAR(32) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -7280,7 +7280,7 @@ CREATE TABLE "player_meta_trends" (
 );
 
 -- CreateTable
-CREATE TABLE "trend_signal_events" (
+CREATE TABLE IF NOT EXISTS "trend_signal_events" (
     "id" TEXT NOT NULL,
     "playerId" VARCHAR(32) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -7293,7 +7293,7 @@ CREATE TABLE "trend_signal_events" (
 );
 
 -- CreateTable
-CREATE TABLE "strategy_meta_reports" (
+CREATE TABLE IF NOT EXISTS "strategy_meta_reports" (
     "id" TEXT NOT NULL,
     "strategyType" VARCHAR(32) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -7309,7 +7309,7 @@ CREATE TABLE "strategy_meta_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "strategy_meta_snapshots" (
+CREATE TABLE IF NOT EXISTS "strategy_meta_snapshots" (
     "id" TEXT NOT NULL,
     "strategyType" VARCHAR(32) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -7322,7 +7322,7 @@ CREATE TABLE "strategy_meta_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "global_meta_snapshots" (
+CREATE TABLE IF NOT EXISTS "global_meta_snapshots" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
     "season" VARCHAR(8) NOT NULL,
@@ -7335,7 +7335,7 @@ CREATE TABLE "global_meta_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "position_meta_trends" (
+CREATE TABLE IF NOT EXISTS "position_meta_trends" (
     "id" TEXT NOT NULL,
     "position" VARCHAR(16) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -7349,7 +7349,7 @@ CREATE TABLE "position_meta_trends" (
 );
 
 -- CreateTable
-CREATE TABLE "waiver_claims" (
+CREATE TABLE IF NOT EXISTS "waiver_claims" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7368,7 +7368,7 @@ CREATE TABLE "waiver_claims" (
 );
 
 -- CreateTable
-CREATE TABLE "waiver_transactions" (
+CREATE TABLE IF NOT EXISTS "waiver_transactions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7384,7 +7384,7 @@ CREATE TABLE "waiver_transactions" (
 );
 
 -- CreateTable
-CREATE TABLE "waiver_pickups" (
+CREATE TABLE IF NOT EXISTS "waiver_pickups" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -7398,7 +7398,7 @@ CREATE TABLE "waiver_pickups" (
 );
 
 -- CreateTable
-CREATE TABLE "sleeper_leagues" (
+CREATE TABLE IF NOT EXISTS "sleeper_leagues" (
     "id" TEXT NOT NULL,
     "sleeperLeagueId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -7419,7 +7419,7 @@ CREATE TABLE "sleeper_leagues" (
 );
 
 -- CreateTable
-CREATE TABLE "sleeper_rosters" (
+CREATE TABLE IF NOT EXISTS "sleeper_rosters" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "ownerId" TEXT NOT NULL,
@@ -7436,7 +7436,7 @@ CREATE TABLE "sleeper_rosters" (
 );
 
 -- CreateTable
-CREATE TABLE "RookieRanking" (
+CREATE TABLE IF NOT EXISTS "RookieRanking" (
     "id" TEXT NOT NULL,
     "year" INTEGER NOT NULL,
     "name" TEXT NOT NULL,
@@ -7452,7 +7452,7 @@ CREATE TABLE "RookieRanking" (
 );
 
 -- CreateTable
-CREATE TABLE "mock_drafts" (
+CREATE TABLE IF NOT EXISTS "mock_drafts" (
     "id" TEXT NOT NULL,
     "shareId" TEXT,
     "inviteToken" TEXT,
@@ -7471,7 +7471,7 @@ CREATE TABLE "mock_drafts" (
 );
 
 -- CreateTable
-CREATE TABLE "mock_draft_chats" (
+CREATE TABLE IF NOT EXISTS "mock_draft_chats" (
     "id" TEXT NOT NULL,
     "mockDraftId" TEXT NOT NULL,
     "userId" TEXT,
@@ -7483,7 +7483,7 @@ CREATE TABLE "mock_draft_chats" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_sessions" (
+CREATE TABLE IF NOT EXISTS "draft_sessions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7520,7 +7520,7 @@ CREATE TABLE "draft_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_picks" (
+CREATE TABLE IF NOT EXISTS "draft_picks" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7547,7 +7547,7 @@ CREATE TABLE "draft_picks" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_pick_trade_proposals" (
+CREATE TABLE IF NOT EXISTS "draft_pick_trade_proposals" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "proposerRosterId" TEXT NOT NULL,
@@ -7570,7 +7570,7 @@ CREATE TABLE "draft_pick_trade_proposals" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_manager_audit_log" (
+CREATE TABLE IF NOT EXISTS "ai_manager_audit_log" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "rosterId" VARCHAR(64) NOT NULL,
@@ -7584,7 +7584,7 @@ CREATE TABLE "ai_manager_audit_log" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_queues" (
+CREATE TABLE IF NOT EXISTS "draft_queues" (
     "id" TEXT NOT NULL,
     "sessionId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -7595,7 +7595,7 @@ CREATE TABLE "draft_queues" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_queue_entries" (
+CREATE TABLE IF NOT EXISTS "draft_queue_entries" (
     "id" TEXT NOT NULL,
     "draftSessionId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -7608,7 +7608,7 @@ CREATE TABLE "draft_queue_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_chat_messages" (
+CREATE TABLE IF NOT EXISTS "draft_chat_messages" (
     "id" TEXT NOT NULL,
     "draftSessionId" TEXT NOT NULL,
     "authorId" TEXT,
@@ -7624,7 +7624,7 @@ CREATE TABLE "draft_chat_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_import_backups" (
+CREATE TABLE IF NOT EXISTS "draft_import_backups" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "snapshot" JSONB NOT NULL,
@@ -7634,7 +7634,7 @@ CREATE TABLE "draft_import_backups" (
 );
 
 -- CreateTable
-CREATE TABLE "rankings_backtest_results" (
+CREATE TABLE IF NOT EXISTS "rankings_backtest_results" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "season" VARCHAR(8) NOT NULL,
@@ -7654,7 +7654,7 @@ CREATE TABLE "rankings_backtest_results" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_prediction_snapshots" (
+CREATE TABLE IF NOT EXISTS "draft_prediction_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7671,7 +7671,7 @@ CREATE TABLE "draft_prediction_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_retrospectives" (
+CREATE TABLE IF NOT EXISTS "draft_retrospectives" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7691,7 +7691,7 @@ CREATE TABLE "draft_retrospectives" (
 );
 
 -- CreateTable
-CREATE TABLE "league_draft_calibrations" (
+CREATE TABLE IF NOT EXISTS "league_draft_calibrations" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sportType" VARCHAR(16),
@@ -7709,7 +7709,7 @@ CREATE TABLE "league_draft_calibrations" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_adp_snapshots" (
+CREATE TABLE IF NOT EXISTS "ai_adp_snapshots" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "leagueType" VARCHAR(16) NOT NULL,
@@ -7724,7 +7724,7 @@ CREATE TABLE "ai_adp_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_adp_snapshot_history" (
+CREATE TABLE IF NOT EXISTS "ai_adp_snapshot_history" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "leagueType" VARCHAR(16) NOT NULL,
@@ -7739,7 +7739,7 @@ CREATE TABLE "ai_adp_snapshot_history" (
 );
 
 -- CreateTable
-CREATE TABLE "share_engagements" (
+CREATE TABLE IF NOT EXISTS "share_engagements" (
     "id" TEXT NOT NULL,
     "sleeperUsername" VARCHAR(64) NOT NULL,
     "shareType" VARCHAR(32) NOT NULL,
@@ -7752,7 +7752,7 @@ CREATE TABLE "share_engagements" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_chat_threads" (
+CREATE TABLE IF NOT EXISTS "platform_chat_threads" (
     "id" TEXT NOT NULL,
     "threadType" TEXT NOT NULL,
     "productType" TEXT NOT NULL DEFAULT 'shared',
@@ -7766,7 +7766,7 @@ CREATE TABLE "platform_chat_threads" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_chat_thread_members" (
+CREATE TABLE IF NOT EXISTS "platform_chat_thread_members" (
     "id" TEXT NOT NULL,
     "threadId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -7780,7 +7780,7 @@ CREATE TABLE "platform_chat_thread_members" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_chat_messages" (
+CREATE TABLE IF NOT EXISTS "platform_chat_messages" (
     "id" TEXT NOT NULL,
     "threadId" TEXT NOT NULL,
     "senderUserId" TEXT,
@@ -7799,7 +7799,7 @@ CREATE TABLE "platform_chat_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_notifications" (
+CREATE TABLE IF NOT EXISTS "platform_notifications" (
     "id" TEXT NOT NULL,
     "sourceKey" TEXT,
     "userId" TEXT NOT NULL,
@@ -7816,7 +7816,7 @@ CREATE TABLE "platform_notifications" (
 );
 
 -- CreateTable
-CREATE TABLE "web_push_subscriptions" (
+CREATE TABLE IF NOT EXISTS "web_push_subscriptions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "endpoint" TEXT NOT NULL,
@@ -7829,7 +7829,7 @@ CREATE TABLE "web_push_subscriptions" (
 );
 
 -- CreateTable
-CREATE TABLE "engagement_events" (
+CREATE TABLE IF NOT EXISTS "engagement_events" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "eventType" TEXT NOT NULL,
@@ -7840,7 +7840,7 @@ CREATE TABLE "engagement_events" (
 );
 
 -- CreateTable
-CREATE TABLE "podcast_episodes" (
+CREATE TABLE IF NOT EXISTS "podcast_episodes" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "title" VARCHAR(256) NOT NULL,
@@ -7853,7 +7853,7 @@ CREATE TABLE "podcast_episodes" (
 );
 
 -- CreateTable
-CREATE TABLE "fantasy_media_episodes" (
+CREATE TABLE IF NOT EXISTS "fantasy_media_episodes" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -7873,7 +7873,7 @@ CREATE TABLE "fantasy_media_episodes" (
 );
 
 -- CreateTable
-CREATE TABLE "fantasy_media_publish_logs" (
+CREATE TABLE IF NOT EXISTS "fantasy_media_publish_logs" (
     "id" TEXT NOT NULL,
     "episodeId" TEXT NOT NULL,
     "destinationType" VARCHAR(64) NOT NULL,
@@ -7885,7 +7885,7 @@ CREATE TABLE "fantasy_media_publish_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "social_clips" (
+CREATE TABLE IF NOT EXISTS "social_clips" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "clipType" VARCHAR(64) NOT NULL,
@@ -7898,7 +7898,7 @@ CREATE TABLE "social_clips" (
 );
 
 -- CreateTable
-CREATE TABLE "social_content_assets" (
+CREATE TABLE IF NOT EXISTS "social_content_assets" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -7914,7 +7914,7 @@ CREATE TABLE "social_content_assets" (
 );
 
 -- CreateTable
-CREATE TABLE "social_publish_targets" (
+CREATE TABLE IF NOT EXISTS "social_publish_targets" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "platform" VARCHAR(32) NOT NULL,
@@ -7926,7 +7926,7 @@ CREATE TABLE "social_publish_targets" (
 );
 
 -- CreateTable
-CREATE TABLE "social_publish_logs" (
+CREATE TABLE IF NOT EXISTS "social_publish_logs" (
     "id" TEXT NOT NULL,
     "assetId" TEXT NOT NULL,
     "platform" VARCHAR(32) NOT NULL,
@@ -7938,7 +7938,7 @@ CREATE TABLE "social_publish_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "shareable_moments" (
+CREATE TABLE IF NOT EXISTS "shareable_moments" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
@@ -7952,7 +7952,7 @@ CREATE TABLE "shareable_moments" (
 );
 
 -- CreateTable
-CREATE TABLE "share_publish_logs" (
+CREATE TABLE IF NOT EXISTS "share_publish_logs" (
     "id" TEXT NOT NULL,
     "shareId" TEXT NOT NULL,
     "platform" VARCHAR(32) NOT NULL,
@@ -7964,7 +7964,7 @@ CREATE TABLE "share_publish_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_blocked_users" (
+CREATE TABLE IF NOT EXISTS "platform_blocked_users" (
     "id" TEXT NOT NULL,
     "blockerUserId" TEXT NOT NULL,
     "blockedUserId" TEXT NOT NULL,
@@ -7974,7 +7974,7 @@ CREATE TABLE "platform_blocked_users" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_message_reports" (
+CREATE TABLE IF NOT EXISTS "platform_message_reports" (
     "id" TEXT NOT NULL,
     "messageId" TEXT NOT NULL,
     "threadId" TEXT NOT NULL,
@@ -7987,7 +7987,7 @@ CREATE TABLE "platform_message_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_user_reports" (
+CREATE TABLE IF NOT EXISTS "platform_user_reports" (
     "id" TEXT NOT NULL,
     "reportedUserId" TEXT NOT NULL,
     "reporterUserId" TEXT NOT NULL,
@@ -7999,7 +7999,7 @@ CREATE TABLE "platform_user_reports" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_moderation_actions" (
+CREATE TABLE IF NOT EXISTS "platform_moderation_actions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "actionType" TEXT NOT NULL,
@@ -8012,7 +8012,7 @@ CREATE TABLE "platform_moderation_actions" (
 );
 
 -- CreateTable
-CREATE TABLE "admin_audit_log" (
+CREATE TABLE IF NOT EXISTS "admin_audit_log" (
     "id" TEXT NOT NULL,
     "adminUserId" VARCHAR(64) NOT NULL,
     "action" VARCHAR(64) NOT NULL,
@@ -8025,7 +8025,7 @@ CREATE TABLE "admin_audit_log" (
 );
 
 -- CreateTable
-CREATE TABLE "stripe_webhook_events" (
+CREATE TABLE IF NOT EXISTS "stripe_webhook_events" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
     "type" VARCHAR(128) NOT NULL,
@@ -8040,7 +8040,7 @@ CREATE TABLE "stripe_webhook_events" (
 );
 
 -- CreateTable
-CREATE TABLE "subscription_plans" (
+CREATE TABLE IF NOT EXISTS "subscription_plans" (
     "id" TEXT NOT NULL,
     "code" VARCHAR(64) NOT NULL,
     "name" VARCHAR(128) NOT NULL,
@@ -8055,7 +8055,7 @@ CREATE TABLE "subscription_plans" (
 );
 
 -- CreateTable
-CREATE TABLE "user_subscriptions" (
+CREATE TABLE IF NOT EXISTS "user_subscriptions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "subscriptionPlanId" TEXT NOT NULL,
@@ -8078,7 +8078,7 @@ CREATE TABLE "user_subscriptions" (
 );
 
 -- CreateTable
-CREATE TABLE "token_packages" (
+CREATE TABLE IF NOT EXISTS "token_packages" (
     "id" TEXT NOT NULL,
     "sku" VARCHAR(64) NOT NULL,
     "title" VARCHAR(128) NOT NULL,
@@ -8094,7 +8094,7 @@ CREATE TABLE "token_packages" (
 );
 
 -- CreateTable
-CREATE TABLE "user_token_balances" (
+CREATE TABLE IF NOT EXISTS "user_token_balances" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "balance" INTEGER NOT NULL DEFAULT 0,
@@ -8108,7 +8108,7 @@ CREATE TABLE "user_token_balances" (
 );
 
 -- CreateTable
-CREATE TABLE "token_spend_rules" (
+CREATE TABLE IF NOT EXISTS "token_spend_rules" (
     "id" TEXT NOT NULL,
     "code" VARCHAR(64) NOT NULL,
     "category" VARCHAR(32) NOT NULL,
@@ -8125,7 +8125,7 @@ CREATE TABLE "token_spend_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "token_refund_rules" (
+CREATE TABLE IF NOT EXISTS "token_refund_rules" (
     "id" TEXT NOT NULL,
     "code" VARCHAR(64) NOT NULL,
     "description" TEXT,
@@ -8139,7 +8139,7 @@ CREATE TABLE "token_refund_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "token_ledger" (
+CREATE TABLE IF NOT EXISTS "token_ledger" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "userTokenBalanceId" TEXT NOT NULL,
@@ -8161,7 +8161,7 @@ CREATE TABLE "token_ledger" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_wallet_accounts" (
+CREATE TABLE IF NOT EXISTS "platform_wallet_accounts" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
@@ -8174,7 +8174,7 @@ CREATE TABLE "platform_wallet_accounts" (
 );
 
 -- CreateTable
-CREATE TABLE "wallet_ledger_entries" (
+CREATE TABLE IF NOT EXISTS "wallet_ledger_entries" (
     "id" TEXT NOT NULL,
     "sourceKey" TEXT,
     "walletAccountId" TEXT NOT NULL,
@@ -8192,7 +8192,7 @@ CREATE TABLE "wallet_ledger_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "season_forecast_snapshots" (
+CREATE TABLE IF NOT EXISTS "season_forecast_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sportType" VARCHAR(16),
@@ -8205,7 +8205,7 @@ CREATE TABLE "season_forecast_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "dynasty_projection_snapshots" (
+CREATE TABLE IF NOT EXISTS "dynasty_projection_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sportType" VARCHAR(16),
@@ -8226,7 +8226,7 @@ CREATE TABLE "dynasty_projection_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "player_career_projections" (
+CREATE TABLE IF NOT EXISTS "player_career_projections" (
     "id" TEXT NOT NULL,
     "sport" VARCHAR(16) NOT NULL,
     "playerId" TEXT NOT NULL,
@@ -8245,7 +8245,7 @@ CREATE TABLE "player_career_projections" (
 );
 
 -- CreateTable
-CREATE TABLE "team_window_profiles" (
+CREATE TABLE IF NOT EXISTS "team_window_profiles" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sportType" VARCHAR(16),
@@ -8263,7 +8263,7 @@ CREATE TABLE "team_window_profiles" (
 );
 
 -- CreateTable
-CREATE TABLE "graph_nodes" (
+CREATE TABLE IF NOT EXISTS "graph_nodes" (
     "id" TEXT NOT NULL,
     "nodeId" TEXT NOT NULL,
     "nodeType" VARCHAR(32) NOT NULL,
@@ -8278,7 +8278,7 @@ CREATE TABLE "graph_nodes" (
 );
 
 -- CreateTable
-CREATE TABLE "graph_edges" (
+CREATE TABLE IF NOT EXISTS "graph_edges" (
     "id" TEXT NOT NULL,
     "edgeId" TEXT NOT NULL,
     "fromNodeId" TEXT NOT NULL,
@@ -8294,7 +8294,7 @@ CREATE TABLE "graph_edges" (
 );
 
 -- CreateTable
-CREATE TABLE "league_graph_snapshots" (
+CREATE TABLE IF NOT EXISTS "league_graph_snapshots" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -8308,7 +8308,7 @@ CREATE TABLE "league_graph_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "league_dynasty_seasons" (
+CREATE TABLE IF NOT EXISTS "league_dynasty_seasons" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "season" INTEGER NOT NULL,
@@ -8321,7 +8321,7 @@ CREATE TABLE "league_dynasty_seasons" (
 );
 
 -- CreateTable
-CREATE TABLE "dynasty_backfill_status" (
+CREATE TABLE IF NOT EXISTS "dynasty_backfill_status" (
     "id" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "provider" VARCHAR(32) NOT NULL,
@@ -8341,7 +8341,7 @@ CREATE TABLE "dynasty_backfill_status" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_player_game_facts" (
+CREATE TABLE IF NOT EXISTS "dw_player_game_facts" (
     "factId" TEXT NOT NULL,
     "playerId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8360,7 +8360,7 @@ CREATE TABLE "dw_player_game_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_team_game_facts" (
+CREATE TABLE IF NOT EXISTS "dw_team_game_facts" (
     "factId" TEXT NOT NULL,
     "teamId" VARCHAR(32) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8376,7 +8376,7 @@ CREATE TABLE "dw_team_game_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_roster_snapshots" (
+CREATE TABLE IF NOT EXISTS "dw_roster_snapshots" (
     "snapshotId" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "teamId" VARCHAR(64) NOT NULL,
@@ -8392,7 +8392,7 @@ CREATE TABLE "dw_roster_snapshots" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_matchup_facts" (
+CREATE TABLE IF NOT EXISTS "dw_matchup_facts" (
     "matchupId" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8409,7 +8409,7 @@ CREATE TABLE "dw_matchup_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_draft_facts" (
+CREATE TABLE IF NOT EXISTS "dw_draft_facts" (
     "draftId" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8424,7 +8424,7 @@ CREATE TABLE "dw_draft_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_transaction_facts" (
+CREATE TABLE IF NOT EXISTS "dw_transaction_facts" (
     "transactionId" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8441,7 +8441,7 @@ CREATE TABLE "dw_transaction_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "dw_season_standing_facts" (
+CREATE TABLE IF NOT EXISTS "dw_season_standing_facts" (
     "standingId" TEXT NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
@@ -8459,7 +8459,7 @@ CREATE TABLE "dw_season_standing_facts" (
 );
 
 -- CreateTable
-CREATE TABLE "sim_matchup_results" (
+CREATE TABLE IF NOT EXISTS "sim_matchup_results" (
     "simulationId" TEXT NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
     "leagueId" VARCHAR(64),
@@ -8479,7 +8479,7 @@ CREATE TABLE "sim_matchup_results" (
 );
 
 -- CreateTable
-CREATE TABLE "sim_season_results" (
+CREATE TABLE IF NOT EXISTS "sim_season_results" (
     "resultId" TEXT NOT NULL,
     "sport" VARCHAR(12) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -8497,7 +8497,7 @@ CREATE TABLE "sim_season_results" (
 );
 
 -- CreateTable
-CREATE TABLE "dynasty_projections" (
+CREATE TABLE IF NOT EXISTS "dynasty_projections" (
     "projectionId" TEXT NOT NULL,
     "teamId" VARCHAR(64) NOT NULL,
     "leagueId" VARCHAR(64) NOT NULL,
@@ -8515,7 +8515,7 @@ CREATE TABLE "dynasty_projections" (
 );
 
 -- CreateTable
-CREATE TABLE "platform_config" (
+CREATE TABLE IF NOT EXISTS "platform_config" (
     "id" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
@@ -8525,7 +8525,7 @@ CREATE TABLE "platform_config" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_rule_violation_logs" (
+CREATE TABLE IF NOT EXISTS "ai_rule_violation_logs" (
     "id" TEXT NOT NULL,
     "userId" TEXT,
     "feature" TEXT NOT NULL,
@@ -8539,7 +8539,7 @@ CREATE TABLE "ai_rule_violation_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "ai_custom_rules" (
+CREATE TABLE IF NOT EXISTS "ai_custom_rules" (
     "id" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "prompt" TEXT NOT NULL,
@@ -8555,7 +8555,7 @@ CREATE TABLE "ai_custom_rules" (
 );
 
 -- CreateTable
-CREATE TABLE "mock_draft_rooms" (
+CREATE TABLE IF NOT EXISTS "mock_draft_rooms" (
     "id" TEXT NOT NULL,
     "createdById" TEXT,
     "sport" TEXT NOT NULL DEFAULT 'NFL',
@@ -8575,7 +8575,7 @@ CREATE TABLE "mock_draft_rooms" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_room_pick_records" (
+CREATE TABLE IF NOT EXISTS "draft_room_pick_records" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT,
     "roomId" TEXT,
@@ -8598,7 +8598,7 @@ CREATE TABLE "draft_room_pick_records" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_room_user_queues" (
+CREATE TABLE IF NOT EXISTS "draft_room_user_queues" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "sessionKey" TEXT NOT NULL,
@@ -8611,7 +8611,7 @@ CREATE TABLE "draft_room_user_queues" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_room_chat_messages" (
+CREATE TABLE IF NOT EXISTS "draft_room_chat_messages" (
     "id" TEXT NOT NULL,
     "sessionKey" TEXT NOT NULL,
     "leagueId" TEXT,
@@ -8627,7 +8627,7 @@ CREATE TABLE "draft_room_chat_messages" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_room_state" (
+CREATE TABLE IF NOT EXISTS "draft_room_state" (
     "id" TEXT NOT NULL,
     "mode" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'waiting',
@@ -8648,7 +8648,7 @@ CREATE TABLE "draft_room_state" (
 );
 
 -- CreateTable
-CREATE TABLE "draft_autopick_settings" (
+CREATE TABLE IF NOT EXISTS "draft_autopick_settings" (
     "userId" TEXT NOT NULL,
     "sessionKey" TEXT NOT NULL,
     "enabled" BOOLEAN NOT NULL DEFAULT false,
@@ -8658,7 +8658,7 @@ CREATE TABLE "draft_autopick_settings" (
 );
 
 -- CreateTable
-CREATE TABLE "sport_configs" (
+CREATE TABLE IF NOT EXISTS "sport_configs" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "displayName" TEXT NOT NULL DEFAULT '',
@@ -8705,7 +8705,7 @@ CREATE TABLE "sport_configs" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_seasons" (
+CREATE TABLE IF NOT EXISTS "redraft_seasons" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -8722,7 +8722,7 @@ CREATE TABLE "redraft_seasons" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_rosters" (
+CREATE TABLE IF NOT EXISTS "redraft_rosters" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -8745,7 +8745,7 @@ CREATE TABLE "redraft_rosters" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_roster_players" (
+CREATE TABLE IF NOT EXISTS "redraft_roster_players" (
     "id" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
@@ -8766,7 +8766,7 @@ CREATE TABLE "redraft_roster_players" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_matchups" (
+CREATE TABLE IF NOT EXISTS "redraft_matchups" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -8789,7 +8789,7 @@ CREATE TABLE "redraft_matchups" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_waiver_claims" (
+CREATE TABLE IF NOT EXISTS "redraft_waiver_claims" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -8809,7 +8809,7 @@ CREATE TABLE "redraft_waiver_claims" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_league_trades" (
+CREATE TABLE IF NOT EXISTS "redraft_league_trades" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8837,7 +8837,7 @@ CREATE TABLE "redraft_league_trades" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_league_transactions" (
+CREATE TABLE IF NOT EXISTS "redraft_league_transactions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8850,7 +8850,7 @@ CREATE TABLE "redraft_league_transactions" (
 );
 
 -- CreateTable
-CREATE TABLE "player_weekly_scores" (
+CREATE TABLE IF NOT EXISTS "player_weekly_scores" (
     "id" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -8865,7 +8865,7 @@ CREATE TABLE "player_weekly_scores" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_playoff_brackets" (
+CREATE TABLE IF NOT EXISTS "redraft_playoff_brackets" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "structure" JSONB NOT NULL,
@@ -8876,7 +8876,7 @@ CREATE TABLE "redraft_playoff_brackets" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_ai_league_insights" (
+CREATE TABLE IF NOT EXISTS "redraft_ai_league_insights" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8891,7 +8891,7 @@ CREATE TABLE "redraft_ai_league_insights" (
 );
 
 -- CreateTable
-CREATE TABLE "redraft_ai_roster_insights" (
+CREATE TABLE IF NOT EXISTS "redraft_ai_roster_insights" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "rosterId" TEXT NOT NULL,
@@ -8906,7 +8906,7 @@ CREATE TABLE "redraft_ai_roster_insights" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_records" (
+CREATE TABLE IF NOT EXISTS "keeper_records" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8932,7 +8932,7 @@ CREATE TABLE "keeper_records" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_selection_sessions" (
+CREATE TABLE IF NOT EXISTS "keeper_selection_sessions" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8950,7 +8950,7 @@ CREATE TABLE "keeper_selection_sessions" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_eligibilities" (
+CREATE TABLE IF NOT EXISTS "keeper_eligibilities" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8968,7 +8968,7 @@ CREATE TABLE "keeper_eligibilities" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_pick_adjustments" (
+CREATE TABLE IF NOT EXISTS "keeper_pick_adjustments" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8983,7 +8983,7 @@ CREATE TABLE "keeper_pick_adjustments" (
 );
 
 -- CreateTable
-CREATE TABLE "keeper_audit_logs" (
+CREATE TABLE IF NOT EXISTS "keeper_audit_logs" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -8999,7 +8999,7 @@ CREATE TABLE "keeper_audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_sport_templates" (
+CREATE TABLE IF NOT EXISTS "best_ball_sport_templates" (
     "id" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
     "variant" TEXT NOT NULL DEFAULT 'standard',
@@ -9017,7 +9017,7 @@ CREATE TABLE "best_ball_sport_templates" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_optimized_lineups" (
+CREATE TABLE IF NOT EXISTS "best_ball_optimized_lineups" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT,
     "seasonId" TEXT,
@@ -9041,7 +9041,7 @@ CREATE TABLE "best_ball_optimized_lineups" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_contests" (
+CREATE TABLE IF NOT EXISTS "best_ball_contests" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "sport" TEXT NOT NULL,
@@ -9068,7 +9068,7 @@ CREATE TABLE "best_ball_contests" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_pods" (
+CREATE TABLE IF NOT EXISTS "best_ball_pods" (
     "id" TEXT NOT NULL,
     "contestId" TEXT NOT NULL,
     "roundNumber" INTEGER NOT NULL DEFAULT 1,
@@ -9083,7 +9083,7 @@ CREATE TABLE "best_ball_pods" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_entries" (
+CREATE TABLE IF NOT EXISTS "best_ball_entries" (
     "id" TEXT NOT NULL,
     "contestId" TEXT NOT NULL,
     "podId" TEXT,
@@ -9104,7 +9104,7 @@ CREATE TABLE "best_ball_entries" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_roster_validations" (
+CREATE TABLE IF NOT EXISTS "best_ball_roster_validations" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT,
@@ -9120,7 +9120,7 @@ CREATE TABLE "best_ball_roster_validations" (
 );
 
 -- CreateTable
-CREATE TABLE "best_ball_ai_insights" (
+CREATE TABLE IF NOT EXISTS "best_ball_ai_insights" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT,
     "contestId" TEXT,
@@ -9136,7 +9136,7 @@ CREATE TABLE "best_ball_ai_insights" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_seasons" (
+CREATE TABLE IF NOT EXISTS "guillotine_seasons" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "redraftSeasonId" TEXT,
@@ -9155,7 +9155,7 @@ CREATE TABLE "guillotine_seasons" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_eliminations" (
+CREATE TABLE IF NOT EXISTS "guillotine_eliminations" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -9177,7 +9177,7 @@ CREATE TABLE "guillotine_eliminations" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_survival_logs" (
+CREATE TABLE IF NOT EXISTS "guillotine_survival_logs" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -9194,7 +9194,7 @@ CREATE TABLE "guillotine_survival_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_waiver_releases" (
+CREATE TABLE IF NOT EXISTS "guillotine_waiver_releases" (
     "id" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
@@ -9215,7 +9215,7 @@ CREATE TABLE "guillotine_waiver_releases" (
 );
 
 -- CreateTable
-CREATE TABLE "guillotine_ai_insights" (
+CREATE TABLE IF NOT EXISTS "guillotine_ai_insights" (
     "id" TEXT NOT NULL,
     "leagueId" TEXT NOT NULL,
     "seasonId" TEXT NOT NULL,
@@ -9230,7 +9230,7 @@ CREATE TABLE "guillotine_ai_insights" (
 );
 
 -- CreateTable
-CREATE TABLE "WeatherCache" (
+CREATE TABLE IF NOT EXISTS "WeatherCache" (
     "id" TEXT NOT NULL,
     "cacheKey" TEXT NOT NULL,
     "latitude" DOUBLE PRECISION NOT NULL,
@@ -9263,7 +9263,7 @@ CREATE TABLE "WeatherCache" (
 );
 
 -- CreateTable
-CREATE TABLE "AFProjectionSnapshot" (
+CREATE TABLE IF NOT EXISTS "AFProjectionSnapshot" (
     "id" TEXT NOT NULL,
     "playerId" TEXT NOT NULL,
     "playerName" TEXT NOT NULL,
@@ -9289,3913 +9289,3913 @@ CREATE TABLE "AFProjectionSnapshot" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "EarlyAccessSignup_email_key" ON "EarlyAccessSignup"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "EarlyAccessSignup_email_key" ON "EarlyAccessSignup"("email");
 
 -- CreateIndex
-CREATE INDEX "EarlyAccessSignup_createdAt_idx" ON "EarlyAccessSignup"("createdAt");
+CREATE INDEX IF NOT EXISTS "EarlyAccessSignup_createdAt_idx" ON "EarlyAccessSignup"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "EarlyAccessSignup_confirmedAt_idx" ON "EarlyAccessSignup"("confirmedAt");
+CREATE INDEX IF NOT EXISTS "EarlyAccessSignup_confirmedAt_idx" ON "EarlyAccessSignup"("confirmedAt");
 
 -- CreateIndex
-CREATE INDEX "EarlyAccessSignup_source_idx" ON "EarlyAccessSignup"("source");
+CREATE INDEX IF NOT EXISTS "EarlyAccessSignup_source_idx" ON "EarlyAccessSignup"("source");
 
 -- CreateIndex
-CREATE INDEX "EarlyAccessSignup_utmSource_idx" ON "EarlyAccessSignup"("utmSource");
+CREATE INDEX IF NOT EXISTS "EarlyAccessSignup_utmSource_idx" ON "EarlyAccessSignup"("utmSource");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "VisitorLocation_ipAddress_key" ON "VisitorLocation"("ipAddress");
+CREATE UNIQUE INDEX IF NOT EXISTS "VisitorLocation_ipAddress_key" ON "VisitorLocation"("ipAddress");
 
 -- CreateIndex
-CREATE INDEX "VisitorLocation_country_idx" ON "VisitorLocation"("country");
+CREATE INDEX IF NOT EXISTS "VisitorLocation_country_idx" ON "VisitorLocation"("country");
 
 -- CreateIndex
-CREATE INDEX "VisitorLocation_lastSeen_idx" ON "VisitorLocation"("lastSeen");
+CREATE INDEX IF NOT EXISTS "VisitorLocation_lastSeen_idx" ON "VisitorLocation"("lastSeen");
 
 -- CreateIndex
-CREATE INDEX "QuestionnaireResponse_email_idx" ON "QuestionnaireResponse"("email");
+CREATE INDEX IF NOT EXISTS "QuestionnaireResponse_email_idx" ON "QuestionnaireResponse"("email");
 
 -- CreateIndex
-CREATE INDEX "SportsDataCache_expiresAt_idx" ON "SportsDataCache"("expiresAt");
+CREATE INDEX IF NOT EXISTS "SportsDataCache_expiresAt_idx" ON "SportsDataCache"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "SportsTeam_sport_idx" ON "SportsTeam"("sport");
+CREATE INDEX IF NOT EXISTS "SportsTeam_sport_idx" ON "SportsTeam"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SportsTeam_sport_externalId_source_key" ON "SportsTeam"("sport", "externalId", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "SportsTeam_sport_externalId_source_key" ON "SportsTeam"("sport", "externalId", "source");
 
 -- CreateIndex
-CREATE INDEX "SportsPlayer_sport_team_idx" ON "SportsPlayer"("sport", "team");
+CREATE INDEX IF NOT EXISTS "SportsPlayer_sport_team_idx" ON "SportsPlayer"("sport", "team");
 
 -- CreateIndex
-CREATE INDEX "SportsPlayer_sleeperId_idx" ON "SportsPlayer"("sleeperId");
+CREATE INDEX IF NOT EXISTS "SportsPlayer_sleeperId_idx" ON "SportsPlayer"("sleeperId");
 
 -- CreateIndex
-CREATE INDEX "SportsPlayer_name_idx" ON "SportsPlayer"("name");
+CREATE INDEX IF NOT EXISTS "SportsPlayer_name_idx" ON "SportsPlayer"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SportsPlayer_sport_externalId_source_key" ON "SportsPlayer"("sport", "externalId", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "SportsPlayer_sport_externalId_source_key" ON "SportsPlayer"("sport", "externalId", "source");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PlayerIdentityMap_sleeperId_key" ON "PlayerIdentityMap"("sleeperId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PlayerIdentityMap_sleeperId_key" ON "PlayerIdentityMap"("sleeperId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_normalizedName_idx" ON "PlayerIdentityMap"("normalizedName");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_normalizedName_idx" ON "PlayerIdentityMap"("normalizedName");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_fantasyCalcId_idx" ON "PlayerIdentityMap"("fantasyCalcId");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_fantasyCalcId_idx" ON "PlayerIdentityMap"("fantasyCalcId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_rollingInsightsId_idx" ON "PlayerIdentityMap"("rollingInsightsId");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_rollingInsightsId_idx" ON "PlayerIdentityMap"("rollingInsightsId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_apiSportsId_idx" ON "PlayerIdentityMap"("apiSportsId");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_apiSportsId_idx" ON "PlayerIdentityMap"("apiSportsId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_espnId_idx" ON "PlayerIdentityMap"("espnId");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_espnId_idx" ON "PlayerIdentityMap"("espnId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_clearSportsId_idx" ON "PlayerIdentityMap"("clearSportsId");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_clearSportsId_idx" ON "PlayerIdentityMap"("clearSportsId");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_currentTeam_idx" ON "PlayerIdentityMap"("currentTeam");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_currentTeam_idx" ON "PlayerIdentityMap"("currentTeam");
 
 -- CreateIndex
-CREATE INDEX "PlayerIdentityMap_sport_position_idx" ON "PlayerIdentityMap"("sport", "position");
+CREATE INDEX IF NOT EXISTS "PlayerIdentityMap_sport_position_idx" ON "PlayerIdentityMap"("sport", "position");
 
 -- CreateIndex
-CREATE INDEX "player_team_history_playerId_sport_season_idx" ON "player_team_history"("playerId", "sport", "season");
+CREATE INDEX IF NOT EXISTS "player_team_history_playerId_sport_season_idx" ON "player_team_history"("playerId", "sport", "season");
 
 -- CreateIndex
-CREATE INDEX "player_team_history_teamAbbr_sport_season_idx" ON "player_team_history"("teamAbbr", "sport", "season");
+CREATE INDEX IF NOT EXISTS "player_team_history_teamAbbr_sport_season_idx" ON "player_team_history"("teamAbbr", "sport", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_team_history_playerId_sport_season_week_key" ON "player_team_history"("playerId", "sport", "season", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_team_history_playerId_sport_season_week_key" ON "player_team_history"("playerId", "sport", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "SportsGame_sport_startTime_idx" ON "SportsGame"("sport", "startTime");
+CREATE INDEX IF NOT EXISTS "SportsGame_sport_startTime_idx" ON "SportsGame"("sport", "startTime");
 
 -- CreateIndex
-CREATE INDEX "SportsGame_sport_season_week_idx" ON "SportsGame"("sport", "season", "week");
+CREATE INDEX IF NOT EXISTS "SportsGame_sport_season_week_idx" ON "SportsGame"("sport", "season", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SportsGame_sport_externalId_source_key" ON "SportsGame"("sport", "externalId", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "SportsGame_sport_externalId_source_key" ON "SportsGame"("sport", "externalId", "source");
 
 -- CreateIndex
-CREATE INDEX "SportsInjury_sport_team_idx" ON "SportsInjury"("sport", "team");
+CREATE INDEX IF NOT EXISTS "SportsInjury_sport_team_idx" ON "SportsInjury"("sport", "team");
 
 -- CreateIndex
-CREATE INDEX "SportsInjury_playerName_idx" ON "SportsInjury"("playerName");
+CREATE INDEX IF NOT EXISTS "SportsInjury_playerName_idx" ON "SportsInjury"("playerName");
 
 -- CreateIndex
-CREATE INDEX "SportsInjury_playerId_idx" ON "SportsInjury"("playerId");
+CREATE INDEX IF NOT EXISTS "SportsInjury_playerId_idx" ON "SportsInjury"("playerId");
 
 -- CreateIndex
-CREATE INDEX "SportsInjury_sport_season_week_idx" ON "SportsInjury"("sport", "season", "week");
+CREATE INDEX IF NOT EXISTS "SportsInjury_sport_season_week_idx" ON "SportsInjury"("sport", "season", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SportsInjury_sport_externalId_source_key" ON "SportsInjury"("sport", "externalId", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "SportsInjury_sport_externalId_source_key" ON "SportsInjury"("sport", "externalId", "source");
 
 -- CreateIndex
-CREATE INDEX "SportsNews_sport_publishedAt_idx" ON "SportsNews"("sport", "publishedAt");
+CREATE INDEX IF NOT EXISTS "SportsNews_sport_publishedAt_idx" ON "SportsNews"("sport", "publishedAt");
 
 -- CreateIndex
-CREATE INDEX "SportsNews_playerName_idx" ON "SportsNews"("playerName");
+CREATE INDEX IF NOT EXISTS "SportsNews_playerName_idx" ON "SportsNews"("playerName");
 
 -- CreateIndex
-CREATE INDEX "SportsNews_team_idx" ON "SportsNews"("team");
+CREATE INDEX IF NOT EXISTS "SportsNews_team_idx" ON "SportsNews"("team");
 
 -- CreateIndex
-CREATE INDEX "SportsNews_category_idx" ON "SportsNews"("category");
+CREATE INDEX IF NOT EXISTS "SportsNews_category_idx" ON "SportsNews"("category");
 
 -- CreateIndex
-CREATE INDEX "SportsNews_sentiment_idx" ON "SportsNews"("sentiment");
+CREATE INDEX IF NOT EXISTS "SportsNews_sentiment_idx" ON "SportsNews"("sentiment");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SportsNews_sport_externalId_source_key" ON "SportsNews"("sport", "externalId", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "SportsNews_sport_externalId_source_key" ON "SportsNews"("sport", "externalId", "source");
 
 -- CreateIndex
-CREATE INDEX "sports_players_sport_team_idx" ON "sports_players"("sport", "team");
+CREATE INDEX IF NOT EXISTS "sports_players_sport_team_idx" ON "sports_players"("sport", "team");
 
 -- CreateIndex
-CREATE INDEX "sports_players_sport_position_idx" ON "sports_players"("sport", "position");
+CREATE INDEX IF NOT EXISTS "sports_players_sport_position_idx" ON "sports_players"("sport", "position");
 
 -- CreateIndex
-CREATE INDEX "sports_players_sport_name_idx" ON "sports_players"("sport", "name");
+CREATE INDEX IF NOT EXISTS "sports_players_sport_name_idx" ON "sports_players"("sport", "name");
 
 -- CreateIndex
-CREATE INDEX "sports_players_last_updated_idx" ON "sports_players"("last_updated");
+CREATE INDEX IF NOT EXISTS "sports_players_last_updated_idx" ON "sports_players"("last_updated");
 
 -- CreateIndex
-CREATE INDEX "team_assets_sport_idx" ON "team_assets"("sport");
+CREATE INDEX IF NOT EXISTS "team_assets_sport_idx" ON "team_assets"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "team_assets_sport_team_code_key" ON "team_assets"("sport", "team_code");
+CREATE UNIQUE INDEX IF NOT EXISTS "team_assets_sport_team_code_key" ON "team_assets"("sport", "team_code");
 
 -- CreateIndex
-CREATE INDEX "injury_reports_sport_week_report_date_idx" ON "injury_reports"("sport", "week", "report_date");
+CREATE INDEX IF NOT EXISTS "injury_reports_sport_week_report_date_idx" ON "injury_reports"("sport", "week", "report_date");
 
 -- CreateIndex
-CREATE INDEX "injury_reports_sport_player_id_report_date_idx" ON "injury_reports"("sport", "player_id", "report_date");
+CREATE INDEX IF NOT EXISTS "injury_reports_sport_player_id_report_date_idx" ON "injury_reports"("sport", "player_id", "report_date");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "injury_reports_sport_player_id_report_date_status_key" ON "injury_reports"("sport", "player_id", "report_date", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "injury_reports_sport_player_id_report_date_status_key" ON "injury_reports"("sport", "player_id", "report_date", "status");
 
 -- CreateIndex
-CREATE INDEX "adp_data_sport_format_scoring_week_season_idx" ON "adp_data"("sport", "format", "scoring", "week", "season");
+CREATE INDEX IF NOT EXISTS "adp_data_sport_format_scoring_week_season_idx" ON "adp_data"("sport", "format", "scoring", "week", "season");
 
 -- CreateIndex
-CREATE INDEX "adp_data_player_id_created_at_idx" ON "adp_data"("player_id", "created_at");
+CREATE INDEX IF NOT EXISTS "adp_data_player_id_created_at_idx" ON "adp_data"("player_id", "created_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "adp_data_sport_format_scoring_player_id_week_season_source_key" ON "adp_data"("sport", "format", "scoring", "player_id", "week", "season", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "adp_data_sport_format_scoring_player_id_week_season_source_key" ON "adp_data"("sport", "format", "scoring", "player_id", "week", "season", "source");
 
 -- CreateIndex
-CREATE INDEX "player_news_sport_published_at_idx" ON "player_news"("sport", "published_at");
+CREATE INDEX IF NOT EXISTS "player_news_sport_published_at_idx" ON "player_news"("sport", "published_at");
 
 -- CreateIndex
-CREATE INDEX "player_news_player_id_published_at_idx" ON "player_news"("player_id", "published_at");
+CREATE INDEX IF NOT EXISTS "player_news_player_id_published_at_idx" ON "player_news"("player_id", "published_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_news_sport_player_name_headline_published_at_key" ON "player_news"("sport", "player_name", "headline", "published_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_news_sport_player_name_headline_published_at_key" ON "player_news"("sport", "player_name", "headline", "published_at");
 
 -- CreateIndex
-CREATE INDEX "api_rate_limits_provider_window_start_window_end_idx" ON "api_rate_limits"("provider", "window_start", "window_end");
+CREATE INDEX IF NOT EXISTS "api_rate_limits_provider_window_start_window_end_idx" ON "api_rate_limits"("provider", "window_start", "window_end");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "api_rate_limits_provider_endpoint_window_start_window_end_key" ON "api_rate_limits"("provider", "endpoint", "window_start", "window_end");
+CREATE UNIQUE INDEX IF NOT EXISTS "api_rate_limits_provider_endpoint_window_start_window_end_key" ON "api_rate_limits"("provider", "endpoint", "window_start", "window_end");
 
 -- CreateIndex
-CREATE INDEX "api_call_log_provider_called_at_idx" ON "api_call_log"("provider", "called_at");
+CREATE INDEX IF NOT EXISTS "api_call_log_provider_called_at_idx" ON "api_call_log"("provider", "called_at");
 
 -- CreateIndex
-CREATE INDEX "api_call_log_provider_endpoint_called_at_idx" ON "api_call_log"("provider", "endpoint", "called_at");
+CREATE INDEX IF NOT EXISTS "api_call_log_provider_endpoint_called_at_idx" ON "api_call_log"("provider", "endpoint", "called_at");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LegacyUser_sleeperUsername_key" ON "LegacyUser"("sleeperUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "LegacyUser_sleeperUsername_key" ON "LegacyUser"("sleeperUsername");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LegacyUser_sleeperUserId_key" ON "LegacyUser"("sleeperUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LegacyUser_sleeperUserId_key" ON "LegacyUser"("sleeperUserId");
 
 -- CreateIndex
-CREATE INDEX "LegacyUser_sleeperUsername_idx" ON "LegacyUser"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "LegacyUser_sleeperUsername_idx" ON "LegacyUser"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "UserEvent_userId_idx" ON "UserEvent"("userId");
+CREATE INDEX IF NOT EXISTS "UserEvent_userId_idx" ON "UserEvent"("userId");
 
 -- CreateIndex
-CREATE INDEX "UserEvent_eventType_idx" ON "UserEvent"("eventType");
+CREATE INDEX IF NOT EXISTS "UserEvent_eventType_idx" ON "UserEvent"("eventType");
 
 -- CreateIndex
-CREATE INDEX "UserEvent_createdAt_idx" ON "UserEvent"("createdAt");
+CREATE INDEX IF NOT EXISTS "UserEvent_createdAt_idx" ON "UserEvent"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "UserEvent_userId_eventType_idx" ON "UserEvent"("userId", "eventType");
+CREATE INDEX IF NOT EXISTS "UserEvent_userId_eventType_idx" ON "UserEvent"("userId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "legacy_user_rank_cache_last_calculated_idx" ON "legacy_user_rank_cache"("last_calculated_at");
+CREATE INDEX IF NOT EXISTS "legacy_user_rank_cache_last_calculated_idx" ON "legacy_user_rank_cache"("last_calculated_at");
 
 -- CreateIndex
-CREATE INDEX "legacy_user_rank_cache_last_refresh_idx" ON "legacy_user_rank_cache"("last_refresh_at");
+CREATE INDEX IF NOT EXISTS "legacy_user_rank_cache_last_refresh_idx" ON "legacy_user_rank_cache"("last_refresh_at");
 
 -- CreateIndex
-CREATE INDEX "PlatformIdentity_userId_idx" ON "PlatformIdentity"("userId");
+CREATE INDEX IF NOT EXISTS "PlatformIdentity_userId_idx" ON "PlatformIdentity"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PlatformIdentity_platform_platformUserId_key" ON "PlatformIdentity"("platform", "platformUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "PlatformIdentity_platform_platformUserId_key" ON "PlatformIdentity"("platform", "platformUserId");
 
 -- CreateIndex
-CREATE INDEX "LegacyImportJob_userId_status_idx" ON "LegacyImportJob"("userId", "status");
+CREATE INDEX IF NOT EXISTS "LegacyImportJob_userId_status_idx" ON "LegacyImportJob"("userId", "status");
 
 -- CreateIndex
-CREATE INDEX "LegacyLeague_userId_season_idx" ON "LegacyLeague"("userId", "season");
+CREATE INDEX IF NOT EXISTS "LegacyLeague_userId_season_idx" ON "LegacyLeague"("userId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LegacyLeague_userId_sleeperLeagueId_key" ON "LegacyLeague"("userId", "sleeperLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LegacyLeague_userId_sleeperLeagueId_key" ON "LegacyLeague"("userId", "sleeperLeagueId");
 
 -- CreateIndex
-CREATE INDEX "LegacyRoster_leagueId_idx" ON "LegacyRoster"("leagueId");
+CREATE INDEX IF NOT EXISTS "LegacyRoster_leagueId_idx" ON "LegacyRoster"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "LegacyRoster_ownerId_idx" ON "LegacyRoster"("ownerId");
+CREATE INDEX IF NOT EXISTS "LegacyRoster_ownerId_idx" ON "LegacyRoster"("ownerId");
 
 -- CreateIndex
-CREATE INDEX "LegacyRoster_leagueId_ownerId_idx" ON "LegacyRoster"("leagueId", "ownerId");
+CREATE INDEX IF NOT EXISTS "LegacyRoster_leagueId_ownerId_idx" ON "LegacyRoster"("leagueId", "ownerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LegacyRoster_leagueId_rosterId_key" ON "LegacyRoster"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LegacyRoster_leagueId_rosterId_key" ON "LegacyRoster"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LegacySeasonSummary_leagueId_key" ON "LegacySeasonSummary"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LegacySeasonSummary_leagueId_key" ON "LegacySeasonSummary"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "LegacyAIReport_userId_reportType_idx" ON "LegacyAIReport"("userId", "reportType");
+CREATE INDEX IF NOT EXISTS "LegacyAIReport_userId_reportType_idx" ON "LegacyAIReport"("userId", "reportType");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_sessionId_idx" ON "AnalyticsEvent"("sessionId");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_sessionId_idx" ON "AnalyticsEvent"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_userId_idx" ON "AnalyticsEvent"("userId");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_userId_idx" ON "AnalyticsEvent"("userId");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_emailHash_idx" ON "AnalyticsEvent"("emailHash");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_emailHash_idx" ON "AnalyticsEvent"("emailHash");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_toolKey_idx" ON "AnalyticsEvent"("toolKey");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_toolKey_idx" ON "AnalyticsEvent"("toolKey");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_event_createdAt_idx" ON "AnalyticsEvent"("event", "createdAt");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_event_createdAt_idx" ON "AnalyticsEvent"("event", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "AnalyticsEvent_path_createdAt_idx" ON "AnalyticsEvent"("path", "createdAt");
+CREATE INDEX IF NOT EXISTS "AnalyticsEvent_path_createdAt_idx" ON "AnalyticsEvent"("path", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradeNotification_transactionId_key" ON "TradeNotification"("transactionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradeNotification_transactionId_key" ON "TradeNotification"("transactionId");
 
 -- CreateIndex
-CREATE INDEX "TradeNotification_userId_status_idx" ON "TradeNotification"("userId", "status");
+CREATE INDEX IF NOT EXISTS "TradeNotification_userId_status_idx" ON "TradeNotification"("userId", "status");
 
 -- CreateIndex
-CREATE INDEX "TradeNotification_userId_seenAt_idx" ON "TradeNotification"("userId", "seenAt");
+CREATE INDEX IF NOT EXISTS "TradeNotification_userId_seenAt_idx" ON "TradeNotification"("userId", "seenAt");
 
 -- CreateIndex
-CREATE INDEX "TradeNotification_leagueId_idx" ON "TradeNotification"("leagueId");
+CREATE INDEX IF NOT EXISTS "TradeNotification_leagueId_idx" ON "TradeNotification"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "EmailPreference_email_key" ON "EmailPreference"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "EmailPreference_email_key" ON "EmailPreference"("email");
 
 -- CreateIndex
-CREATE INDEX "EmailPreference_legacyUserId_idx" ON "EmailPreference"("legacyUserId");
+CREATE INDEX IF NOT EXISTS "EmailPreference_legacyUserId_idx" ON "EmailPreference"("legacyUserId");
 
 -- CreateIndex
-CREATE INDEX "EmailPreference_sleeperUsername_idx" ON "EmailPreference"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "EmailPreference_sleeperUsername_idx" ON "EmailPreference"("sleeperUsername");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AIUserProfile_userId_key" ON "AIUserProfile"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "AIUserProfile_userId_key" ON "AIUserProfile"("userId");
 
 -- CreateIndex
-CREATE INDEX "AIUserProfile_sleeperUsername_idx" ON "AIUserProfile"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "AIUserProfile_sleeperUsername_idx" ON "AIUserProfile"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "trade_suggestion_votes_userId_idx" ON "trade_suggestion_votes"("userId");
+CREATE INDEX IF NOT EXISTS "trade_suggestion_votes_userId_idx" ON "trade_suggestion_votes"("userId");
 
 -- CreateIndex
-CREATE INDEX "trade_suggestion_votes_userId_createdAt_idx" ON "trade_suggestion_votes"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "trade_suggestion_votes_userId_createdAt_idx" ON "trade_suggestion_votes"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "trade_suggestion_votes_vote_idx" ON "trade_suggestion_votes"("vote");
+CREATE INDEX IF NOT EXISTS "trade_suggestion_votes_vote_idx" ON "trade_suggestion_votes"("vote");
 
 -- CreateIndex
-CREATE INDEX "trade_feedback_userId_createdAt_idx" ON "trade_feedback"("userId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "trade_feedback_userId_createdAt_idx" ON "trade_feedback"("userId", "createdAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "trade_feedback_vote_idx" ON "trade_feedback"("vote");
+CREATE INDEX IF NOT EXISTS "trade_feedback_vote_idx" ON "trade_feedback"("vote");
 
 -- CreateIndex
-CREATE INDEX "trade_feedback_reason_idx" ON "trade_feedback"("reason");
+CREATE INDEX IF NOT EXISTS "trade_feedback_reason_idx" ON "trade_feedback"("reason");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "trade_profiles_userId_key" ON "trade_profiles"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "trade_profiles_userId_key" ON "trade_profiles"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AILeagueContext_leagueId_key" ON "AILeagueContext"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "AILeagueContext_leagueId_key" ON "AILeagueContext"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "AILeagueContext_sport_idx" ON "AILeagueContext"("sport");
+CREATE INDEX IF NOT EXISTS "AILeagueContext_sport_idx" ON "AILeagueContext"("sport");
 
 -- CreateIndex
-CREATE INDEX "AILeagueContext_phase_idx" ON "AILeagueContext"("phase");
+CREATE INDEX IF NOT EXISTS "AILeagueContext_phase_idx" ON "AILeagueContext"("phase");
 
 -- CreateIndex
-CREATE INDEX "AITeamStateSnapshot_leagueId_teamId_idx" ON "AITeamStateSnapshot"("leagueId", "teamId");
+CREATE INDEX IF NOT EXISTS "AITeamStateSnapshot_leagueId_teamId_idx" ON "AITeamStateSnapshot"("leagueId", "teamId");
 
 -- CreateIndex
-CREATE INDEX "AITeamStateSnapshot_sleeperUsername_idx" ON "AITeamStateSnapshot"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "AITeamStateSnapshot_sleeperUsername_idx" ON "AITeamStateSnapshot"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "AITeamStateSnapshot_computedAt_idx" ON "AITeamStateSnapshot"("computedAt");
+CREATE INDEX IF NOT EXISTS "AITeamStateSnapshot_computedAt_idx" ON "AITeamStateSnapshot"("computedAt");
 
 -- CreateIndex
-CREATE INDEX "ai_memories_userId_idx" ON "ai_memories"("userId");
+CREATE INDEX IF NOT EXISTS "ai_memories_userId_idx" ON "ai_memories"("userId");
 
 -- CreateIndex
-CREATE INDEX "ai_memories_leagueId_idx" ON "ai_memories"("leagueId");
+CREATE INDEX IF NOT EXISTS "ai_memories_leagueId_idx" ON "ai_memories"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "ai_memories_scope_idx" ON "ai_memories"("scope");
+CREATE INDEX IF NOT EXISTS "ai_memories_scope_idx" ON "ai_memories"("scope");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ai_memories_userId_leagueId_scope_key_key" ON "ai_memories"("userId", "leagueId", "scope", "key");
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_memories_userId_leagueId_scope_key_key" ON "ai_memories"("userId", "leagueId", "scope", "key");
 
 -- CreateIndex
-CREATE INDEX "AIMemoryEvent_userId_idx" ON "AIMemoryEvent"("userId");
+CREATE INDEX IF NOT EXISTS "AIMemoryEvent_userId_idx" ON "AIMemoryEvent"("userId");
 
 -- CreateIndex
-CREATE INDEX "AIMemoryEvent_leagueId_idx" ON "AIMemoryEvent"("leagueId");
+CREATE INDEX IF NOT EXISTS "AIMemoryEvent_leagueId_idx" ON "AIMemoryEvent"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "AIMemoryEvent_eventType_idx" ON "AIMemoryEvent"("eventType");
+CREATE INDEX IF NOT EXISTS "AIMemoryEvent_eventType_idx" ON "AIMemoryEvent"("eventType");
 
 -- CreateIndex
-CREATE INDEX "AIMemoryEvent_expiresAt_idx" ON "AIMemoryEvent"("expiresAt");
+CREATE INDEX IF NOT EXISTS "AIMemoryEvent_expiresAt_idx" ON "AIMemoryEvent"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "AIUserFeedback_userId_idx" ON "AIUserFeedback"("userId");
+CREATE INDEX IF NOT EXISTS "AIUserFeedback_userId_idx" ON "AIUserFeedback"("userId");
 
 -- CreateIndex
-CREATE INDEX "AIUserFeedback_leagueId_idx" ON "AIUserFeedback"("leagueId");
+CREATE INDEX IF NOT EXISTS "AIUserFeedback_leagueId_idx" ON "AIUserFeedback"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "AIUserFeedback_actionType_idx" ON "AIUserFeedback"("actionType");
+CREATE INDEX IF NOT EXISTS "AIUserFeedback_actionType_idx" ON "AIUserFeedback"("actionType");
 
 -- CreateIndex
-CREATE INDEX "TradeFeedback_sleeperUsername_idx" ON "TradeFeedback"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "TradeFeedback_sleeperUsername_idx" ON "TradeFeedback"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "TradeFeedback_leagueId_idx" ON "TradeFeedback"("leagueId");
+CREATE INDEX IF NOT EXISTS "TradeFeedback_leagueId_idx" ON "TradeFeedback"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "TradeFeedback_rating_idx" ON "TradeFeedback"("rating");
+CREATE INDEX IF NOT EXISTS "TradeFeedback_rating_idx" ON "TradeFeedback"("rating");
 
 -- CreateIndex
-CREATE INDEX "TradeFeedback_createdAt_idx" ON "TradeFeedback"("createdAt");
+CREATE INDEX IF NOT EXISTS "TradeFeedback_createdAt_idx" ON "TradeFeedback"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradePreferences_sleeperUsername_key" ON "TradePreferences"("sleeperUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradePreferences_sleeperUsername_key" ON "TradePreferences"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "TradePreferences_sleeperUsername_idx" ON "TradePreferences"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "TradePreferences_sleeperUsername_idx" ON "TradePreferences"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "LeagueTradeHistory_sleeperUsername_idx" ON "LeagueTradeHistory"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "LeagueTradeHistory_sleeperUsername_idx" ON "LeagueTradeHistory"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "LeagueTradeHistory_status_idx" ON "LeagueTradeHistory"("status");
+CREATE INDEX IF NOT EXISTS "LeagueTradeHistory_status_idx" ON "LeagueTradeHistory"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueTradeHistory_sleeperLeagueId_sleeperUsername_key" ON "LeagueTradeHistory"("sleeperLeagueId", "sleeperUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueTradeHistory_sleeperLeagueId_sleeperUsername_key" ON "LeagueTradeHistory"("sleeperLeagueId", "sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "LeagueTrade_historyId_idx" ON "LeagueTrade"("historyId");
+CREATE INDEX IF NOT EXISTS "LeagueTrade_historyId_idx" ON "LeagueTrade"("historyId");
 
 -- CreateIndex
-CREATE INDEX "LeagueTrade_analyzed_idx" ON "LeagueTrade"("analyzed");
+CREATE INDEX IF NOT EXISTS "LeagueTrade_analyzed_idx" ON "LeagueTrade"("analyzed");
 
 -- CreateIndex
-CREATE INDEX "LeagueTrade_season_idx" ON "LeagueTrade"("season");
+CREATE INDEX IF NOT EXISTS "LeagueTrade_season_idx" ON "LeagueTrade"("season");
 
 -- CreateIndex
-CREATE INDEX "LeagueTrade_platform_idx" ON "LeagueTrade"("platform");
+CREATE INDEX IF NOT EXISTS "LeagueTrade_platform_idx" ON "LeagueTrade"("platform");
 
 -- CreateIndex
-CREATE INDEX "LeagueTrade_sport_idx" ON "LeagueTrade"("sport");
+CREATE INDEX IF NOT EXISTS "LeagueTrade_sport_idx" ON "LeagueTrade"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueTrade_historyId_transactionId_key" ON "LeagueTrade"("historyId", "transactionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueTrade_historyId_transactionId_key" ON "LeagueTrade"("historyId", "transactionId");
 
 -- CreateIndex
-CREATE INDEX "TradeLearningInsight_insightType_idx" ON "TradeLearningInsight"("insightType");
+CREATE INDEX IF NOT EXISTS "TradeLearningInsight_insightType_idx" ON "TradeLearningInsight"("insightType");
 
 -- CreateIndex
-CREATE INDEX "TradeLearningInsight_position_idx" ON "TradeLearningInsight"("position");
+CREATE INDEX IF NOT EXISTS "TradeLearningInsight_position_idx" ON "TradeLearningInsight"("position");
 
 -- CreateIndex
-CREATE INDEX "TradeLearningInsight_season_idx" ON "TradeLearningInsight"("season");
+CREATE INDEX IF NOT EXISTS "TradeLearningInsight_season_idx" ON "TradeLearningInsight"("season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradeLearningInsight_insightType_playerName_position_ageRan_key" ON "TradeLearningInsight"("insightType", "playerName", "position", "ageRange", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradeLearningInsight_insightType_playerName_position_ageRan_key" ON "TradeLearningInsight"("insightType", "playerName", "position", "ageRange", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradeLearningStats_season_key" ON "TradeLearningStats"("season");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradeLearningStats_season_key" ON "TradeLearningStats"("season");
 
 -- CreateIndex
-CREATE INDEX "TradePreAnalysisCache_sleeperUsername_idx" ON "TradePreAnalysisCache"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "TradePreAnalysisCache_sleeperUsername_idx" ON "TradePreAnalysisCache"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "TradePreAnalysisCache_status_idx" ON "TradePreAnalysisCache"("status");
+CREATE INDEX IF NOT EXISTS "TradePreAnalysisCache_status_idx" ON "TradePreAnalysisCache"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradePreAnalysisCache_sleeperUsername_sleeperLeagueId_key" ON "TradePreAnalysisCache"("sleeperUsername", "sleeperLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradePreAnalysisCache_sleeperUsername_sleeperLeagueId_key" ON "TradePreAnalysisCache"("sleeperUsername", "sleeperLeagueId");
 
 -- CreateIndex
-CREATE INDEX "LeagueTypeSubmission_email_idx" ON "LeagueTypeSubmission"("email");
+CREATE INDEX IF NOT EXISTS "LeagueTypeSubmission_email_idx" ON "LeagueTypeSubmission"("email");
 
 -- CreateIndex
-CREATE INDEX "LeagueTypeSubmission_status_idx" ON "LeagueTypeSubmission"("status");
+CREATE INDEX IF NOT EXISTS "LeagueTypeSubmission_status_idx" ON "LeagueTypeSubmission"("status");
 
 -- CreateIndex
-CREATE INDEX "LeagueTypeSubmission_createdAt_idx" ON "LeagueTypeSubmission"("createdAt");
+CREATE INDEX IF NOT EXISTS "LeagueTypeSubmission_createdAt_idx" ON "LeagueTypeSubmission"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_status_idx" ON "LegacyFeedback"("status");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_status_idx" ON "LegacyFeedback"("status");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_feedbackType_idx" ON "LegacyFeedback"("feedbackType");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_feedbackType_idx" ON "LegacyFeedback"("feedbackType");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_tool_idx" ON "LegacyFeedback"("tool");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_tool_idx" ON "LegacyFeedback"("tool");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_priority_idx" ON "LegacyFeedback"("priority");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_priority_idx" ON "LegacyFeedback"("priority");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_aiSeverity_idx" ON "LegacyFeedback"("aiSeverity");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_aiSeverity_idx" ON "LegacyFeedback"("aiSeverity");
 
 -- CreateIndex
-CREATE INDEX "LegacyFeedback_createdAt_idx" ON "LegacyFeedback"("createdAt");
+CREATE INDEX IF NOT EXISTS "LegacyFeedback_createdAt_idx" ON "LegacyFeedback"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "YahooConnection_yahooUserId_key" ON "YahooConnection"("yahooUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "YahooConnection_yahooUserId_key" ON "YahooConnection"("yahooUserId");
 
 -- CreateIndex
-CREATE INDEX "YahooConnection_yahooUserId_idx" ON "YahooConnection"("yahooUserId");
+CREATE INDEX IF NOT EXISTS "YahooConnection_yahooUserId_idx" ON "YahooConnection"("yahooUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "YahooLeague_yahooLeagueKey_key" ON "YahooLeague"("yahooLeagueKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "YahooLeague_yahooLeagueKey_key" ON "YahooLeague"("yahooLeagueKey");
 
 -- CreateIndex
-CREATE INDEX "YahooLeague_connectionId_idx" ON "YahooLeague"("connectionId");
+CREATE INDEX IF NOT EXISTS "YahooLeague_connectionId_idx" ON "YahooLeague"("connectionId");
 
 -- CreateIndex
-CREATE INDEX "YahooLeague_sport_idx" ON "YahooLeague"("sport");
+CREATE INDEX IF NOT EXISTS "YahooLeague_sport_idx" ON "YahooLeague"("sport");
 
 -- CreateIndex
-CREATE INDEX "YahooLeague_season_idx" ON "YahooLeague"("season");
+CREATE INDEX IF NOT EXISTS "YahooLeague_season_idx" ON "YahooLeague"("season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "YahooTeam_yahooTeamKey_key" ON "YahooTeam"("yahooTeamKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "YahooTeam_yahooTeamKey_key" ON "YahooTeam"("yahooTeamKey");
 
 -- CreateIndex
-CREATE INDEX "YahooTeam_leagueId_idx" ON "YahooTeam"("leagueId");
+CREATE INDEX IF NOT EXISTS "YahooTeam_leagueId_idx" ON "YahooTeam"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "YahooTeam_isUserTeam_idx" ON "YahooTeam"("isUserTeam");
+CREATE INDEX IF NOT EXISTS "YahooTeam_isUserTeam_idx" ON "YahooTeam"("isUserTeam");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MFLConnection_sessionId_key" ON "MFLConnection"("sessionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "MFLConnection_sessionId_key" ON "MFLConnection"("sessionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "MFLConnection_mflUsername_key" ON "MFLConnection"("mflUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "MFLConnection_mflUsername_key" ON "MFLConnection"("mflUsername");
 
 -- CreateIndex
-CREATE INDEX "MFLConnection_mflUsername_idx" ON "MFLConnection"("mflUsername");
+CREATE INDEX IF NOT EXISTS "MFLConnection_mflUsername_idx" ON "MFLConnection"("mflUsername");
 
 -- CreateIndex
-CREATE INDEX "InsightEvent_eventType_idx" ON "InsightEvent"("eventType");
+CREATE INDEX IF NOT EXISTS "InsightEvent_eventType_idx" ON "InsightEvent"("eventType");
 
 -- CreateIndex
-CREATE INDEX "InsightEvent_insightId_idx" ON "InsightEvent"("insightId");
+CREATE INDEX IF NOT EXISTS "InsightEvent_insightId_idx" ON "InsightEvent"("insightId");
 
 -- CreateIndex
-CREATE INDEX "InsightEvent_confidenceLevel_idx" ON "InsightEvent"("confidenceLevel");
+CREATE INDEX IF NOT EXISTS "InsightEvent_confidenceLevel_idx" ON "InsightEvent"("confidenceLevel");
 
 -- CreateIndex
-CREATE INDEX "InsightEvent_createdAt_idx" ON "InsightEvent"("createdAt");
+CREATE INDEX IF NOT EXISTS "InsightEvent_createdAt_idx" ON "InsightEvent"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "AIIssue_status_idx" ON "AIIssue"("status");
+CREATE INDEX IF NOT EXISTS "AIIssue_status_idx" ON "AIIssue"("status");
 
 -- CreateIndex
-CREATE INDEX "AIIssue_priority_idx" ON "AIIssue"("priority");
+CREATE INDEX IF NOT EXISTS "AIIssue_priority_idx" ON "AIIssue"("priority");
 
 -- CreateIndex
-CREATE INDEX "AIIssue_area_idx" ON "AIIssue"("area");
+CREATE INDEX IF NOT EXISTS "AIIssue_area_idx" ON "AIIssue"("area");
 
 -- CreateIndex
-CREATE INDEX "AIIssue_createdAt_idx" ON "AIIssue"("createdAt");
+CREATE INDEX IF NOT EXISTS "AIIssue_createdAt_idx" ON "AIIssue"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "AIIssueFeedback_issueId_idx" ON "AIIssueFeedback"("issueId");
+CREATE INDEX IF NOT EXISTS "AIIssueFeedback_issueId_idx" ON "AIIssueFeedback"("issueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FantraxUser_fantraxUsername_key" ON "FantraxUser"("fantraxUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "FantraxUser_fantraxUsername_key" ON "FantraxUser"("fantraxUsername");
 
 -- CreateIndex
-CREATE INDEX "FantraxUser_fantraxUsername_idx" ON "FantraxUser"("fantraxUsername");
+CREATE INDEX IF NOT EXISTS "FantraxUser_fantraxUsername_idx" ON "FantraxUser"("fantraxUsername");
 
 -- CreateIndex
-CREATE INDEX "FantraxLeague_userId_season_idx" ON "FantraxLeague"("userId", "season");
+CREATE INDEX IF NOT EXISTS "FantraxLeague_userId_season_idx" ON "FantraxLeague"("userId", "season");
 
 -- CreateIndex
-CREATE INDEX "FantraxLeague_season_idx" ON "FantraxLeague"("season");
+CREATE INDEX IF NOT EXISTS "FantraxLeague_season_idx" ON "FantraxLeague"("season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "FantraxLeague_userId_leagueName_season_key" ON "FantraxLeague"("userId", "leagueName", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "FantraxLeague_userId_leagueName_season_key" ON "FantraxLeague"("userId", "leagueName", "season");
 
 -- CreateIndex
-CREATE INDEX "SleeperImportCache_sleeperUsername_idx" ON "SleeperImportCache"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "SleeperImportCache_sleeperUsername_idx" ON "SleeperImportCache"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "SleeperImportCache_sleeperLeagueId_idx" ON "SleeperImportCache"("sleeperLeagueId");
+CREATE INDEX IF NOT EXISTS "SleeperImportCache_sleeperLeagueId_idx" ON "SleeperImportCache"("sleeperLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "SleeperImportCache_sleeperUsername_sleeperLeagueId_key" ON "SleeperImportCache"("sleeperUsername", "sleeperLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "SleeperImportCache_sleeperUsername_sleeperLeagueId_key" ON "SleeperImportCache"("sleeperUsername", "sleeperLeagueId");
 
 -- CreateIndex
-CREATE INDEX "idx_trade_block_league_active" ON "trade_block_entries"("sleeperLeagueId", "isActive", "updatedAt" DESC);
+CREATE INDEX IF NOT EXISTS "idx_trade_block_league_active" ON "trade_block_entries"("sleeperLeagueId", "isActive", "updatedAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "idx_trade_block_roster" ON "trade_block_entries"("sleeperLeagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "idx_trade_block_roster" ON "trade_block_entries"("sleeperLeagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "uq_trade_block_active" ON "trade_block_entries"("sleeperLeagueId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_trade_block_active" ON "trade_block_entries"("sleeperLeagueId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "trade_analysis_snapshots_leagueId_sleeperUsername_snapshotT_idx" ON "trade_analysis_snapshots"("leagueId", "sleeperUsername", "snapshotType");
+CREATE INDEX IF NOT EXISTS "trade_analysis_snapshots_leagueId_sleeperUsername_snapshotT_idx" ON "trade_analysis_snapshots"("leagueId", "sleeperUsername", "snapshotType");
 
 -- CreateIndex
-CREATE INDEX "trade_analysis_snapshots_sleeperUsername_createdAt_idx" ON "trade_analysis_snapshots"("sleeperUsername", "createdAt");
+CREATE INDEX IF NOT EXISTS "trade_analysis_snapshots_sleeperUsername_createdAt_idx" ON "trade_analysis_snapshots"("sleeperUsername", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "trade_analysis_snapshots_expiresAt_idx" ON "trade_analysis_snapshots"("expiresAt");
+CREATE INDEX IF NOT EXISTS "trade_analysis_snapshots_expiresAt_idx" ON "trade_analysis_snapshots"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "share_rewards_sleeperUsername_idx" ON "share_rewards"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "share_rewards_sleeperUsername_idx" ON "share_rewards"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "share_rewards_createdAt_idx" ON "share_rewards"("createdAt");
+CREATE INDEX IF NOT EXISTS "share_rewards_createdAt_idx" ON "share_rewards"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "share_rewards_redeemed_idx" ON "share_rewards"("redeemed");
+CREATE INDEX IF NOT EXISTS "share_rewards_redeemed_idx" ON "share_rewards"("redeemed");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_userId_idx" ON "decision_logs"("userId");
+CREATE INDEX IF NOT EXISTS "decision_logs_userId_idx" ON "decision_logs"("userId");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_leagueId_idx" ON "decision_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "decision_logs_leagueId_idx" ON "decision_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_userId_leagueId_idx" ON "decision_logs"("userId", "leagueId");
+CREATE INDEX IF NOT EXISTS "decision_logs_userId_leagueId_idx" ON "decision_logs"("userId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_decisionType_idx" ON "decision_logs"("decisionType");
+CREATE INDEX IF NOT EXISTS "decision_logs_decisionType_idx" ON "decision_logs"("decisionType");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_userFollowed_idx" ON "decision_logs"("userFollowed");
+CREATE INDEX IF NOT EXISTS "decision_logs_userFollowed_idx" ON "decision_logs"("userFollowed");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_createdAt_idx" ON "decision_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "decision_logs_createdAt_idx" ON "decision_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_resolvedAt_idx" ON "decision_logs"("resolvedAt");
+CREATE INDEX IF NOT EXISTS "decision_logs_resolvedAt_idx" ON "decision_logs"("resolvedAt");
 
 -- CreateIndex
-CREATE INDEX "decision_logs_numericConfidence_idx" ON "decision_logs"("numericConfidence");
+CREATE INDEX IF NOT EXISTS "decision_logs_numericConfidence_idx" ON "decision_logs"("numericConfidence");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "decision_outcomes_decisionLogId_key" ON "decision_outcomes"("decisionLogId");
+CREATE UNIQUE INDEX IF NOT EXISTS "decision_outcomes_decisionLogId_key" ON "decision_outcomes"("decisionLogId");
 
 -- CreateIndex
-CREATE INDEX "decision_outcomes_decisionLogId_idx" ON "decision_outcomes"("decisionLogId");
+CREATE INDEX IF NOT EXISTS "decision_outcomes_decisionLogId_idx" ON "decision_outcomes"("decisionLogId");
 
 -- CreateIndex
-CREATE INDEX "decision_outcomes_evaluatedAt_idx" ON "decision_outcomes"("evaluatedAt");
+CREATE INDEX IF NOT EXISTS "decision_outcomes_evaluatedAt_idx" ON "decision_outcomes"("evaluatedAt");
 
 -- CreateIndex
-CREATE INDEX "decision_outcomes_outcomeGrade_idx" ON "decision_outcomes"("outcomeGrade");
+CREATE INDEX IF NOT EXISTS "decision_outcomes_outcomeGrade_idx" ON "decision_outcomes"("outcomeGrade");
 
 -- CreateIndex
-CREATE INDEX "decision_outcomes_actualResult_idx" ON "decision_outcomes"("actualResult");
+CREATE INDEX IF NOT EXISTS "decision_outcomes_actualResult_idx" ON "decision_outcomes"("actualResult");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradeOfferEvent_inputHash_key" ON "TradeOfferEvent"("inputHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradeOfferEvent_inputHash_key" ON "TradeOfferEvent"("inputHash");
 
 -- CreateIndex
-CREATE INDEX "TradeOfferEvent_leagueId_createdAt_idx" ON "TradeOfferEvent"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOfferEvent_leagueId_createdAt_idx" ON "TradeOfferEvent"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOfferEvent_senderUserId_createdAt_idx" ON "TradeOfferEvent"("senderUserId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOfferEvent_senderUserId_createdAt_idx" ON "TradeOfferEvent"("senderUserId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOfferEvent_opponentUserId_createdAt_idx" ON "TradeOfferEvent"("opponentUserId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOfferEvent_opponentUserId_createdAt_idx" ON "TradeOfferEvent"("opponentUserId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOfferEvent_mode_createdAt_idx" ON "TradeOfferEvent"("mode", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOfferEvent_mode_createdAt_idx" ON "TradeOfferEvent"("mode", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOfferEvent_leagueTradeId_idx" ON "TradeOfferEvent"("leagueTradeId");
+CREATE INDEX IF NOT EXISTS "TradeOfferEvent_leagueTradeId_idx" ON "TradeOfferEvent"("leagueTradeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TradeOutcomeEvent_offerEventId_key" ON "TradeOutcomeEvent"("offerEventId");
+CREATE UNIQUE INDEX IF NOT EXISTS "TradeOutcomeEvent_offerEventId_key" ON "TradeOutcomeEvent"("offerEventId");
 
 -- CreateIndex
-CREATE INDEX "TradeOutcomeEvent_leagueId_createdAt_idx" ON "TradeOutcomeEvent"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOutcomeEvent_leagueId_createdAt_idx" ON "TradeOutcomeEvent"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOutcomeEvent_outcome_createdAt_idx" ON "TradeOutcomeEvent"("outcome", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOutcomeEvent_outcome_createdAt_idx" ON "TradeOutcomeEvent"("outcome", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOutcomeEvent_leagueTradeId_idx" ON "TradeOutcomeEvent"("leagueTradeId");
+CREATE INDEX IF NOT EXISTS "TradeOutcomeEvent_leagueTradeId_idx" ON "TradeOutcomeEvent"("leagueTradeId");
 
 -- CreateIndex
-CREATE INDEX "ModelMetricsDaily_day_idx" ON "ModelMetricsDaily"("day");
+CREATE INDEX IF NOT EXISTS "ModelMetricsDaily_day_idx" ON "ModelMetricsDaily"("day");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ModelMetricsDaily_day_mode_segmentKey_key" ON "ModelMetricsDaily"("day", "mode", "segmentKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "ModelMetricsDaily_day_mode_segmentKey_key" ON "ModelMetricsDaily"("day", "mode", "segmentKey");
 
 -- CreateIndex
-CREATE INDEX "LearnedWeights_leagueClass_idx" ON "LearnedWeights"("leagueClass");
+CREATE INDEX IF NOT EXISTS "LearnedWeights_leagueClass_idx" ON "LearnedWeights"("leagueClass");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LearnedWeights_leagueClass_season_key" ON "LearnedWeights"("leagueClass", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "LearnedWeights_leagueClass_season_key" ON "LearnedWeights"("leagueClass", "season");
 
 -- CreateIndex
-CREATE INDEX "RankingWeightsWeekly_segmentKey_status_idx" ON "RankingWeightsWeekly"("segmentKey", "status");
+CREATE INDEX IF NOT EXISTS "RankingWeightsWeekly_segmentKey_status_idx" ON "RankingWeightsWeekly"("segmentKey", "status");
 
 -- CreateIndex
-CREATE INDEX "RankingWeightsWeekly_weekStart_idx" ON "RankingWeightsWeekly"("weekStart");
+CREATE INDEX IF NOT EXISTS "RankingWeightsWeekly_weekStart_idx" ON "RankingWeightsWeekly"("weekStart");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RankingWeightsWeekly_segmentKey_weekStart_key" ON "RankingWeightsWeekly"("segmentKey", "weekStart");
+CREATE UNIQUE INDEX IF NOT EXISTS "RankingWeightsWeekly_segmentKey_weekStart_key" ON "RankingWeightsWeekly"("segmentKey", "weekStart");
 
 -- CreateIndex
-CREATE INDEX "LeagueDemandWeekly_leagueId_idx" ON "LeagueDemandWeekly"("leagueId");
+CREATE INDEX IF NOT EXISTS "LeagueDemandWeekly_leagueId_idx" ON "LeagueDemandWeekly"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "LeagueDemandWeekly_weekStart_idx" ON "LeagueDemandWeekly"("weekStart");
+CREATE INDEX IF NOT EXISTS "LeagueDemandWeekly_weekStart_idx" ON "LeagueDemandWeekly"("weekStart");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueDemandWeekly_leagueId_weekStart_rangeDays_key" ON "LeagueDemandWeekly"("leagueId", "weekStart", "rangeDays");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueDemandWeekly_leagueId_weekStart_rangeDays_key" ON "LeagueDemandWeekly"("leagueId", "weekStart", "rangeDays");
 
 -- CreateIndex
-CREATE INDEX "NarrativeValidationLog_mode_idx" ON "NarrativeValidationLog"("mode");
+CREATE INDEX IF NOT EXISTS "NarrativeValidationLog_mode_idx" ON "NarrativeValidationLog"("mode");
 
 -- CreateIndex
-CREATE INDEX "NarrativeValidationLog_contractType_idx" ON "NarrativeValidationLog"("contractType");
+CREATE INDEX IF NOT EXISTS "NarrativeValidationLog_contractType_idx" ON "NarrativeValidationLog"("contractType");
 
 -- CreateIndex
-CREATE INDEX "NarrativeValidationLog_valid_idx" ON "NarrativeValidationLog"("valid");
+CREATE INDEX IF NOT EXISTS "NarrativeValidationLog_valid_idx" ON "NarrativeValidationLog"("valid");
 
 -- CreateIndex
-CREATE INDEX "NarrativeValidationLog_createdAt_idx" ON "NarrativeValidationLog"("createdAt");
+CREATE INDEX IF NOT EXISTS "NarrativeValidationLog_createdAt_idx" ON "NarrativeValidationLog"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "pecr_logs_feature_idx" ON "pecr_logs"("feature");
+CREATE INDEX IF NOT EXISTS "pecr_logs_feature_idx" ON "pecr_logs"("feature");
 
 -- CreateIndex
-CREATE INDEX "pecr_logs_passed_idx" ON "pecr_logs"("passed");
+CREATE INDEX IF NOT EXISTS "pecr_logs_passed_idx" ON "pecr_logs"("passed");
 
 -- CreateIndex
-CREATE INDEX "pecr_logs_createdAt_idx" ON "pecr_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "pecr_logs_createdAt_idx" ON "pecr_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "pecr_logs_feature_createdAt_idx" ON "pecr_logs"("feature", "createdAt");
+CREATE INDEX IF NOT EXISTS "pecr_logs_feature_createdAt_idx" ON "pecr_logs"("feature", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "ai_codebase_edits_filePath_idx" ON "ai_codebase_edits"("filePath");
+CREATE INDEX IF NOT EXISTS "ai_codebase_edits_filePath_idx" ON "ai_codebase_edits"("filePath");
 
 -- CreateIndex
-CREATE INDEX "ai_codebase_edits_editedAt_idx" ON "ai_codebase_edits"("editedAt");
+CREATE INDEX IF NOT EXISTS "ai_codebase_edits_editedAt_idx" ON "ai_codebase_edits"("editedAt");
 
 -- CreateIndex
-CREATE INDEX "manager_dna_sleeperUserId_idx" ON "manager_dna"("sleeperUserId");
+CREATE INDEX IF NOT EXISTS "manager_dna_sleeperUserId_idx" ON "manager_dna"("sleeperUserId");
 
 -- CreateIndex
-CREATE INDEX "manager_dna_lastComputedAt_idx" ON "manager_dna"("lastComputedAt");
+CREATE INDEX IF NOT EXISTS "manager_dna_lastComputedAt_idx" ON "manager_dna"("lastComputedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_dna_sleeperUsername_key" ON "manager_dna"("sleeperUsername");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_dna_sleeperUsername_key" ON "manager_dna"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "opponent_tendencies_leagueId_idx" ON "opponent_tendencies"("leagueId");
+CREATE INDEX IF NOT EXISTS "opponent_tendencies_leagueId_idx" ON "opponent_tendencies"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "opponent_tendencies_lastComputedAt_idx" ON "opponent_tendencies"("lastComputedAt");
+CREATE INDEX IF NOT EXISTS "opponent_tendencies_lastComputedAt_idx" ON "opponent_tendencies"("lastComputedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "opponent_tendencies_leagueId_rosterId_key" ON "opponent_tendencies"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "opponent_tendencies_leagueId_rosterId_key" ON "opponent_tendencies"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "strategy_snapshots_leagueId_idx" ON "strategy_snapshots"("leagueId");
+CREATE INDEX IF NOT EXISTS "strategy_snapshots_leagueId_idx" ON "strategy_snapshots"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "strategy_snapshots_sleeperUsername_idx" ON "strategy_snapshots"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "strategy_snapshots_sleeperUsername_idx" ON "strategy_snapshots"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "strategy_snapshots_lastComputedAt_idx" ON "strategy_snapshots"("lastComputedAt");
+CREATE INDEX IF NOT EXISTS "strategy_snapshots_lastComputedAt_idx" ON "strategy_snapshots"("lastComputedAt");
 
 -- CreateIndex
-CREATE INDEX "strategy_snapshots_expiresAt_idx" ON "strategy_snapshots"("expiresAt");
+CREATE INDEX IF NOT EXISTS "strategy_snapshots_expiresAt_idx" ON "strategy_snapshots"("expiresAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "strategy_snapshots_leagueId_rosterId_season_key" ON "strategy_snapshots"("leagueId", "rosterId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "strategy_snapshots_leagueId_rosterId_season_key" ON "strategy_snapshots"("leagueId", "rosterId", "season");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_sport_playerId_idx" ON "player_season_stats"("sport", "playerId");
+CREATE INDEX IF NOT EXISTS "player_season_stats_sport_playerId_idx" ON "player_season_stats"("sport", "playerId");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_sport_playerId_source_seasonType_idx" ON "player_season_stats"("sport", "playerId", "source", "seasonType");
+CREATE INDEX IF NOT EXISTS "player_season_stats_sport_playerId_source_seasonType_idx" ON "player_season_stats"("sport", "playerId", "source", "seasonType");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_sport_playerName_idx" ON "player_season_stats"("sport", "playerName");
+CREATE INDEX IF NOT EXISTS "player_season_stats_sport_playerName_idx" ON "player_season_stats"("sport", "playerName");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_sport_position_idx" ON "player_season_stats"("sport", "position");
+CREATE INDEX IF NOT EXISTS "player_season_stats_sport_position_idx" ON "player_season_stats"("sport", "position");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_season_idx" ON "player_season_stats"("season");
+CREATE INDEX IF NOT EXISTS "player_season_stats_season_idx" ON "player_season_stats"("season");
 
 -- CreateIndex
-CREATE INDEX "player_season_stats_source_idx" ON "player_season_stats"("source");
+CREATE INDEX IF NOT EXISTS "player_season_stats_source_idx" ON "player_season_stats"("source");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_season_stats_sport_playerId_season_seasonType_source_key" ON "player_season_stats"("sport", "playerId", "season", "seasonType", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_season_stats_sport_playerId_season_seasonType_source_key" ON "player_season_stats"("sport", "playerId", "season", "seasonType", "source");
 
 -- CreateIndex
-CREATE INDEX "trending_players_sport_crowdSignal_idx" ON "trending_players"("sport", "crowdSignal");
+CREATE INDEX IF NOT EXISTS "trending_players_sport_crowdSignal_idx" ON "trending_players"("sport", "crowdSignal");
 
 -- CreateIndex
-CREATE INDEX "trending_players_sport_crowdScore_idx" ON "trending_players"("sport", "crowdScore");
+CREATE INDEX IF NOT EXISTS "trending_players_sport_crowdScore_idx" ON "trending_players"("sport", "crowdScore");
 
 -- CreateIndex
-CREATE INDEX "trending_players_playerName_idx" ON "trending_players"("playerName");
+CREATE INDEX IF NOT EXISTS "trending_players_playerName_idx" ON "trending_players"("playerName");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "trending_players_sport_sleeperId_lookbackHours_key" ON "trending_players"("sport", "sleeperId", "lookbackHours");
+CREATE UNIQUE INDEX IF NOT EXISTS "trending_players_sport_sleeperId_lookbackHours_key" ON "trending_players"("sport", "sleeperId", "lookbackHours");
 
 -- CreateIndex
-CREATE INDEX "depth_charts_sport_team_idx" ON "depth_charts"("sport", "team");
+CREATE INDEX IF NOT EXISTS "depth_charts_sport_team_idx" ON "depth_charts"("sport", "team");
 
 -- CreateIndex
-CREATE INDEX "depth_charts_sport_position_idx" ON "depth_charts"("sport", "position");
+CREATE INDEX IF NOT EXISTS "depth_charts_sport_position_idx" ON "depth_charts"("sport", "position");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "depth_charts_sport_team_position_source_key" ON "depth_charts"("sport", "team", "position", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "depth_charts_sport_team_position_source_key" ON "depth_charts"("sport", "team", "position", "source");
 
 -- CreateIndex
-CREATE INDEX "team_season_stats_sport_team_idx" ON "team_season_stats"("sport", "team");
+CREATE INDEX IF NOT EXISTS "team_season_stats_sport_team_idx" ON "team_season_stats"("sport", "team");
 
 -- CreateIndex
-CREATE INDEX "team_season_stats_season_idx" ON "team_season_stats"("season");
+CREATE INDEX IF NOT EXISTS "team_season_stats_season_idx" ON "team_season_stats"("season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "team_season_stats_sport_team_season_seasonType_source_key" ON "team_season_stats"("sport", "team", "season", "seasonType", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "team_season_stats_sport_team_season_seasonType_source_key" ON "team_season_stats"("sport", "team", "season", "seasonType", "source");
 
 -- CreateIndex
-CREATE INDEX "ProviderSyncState_provider_entityType_sport_key_idx" ON "ProviderSyncState"("provider", "entityType", "sport", "key");
+CREATE INDEX IF NOT EXISTS "ProviderSyncState_provider_entityType_sport_key_idx" ON "ProviderSyncState"("provider", "entityType", "sport", "key");
 
 -- CreateIndex
-CREATE INDEX "ProviderSyncState_lastSuccessAt_idx" ON "ProviderSyncState"("lastSuccessAt");
+CREATE INDEX IF NOT EXISTS "ProviderSyncState_lastSuccessAt_idx" ON "ProviderSyncState"("lastSuccessAt");
 
 -- CreateIndex
-CREATE INDEX "ProviderSyncState_lastErrorAt_idx" ON "ProviderSyncState"("lastErrorAt");
+CREATE INDEX IF NOT EXISTS "ProviderSyncState_lastErrorAt_idx" ON "ProviderSyncState"("lastErrorAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ProviderSyncState_provider_entityType_sport_key_key" ON "ProviderSyncState"("provider", "entityType", "sport", "key");
+CREATE UNIQUE INDEX IF NOT EXISTS "ProviderSyncState_provider_entityType_sport_key_key" ON "ProviderSyncState"("provider", "entityType", "sport", "key");
 
 -- CreateIndex
-CREATE INDEX "AiOutput_provider_role_taskType_idx" ON "AiOutput"("provider", "role", "taskType");
+CREATE INDEX IF NOT EXISTS "AiOutput_provider_role_taskType_idx" ON "AiOutput"("provider", "role", "taskType");
 
 -- CreateIndex
-CREATE INDEX "AiOutput_targetType_targetId_idx" ON "AiOutput"("targetType", "targetId");
+CREATE INDEX IF NOT EXISTS "AiOutput_targetType_targetId_idx" ON "AiOutput"("targetType", "targetId");
 
 -- CreateIndex
-CREATE INDEX "AiOutput_createdAt_idx" ON "AiOutput"("createdAt");
+CREATE INDEX IF NOT EXISTS "AiOutput_createdAt_idx" ON "AiOutput"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_userId_idx" ON "guardian_interventions"("userId");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_userId_idx" ON "guardian_interventions"("userId");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_leagueId_idx" ON "guardian_interventions"("leagueId");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_leagueId_idx" ON "guardian_interventions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_actionType_idx" ON "guardian_interventions"("actionType");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_actionType_idx" ON "guardian_interventions"("actionType");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_severity_idx" ON "guardian_interventions"("severity");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_severity_idx" ON "guardian_interventions"("severity");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_userDecision_idx" ON "guardian_interventions"("userDecision");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_userDecision_idx" ON "guardian_interventions"("userDecision");
 
 -- CreateIndex
-CREATE INDEX "guardian_interventions_createdAt_idx" ON "guardian_interventions"("createdAt");
+CREATE INDEX IF NOT EXISTS "guardian_interventions_createdAt_idx" ON "guardian_interventions"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_userId_idx" ON "ai_insights"("userId");
+CREATE INDEX IF NOT EXISTS "ai_insights_userId_idx" ON "ai_insights"("userId");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_sleeperUsername_idx" ON "ai_insights"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "ai_insights_sleeperUsername_idx" ON "ai_insights"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_insightType_idx" ON "ai_insights"("insightType");
+CREATE INDEX IF NOT EXISTS "ai_insights_insightType_idx" ON "ai_insights"("insightType");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_category_idx" ON "ai_insights"("category");
+CREATE INDEX IF NOT EXISTS "ai_insights_category_idx" ON "ai_insights"("category");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_isRead_idx" ON "ai_insights"("isRead");
+CREATE INDEX IF NOT EXISTS "ai_insights_isRead_idx" ON "ai_insights"("isRead");
 
 -- CreateIndex
-CREATE INDEX "ai_insights_createdAt_idx" ON "ai_insights"("createdAt");
+CREATE INDEX IF NOT EXISTS "ai_insights_createdAt_idx" ON "ai_insights"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "ai_badges_userId_idx" ON "ai_badges"("userId");
+CREATE INDEX IF NOT EXISTS "ai_badges_userId_idx" ON "ai_badges"("userId");
 
 -- CreateIndex
-CREATE INDEX "ai_badges_sleeperUsername_idx" ON "ai_badges"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "ai_badges_sleeperUsername_idx" ON "ai_badges"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "ai_badges_badgeType_idx" ON "ai_badges"("badgeType");
+CREATE INDEX IF NOT EXISTS "ai_badges_badgeType_idx" ON "ai_badges"("badgeType");
 
 -- CreateIndex
-CREATE INDEX "ai_badges_earnedAt_idx" ON "ai_badges"("earnedAt");
+CREATE INDEX IF NOT EXISTS "ai_badges_earnedAt_idx" ON "ai_badges"("earnedAt");
 
 -- CreateIndex
-CREATE INDEX "simulation_runs_userId_idx" ON "simulation_runs"("userId");
+CREATE INDEX IF NOT EXISTS "simulation_runs_userId_idx" ON "simulation_runs"("userId");
 
 -- CreateIndex
-CREATE INDEX "simulation_runs_sleeperUsername_idx" ON "simulation_runs"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "simulation_runs_sleeperUsername_idx" ON "simulation_runs"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "simulation_runs_leagueId_idx" ON "simulation_runs"("leagueId");
+CREATE INDEX IF NOT EXISTS "simulation_runs_leagueId_idx" ON "simulation_runs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "simulation_runs_simulationType_idx" ON "simulation_runs"("simulationType");
+CREATE INDEX IF NOT EXISTS "simulation_runs_simulationType_idx" ON "simulation_runs"("simulationType");
 
 -- CreateIndex
-CREATE INDEX "simulation_runs_createdAt_idx" ON "simulation_runs"("createdAt");
+CREATE INDEX IF NOT EXISTS "simulation_runs_createdAt_idx" ON "simulation_runs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "chat_conversations_userId_idx" ON "chat_conversations"("userId");
+CREATE INDEX IF NOT EXISTS "chat_conversations_userId_idx" ON "chat_conversations"("userId");
 
 -- CreateIndex
-CREATE INDEX "chat_conversations_sleeperUsername_idx" ON "chat_conversations"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "chat_conversations_sleeperUsername_idx" ON "chat_conversations"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "chat_conversations_lastMessageAt_idx" ON "chat_conversations"("lastMessageAt");
+CREATE INDEX IF NOT EXISTS "chat_conversations_lastMessageAt_idx" ON "chat_conversations"("lastMessageAt");
 
 -- CreateIndex
-CREATE INDEX "chat_history_conversationId_createdAt_idx" ON "chat_history"("conversationId", "createdAt");
+CREATE INDEX IF NOT EXISTS "chat_history_conversationId_createdAt_idx" ON "chat_history"("conversationId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "chat_history_userId_createdAt_idx" ON "chat_history"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "chat_history_userId_createdAt_idx" ON "chat_history"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "chat_history_leagueId_createdAt_idx" ON "chat_history"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "chat_history_leagueId_createdAt_idx" ON "chat_history"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "WeeklyMatchup_leagueId_seasonYear_week_idx" ON "WeeklyMatchup"("leagueId", "seasonYear", "week");
+CREATE INDEX IF NOT EXISTS "WeeklyMatchup_leagueId_seasonYear_week_idx" ON "WeeklyMatchup"("leagueId", "seasonYear", "week");
 
 -- CreateIndex
-CREATE INDEX "WeeklyMatchup_leagueId_seasonYear_rosterId_idx" ON "WeeklyMatchup"("leagueId", "seasonYear", "rosterId");
+CREATE INDEX IF NOT EXISTS "WeeklyMatchup_leagueId_seasonYear_rosterId_idx" ON "WeeklyMatchup"("leagueId", "seasonYear", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WeeklyMatchup_leagueId_seasonYear_week_rosterId_key" ON "WeeklyMatchup"("leagueId", "seasonYear", "week", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "WeeklyMatchup_leagueId_seasonYear_week_rosterId_key" ON "WeeklyMatchup"("leagueId", "seasonYear", "week", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "rankings_snapshots_leagueId_season_week_idx" ON "rankings_snapshots"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "rankings_snapshots_leagueId_season_week_idx" ON "rankings_snapshots"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "rankings_snapshots_leagueId_rosterId_createdAt_idx" ON "rankings_snapshots"("leagueId", "rosterId", "createdAt");
+CREATE INDEX IF NOT EXISTS "rankings_snapshots_leagueId_rosterId_createdAt_idx" ON "rankings_snapshots"("leagueId", "rosterId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "rankings_snapshots_leagueId_sportType_season_week_idx" ON "rankings_snapshots"("leagueId", "sportType", "season", "week");
+CREATE INDEX IF NOT EXISTS "rankings_snapshots_leagueId_sportType_season_week_idx" ON "rankings_snapshots"("leagueId", "sportType", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "rankings_snapshots_sportType_season_week_idx" ON "rankings_snapshots"("sportType", "season", "week");
+CREATE INDEX IF NOT EXISTS "rankings_snapshots_sportType_season_week_idx" ON "rankings_snapshots"("sportType", "season", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rankings_snapshots_leagueId_season_week_rosterId_key" ON "rankings_snapshots"("leagueId", "season", "week", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "rankings_snapshots_leagueId_season_week_rosterId_key" ON "rankings_snapshots"("leagueId", "season", "week", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "rankings_weights_snapshot_leagueId_season_week_idx" ON "rankings_weights_snapshot"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "rankings_weights_snapshot_leagueId_season_week_idx" ON "rankings_weights_snapshot"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "season_results_leagueId_season_idx" ON "season_results"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "season_results_leagueId_season_idx" ON "season_results"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "season_results_leagueId_rosterId_idx" ON "season_results"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "season_results_leagueId_rosterId_idx" ON "season_results"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "season_results_leagueId_season_rosterId_key" ON "season_results"("leagueId", "season", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "season_results_leagueId_season_rosterId_key" ON "season_results"("leagueId", "season", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "draft_grades_leagueId_season_idx" ON "draft_grades"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "draft_grades_leagueId_season_idx" ON "draft_grades"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_grades_leagueId_rosterId_season_idx" ON "draft_grades"("leagueId", "rosterId", "season");
+CREATE INDEX IF NOT EXISTS "draft_grades_leagueId_rosterId_season_idx" ON "draft_grades"("leagueId", "rosterId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_grades_leagueId_season_rosterId_key" ON "draft_grades"("leagueId", "season", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_grades_leagueId_season_rosterId_key" ON "draft_grades"("leagueId", "season", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_leagueId_score_idx" ON "hall_of_fame"("leagueId", "score");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_leagueId_score_idx" ON "hall_of_fame"("leagueId", "score");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "hall_of_fame_leagueId_rosterId_key" ON "hall_of_fame"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "hall_of_fame_leagueId_rosterId_key" ON "hall_of_fame"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_entries_sport_category_idx" ON "hall_of_fame_entries"("sport", "category");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_entries_sport_category_idx" ON "hall_of_fame_entries"("sport", "category");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_entries_leagueId_entityType_idx" ON "hall_of_fame_entries"("leagueId", "entityType");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_entries_leagueId_entityType_idx" ON "hall_of_fame_entries"("leagueId", "entityType");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_entries_entityType_entityId_idx" ON "hall_of_fame_entries"("entityType", "entityId");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_entries_entityType_entityId_idx" ON "hall_of_fame_entries"("entityType", "entityId");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_entries_inductedAt_idx" ON "hall_of_fame_entries"("inductedAt");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_entries_inductedAt_idx" ON "hall_of_fame_entries"("inductedAt");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_moments_leagueId_season_idx" ON "hall_of_fame_moments"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_moments_leagueId_season_idx" ON "hall_of_fame_moments"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_moments_sport_season_idx" ON "hall_of_fame_moments"("sport", "season");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_moments_sport_season_idx" ON "hall_of_fame_moments"("sport", "season");
 
 -- CreateIndex
-CREATE INDEX "hall_of_fame_moments_createdAt_idx" ON "hall_of_fame_moments"("createdAt");
+CREATE INDEX IF NOT EXISTS "hall_of_fame_moments_createdAt_idx" ON "hall_of_fame_moments"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "legacy_score_records_sport_leagueId_idx" ON "legacy_score_records"("sport", "leagueId");
+CREATE INDEX IF NOT EXISTS "legacy_score_records_sport_leagueId_idx" ON "legacy_score_records"("sport", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "legacy_score_records_entityType_entityId_idx" ON "legacy_score_records"("entityType", "entityId");
+CREATE INDEX IF NOT EXISTS "legacy_score_records_entityType_entityId_idx" ON "legacy_score_records"("entityType", "entityId");
 
 -- CreateIndex
-CREATE INDEX "legacy_score_records_overallLegacyScore_idx" ON "legacy_score_records"("overallLegacyScore");
+CREATE INDEX IF NOT EXISTS "legacy_score_records_overallLegacyScore_idx" ON "legacy_score_records"("overallLegacyScore");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "legacy_score_records_entityType_entityId_sport_leagueId_key" ON "legacy_score_records"("entityType", "entityId", "sport", "leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "legacy_score_records_entityType_entityId_sport_leagueId_key" ON "legacy_score_records"("entityType", "entityId", "sport", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "legacy_evidence_records_entityType_entityId_sport_idx" ON "legacy_evidence_records"("entityType", "entityId", "sport");
+CREATE INDEX IF NOT EXISTS "legacy_evidence_records_entityType_entityId_sport_idx" ON "legacy_evidence_records"("entityType", "entityId", "sport");
 
 -- CreateIndex
-CREATE INDEX "legacy_evidence_records_sport_evidenceType_idx" ON "legacy_evidence_records"("sport", "evidenceType");
+CREATE INDEX IF NOT EXISTS "legacy_evidence_records_sport_evidenceType_idx" ON "legacy_evidence_records"("sport", "evidenceType");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_ts_idx" ON "ApiUsageEvent"("ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_ts_idx" ON "ApiUsageEvent"("ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_scope_ts_idx" ON "ApiUsageEvent"("scope", "ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_scope_ts_idx" ON "ApiUsageEvent"("scope", "ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_endpoint_ts_idx" ON "ApiUsageEvent"("endpoint", "ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_endpoint_ts_idx" ON "ApiUsageEvent"("endpoint", "ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_tool_ts_idx" ON "ApiUsageEvent"("tool", "ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_tool_ts_idx" ON "ApiUsageEvent"("tool", "ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_leagueId_ts_idx" ON "ApiUsageEvent"("leagueId", "ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_leagueId_ts_idx" ON "ApiUsageEvent"("leagueId", "ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageEvent_userId_ts_idx" ON "ApiUsageEvent"("userId", "ts");
+CREATE INDEX IF NOT EXISTS "ApiUsageEvent_userId_ts_idx" ON "ApiUsageEvent"("userId", "ts");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageRollup_bucketType_bucketStart_idx" ON "ApiUsageRollup"("bucketType", "bucketStart");
+CREATE INDEX IF NOT EXISTS "ApiUsageRollup_bucketType_bucketStart_idx" ON "ApiUsageRollup"("bucketType", "bucketStart");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageRollup_scope_bucketType_bucketStart_idx" ON "ApiUsageRollup"("scope", "bucketType", "bucketStart");
+CREATE INDEX IF NOT EXISTS "ApiUsageRollup_scope_bucketType_bucketStart_idx" ON "ApiUsageRollup"("scope", "bucketType", "bucketStart");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageRollup_endpoint_bucketType_bucketStart_idx" ON "ApiUsageRollup"("endpoint", "bucketType", "bucketStart");
+CREATE INDEX IF NOT EXISTS "ApiUsageRollup_endpoint_bucketType_bucketStart_idx" ON "ApiUsageRollup"("endpoint", "bucketType", "bucketStart");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageRollup_tool_bucketType_bucketStart_idx" ON "ApiUsageRollup"("tool", "bucketType", "bucketStart");
+CREATE INDEX IF NOT EXISTS "ApiUsageRollup_tool_bucketType_bucketStart_idx" ON "ApiUsageRollup"("tool", "bucketType", "bucketStart");
 
 -- CreateIndex
-CREATE INDEX "ApiUsageRollup_leagueId_bucketType_bucketStart_idx" ON "ApiUsageRollup"("leagueId", "bucketType", "bucketStart");
+CREATE INDEX IF NOT EXISTS "ApiUsageRollup_leagueId_bucketType_bucketStart_idx" ON "ApiUsageRollup"("leagueId", "bucketType", "bucketStart");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ApiUsageRollup_bucketType_bucketStart_scope_tool_endpoint_l_key" ON "ApiUsageRollup"("bucketType", "bucketStart", "scope", "tool", "endpoint", "leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ApiUsageRollup_bucketType_bucketStart_scope_tool_endpoint_l_key" ON "ApiUsageRollup"("bucketType", "bucketStart", "scope", "tool", "endpoint", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "Player_league_idx" ON "Player"("league");
+CREATE INDEX IF NOT EXISTS "Player_league_idx" ON "Player"("league");
 
 -- CreateIndex
-CREATE INDEX "Player_devyEligible_idx" ON "Player"("devyEligible");
+CREATE INDEX IF NOT EXISTS "Player_devyEligible_idx" ON "Player"("devyEligible");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_devyEligible_idx" ON "DevyPlayer"("devyEligible");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_devyEligible_idx" ON "DevyPlayer"("devyEligible");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_league_idx" ON "DevyPlayer"("league");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_league_idx" ON "DevyPlayer"("league");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_sport_idx" ON "DevyPlayer"("sport");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_sport_idx" ON "DevyPlayer"("sport");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_position_idx" ON "DevyPlayer"("position");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_position_idx" ON "DevyPlayer"("position");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_draftEligibleYear_idx" ON "DevyPlayer"("draftEligibleYear");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_draftEligibleYear_idx" ON "DevyPlayer"("draftEligibleYear");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_sport_draftEligibleYear_idx" ON "DevyPlayer"("sport", "draftEligibleYear");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_sport_draftEligibleYear_idx" ON "DevyPlayer"("sport", "draftEligibleYear");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_graduatedToNFL_idx" ON "DevyPlayer"("graduatedToNFL");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_graduatedToNFL_idx" ON "DevyPlayer"("graduatedToNFL");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_cfbdId_idx" ON "DevyPlayer"("cfbdId");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_cfbdId_idx" ON "DevyPlayer"("cfbdId");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_draftStatus_idx" ON "DevyPlayer"("draftStatus");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_draftStatus_idx" ON "DevyPlayer"("draftStatus");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_draftProjectionScore_idx" ON "DevyPlayer"("draftProjectionScore");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_draftProjectionScore_idx" ON "DevyPlayer"("draftProjectionScore");
 
 -- CreateIndex
-CREATE INDEX "DevyPlayer_portalStatus_idx" ON "DevyPlayer"("portalStatus");
+CREATE INDEX IF NOT EXISTS "DevyPlayer_portalStatus_idx" ON "DevyPlayer"("portalStatus");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DevyPlayer_normalizedName_position_school_key" ON "DevyPlayer"("normalizedName", "position", "school");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevyPlayer_normalizedName_position_school_key" ON "DevyPlayer"("normalizedName", "position", "school");
 
 -- CreateIndex
-CREATE INDEX "DevyAdp_playerId_idx" ON "DevyAdp"("playerId");
+CREATE INDEX IF NOT EXISTS "DevyAdp_playerId_idx" ON "DevyAdp"("playerId");
 
 -- CreateIndex
-CREATE INDEX "DevyAdp_season_idx" ON "DevyAdp"("season");
+CREATE INDEX IF NOT EXISTS "DevyAdp_season_idx" ON "DevyAdp"("season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DevyAdp_playerId_source_season_key" ON "DevyAdp"("playerId", "source", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "DevyAdp_playerId_source_season_key" ON "DevyAdp"("playerId", "source", "season");
 
 -- CreateIndex
-CREATE INDEX "TradeOutcomeTraining_leagueId_createdAt_idx" ON "TradeOutcomeTraining"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeOutcomeTraining_leagueId_createdAt_idx" ON "TradeOutcomeTraining"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "TradeOutcomeTraining_wasAccepted_idx" ON "TradeOutcomeTraining"("wasAccepted");
+CREATE INDEX IF NOT EXISTS "TradeOutcomeTraining_wasAccepted_idx" ON "TradeOutcomeTraining"("wasAccepted");
 
 -- CreateIndex
-CREATE INDEX "TradeShare_expiresAt_idx" ON "TradeShare"("expiresAt");
+CREATE INDEX IF NOT EXISTS "TradeShare_expiresAt_idx" ON "TradeShare"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "TradeShare_userId_createdAt_idx" ON "TradeShare"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "TradeShare_userId_createdAt_idx" ON "TradeShare"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "EngineSnapshot_leagueId_type_idx" ON "EngineSnapshot"("leagueId", "type");
+CREATE INDEX IF NOT EXISTS "EngineSnapshot_leagueId_type_idx" ON "EngineSnapshot"("leagueId", "type");
 
 -- CreateIndex
-CREATE INDEX "EngineSnapshot_expiresAt_idx" ON "EngineSnapshot"("expiresAt");
+CREATE INDEX IF NOT EXISTS "EngineSnapshot_expiresAt_idx" ON "EngineSnapshot"("expiresAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "EngineSnapshot_leagueId_type_hash_key" ON "EngineSnapshot"("leagueId", "type", "hash");
+CREATE UNIQUE INDEX IF NOT EXISTS "EngineSnapshot_leagueId_type_hash_key" ON "EngineSnapshot"("leagueId", "type", "hash");
 
 -- CreateIndex
-CREATE INDEX "PlayerAnalyticsSnapshot_normalizedName_idx" ON "PlayerAnalyticsSnapshot"("normalizedName");
+CREATE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_normalizedName_idx" ON "PlayerAnalyticsSnapshot"("normalizedName");
 
 -- CreateIndex
-CREATE INDEX "PlayerAnalyticsSnapshot_position_idx" ON "PlayerAnalyticsSnapshot"("position");
+CREATE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_position_idx" ON "PlayerAnalyticsSnapshot"("position");
 
 -- CreateIndex
-CREATE INDEX "PlayerAnalyticsSnapshot_season_idx" ON "PlayerAnalyticsSnapshot"("season");
+CREATE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_season_idx" ON "PlayerAnalyticsSnapshot"("season");
 
 -- CreateIndex
-CREATE INDEX "PlayerAnalyticsSnapshot_status_idx" ON "PlayerAnalyticsSnapshot"("status");
+CREATE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_status_idx" ON "PlayerAnalyticsSnapshot"("status");
 
 -- CreateIndex
-CREATE INDEX "PlayerAnalyticsSnapshot_currentTeam_idx" ON "PlayerAnalyticsSnapshot"("currentTeam");
+CREATE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_currentTeam_idx" ON "PlayerAnalyticsSnapshot"("currentTeam");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PlayerAnalyticsSnapshot_normalizedName_season_source_key" ON "PlayerAnalyticsSnapshot"("normalizedName", "season", "source");
+CREATE UNIQUE INDEX IF NOT EXISTS "PlayerAnalyticsSnapshot_normalizedName_season_source_key" ON "PlayerAnalyticsSnapshot"("normalizedName", "season", "source");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "app_users_email_key" ON "app_users"("email");
+CREATE UNIQUE INDEX IF NOT EXISTS "app_users_email_key" ON "app_users"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "app_users_username_key" ON "app_users"("username");
+CREATE UNIQUE INDEX IF NOT EXISTS "app_users_username_key" ON "app_users"("username");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "app_users_legacyUserId_key" ON "app_users"("legacyUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "app_users_legacyUserId_key" ON "app_users"("legacyUserId");
 
 -- CreateIndex
-CREATE INDEX "growth_attributions_source_idx" ON "growth_attributions"("source");
+CREATE INDEX IF NOT EXISTS "growth_attributions_source_idx" ON "growth_attributions"("source");
 
 -- CreateIndex
-CREATE INDEX "growth_attributions_source_sourceId_idx" ON "growth_attributions"("source", "sourceId");
+CREATE INDEX IF NOT EXISTS "growth_attributions_source_sourceId_idx" ON "growth_attributions"("source", "sourceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "growth_attributions_userId_key" ON "growth_attributions"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "growth_attributions_userId_key" ON "growth_attributions"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "invite_links_token_key" ON "invite_links"("token");
+CREATE UNIQUE INDEX IF NOT EXISTS "invite_links_token_key" ON "invite_links"("token");
 
 -- CreateIndex
-CREATE INDEX "invite_links_createdByUserId_idx" ON "invite_links"("createdByUserId");
+CREATE INDEX IF NOT EXISTS "invite_links_createdByUserId_idx" ON "invite_links"("createdByUserId");
 
 -- CreateIndex
-CREATE INDEX "invite_links_createdByUserId_type_createdAt_idx" ON "invite_links"("createdByUserId", "type", "createdAt");
+CREATE INDEX IF NOT EXISTS "invite_links_createdByUserId_type_createdAt_idx" ON "invite_links"("createdByUserId", "type", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "invite_links_type_idx" ON "invite_links"("type");
+CREATE INDEX IF NOT EXISTS "invite_links_type_idx" ON "invite_links"("type");
 
 -- CreateIndex
-CREATE INDEX "invite_links_type_targetId_idx" ON "invite_links"("type", "targetId");
+CREATE INDEX IF NOT EXISTS "invite_links_type_targetId_idx" ON "invite_links"("type", "targetId");
 
 -- CreateIndex
-CREATE INDEX "invite_links_status_idx" ON "invite_links"("status");
+CREATE INDEX IF NOT EXISTS "invite_links_status_idx" ON "invite_links"("status");
 
 -- CreateIndex
-CREATE INDEX "invite_links_status_expiresAt_idx" ON "invite_links"("status", "expiresAt");
+CREATE INDEX IF NOT EXISTS "invite_links_status_expiresAt_idx" ON "invite_links"("status", "expiresAt");
 
 -- CreateIndex
-CREATE INDEX "invite_links_token_idx" ON "invite_links"("token");
+CREATE INDEX IF NOT EXISTS "invite_links_token_idx" ON "invite_links"("token");
 
 -- CreateIndex
-CREATE INDEX "invite_link_events_inviteLinkId_createdAt_idx" ON "invite_link_events"("inviteLinkId", "createdAt");
+CREATE INDEX IF NOT EXISTS "invite_link_events_inviteLinkId_createdAt_idx" ON "invite_link_events"("inviteLinkId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "invite_link_events_inviteLinkId_eventType_createdAt_idx" ON "invite_link_events"("inviteLinkId", "eventType", "createdAt");
+CREATE INDEX IF NOT EXISTS "invite_link_events_inviteLinkId_eventType_createdAt_idx" ON "invite_link_events"("inviteLinkId", "eventType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "invite_link_events_eventType_idx" ON "invite_link_events"("eventType");
+CREATE INDEX IF NOT EXISTS "invite_link_events_eventType_idx" ON "invite_link_events"("eventType");
 
 -- CreateIndex
-CREATE INDEX "invite_link_events_channel_createdAt_idx" ON "invite_link_events"("channel", "createdAt");
+CREATE INDEX IF NOT EXISTS "invite_link_events_channel_createdAt_idx" ON "invite_link_events"("channel", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_profiles_userId_key" ON "creator_profiles"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_profiles_userId_key" ON "creator_profiles"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_profiles_handle_key" ON "creator_profiles"("handle");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_profiles_handle_key" ON "creator_profiles"("handle");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_profiles_slug_key" ON "creator_profiles"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_profiles_slug_key" ON "creator_profiles"("slug");
 
 -- CreateIndex
-CREATE INDEX "creator_profiles_handle_idx" ON "creator_profiles"("handle");
+CREATE INDEX IF NOT EXISTS "creator_profiles_handle_idx" ON "creator_profiles"("handle");
 
 -- CreateIndex
-CREATE INDEX "creator_profiles_slug_idx" ON "creator_profiles"("slug");
+CREATE INDEX IF NOT EXISTS "creator_profiles_slug_idx" ON "creator_profiles"("slug");
 
 -- CreateIndex
-CREATE INDEX "creator_profiles_visibility_idx" ON "creator_profiles"("visibility");
+CREATE INDEX IF NOT EXISTS "creator_profiles_visibility_idx" ON "creator_profiles"("visibility");
 
 -- CreateIndex
-CREATE INDEX "creator_profiles_featuredRank_idx" ON "creator_profiles"("featuredRank");
+CREATE INDEX IF NOT EXISTS "creator_profiles_featuredRank_idx" ON "creator_profiles"("featuredRank");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_leagues_inviteCode_key" ON "creator_leagues"("inviteCode");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_leagues_inviteCode_key" ON "creator_leagues"("inviteCode");
 
 -- CreateIndex
-CREATE INDEX "creator_leagues_creatorId_idx" ON "creator_leagues"("creatorId");
+CREATE INDEX IF NOT EXISTS "creator_leagues_creatorId_idx" ON "creator_leagues"("creatorId");
 
 -- CreateIndex
-CREATE INDEX "creator_leagues_inviteCode_idx" ON "creator_leagues"("inviteCode");
+CREATE INDEX IF NOT EXISTS "creator_leagues_inviteCode_idx" ON "creator_leagues"("inviteCode");
 
 -- CreateIndex
-CREATE INDEX "creator_leagues_sport_idx" ON "creator_leagues"("sport");
+CREATE INDEX IF NOT EXISTS "creator_leagues_sport_idx" ON "creator_leagues"("sport");
 
 -- CreateIndex
-CREATE INDEX "creator_leagues_isPublic_idx" ON "creator_leagues"("isPublic");
+CREATE INDEX IF NOT EXISTS "creator_leagues_isPublic_idx" ON "creator_leagues"("isPublic");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_leagues_creatorId_slug_key" ON "creator_leagues"("creatorId", "slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_leagues_creatorId_slug_key" ON "creator_leagues"("creatorId", "slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_invites_code_key" ON "creator_invites"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_invites_code_key" ON "creator_invites"("code");
 
 -- CreateIndex
-CREATE INDEX "creator_invites_creatorId_idx" ON "creator_invites"("creatorId");
+CREATE INDEX IF NOT EXISTS "creator_invites_creatorId_idx" ON "creator_invites"("creatorId");
 
 -- CreateIndex
-CREATE INDEX "creator_invites_code_idx" ON "creator_invites"("code");
+CREATE INDEX IF NOT EXISTS "creator_invites_code_idx" ON "creator_invites"("code");
 
 -- CreateIndex
-CREATE INDEX "creator_invites_creatorLeagueId_createdAt_idx" ON "creator_invites"("creatorLeagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "creator_invites_creatorLeagueId_createdAt_idx" ON "creator_invites"("creatorLeagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "creator_league_members_userId_idx" ON "creator_league_members"("userId");
+CREATE INDEX IF NOT EXISTS "creator_league_members_userId_idx" ON "creator_league_members"("userId");
 
 -- CreateIndex
-CREATE INDEX "creator_league_members_creatorLeagueId_joinedAt_idx" ON "creator_league_members"("creatorLeagueId", "joinedAt");
+CREATE INDEX IF NOT EXISTS "creator_league_members_creatorLeagueId_joinedAt_idx" ON "creator_league_members"("creatorLeagueId", "joinedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "creator_league_members_creatorLeagueId_userId_key" ON "creator_league_members"("creatorLeagueId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "creator_league_members_creatorLeagueId_userId_key" ON "creator_league_members"("creatorLeagueId", "userId");
 
 -- CreateIndex
-CREATE INDEX "creator_analytics_events_creatorId_createdAt_idx" ON "creator_analytics_events"("creatorId", "createdAt");
+CREATE INDEX IF NOT EXISTS "creator_analytics_events_creatorId_createdAt_idx" ON "creator_analytics_events"("creatorId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "creator_analytics_events_creatorId_eventType_createdAt_idx" ON "creator_analytics_events"("creatorId", "eventType", "createdAt");
+CREATE INDEX IF NOT EXISTS "creator_analytics_events_creatorId_eventType_createdAt_idx" ON "creator_analytics_events"("creatorId", "eventType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "creator_analytics_events_eventType_idx" ON "creator_analytics_events"("eventType");
+CREATE INDEX IF NOT EXISTS "creator_analytics_events_eventType_idx" ON "creator_analytics_events"("eventType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "referral_codes_code_key" ON "referral_codes"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "referral_codes_code_key" ON "referral_codes"("code");
 
 -- CreateIndex
-CREATE INDEX "referral_codes_userId_idx" ON "referral_codes"("userId");
+CREATE INDEX IF NOT EXISTS "referral_codes_userId_idx" ON "referral_codes"("userId");
 
 -- CreateIndex
-CREATE INDEX "referral_codes_userId_status_idx" ON "referral_codes"("userId", "status");
+CREATE INDEX IF NOT EXISTS "referral_codes_userId_status_idx" ON "referral_codes"("userId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "referrals_referredUserId_key" ON "referrals"("referredUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "referrals_referredUserId_key" ON "referrals"("referredUserId");
 
 -- CreateIndex
-CREATE INDEX "referrals_referrerId_idx" ON "referrals"("referrerId");
+CREATE INDEX IF NOT EXISTS "referrals_referrerId_idx" ON "referrals"("referrerId");
 
 -- CreateIndex
-CREATE INDEX "referrals_referrerId_kind_status_idx" ON "referrals"("referrerId", "kind", "status");
+CREATE INDEX IF NOT EXISTS "referrals_referrerId_kind_status_idx" ON "referrals"("referrerId", "kind", "status");
 
 -- CreateIndex
-CREATE INDEX "referrals_referralCodeId_idx" ON "referrals"("referralCodeId");
+CREATE INDEX IF NOT EXISTS "referrals_referralCodeId_idx" ON "referrals"("referralCodeId");
 
 -- CreateIndex
-CREATE INDEX "referrals_signupCompletedAt_idx" ON "referrals"("signupCompletedAt");
+CREATE INDEX IF NOT EXISTS "referrals_signupCompletedAt_idx" ON "referrals"("signupCompletedAt");
 
 -- CreateIndex
-CREATE INDEX "referrals_onboardingCompletedAt_idx" ON "referrals"("onboardingCompletedAt");
+CREATE INDEX IF NOT EXISTS "referrals_onboardingCompletedAt_idx" ON "referrals"("onboardingCompletedAt");
 
 -- CreateIndex
-CREATE INDEX "referral_events_referrerId_idx" ON "referral_events"("referrerId");
+CREATE INDEX IF NOT EXISTS "referral_events_referrerId_idx" ON "referral_events"("referrerId");
 
 -- CreateIndex
-CREATE INDEX "referral_events_referrerId_type_idx" ON "referral_events"("referrerId", "type");
+CREATE INDEX IF NOT EXISTS "referral_events_referrerId_type_idx" ON "referral_events"("referrerId", "type");
 
 -- CreateIndex
-CREATE INDEX "referral_events_referredUserId_idx" ON "referral_events"("referredUserId");
+CREATE INDEX IF NOT EXISTS "referral_events_referredUserId_idx" ON "referral_events"("referredUserId");
 
 -- CreateIndex
-CREATE INDEX "referral_events_referralId_type_createdAt_idx" ON "referral_events"("referralId", "type", "createdAt");
+CREATE INDEX IF NOT EXISTS "referral_events_referralId_type_createdAt_idx" ON "referral_events"("referralId", "type", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "referral_events_codeId_type_createdAt_idx" ON "referral_events"("codeId", "type", "createdAt");
+CREATE INDEX IF NOT EXISTS "referral_events_codeId_type_createdAt_idx" ON "referral_events"("codeId", "type", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "referral_events_channel_createdAt_idx" ON "referral_events"("channel", "createdAt");
+CREATE INDEX IF NOT EXISTS "referral_events_channel_createdAt_idx" ON "referral_events"("channel", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "referral_reward_rules_key_key" ON "referral_reward_rules"("key");
+CREATE UNIQUE INDEX IF NOT EXISTS "referral_reward_rules_key_key" ON "referral_reward_rules"("key");
 
 -- CreateIndex
-CREATE INDEX "referral_reward_rules_triggerType_isActive_idx" ON "referral_reward_rules"("triggerType", "isActive");
+CREATE INDEX IF NOT EXISTS "referral_reward_rules_triggerType_isActive_idx" ON "referral_reward_rules"("triggerType", "isActive");
 
 -- CreateIndex
-CREATE INDEX "referral_reward_rules_audience_isActive_idx" ON "referral_reward_rules"("audience", "isActive");
+CREATE INDEX IF NOT EXISTS "referral_reward_rules_audience_isActive_idx" ON "referral_reward_rules"("audience", "isActive");
 
 -- CreateIndex
-CREATE INDEX "referral_rewards_userId_idx" ON "referral_rewards"("userId");
+CREATE INDEX IF NOT EXISTS "referral_rewards_userId_idx" ON "referral_rewards"("userId");
 
 -- CreateIndex
-CREATE INDEX "referral_rewards_userId_status_idx" ON "referral_rewards"("userId", "status");
+CREATE INDEX IF NOT EXISTS "referral_rewards_userId_status_idx" ON "referral_rewards"("userId", "status");
 
 -- CreateIndex
-CREATE INDEX "referral_rewards_referralId_idx" ON "referral_rewards"("referralId");
+CREATE INDEX IF NOT EXISTS "referral_rewards_referralId_idx" ON "referral_rewards"("referralId");
 
 -- CreateIndex
-CREATE INDEX "referral_rewards_rewardRuleId_idx" ON "referral_rewards"("rewardRuleId");
+CREATE INDEX IF NOT EXISTS "referral_rewards_rewardRuleId_idx" ON "referral_rewards"("rewardRuleId");
 
 -- CreateIndex
-CREATE INDEX "referral_rewards_type_status_idx" ON "referral_rewards"("type", "status");
+CREATE INDEX IF NOT EXISTS "referral_rewards_type_status_idx" ON "referral_rewards"("type", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "auth_accounts_provider_providerAccountId_key" ON "auth_accounts"("provider", "providerAccountId");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_accounts_provider_providerAccountId_key" ON "auth_accounts"("provider", "providerAccountId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "auth_sessions_sessionToken_key" ON "auth_sessions"("sessionToken");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_sessions_sessionToken_key" ON "auth_sessions"("sessionToken");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "auth_verification_tokens_token_key" ON "auth_verification_tokens"("token");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_verification_tokens_token_key" ON "auth_verification_tokens"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "auth_verification_tokens_identifier_token_key" ON "auth_verification_tokens"("identifier", "token");
+CREATE UNIQUE INDEX IF NOT EXISTS "auth_verification_tokens_identifier_token_key" ON "auth_verification_tokens"("identifier", "token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketTournament_sport_season_key" ON "BracketTournament"("sport", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketTournament_sport_season_key" ON "BracketTournament"("sport", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketNode_sportsGameId_key" ON "BracketNode"("sportsGameId");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketNode_sportsGameId_key" ON "BracketNode"("sportsGameId");
 
 -- CreateIndex
-CREATE INDEX "BracketNode_tournamentId_round_region_idx" ON "BracketNode"("tournamentId", "round", "region");
+CREATE INDEX IF NOT EXISTS "BracketNode_tournamentId_round_region_idx" ON "BracketNode"("tournamentId", "round", "region");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketNode_tournamentId_slot_key" ON "BracketNode"("tournamentId", "slot");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketNode_tournamentId_slot_key" ON "BracketNode"("tournamentId", "slot");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketLeague_joinCode_key" ON "BracketLeague"("joinCode");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketLeague_joinCode_key" ON "BracketLeague"("joinCode");
 
 -- CreateIndex
-CREATE INDEX "BracketLeague_tournamentId_idx" ON "BracketLeague"("tournamentId");
+CREATE INDEX IF NOT EXISTS "BracketLeague_tournamentId_idx" ON "BracketLeague"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "BracketLeague_ownerId_idx" ON "BracketLeague"("ownerId");
+CREATE INDEX IF NOT EXISTS "BracketLeague_ownerId_idx" ON "BracketLeague"("ownerId");
 
 -- CreateIndex
-CREATE INDEX "BracketLeagueMember_userId_idx" ON "BracketLeagueMember"("userId");
+CREATE INDEX IF NOT EXISTS "BracketLeagueMember_userId_idx" ON "BracketLeagueMember"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketLeagueMember_leagueId_userId_key" ON "BracketLeagueMember"("leagueId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketLeagueMember_leagueId_userId_key" ON "BracketLeagueMember"("leagueId", "userId");
 
 -- CreateIndex
-CREATE INDEX "BracketEntry_leagueId_idx" ON "BracketEntry"("leagueId");
+CREATE INDEX IF NOT EXISTS "BracketEntry_leagueId_idx" ON "BracketEntry"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "BracketEntry_userId_idx" ON "BracketEntry"("userId");
+CREATE INDEX IF NOT EXISTS "BracketEntry_userId_idx" ON "BracketEntry"("userId");
 
 -- CreateIndex
-CREATE INDEX "BracketEntrySnapshot_tournamentId_leagueId_idx" ON "BracketEntrySnapshot"("tournamentId", "leagueId");
+CREATE INDEX IF NOT EXISTS "BracketEntrySnapshot_tournamentId_leagueId_idx" ON "BracketEntrySnapshot"("tournamentId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "BracketEntrySnapshot_entryId_createdAt_idx" ON "BracketEntrySnapshot"("entryId", "createdAt");
+CREATE INDEX IF NOT EXISTS "BracketEntrySnapshot_entryId_createdAt_idx" ON "BracketEntrySnapshot"("entryId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "bracket_pick_popularity_tournamentId_leagueId_nodeId_idx" ON "bracket_pick_popularity"("tournamentId", "leagueId", "nodeId");
+CREATE INDEX IF NOT EXISTS "bracket_pick_popularity_tournamentId_leagueId_nodeId_idx" ON "bracket_pick_popularity"("tournamentId", "leagueId", "nodeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_pick_popularity_tournamentId_leagueId_nodeId_teamNa_key" ON "bracket_pick_popularity"("tournamentId", "leagueId", "nodeId", "teamName", "scope");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_pick_popularity_tournamentId_leagueId_nodeId_teamNa_key" ON "bracket_pick_popularity"("tournamentId", "leagueId", "nodeId", "teamName", "scope");
 
 -- CreateIndex
-CREATE INDEX "bracket_simulation_snapshot_leagueId_entryId_idx" ON "bracket_simulation_snapshot"("leagueId", "entryId");
+CREATE INDEX IF NOT EXISTS "bracket_simulation_snapshot_leagueId_entryId_idx" ON "bracket_simulation_snapshot"("leagueId", "entryId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_simulation_snapshot_tournamentId_leagueId_entryId_key" ON "bracket_simulation_snapshot"("tournamentId", "leagueId", "entryId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_simulation_snapshot_tournamentId_leagueId_entryId_key" ON "bracket_simulation_snapshot"("tournamentId", "leagueId", "entryId");
 
 -- CreateIndex
-CREATE INDEX "bracket_leaderboards_tournamentId_leagueId_rank_idx" ON "bracket_leaderboards"("tournamentId", "leagueId", "rank");
+CREATE INDEX IF NOT EXISTS "bracket_leaderboards_tournamentId_leagueId_rank_idx" ON "bracket_leaderboards"("tournamentId", "leagueId", "rank");
 
 -- CreateIndex
-CREATE INDEX "bracket_leaderboards_tournamentId_leagueId_score_entryId_idx" ON "bracket_leaderboards"("tournamentId", "leagueId", "score", "entryId");
+CREATE INDEX IF NOT EXISTS "bracket_leaderboards_tournamentId_leagueId_score_entryId_idx" ON "bracket_leaderboards"("tournamentId", "leagueId", "score", "entryId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_leaderboards_tournamentId_leagueId_entryId_key" ON "bracket_leaderboards"("tournamentId", "leagueId", "entryId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_leaderboards_tournamentId_leagueId_entryId_key" ON "bracket_leaderboards"("tournamentId", "leagueId", "entryId");
 
 -- CreateIndex
-CREATE INDEX "bracket_health_snapshots_leagueId_entryId_idx" ON "bracket_health_snapshots"("leagueId", "entryId");
+CREATE INDEX IF NOT EXISTS "bracket_health_snapshots_leagueId_entryId_idx" ON "bracket_health_snapshots"("leagueId", "entryId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_health_snapshots_tournamentId_leagueId_entryId_key" ON "bracket_health_snapshots"("tournamentId", "leagueId", "entryId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_health_snapshots_tournamentId_leagueId_entryId_key" ON "bracket_health_snapshots"("tournamentId", "leagueId", "entryId");
 
 -- CreateIndex
-CREATE INDEX "BracketPick_nodeId_idx" ON "BracketPick"("nodeId");
+CREATE INDEX IF NOT EXISTS "BracketPick_nodeId_idx" ON "BracketPick"("nodeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketPick_entryId_nodeId_key" ON "BracketPick"("entryId", "nodeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketPick_entryId_nodeId_key" ON "BracketPick"("entryId", "nodeId");
 
 -- CreateIndex
-CREATE INDEX "bracket_league_messages_leagueId_createdAt_idx" ON "bracket_league_messages"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "bracket_league_messages_leagueId_createdAt_idx" ON "bracket_league_messages"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "bracket_league_messages_userId_idx" ON "bracket_league_messages"("userId");
+CREATE INDEX IF NOT EXISTS "bracket_league_messages_userId_idx" ON "bracket_league_messages"("userId");
 
 -- CreateIndex
-CREATE INDEX "bracket_message_reactions_messageId_idx" ON "bracket_message_reactions"("messageId");
+CREATE INDEX IF NOT EXISTS "bracket_message_reactions_messageId_idx" ON "bracket_message_reactions"("messageId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_message_reactions_messageId_userId_emoji_key" ON "bracket_message_reactions"("messageId", "userId", "emoji");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_message_reactions_messageId_userId_emoji_key" ON "bracket_message_reactions"("messageId", "userId", "emoji");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "BracketPayment_stripeSessionId_key" ON "BracketPayment"("stripeSessionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "BracketPayment_stripeSessionId_key" ON "BracketPayment"("stripeSessionId");
 
 -- CreateIndex
-CREATE INDEX "BracketPayment_userId_leagueId_tournamentId_idx" ON "BracketPayment"("userId", "leagueId", "tournamentId");
+CREATE INDEX IF NOT EXISTS "BracketPayment_userId_leagueId_tournamentId_idx" ON "BracketPayment"("userId", "leagueId", "tournamentId");
 
 -- CreateIndex
-CREATE INDEX "BracketPayment_stripeSessionId_idx" ON "BracketPayment"("stripeSessionId");
+CREATE INDEX IF NOT EXISTS "BracketPayment_stripeSessionId_idx" ON "BracketPayment"("stripeSessionId");
 
 -- CreateIndex
-CREATE INDEX "bracket_feed_events_tournamentId_createdAt_idx" ON "bracket_feed_events"("tournamentId", "createdAt");
+CREATE INDEX IF NOT EXISTS "bracket_feed_events_tournamentId_createdAt_idx" ON "bracket_feed_events"("tournamentId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "bracket_feed_events_leagueId_createdAt_idx" ON "bracket_feed_events"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "bracket_feed_events_leagueId_createdAt_idx" ON "bracket_feed_events"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_risk_profiles_userId_key" ON "bracket_risk_profiles"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_risk_profiles_userId_key" ON "bracket_risk_profiles"("userId");
 
 -- CreateIndex
-CREATE INDEX "simulation_results_createdByUserId_idx" ON "simulation_results"("createdByUserId");
+CREATE INDEX IF NOT EXISTS "simulation_results_createdByUserId_idx" ON "simulation_results"("createdByUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "simulation_results_bracketId_tournamentId_key" ON "simulation_results"("bracketId", "tournamentId");
+CREATE UNIQUE INDEX IF NOT EXISTS "simulation_results_bracketId_tournamentId_key" ON "simulation_results"("bracketId", "tournamentId");
 
 -- CreateIndex
-CREATE INDEX "bracket_challenges_leagueId_idx" ON "bracket_challenges"("leagueId");
+CREATE INDEX IF NOT EXISTS "bracket_challenges_leagueId_idx" ON "bracket_challenges"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "bracket_challenges_leagueId_challengerEntryId_challengedEnt_key" ON "bracket_challenges"("leagueId", "challengerEntryId", "challengedEntryId");
+CREATE UNIQUE INDEX IF NOT EXISTS "bracket_challenges_leagueId_challengerEntryId_challengedEnt_key" ON "bracket_challenges"("leagueId", "challengerEntryId", "challengedEntryId");
 
 -- CreateIndex
-CREATE INDEX "user_follows_followeeId_idx" ON "user_follows"("followeeId");
+CREATE INDEX IF NOT EXISTS "user_follows_followeeId_idx" ON "user_follows"("followeeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_follows_followerId_followeeId_key" ON "user_follows"("followerId", "followeeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_follows_followerId_followeeId_key" ON "user_follows"("followerId", "followeeId");
 
 -- CreateIndex
-CREATE INDEX "activity_events_leagueId_createdAt_idx" ON "activity_events"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "activity_events_leagueId_createdAt_idx" ON "activity_events"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "activity_events_userId_createdAt_idx" ON "activity_events"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "activity_events_userId_createdAt_idx" ON "activity_events"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "reaction_events_leagueId_createdAt_idx" ON "reaction_events"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "reaction_events_leagueId_createdAt_idx" ON "reaction_events"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "reaction_events_userId_createdAt_idx" ON "reaction_events"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "reaction_events_userId_createdAt_idx" ON "reaction_events"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "user_rivalries_userBId_idx" ON "user_rivalries"("userBId");
+CREATE INDEX IF NOT EXISTS "user_rivalries_userBId_idx" ON "user_rivalries"("userBId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_rivalries_userAId_userBId_key" ON "user_rivalries"("userAId", "userBId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_rivalries_userAId_userBId_key" ON "user_rivalries"("userAId", "userBId");
 
 -- CreateIndex
-CREATE INDEX "rivalry_records_leagueId_sport_idx" ON "rivalry_records"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "rivalry_records_leagueId_sport_idx" ON "rivalry_records"("leagueId", "sport");
 
 -- CreateIndex
-CREATE INDEX "rivalry_records_leagueId_rivalryTier_idx" ON "rivalry_records"("leagueId", "rivalryTier");
+CREATE INDEX IF NOT EXISTS "rivalry_records_leagueId_rivalryTier_idx" ON "rivalry_records"("leagueId", "rivalryTier");
 
 -- CreateIndex
-CREATE INDEX "rivalry_records_managerAId_managerBId_idx" ON "rivalry_records"("managerAId", "managerBId");
+CREATE INDEX IF NOT EXISTS "rivalry_records_managerAId_managerBId_idx" ON "rivalry_records"("managerAId", "managerBId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rivalry_records_leagueId_managerAId_managerBId_key" ON "rivalry_records"("leagueId", "managerAId", "managerBId");
+CREATE UNIQUE INDEX IF NOT EXISTS "rivalry_records_leagueId_managerAId_managerBId_key" ON "rivalry_records"("leagueId", "managerAId", "managerBId");
 
 -- CreateIndex
-CREATE INDEX "rivalry_events_rivalryId_idx" ON "rivalry_events"("rivalryId");
+CREATE INDEX IF NOT EXISTS "rivalry_events_rivalryId_idx" ON "rivalry_events"("rivalryId");
 
 -- CreateIndex
-CREATE INDEX "rivalry_events_eventType_season_idx" ON "rivalry_events"("eventType", "season");
+CREATE INDEX IF NOT EXISTS "rivalry_events_eventType_season_idx" ON "rivalry_events"("eventType", "season");
 
 -- CreateIndex
-CREATE INDEX "manager_psych_profiles_leagueId_sport_idx" ON "manager_psych_profiles"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "manager_psych_profiles_leagueId_sport_idx" ON "manager_psych_profiles"("leagueId", "sport");
 
 -- CreateIndex
-CREATE INDEX "manager_psych_profiles_managerId_idx" ON "manager_psych_profiles"("managerId");
+CREATE INDEX IF NOT EXISTS "manager_psych_profiles_managerId_idx" ON "manager_psych_profiles"("managerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_psych_profiles_leagueId_managerId_key" ON "manager_psych_profiles"("leagueId", "managerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_psych_profiles_leagueId_managerId_key" ON "manager_psych_profiles"("leagueId", "managerId");
 
 -- CreateIndex
-CREATE INDEX "profile_evidence_records_managerId_leagueId_idx" ON "profile_evidence_records"("managerId", "leagueId");
+CREATE INDEX IF NOT EXISTS "profile_evidence_records_managerId_leagueId_idx" ON "profile_evidence_records"("managerId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "profile_evidence_records_evidenceType_sport_idx" ON "profile_evidence_records"("evidenceType", "sport");
+CREATE INDEX IF NOT EXISTS "profile_evidence_records_evidenceType_sport_idx" ON "profile_evidence_records"("evidenceType", "sport");
 
 -- CreateIndex
-CREATE INDEX "drama_events_leagueId_sport_idx" ON "drama_events"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "drama_events_leagueId_sport_idx" ON "drama_events"("leagueId", "sport");
 
 -- CreateIndex
-CREATE INDEX "drama_events_leagueId_season_idx" ON "drama_events"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "drama_events_leagueId_season_idx" ON "drama_events"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "drama_events_dramaType_season_idx" ON "drama_events"("dramaType", "season");
+CREATE INDEX IF NOT EXISTS "drama_events_dramaType_season_idx" ON "drama_events"("dramaType", "season");
 
 -- CreateIndex
-CREATE INDEX "drama_timeline_records_leagueId_idx" ON "drama_timeline_records"("leagueId");
+CREATE INDEX IF NOT EXISTS "drama_timeline_records_leagueId_idx" ON "drama_timeline_records"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "drama_timeline_records_leagueId_sport_season_key" ON "drama_timeline_records"("leagueId", "sport", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "drama_timeline_records_leagueId_sport_season_key" ON "drama_timeline_records"("leagueId", "sport", "season");
 
 -- CreateIndex
-CREATE INDEX "manager_reputation_records_leagueId_sport_season_idx" ON "manager_reputation_records"("leagueId", "sport", "season");
+CREATE INDEX IF NOT EXISTS "manager_reputation_records_leagueId_sport_season_idx" ON "manager_reputation_records"("leagueId", "sport", "season");
 
 -- CreateIndex
-CREATE INDEX "manager_reputation_records_managerId_idx" ON "manager_reputation_records"("managerId");
+CREATE INDEX IF NOT EXISTS "manager_reputation_records_managerId_idx" ON "manager_reputation_records"("managerId");
 
 -- CreateIndex
-CREATE INDEX "manager_reputation_records_tier_idx" ON "manager_reputation_records"("tier");
+CREATE INDEX IF NOT EXISTS "manager_reputation_records_tier_idx" ON "manager_reputation_records"("tier");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_reputation_records_leagueId_managerId_sport_season_key" ON "manager_reputation_records"("leagueId", "managerId", "sport", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_reputation_records_leagueId_managerId_sport_season_key" ON "manager_reputation_records"("leagueId", "managerId", "sport", "season");
 
 -- CreateIndex
-CREATE INDEX "reputation_evidence_records_managerId_leagueId_season_idx" ON "reputation_evidence_records"("managerId", "leagueId", "season");
+CREATE INDEX IF NOT EXISTS "reputation_evidence_records_managerId_leagueId_season_idx" ON "reputation_evidence_records"("managerId", "leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "reputation_evidence_records_leagueId_evidenceType_idx" ON "reputation_evidence_records"("leagueId", "evidenceType");
+CREATE INDEX IF NOT EXISTS "reputation_evidence_records_leagueId_evidenceType_idx" ON "reputation_evidence_records"("leagueId", "evidenceType");
 
 -- CreateIndex
-CREATE INDEX "reputation_evidence_records_sport_season_evidenceType_idx" ON "reputation_evidence_records"("sport", "season", "evidenceType");
+CREATE INDEX IF NOT EXISTS "reputation_evidence_records_sport_season_evidenceType_idx" ON "reputation_evidence_records"("sport", "season", "evidenceType");
 
 -- CreateIndex
-CREATE INDEX "reputation_config_records_leagueId_sport_idx" ON "reputation_config_records"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "reputation_config_records_leagueId_sport_idx" ON "reputation_config_records"("leagueId", "sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "reputation_config_records_leagueId_sport_season_key" ON "reputation_config_records"("leagueId", "sport", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "reputation_config_records_leagueId_sport_season_key" ON "reputation_config_records"("leagueId", "sport", "season");
 
 -- CreateIndex
-CREATE INDEX "manager_franchise_profiles_gmPrestigeScore_idx" ON "manager_franchise_profiles"("gmPrestigeScore");
+CREATE INDEX IF NOT EXISTS "manager_franchise_profiles_gmPrestigeScore_idx" ON "manager_franchise_profiles"("gmPrestigeScore");
 
 -- CreateIndex
-CREATE INDEX "manager_franchise_profiles_franchiseValue_idx" ON "manager_franchise_profiles"("franchiseValue");
+CREATE INDEX IF NOT EXISTS "manager_franchise_profiles_franchiseValue_idx" ON "manager_franchise_profiles"("franchiseValue");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_franchise_profiles_managerId_key" ON "manager_franchise_profiles"("managerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_franchise_profiles_managerId_key" ON "manager_franchise_profiles"("managerId");
 
 -- CreateIndex
-CREATE INDEX "gm_progression_events_managerId_idx" ON "gm_progression_events"("managerId");
+CREATE INDEX IF NOT EXISTS "gm_progression_events_managerId_idx" ON "gm_progression_events"("managerId");
 
 -- CreateIndex
-CREATE INDEX "gm_progression_events_managerId_sport_idx" ON "gm_progression_events"("managerId", "sport");
+CREATE INDEX IF NOT EXISTS "gm_progression_events_managerId_sport_idx" ON "gm_progression_events"("managerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "gm_progression_events_eventType_createdAt_idx" ON "gm_progression_events"("eventType", "createdAt");
+CREATE INDEX IF NOT EXISTS "gm_progression_events_eventType_createdAt_idx" ON "gm_progression_events"("eventType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "manager_xp_profiles_totalXP_idx" ON "manager_xp_profiles"("totalXP");
+CREATE INDEX IF NOT EXISTS "manager_xp_profiles_totalXP_idx" ON "manager_xp_profiles"("totalXP");
 
 -- CreateIndex
-CREATE INDEX "manager_xp_profiles_currentTier_idx" ON "manager_xp_profiles"("currentTier");
+CREATE INDEX IF NOT EXISTS "manager_xp_profiles_currentTier_idx" ON "manager_xp_profiles"("currentTier");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_xp_profiles_managerId_key" ON "manager_xp_profiles"("managerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_xp_profiles_managerId_key" ON "manager_xp_profiles"("managerId");
 
 -- CreateIndex
-CREATE INDEX "xp_events_managerId_idx" ON "xp_events"("managerId");
+CREATE INDEX IF NOT EXISTS "xp_events_managerId_idx" ON "xp_events"("managerId");
 
 -- CreateIndex
-CREATE INDEX "xp_events_managerId_sport_idx" ON "xp_events"("managerId", "sport");
+CREATE INDEX IF NOT EXISTS "xp_events_managerId_sport_idx" ON "xp_events"("managerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "xp_events_eventType_createdAt_idx" ON "xp_events"("eventType", "createdAt");
+CREATE INDEX IF NOT EXISTS "xp_events_eventType_createdAt_idx" ON "xp_events"("eventType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "award_records_leagueId_season_idx" ON "award_records"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "award_records_leagueId_season_idx" ON "award_records"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "award_records_leagueId_season_awardType_idx" ON "award_records"("leagueId", "season", "awardType");
+CREATE INDEX IF NOT EXISTS "award_records_leagueId_season_awardType_idx" ON "award_records"("leagueId", "season", "awardType");
 
 -- CreateIndex
-CREATE INDEX "award_records_managerId_idx" ON "award_records"("managerId");
+CREATE INDEX IF NOT EXISTS "award_records_managerId_idx" ON "award_records"("managerId");
 
 -- CreateIndex
-CREATE INDEX "record_book_entries_leagueId_recordType_idx" ON "record_book_entries"("leagueId", "recordType");
+CREATE INDEX IF NOT EXISTS "record_book_entries_leagueId_recordType_idx" ON "record_book_entries"("leagueId", "recordType");
 
 -- CreateIndex
-CREATE INDEX "record_book_entries_sport_recordType_idx" ON "record_book_entries"("sport", "recordType");
+CREATE INDEX IF NOT EXISTS "record_book_entries_sport_recordType_idx" ON "record_book_entries"("sport", "recordType");
 
 -- CreateIndex
-CREATE INDEX "record_book_entries_holderId_idx" ON "record_book_entries"("holderId");
+CREATE INDEX IF NOT EXISTS "record_book_entries_holderId_idx" ON "record_book_entries"("holderId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "record_book_entries_leagueId_recordType_season_key" ON "record_book_entries"("leagueId", "recordType", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "record_book_entries_leagueId_recordType_season_key" ON "record_book_entries"("leagueId", "recordType", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "manager_wallets_managerId_key" ON "manager_wallets"("managerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "manager_wallets_managerId_key" ON "manager_wallets"("managerId");
 
 -- CreateIndex
-CREATE INDEX "marketplace_items_cosmeticCategory_idx" ON "marketplace_items"("cosmeticCategory");
+CREATE INDEX IF NOT EXISTS "marketplace_items_cosmeticCategory_idx" ON "marketplace_items"("cosmeticCategory");
 
 -- CreateIndex
-CREATE INDEX "marketplace_items_sportRestriction_idx" ON "marketplace_items"("sportRestriction");
+CREATE INDEX IF NOT EXISTS "marketplace_items_sportRestriction_idx" ON "marketplace_items"("sportRestriction");
 
 -- CreateIndex
-CREATE INDEX "purchase_records_managerId_idx" ON "purchase_records"("managerId");
+CREATE INDEX IF NOT EXISTS "purchase_records_managerId_idx" ON "purchase_records"("managerId");
 
 -- CreateIndex
-CREATE INDEX "purchase_records_itemId_idx" ON "purchase_records"("itemId");
+CREATE INDEX IF NOT EXISTS "purchase_records_itemId_idx" ON "purchase_records"("itemId");
 
 -- CreateIndex
-CREATE INDEX "media_articles_leagueId_idx" ON "media_articles"("leagueId");
+CREATE INDEX IF NOT EXISTS "media_articles_leagueId_idx" ON "media_articles"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "media_articles_leagueId_sport_idx" ON "media_articles"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "media_articles_leagueId_sport_idx" ON "media_articles"("leagueId", "sport");
 
 -- CreateIndex
-CREATE INDEX "media_articles_createdAt_idx" ON "media_articles"("createdAt");
+CREATE INDEX IF NOT EXISTS "media_articles_createdAt_idx" ON "media_articles"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "blog_articles_slug_key" ON "blog_articles"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "blog_articles_slug_key" ON "blog_articles"("slug");
 
 -- CreateIndex
-CREATE INDEX "blog_articles_publishStatus_idx" ON "blog_articles"("publishStatus");
+CREATE INDEX IF NOT EXISTS "blog_articles_publishStatus_idx" ON "blog_articles"("publishStatus");
 
 -- CreateIndex
-CREATE INDEX "blog_articles_sport_idx" ON "blog_articles"("sport");
+CREATE INDEX IF NOT EXISTS "blog_articles_sport_idx" ON "blog_articles"("sport");
 
 -- CreateIndex
-CREATE INDEX "blog_articles_category_idx" ON "blog_articles"("category");
+CREATE INDEX IF NOT EXISTS "blog_articles_category_idx" ON "blog_articles"("category");
 
 -- CreateIndex
-CREATE INDEX "blog_articles_publishedAt_idx" ON "blog_articles"("publishedAt");
+CREATE INDEX IF NOT EXISTS "blog_articles_publishedAt_idx" ON "blog_articles"("publishedAt");
 
 -- CreateIndex
-CREATE INDEX "blog_articles_createdAt_idx" ON "blog_articles"("createdAt");
+CREATE INDEX IF NOT EXISTS "blog_articles_createdAt_idx" ON "blog_articles"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "blog_drafts_articleId_key" ON "blog_drafts"("articleId");
+CREATE UNIQUE INDEX IF NOT EXISTS "blog_drafts_articleId_key" ON "blog_drafts"("articleId");
 
 -- CreateIndex
-CREATE INDEX "blog_drafts_draftStatus_idx" ON "blog_drafts"("draftStatus");
+CREATE INDEX IF NOT EXISTS "blog_drafts_draftStatus_idx" ON "blog_drafts"("draftStatus");
 
 -- CreateIndex
-CREATE INDEX "blog_drafts_sport_idx" ON "blog_drafts"("sport");
+CREATE INDEX IF NOT EXISTS "blog_drafts_sport_idx" ON "blog_drafts"("sport");
 
 -- CreateIndex
-CREATE INDEX "blog_drafts_category_idx" ON "blog_drafts"("category");
+CREATE INDEX IF NOT EXISTS "blog_drafts_category_idx" ON "blog_drafts"("category");
 
 -- CreateIndex
-CREATE INDEX "blog_drafts_updatedAt_idx" ON "blog_drafts"("updatedAt");
+CREATE INDEX IF NOT EXISTS "blog_drafts_updatedAt_idx" ON "blog_drafts"("updatedAt");
 
 -- CreateIndex
-CREATE INDEX "blog_publish_logs_articleId_idx" ON "blog_publish_logs"("articleId");
+CREATE INDEX IF NOT EXISTS "blog_publish_logs_articleId_idx" ON "blog_publish_logs"("articleId");
 
 -- CreateIndex
-CREATE INDEX "blog_publish_logs_createdAt_idx" ON "blog_publish_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "blog_publish_logs_createdAt_idx" ON "blog_publish_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "broadcast_sessions_leagueId_idx" ON "broadcast_sessions"("leagueId");
+CREATE INDEX IF NOT EXISTS "broadcast_sessions_leagueId_idx" ON "broadcast_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "broadcast_sessions_startedAt_idx" ON "broadcast_sessions"("startedAt");
+CREATE INDEX IF NOT EXISTS "broadcast_sessions_startedAt_idx" ON "broadcast_sessions"("startedAt");
 
 -- CreateIndex
-CREATE INDEX "commentary_entries_leagueId_idx" ON "commentary_entries"("leagueId");
+CREATE INDEX IF NOT EXISTS "commentary_entries_leagueId_idx" ON "commentary_entries"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "commentary_entries_leagueId_eventType_idx" ON "commentary_entries"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "commentary_entries_leagueId_eventType_idx" ON "commentary_entries"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "commentary_entries_createdAt_idx" ON "commentary_entries"("createdAt");
+CREATE INDEX IF NOT EXISTS "commentary_entries_createdAt_idx" ON "commentary_entries"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_profiles_phone_key" ON "user_profiles"("phone");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_phone_key" ON "user_profiles"("phone");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_profiles_sleeperUserId_key" ON "user_profiles"("sleeperUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_sleeperUserId_key" ON "user_profiles"("sleeperUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_profiles_discordUserId_key" ON "user_profiles"("discordUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_profiles_discordUserId_key" ON "user_profiles"("discordUserId");
 
 -- CreateIndex
-CREATE INDEX "user_profiles_sleeperUsername_idx" ON "user_profiles"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "user_profiles_sleeperUsername_idx" ON "user_profiles"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "user_profiles_phone_idx" ON "user_profiles"("phone");
+CREATE INDEX IF NOT EXISTS "user_profiles_phone_idx" ON "user_profiles"("phone");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "discord_guild_links_guildId_key" ON "discord_guild_links"("guildId");
+CREATE UNIQUE INDEX IF NOT EXISTS "discord_guild_links_guildId_key" ON "discord_guild_links"("guildId");
 
 -- CreateIndex
-CREATE INDEX "discord_guild_links_linkedByUserId_idx" ON "discord_guild_links"("linkedByUserId");
+CREATE INDEX IF NOT EXISTS "discord_guild_links_linkedByUserId_idx" ON "discord_guild_links"("linkedByUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "discord_league_channels_channelId_key" ON "discord_league_channels"("channelId");
+CREATE UNIQUE INDEX IF NOT EXISTS "discord_league_channels_channelId_key" ON "discord_league_channels"("channelId");
 
 -- CreateIndex
-CREATE INDEX "discord_league_channels_leagueId_idx" ON "discord_league_channels"("leagueId");
+CREATE INDEX IF NOT EXISTS "discord_league_channels_leagueId_idx" ON "discord_league_channels"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "discord_league_channels_guildId_idx" ON "discord_league_channels"("guildId");
+CREATE INDEX IF NOT EXISTS "discord_league_channels_guildId_idx" ON "discord_league_channels"("guildId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "discord_league_channels_leagueId_guildId_key" ON "discord_league_channels"("leagueId", "guildId");
+CREATE UNIQUE INDEX IF NOT EXISTS "discord_league_channels_leagueId_guildId_key" ON "discord_league_channels"("leagueId", "guildId");
 
 -- CreateIndex
-CREATE INDEX "discord_message_links_leagueMessageId_idx" ON "discord_message_links"("leagueMessageId");
+CREATE INDEX IF NOT EXISTS "discord_message_links_leagueMessageId_idx" ON "discord_message_links"("leagueMessageId");
 
 -- CreateIndex
-CREATE INDEX "discord_message_links_discordMessageId_idx" ON "discord_message_links"("discordMessageId");
+CREATE INDEX IF NOT EXISTS "discord_message_links_discordMessageId_idx" ON "discord_message_links"("discordMessageId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "email_verify_tokens_tokenHash_key" ON "email_verify_tokens"("tokenHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "email_verify_tokens_tokenHash_key" ON "email_verify_tokens"("tokenHash");
 
 -- CreateIndex
-CREATE INDEX "email_verify_tokens_userId_idx" ON "email_verify_tokens"("userId");
+CREATE INDEX IF NOT EXISTS "email_verify_tokens_userId_idx" ON "email_verify_tokens"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "password_reset_tokens_tokenHash_key" ON "password_reset_tokens"("tokenHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "password_reset_tokens_tokenHash_key" ON "password_reset_tokens"("tokenHash");
 
 -- CreateIndex
-CREATE INDEX "password_reset_tokens_userId_idx" ON "password_reset_tokens"("userId");
+CREATE INDEX IF NOT EXISTS "password_reset_tokens_userId_idx" ON "password_reset_tokens"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "leagues_legacyLeagueId_key" ON "leagues"("legacyLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "leagues_legacyLeagueId_key" ON "leagues"("legacyLeagueId");
 
 -- CreateIndex
-CREATE INDEX "leagues_userId_idx" ON "leagues"("userId");
+CREATE INDEX IF NOT EXISTS "leagues_userId_idx" ON "leagues"("userId");
 
 -- CreateIndex
-CREATE INDEX "leagues_userId_updatedAt_idx" ON "leagues"("userId", "updatedAt");
+CREATE INDEX IF NOT EXISTS "leagues_userId_updatedAt_idx" ON "leagues"("userId", "updatedAt");
 
 -- CreateIndex
-CREATE INDEX "leagues_userId_isDynasty_idx" ON "leagues"("userId", "isDynasty");
+CREATE INDEX IF NOT EXISTS "leagues_userId_isDynasty_idx" ON "leagues"("userId", "isDynasty");
 
 -- CreateIndex
-CREATE INDEX "leagues_sport_season_idx" ON "leagues"("sport", "season");
+CREATE INDEX IF NOT EXISTS "leagues_sport_season_idx" ON "leagues"("sport", "season");
 
 -- CreateIndex
-CREATE INDEX "leagues_status_idx" ON "leagues"("status");
+CREATE INDEX IF NOT EXISTS "leagues_status_idx" ON "leagues"("status");
 
 -- CreateIndex
-CREATE INDEX "leagues_importBatchId_idx" ON "leagues"("importBatchId");
+CREATE INDEX IF NOT EXISTS "leagues_importBatchId_idx" ON "leagues"("importBatchId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "leagues_userId_platform_platformLeagueId_season_key" ON "leagues"("userId", "platform", "platformLeagueId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "leagues_userId_platform_platformLeagueId_season_key" ON "leagues"("userId", "platform", "platformLeagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "integrity_flags_leagueId_status_idx" ON "integrity_flags"("leagueId", "status");
+CREATE INDEX IF NOT EXISTS "integrity_flags_leagueId_status_idx" ON "integrity_flags"("leagueId", "status");
 
 -- CreateIndex
-CREATE INDEX "integrity_flags_leagueId_flagType_idx" ON "integrity_flags"("leagueId", "flagType");
+CREATE INDEX IF NOT EXISTS "integrity_flags_leagueId_flagType_idx" ON "integrity_flags"("leagueId", "flagType");
 
 -- CreateIndex
-CREATE INDEX "integrity_flags_createdAt_idx" ON "integrity_flags"("createdAt");
+CREATE INDEX IF NOT EXISTS "integrity_flags_createdAt_idx" ON "integrity_flags"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_integrity_settings_leagueId_key" ON "league_integrity_settings"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_integrity_settings_leagueId_key" ON "league_integrity_settings"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "auto_coach_settings_userId_idx" ON "auto_coach_settings"("userId");
+CREATE INDEX IF NOT EXISTS "auto_coach_settings_userId_idx" ON "auto_coach_settings"("userId");
 
 -- CreateIndex
-CREATE INDEX "auto_coach_settings_leagueId_idx" ON "auto_coach_settings"("leagueId");
+CREATE INDEX IF NOT EXISTS "auto_coach_settings_leagueId_idx" ON "auto_coach_settings"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "auto_coach_settings_userId_leagueId_key" ON "auto_coach_settings"("userId", "leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "auto_coach_settings_userId_leagueId_key" ON "auto_coach_settings"("userId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "auto_coach_swap_logs_userId_leagueId_idx" ON "auto_coach_swap_logs"("userId", "leagueId");
+CREATE INDEX IF NOT EXISTS "auto_coach_swap_logs_userId_leagueId_idx" ON "auto_coach_swap_logs"("userId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "auto_coach_swap_logs_leagueId_idx" ON "auto_coach_swap_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "auto_coach_swap_logs_leagueId_idx" ON "auto_coach_swap_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "auto_coach_swap_logs_swapMadeAt_idx" ON "auto_coach_swap_logs"("swapMadeAt");
+CREATE INDEX IF NOT EXISTS "auto_coach_swap_logs_swapMadeAt_idx" ON "auto_coach_swap_logs"("swapMadeAt");
 
 -- CreateIndex
-CREATE INDEX "player_status_events_externalId_detectedAt_idx" ON "player_status_events"("externalId", "detectedAt");
+CREATE INDEX IF NOT EXISTS "player_status_events_externalId_detectedAt_idx" ON "player_status_events"("externalId", "detectedAt");
 
 -- CreateIndex
-CREATE INDEX "player_status_events_sport_gameDate_idx" ON "player_status_events"("sport", "gameDate");
+CREATE INDEX IF NOT EXISTS "player_status_events_sport_gameDate_idx" ON "player_status_events"("sport", "gameDate");
 
 -- CreateIndex
-CREATE INDEX "player_status_events_detectedAt_idx" ON "player_status_events"("detectedAt");
+CREATE INDEX IF NOT EXISTS "player_status_events_detectedAt_idx" ON "player_status_events"("detectedAt");
 
 -- CreateIndex
-CREATE INDEX "player_status_events_autoCoachTriggered_idx" ON "player_status_events"("autoCoachTriggered");
+CREATE INDEX IF NOT EXISTS "player_status_events_autoCoachTriggered_idx" ON "player_status_events"("autoCoachTriggered");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_settings_leagueId_key" ON "league_settings"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_settings_leagueId_key" ON "league_settings"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "league_seasons_leagueId_idx" ON "league_seasons"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_seasons_leagueId_idx" ON "league_seasons"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_seasons_leagueId_season_key" ON "league_seasons"("leagueId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_seasons_leagueId_season_key" ON "league_seasons"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "league_storylines_leagueId_season_week_idx" ON "league_storylines"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "league_storylines_leagueId_season_week_idx" ON "league_storylines"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "league_storylines_leagueId_storyType_createdAt_idx" ON "league_storylines"("leagueId", "storyType", "createdAt");
+CREATE INDEX IF NOT EXISTS "league_storylines_leagueId_storyType_createdAt_idx" ON "league_storylines"("leagueId", "storyType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "league_matchup_previews_leagueId_season_week_idx" ON "league_matchup_previews"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "league_matchup_previews_leagueId_season_week_idx" ON "league_matchup_previews"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_matchup_previews_leagueId_season_week_rosterAId_rost_key" ON "league_matchup_previews"("leagueId", "season", "week", "rosterAId", "rosterBId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_matchup_previews_leagueId_season_week_rosterAId_rost_key" ON "league_matchup_previews"("leagueId", "season", "week", "rosterAId", "rosterBId");
 
 -- CreateIndex
-CREATE INDEX "draft_recaps_leagueId_createdAt_idx" ON "draft_recaps"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "draft_recaps_leagueId_createdAt_idx" ON "draft_recaps"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "draft_recaps_draftSessionId_idx" ON "draft_recaps"("draftSessionId");
+CREATE INDEX IF NOT EXISTS "draft_recaps_draftSessionId_idx" ON "draft_recaps"("draftSessionId");
 
 -- CreateIndex
-CREATE INDEX "keeper_declarations_leagueId_season_status_idx" ON "keeper_declarations"("leagueId", "season", "status");
+CREATE INDEX IF NOT EXISTS "keeper_declarations_leagueId_season_status_idx" ON "keeper_declarations"("leagueId", "season", "status");
 
 -- CreateIndex
-CREATE INDEX "keeper_declarations_rosterId_season_idx" ON "keeper_declarations"("rosterId", "season");
+CREATE INDEX IF NOT EXISTS "keeper_declarations_rosterId_season_idx" ON "keeper_declarations"("rosterId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "keeper_declarations_leagueId_rosterId_season_playerId_key" ON "keeper_declarations"("leagueId", "rosterId", "season", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "keeper_declarations_leagueId_rosterId_season_playerId_key" ON "keeper_declarations"("leagueId", "rosterId", "season", "playerId");
 
 -- CreateIndex
-CREATE INDEX "scoring_settings_snapshots_leagueId_season_week_idx" ON "scoring_settings_snapshots"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "scoring_settings_snapshots_leagueId_season_week_idx" ON "scoring_settings_snapshots"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "scoring_settings_snapshots_leagueId_createdAt_idx" ON "scoring_settings_snapshots"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "scoring_settings_snapshots_leagueId_createdAt_idx" ON "scoring_settings_snapshots"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "league_intro_views_userId_seenAt_idx" ON "league_intro_views"("userId", "seenAt");
+CREATE INDEX IF NOT EXISTS "league_intro_views_userId_seenAt_idx" ON "league_intro_views"("userId", "seenAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_intro_views_leagueId_userId_key" ON "league_intro_views"("leagueId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_intro_views_leagueId_userId_key" ON "league_intro_views"("leagueId", "userId");
 
 -- CreateIndex
-CREATE INDEX "league_templates_userId_idx" ON "league_templates"("userId");
+CREATE INDEX IF NOT EXISTS "league_templates_userId_idx" ON "league_templates"("userId");
 
 -- CreateIndex
-CREATE INDEX "tournaments_creatorId_idx" ON "tournaments"("creatorId");
+CREATE INDEX IF NOT EXISTS "tournaments_creatorId_idx" ON "tournaments"("creatorId");
 
 -- CreateIndex
-CREATE INDEX "tournaments_sport_season_idx" ON "tournaments"("sport", "season");
+CREATE INDEX IF NOT EXISTS "tournaments_sport_season_idx" ON "tournaments"("sport", "season");
 
 -- CreateIndex
-CREATE INDEX "tournaments_status_idx" ON "tournaments"("status");
+CREATE INDEX IF NOT EXISTS "tournaments_status_idx" ON "tournaments"("status");
 
 -- CreateIndex
-CREATE INDEX "tournament_conferences_tournamentId_idx" ON "tournament_conferences"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_conferences_tournamentId_idx" ON "tournament_conferences"("tournamentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_leagues_leagueId_key" ON "tournament_leagues"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_leagues_leagueId_key" ON "tournament_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "tournament_leagues_tournamentId_idx" ON "tournament_leagues"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_leagues_tournamentId_idx" ON "tournament_leagues"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "tournament_leagues_conferenceId_idx" ON "tournament_leagues"("conferenceId");
+CREATE INDEX IF NOT EXISTS "tournament_leagues_conferenceId_idx" ON "tournament_leagues"("conferenceId");
 
 -- CreateIndex
-CREATE INDEX "tournament_rounds_tournamentId_idx" ON "tournament_rounds"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_rounds_tournamentId_idx" ON "tournament_rounds"("tournamentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_rounds_tournamentId_roundIndex_key" ON "tournament_rounds"("tournamentId", "roundIndex");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_rounds_tournamentId_roundIndex_key" ON "tournament_rounds"("tournamentId", "roundIndex");
 
 -- CreateIndex
-CREATE INDEX "tournament_announcements_tournamentId_idx" ON "tournament_announcements"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_announcements_tournamentId_idx" ON "tournament_announcements"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "tournament_announcements_tournamentId_createdAt_idx" ON "tournament_announcements"("tournamentId", "createdAt");
+CREATE INDEX IF NOT EXISTS "tournament_announcements_tournamentId_createdAt_idx" ON "tournament_announcements"("tournamentId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "tournament_audit_logs_tournamentId_idx" ON "tournament_audit_logs"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_audit_logs_tournamentId_idx" ON "tournament_audit_logs"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "tournament_audit_logs_tournamentId_createdAt_idx" ON "tournament_audit_logs"("tournamentId", "createdAt");
+CREATE INDEX IF NOT EXISTS "tournament_audit_logs_tournamentId_createdAt_idx" ON "tournament_audit_logs"("tournamentId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "tournament_participants_tournamentId_idx" ON "tournament_participants"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_participants_tournamentId_idx" ON "tournament_participants"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "tournament_participants_conferenceId_idx" ON "tournament_participants"("conferenceId");
+CREATE INDEX IF NOT EXISTS "tournament_participants_conferenceId_idx" ON "tournament_participants"("conferenceId");
 
 -- CreateIndex
-CREATE INDEX "tournament_participants_tournamentId_status_idx" ON "tournament_participants"("tournamentId", "status");
+CREATE INDEX IF NOT EXISTS "tournament_participants_tournamentId_status_idx" ON "tournament_participants"("tournamentId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_participants_tournamentId_userId_key" ON "tournament_participants"("tournamentId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_participants_tournamentId_userId_key" ON "tournament_participants"("tournamentId", "userId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shells_status_idx" ON "tournament_shells"("status");
+CREATE INDEX IF NOT EXISTS "tournament_shells_status_idx" ON "tournament_shells"("status");
 
 -- CreateIndex
-CREATE INDEX "tournament_shells_commissionerId_idx" ON "tournament_shells"("commissionerId");
+CREATE INDEX IF NOT EXISTS "tournament_shells_commissionerId_idx" ON "tournament_shells"("commissionerId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_conferences_tournamentId_idx" ON "tournament_shell_conferences"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_conferences_tournamentId_idx" ON "tournament_shell_conferences"("tournamentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_conferences_tournamentId_conferenceNumber_key" ON "tournament_shell_conferences"("tournamentId", "conferenceNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_conferences_tournamentId_conferenceNumber_key" ON "tournament_shell_conferences"("tournamentId", "conferenceNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_conferences_tournamentId_slug_key" ON "tournament_shell_conferences"("tournamentId", "slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_conferences_tournamentId_slug_key" ON "tournament_shell_conferences"("tournamentId", "slug");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_rounds_tournamentId_idx" ON "tournament_shell_rounds"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_rounds_tournamentId_idx" ON "tournament_shell_rounds"("tournamentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_rounds_tournamentId_roundNumber_key" ON "tournament_shell_rounds"("tournamentId", "roundNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_rounds_tournamentId_roundNumber_key" ON "tournament_shell_rounds"("tournamentId", "roundNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_leagues_leagueId_key" ON "tournament_shell_leagues"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_leagues_leagueId_key" ON "tournament_shell_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_leagues_tournamentId_roundId_idx" ON "tournament_shell_leagues"("tournamentId", "roundId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_leagues_tournamentId_roundId_idx" ON "tournament_shell_leagues"("tournamentId", "roundId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_leagues_conferenceId_idx" ON "tournament_shell_leagues"("conferenceId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_leagues_conferenceId_idx" ON "tournament_shell_leagues"("conferenceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_leagues_tournamentId_name_key" ON "tournament_shell_leagues"("tournamentId", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_leagues_tournamentId_name_key" ON "tournament_shell_leagues"("tournamentId", "name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_leagues_tournamentId_slug_key" ON "tournament_shell_leagues"("tournamentId", "slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_leagues_tournamentId_slug_key" ON "tournament_shell_leagues"("tournamentId", "slug");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_participants_tournamentId_status_idx" ON "tournament_shell_participants"("tournamentId", "status");
+CREATE INDEX IF NOT EXISTS "tournament_shell_participants_tournamentId_status_idx" ON "tournament_shell_participants"("tournamentId", "status");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_participants_userId_idx" ON "tournament_shell_participants"("userId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_participants_userId_idx" ON "tournament_shell_participants"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_participants_tournamentId_userId_key" ON "tournament_shell_participants"("tournamentId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_participants_tournamentId_userId_key" ON "tournament_shell_participants"("tournamentId", "userId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_league_participants_tournamentLeagueId_idx" ON "tournament_shell_league_participants"("tournamentLeagueId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_league_participants_tournamentLeagueId_idx" ON "tournament_shell_league_participants"("tournamentLeagueId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_league_participants_participantId_idx" ON "tournament_shell_league_participants"("participantId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_league_participants_participantId_idx" ON "tournament_shell_league_participants"("participantId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tournament_shell_league_participants_tournamentLeagueId_par_key" ON "tournament_shell_league_participants"("tournamentLeagueId", "participantId");
+CREATE UNIQUE INDEX IF NOT EXISTS "tournament_shell_league_participants_tournamentLeagueId_par_key" ON "tournament_shell_league_participants"("tournamentLeagueId", "participantId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_advancement_groups_tournamentId_idx" ON "tournament_shell_advancement_groups"("tournamentId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_advancement_groups_tournamentId_idx" ON "tournament_shell_advancement_groups"("tournamentId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_advancement_groups_conferenceId_idx" ON "tournament_shell_advancement_groups"("conferenceId");
+CREATE INDEX IF NOT EXISTS "tournament_shell_advancement_groups_conferenceId_idx" ON "tournament_shell_advancement_groups"("conferenceId");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_name_records_tournamentId_entityType_idx" ON "tournament_shell_name_records"("tournamentId", "entityType");
+CREATE INDEX IF NOT EXISTS "tournament_shell_name_records_tournamentId_entityType_idx" ON "tournament_shell_name_records"("tournamentId", "entityType");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_announcements_tournamentId_type_idx" ON "tournament_shell_announcements"("tournamentId", "type");
+CREATE INDEX IF NOT EXISTS "tournament_shell_announcements_tournamentId_type_idx" ON "tournament_shell_announcements"("tournamentId", "type");
 
 -- CreateIndex
-CREATE INDEX "tournament_shell_audit_logs_tournamentId_action_idx" ON "tournament_shell_audit_logs"("tournamentId", "action");
+CREATE INDEX IF NOT EXISTS "tournament_shell_audit_logs_tournamentId_action_idx" ON "tournament_shell_audit_logs"("tournamentId", "action");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "chat_gifs_giphyId_key" ON "chat_gifs"("giphyId");
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_gifs_giphyId_key" ON "chat_gifs"("giphyId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "chat_emojis_char_key" ON "chat_emojis"("char");
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_emojis_char_key" ON "chat_emojis"("char");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "chat_emojis_shortcode_key" ON "chat_emojis"("shortcode");
+CREATE UNIQUE INDEX IF NOT EXISTS "chat_emojis_shortcode_key" ON "chat_emojis"("shortcode");
 
 -- CreateIndex
-CREATE INDEX "chat_emojis_category_idx" ON "chat_emojis"("category");
+CREATE INDEX IF NOT EXISTS "chat_emojis_category_idx" ON "chat_emojis"("category");
 
 -- CreateIndex
-CREATE INDEX "league_chat_messages_leagueId_idx" ON "league_chat_messages"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_chat_messages_leagueId_idx" ON "league_chat_messages"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "league_chat_messages_leagueId_source_idx" ON "league_chat_messages"("leagueId", "source");
+CREATE INDEX IF NOT EXISTS "league_chat_messages_leagueId_source_idx" ON "league_chat_messages"("leagueId", "source");
 
 -- CreateIndex
-CREATE INDEX "league_chat_messages_createdAt_idx" ON "league_chat_messages"("createdAt");
+CREATE INDEX IF NOT EXISTS "league_chat_messages_createdAt_idx" ON "league_chat_messages"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "league_chat_messages_globalBroadcastId_idx" ON "league_chat_messages"("globalBroadcastId");
+CREATE INDEX IF NOT EXISTS "league_chat_messages_globalBroadcastId_idx" ON "league_chat_messages"("globalBroadcastId");
 
 -- CreateIndex
-CREATE INDEX "supplemental_drafts_leagueId_idx" ON "supplemental_drafts"("leagueId");
+CREATE INDEX IF NOT EXISTS "supplemental_drafts_leagueId_idx" ON "supplemental_drafts"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "supplemental_drafts_status_idx" ON "supplemental_drafts"("status");
+CREATE INDEX IF NOT EXISTS "supplemental_drafts_status_idx" ON "supplemental_drafts"("status");
 
 -- CreateIndex
-CREATE INDEX "supplemental_draft_picks_supplementalDraftId_rosterId_idx" ON "supplemental_draft_picks"("supplementalDraftId", "rosterId");
+CREATE INDEX IF NOT EXISTS "supplemental_draft_picks_supplementalDraftId_rosterId_idx" ON "supplemental_draft_picks"("supplementalDraftId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "supplemental_draft_picks_supplementalDraftId_pickNumber_key" ON "supplemental_draft_picks"("supplementalDraftId", "pickNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "supplemental_draft_picks_supplementalDraftId_pickNumber_key" ON "supplemental_draft_picks"("supplementalDraftId", "pickNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ai_commissioner_configs_leagueId_key" ON "ai_commissioner_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_commissioner_configs_leagueId_key" ON "ai_commissioner_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_configs_leagueId_sport_idx" ON "ai_commissioner_configs"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "ai_commissioner_configs_leagueId_sport_idx" ON "ai_commissioner_configs"("leagueId", "sport");
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_alerts_leagueId_createdAt_idx" ON "ai_commissioner_alerts"("leagueId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "ai_commissioner_alerts_leagueId_createdAt_idx" ON "ai_commissioner_alerts"("leagueId", "createdAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_alerts_leagueId_status_createdAt_idx" ON "ai_commissioner_alerts"("leagueId", "status", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "ai_commissioner_alerts_leagueId_status_createdAt_idx" ON "ai_commissioner_alerts"("leagueId", "status", "createdAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_alerts_leagueId_alertType_idx" ON "ai_commissioner_alerts"("leagueId", "alertType");
+CREATE INDEX IF NOT EXISTS "ai_commissioner_alerts_leagueId_alertType_idx" ON "ai_commissioner_alerts"("leagueId", "alertType");
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_action_logs_leagueId_createdAt_idx" ON "ai_commissioner_action_logs"("leagueId", "createdAt" DESC);
+CREATE INDEX IF NOT EXISTS "ai_commissioner_action_logs_leagueId_createdAt_idx" ON "ai_commissioner_action_logs"("leagueId", "createdAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "ai_commissioner_action_logs_leagueId_actionType_idx" ON "ai_commissioner_action_logs"("leagueId", "actionType");
+CREATE INDEX IF NOT EXISTS "ai_commissioner_action_logs_leagueId_actionType_idx" ON "ai_commissioner_action_logs"("leagueId", "actionType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueInvite_token_key" ON "LeagueInvite"("token");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueInvite_token_key" ON "LeagueInvite"("token");
 
 -- CreateIndex
-CREATE INDEX "LeagueInvite_token_idx" ON "LeagueInvite"("token");
+CREATE INDEX IF NOT EXISTS "LeagueInvite_token_idx" ON "LeagueInvite"("token");
 
 -- CreateIndex
-CREATE INDEX "LeagueInvite_leagueId_idx" ON "LeagueInvite"("leagueId");
+CREATE INDEX IF NOT EXISTS "LeagueInvite_leagueId_idx" ON "LeagueInvite"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueManagerClaim_leagueId_afUserId_key" ON "LeagueManagerClaim"("leagueId", "afUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueManagerClaim_leagueId_afUserId_key" ON "LeagueManagerClaim"("leagueId", "afUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LeagueManagerClaim_leagueId_teamExternalId_key" ON "LeagueManagerClaim"("leagueId", "teamExternalId");
+CREATE UNIQUE INDEX IF NOT EXISTS "LeagueManagerClaim_leagueId_teamExternalId_key" ON "LeagueManagerClaim"("leagueId", "teamExternalId");
 
 -- CreateIndex
-CREATE INDEX "find_league_listings_isActive_sport_createdAt_idx" ON "find_league_listings"("isActive", "sport", "createdAt");
+CREATE INDEX IF NOT EXISTS "find_league_listings_isActive_sport_createdAt_idx" ON "find_league_listings"("isActive", "sport", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "find_league_listings_leagueId_rosterId_key" ON "find_league_listings"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "find_league_listings_leagueId_rosterId_key" ON "find_league_listings"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "rosters_leagueId_idx" ON "rosters"("leagueId");
+CREATE INDEX IF NOT EXISTS "rosters_leagueId_idx" ON "rosters"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "rosters_platformUserId_idx" ON "rosters"("platformUserId");
+CREATE INDEX IF NOT EXISTS "rosters_platformUserId_idx" ON "rosters"("platformUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rosters_leagueId_platformUserId_key" ON "rosters"("leagueId", "platformUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "rosters_leagueId_platformUserId_key" ON "rosters"("leagueId", "platformUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_teams_legacyRosterId_key" ON "league_teams"("legacyRosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_teams_legacyRosterId_key" ON "league_teams"("legacyRosterId");
 
 -- CreateIndex
-CREATE INDEX "league_teams_leagueId_pointsFor_idx" ON "league_teams"("leagueId", "pointsFor");
+CREATE INDEX IF NOT EXISTS "league_teams_leagueId_pointsFor_idx" ON "league_teams"("leagueId", "pointsFor");
 
 -- CreateIndex
-CREATE INDEX "league_teams_divisionId_idx" ON "league_teams"("divisionId");
+CREATE INDEX IF NOT EXISTS "league_teams_divisionId_idx" ON "league_teams"("divisionId");
 
 -- CreateIndex
-CREATE INDEX "league_teams_aiPowerScore_idx" ON "league_teams"("aiPowerScore");
+CREATE INDEX IF NOT EXISTS "league_teams_aiPowerScore_idx" ON "league_teams"("aiPowerScore");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_teams_leagueId_externalId_key" ON "league_teams"("leagueId", "externalId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_teams_leagueId_externalId_key" ON "league_teams"("leagueId", "externalId");
 
 -- CreateIndex
-CREATE INDEX "league_divisions_leagueId_idx" ON "league_divisions"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_divisions_leagueId_idx" ON "league_divisions"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_divisions_leagueId_tierLevel_key" ON "league_divisions"("leagueId", "tierLevel");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_divisions_leagueId_tierLevel_key" ON "league_divisions"("leagueId", "tierLevel");
 
 -- CreateIndex
-CREATE INDEX "promotion_rules_leagueId_idx" ON "promotion_rules"("leagueId");
+CREATE INDEX IF NOT EXISTS "promotion_rules_leagueId_idx" ON "promotion_rules"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "promotion_rules_leagueId_fromTierLevel_toTierLevel_key" ON "promotion_rules"("leagueId", "fromTierLevel", "toTierLevel");
+CREATE UNIQUE INDEX IF NOT EXISTS "promotion_rules_leagueId_fromTierLevel_toTierLevel_key" ON "promotion_rules"("leagueId", "fromTierLevel", "toTierLevel");
 
 -- CreateIndex
-CREATE INDEX "team_performances_teamId_season_idx" ON "team_performances"("teamId", "season");
+CREATE INDEX IF NOT EXISTS "team_performances_teamId_season_idx" ON "team_performances"("teamId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "team_performances_teamId_season_week_key" ON "team_performances"("teamId", "season", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "team_performances_teamId_season_week_key" ON "team_performances"("teamId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "league_auths_userId_idx" ON "league_auths"("userId");
+CREATE INDEX IF NOT EXISTS "league_auths_userId_idx" ON "league_auths"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_auths_userId_platform_key" ON "league_auths"("userId", "platform");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_auths_userId_platform_key" ON "league_auths"("userId", "platform");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_waiver_settings_leagueId_key" ON "league_waiver_settings"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_waiver_settings_leagueId_key" ON "league_waiver_settings"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "guillotine_league_configs_leagueId_key" ON "guillotine_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "guillotine_league_configs_leagueId_key" ON "guillotine_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_roster_states_leagueId_idx" ON "guillotine_roster_states"("leagueId");
+CREATE INDEX IF NOT EXISTS "guillotine_roster_states_leagueId_idx" ON "guillotine_roster_states"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_roster_states_leagueId_choppedInPeriod_idx" ON "guillotine_roster_states"("leagueId", "choppedInPeriod");
+CREATE INDEX IF NOT EXISTS "guillotine_roster_states_leagueId_choppedInPeriod_idx" ON "guillotine_roster_states"("leagueId", "choppedInPeriod");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "guillotine_roster_states_rosterId_key" ON "guillotine_roster_states"("rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "guillotine_roster_states_rosterId_key" ON "guillotine_roster_states"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_period_scores_leagueId_weekOrPeriod_idx" ON "guillotine_period_scores"("leagueId", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "guillotine_period_scores_leagueId_weekOrPeriod_idx" ON "guillotine_period_scores"("leagueId", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_period_scores_leagueId_rosterId_idx" ON "guillotine_period_scores"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "guillotine_period_scores_leagueId_rosterId_idx" ON "guillotine_period_scores"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "guillotine_period_scores_leagueId_rosterId_weekOrPeriod_key" ON "guillotine_period_scores"("leagueId", "rosterId", "weekOrPeriod");
+CREATE UNIQUE INDEX IF NOT EXISTS "guillotine_period_scores_leagueId_rosterId_weekOrPeriod_key" ON "guillotine_period_scores"("leagueId", "rosterId", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_event_logs_leagueId_idx" ON "guillotine_event_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "guillotine_event_logs_leagueId_idx" ON "guillotine_event_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_event_logs_leagueId_eventType_idx" ON "guillotine_event_logs"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "guillotine_event_logs_leagueId_eventType_idx" ON "guillotine_event_logs"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "guillotine_event_logs_createdAt_idx" ON "guillotine_event_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "guillotine_event_logs_createdAt_idx" ON "guillotine_event_logs"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "salary_cap_league_configs_leagueId_key" ON "salary_cap_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "salary_cap_league_configs_leagueId_key" ON "salary_cap_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "salary_cap_team_ledgers_leagueId_capYear_idx" ON "salary_cap_team_ledgers"("leagueId", "capYear");
+CREATE INDEX IF NOT EXISTS "salary_cap_team_ledgers_leagueId_capYear_idx" ON "salary_cap_team_ledgers"("leagueId", "capYear");
 
 -- CreateIndex
-CREATE INDEX "salary_cap_team_ledgers_rosterId_capYear_idx" ON "salary_cap_team_ledgers"("rosterId", "capYear");
+CREATE INDEX IF NOT EXISTS "salary_cap_team_ledgers_rosterId_capYear_idx" ON "salary_cap_team_ledgers"("rosterId", "capYear");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "salary_cap_team_ledgers_configId_rosterId_capYear_key" ON "salary_cap_team_ledgers"("configId", "rosterId", "capYear");
+CREATE UNIQUE INDEX IF NOT EXISTS "salary_cap_team_ledgers_configId_rosterId_capYear_key" ON "salary_cap_team_ledgers"("configId", "rosterId", "capYear");
 
 -- CreateIndex
-CREATE INDEX "player_contracts_leagueId_rosterId_idx" ON "player_contracts"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "player_contracts_leagueId_rosterId_idx" ON "player_contracts"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "player_contracts_leagueId_playerId_idx" ON "player_contracts"("leagueId", "playerId");
+CREATE INDEX IF NOT EXISTS "player_contracts_leagueId_playerId_idx" ON "player_contracts"("leagueId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "player_contracts_configId_yearSigned_idx" ON "player_contracts"("configId", "yearSigned");
+CREATE INDEX IF NOT EXISTS "player_contracts_configId_yearSigned_idx" ON "player_contracts"("configId", "yearSigned");
 
 -- CreateIndex
-CREATE INDEX "player_contracts_rosterId_status_idx" ON "player_contracts"("rosterId", "status");
+CREATE INDEX IF NOT EXISTS "player_contracts_rosterId_status_idx" ON "player_contracts"("rosterId", "status");
 
 -- CreateIndex
-CREATE INDEX "salary_cap_event_logs_leagueId_eventType_idx" ON "salary_cap_event_logs"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "salary_cap_event_logs_leagueId_eventType_idx" ON "salary_cap_event_logs"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "salary_cap_event_logs_createdAt_idx" ON "salary_cap_event_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "salary_cap_event_logs_createdAt_idx" ON "salary_cap_event_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "salary_cap_lottery_results_leagueId_capYear_idx" ON "salary_cap_lottery_results"("leagueId", "capYear");
+CREATE INDEX IF NOT EXISTS "salary_cap_lottery_results_leagueId_capYear_idx" ON "salary_cap_lottery_results"("leagueId", "capYear");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "salary_cap_lottery_results_configId_capYear_key" ON "salary_cap_lottery_results"("configId", "capYear");
+CREATE UNIQUE INDEX IF NOT EXISTS "salary_cap_lottery_results_configId_capYear_key" ON "salary_cap_lottery_results"("configId", "capYear");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_league_configs_leagueId_key" ON "survivor_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_league_configs_leagueId_key" ON "survivor_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribes_leagueId_idx" ON "survivor_tribes"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_tribes_leagueId_idx" ON "survivor_tribes"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_tribes_configId_slotIndex_key" ON "survivor_tribes"("configId", "slotIndex");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_tribes_configId_slotIndex_key" ON "survivor_tribes"("configId", "slotIndex");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribe_members_rosterId_idx" ON "survivor_tribe_members"("rosterId");
+CREATE INDEX IF NOT EXISTS "survivor_tribe_members_rosterId_idx" ON "survivor_tribe_members"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribe_members_tribeId_idx" ON "survivor_tribe_members"("tribeId");
+CREATE INDEX IF NOT EXISTS "survivor_tribe_members_tribeId_idx" ON "survivor_tribe_members"("tribeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_tribe_members_tribeId_rosterId_key" ON "survivor_tribe_members"("tribeId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_tribe_members_tribeId_rosterId_key" ON "survivor_tribe_members"("tribeId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "survivor_idols_leagueId_rosterId_idx" ON "survivor_idols"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "survivor_idols_leagueId_rosterId_idx" ON "survivor_idols"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "survivor_idols_leagueId_playerId_idx" ON "survivor_idols"("leagueId", "playerId");
+CREATE INDEX IF NOT EXISTS "survivor_idols_leagueId_playerId_idx" ON "survivor_idols"("leagueId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "survivor_idols_configId_status_idx" ON "survivor_idols"("configId", "status");
+CREATE INDEX IF NOT EXISTS "survivor_idols_configId_status_idx" ON "survivor_idols"("configId", "status");
 
 -- CreateIndex
-CREATE INDEX "survivor_idols_leagueId_currentOwnerUserId_idx" ON "survivor_idols"("leagueId", "currentOwnerUserId");
+CREATE INDEX IF NOT EXISTS "survivor_idols_leagueId_currentOwnerUserId_idx" ON "survivor_idols"("leagueId", "currentOwnerUserId");
 
 -- CreateIndex
-CREATE INDEX "survivor_idols_leagueId_powerType_idx" ON "survivor_idols"("leagueId", "powerType");
+CREATE INDEX IF NOT EXISTS "survivor_idols_leagueId_powerType_idx" ON "survivor_idols"("leagueId", "powerType");
 
 -- CreateIndex
-CREATE INDEX "survivor_idol_ledger_entries_leagueId_eventType_idx" ON "survivor_idol_ledger_entries"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "survivor_idol_ledger_entries_leagueId_eventType_idx" ON "survivor_idol_ledger_entries"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "survivor_idol_ledger_entries_idolId_idx" ON "survivor_idol_ledger_entries"("idolId");
+CREATE INDEX IF NOT EXISTS "survivor_idol_ledger_entries_idolId_idx" ON "survivor_idol_ledger_entries"("idolId");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribal_councils_leagueId_week_idx" ON "survivor_tribal_councils"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_tribal_councils_leagueId_week_idx" ON "survivor_tribal_councils"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_tribal_councils_configId_week_councilNumber_key" ON "survivor_tribal_councils"("configId", "week", "councilNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_tribal_councils_configId_week_councilNumber_key" ON "survivor_tribal_councils"("configId", "week", "councilNumber");
 
 -- CreateIndex
-CREATE INDEX "survivor_votes_councilId_idx" ON "survivor_votes"("councilId");
+CREATE INDEX IF NOT EXISTS "survivor_votes_councilId_idx" ON "survivor_votes"("councilId");
 
 -- CreateIndex
-CREATE INDEX "survivor_votes_voterUserId_idx" ON "survivor_votes"("voterUserId");
+CREATE INDEX IF NOT EXISTS "survivor_votes_voterUserId_idx" ON "survivor_votes"("voterUserId");
 
 -- CreateIndex
-CREATE INDEX "survivor_votes_leagueId_idx" ON "survivor_votes"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_votes_leagueId_idx" ON "survivor_votes"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_votes_councilId_voterRosterId_key" ON "survivor_votes"("councilId", "voterRosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_votes_councilId_voterRosterId_key" ON "survivor_votes"("councilId", "voterRosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_exile_leagues_mainLeagueId_key" ON "survivor_exile_leagues"("mainLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_exile_leagues_mainLeagueId_key" ON "survivor_exile_leagues"("mainLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_exile_leagues_configId_key" ON "survivor_exile_leagues"("configId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_exile_leagues_configId_key" ON "survivor_exile_leagues"("configId");
 
 -- CreateIndex
-CREATE INDEX "survivor_exile_leagues_exileLeagueId_idx" ON "survivor_exile_leagues"("exileLeagueId");
+CREATE INDEX IF NOT EXISTS "survivor_exile_leagues_exileLeagueId_idx" ON "survivor_exile_leagues"("exileLeagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_exile_tokens_exileLeagueId_idx" ON "survivor_exile_tokens"("exileLeagueId");
+CREATE INDEX IF NOT EXISTS "survivor_exile_tokens_exileLeagueId_idx" ON "survivor_exile_tokens"("exileLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_exile_tokens_exileLeagueId_rosterId_key" ON "survivor_exile_tokens"("exileLeagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_exile_tokens_exileLeagueId_rosterId_key" ON "survivor_exile_tokens"("exileLeagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "survivor_jury_members_leagueId_idx" ON "survivor_jury_members"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_jury_members_leagueId_idx" ON "survivor_jury_members"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_jury_members_leagueId_rosterId_key" ON "survivor_jury_members"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_jury_members_leagueId_rosterId_key" ON "survivor_jury_members"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "survivor_audit_logs_leagueId_eventType_idx" ON "survivor_audit_logs"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "survivor_audit_logs_leagueId_eventType_idx" ON "survivor_audit_logs"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "survivor_audit_logs_createdAt_idx" ON "survivor_audit_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "survivor_audit_logs_createdAt_idx" ON "survivor_audit_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "survivor_challenges_leagueId_week_idx" ON "survivor_challenges"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_challenges_leagueId_week_idx" ON "survivor_challenges"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_challenges_configId_week_challengeNumber_challenge_key" ON "survivor_challenges"("configId", "week", "challengeNumber", "challengeType");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_challenges_configId_week_challengeNumber_challenge_key" ON "survivor_challenges"("configId", "week", "challengeNumber", "challengeType");
 
 -- CreateIndex
-CREATE INDEX "survivor_challenge_submissions_challengeId_idx" ON "survivor_challenge_submissions"("challengeId");
+CREATE INDEX IF NOT EXISTS "survivor_challenge_submissions_challengeId_idx" ON "survivor_challenge_submissions"("challengeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_challenge_submissions_challengeId_rosterId_key" ON "survivor_challenge_submissions"("challengeId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_challenge_submissions_challengeId_rosterId_key" ON "survivor_challenge_submissions"("challengeId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_challenge_submissions_challengeId_tribeId_key" ON "survivor_challenge_submissions"("challengeId", "tribeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_challenge_submissions_challengeId_tribeId_key" ON "survivor_challenge_submissions"("challengeId", "tribeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_challenge_submissions_challengeId_userId_key" ON "survivor_challenge_submissions"("challengeId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_challenge_submissions_challengeId_userId_key" ON "survivor_challenge_submissions"("challengeId", "userId");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribe_chat_members_tribeId_idx" ON "survivor_tribe_chat_members"("tribeId");
+CREATE INDEX IF NOT EXISTS "survivor_tribe_chat_members_tribeId_idx" ON "survivor_tribe_chat_members"("tribeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_tribe_chat_members_tribeId_rosterId_key" ON "survivor_tribe_chat_members"("tribeId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_tribe_chat_members_tribeId_rosterId_key" ON "survivor_tribe_chat_members"("tribeId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_tribe_chat_members_tribeId_userId_key" ON "survivor_tribe_chat_members"("tribeId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_tribe_chat_members_tribeId_userId_key" ON "survivor_tribe_chat_members"("tribeId", "userId");
 
 -- CreateIndex
-CREATE INDEX "survivor_players_leagueId_playerState_idx" ON "survivor_players"("leagueId", "playerState");
+CREATE INDEX IF NOT EXISTS "survivor_players_leagueId_playerState_idx" ON "survivor_players"("leagueId", "playerState");
 
 -- CreateIndex
-CREATE INDEX "survivor_players_tribeId_idx" ON "survivor_players"("tribeId");
+CREATE INDEX IF NOT EXISTS "survivor_players_tribeId_idx" ON "survivor_players"("tribeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_players_leagueId_userId_key" ON "survivor_players"("leagueId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_players_leagueId_userId_key" ON "survivor_players"("leagueId", "userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_jury_sessions_leagueId_key" ON "survivor_jury_sessions"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_jury_sessions_leagueId_key" ON "survivor_jury_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_jury_votes_sessionId_idx" ON "survivor_jury_votes"("sessionId");
+CREATE INDEX IF NOT EXISTS "survivor_jury_votes_sessionId_idx" ON "survivor_jury_votes"("sessionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_jury_votes_sessionId_jurorUserId_key" ON "survivor_jury_votes"("sessionId", "jurorUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_jury_votes_sessionId_jurorUserId_key" ON "survivor_jury_votes"("sessionId", "jurorUserId");
 
 -- CreateIndex
-CREATE INDEX "survivor_host_messages_leagueId_channelType_idx" ON "survivor_host_messages"("leagueId", "channelType");
+CREATE INDEX IF NOT EXISTS "survivor_host_messages_leagueId_channelType_idx" ON "survivor_host_messages"("leagueId", "channelType");
 
 -- CreateIndex
-CREATE INDEX "survivor_chat_channels_leagueId_channelType_idx" ON "survivor_chat_channels"("leagueId", "channelType");
+CREATE INDEX IF NOT EXISTS "survivor_chat_channels_leagueId_channelType_idx" ON "survivor_chat_channels"("leagueId", "channelType");
 
 -- CreateIndex
-CREATE INDEX "survivor_tribe_swaps_leagueId_idx" ON "survivor_tribe_swaps"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_tribe_swaps_leagueId_idx" ON "survivor_tribe_swaps"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_token_pool_picks_leagueId_userId_week_idx" ON "survivor_token_pool_picks"("leagueId", "userId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_token_pool_picks_leagueId_userId_week_idx" ON "survivor_token_pool_picks"("leagueId", "userId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_exile_islands_leagueId_key" ON "survivor_exile_islands"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_exile_islands_leagueId_key" ON "survivor_exile_islands"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_exile_islands_leagueId_idx" ON "survivor_exile_islands"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_exile_islands_leagueId_idx" ON "survivor_exile_islands"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_exile_weekly_entries_exileId_week_idx" ON "survivor_exile_weekly_entries"("exileId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_exile_weekly_entries_exileId_week_idx" ON "survivor_exile_weekly_entries"("exileId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_exile_weekly_entries_exileId_userId_week_key" ON "survivor_exile_weekly_entries"("exileId", "userId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_exile_weekly_entries_exileId_userId_week_key" ON "survivor_exile_weekly_entries"("exileId", "userId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_power_templates_powerType_key" ON "survivor_power_templates"("powerType");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_power_templates_powerType_key" ON "survivor_power_templates"("powerType");
 
 -- CreateIndex
-CREATE INDEX "survivor_power_templates_powerCategory_idx" ON "survivor_power_templates"("powerCategory");
+CREATE INDEX IF NOT EXISTS "survivor_power_templates_powerCategory_idx" ON "survivor_power_templates"("powerCategory");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_season_arc_templates_name_key" ON "survivor_season_arc_templates"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_season_arc_templates_name_key" ON "survivor_season_arc_templates"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_challenge_templates_challengeKey_key" ON "survivor_challenge_templates"("challengeKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_challenge_templates_challengeKey_key" ON "survivor_challenge_templates"("challengeKey");
 
 -- CreateIndex
-CREATE INDEX "survivor_challenge_templates_category_phaseValidity_idx" ON "survivor_challenge_templates"("category", "phaseValidity");
+CREATE INDEX IF NOT EXISTS "survivor_challenge_templates_category_phaseValidity_idx" ON "survivor_challenge_templates"("category", "phaseValidity");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_power_balances_leagueId_key" ON "survivor_power_balances"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_power_balances_leagueId_key" ON "survivor_power_balances"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_power_balances_leagueId_idx" ON "survivor_power_balances"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_power_balances_leagueId_idx" ON "survivor_power_balances"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_twist_events_leagueId_week_idx" ON "survivor_twist_events"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_twist_events_leagueId_week_idx" ON "survivor_twist_events"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "survivor_audit_entries_leagueId_category_idx" ON "survivor_audit_entries"("leagueId", "category");
+CREATE INDEX IF NOT EXISTS "survivor_audit_entries_leagueId_category_idx" ON "survivor_audit_entries"("leagueId", "category");
 
 -- CreateIndex
-CREATE INDEX "survivor_audit_entries_leagueId_week_idx" ON "survivor_audit_entries"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_audit_entries_leagueId_week_idx" ON "survivor_audit_entries"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_game_states_leagueId_key" ON "survivor_game_states"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_game_states_leagueId_key" ON "survivor_game_states"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_game_states_phase_idx" ON "survivor_game_states"("phase");
+CREATE INDEX IF NOT EXISTS "survivor_game_states_phase_idx" ON "survivor_game_states"("phase");
 
 -- CreateIndex
-CREATE INDEX "survivor_phase_transitions_leagueId_idx" ON "survivor_phase_transitions"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_phase_transitions_leagueId_idx" ON "survivor_phase_transitions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_notifications_leagueId_status_idx" ON "survivor_notifications"("leagueId", "status");
+CREATE INDEX IF NOT EXISTS "survivor_notifications_leagueId_status_idx" ON "survivor_notifications"("leagueId", "status");
 
 -- CreateIndex
-CREATE INDEX "survivor_notifications_recipientUserId_status_idx" ON "survivor_notifications"("recipientUserId", "status");
+CREATE INDEX IF NOT EXISTS "survivor_notifications_recipientUserId_status_idx" ON "survivor_notifications"("recipientUserId", "status");
 
 -- CreateIndex
-CREATE INDEX "survivor_chat_messages_channelId_createdAt_idx" ON "survivor_chat_messages"("channelId", "createdAt");
+CREATE INDEX IF NOT EXISTS "survivor_chat_messages_channelId_createdAt_idx" ON "survivor_chat_messages"("channelId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "survivor_chat_messages_leagueId_channelType_idx" ON "survivor_chat_messages"("leagueId", "channelType");
+CREATE INDEX IF NOT EXISTS "survivor_chat_messages_leagueId_channelType_idx" ON "survivor_chat_messages"("leagueId", "channelType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_chat_reactions_messageId_userId_emoji_key" ON "survivor_chat_reactions"("messageId", "userId", "emoji");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_chat_reactions_messageId_userId_emoji_key" ON "survivor_chat_reactions"("messageId", "userId", "emoji");
 
 -- CreateIndex
-CREATE INDEX "survivor_commissioner_actions_leagueId_idx" ON "survivor_commissioner_actions"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_commissioner_actions_leagueId_idx" ON "survivor_commissioner_actions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_commissioner_actions_commissionerId_idx" ON "survivor_commissioner_actions"("commissionerId");
+CREATE INDEX IF NOT EXISTS "survivor_commissioner_actions_commissionerId_idx" ON "survivor_commissioner_actions"("commissionerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_season_snapshots_leagueId_key" ON "survivor_season_snapshots"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_season_snapshots_leagueId_key" ON "survivor_season_snapshots"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_season_snapshots_leagueId_idx" ON "survivor_season_snapshots"("leagueId");
+CREATE INDEX IF NOT EXISTS "survivor_season_snapshots_leagueId_idx" ON "survivor_season_snapshots"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "survivor_weekly_scores_leagueId_week_idx" ON "survivor_weekly_scores"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "survivor_weekly_scores_leagueId_week_idx" ON "survivor_weekly_scores"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "survivor_weekly_scores_leagueId_userId_week_key" ON "survivor_weekly_scores"("leagueId", "userId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "survivor_weekly_scores_leagueId_userId_week_key" ON "survivor_weekly_scores"("leagueId", "userId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "big_brother_league_configs_leagueId_key" ON "big_brother_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "big_brother_league_configs_leagueId_key" ON "big_brother_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "big_brother_cycles_leagueId_week_idx" ON "big_brother_cycles"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "big_brother_cycles_leagueId_week_idx" ON "big_brother_cycles"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "big_brother_cycles_configId_week_key" ON "big_brother_cycles"("configId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "big_brother_cycles_configId_week_key" ON "big_brother_cycles"("configId", "week");
 
 -- CreateIndex
-CREATE INDEX "big_brother_eviction_votes_cycleId_idx" ON "big_brother_eviction_votes"("cycleId");
+CREATE INDEX IF NOT EXISTS "big_brother_eviction_votes_cycleId_idx" ON "big_brother_eviction_votes"("cycleId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "big_brother_eviction_votes_cycleId_voterRosterId_key" ON "big_brother_eviction_votes"("cycleId", "voterRosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "big_brother_eviction_votes_cycleId_voterRosterId_key" ON "big_brother_eviction_votes"("cycleId", "voterRosterId");
 
 -- CreateIndex
-CREATE INDEX "big_brother_jury_members_leagueId_idx" ON "big_brother_jury_members"("leagueId");
+CREATE INDEX IF NOT EXISTS "big_brother_jury_members_leagueId_idx" ON "big_brother_jury_members"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "big_brother_jury_members_leagueId_rosterId_key" ON "big_brother_jury_members"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "big_brother_jury_members_leagueId_rosterId_key" ON "big_brother_jury_members"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "big_brother_finale_votes_leagueId_idx" ON "big_brother_finale_votes"("leagueId");
+CREATE INDEX IF NOT EXISTS "big_brother_finale_votes_leagueId_idx" ON "big_brother_finale_votes"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "big_brother_finale_votes_leagueId_juryRosterId_key" ON "big_brother_finale_votes"("leagueId", "juryRosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "big_brother_finale_votes_leagueId_juryRosterId_key" ON "big_brother_finale_votes"("leagueId", "juryRosterId");
 
 -- CreateIndex
-CREATE INDEX "big_brother_audit_logs_leagueId_eventType_idx" ON "big_brother_audit_logs"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "big_brother_audit_logs_leagueId_eventType_idx" ON "big_brother_audit_logs"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "big_brother_audit_logs_createdAt_idx" ON "big_brother_audit_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "big_brother_audit_logs_createdAt_idx" ON "big_brother_audit_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "big_brother_chat_command_logs_leagueId_createdAt_idx" ON "big_brother_chat_command_logs"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "big_brother_chat_command_logs_leagueId_createdAt_idx" ON "big_brother_chat_command_logs"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "big_brother_chat_command_logs_userId_idx" ON "big_brother_chat_command_logs"("userId");
+CREATE INDEX IF NOT EXISTS "big_brother_chat_command_logs_userId_idx" ON "big_brother_chat_command_logs"("userId");
 
 -- CreateIndex
-CREATE INDEX "zombie_universes_status_idx" ON "zombie_universes"("status");
+CREATE INDEX IF NOT EXISTS "zombie_universes_status_idx" ON "zombie_universes"("status");
 
 -- CreateIndex
-CREATE INDEX "zombie_universes_commissionedByUserId_idx" ON "zombie_universes"("commissionedByUserId");
+CREATE INDEX IF NOT EXISTS "zombie_universes_commissionedByUserId_idx" ON "zombie_universes"("commissionedByUserId");
 
 -- CreateIndex
-CREATE INDEX "zombie_universe_levels_universeId_idx" ON "zombie_universe_levels"("universeId");
+CREATE INDEX IF NOT EXISTS "zombie_universe_levels_universeId_idx" ON "zombie_universe_levels"("universeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_universe_levels_universeId_rankOrder_key" ON "zombie_universe_levels"("universeId", "rankOrder");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_universe_levels_universeId_rankOrder_key" ON "zombie_universe_levels"("universeId", "rankOrder");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_leagues_leagueId_key" ON "zombie_leagues"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_leagues_leagueId_key" ON "zombie_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_leagues_universeId_idx" ON "zombie_leagues"("universeId");
+CREATE INDEX IF NOT EXISTS "zombie_leagues_universeId_idx" ON "zombie_leagues"("universeId");
 
 -- CreateIndex
-CREATE INDEX "zombie_leagues_levelId_idx" ON "zombie_leagues"("levelId");
+CREATE INDEX IF NOT EXISTS "zombie_leagues_levelId_idx" ON "zombie_leagues"("levelId");
 
 -- CreateIndex
-CREATE INDEX "zombie_leagues_status_idx" ON "zombie_leagues"("status");
+CREATE INDEX IF NOT EXISTS "zombie_leagues_status_idx" ON "zombie_leagues"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_whisperer_records_zombieLeagueId_key" ON "zombie_whisperer_records"("zombieLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_whisperer_records_zombieLeagueId_key" ON "zombie_whisperer_records"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_whisperer_records_zombieLeagueId_idx" ON "zombie_whisperer_records"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_whisperer_records_zombieLeagueId_idx" ON "zombie_whisperer_records"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_whisperer_records_userId_idx" ON "zombie_whisperer_records"("userId");
+CREATE INDEX IF NOT EXISTS "zombie_whisperer_records_userId_idx" ON "zombie_whisperer_records"("userId");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_events_zombieLeagueId_week_idx" ON "zombie_infection_events"("zombieLeagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_infection_events_zombieLeagueId_week_idx" ON "zombie_infection_events"("zombieLeagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_events_victimUserId_idx" ON "zombie_infection_events"("victimUserId");
+CREATE INDEX IF NOT EXISTS "zombie_infection_events_victimUserId_idx" ON "zombie_infection_events"("victimUserId");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_events_infectorUserId_idx" ON "zombie_infection_events"("infectorUserId");
+CREATE INDEX IF NOT EXISTS "zombie_infection_events_infectorUserId_idx" ON "zombie_infection_events"("infectorUserId");
 
 -- CreateIndex
-CREATE INDEX "zombie_weekly_resolutions_zombieLeagueId_idx" ON "zombie_weekly_resolutions"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_weekly_resolutions_zombieLeagueId_idx" ON "zombie_weekly_resolutions"("zombieLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_weekly_resolutions_zombieLeagueId_week_key" ON "zombie_weekly_resolutions"("zombieLeagueId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_weekly_resolutions_zombieLeagueId_week_key" ON "zombie_weekly_resolutions"("zombieLeagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_item_templates_itemType_key" ON "zombie_item_templates"("itemType");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_item_templates_itemType_key" ON "zombie_item_templates"("itemType");
 
 -- CreateIndex
-CREATE INDEX "zombie_universe_stats_universeId_tierLabel_idx" ON "zombie_universe_stats"("universeId", "tierLabel");
+CREATE INDEX IF NOT EXISTS "zombie_universe_stats_universeId_tierLabel_idx" ON "zombie_universe_stats"("universeId", "tierLabel");
 
 -- CreateIndex
-CREATE INDEX "zombie_universe_stats_userId_idx" ON "zombie_universe_stats"("userId");
+CREATE INDEX IF NOT EXISTS "zombie_universe_stats_userId_idx" ON "zombie_universe_stats"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_universe_stats_universeId_userId_season_key" ON "zombie_universe_stats"("universeId", "userId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_universe_stats_universeId_userId_season_key" ON "zombie_universe_stats"("universeId", "userId", "season");
 
 -- CreateIndex
-CREATE INDEX "zombie_movement_records_universeId_season_idx" ON "zombie_movement_records"("universeId", "season");
+CREATE INDEX IF NOT EXISTS "zombie_movement_records_universeId_season_idx" ON "zombie_movement_records"("universeId", "season");
 
 -- CreateIndex
-CREATE INDEX "zombie_movement_records_userId_idx" ON "zombie_movement_records"("userId");
+CREATE INDEX IF NOT EXISTS "zombie_movement_records_userId_idx" ON "zombie_movement_records"("userId");
 
 -- CreateIndex
-CREATE INDEX "zombie_announcements_zombieLeagueId_type_idx" ON "zombie_announcements"("zombieLeagueId", "type");
+CREATE INDEX IF NOT EXISTS "zombie_announcements_zombieLeagueId_type_idx" ON "zombie_announcements"("zombieLeagueId", "type");
 
 -- CreateIndex
-CREATE INDEX "zombie_announcements_isPosted_scheduledFor_idx" ON "zombie_announcements"("isPosted", "scheduledFor");
+CREATE INDEX IF NOT EXISTS "zombie_announcements_isPosted_scheduledFor_idx" ON "zombie_announcements"("isPosted", "scheduledFor");
 
 -- CreateIndex
-CREATE INDEX "zombie_name_records_universeId_idx" ON "zombie_name_records"("universeId");
+CREATE INDEX IF NOT EXISTS "zombie_name_records_universeId_idx" ON "zombie_name_records"("universeId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_paid_configs_zombieLeagueId_key" ON "zombie_paid_configs"("zombieLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_paid_configs_zombieLeagueId_key" ON "zombie_paid_configs"("zombieLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_rules_templates_sport_key" ON "zombie_rules_templates"("sport");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_rules_templates_sport_key" ON "zombie_rules_templates"("sport");
 
 -- CreateIndex
-CREATE INDEX "zombie_rules_documents_leagueId_idx" ON "zombie_rules_documents"("leagueId");
+CREATE INDEX IF NOT EXISTS "zombie_rules_documents_leagueId_idx" ON "zombie_rules_documents"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_rules_documents_leagueId_version_key" ON "zombie_rules_documents"("leagueId", "version");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_rules_documents_leagueId_version_key" ON "zombie_rules_documents"("leagueId", "version");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_entries_zombieLeagueId_category_idx" ON "zombie_audit_entries"("zombieLeagueId", "category");
+CREATE INDEX IF NOT EXISTS "zombie_audit_entries_zombieLeagueId_category_idx" ON "zombie_audit_entries"("zombieLeagueId", "category");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_entries_zombieLeagueId_week_idx" ON "zombie_audit_entries"("zombieLeagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_audit_entries_zombieLeagueId_week_idx" ON "zombie_audit_entries"("zombieLeagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_entries_actorUserId_idx" ON "zombie_audit_entries"("actorUserId");
+CREATE INDEX IF NOT EXISTS "zombie_audit_entries_actorUserId_idx" ON "zombie_audit_entries"("actorUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_free_reward_configs_zombieLeagueId_key" ON "zombie_free_reward_configs"("zombieLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_free_reward_configs_zombieLeagueId_key" ON "zombie_free_reward_configs"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_ambush_actions_zombieLeagueId_week_idx" ON "zombie_ambush_actions"("zombieLeagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_ambush_actions_zombieLeagueId_week_idx" ON "zombie_ambush_actions"("zombieLeagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_ambush_actions_whispererUserId_idx" ON "zombie_ambush_actions"("whispererUserId");
+CREATE INDEX IF NOT EXISTS "zombie_ambush_actions_whispererUserId_idx" ON "zombie_ambush_actions"("whispererUserId");
 
 -- CreateIndex
-CREATE INDEX "zombie_bashing_events_leagueId_week_idx" ON "zombie_bashing_events"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_bashing_events_leagueId_week_idx" ON "zombie_bashing_events"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_mauling_events_leagueId_week_idx" ON "zombie_mauling_events"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_mauling_events_leagueId_week_idx" ON "zombie_mauling_events"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_chimmy_actions_leagueId_userId_week_idx" ON "zombie_chimmy_actions"("leagueId", "userId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_chimmy_actions_leagueId_userId_week_idx" ON "zombie_chimmy_actions"("leagueId", "userId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_chimmy_actions_leagueId_actionType_idx" ON "zombie_chimmy_actions"("leagueId", "actionType");
+CREATE INDEX IF NOT EXISTS "zombie_chimmy_actions_leagueId_actionType_idx" ON "zombie_chimmy_actions"("leagueId", "actionType");
 
 -- CreateIndex
-CREATE INDEX "zombie_commissioner_notifications_leagueId_commissionerId_i_idx" ON "zombie_commissioner_notifications"("leagueId", "commissionerId", "isRead");
+CREATE INDEX IF NOT EXISTS "zombie_commissioner_notifications_leagueId_commissionerId_i_idx" ON "zombie_commissioner_notifications"("leagueId", "commissionerId", "isRead");
 
 -- CreateIndex
-CREATE INDEX "zombie_event_animations_leagueId_isDelivered_idx" ON "zombie_event_animations"("leagueId", "isDelivered");
+CREATE INDEX IF NOT EXISTS "zombie_event_animations_leagueId_isDelivered_idx" ON "zombie_event_animations"("leagueId", "isDelivered");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_league_configs_leagueId_key" ON "zombie_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_league_configs_leagueId_key" ON "zombie_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_league_configs_leagueId_key" ON "idp_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_league_configs_leagueId_key" ON "idp_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dynasty_league_configs_leagueId_key" ON "dynasty_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "dynasty_league_configs_leagueId_key" ON "dynasty_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "dynasty_draft_order_audit_logs_leagueId_idx" ON "dynasty_draft_order_audit_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "dynasty_draft_order_audit_logs_leagueId_idx" ON "dynasty_draft_order_audit_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "dynasty_draft_order_audit_logs_configId_idx" ON "dynasty_draft_order_audit_logs"("configId");
+CREATE INDEX IF NOT EXISTS "dynasty_draft_order_audit_logs_configId_idx" ON "dynasty_draft_order_audit_logs"("configId");
 
 -- CreateIndex
-CREATE INDEX "idp_player_eligibility_sportsPlayerId_idx" ON "idp_player_eligibility"("sportsPlayerId");
+CREATE INDEX IF NOT EXISTS "idp_player_eligibility_sportsPlayerId_idx" ON "idp_player_eligibility"("sportsPlayerId");
 
 -- CreateIndex
-CREATE INDEX "idp_player_eligibility_leagueId_idx" ON "idp_player_eligibility"("leagueId");
+CREATE INDEX IF NOT EXISTS "idp_player_eligibility_leagueId_idx" ON "idp_player_eligibility"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_player_eligibility_sportsPlayerId_leagueId_key" ON "idp_player_eligibility"("sportsPlayerId", "leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_player_eligibility_sportsPlayerId_leagueId_key" ON "idp_player_eligibility"("sportsPlayerId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "idp_best_ball_lineup_snapshots_leagueId_idx" ON "idp_best_ball_lineup_snapshots"("leagueId");
+CREATE INDEX IF NOT EXISTS "idp_best_ball_lineup_snapshots_leagueId_idx" ON "idp_best_ball_lineup_snapshots"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "idp_best_ball_lineup_snapshots_rosterId_idx" ON "idp_best_ball_lineup_snapshots"("rosterId");
+CREATE INDEX IF NOT EXISTS "idp_best_ball_lineup_snapshots_rosterId_idx" ON "idp_best_ball_lineup_snapshots"("rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_best_ball_lineup_snapshots_leagueId_rosterId_periodKey_key" ON "idp_best_ball_lineup_snapshots"("leagueId", "rosterId", "periodKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_best_ball_lineup_snapshots_leagueId_rosterId_periodKey_key" ON "idp_best_ball_lineup_snapshots"("leagueId", "rosterId", "periodKey");
 
 -- CreateIndex
-CREATE INDEX "idp_settings_audit_logs_leagueId_idx" ON "idp_settings_audit_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "idp_settings_audit_logs_leagueId_idx" ON "idp_settings_audit_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "idp_settings_audit_logs_configId_idx" ON "idp_settings_audit_logs"("configId");
+CREATE INDEX IF NOT EXISTS "idp_settings_audit_logs_configId_idx" ON "idp_settings_audit_logs"("configId");
 
 -- CreateIndex
-CREATE INDEX "idp_settings_audit_logs_createdAt_idx" ON "idp_settings_audit_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "idp_settings_audit_logs_createdAt_idx" ON "idp_settings_audit_logs"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_cap_configs_leagueId_key" ON "idp_cap_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_cap_configs_leagueId_key" ON "idp_cap_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "idp_cap_configs_leagueId_idx" ON "idp_cap_configs"("leagueId");
+CREATE INDEX IF NOT EXISTS "idp_cap_configs_leagueId_idx" ON "idp_cap_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "idp_salary_records_leagueId_rosterId_idx" ON "idp_salary_records"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "idp_salary_records_leagueId_rosterId_idx" ON "idp_salary_records"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "idp_salary_records_leagueId_status_idx" ON "idp_salary_records"("leagueId", "status");
+CREATE INDEX IF NOT EXISTS "idp_salary_records_leagueId_status_idx" ON "idp_salary_records"("leagueId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_salary_records_leagueId_rosterId_playerId_key" ON "idp_salary_records"("leagueId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_salary_records_leagueId_rosterId_playerId_key" ON "idp_salary_records"("leagueId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "idp_dead_money_leagueId_rosterId_idx" ON "idp_dead_money"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "idp_dead_money_leagueId_rosterId_idx" ON "idp_dead_money"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "idp_cap_projections_leagueId_rosterId_idx" ON "idp_cap_projections"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "idp_cap_projections_leagueId_rosterId_idx" ON "idp_cap_projections"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "idp_cap_projections_leagueId_rosterId_projectionYear_key" ON "idp_cap_projections"("leagueId", "rosterId", "projectionYear");
+CREATE UNIQUE INDEX IF NOT EXISTS "idp_cap_projections_leagueId_rosterId_projectionYear_key" ON "idp_cap_projections"("leagueId", "rosterId", "projectionYear");
 
 -- CreateIndex
-CREATE INDEX "idp_cap_transactions_leagueId_rosterId_idx" ON "idp_cap_transactions"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "idp_cap_transactions_leagueId_rosterId_idx" ON "idp_cap_transactions"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "idp_cap_transactions_leagueId_transactionType_idx" ON "idp_cap_transactions"("leagueId", "transactionType");
+CREATE INDEX IF NOT EXISTS "idp_cap_transactions_leagueId_transactionType_idx" ON "idp_cap_transactions"("leagueId", "transactionType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_league_configs_leagueId_key" ON "devy_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_league_configs_leagueId_key" ON "devy_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_leagues_leagueId_key" ON "devy_leagues"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_leagues_leagueId_key" ON "devy_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_leagues_leagueId_idx" ON "devy_leagues"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_leagues_leagueId_idx" ON "devy_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_player_states_leagueId_playerType_idx" ON "devy_player_states"("leagueId", "playerType");
+CREATE INDEX IF NOT EXISTS "devy_player_states_leagueId_playerType_idx" ON "devy_player_states"("leagueId", "playerType");
 
 -- CreateIndex
-CREATE INDEX "devy_player_states_leagueId_bucketState_idx" ON "devy_player_states"("leagueId", "bucketState");
+CREATE INDEX IF NOT EXISTS "devy_player_states_leagueId_bucketState_idx" ON "devy_player_states"("leagueId", "bucketState");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_player_states_leagueId_rosterId_playerId_key" ON "devy_player_states"("leagueId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_player_states_leagueId_rosterId_playerId_key" ON "devy_player_states"("leagueId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "devy_taxi_slots_leagueId_rosterId_idx" ON "devy_taxi_slots"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "devy_taxi_slots_leagueId_rosterId_idx" ON "devy_taxi_slots"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_taxi_slots_leagueId_rosterId_playerId_key" ON "devy_taxi_slots"("leagueId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_taxi_slots_leagueId_rosterId_playerId_key" ON "devy_taxi_slots"("leagueId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "devy_devy_slots_leagueId_rosterId_idx" ON "devy_devy_slots"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "devy_devy_slots_leagueId_rosterId_idx" ON "devy_devy_slots"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "devy_devy_slots_leagueId_hasEnteredNFL_idx" ON "devy_devy_slots"("leagueId", "hasEnteredNFL");
+CREATE INDEX IF NOT EXISTS "devy_devy_slots_leagueId_hasEnteredNFL_idx" ON "devy_devy_slots"("leagueId", "hasEnteredNFL");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_devy_slots_leagueId_rosterId_playerId_key" ON "devy_devy_slots"("leagueId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_devy_slots_leagueId_rosterId_playerId_key" ON "devy_devy_slots"("leagueId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "devy_rookie_transitions_leagueId_nflEntryYear_idx" ON "devy_rookie_transitions"("leagueId", "nflEntryYear");
+CREATE INDEX IF NOT EXISTS "devy_rookie_transitions_leagueId_nflEntryYear_idx" ON "devy_rookie_transitions"("leagueId", "nflEntryYear");
 
 -- CreateIndex
-CREATE INDEX "devy_draft_picks_leagueId_currentOwnerId_idx" ON "devy_draft_picks"("leagueId", "currentOwnerId");
+CREATE INDEX IF NOT EXISTS "devy_draft_picks_leagueId_currentOwnerId_idx" ON "devy_draft_picks"("leagueId", "currentOwnerId");
 
 -- CreateIndex
-CREATE INDEX "devy_draft_picks_leagueId_pickType_season_idx" ON "devy_draft_picks"("leagueId", "pickType", "season");
+CREATE INDEX IF NOT EXISTS "devy_draft_picks_leagueId_pickType_season_idx" ON "devy_draft_picks"("leagueId", "pickType", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_draft_picks_leagueId_pickType_season_round_originalOwn_key" ON "devy_draft_picks"("leagueId", "pickType", "season", "round", "originalOwnerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_draft_picks_leagueId_pickType_season_round_originalOwn_key" ON "devy_draft_picks"("leagueId", "pickType", "season", "round", "originalOwnerId");
 
 -- CreateIndex
-CREATE INDEX "devy_import_sessions_leagueId_idx" ON "devy_import_sessions"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_import_sessions_leagueId_idx" ON "devy_import_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_import_sessions_commissionerId_idx" ON "devy_import_sessions"("commissionerId");
+CREATE INDEX IF NOT EXISTS "devy_import_sessions_commissionerId_idx" ON "devy_import_sessions"("commissionerId");
 
 -- CreateIndex
-CREATE INDEX "devy_import_sources_sessionId_idx" ON "devy_import_sources"("sessionId");
+CREATE INDEX IF NOT EXISTS "devy_import_sources_sessionId_idx" ON "devy_import_sources"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "devy_player_mappings_sessionId_idx" ON "devy_player_mappings"("sessionId");
+CREATE INDEX IF NOT EXISTS "devy_player_mappings_sessionId_idx" ON "devy_player_mappings"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "devy_player_mappings_sessionId_externalId_externalPlatform_idx" ON "devy_player_mappings"("sessionId", "externalId", "externalPlatform");
+CREATE INDEX IF NOT EXISTS "devy_player_mappings_sessionId_externalId_externalPlatform_idx" ON "devy_player_mappings"("sessionId", "externalId", "externalPlatform");
 
 -- CreateIndex
-CREATE INDEX "devy_manager_mappings_sessionId_idx" ON "devy_manager_mappings"("sessionId");
+CREATE INDEX IF NOT EXISTS "devy_manager_mappings_sessionId_idx" ON "devy_manager_mappings"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "devy_merge_conflicts_sessionId_idx" ON "devy_merge_conflicts"("sessionId");
+CREATE INDEX IF NOT EXISTS "devy_merge_conflicts_sessionId_idx" ON "devy_merge_conflicts"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "devy_merge_conflicts_sessionId_resolution_idx" ON "devy_merge_conflicts"("sessionId", "resolution");
+CREATE INDEX IF NOT EXISTS "devy_merge_conflicts_sessionId_resolution_idx" ON "devy_merge_conflicts"("sessionId", "resolution");
 
 -- CreateIndex
-CREATE INDEX "devy_imported_seasons_leagueId_season_idx" ON "devy_imported_seasons"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "devy_imported_seasons_leagueId_season_idx" ON "devy_imported_seasons"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "devy_imported_seasons_sessionId_idx" ON "devy_imported_seasons"("sessionId");
+CREATE INDEX IF NOT EXISTS "devy_imported_seasons_sessionId_idx" ON "devy_imported_seasons"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_leagueId_idx" ON "devy_rights"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_rights_leagueId_idx" ON "devy_rights"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_rosterId_idx" ON "devy_rights"("rosterId");
+CREATE INDEX IF NOT EXISTS "devy_rights_rosterId_idx" ON "devy_rights"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_devyPlayerId_idx" ON "devy_rights"("devyPlayerId");
+CREATE INDEX IF NOT EXISTS "devy_rights_devyPlayerId_idx" ON "devy_rights"("devyPlayerId");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_state_idx" ON "devy_rights"("state");
+CREATE INDEX IF NOT EXISTS "devy_rights_state_idx" ON "devy_rights"("state");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_leagueId_state_idx" ON "devy_rights"("leagueId", "state");
+CREATE INDEX IF NOT EXISTS "devy_rights_leagueId_state_idx" ON "devy_rights"("leagueId", "state");
 
 -- CreateIndex
-CREATE INDEX "devy_rights_leagueId_rosterId_slotCategory_idx" ON "devy_rights"("leagueId", "rosterId", "slotCategory");
+CREATE INDEX IF NOT EXISTS "devy_rights_leagueId_rosterId_slotCategory_idx" ON "devy_rights"("leagueId", "rosterId", "slotCategory");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_rights_leagueId_rosterId_devyPlayerId_key" ON "devy_rights"("leagueId", "rosterId", "devyPlayerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_rights_leagueId_rosterId_devyPlayerId_key" ON "devy_rights"("leagueId", "rosterId", "devyPlayerId");
 
 -- CreateIndex
-CREATE INDEX "devy_lifecycle_events_leagueId_idx" ON "devy_lifecycle_events"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_lifecycle_events_leagueId_idx" ON "devy_lifecycle_events"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_lifecycle_events_leagueId_eventType_idx" ON "devy_lifecycle_events"("leagueId", "eventType");
+CREATE INDEX IF NOT EXISTS "devy_lifecycle_events_leagueId_eventType_idx" ON "devy_lifecycle_events"("leagueId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "devy_lifecycle_events_createdAt_idx" ON "devy_lifecycle_events"("createdAt");
+CREATE INDEX IF NOT EXISTS "devy_lifecycle_events_createdAt_idx" ON "devy_lifecycle_events"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "devy_commissioner_overrides_leagueId_idx" ON "devy_commissioner_overrides"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_commissioner_overrides_leagueId_idx" ON "devy_commissioner_overrides"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_commissioner_overrides_status_idx" ON "devy_commissioner_overrides"("status");
+CREATE INDEX IF NOT EXISTS "devy_commissioner_overrides_status_idx" ON "devy_commissioner_overrides"("status");
 
 -- CreateIndex
-CREATE INDEX "devy_draft_histories_leagueId_idx" ON "devy_draft_histories"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_draft_histories_leagueId_idx" ON "devy_draft_histories"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_draft_histories_leagueId_draftKind_idx" ON "devy_draft_histories"("leagueId", "draftKind");
+CREATE INDEX IF NOT EXISTS "devy_draft_histories_leagueId_draftKind_idx" ON "devy_draft_histories"("leagueId", "draftKind");
 
 -- CreateIndex
-CREATE INDEX "devy_draft_histories_seasonYear_idx" ON "devy_draft_histories"("seasonYear");
+CREATE INDEX IF NOT EXISTS "devy_draft_histories_seasonYear_idx" ON "devy_draft_histories"("seasonYear");
 
 -- CreateIndex
-CREATE INDEX "devy_class_strength_snapshots_sport_idx" ON "devy_class_strength_snapshots"("sport");
+CREATE INDEX IF NOT EXISTS "devy_class_strength_snapshots_sport_idx" ON "devy_class_strength_snapshots"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_class_strength_snapshots_sport_seasonYear_key" ON "devy_class_strength_snapshots"("sport", "seasonYear");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_class_strength_snapshots_sport_seasonYear_key" ON "devy_class_strength_snapshots"("sport", "seasonYear");
 
 -- CreateIndex
-CREATE INDEX "devy_best_ball_lineup_snapshots_leagueId_idx" ON "devy_best_ball_lineup_snapshots"("leagueId");
+CREATE INDEX IF NOT EXISTS "devy_best_ball_lineup_snapshots_leagueId_idx" ON "devy_best_ball_lineup_snapshots"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "devy_best_ball_lineup_snapshots_rosterId_idx" ON "devy_best_ball_lineup_snapshots"("rosterId");
+CREATE INDEX IF NOT EXISTS "devy_best_ball_lineup_snapshots_rosterId_idx" ON "devy_best_ball_lineup_snapshots"("rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devy_best_ball_lineup_snapshots_leagueId_rosterId_periodKey_key" ON "devy_best_ball_lineup_snapshots"("leagueId", "rosterId", "periodKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "devy_best_ball_lineup_snapshots_leagueId_rosterId_periodKey_key" ON "devy_best_ball_lineup_snapshots"("leagueId", "rosterId", "periodKey");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_league_configs_leagueId_key" ON "c2c_league_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_league_configs_leagueId_key" ON "c2c_league_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "c2c_scoring_logs_leagueId_week_idx" ON "c2c_scoring_logs"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "c2c_scoring_logs_leagueId_week_idx" ON "c2c_scoring_logs"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "c2c_scoring_logs_rosterId_season_week_idx" ON "c2c_scoring_logs"("rosterId", "season", "week");
+CREATE INDEX IF NOT EXISTS "c2c_scoring_logs_rosterId_season_week_idx" ON "c2c_scoring_logs"("rosterId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "c2c_scoring_logs_devyPlayerId_season_idx" ON "c2c_scoring_logs"("devyPlayerId", "season");
+CREATE INDEX IF NOT EXISTS "c2c_scoring_logs_devyPlayerId_season_idx" ON "c2c_scoring_logs"("devyPlayerId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_scoring_logs_leagueId_rosterId_devyPlayerId_season_week_key" ON "c2c_scoring_logs"("leagueId", "rosterId", "devyPlayerId", "season", "week", "gameId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_scoring_logs_leagueId_rosterId_devyPlayerId_season_week_key" ON "c2c_scoring_logs"("leagueId", "rosterId", "devyPlayerId", "season", "week", "gameId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_leagues_leagueId_key" ON "c2c_leagues"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_leagues_leagueId_key" ON "c2c_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "c2c_leagues_leagueId_idx" ON "c2c_leagues"("leagueId");
+CREATE INDEX IF NOT EXISTS "c2c_leagues_leagueId_idx" ON "c2c_leagues"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "c2c_leagues_sportPair_idx" ON "c2c_leagues"("sportPair");
+CREATE INDEX IF NOT EXISTS "c2c_leagues_sportPair_idx" ON "c2c_leagues"("sportPair");
 
 -- CreateIndex
-CREATE INDEX "c2c_player_states_leagueId_playerSide_bucketState_idx" ON "c2c_player_states"("leagueId", "playerSide", "bucketState");
+CREATE INDEX IF NOT EXISTS "c2c_player_states_leagueId_playerSide_bucketState_idx" ON "c2c_player_states"("leagueId", "playerSide", "bucketState");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_player_states_leagueId_rosterId_playerId_key" ON "c2c_player_states"("leagueId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_player_states_leagueId_rosterId_playerId_key" ON "c2c_player_states"("leagueId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "c2c_matchup_scores_leagueId_week_idx" ON "c2c_matchup_scores"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "c2c_matchup_scores_leagueId_week_idx" ON "c2c_matchup_scores"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_matchup_scores_leagueId_matchupId_rosterId_key" ON "c2c_matchup_scores"("leagueId", "matchupId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_matchup_scores_leagueId_matchupId_rosterId_key" ON "c2c_matchup_scores"("leagueId", "matchupId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "c2c_draft_picks_leagueId_currentOwnerId_idx" ON "c2c_draft_picks"("leagueId", "currentOwnerId");
+CREATE INDEX IF NOT EXISTS "c2c_draft_picks_leagueId_currentOwnerId_idx" ON "c2c_draft_picks"("leagueId", "currentOwnerId");
 
 -- CreateIndex
-CREATE INDEX "c2c_draft_picks_leagueId_pickSide_season_idx" ON "c2c_draft_picks"("leagueId", "pickSide", "season");
+CREATE INDEX IF NOT EXISTS "c2c_draft_picks_leagueId_pickSide_season_idx" ON "c2c_draft_picks"("leagueId", "pickSide", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "c2c_draft_picks_leagueId_pickSide_season_round_originalOwne_key" ON "c2c_draft_picks"("leagueId", "pickSide", "season", "round", "originalOwnerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "c2c_draft_picks_leagueId_pickSide_season_round_originalOwne_key" ON "c2c_draft_picks"("leagueId", "pickSide", "season", "round", "originalOwnerId");
 
 -- CreateIndex
-CREATE INDEX "c2c_transition_records_leagueId_proEntryYear_idx" ON "c2c_transition_records"("leagueId", "proEntryYear");
+CREATE INDEX IF NOT EXISTS "c2c_transition_records_leagueId_proEntryYear_idx" ON "c2c_transition_records"("leagueId", "proEntryYear");
 
 -- CreateIndex
-CREATE INDEX "zombie_league_teams_leagueId_idx" ON "zombie_league_teams"("leagueId");
+CREATE INDEX IF NOT EXISTS "zombie_league_teams_leagueId_idx" ON "zombie_league_teams"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_league_teams_zombieLeagueId_idx" ON "zombie_league_teams"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_league_teams_zombieLeagueId_idx" ON "zombie_league_teams"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_league_teams_rosterId_idx" ON "zombie_league_teams"("rosterId");
+CREATE INDEX IF NOT EXISTS "zombie_league_teams_rosterId_idx" ON "zombie_league_teams"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "zombie_league_teams_status_idx" ON "zombie_league_teams"("status");
+CREATE INDEX IF NOT EXISTS "zombie_league_teams_status_idx" ON "zombie_league_teams"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_league_teams_leagueId_rosterId_key" ON "zombie_league_teams"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_league_teams_leagueId_rosterId_key" ON "zombie_league_teams"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "zombie_team_items_teamStatusId_idx" ON "zombie_team_items"("teamStatusId");
+CREATE INDEX IF NOT EXISTS "zombie_team_items_teamStatusId_idx" ON "zombie_team_items"("teamStatusId");
 
 -- CreateIndex
-CREATE INDEX "zombie_team_items_zombieLeagueId_userId_idx" ON "zombie_team_items"("zombieLeagueId", "userId");
+CREATE INDEX IF NOT EXISTS "zombie_team_items_zombieLeagueId_userId_idx" ON "zombie_team_items"("zombieLeagueId", "userId");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_logs_leagueId_week_idx" ON "zombie_infection_logs"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_infection_logs_leagueId_week_idx" ON "zombie_infection_logs"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_logs_zombieLeagueId_idx" ON "zombie_infection_logs"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_infection_logs_zombieLeagueId_idx" ON "zombie_infection_logs"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_infection_logs_survivorRosterId_idx" ON "zombie_infection_logs"("survivorRosterId");
+CREATE INDEX IF NOT EXISTS "zombie_infection_logs_survivorRosterId_idx" ON "zombie_infection_logs"("survivorRosterId");
 
 -- CreateIndex
-CREATE INDEX "zombie_resource_ledgers_leagueId_rosterId_resourceType_idx" ON "zombie_resource_ledgers"("leagueId", "rosterId", "resourceType");
+CREATE INDEX IF NOT EXISTS "zombie_resource_ledgers_leagueId_rosterId_resourceType_idx" ON "zombie_resource_ledgers"("leagueId", "rosterId", "resourceType");
 
 -- CreateIndex
-CREATE INDEX "zombie_resource_ledgers_zombieLeagueId_idx" ON "zombie_resource_ledgers"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_resource_ledgers_zombieLeagueId_idx" ON "zombie_resource_ledgers"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_resource_ledger_entries_leagueId_rosterId_idx" ON "zombie_resource_ledger_entries"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "zombie_resource_ledger_entries_leagueId_rosterId_idx" ON "zombie_resource_ledger_entries"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "zombie_resource_ledger_entries_leagueId_week_idx" ON "zombie_resource_ledger_entries"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_resource_ledger_entries_leagueId_week_idx" ON "zombie_resource_ledger_entries"("leagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_weekly_winnings_zombieLeagueId_idx" ON "zombie_weekly_winnings"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_weekly_winnings_zombieLeagueId_idx" ON "zombie_weekly_winnings"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_weekly_winnings_leagueId_week_idx" ON "zombie_weekly_winnings"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_weekly_winnings_leagueId_week_idx" ON "zombie_weekly_winnings"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_weekly_winnings_leagueId_rosterId_week_key" ON "zombie_weekly_winnings"("leagueId", "rosterId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_weekly_winnings_leagueId_rosterId_week_key" ON "zombie_weekly_winnings"("leagueId", "rosterId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_movement_projections_universeId_idx" ON "zombie_movement_projections"("universeId");
+CREATE INDEX IF NOT EXISTS "zombie_movement_projections_universeId_idx" ON "zombie_movement_projections"("universeId");
 
 -- CreateIndex
-CREATE INDEX "zombie_movement_projections_leagueId_idx" ON "zombie_movement_projections"("leagueId");
+CREATE INDEX IF NOT EXISTS "zombie_movement_projections_leagueId_idx" ON "zombie_movement_projections"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "zombie_movement_projections_universeId_rosterId_season_key" ON "zombie_movement_projections"("universeId", "rosterId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "zombie_movement_projections_universeId_rosterId_season_key" ON "zombie_movement_projections"("universeId", "rosterId", "season");
 
 -- CreateIndex
-CREATE INDEX "zombie_ambush_events_zombieLeagueId_week_idx" ON "zombie_ambush_events"("zombieLeagueId", "week");
+CREATE INDEX IF NOT EXISTS "zombie_ambush_events_zombieLeagueId_week_idx" ON "zombie_ambush_events"("zombieLeagueId", "week");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_logs_leagueId_idx" ON "zombie_audit_logs"("leagueId");
+CREATE INDEX IF NOT EXISTS "zombie_audit_logs_leagueId_idx" ON "zombie_audit_logs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_logs_universeId_idx" ON "zombie_audit_logs"("universeId");
+CREATE INDEX IF NOT EXISTS "zombie_audit_logs_universeId_idx" ON "zombie_audit_logs"("universeId");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_logs_zombieLeagueId_idx" ON "zombie_audit_logs"("zombieLeagueId");
+CREATE INDEX IF NOT EXISTS "zombie_audit_logs_zombieLeagueId_idx" ON "zombie_audit_logs"("zombieLeagueId");
 
 -- CreateIndex
-CREATE INDEX "zombie_audit_logs_eventType_idx" ON "zombie_audit_logs"("eventType");
+CREATE INDEX IF NOT EXISTS "zombie_audit_logs_eventType_idx" ON "zombie_audit_logs"("eventType");
 
 -- CreateIndex
-CREATE INDEX "roster_templates_sportType_idx" ON "roster_templates"("sportType");
+CREATE INDEX IF NOT EXISTS "roster_templates_sportType_idx" ON "roster_templates"("sportType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "roster_templates_sportType_formatType_key" ON "roster_templates"("sportType", "formatType");
+CREATE UNIQUE INDEX IF NOT EXISTS "roster_templates_sportType_formatType_key" ON "roster_templates"("sportType", "formatType");
 
 -- CreateIndex
-CREATE INDEX "roster_template_slots_templateId_idx" ON "roster_template_slots"("templateId");
+CREATE INDEX IF NOT EXISTS "roster_template_slots_templateId_idx" ON "roster_template_slots"("templateId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_roster_configs_leagueId_key" ON "league_roster_configs"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_roster_configs_leagueId_key" ON "league_roster_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "league_roster_configs_leagueId_idx" ON "league_roster_configs"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_roster_configs_leagueId_idx" ON "league_roster_configs"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "scoring_templates_sportType_idx" ON "scoring_templates"("sportType");
+CREATE INDEX IF NOT EXISTS "scoring_templates_sportType_idx" ON "scoring_templates"("sportType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "scoring_templates_sportType_formatType_key" ON "scoring_templates"("sportType", "formatType");
+CREATE UNIQUE INDEX IF NOT EXISTS "scoring_templates_sportType_formatType_key" ON "scoring_templates"("sportType", "formatType");
 
 -- CreateIndex
-CREATE INDEX "scoring_rules_templateId_idx" ON "scoring_rules"("templateId");
+CREATE INDEX IF NOT EXISTS "scoring_rules_templateId_idx" ON "scoring_rules"("templateId");
 
 -- CreateIndex
-CREATE INDEX "scoring_rules_templateId_statKey_idx" ON "scoring_rules"("templateId", "statKey");
+CREATE INDEX IF NOT EXISTS "scoring_rules_templateId_statKey_idx" ON "scoring_rules"("templateId", "statKey");
 
 -- CreateIndex
-CREATE INDEX "league_scoring_overrides_leagueId_idx" ON "league_scoring_overrides"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_scoring_overrides_leagueId_idx" ON "league_scoring_overrides"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_scoring_overrides_leagueId_statKey_key" ON "league_scoring_overrides"("leagueId", "statKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_scoring_overrides_leagueId_statKey_key" ON "league_scoring_overrides"("leagueId", "statKey");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sport_feature_flags_sportType_key" ON "sport_feature_flags"("sportType");
+CREATE UNIQUE INDEX IF NOT EXISTS "sport_feature_flags_sportType_key" ON "sport_feature_flags"("sportType");
 
 -- CreateIndex
-CREATE INDEX "schedule_templates_sportType_idx" ON "schedule_templates"("sportType");
+CREATE INDEX IF NOT EXISTS "schedule_templates_sportType_idx" ON "schedule_templates"("sportType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "schedule_templates_sportType_formatType_key" ON "schedule_templates"("sportType", "formatType");
+CREATE UNIQUE INDEX IF NOT EXISTS "schedule_templates_sportType_formatType_key" ON "schedule_templates"("sportType", "formatType");
 
 -- CreateIndex
-CREATE INDEX "season_calendars_sportType_idx" ON "season_calendars"("sportType");
+CREATE INDEX IF NOT EXISTS "season_calendars_sportType_idx" ON "season_calendars"("sportType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "season_calendars_sportType_formatType_key" ON "season_calendars"("sportType", "formatType");
+CREATE UNIQUE INDEX IF NOT EXISTS "season_calendars_sportType_formatType_key" ON "season_calendars"("sportType", "formatType");
 
 -- CreateIndex
-CREATE INDEX "game_schedules_sportType_season_weekOrRound_idx" ON "game_schedules"("sportType", "season", "weekOrRound");
+CREATE INDEX IF NOT EXISTS "game_schedules_sportType_season_weekOrRound_idx" ON "game_schedules"("sportType", "season", "weekOrRound");
 
 -- CreateIndex
-CREATE INDEX "game_schedules_sportType_season_idx" ON "game_schedules"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "game_schedules_sportType_season_idx" ON "game_schedules"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "game_schedules_startTime_idx" ON "game_schedules"("startTime");
+CREATE INDEX IF NOT EXISTS "game_schedules_startTime_idx" ON "game_schedules"("startTime");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "game_schedules_sportType_season_weekOrRound_externalId_key" ON "game_schedules"("sportType", "season", "weekOrRound", "externalId");
+CREATE UNIQUE INDEX IF NOT EXISTS "game_schedules_sportType_season_weekOrRound_externalId_key" ON "game_schedules"("sportType", "season", "weekOrRound", "externalId");
 
 -- CreateIndex
-CREATE INDEX "player_game_stats_sportType_season_weekOrRound_idx" ON "player_game_stats"("sportType", "season", "weekOrRound");
+CREATE INDEX IF NOT EXISTS "player_game_stats_sportType_season_weekOrRound_idx" ON "player_game_stats"("sportType", "season", "weekOrRound");
 
 -- CreateIndex
-CREATE INDEX "player_game_stats_playerId_sportType_season_idx" ON "player_game_stats"("playerId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "player_game_stats_playerId_sportType_season_idx" ON "player_game_stats"("playerId", "sportType", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_game_stats_playerId_sportType_gameId_key" ON "player_game_stats"("playerId", "sportType", "gameId");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_game_stats_playerId_sportType_gameId_key" ON "player_game_stats"("playerId", "sportType", "gameId");
 
 -- CreateIndex
-CREATE INDEX "team_game_stats_sportType_season_weekOrRound_idx" ON "team_game_stats"("sportType", "season", "weekOrRound");
+CREATE INDEX IF NOT EXISTS "team_game_stats_sportType_season_weekOrRound_idx" ON "team_game_stats"("sportType", "season", "weekOrRound");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "team_game_stats_sportType_gameId_teamId_key" ON "team_game_stats"("sportType", "gameId", "teamId");
+CREATE UNIQUE INDEX IF NOT EXISTS "team_game_stats_sportType_gameId_teamId_key" ON "team_game_stats"("sportType", "gameId", "teamId");
 
 -- CreateIndex
-CREATE INDEX "stat_ingestion_jobs_sportType_season_idx" ON "stat_ingestion_jobs"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "stat_ingestion_jobs_sportType_season_idx" ON "stat_ingestion_jobs"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "stat_ingestion_jobs_status_startedAt_idx" ON "stat_ingestion_jobs"("status", "startedAt");
+CREATE INDEX IF NOT EXISTS "stat_ingestion_jobs_status_startedAt_idx" ON "stat_ingestion_jobs"("status", "startedAt");
 
 -- CreateIndex
-CREATE INDEX "player_meta_trends_sport_idx" ON "player_meta_trends"("sport");
+CREATE INDEX IF NOT EXISTS "player_meta_trends_sport_idx" ON "player_meta_trends"("sport");
 
 -- CreateIndex
-CREATE INDEX "player_meta_trends_trendScore_idx" ON "player_meta_trends"("trendScore");
+CREATE INDEX IF NOT EXISTS "player_meta_trends_trendScore_idx" ON "player_meta_trends"("trendScore");
 
 -- CreateIndex
-CREATE INDEX "player_meta_trends_trendingDirection_idx" ON "player_meta_trends"("trendingDirection");
+CREATE INDEX IF NOT EXISTS "player_meta_trends_trendingDirection_idx" ON "player_meta_trends"("trendingDirection");
 
 -- CreateIndex
-CREATE INDEX "player_meta_trends_updatedAt_idx" ON "player_meta_trends"("updatedAt");
+CREATE INDEX IF NOT EXISTS "player_meta_trends_updatedAt_idx" ON "player_meta_trends"("updatedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_meta_trends_playerId_sport_key" ON "player_meta_trends"("playerId", "sport");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_meta_trends_playerId_sport_key" ON "player_meta_trends"("playerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "trend_signal_events_playerId_sport_idx" ON "trend_signal_events"("playerId", "sport");
+CREATE INDEX IF NOT EXISTS "trend_signal_events_playerId_sport_idx" ON "trend_signal_events"("playerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "trend_signal_events_sport_signalType_timestamp_idx" ON "trend_signal_events"("sport", "signalType", "timestamp");
+CREATE INDEX IF NOT EXISTS "trend_signal_events_sport_signalType_timestamp_idx" ON "trend_signal_events"("sport", "signalType", "timestamp");
 
 -- CreateIndex
-CREATE INDEX "trend_signal_events_timestamp_idx" ON "trend_signal_events"("timestamp");
+CREATE INDEX IF NOT EXISTS "trend_signal_events_timestamp_idx" ON "trend_signal_events"("timestamp");
 
 -- CreateIndex
-CREATE INDEX "strategy_meta_reports_sport_idx" ON "strategy_meta_reports"("sport");
+CREATE INDEX IF NOT EXISTS "strategy_meta_reports_sport_idx" ON "strategy_meta_reports"("sport");
 
 -- CreateIndex
-CREATE INDEX "strategy_meta_reports_leagueFormat_idx" ON "strategy_meta_reports"("leagueFormat");
+CREATE INDEX IF NOT EXISTS "strategy_meta_reports_leagueFormat_idx" ON "strategy_meta_reports"("leagueFormat");
 
 -- CreateIndex
-CREATE INDEX "strategy_meta_reports_updatedAt_idx" ON "strategy_meta_reports"("updatedAt");
+CREATE INDEX IF NOT EXISTS "strategy_meta_reports_updatedAt_idx" ON "strategy_meta_reports"("updatedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "strategy_meta_reports_strategyType_sport_leagueFormat_key" ON "strategy_meta_reports"("strategyType", "sport", "leagueFormat");
+CREATE UNIQUE INDEX IF NOT EXISTS "strategy_meta_reports_strategyType_sport_leagueFormat_key" ON "strategy_meta_reports"("strategyType", "sport", "leagueFormat");
 
 -- CreateIndex
-CREATE INDEX "strategy_meta_snapshots_sport_createdAt_idx" ON "strategy_meta_snapshots"("sport", "createdAt");
+CREATE INDEX IF NOT EXISTS "strategy_meta_snapshots_sport_createdAt_idx" ON "strategy_meta_snapshots"("sport", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "strategy_meta_snapshots_strategyType_sport_idx" ON "strategy_meta_snapshots"("strategyType", "sport");
+CREATE INDEX IF NOT EXISTS "strategy_meta_snapshots_strategyType_sport_idx" ON "strategy_meta_snapshots"("strategyType", "sport");
 
 -- CreateIndex
-CREATE INDEX "global_meta_snapshots_sport_season_weekOrPeriod_idx" ON "global_meta_snapshots"("sport", "season", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "global_meta_snapshots_sport_season_weekOrPeriod_idx" ON "global_meta_snapshots"("sport", "season", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "global_meta_snapshots_metaType_sport_idx" ON "global_meta_snapshots"("metaType", "sport");
+CREATE INDEX IF NOT EXISTS "global_meta_snapshots_metaType_sport_idx" ON "global_meta_snapshots"("metaType", "sport");
 
 -- CreateIndex
-CREATE INDEX "global_meta_snapshots_createdAt_idx" ON "global_meta_snapshots"("createdAt");
+CREATE INDEX IF NOT EXISTS "global_meta_snapshots_createdAt_idx" ON "global_meta_snapshots"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "global_meta_snapshots_sport_season_weekOrPeriod_metaType_key" ON "global_meta_snapshots"("sport", "season", "weekOrPeriod", "metaType");
+CREATE UNIQUE INDEX IF NOT EXISTS "global_meta_snapshots_sport_season_weekOrPeriod_metaType_key" ON "global_meta_snapshots"("sport", "season", "weekOrPeriod", "metaType");
 
 -- CreateIndex
-CREATE INDEX "position_meta_trends_sport_idx" ON "position_meta_trends"("sport");
+CREATE INDEX IF NOT EXISTS "position_meta_trends_sport_idx" ON "position_meta_trends"("sport");
 
 -- CreateIndex
-CREATE INDEX "position_meta_trends_trendingDirection_idx" ON "position_meta_trends"("trendingDirection");
+CREATE INDEX IF NOT EXISTS "position_meta_trends_trendingDirection_idx" ON "position_meta_trends"("trendingDirection");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "position_meta_trends_position_sport_key" ON "position_meta_trends"("position", "sport");
+CREATE UNIQUE INDEX IF NOT EXISTS "position_meta_trends_position_sport_key" ON "position_meta_trends"("position", "sport");
 
 -- CreateIndex
-CREATE INDEX "waiver_claims_leagueId_status_idx" ON "waiver_claims"("leagueId", "status");
+CREATE INDEX IF NOT EXISTS "waiver_claims_leagueId_status_idx" ON "waiver_claims"("leagueId", "status");
 
 -- CreateIndex
-CREATE INDEX "waiver_claims_rosterId_idx" ON "waiver_claims"("rosterId");
+CREATE INDEX IF NOT EXISTS "waiver_claims_rosterId_idx" ON "waiver_claims"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "waiver_claims_leagueId_priorityOrder_idx" ON "waiver_claims"("leagueId", "priorityOrder");
+CREATE INDEX IF NOT EXISTS "waiver_claims_leagueId_priorityOrder_idx" ON "waiver_claims"("leagueId", "priorityOrder");
 
 -- CreateIndex
-CREATE INDEX "waiver_claims_leagueId_sportType_idx" ON "waiver_claims"("leagueId", "sportType");
+CREATE INDEX IF NOT EXISTS "waiver_claims_leagueId_sportType_idx" ON "waiver_claims"("leagueId", "sportType");
 
 -- CreateIndex
-CREATE INDEX "waiver_claims_sportType_status_idx" ON "waiver_claims"("sportType", "status");
+CREATE INDEX IF NOT EXISTS "waiver_claims_sportType_status_idx" ON "waiver_claims"("sportType", "status");
 
 -- CreateIndex
-CREATE INDEX "waiver_transactions_leagueId_processedAt_idx" ON "waiver_transactions"("leagueId", "processedAt");
+CREATE INDEX IF NOT EXISTS "waiver_transactions_leagueId_processedAt_idx" ON "waiver_transactions"("leagueId", "processedAt");
 
 -- CreateIndex
-CREATE INDEX "waiver_transactions_rosterId_idx" ON "waiver_transactions"("rosterId");
+CREATE INDEX IF NOT EXISTS "waiver_transactions_rosterId_idx" ON "waiver_transactions"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "waiver_transactions_leagueId_sportType_idx" ON "waiver_transactions"("leagueId", "sportType");
+CREATE INDEX IF NOT EXISTS "waiver_transactions_leagueId_sportType_idx" ON "waiver_transactions"("leagueId", "sportType");
 
 -- CreateIndex
-CREATE INDEX "waiver_transactions_sportType_processedAt_idx" ON "waiver_transactions"("sportType", "processedAt");
+CREATE INDEX IF NOT EXISTS "waiver_transactions_sportType_processedAt_idx" ON "waiver_transactions"("sportType", "processedAt");
 
 -- CreateIndex
-CREATE INDEX "waiver_pickups_userId_idx" ON "waiver_pickups"("userId");
+CREATE INDEX IF NOT EXISTS "waiver_pickups_userId_idx" ON "waiver_pickups"("userId");
 
 -- CreateIndex
-CREATE INDEX "waiver_pickups_leagueId_idx" ON "waiver_pickups"("leagueId");
+CREATE INDEX IF NOT EXISTS "waiver_pickups_leagueId_idx" ON "waiver_pickups"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sleeper_leagues_sleeperLeagueId_key" ON "sleeper_leagues"("sleeperLeagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "sleeper_leagues_sleeperLeagueId_key" ON "sleeper_leagues"("sleeperLeagueId");
 
 -- CreateIndex
-CREATE INDEX "sleeper_leagues_userId_sleeperLeagueId_idx" ON "sleeper_leagues"("userId", "sleeperLeagueId");
+CREATE INDEX IF NOT EXISTS "sleeper_leagues_userId_sleeperLeagueId_idx" ON "sleeper_leagues"("userId", "sleeperLeagueId");
 
 -- CreateIndex
-CREATE INDEX "sleeper_rosters_leagueId_idx" ON "sleeper_rosters"("leagueId");
+CREATE INDEX IF NOT EXISTS "sleeper_rosters_leagueId_idx" ON "sleeper_rosters"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "sleeper_rosters_ownerId_idx" ON "sleeper_rosters"("ownerId");
+CREATE INDEX IF NOT EXISTS "sleeper_rosters_ownerId_idx" ON "sleeper_rosters"("ownerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sleeper_rosters_leagueId_rosterId_key" ON "sleeper_rosters"("leagueId", "rosterId");
+CREATE UNIQUE INDEX IF NOT EXISTS "sleeper_rosters_leagueId_rosterId_key" ON "sleeper_rosters"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "RookieRanking_year_idx" ON "RookieRanking"("year");
+CREATE INDEX IF NOT EXISTS "RookieRanking_year_idx" ON "RookieRanking"("year");
 
 -- CreateIndex
-CREATE INDEX "RookieRanking_position_idx" ON "RookieRanking"("position");
+CREATE INDEX IF NOT EXISTS "RookieRanking_position_idx" ON "RookieRanking"("position");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RookieRanking_year_name_key" ON "RookieRanking"("year", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "RookieRanking_year_name_key" ON "RookieRanking"("year", "name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "mock_drafts_shareId_key" ON "mock_drafts"("shareId");
+CREATE UNIQUE INDEX IF NOT EXISTS "mock_drafts_shareId_key" ON "mock_drafts"("shareId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "mock_drafts_inviteToken_key" ON "mock_drafts"("inviteToken");
+CREATE UNIQUE INDEX IF NOT EXISTS "mock_drafts_inviteToken_key" ON "mock_drafts"("inviteToken");
 
 -- CreateIndex
-CREATE INDEX "mock_drafts_leagueId_idx" ON "mock_drafts"("leagueId");
+CREATE INDEX IF NOT EXISTS "mock_drafts_leagueId_idx" ON "mock_drafts"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "mock_drafts_userId_idx" ON "mock_drafts"("userId");
+CREATE INDEX IF NOT EXISTS "mock_drafts_userId_idx" ON "mock_drafts"("userId");
 
 -- CreateIndex
-CREATE INDEX "mock_drafts_status_idx" ON "mock_drafts"("status");
+CREATE INDEX IF NOT EXISTS "mock_drafts_status_idx" ON "mock_drafts"("status");
 
 -- CreateIndex
-CREATE INDEX "mock_drafts_inviteToken_idx" ON "mock_drafts"("inviteToken");
+CREATE INDEX IF NOT EXISTS "mock_drafts_inviteToken_idx" ON "mock_drafts"("inviteToken");
 
 -- CreateIndex
-CREATE INDEX "mock_draft_chats_mockDraftId_idx" ON "mock_draft_chats"("mockDraftId");
+CREATE INDEX IF NOT EXISTS "mock_draft_chats_mockDraftId_idx" ON "mock_draft_chats"("mockDraftId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_sessions_sleeperDraftId_key" ON "draft_sessions"("sleeperDraftId");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_sessions_sleeperDraftId_key" ON "draft_sessions"("sleeperDraftId");
 
 -- CreateIndex
-CREATE INDEX "draft_sessions_leagueId_idx" ON "draft_sessions"("leagueId");
+CREATE INDEX IF NOT EXISTS "draft_sessions_leagueId_idx" ON "draft_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "draft_sessions_status_idx" ON "draft_sessions"("status");
+CREATE INDEX IF NOT EXISTS "draft_sessions_status_idx" ON "draft_sessions"("status");
 
 -- CreateIndex
-CREATE INDEX "draft_sessions_leagueId_sportType_idx" ON "draft_sessions"("leagueId", "sportType");
+CREATE INDEX IF NOT EXISTS "draft_sessions_leagueId_sportType_idx" ON "draft_sessions"("leagueId", "sportType");
 
 -- CreateIndex
-CREATE INDEX "draft_sessions_sportType_status_idx" ON "draft_sessions"("sportType", "status");
+CREATE INDEX IF NOT EXISTS "draft_sessions_sportType_status_idx" ON "draft_sessions"("sportType", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_sessions_leagueId_key" ON "draft_sessions"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_sessions_leagueId_key" ON "draft_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "draft_picks_sessionId_idx" ON "draft_picks"("sessionId");
+CREATE INDEX IF NOT EXISTS "draft_picks_sessionId_idx" ON "draft_picks"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "draft_picks_sessionId_rosterId_idx" ON "draft_picks"("sessionId", "rosterId");
+CREATE INDEX IF NOT EXISTS "draft_picks_sessionId_rosterId_idx" ON "draft_picks"("sessionId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "draft_picks_sessionId_sportType_idx" ON "draft_picks"("sessionId", "sportType");
+CREATE INDEX IF NOT EXISTS "draft_picks_sessionId_sportType_idx" ON "draft_picks"("sessionId", "sportType");
 
 -- CreateIndex
-CREATE INDEX "draft_picks_sportType_idx" ON "draft_picks"("sportType");
+CREATE INDEX IF NOT EXISTS "draft_picks_sportType_idx" ON "draft_picks"("sportType");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_picks_sessionId_overall_key" ON "draft_picks"("sessionId", "overall");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_picks_sessionId_overall_key" ON "draft_picks"("sessionId", "overall");
 
 -- CreateIndex
-CREATE INDEX "draft_pick_trade_proposals_sessionId_idx" ON "draft_pick_trade_proposals"("sessionId");
+CREATE INDEX IF NOT EXISTS "draft_pick_trade_proposals_sessionId_idx" ON "draft_pick_trade_proposals"("sessionId");
 
 -- CreateIndex
-CREATE INDEX "draft_pick_trade_proposals_sessionId_receiverRosterId_idx" ON "draft_pick_trade_proposals"("sessionId", "receiverRosterId");
+CREATE INDEX IF NOT EXISTS "draft_pick_trade_proposals_sessionId_receiverRosterId_idx" ON "draft_pick_trade_proposals"("sessionId", "receiverRosterId");
 
 -- CreateIndex
-CREATE INDEX "draft_pick_trade_proposals_sessionId_status_idx" ON "draft_pick_trade_proposals"("sessionId", "status");
+CREATE INDEX IF NOT EXISTS "draft_pick_trade_proposals_sessionId_status_idx" ON "draft_pick_trade_proposals"("sessionId", "status");
 
 -- CreateIndex
-CREATE INDEX "ai_manager_audit_log_leagueId_idx" ON "ai_manager_audit_log"("leagueId");
+CREATE INDEX IF NOT EXISTS "ai_manager_audit_log_leagueId_idx" ON "ai_manager_audit_log"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "ai_manager_audit_log_leagueId_rosterId_idx" ON "ai_manager_audit_log"("leagueId", "rosterId");
+CREATE INDEX IF NOT EXISTS "ai_manager_audit_log_leagueId_rosterId_idx" ON "ai_manager_audit_log"("leagueId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "ai_manager_audit_log_leagueId_action_idx" ON "ai_manager_audit_log"("leagueId", "action");
+CREATE INDEX IF NOT EXISTS "ai_manager_audit_log_leagueId_action_idx" ON "ai_manager_audit_log"("leagueId", "action");
 
 -- CreateIndex
-CREATE INDEX "ai_manager_audit_log_createdAt_idx" ON "ai_manager_audit_log"("createdAt");
+CREATE INDEX IF NOT EXISTS "ai_manager_audit_log_createdAt_idx" ON "ai_manager_audit_log"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "draft_queues_sessionId_idx" ON "draft_queues"("sessionId");
+CREATE INDEX IF NOT EXISTS "draft_queues_sessionId_idx" ON "draft_queues"("sessionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_queues_sessionId_userId_key" ON "draft_queues"("sessionId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_queues_sessionId_userId_key" ON "draft_queues"("sessionId", "userId");
 
 -- CreateIndex
-CREATE INDEX "draft_queue_entries_draftSessionId_userId_idx" ON "draft_queue_entries"("draftSessionId", "userId");
+CREATE INDEX IF NOT EXISTS "draft_queue_entries_draftSessionId_userId_idx" ON "draft_queue_entries"("draftSessionId", "userId");
 
 -- CreateIndex
-CREATE INDEX "draft_chat_messages_draftSessionId_idx" ON "draft_chat_messages"("draftSessionId");
+CREATE INDEX IF NOT EXISTS "draft_chat_messages_draftSessionId_idx" ON "draft_chat_messages"("draftSessionId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_import_backups_leagueId_key" ON "draft_import_backups"("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_import_backups_leagueId_key" ON "draft_import_backups"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "draft_import_backups_leagueId_idx" ON "draft_import_backups"("leagueId");
+CREATE INDEX IF NOT EXISTS "draft_import_backups_leagueId_idx" ON "draft_import_backups"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "rankings_backtest_results_leagueId_season_idx" ON "rankings_backtest_results"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "rankings_backtest_results_leagueId_season_idx" ON "rankings_backtest_results"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "rankings_backtest_results_segmentKey_idx" ON "rankings_backtest_results"("segmentKey");
+CREATE INDEX IF NOT EXISTS "rankings_backtest_results_segmentKey_idx" ON "rankings_backtest_results"("segmentKey");
 
 -- CreateIndex
-CREATE INDEX "rankings_backtest_results_createdAt_idx" ON "rankings_backtest_results"("createdAt");
+CREATE INDEX IF NOT EXISTS "rankings_backtest_results_createdAt_idx" ON "rankings_backtest_results"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rankings_backtest_results_leagueId_season_weekEvaluated_tar_key" ON "rankings_backtest_results"("leagueId", "season", "weekEvaluated", "targetType");
+CREATE UNIQUE INDEX IF NOT EXISTS "rankings_backtest_results_leagueId_season_weekEvaluated_tar_key" ON "rankings_backtest_results"("leagueId", "season", "weekEvaluated", "targetType");
 
 -- CreateIndex
-CREATE INDEX "draft_prediction_snapshots_leagueId_season_idx" ON "draft_prediction_snapshots"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "draft_prediction_snapshots_leagueId_season_idx" ON "draft_prediction_snapshots"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_prediction_snapshots_leagueId_sportType_season_idx" ON "draft_prediction_snapshots"("leagueId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "draft_prediction_snapshots_leagueId_sportType_season_idx" ON "draft_prediction_snapshots"("leagueId", "sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_prediction_snapshots_sportType_season_idx" ON "draft_prediction_snapshots"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "draft_prediction_snapshots_sportType_season_idx" ON "draft_prediction_snapshots"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_prediction_snapshots_userId_createdAt_idx" ON "draft_prediction_snapshots"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "draft_prediction_snapshots_userId_createdAt_idx" ON "draft_prediction_snapshots"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "draft_retrospectives_leagueId_season_idx" ON "draft_retrospectives"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "draft_retrospectives_leagueId_season_idx" ON "draft_retrospectives"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_retrospectives_leagueId_sportType_season_idx" ON "draft_retrospectives"("leagueId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "draft_retrospectives_leagueId_sportType_season_idx" ON "draft_retrospectives"("leagueId", "sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_retrospectives_sportType_season_idx" ON "draft_retrospectives"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "draft_retrospectives_sportType_season_idx" ON "draft_retrospectives"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "draft_retrospectives_snapshotId_idx" ON "draft_retrospectives"("snapshotId");
+CREATE INDEX IF NOT EXISTS "draft_retrospectives_snapshotId_idx" ON "draft_retrospectives"("snapshotId");
 
 -- CreateIndex
-CREATE INDEX "league_draft_calibrations_leagueId_sportType_season_idx" ON "league_draft_calibrations"("leagueId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "league_draft_calibrations_leagueId_sportType_season_idx" ON "league_draft_calibrations"("leagueId", "sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "league_draft_calibrations_sportType_season_idx" ON "league_draft_calibrations"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "league_draft_calibrations_sportType_season_idx" ON "league_draft_calibrations"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "league_draft_calibrations_leagueId_idx" ON "league_draft_calibrations"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_draft_calibrations_leagueId_idx" ON "league_draft_calibrations"("leagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_draft_calibrations_leagueId_season_key" ON "league_draft_calibrations"("leagueId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_draft_calibrations_leagueId_season_key" ON "league_draft_calibrations"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "ai_adp_snapshots_sport_idx" ON "ai_adp_snapshots"("sport");
+CREATE INDEX IF NOT EXISTS "ai_adp_snapshots_sport_idx" ON "ai_adp_snapshots"("sport");
 
 -- CreateIndex
-CREATE INDEX "ai_adp_snapshots_computedAt_idx" ON "ai_adp_snapshots"("computedAt");
+CREATE INDEX IF NOT EXISTS "ai_adp_snapshots_computedAt_idx" ON "ai_adp_snapshots"("computedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ai_adp_snapshots_sport_leagueType_formatKey_key" ON "ai_adp_snapshots"("sport", "leagueType", "formatKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "ai_adp_snapshots_sport_leagueType_formatKey_key" ON "ai_adp_snapshots"("sport", "leagueType", "formatKey");
 
 -- CreateIndex
-CREATE INDEX "ai_adp_snapshot_history_sport_leagueType_formatKey_computed_idx" ON "ai_adp_snapshot_history"("sport", "leagueType", "formatKey", "computedAt" DESC);
+CREATE INDEX IF NOT EXISTS "ai_adp_snapshot_history_sport_leagueType_formatKey_computed_idx" ON "ai_adp_snapshot_history"("sport", "leagueType", "formatKey", "computedAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "ai_adp_snapshot_history_computedAt_idx" ON "ai_adp_snapshot_history"("computedAt" DESC);
+CREATE INDEX IF NOT EXISTS "ai_adp_snapshot_history_computedAt_idx" ON "ai_adp_snapshot_history"("computedAt" DESC);
 
 -- CreateIndex
-CREATE INDEX "share_engagements_sleeperUsername_idx" ON "share_engagements"("sleeperUsername");
+CREATE INDEX IF NOT EXISTS "share_engagements_sleeperUsername_idx" ON "share_engagements"("sleeperUsername");
 
 -- CreateIndex
-CREATE INDEX "share_engagements_sleeperUsername_shareType_idx" ON "share_engagements"("sleeperUsername", "shareType");
+CREATE INDEX IF NOT EXISTS "share_engagements_sleeperUsername_shareType_idx" ON "share_engagements"("sleeperUsername", "shareType");
 
 -- CreateIndex
-CREATE INDEX "share_engagements_createdAt_idx" ON "share_engagements"("createdAt");
+CREATE INDEX IF NOT EXISTS "share_engagements_createdAt_idx" ON "share_engagements"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_threads_threadType_lastMessageAt_idx" ON "platform_chat_threads"("threadType", "lastMessageAt");
+CREATE INDEX IF NOT EXISTS "platform_chat_threads_threadType_lastMessageAt_idx" ON "platform_chat_threads"("threadType", "lastMessageAt");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_threads_createdByUserId_idx" ON "platform_chat_threads"("createdByUserId");
+CREATE INDEX IF NOT EXISTS "platform_chat_threads_createdByUserId_idx" ON "platform_chat_threads"("createdByUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_thread_members_userId_joinedAt_idx" ON "platform_chat_thread_members"("userId", "joinedAt");
+CREATE INDEX IF NOT EXISTS "platform_chat_thread_members_userId_joinedAt_idx" ON "platform_chat_thread_members"("userId", "joinedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "platform_chat_thread_members_threadId_userId_key" ON "platform_chat_thread_members"("threadId", "userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "platform_chat_thread_members_threadId_userId_key" ON "platform_chat_thread_members"("threadId", "userId");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_messages_threadId_createdAt_idx" ON "platform_chat_messages"("threadId", "createdAt");
+CREATE INDEX IF NOT EXISTS "platform_chat_messages_threadId_createdAt_idx" ON "platform_chat_messages"("threadId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_messages_senderUserId_createdAt_idx" ON "platform_chat_messages"("senderUserId", "createdAt");
+CREATE INDEX IF NOT EXISTS "platform_chat_messages_senderUserId_createdAt_idx" ON "platform_chat_messages"("senderUserId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "platform_chat_messages_globalBroadcastId_idx" ON "platform_chat_messages"("globalBroadcastId");
+CREATE INDEX IF NOT EXISTS "platform_chat_messages_globalBroadcastId_idx" ON "platform_chat_messages"("globalBroadcastId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "platform_notifications_sourceKey_key" ON "platform_notifications"("sourceKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "platform_notifications_sourceKey_key" ON "platform_notifications"("sourceKey");
 
 -- CreateIndex
-CREATE INDEX "platform_notifications_userId_createdAt_idx" ON "platform_notifications"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "platform_notifications_userId_createdAt_idx" ON "platform_notifications"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "platform_notifications_userId_readAt_idx" ON "platform_notifications"("userId", "readAt");
+CREATE INDEX IF NOT EXISTS "platform_notifications_userId_readAt_idx" ON "platform_notifications"("userId", "readAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "web_push_subscriptions_endpoint_key" ON "web_push_subscriptions"("endpoint");
+CREATE UNIQUE INDEX IF NOT EXISTS "web_push_subscriptions_endpoint_key" ON "web_push_subscriptions"("endpoint");
 
 -- CreateIndex
-CREATE INDEX "web_push_subscriptions_userId_idx" ON "web_push_subscriptions"("userId");
+CREATE INDEX IF NOT EXISTS "web_push_subscriptions_userId_idx" ON "web_push_subscriptions"("userId");
 
 -- CreateIndex
-CREATE INDEX "engagement_events_userId_createdAt_idx" ON "engagement_events"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "engagement_events_userId_createdAt_idx" ON "engagement_events"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "engagement_events_userId_eventType_idx" ON "engagement_events"("userId", "eventType");
+CREATE INDEX IF NOT EXISTS "engagement_events_userId_eventType_idx" ON "engagement_events"("userId", "eventType");
 
 -- CreateIndex
-CREATE INDEX "engagement_events_eventType_idx" ON "engagement_events"("eventType");
+CREATE INDEX IF NOT EXISTS "engagement_events_eventType_idx" ON "engagement_events"("eventType");
 
 -- CreateIndex
-CREATE INDEX "podcast_episodes_userId_idx" ON "podcast_episodes"("userId");
+CREATE INDEX IF NOT EXISTS "podcast_episodes_userId_idx" ON "podcast_episodes"("userId");
 
 -- CreateIndex
-CREATE INDEX "podcast_episodes_userId_createdAt_idx" ON "podcast_episodes"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "podcast_episodes_userId_createdAt_idx" ON "podcast_episodes"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "fantasy_media_episodes_userId_idx" ON "fantasy_media_episodes"("userId");
+CREATE INDEX IF NOT EXISTS "fantasy_media_episodes_userId_idx" ON "fantasy_media_episodes"("userId");
 
 -- CreateIndex
-CREATE INDEX "fantasy_media_episodes_userId_mediaType_idx" ON "fantasy_media_episodes"("userId", "mediaType");
+CREATE INDEX IF NOT EXISTS "fantasy_media_episodes_userId_mediaType_idx" ON "fantasy_media_episodes"("userId", "mediaType");
 
 -- CreateIndex
-CREATE INDEX "fantasy_media_episodes_userId_createdAt_idx" ON "fantasy_media_episodes"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "fantasy_media_episodes_userId_createdAt_idx" ON "fantasy_media_episodes"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "fantasy_media_episodes_status_idx" ON "fantasy_media_episodes"("status");
+CREATE INDEX IF NOT EXISTS "fantasy_media_episodes_status_idx" ON "fantasy_media_episodes"("status");
 
 -- CreateIndex
-CREATE INDEX "fantasy_media_publish_logs_episodeId_idx" ON "fantasy_media_publish_logs"("episodeId");
+CREATE INDEX IF NOT EXISTS "fantasy_media_publish_logs_episodeId_idx" ON "fantasy_media_publish_logs"("episodeId");
 
 -- CreateIndex
-CREATE INDEX "social_clips_userId_idx" ON "social_clips"("userId");
+CREATE INDEX IF NOT EXISTS "social_clips_userId_idx" ON "social_clips"("userId");
 
 -- CreateIndex
-CREATE INDEX "social_clips_userId_createdAt_idx" ON "social_clips"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "social_clips_userId_createdAt_idx" ON "social_clips"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "social_content_assets_userId_idx" ON "social_content_assets"("userId");
+CREATE INDEX IF NOT EXISTS "social_content_assets_userId_idx" ON "social_content_assets"("userId");
 
 -- CreateIndex
-CREATE INDEX "social_content_assets_userId_assetType_idx" ON "social_content_assets"("userId", "assetType");
+CREATE INDEX IF NOT EXISTS "social_content_assets_userId_assetType_idx" ON "social_content_assets"("userId", "assetType");
 
 -- CreateIndex
-CREATE INDEX "social_content_assets_userId_createdAt_idx" ON "social_content_assets"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "social_content_assets_userId_createdAt_idx" ON "social_content_assets"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "social_publish_targets_userId_idx" ON "social_publish_targets"("userId");
+CREATE INDEX IF NOT EXISTS "social_publish_targets_userId_idx" ON "social_publish_targets"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "social_publish_targets_userId_platform_key" ON "social_publish_targets"("userId", "platform");
+CREATE UNIQUE INDEX IF NOT EXISTS "social_publish_targets_userId_platform_key" ON "social_publish_targets"("userId", "platform");
 
 -- CreateIndex
-CREATE INDEX "social_publish_logs_assetId_idx" ON "social_publish_logs"("assetId");
+CREATE INDEX IF NOT EXISTS "social_publish_logs_assetId_idx" ON "social_publish_logs"("assetId");
 
 -- CreateIndex
-CREATE INDEX "social_publish_logs_assetId_platform_idx" ON "social_publish_logs"("assetId", "platform");
+CREATE INDEX IF NOT EXISTS "social_publish_logs_assetId_platform_idx" ON "social_publish_logs"("assetId", "platform");
 
 -- CreateIndex
-CREATE INDEX "shareable_moments_userId_idx" ON "shareable_moments"("userId");
+CREATE INDEX IF NOT EXISTS "shareable_moments_userId_idx" ON "shareable_moments"("userId");
 
 -- CreateIndex
-CREATE INDEX "shareable_moments_userId_shareType_idx" ON "shareable_moments"("userId", "shareType");
+CREATE INDEX IF NOT EXISTS "shareable_moments_userId_shareType_idx" ON "shareable_moments"("userId", "shareType");
 
 -- CreateIndex
-CREATE INDEX "shareable_moments_userId_createdAt_idx" ON "shareable_moments"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "shareable_moments_userId_createdAt_idx" ON "shareable_moments"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "share_publish_logs_shareId_idx" ON "share_publish_logs"("shareId");
+CREATE INDEX IF NOT EXISTS "share_publish_logs_shareId_idx" ON "share_publish_logs"("shareId");
 
 -- CreateIndex
-CREATE INDEX "share_publish_logs_shareId_platform_idx" ON "share_publish_logs"("shareId", "platform");
+CREATE INDEX IF NOT EXISTS "share_publish_logs_shareId_platform_idx" ON "share_publish_logs"("shareId", "platform");
 
 -- CreateIndex
-CREATE INDEX "platform_blocked_users_blockerUserId_idx" ON "platform_blocked_users"("blockerUserId");
+CREATE INDEX IF NOT EXISTS "platform_blocked_users_blockerUserId_idx" ON "platform_blocked_users"("blockerUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_blocked_users_blockedUserId_idx" ON "platform_blocked_users"("blockedUserId");
+CREATE INDEX IF NOT EXISTS "platform_blocked_users_blockedUserId_idx" ON "platform_blocked_users"("blockedUserId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "platform_blocked_users_blockerUserId_blockedUserId_key" ON "platform_blocked_users"("blockerUserId", "blockedUserId");
+CREATE UNIQUE INDEX IF NOT EXISTS "platform_blocked_users_blockerUserId_blockedUserId_key" ON "platform_blocked_users"("blockerUserId", "blockedUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_message_reports_reporterUserId_idx" ON "platform_message_reports"("reporterUserId");
+CREATE INDEX IF NOT EXISTS "platform_message_reports_reporterUserId_idx" ON "platform_message_reports"("reporterUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_message_reports_messageId_threadId_idx" ON "platform_message_reports"("messageId", "threadId");
+CREATE INDEX IF NOT EXISTS "platform_message_reports_messageId_threadId_idx" ON "platform_message_reports"("messageId", "threadId");
 
 -- CreateIndex
-CREATE INDEX "platform_user_reports_reporterUserId_idx" ON "platform_user_reports"("reporterUserId");
+CREATE INDEX IF NOT EXISTS "platform_user_reports_reporterUserId_idx" ON "platform_user_reports"("reporterUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_user_reports_reportedUserId_idx" ON "platform_user_reports"("reportedUserId");
+CREATE INDEX IF NOT EXISTS "platform_user_reports_reportedUserId_idx" ON "platform_user_reports"("reportedUserId");
 
 -- CreateIndex
-CREATE INDEX "platform_moderation_actions_userId_idx" ON "platform_moderation_actions"("userId");
+CREATE INDEX IF NOT EXISTS "platform_moderation_actions_userId_idx" ON "platform_moderation_actions"("userId");
 
 -- CreateIndex
-CREATE INDEX "platform_moderation_actions_userId_actionType_idx" ON "platform_moderation_actions"("userId", "actionType");
+CREATE INDEX IF NOT EXISTS "platform_moderation_actions_userId_actionType_idx" ON "platform_moderation_actions"("userId", "actionType");
 
 -- CreateIndex
-CREATE INDEX "platform_moderation_actions_expiresAt_idx" ON "platform_moderation_actions"("expiresAt");
+CREATE INDEX IF NOT EXISTS "platform_moderation_actions_expiresAt_idx" ON "platform_moderation_actions"("expiresAt");
 
 -- CreateIndex
-CREATE INDEX "admin_audit_log_adminUserId_idx" ON "admin_audit_log"("adminUserId");
+CREATE INDEX IF NOT EXISTS "admin_audit_log_adminUserId_idx" ON "admin_audit_log"("adminUserId");
 
 -- CreateIndex
-CREATE INDEX "admin_audit_log_action_idx" ON "admin_audit_log"("action");
+CREATE INDEX IF NOT EXISTS "admin_audit_log_action_idx" ON "admin_audit_log"("action");
 
 -- CreateIndex
-CREATE INDEX "admin_audit_log_createdAt_idx" ON "admin_audit_log"("createdAt");
+CREATE INDEX IF NOT EXISTS "admin_audit_log_createdAt_idx" ON "admin_audit_log"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "stripe_webhook_events_eventId_key" ON "stripe_webhook_events"("eventId");
+CREATE UNIQUE INDEX IF NOT EXISTS "stripe_webhook_events_eventId_key" ON "stripe_webhook_events"("eventId");
 
 -- CreateIndex
-CREATE INDEX "stripe_webhook_events_type_idx" ON "stripe_webhook_events"("type");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_type_idx" ON "stripe_webhook_events"("type");
 
 -- CreateIndex
-CREATE INDEX "stripe_webhook_events_status_idx" ON "stripe_webhook_events"("status");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_status_idx" ON "stripe_webhook_events"("status");
 
 -- CreateIndex
-CREATE INDEX "stripe_webhook_events_processedAt_idx" ON "stripe_webhook_events"("processedAt");
+CREATE INDEX IF NOT EXISTS "stripe_webhook_events_processedAt_idx" ON "stripe_webhook_events"("processedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "subscription_plans_code_key" ON "subscription_plans"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "subscription_plans_code_key" ON "subscription_plans"("code");
 
 -- CreateIndex
-CREATE INDEX "subscription_plans_isActive_idx" ON "subscription_plans"("isActive");
+CREATE INDEX IF NOT EXISTS "subscription_plans_isActive_idx" ON "subscription_plans"("isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_subscriptions_stripeSubscriptionId_key" ON "user_subscriptions"("stripeSubscriptionId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_subscriptions_stripeSubscriptionId_key" ON "user_subscriptions"("stripeSubscriptionId");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_userId_idx" ON "user_subscriptions"("userId");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_userId_idx" ON "user_subscriptions"("userId");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_userId_status_idx" ON "user_subscriptions"("userId", "status");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_userId_status_idx" ON "user_subscriptions"("userId", "status");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_subscriptionPlanId_status_idx" ON "user_subscriptions"("subscriptionPlanId", "status");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_subscriptionPlanId_status_idx" ON "user_subscriptions"("subscriptionPlanId", "status");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_stripeCustomerId_idx" ON "user_subscriptions"("stripeCustomerId");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_stripeCustomerId_idx" ON "user_subscriptions"("stripeCustomerId");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_currentPeriodEnd_idx" ON "user_subscriptions"("currentPeriodEnd");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_currentPeriodEnd_idx" ON "user_subscriptions"("currentPeriodEnd");
 
 -- CreateIndex
-CREATE INDEX "user_subscriptions_gracePeriodEnd_idx" ON "user_subscriptions"("gracePeriodEnd");
+CREATE INDEX IF NOT EXISTS "user_subscriptions_gracePeriodEnd_idx" ON "user_subscriptions"("gracePeriodEnd");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "token_packages_sku_key" ON "token_packages"("sku");
+CREATE UNIQUE INDEX IF NOT EXISTS "token_packages_sku_key" ON "token_packages"("sku");
 
 -- CreateIndex
-CREATE INDEX "token_packages_isActive_idx" ON "token_packages"("isActive");
+CREATE INDEX IF NOT EXISTS "token_packages_isActive_idx" ON "token_packages"("isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_token_balances_userId_key" ON "user_token_balances"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "user_token_balances_userId_key" ON "user_token_balances"("userId");
 
 -- CreateIndex
-CREATE INDEX "user_token_balances_balance_idx" ON "user_token_balances"("balance");
+CREATE INDEX IF NOT EXISTS "user_token_balances_balance_idx" ON "user_token_balances"("balance");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "token_spend_rules_code_key" ON "token_spend_rules"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "token_spend_rules_code_key" ON "token_spend_rules"("code");
 
 -- CreateIndex
-CREATE INDEX "token_spend_rules_isActive_idx" ON "token_spend_rules"("isActive");
+CREATE INDEX IF NOT EXISTS "token_spend_rules_isActive_idx" ON "token_spend_rules"("isActive");
 
 -- CreateIndex
-CREATE INDEX "token_spend_rules_category_isActive_idx" ON "token_spend_rules"("category", "isActive");
+CREATE INDEX IF NOT EXISTS "token_spend_rules_category_isActive_idx" ON "token_spend_rules"("category", "isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "token_refund_rules_code_key" ON "token_refund_rules"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "token_refund_rules_code_key" ON "token_refund_rules"("code");
 
 -- CreateIndex
-CREATE INDEX "token_refund_rules_isActive_idx" ON "token_refund_rules"("isActive");
+CREATE INDEX IF NOT EXISTS "token_refund_rules_isActive_idx" ON "token_refund_rules"("isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "token_ledger_idempotencyKey_key" ON "token_ledger"("idempotencyKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "token_ledger_idempotencyKey_key" ON "token_ledger"("idempotencyKey");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_userId_createdAt_idx" ON "token_ledger"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "token_ledger_userId_createdAt_idx" ON "token_ledger"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_entryType_createdAt_idx" ON "token_ledger"("entryType", "createdAt");
+CREATE INDEX IF NOT EXISTS "token_ledger_entryType_createdAt_idx" ON "token_ledger"("entryType", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_tokenPackageSku_idx" ON "token_ledger"("tokenPackageSku");
+CREATE INDEX IF NOT EXISTS "token_ledger_tokenPackageSku_idx" ON "token_ledger"("tokenPackageSku");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_spendRuleCode_idx" ON "token_ledger"("spendRuleCode");
+CREATE INDEX IF NOT EXISTS "token_ledger_spendRuleCode_idx" ON "token_ledger"("spendRuleCode");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_refundRuleCode_idx" ON "token_ledger"("refundRuleCode");
+CREATE INDEX IF NOT EXISTS "token_ledger_refundRuleCode_idx" ON "token_ledger"("refundRuleCode");
 
 -- CreateIndex
-CREATE INDEX "token_ledger_sourceType_sourceId_idx" ON "token_ledger"("sourceType", "sourceId");
+CREATE INDEX IF NOT EXISTS "token_ledger_sourceType_sourceId_idx" ON "token_ledger"("sourceType", "sourceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "platform_wallet_accounts_userId_key" ON "platform_wallet_accounts"("userId");
+CREATE UNIQUE INDEX IF NOT EXISTS "platform_wallet_accounts_userId_key" ON "platform_wallet_accounts"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "wallet_ledger_entries_sourceKey_key" ON "wallet_ledger_entries"("sourceKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "wallet_ledger_entries_sourceKey_key" ON "wallet_ledger_entries"("sourceKey");
 
 -- CreateIndex
-CREATE INDEX "wallet_ledger_entries_walletAccountId_createdAt_idx" ON "wallet_ledger_entries"("walletAccountId", "createdAt");
+CREATE INDEX IF NOT EXISTS "wallet_ledger_entries_walletAccountId_createdAt_idx" ON "wallet_ledger_entries"("walletAccountId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "wallet_ledger_entries_userId_createdAt_idx" ON "wallet_ledger_entries"("userId", "createdAt");
+CREATE INDEX IF NOT EXISTS "wallet_ledger_entries_userId_createdAt_idx" ON "wallet_ledger_entries"("userId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "wallet_ledger_entries_entryType_status_idx" ON "wallet_ledger_entries"("entryType", "status");
+CREATE INDEX IF NOT EXISTS "wallet_ledger_entries_entryType_status_idx" ON "wallet_ledger_entries"("entryType", "status");
 
 -- CreateIndex
-CREATE INDEX "season_forecast_snapshots_leagueId_season_week_idx" ON "season_forecast_snapshots"("leagueId", "season", "week");
+CREATE INDEX IF NOT EXISTS "season_forecast_snapshots_leagueId_season_week_idx" ON "season_forecast_snapshots"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "season_forecast_snapshots_leagueId_sportType_season_week_idx" ON "season_forecast_snapshots"("leagueId", "sportType", "season", "week");
+CREATE INDEX IF NOT EXISTS "season_forecast_snapshots_leagueId_sportType_season_week_idx" ON "season_forecast_snapshots"("leagueId", "sportType", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "season_forecast_snapshots_sportType_season_week_idx" ON "season_forecast_snapshots"("sportType", "season", "week");
+CREATE INDEX IF NOT EXISTS "season_forecast_snapshots_sportType_season_week_idx" ON "season_forecast_snapshots"("sportType", "season", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "season_forecast_snapshots_leagueId_season_week_key" ON "season_forecast_snapshots"("leagueId", "season", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "season_forecast_snapshots_leagueId_season_week_key" ON "season_forecast_snapshots"("leagueId", "season", "week");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projection_snapshots_leagueId_season_idx" ON "dynasty_projection_snapshots"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "dynasty_projection_snapshots_leagueId_season_idx" ON "dynasty_projection_snapshots"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projection_snapshots_leagueId_sportType_season_idx" ON "dynasty_projection_snapshots"("leagueId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "dynasty_projection_snapshots_leagueId_sportType_season_idx" ON "dynasty_projection_snapshots"("leagueId", "sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projection_snapshots_sportType_season_idx" ON "dynasty_projection_snapshots"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "dynasty_projection_snapshots_sportType_season_idx" ON "dynasty_projection_snapshots"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projection_snapshots_leagueId_teamId_season_idx" ON "dynasty_projection_snapshots"("leagueId", "teamId", "season");
+CREATE INDEX IF NOT EXISTS "dynasty_projection_snapshots_leagueId_teamId_season_idx" ON "dynasty_projection_snapshots"("leagueId", "teamId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dynasty_projection_snapshots_leagueId_teamId_season_key" ON "dynasty_projection_snapshots"("leagueId", "teamId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "dynasty_projection_snapshots_leagueId_teamId_season_key" ON "dynasty_projection_snapshots"("leagueId", "teamId", "season");
 
 -- CreateIndex
-CREATE INDEX "player_career_projections_sport_season_idx" ON "player_career_projections"("sport", "season");
+CREATE INDEX IF NOT EXISTS "player_career_projections_sport_season_idx" ON "player_career_projections"("sport", "season");
 
 -- CreateIndex
-CREATE INDEX "player_career_projections_sport_playerId_season_idx" ON "player_career_projections"("sport", "playerId", "season");
+CREATE INDEX IF NOT EXISTS "player_career_projections_sport_playerId_season_idx" ON "player_career_projections"("sport", "playerId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_career_projections_sport_playerId_season_key" ON "player_career_projections"("sport", "playerId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_career_projections_sport_playerId_season_key" ON "player_career_projections"("sport", "playerId", "season");
 
 -- CreateIndex
-CREATE INDEX "team_window_profiles_leagueId_season_idx" ON "team_window_profiles"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "team_window_profiles_leagueId_season_idx" ON "team_window_profiles"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "team_window_profiles_leagueId_sportType_season_idx" ON "team_window_profiles"("leagueId", "sportType", "season");
+CREATE INDEX IF NOT EXISTS "team_window_profiles_leagueId_sportType_season_idx" ON "team_window_profiles"("leagueId", "sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "team_window_profiles_sportType_season_idx" ON "team_window_profiles"("sportType", "season");
+CREATE INDEX IF NOT EXISTS "team_window_profiles_sportType_season_idx" ON "team_window_profiles"("sportType", "season");
 
 -- CreateIndex
-CREATE INDEX "team_window_profiles_leagueId_teamId_season_idx" ON "team_window_profiles"("leagueId", "teamId", "season");
+CREATE INDEX IF NOT EXISTS "team_window_profiles_leagueId_teamId_season_idx" ON "team_window_profiles"("leagueId", "teamId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "team_window_profiles_leagueId_teamId_season_key" ON "team_window_profiles"("leagueId", "teamId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "team_window_profiles_leagueId_teamId_season_key" ON "team_window_profiles"("leagueId", "teamId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "graph_nodes_nodeId_key" ON "graph_nodes"("nodeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "graph_nodes_nodeId_key" ON "graph_nodes"("nodeId");
 
 -- CreateIndex
-CREATE INDEX "graph_nodes_leagueId_season_idx" ON "graph_nodes"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "graph_nodes_leagueId_season_idx" ON "graph_nodes"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "graph_nodes_nodeType_leagueId_idx" ON "graph_nodes"("nodeType", "leagueId");
+CREATE INDEX IF NOT EXISTS "graph_nodes_nodeType_leagueId_idx" ON "graph_nodes"("nodeType", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "graph_nodes_entityId_leagueId_idx" ON "graph_nodes"("entityId", "leagueId");
+CREATE INDEX IF NOT EXISTS "graph_nodes_entityId_leagueId_idx" ON "graph_nodes"("entityId", "leagueId");
 
 -- CreateIndex
-CREATE INDEX "graph_nodes_leagueId_sport_idx" ON "graph_nodes"("leagueId", "sport");
+CREATE INDEX IF NOT EXISTS "graph_nodes_leagueId_sport_idx" ON "graph_nodes"("leagueId", "sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "graph_edges_edgeId_key" ON "graph_edges"("edgeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "graph_edges_edgeId_key" ON "graph_edges"("edgeId");
 
 -- CreateIndex
-CREATE INDEX "graph_edges_fromNodeId_idx" ON "graph_edges"("fromNodeId");
+CREATE INDEX IF NOT EXISTS "graph_edges_fromNodeId_idx" ON "graph_edges"("fromNodeId");
 
 -- CreateIndex
-CREATE INDEX "graph_edges_toNodeId_idx" ON "graph_edges"("toNodeId");
+CREATE INDEX IF NOT EXISTS "graph_edges_toNodeId_idx" ON "graph_edges"("toNodeId");
 
 -- CreateIndex
-CREATE INDEX "graph_edges_edgeType_season_idx" ON "graph_edges"("edgeType", "season");
+CREATE INDEX IF NOT EXISTS "graph_edges_edgeType_season_idx" ON "graph_edges"("edgeType", "season");
 
 -- CreateIndex
-CREATE INDEX "graph_edges_fromNodeId_toNodeId_edgeType_idx" ON "graph_edges"("fromNodeId", "toNodeId", "edgeType");
+CREATE INDEX IF NOT EXISTS "graph_edges_fromNodeId_toNodeId_edgeType_idx" ON "graph_edges"("fromNodeId", "toNodeId", "edgeType");
 
 -- CreateIndex
-CREATE INDEX "graph_edges_edgeType_sport_idx" ON "graph_edges"("edgeType", "sport");
+CREATE INDEX IF NOT EXISTS "graph_edges_edgeType_sport_idx" ON "graph_edges"("edgeType", "sport");
 
 -- CreateIndex
-CREATE INDEX "league_graph_snapshots_leagueId_season_idx" ON "league_graph_snapshots"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "league_graph_snapshots_leagueId_season_idx" ON "league_graph_snapshots"("leagueId", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_graph_snapshots_leagueId_season_key" ON "league_graph_snapshots"("leagueId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_graph_snapshots_leagueId_season_key" ON "league_graph_snapshots"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "league_dynasty_seasons_leagueId_idx" ON "league_dynasty_seasons"("leagueId");
+CREATE INDEX IF NOT EXISTS "league_dynasty_seasons_leagueId_idx" ON "league_dynasty_seasons"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "league_dynasty_seasons_platformLeagueId_idx" ON "league_dynasty_seasons"("platformLeagueId");
+CREATE INDEX IF NOT EXISTS "league_dynasty_seasons_platformLeagueId_idx" ON "league_dynasty_seasons"("platformLeagueId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "league_dynasty_seasons_leagueId_season_key" ON "league_dynasty_seasons"("leagueId", "season");
+CREATE UNIQUE INDEX IF NOT EXISTS "league_dynasty_seasons_leagueId_season_key" ON "league_dynasty_seasons"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "dynasty_backfill_status_leagueId_idx" ON "dynasty_backfill_status"("leagueId");
+CREATE INDEX IF NOT EXISTS "dynasty_backfill_status_leagueId_idx" ON "dynasty_backfill_status"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "dynasty_backfill_status_status_idx" ON "dynasty_backfill_status"("status");
+CREATE INDEX IF NOT EXISTS "dynasty_backfill_status_status_idx" ON "dynasty_backfill_status"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dynasty_backfill_status_leagueId_provider_key" ON "dynasty_backfill_status"("leagueId", "provider");
+CREATE UNIQUE INDEX IF NOT EXISTS "dynasty_backfill_status_leagueId_provider_key" ON "dynasty_backfill_status"("leagueId", "provider");
 
 -- CreateIndex
-CREATE INDEX "dw_player_game_facts_playerId_sport_idx" ON "dw_player_game_facts"("playerId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_player_game_facts_playerId_sport_idx" ON "dw_player_game_facts"("playerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "dw_player_game_facts_sport_scoringPeriod_idx" ON "dw_player_game_facts"("sport", "scoringPeriod");
+CREATE INDEX IF NOT EXISTS "dw_player_game_facts_sport_scoringPeriod_idx" ON "dw_player_game_facts"("sport", "scoringPeriod");
 
 -- CreateIndex
-CREATE INDEX "dw_player_game_facts_sport_season_weekOrRound_idx" ON "dw_player_game_facts"("sport", "season", "weekOrRound");
+CREATE INDEX IF NOT EXISTS "dw_player_game_facts_sport_season_weekOrRound_idx" ON "dw_player_game_facts"("sport", "season", "weekOrRound");
 
 -- CreateIndex
-CREATE INDEX "dw_player_game_facts_gameId_idx" ON "dw_player_game_facts"("gameId");
+CREATE INDEX IF NOT EXISTS "dw_player_game_facts_gameId_idx" ON "dw_player_game_facts"("gameId");
 
 -- CreateIndex
-CREATE INDEX "dw_team_game_facts_teamId_sport_idx" ON "dw_team_game_facts"("teamId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_team_game_facts_teamId_sport_idx" ON "dw_team_game_facts"("teamId", "sport");
 
 -- CreateIndex
-CREATE INDEX "dw_team_game_facts_sport_season_weekOrRound_idx" ON "dw_team_game_facts"("sport", "season", "weekOrRound");
+CREATE INDEX IF NOT EXISTS "dw_team_game_facts_sport_season_weekOrRound_idx" ON "dw_team_game_facts"("sport", "season", "weekOrRound");
 
 -- CreateIndex
-CREATE INDEX "dw_team_game_facts_gameId_idx" ON "dw_team_game_facts"("gameId");
+CREATE INDEX IF NOT EXISTS "dw_team_game_facts_gameId_idx" ON "dw_team_game_facts"("gameId");
 
 -- CreateIndex
-CREATE INDEX "dw_roster_snapshots_leagueId_weekOrPeriod_idx" ON "dw_roster_snapshots"("leagueId", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "dw_roster_snapshots_leagueId_weekOrPeriod_idx" ON "dw_roster_snapshots"("leagueId", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "dw_roster_snapshots_teamId_sport_idx" ON "dw_roster_snapshots"("teamId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_roster_snapshots_teamId_sport_idx" ON "dw_roster_snapshots"("teamId", "sport");
 
 -- CreateIndex
-CREATE INDEX "dw_roster_snapshots_sport_season_idx" ON "dw_roster_snapshots"("sport", "season");
+CREATE INDEX IF NOT EXISTS "dw_roster_snapshots_sport_season_idx" ON "dw_roster_snapshots"("sport", "season");
 
 -- CreateIndex
-CREATE INDEX "dw_matchup_facts_leagueId_weekOrPeriod_idx" ON "dw_matchup_facts"("leagueId", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "dw_matchup_facts_leagueId_weekOrPeriod_idx" ON "dw_matchup_facts"("leagueId", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "dw_matchup_facts_leagueId_season_idx" ON "dw_matchup_facts"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "dw_matchup_facts_leagueId_season_idx" ON "dw_matchup_facts"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "dw_draft_facts_leagueId_idx" ON "dw_draft_facts"("leagueId");
+CREATE INDEX IF NOT EXISTS "dw_draft_facts_leagueId_idx" ON "dw_draft_facts"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "dw_draft_facts_leagueId_round_idx" ON "dw_draft_facts"("leagueId", "round");
+CREATE INDEX IF NOT EXISTS "dw_draft_facts_leagueId_round_idx" ON "dw_draft_facts"("leagueId", "round");
 
 -- CreateIndex
-CREATE INDEX "dw_draft_facts_playerId_sport_idx" ON "dw_draft_facts"("playerId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_draft_facts_playerId_sport_idx" ON "dw_draft_facts"("playerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "dw_transaction_facts_leagueId_createdAt_idx" ON "dw_transaction_facts"("leagueId", "createdAt");
+CREATE INDEX IF NOT EXISTS "dw_transaction_facts_leagueId_createdAt_idx" ON "dw_transaction_facts"("leagueId", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "dw_transaction_facts_playerId_sport_idx" ON "dw_transaction_facts"("playerId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_transaction_facts_playerId_sport_idx" ON "dw_transaction_facts"("playerId", "sport");
 
 -- CreateIndex
-CREATE INDEX "dw_transaction_facts_type_idx" ON "dw_transaction_facts"("type");
+CREATE INDEX IF NOT EXISTS "dw_transaction_facts_type_idx" ON "dw_transaction_facts"("type");
 
 -- CreateIndex
-CREATE INDEX "dw_season_standing_facts_leagueId_season_idx" ON "dw_season_standing_facts"("leagueId", "season");
+CREATE INDEX IF NOT EXISTS "dw_season_standing_facts_leagueId_season_idx" ON "dw_season_standing_facts"("leagueId", "season");
 
 -- CreateIndex
-CREATE INDEX "dw_season_standing_facts_teamId_sport_idx" ON "dw_season_standing_facts"("teamId", "sport");
+CREATE INDEX IF NOT EXISTS "dw_season_standing_facts_teamId_sport_idx" ON "dw_season_standing_facts"("teamId", "sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dw_season_standing_facts_leagueId_season_teamId_key" ON "dw_season_standing_facts"("leagueId", "season", "teamId");
+CREATE UNIQUE INDEX IF NOT EXISTS "dw_season_standing_facts_leagueId_season_teamId_key" ON "dw_season_standing_facts"("leagueId", "season", "teamId");
 
 -- CreateIndex
-CREATE INDEX "sim_matchup_results_leagueId_weekOrPeriod_idx" ON "sim_matchup_results"("leagueId", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "sim_matchup_results_leagueId_weekOrPeriod_idx" ON "sim_matchup_results"("leagueId", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "sim_matchup_results_sport_idx" ON "sim_matchup_results"("sport");
+CREATE INDEX IF NOT EXISTS "sim_matchup_results_sport_idx" ON "sim_matchup_results"("sport");
 
 -- CreateIndex
-CREATE INDEX "sim_season_results_leagueId_season_weekOrPeriod_idx" ON "sim_season_results"("leagueId", "season", "weekOrPeriod");
+CREATE INDEX IF NOT EXISTS "sim_season_results_leagueId_season_weekOrPeriod_idx" ON "sim_season_results"("leagueId", "season", "weekOrPeriod");
 
 -- CreateIndex
-CREATE INDEX "sim_season_results_teamId_idx" ON "sim_season_results"("teamId");
+CREATE INDEX IF NOT EXISTS "sim_season_results_teamId_idx" ON "sim_season_results"("teamId");
 
 -- CreateIndex
-CREATE INDEX "sim_season_results_sport_idx" ON "sim_season_results"("sport");
+CREATE INDEX IF NOT EXISTS "sim_season_results_sport_idx" ON "sim_season_results"("sport");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projections_leagueId_idx" ON "dynasty_projections"("leagueId");
+CREATE INDEX IF NOT EXISTS "dynasty_projections_leagueId_idx" ON "dynasty_projections"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projections_teamId_idx" ON "dynasty_projections"("teamId");
+CREATE INDEX IF NOT EXISTS "dynasty_projections_teamId_idx" ON "dynasty_projections"("teamId");
 
 -- CreateIndex
-CREATE INDEX "dynasty_projections_sport_idx" ON "dynasty_projections"("sport");
+CREATE INDEX IF NOT EXISTS "dynasty_projections_sport_idx" ON "dynasty_projections"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dynasty_projections_leagueId_teamId_key" ON "dynasty_projections"("leagueId", "teamId");
+CREATE UNIQUE INDEX IF NOT EXISTS "dynasty_projections_leagueId_teamId_key" ON "dynasty_projections"("leagueId", "teamId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "platform_config_key_key" ON "platform_config"("key");
+CREATE UNIQUE INDEX IF NOT EXISTS "platform_config_key_key" ON "platform_config"("key");
 
 -- CreateIndex
-CREATE INDEX "ai_rule_violation_logs_userId_idx" ON "ai_rule_violation_logs"("userId");
+CREATE INDEX IF NOT EXISTS "ai_rule_violation_logs_userId_idx" ON "ai_rule_violation_logs"("userId");
 
 -- CreateIndex
-CREATE INDEX "ai_rule_violation_logs_feature_idx" ON "ai_rule_violation_logs"("feature");
+CREATE INDEX IF NOT EXISTS "ai_rule_violation_logs_feature_idx" ON "ai_rule_violation_logs"("feature");
 
 -- CreateIndex
-CREATE INDEX "ai_rule_violation_logs_ruleId_idx" ON "ai_rule_violation_logs"("ruleId");
+CREATE INDEX IF NOT EXISTS "ai_rule_violation_logs_ruleId_idx" ON "ai_rule_violation_logs"("ruleId");
 
 -- CreateIndex
-CREATE INDEX "ai_rule_violation_logs_severity_idx" ON "ai_rule_violation_logs"("severity");
+CREATE INDEX IF NOT EXISTS "ai_rule_violation_logs_severity_idx" ON "ai_rule_violation_logs"("severity");
 
 -- CreateIndex
-CREATE INDEX "ai_rule_violation_logs_createdAt_idx" ON "ai_rule_violation_logs"("createdAt");
+CREATE INDEX IF NOT EXISTS "ai_rule_violation_logs_createdAt_idx" ON "ai_rule_violation_logs"("createdAt");
 
 -- CreateIndex
-CREATE INDEX "ai_custom_rules_enabled_idx" ON "ai_custom_rules"("enabled");
+CREATE INDEX IF NOT EXISTS "ai_custom_rules_enabled_idx" ON "ai_custom_rules"("enabled");
 
 -- CreateIndex
-CREATE INDEX "ai_custom_rules_category_idx" ON "ai_custom_rules"("category");
+CREATE INDEX IF NOT EXISTS "ai_custom_rules_category_idx" ON "ai_custom_rules"("category");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "mock_draft_rooms_inviteCode_key" ON "mock_draft_rooms"("inviteCode");
+CREATE UNIQUE INDEX IF NOT EXISTS "mock_draft_rooms_inviteCode_key" ON "mock_draft_rooms"("inviteCode");
 
 -- CreateIndex
-CREATE INDEX "mock_draft_rooms_createdById_idx" ON "mock_draft_rooms"("createdById");
+CREATE INDEX IF NOT EXISTS "mock_draft_rooms_createdById_idx" ON "mock_draft_rooms"("createdById");
 
 -- CreateIndex
-CREATE INDEX "draft_room_pick_records_leagueId_idx" ON "draft_room_pick_records"("leagueId");
+CREATE INDEX IF NOT EXISTS "draft_room_pick_records_leagueId_idx" ON "draft_room_pick_records"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "draft_room_pick_records_roomId_idx" ON "draft_room_pick_records"("roomId");
+CREATE INDEX IF NOT EXISTS "draft_room_pick_records_roomId_idx" ON "draft_room_pick_records"("roomId");
 
 -- CreateIndex
-CREATE INDEX "draft_room_pick_records_roomId_overallPick_idx" ON "draft_room_pick_records"("roomId", "overallPick");
+CREATE INDEX IF NOT EXISTS "draft_room_pick_records_roomId_overallPick_idx" ON "draft_room_pick_records"("roomId", "overallPick");
 
 -- CreateIndex
-CREATE INDEX "draft_room_pick_records_leagueId_overallPick_idx" ON "draft_room_pick_records"("leagueId", "overallPick");
+CREATE INDEX IF NOT EXISTS "draft_room_pick_records_leagueId_overallPick_idx" ON "draft_room_pick_records"("leagueId", "overallPick");
 
 -- CreateIndex
-CREATE INDEX "draft_room_user_queues_sessionKey_idx" ON "draft_room_user_queues"("sessionKey");
+CREATE INDEX IF NOT EXISTS "draft_room_user_queues_sessionKey_idx" ON "draft_room_user_queues"("sessionKey");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "draft_room_user_queues_userId_sessionKey_key" ON "draft_room_user_queues"("userId", "sessionKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "draft_room_user_queues_userId_sessionKey_key" ON "draft_room_user_queues"("userId", "sessionKey");
 
 -- CreateIndex
-CREATE INDEX "draft_room_chat_messages_sessionKey_createdAt_idx" ON "draft_room_chat_messages"("sessionKey", "createdAt");
+CREATE INDEX IF NOT EXISTS "draft_room_chat_messages_sessionKey_createdAt_idx" ON "draft_room_chat_messages"("sessionKey", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "draft_room_state_leagueId_idx" ON "draft_room_state"("leagueId");
+CREATE INDEX IF NOT EXISTS "draft_room_state_leagueId_idx" ON "draft_room_state"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "draft_room_state_roomId_idx" ON "draft_room_state"("roomId");
+CREATE INDEX IF NOT EXISTS "draft_room_state_roomId_idx" ON "draft_room_state"("roomId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sport_configs_sport_key" ON "sport_configs"("sport");
+CREATE UNIQUE INDEX IF NOT EXISTS "sport_configs_sport_key" ON "sport_configs"("sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "sport_configs_slug_key" ON "sport_configs"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "sport_configs_slug_key" ON "sport_configs"("slug");
 
 -- CreateIndex
-CREATE INDEX "redraft_seasons_leagueId_idx" ON "redraft_seasons"("leagueId");
+CREATE INDEX IF NOT EXISTS "redraft_seasons_leagueId_idx" ON "redraft_seasons"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "redraft_rosters_seasonId_idx" ON "redraft_rosters"("seasonId");
+CREATE INDEX IF NOT EXISTS "redraft_rosters_seasonId_idx" ON "redraft_rosters"("seasonId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "redraft_rosters_seasonId_ownerId_key" ON "redraft_rosters"("seasonId", "ownerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "redraft_rosters_seasonId_ownerId_key" ON "redraft_rosters"("seasonId", "ownerId");
 
 -- CreateIndex
-CREATE INDEX "redraft_roster_players_rosterId_idx" ON "redraft_roster_players"("rosterId");
+CREATE INDEX IF NOT EXISTS "redraft_roster_players_rosterId_idx" ON "redraft_roster_players"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_roster_players_playerId_idx" ON "redraft_roster_players"("playerId");
+CREATE INDEX IF NOT EXISTS "redraft_roster_players_playerId_idx" ON "redraft_roster_players"("playerId");
 
 -- CreateIndex
-CREATE INDEX "redraft_matchups_seasonId_week_idx" ON "redraft_matchups"("seasonId", "week");
+CREATE INDEX IF NOT EXISTS "redraft_matchups_seasonId_week_idx" ON "redraft_matchups"("seasonId", "week");
 
 -- CreateIndex
-CREATE INDEX "redraft_matchups_homeRosterId_idx" ON "redraft_matchups"("homeRosterId");
+CREATE INDEX IF NOT EXISTS "redraft_matchups_homeRosterId_idx" ON "redraft_matchups"("homeRosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_matchups_awayRosterId_idx" ON "redraft_matchups"("awayRosterId");
+CREATE INDEX IF NOT EXISTS "redraft_matchups_awayRosterId_idx" ON "redraft_matchups"("awayRosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_waiver_claims_seasonId_status_idx" ON "redraft_waiver_claims"("seasonId", "status");
+CREATE INDEX IF NOT EXISTS "redraft_waiver_claims_seasonId_status_idx" ON "redraft_waiver_claims"("seasonId", "status");
 
 -- CreateIndex
-CREATE INDEX "redraft_waiver_claims_rosterId_idx" ON "redraft_waiver_claims"("rosterId");
+CREATE INDEX IF NOT EXISTS "redraft_waiver_claims_rosterId_idx" ON "redraft_waiver_claims"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_league_trades_leagueId_status_idx" ON "redraft_league_trades"("leagueId", "status");
+CREATE INDEX IF NOT EXISTS "redraft_league_trades_leagueId_status_idx" ON "redraft_league_trades"("leagueId", "status");
 
 -- CreateIndex
-CREATE INDEX "redraft_league_trades_proposerRosterId_idx" ON "redraft_league_trades"("proposerRosterId");
+CREATE INDEX IF NOT EXISTS "redraft_league_trades_proposerRosterId_idx" ON "redraft_league_trades"("proposerRosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_league_trades_receiverRosterId_idx" ON "redraft_league_trades"("receiverRosterId");
+CREATE INDEX IF NOT EXISTS "redraft_league_trades_receiverRosterId_idx" ON "redraft_league_trades"("receiverRosterId");
 
 -- CreateIndex
-CREATE INDEX "redraft_league_transactions_leagueId_type_idx" ON "redraft_league_transactions"("leagueId", "type");
+CREATE INDEX IF NOT EXISTS "redraft_league_transactions_leagueId_type_idx" ON "redraft_league_transactions"("leagueId", "type");
 
 -- CreateIndex
-CREATE INDEX "player_weekly_scores_sport_week_season_idx" ON "player_weekly_scores"("sport", "week", "season");
+CREATE INDEX IF NOT EXISTS "player_weekly_scores_sport_week_season_idx" ON "player_weekly_scores"("sport", "week", "season");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "player_weekly_scores_playerId_week_season_sport_key" ON "player_weekly_scores"("playerId", "week", "season", "sport");
+CREATE UNIQUE INDEX IF NOT EXISTS "player_weekly_scores_playerId_week_season_sport_key" ON "player_weekly_scores"("playerId", "week", "season", "sport");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "redraft_playoff_brackets_seasonId_key" ON "redraft_playoff_brackets"("seasonId");
+CREATE UNIQUE INDEX IF NOT EXISTS "redraft_playoff_brackets_seasonId_key" ON "redraft_playoff_brackets"("seasonId");
 
 -- CreateIndex
-CREATE INDEX "redraft_ai_league_insights_leagueId_week_type_idx" ON "redraft_ai_league_insights"("leagueId", "week", "type");
+CREATE INDEX IF NOT EXISTS "redraft_ai_league_insights_leagueId_week_type_idx" ON "redraft_ai_league_insights"("leagueId", "week", "type");
 
 -- CreateIndex
-CREATE INDEX "redraft_ai_roster_insights_leagueId_week_idx" ON "redraft_ai_roster_insights"("leagueId", "week");
+CREATE INDEX IF NOT EXISTS "redraft_ai_roster_insights_leagueId_week_idx" ON "redraft_ai_roster_insights"("leagueId", "week");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "redraft_ai_roster_insights_rosterId_week_key" ON "redraft_ai_roster_insights"("rosterId", "week");
+CREATE UNIQUE INDEX IF NOT EXISTS "redraft_ai_roster_insights_rosterId_week_key" ON "redraft_ai_roster_insights"("rosterId", "week");
 
 -- CreateIndex
-CREATE INDEX "keeper_records_leagueId_seasonId_idx" ON "keeper_records"("leagueId", "seasonId");
+CREATE INDEX IF NOT EXISTS "keeper_records_leagueId_seasonId_idx" ON "keeper_records"("leagueId", "seasonId");
 
 -- CreateIndex
-CREATE INDEX "keeper_records_rosterId_seasonId_idx" ON "keeper_records"("rosterId", "seasonId");
+CREATE INDEX IF NOT EXISTS "keeper_records_rosterId_seasonId_idx" ON "keeper_records"("rosterId", "seasonId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "keeper_records_seasonId_rosterId_playerId_key" ON "keeper_records"("seasonId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "keeper_records_seasonId_rosterId_playerId_key" ON "keeper_records"("seasonId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "keeper_selection_sessions_seasonId_key" ON "keeper_selection_sessions"("seasonId");
+CREATE UNIQUE INDEX IF NOT EXISTS "keeper_selection_sessions_seasonId_key" ON "keeper_selection_sessions"("seasonId");
 
 -- CreateIndex
-CREATE INDEX "keeper_selection_sessions_leagueId_idx" ON "keeper_selection_sessions"("leagueId");
+CREATE INDEX IF NOT EXISTS "keeper_selection_sessions_leagueId_idx" ON "keeper_selection_sessions"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "keeper_eligibilities_leagueId_seasonId_idx" ON "keeper_eligibilities"("leagueId", "seasonId");
+CREATE INDEX IF NOT EXISTS "keeper_eligibilities_leagueId_seasonId_idx" ON "keeper_eligibilities"("leagueId", "seasonId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "keeper_eligibilities_seasonId_rosterId_playerId_key" ON "keeper_eligibilities"("seasonId", "rosterId", "playerId");
+CREATE UNIQUE INDEX IF NOT EXISTS "keeper_eligibilities_seasonId_rosterId_playerId_key" ON "keeper_eligibilities"("seasonId", "rosterId", "playerId");
 
 -- CreateIndex
-CREATE INDEX "keeper_pick_adjustments_seasonId_rosterId_idx" ON "keeper_pick_adjustments"("seasonId", "rosterId");
+CREATE INDEX IF NOT EXISTS "keeper_pick_adjustments_seasonId_rosterId_idx" ON "keeper_pick_adjustments"("seasonId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "keeper_audit_logs_leagueId_seasonId_idx" ON "keeper_audit_logs"("leagueId", "seasonId");
+CREATE INDEX IF NOT EXISTS "keeper_audit_logs_leagueId_seasonId_idx" ON "keeper_audit_logs"("leagueId", "seasonId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "best_ball_sport_templates_sport_variant_key" ON "best_ball_sport_templates"("sport", "variant");
+CREATE UNIQUE INDEX IF NOT EXISTS "best_ball_sport_templates_sport_variant_key" ON "best_ball_sport_templates"("sport", "variant");
 
 -- CreateIndex
-CREATE INDEX "best_ball_optimized_lineups_seasonId_week_idx" ON "best_ball_optimized_lineups"("seasonId", "week");
+CREATE INDEX IF NOT EXISTS "best_ball_optimized_lineups_seasonId_week_idx" ON "best_ball_optimized_lineups"("seasonId", "week");
 
 -- CreateIndex
-CREATE INDEX "best_ball_optimized_lineups_rosterId_idx" ON "best_ball_optimized_lineups"("rosterId");
+CREATE INDEX IF NOT EXISTS "best_ball_optimized_lineups_rosterId_idx" ON "best_ball_optimized_lineups"("rosterId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_optimized_lineups_contestId_entryId_idx" ON "best_ball_optimized_lineups"("contestId", "entryId");
+CREATE INDEX IF NOT EXISTS "best_ball_optimized_lineups_contestId_entryId_idx" ON "best_ball_optimized_lineups"("contestId", "entryId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_contests_sport_status_idx" ON "best_ball_contests"("sport", "status");
+CREATE INDEX IF NOT EXISTS "best_ball_contests_sport_status_idx" ON "best_ball_contests"("sport", "status");
 
 -- CreateIndex
-CREATE INDEX "best_ball_pods_contestId_idx" ON "best_ball_pods"("contestId");
+CREATE INDEX IF NOT EXISTS "best_ball_pods_contestId_idx" ON "best_ball_pods"("contestId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "best_ball_pods_contestId_roundNumber_podNumber_key" ON "best_ball_pods"("contestId", "roundNumber", "podNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "best_ball_pods_contestId_roundNumber_podNumber_key" ON "best_ball_pods"("contestId", "roundNumber", "podNumber");
 
 -- CreateIndex
-CREATE INDEX "best_ball_entries_contestId_podId_idx" ON "best_ball_entries"("contestId", "podId");
+CREATE INDEX IF NOT EXISTS "best_ball_entries_contestId_podId_idx" ON "best_ball_entries"("contestId", "podId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_entries_userId_idx" ON "best_ball_entries"("userId");
+CREATE INDEX IF NOT EXISTS "best_ball_entries_userId_idx" ON "best_ball_entries"("userId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_roster_validations_seasonId_rosterId_idx" ON "best_ball_roster_validations"("seasonId", "rosterId");
+CREATE INDEX IF NOT EXISTS "best_ball_roster_validations_seasonId_rosterId_idx" ON "best_ball_roster_validations"("seasonId", "rosterId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_roster_validations_contestId_entryId_idx" ON "best_ball_roster_validations"("contestId", "entryId");
+CREATE INDEX IF NOT EXISTS "best_ball_roster_validations_contestId_entryId_idx" ON "best_ball_roster_validations"("contestId", "entryId");
 
 -- CreateIndex
-CREATE INDEX "best_ball_ai_insights_leagueId_type_idx" ON "best_ball_ai_insights"("leagueId", "type");
+CREATE INDEX IF NOT EXISTS "best_ball_ai_insights_leagueId_type_idx" ON "best_ball_ai_insights"("leagueId", "type");
 
 -- CreateIndex
-CREATE INDEX "best_ball_ai_insights_contestId_type_idx" ON "best_ball_ai_insights"("contestId", "type");
+CREATE INDEX IF NOT EXISTS "best_ball_ai_insights_contestId_type_idx" ON "best_ball_ai_insights"("contestId", "type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "guillotine_seasons_redraftSeasonId_key" ON "guillotine_seasons"("redraftSeasonId");
+CREATE UNIQUE INDEX IF NOT EXISTS "guillotine_seasons_redraftSeasonId_key" ON "guillotine_seasons"("redraftSeasonId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_seasons_leagueId_idx" ON "guillotine_seasons"("leagueId");
+CREATE INDEX IF NOT EXISTS "guillotine_seasons_leagueId_idx" ON "guillotine_seasons"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_eliminations_seasonId_scoringPeriod_idx" ON "guillotine_eliminations"("seasonId", "scoringPeriod");
+CREATE INDEX IF NOT EXISTS "guillotine_eliminations_seasonId_scoringPeriod_idx" ON "guillotine_eliminations"("seasonId", "scoringPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_eliminations_leagueId_idx" ON "guillotine_eliminations"("leagueId");
+CREATE INDEX IF NOT EXISTS "guillotine_eliminations_leagueId_idx" ON "guillotine_eliminations"("leagueId");
 
 -- CreateIndex
-CREATE INDEX "guillotine_survival_logs_seasonId_scoringPeriod_idx" ON "guillotine_survival_logs"("seasonId", "scoringPeriod");
+CREATE INDEX IF NOT EXISTS "guillotine_survival_logs_seasonId_scoringPeriod_idx" ON "guillotine_survival_logs"("seasonId", "scoringPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_survival_logs_rosterId_idx" ON "guillotine_survival_logs"("rosterId");
+CREATE INDEX IF NOT EXISTS "guillotine_survival_logs_rosterId_idx" ON "guillotine_survival_logs"("rosterId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "guillotine_survival_logs_seasonId_rosterId_scoringPeriod_key" ON "guillotine_survival_logs"("seasonId", "rosterId", "scoringPeriod");
+CREATE UNIQUE INDEX IF NOT EXISTS "guillotine_survival_logs_seasonId_rosterId_scoringPeriod_key" ON "guillotine_survival_logs"("seasonId", "rosterId", "scoringPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_waiver_releases_seasonId_releaseStatus_idx" ON "guillotine_waiver_releases"("seasonId", "releaseStatus");
+CREATE INDEX IF NOT EXISTS "guillotine_waiver_releases_seasonId_releaseStatus_idx" ON "guillotine_waiver_releases"("seasonId", "releaseStatus");
 
 -- CreateIndex
-CREATE INDEX "guillotine_waiver_releases_leagueId_scoringPeriod_idx" ON "guillotine_waiver_releases"("leagueId", "scoringPeriod");
+CREATE INDEX IF NOT EXISTS "guillotine_waiver_releases_leagueId_scoringPeriod_idx" ON "guillotine_waiver_releases"("leagueId", "scoringPeriod");
 
 -- CreateIndex
-CREATE INDEX "guillotine_ai_insights_seasonId_type_idx" ON "guillotine_ai_insights"("seasonId", "type");
+CREATE INDEX IF NOT EXISTS "guillotine_ai_insights_seasonId_type_idx" ON "guillotine_ai_insights"("seasonId", "type");
 
 -- CreateIndex
-CREATE INDEX "guillotine_ai_insights_rosterId_type_idx" ON "guillotine_ai_insights"("rosterId", "type");
+CREATE INDEX IF NOT EXISTS "guillotine_ai_insights_rosterId_type_idx" ON "guillotine_ai_insights"("rosterId", "type");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "WeatherCache_cacheKey_key" ON "WeatherCache"("cacheKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "WeatherCache_cacheKey_key" ON "WeatherCache"("cacheKey");
 
 -- CreateIndex
-CREATE INDEX "WeatherCache_cacheKey_idx" ON "WeatherCache"("cacheKey");
+CREATE INDEX IF NOT EXISTS "WeatherCache_cacheKey_idx" ON "WeatherCache"("cacheKey");
 
 -- CreateIndex
-CREATE INDEX "WeatherCache_fetchedAt_idx" ON "WeatherCache"("fetchedAt");
+CREATE INDEX IF NOT EXISTS "WeatherCache_fetchedAt_idx" ON "WeatherCache"("fetchedAt");
 
 -- CreateIndex
-CREATE INDEX "WeatherCache_forecastForTime_idx" ON "WeatherCache"("forecastForTime");
+CREATE INDEX IF NOT EXISTS "WeatherCache_forecastForTime_idx" ON "WeatherCache"("forecastForTime");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AFProjectionSnapshot_snapshotLookupKey_key" ON "AFProjectionSnapshot"("snapshotLookupKey");
+CREATE UNIQUE INDEX IF NOT EXISTS "AFProjectionSnapshot_snapshotLookupKey_key" ON "AFProjectionSnapshot"("snapshotLookupKey");
 
 -- CreateIndex
-CREATE INDEX "AFProjectionSnapshot_playerId_week_season_idx" ON "AFProjectionSnapshot"("playerId", "week", "season");
+CREATE INDEX IF NOT EXISTS "AFProjectionSnapshot_playerId_week_season_idx" ON "AFProjectionSnapshot"("playerId", "week", "season");
 
 -- CreateIndex
-CREATE INDEX "AFProjectionSnapshot_sport_week_season_idx" ON "AFProjectionSnapshot"("sport", "week", "season");
+CREATE INDEX IF NOT EXISTS "AFProjectionSnapshot_sport_week_season_idx" ON "AFProjectionSnapshot"("sport", "week", "season");
 
 -- AddForeignKey
 ALTER TABLE "UserEvent" ADD CONSTRAINT "UserEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "LegacyUser"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -14282,4 +14282,6 @@ ALTER TABLE "guillotine_ai_insights" ADD CONSTRAINT "guillotine_ai_insights_leag
 
 -- AddForeignKey
 ALTER TABLE "guillotine_ai_insights" ADD CONSTRAINT "guillotine_ai_insights_seasonId_fkey" FOREIGN KEY ("seasonId") REFERENCES "guillotine_seasons"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+
 

@@ -3858,6 +3858,23 @@ model UserProfile {
   notificationPreferences   Json? // NotificationPreferences shape
   /// Aggregated scoring/league context after imports — feeds rankings / AI personalization.
   rankingsContext           Json?
+  /// Denormalized from `legacy_user_rank_cache` when rank is computed (dashboard badge / quick reads).
+  legacyCareerTier          Int?      @map("legacy_career_tier")
+  legacyCareerTierName      String?   @map("legacy_career_tier_name")
+  legacyCareerLevel         Int?      @map("legacy_career_level")
+  legacyCareerXp            BigInt?   @map("legacy_career_xp")
+  legacyRankUpdatedAt       DateTime? @map("legacy_rank_updated_at")
+  /// Canonical rank snapshot (T1–T6 showcase) + career totals for `/api/user/rank` and dashboards.
+  rankTier                  String?   @map("rank_tier")
+  xpTotal                   BigInt?   @map("xp_total")
+  xpLevel                   Int?      @map("xp_level")
+  careerWins                Int?      @map("career_wins")
+  careerLosses              Int?      @map("career_losses")
+  careerChampionships       Int?      @map("career_championships")
+  careerPlayoffAppearances  Int?      @map("career_playoff_appearances")
+  careerSeasonsPlayed       Int?      @map("career_seasons_played")
+  careerLeaguesPlayed       Int?      @map("career_leagues_played")
+  rankCalculatedAt          DateTime? @map("rank_calculated_at")
   onboardingStep            String? // welcome | app_walkthrough | sport_selection | tool_suggestions | league_prompt | completed
   onboardingCompletedAt     DateTime?
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
@@ -4004,6 +4021,16 @@ model League {
   importedAt       DateTime?
   /// True when the importing user is Sleeper commissioner (is_owner) for current-season imports.
   isCommissioner   Boolean     @default(false)
+
+  /// Per-season roster row from Sleeper import (for career stats on `League` + `/api/user/rank`).
+  importWins              Int?     @map("import_wins")
+  importLosses            Int?     @map("import_losses")
+  importTies              Int?     @map("import_ties")
+  importPointsFor         Float?   @map("import_points_for")
+  importPointsAgainst     Float?   @map("import_points_against")
+  importMadePlayoffs      Boolean? @map("import_made_playoffs")
+  importWonChampionship   Boolean? @map("import_won_championship")
+  importFinalStanding     Int?     @map("import_final_standing")
 
   /// League logo (AllFantasy commissioner upload; separate from imported avatarUrl when set).
   logoUrl  String?

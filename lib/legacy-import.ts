@@ -582,6 +582,19 @@ async function importLeague(
   }
 }
 
+/**
+ * Sync one Sleeper league into legacy tables (`LegacyLeague` + `LegacyRoster`).
+ * Used by `/api/leagues/import` so career rank uses the same data as the legacy import worker.
+ */
+export async function syncLegacyLeagueFromSleeper(
+  legacyUserId: string,
+  sleeperUserId: string,
+  league: SleeperLeague,
+  season: number,
+): Promise<void> {
+  await importLeague(legacyUserId, sleeperUserId, league, season)
+}
+
 // Legacy function for backward compatibility
 export async function runLegacyImport(
   jobId: string,

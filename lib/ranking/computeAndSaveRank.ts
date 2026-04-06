@@ -122,6 +122,11 @@ export async function computeAndSaveRank(
     leagueHistory,
   })
 
+  const totalWinsAgg = totals.wins
+  const totalLossesAgg = rosterRows.reduce((sum, roster) => sum + safeNumber(roster.losses), 0)
+  const tierLabel = `T${Math.min(10, Math.max(1, rankPreview.career.tier))}`
+  const xpBig = BigInt(Math.max(0, Math.floor(rankPreview.career.xp)))
+
   const now = new Date()
 
   await prisma.legacyUserRankCache.upsert({
@@ -154,6 +159,45 @@ export async function computeAndSaveRank(
       lastCalculatedAt: now,
       lastRefreshAt: now,
       computedFromImportCompletedAt: now,
+    },
+  })
+
+  await prisma.userProfile.upsert({
+    where: { userId: afUserId },
+    update: {
+      legacyCareerTier: rankPreview.career.tier,
+      legacyCareerTierName: rankPreview.career.tier_name,
+      legacyCareerLevel: rankPreview.career.level,
+      legacyCareerXp: xpBig,
+      legacyRankUpdatedAt: now,
+      rankTier: tierLabel,
+      xpTotal: xpBig,
+      xpLevel: rankPreview.career.level,
+      careerWins: totalWinsAgg,
+      careerLosses: totalLossesAgg,
+      careerChampionships: totals.championships,
+      careerPlayoffAppearances: totals.playoffs,
+      careerSeasonsPlayed: seasonsImported,
+      careerLeaguesPlayed: rosterRows.length,
+      rankCalculatedAt: now,
+    },
+    create: {
+      userId: afUserId,
+      legacyCareerTier: rankPreview.career.tier,
+      legacyCareerTierName: rankPreview.career.tier_name,
+      legacyCareerLevel: rankPreview.career.level,
+      legacyCareerXp: xpBig,
+      legacyRankUpdatedAt: now,
+      rankTier: tierLabel,
+      xpTotal: xpBig,
+      xpLevel: rankPreview.career.level,
+      careerWins: totalWinsAgg,
+      careerLosses: totalLossesAgg,
+      careerChampionships: totals.championships,
+      careerPlayoffAppearances: totals.playoffs,
+      careerSeasonsPlayed: seasonsImported,
+      careerLeaguesPlayed: rosterRows.length,
+      rankCalculatedAt: now,
     },
   })
 }

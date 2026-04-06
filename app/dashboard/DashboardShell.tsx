@@ -50,6 +50,79 @@ function parseSeasonValue(raw: unknown): number | string {
   return new Date().getFullYear()
 }
 
+function DashboardLegacyRankBadge() {
+  const [state, setState] = useState<'loading' | 'ranked' | 'empty'>('loading')
+  const [rank, setRank] = useState<{ label: string; name: string } | null>(null)
+
+  useEffect(() => {
+    let active = true
+    fetch('/api/user/rank', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (data: {
+          imported?: boolean
+          tier?: string | null
+          tierName?: string | null
+          rank?: { careerTier: number; careerTierName: string }
+        } | null) => {
+          if (!active || !data) {
+            setState('empty')
+            return
+          }
+          if (data.imported && data.rank) {
+            const label = data.tier ?? `T${data.rank.careerTier}`
+            const name = data.tierName ?? data.rank.careerTierName
+            setRank({ label, name })
+            setState('ranked')
+            return
+          }
+          setState('empty')
+        },
+      )
+      .catch(() => {
+        if (active) setState('empty')
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  if (state === 'loading') {
+    return (
+      <div
+        className="h-7 w-28 animate-pulse rounded-full bg-white/[0.06]"
+        aria-hidden
+        data-testid="dashboard-legacy-tier-badge-loading"
+      />
+    )
+  }
+
+  if (state === 'empty' || !rank) {
+    return (
+      <Link
+        href="/import"
+        className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 transition-colors hover:border-cyan-500/30 hover:text-white"
+        data-testid="dashboard-legacy-tier-badge"
+      >
+        Import to get ranked
+      </Link>
+    )
+  }
+
+  return (
+    <Link
+      href="/dashboard/rankings"
+      className="inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/15"
+      data-testid="dashboard-legacy-tier-badge"
+    >
+      <span className="shrink-0 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-black text-white">
+        {rank.label}
+      </span>
+      <span className="truncate text-white/90">{rank.name}</span>
+    </Link>
+  )
+}
+
 function weekFromSettings(settings: unknown): number | null {
   const o = toRecord(settings)
   if (!o) return null
@@ -311,30 +384,39 @@ export function DashboardShell({
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileLeftOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-              aria-label="Open chat"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <div className="min-w-0 flex-1 text-center">
-              <p className="truncate text-sm font-semibold text-white/85">
-                {isLeagueRoute ? selectedLeague?.name ?? 'League' : 'Dashboard'}
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileLeftOpen(true)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
+                aria-label="Open chat"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="min-w-0 flex-1 text-center">
+                <p className="truncate text-sm font-semibold text-white/85">
+                  {isLeagueRoute ? selectedLeague?.name ?? 'League' : 'Dashboard'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileRightOpen(true)}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
+                aria-label="Open AF Chat and leagues"
+              >
+                <MessageSquare className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setMobileRightOpen(true)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-              aria-label="Open AF Chat and leagues"
-            >
-              <MessageSquare className="h-5 w-5" />
-            </button>
+            {!isLeagueRoute ? (
+              <div className="mt-2 flex justify-center">
+                <DashboardLegacyRankBadge />
+              </div>
+            ) : null}
           </div>
-        </div>
+
+          <div className="hidden border-b border-white/[0.07] bg-[#0a0a1f] px-6 py-2.5 md:flex md:items-center md:justify-end">
+            {!isLeagueRoute ? <DashboardLegacyRankBadge /> : null}
+          </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
           {isLeagueRoute && activeLeagueId ? (

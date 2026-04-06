@@ -101,7 +101,7 @@ export default function ImportPage() {
       }
 
       if (data.success === true) {
-        router.push("/dashboard");
+        router.push("/dashboard/rankings?imported=true");
       }
 
       setResult({
@@ -245,10 +245,10 @@ export default function ImportPage() {
                     </p>
                   ) : null}
                   <Link
-                    href="/dashboard"
+                    href="/dashboard/rankings?imported=true"
                     className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
                   >
-                    View My Leagues →
+                    View rank &amp; legacy profile →
                   </Link>
                 </div>
               ) : null}

@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
 import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
@@ -21,6 +21,10 @@ interface PlayerRank {
   playoffRate: number
   championshipCount: number
   seasonsPlayed: number
+  totalWins?: number
+  totalLosses?: number
+  totalTies?: number
+  playoffAppearances?: number
   importedAt: string | null
 }
 
@@ -29,6 +33,18 @@ interface RankResponse {
   rank: PlayerRank | null
   overviewProfile?: CompositeProfile | null
   legacyUsername?: string | null
+  tier?: string | null
+  tierName?: string | null
+  xpTotal?: number | null
+  xpLevel?: number | null
+  careerStats?: {
+    seasonsPlayed: number
+    totalWins: number
+    totalLosses: number
+    championships: number
+    playoffAppearances: number
+    leaguesPlayed: number
+  } | null
 }
 
 interface ImportState {
@@ -309,17 +325,27 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
 
 function CareerStats({ rank }: { rank: PlayerRank }) {
   const cfg = getTierConfig(rank)
+  const wins = rank.totalWins ?? 0
+  const losses = rank.totalLosses ?? 0
+  const ties = rank.totalTies ?? 0
+  const recordLabel = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`
   const stats = [
+    { label: 'Record', value: wins + losses + ties > 0 ? recordLabel : '—', sub: 'imported Sleeper leagues' },
     { label: 'Win Rate', value: `${rank.winRate.toFixed(1)}%`, sub: 'career average' },
-    { label: 'Playoff Rate', value: `${rank.playoffRate.toFixed(0)}%`, sub: 'seasons qualified' },
+    {
+      label: 'Playoff appearances',
+      value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
+      sub: 'seasons qualified',
+    },
+    { label: 'Playoff Rate', value: `${rank.playoffRate.toFixed(0)}%`, sub: 'of league seasons' },
     { label: 'Championships', value: String(rank.championshipCount), sub: 'total titles' },
-    { label: 'Seasons Played', value: String(rank.seasonsPlayed), sub: 'career length' },
+    { label: 'Seasons played', value: String(rank.seasonsPlayed), sub: 'distinct seasons' },
   ]
 
   return (
     <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5">
       <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Career Stats</p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {stats.map((item) => (
           <div key={item.label} className="rounded-xl border border-white/6 bg-white/[0.03] p-3">
             <div className="text-xl font-bold text-white" style={{ color: cfg.color }}>
@@ -581,13 +607,18 @@ function FullRankView({
   )
 }
 
-export default function MyRankingsPage() {
+function MyRankingsPageInner() {
   const { data: session } = useSession()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [rank, setRank] = useState<PlayerRank | null>(null)
   const [overviewProfile, setOverviewProfile] = useState<CompositeProfile | null>(null)
   const [legacyUsername, setLegacyUsername] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showImport, setShowImport] = useState(false)
+  const [importBannerDismissed, setImportBannerDismissed] = useState(false)
+
+  const justImported = searchParams.get('imported') === 'true'
 
   const loadRank = useCallback(async () => {
     setLoading(true)
@@ -640,6 +671,23 @@ export default function MyRankingsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {justImported && !importBannerDismissed ? (
+          <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-emerald-100">
+              Import complete! Your rank has been calculated.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setImportBannerDismissed(true)
+                router.replace('/dashboard/rankings', { scroll: false })
+              }}
+              className="shrink-0 text-xs font-semibold text-emerald-200/80 underline-offset-2 hover:text-emerald-50 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         <div className="mb-8">
           <Link
             href="/dashboard"
@@ -683,5 +731,24 @@ export default function MyRankingsPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function MyRankingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f]">
+          <div className="mx-auto flex min-h-[420px] max-w-7xl items-center justify-center px-4 py-10">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-violet-500/40 border-t-violet-500" />
+              <p className="text-sm text-white/40">Loading…</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <MyRankingsPageInner />
+    </Suspense>
   )
 }
