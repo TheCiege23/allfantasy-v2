@@ -48,18 +48,36 @@ interface RankResponse {
     playoffAppearances: number
     leaguesPlayed: number
   } | null
+  stats?: RankResponse['careerStats']
+}
+
+const TIER_IMPORT_LABELS: Record<string, { name: string; emoji: string }> = {
+  T1: { name: 'Dynasty', emoji: '👑' },
+  T2: { name: 'Champion', emoji: '🏆' },
+  T3: { name: 'Playoff Performer', emoji: '🔥' },
+  T4: { name: 'All-Pro', emoji: '⭐' },
+  T5: { name: 'Veteran', emoji: '🛡️' },
+  T6: { name: 'Starter', emoji: '▶️' },
+}
+
+function tierLabelFromCode(tier: string | null | undefined): string {
+  if (!tier?.trim()) return 'Veteran'
+  const m = /^T(\d+)/i.exec(tier.trim())
+  const key = m ? `T${Math.min(6, Math.max(1, parseInt(m[1], 10)))}` : 'T6'
+  return TIER_IMPORT_LABELS[key]?.name ?? 'Veteran'
 }
 
 /** When API returns tier + stats but omits nested `rank` (older clients), build a display rank. */
 function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
   if (data.rank) return data.rank
-  if (data.tier && data.xpTotal != null && data.tierName) {
+  const cs = data.careerStats ?? data.stats ?? null
+  if (data.tier && data.xpTotal != null) {
     const m = /^T(\d+)/.exec(data.tier)
     const careerTier = m ? Math.min(10, Math.max(1, parseInt(m[1], 10))) : 1
-    const cs = data.careerStats
+    const tierName = data.tierName?.trim() || tierLabelFromCode(data.tier)
     return {
       careerTier,
-      careerTierName: data.tierName,
+      careerTierName: tierName,
       careerLevel: data.xpLevel ?? 1,
       careerXp: String(data.xpTotal),
       aiReportGrade: 'B',
@@ -598,11 +616,15 @@ function FullRankView({
   username,
   overviewProfile,
   onReimport,
+  onRecalculate,
+  recalculateLoading,
 }: {
   rank: PlayerRank
   username: string
   overviewProfile: CompositeProfile | null
   onReimport: () => void
+  onRecalculate?: () => void
+  recalculateLoading?: boolean
 }) {
   return (
     <div className="space-y-6">
@@ -640,13 +662,25 @@ function FullRankView({
                 {rank.importedAt ? `Last calculated ${new Date(rank.importedAt).toLocaleString()}` : 'Run another import to recalculate your rank.'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onReimport}
-              className="shrink-0 rounded-xl px-4 py-2 text-xs font-bold border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-all"
-            >
-              Reimport
-            </button>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              {onRecalculate ? (
+                <button
+                  type="button"
+                  disabled={recalculateLoading}
+                  onClick={onRecalculate}
+                  className="rounded-xl px-4 py-2 text-xs font-bold border border-cyan-500/35 text-cyan-200 hover:border-cyan-400/50 hover:text-white transition-all disabled:opacity-40"
+                >
+                  {recalculateLoading ? 'Recalculating…' : 'Recalculate'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onReimport}
+                className="rounded-xl px-4 py-2 text-xs font-bold border border-white/15 text-white/70 hover:text-white hover:border-white/30 transition-all"
+              >
+                Reimport
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -666,6 +700,7 @@ function MyRankingsPageInner() {
   const [rankFetchError, setRankFetchError] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importBannerDismissed, setImportBannerDismissed] = useState(false)
+  const [recalculateLoading, setRecalculateLoading] = useState(false)
 
   const justImported = searchParams.get('imported') === 'true'
 
@@ -705,6 +740,16 @@ function MyRankingsPageInner() {
       if (!silent) setLoading(false)
     }
   }, [])
+
+  const handleRecalculate = useCallback(async () => {
+    setRecalculateLoading(true)
+    try {
+      await fetch('/api/user/rank?recalculate=true', { cache: 'no-store', credentials: 'include' })
+      await loadRank({ silent: true })
+    } finally {
+      setRecalculateLoading(false)
+    }
+  }, [loadRank])
 
   useEffect(() => {
     void loadRank()
@@ -836,6 +881,8 @@ function MyRankingsPageInner() {
             username={username}
             overviewProfile={overviewProfile}
             onReimport={() => setShowImport(true)}
+            onRecalculate={handleRecalculate}
+            recalculateLoading={recalculateLoading}
           />
         ) : !rank && importProcessing && justImported && !rankFetchError ? (
           <ProcessingImportState />

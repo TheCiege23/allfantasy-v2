@@ -8,6 +8,28 @@ import type { SettingsSnapshot, UserProfileForSettings } from "./types"
  * Fetches the full profile and account data needed for the settings UI.
  * Used by Settings page and SettingsModal.
  */
+/** Columns that exist on all deployed DBs — used when full `queryBaseProfile` fails (migration lag). */
+const SAFE_USER_PROFILE_SELECT = {
+  displayName: true,
+  timezone: true,
+  preferredLanguage: true,
+  themePreference: true,
+  avatarPreset: true,
+  phone: true,
+  phoneVerifiedAt: true,
+  emailVerifiedAt: true,
+  ageConfirmedAt: true,
+  verificationMethod: true,
+  profileComplete: true,
+  sleeperUsername: true,
+  sleeperUserId: true,
+  sleeperLinkedAt: true,
+  bio: true,
+  onboardingStep: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
 async function queryBaseProfile(
   userId: string
 ): Promise<Omit<UserProfileForSettings, "settings"> | null> {
@@ -108,10 +130,96 @@ async function queryBaseProfile(
   }
 }
 
+async function queryBaseProfileMinimal(
+  userId: string
+): Promise<Omit<UserProfileForSettings, "settings"> | null> {
+  const user = await prisma.appUser.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      emailVerified: true,
+      displayName: true,
+      avatarUrl: true,
+      passwordHash: true,
+      profile: {
+        select: SAFE_USER_PROFILE_SELECT,
+      },
+    },
+  })
+
+  if (!user) return null
+
+  const profile = user.profile
+  const preferredLanguage =
+    profile?.preferredLanguage === "es" || profile?.preferredLanguage === "en"
+      ? (profile.preferredLanguage as "en" | "es")
+      : null
+  const resolvedEmailVerifiedAt = profile?.emailVerifiedAt ?? user.emailVerified ?? null
+
+  return {
+    userId: user.id,
+    username: user.username,
+    email: user.email ?? null,
+    displayName: profile?.displayName ?? user.displayName ?? null,
+    profileImageUrl: user.avatarUrl ?? null,
+    avatarPreset: profile?.avatarPreset ?? null,
+    preferredLanguage,
+    timezone: profile?.timezone ?? null,
+    themePreference: (profile?.themePreference as "dark" | "light" | "legacy") ?? null,
+    phone: profile?.phone ?? null,
+    phoneVerifiedAt: profile?.phoneVerifiedAt ?? null,
+    emailVerifiedAt: resolvedEmailVerifiedAt,
+    ageConfirmedAt: profile?.ageConfirmedAt ?? null,
+    verificationMethod:
+      profile?.verificationMethod === "PHONE" || profile?.verificationMethod === "EMAIL"
+        ? profile.verificationMethod
+        : null,
+    hasPassword: !!(user as any).passwordHash,
+    profileComplete: profile?.profileComplete ?? false,
+    sleeperUsername: profile?.sleeperUsername ?? null,
+    sleeperLinkedAt: profile?.sleeperLinkedAt ?? null,
+    discordUserId: null,
+    discordUsername: null,
+    discordEmail: null,
+    discordAvatar: null,
+    discordGuildId: null,
+    discordConnectedAt: null,
+    bio: profile?.bio ?? null,
+    preferredSports: null,
+    notificationPreferences: null,
+    onboardingStep: profile?.onboardingStep ?? null,
+    onboardingCompletedAt: null,
+    sessionIdleTimeoutMinutes: null,
+    updatedAt: profile?.updatedAt ?? new Date(),
+  }
+}
+
 export async function getSettingsSnapshot(
   userId: string
 ): Promise<SettingsSnapshot | null> {
-  const baseProfile = await queryBaseProfile(userId)
+  let baseProfile: Omit<UserProfileForSettings, "settings"> | null = null
+  try {
+    baseProfile = await queryBaseProfile(userId)
+  } catch (err: unknown) {
+    console.error(
+      "[getSettingsSnapshot] queryBaseProfile failed (will retry minimal fields):",
+      err instanceof Error ? err.message : err
+    )
+    try {
+      baseProfile = await queryBaseProfileMinimal(userId)
+      console.warn("[getSettingsSnapshot] recovered using SAFE_USER_PROFILE_SELECT only")
+    } catch (err2: unknown) {
+      console.error(
+        "[getSettingsSnapshot] FULL ERROR (minimal profile):",
+        err2 instanceof Error
+          ? JSON.stringify({ name: err2.name, message: err2.message, stack: err2.stack }, null, 2)
+          : JSON.stringify(err2, null, 2),
+      )
+      throw err2
+    }
+  }
   if (!baseProfile) return null
 
   const bootstrapped = resolveSharedProfileBootstrap({

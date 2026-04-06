@@ -11,6 +11,12 @@ import type { ProfileUpdatePayload } from "@/lib/user-settings/types"
 
 export const dynamic = "force-dynamic"
 
+function logProfileError(context: string, err: unknown) {
+  const payload =
+    err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err
+  console.error(context, "[api/user/profile] FULL ERROR:", JSON.stringify(payload, null, 2))
+}
+
 /**
  * GET /api/user/profile
  * Returns full profile for settings UI; also used for preference sync (language, timezone, theme).
@@ -45,7 +51,7 @@ export async function GET() {
       themePreference: profile.themePreference,
     })
   } catch (err) {
-    console.error("[api/user/profile] error:", err)
+    logProfileError("[api/user/profile] GET", err)
     return NextResponse.json(
       { error: "Failed to load profile" },
       { status: 500 }
@@ -75,6 +81,7 @@ type ProfileBody = {
 }
 
 async function handleProfileWrite(req: Request, userId: string) {
+  try {
   const body = (await req.json().catch(() => ({}))) as ProfileBody
   const {
     displayName,
@@ -191,6 +198,10 @@ async function handleProfileWrite(req: Request, userId: string) {
     )
   }
   return NextResponse.json({ ok: true })
+  } catch (err) {
+    logProfileError("[api/user/profile] handleProfileWrite", err)
+    return NextResponse.json({ error: "Failed to update profile" }, { status: 500 })
+  }
 }
 
 /**

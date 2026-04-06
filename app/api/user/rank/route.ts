@@ -2,7 +2,31 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { computeCompositeProfile, type LeagueRecord } from '@/lib/legacy/overview-scoring'
+import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { prisma } from '@/lib/prisma'
+
+function logFullError(context: string, err: unknown) {
+  const payload =
+    err instanceof Error ? { name: err.name, message: err.message, stack: err.stack } : err
+  console.error(context, '[api/user/rank] FULL ERROR:', JSON.stringify(payload, null, 2))
+}
+
+const TIER_SHOWCASE_NAMES: Record<string, string> = {
+  T1: 'Dynasty',
+  T2: 'Champion',
+  T3: 'Playoff Performer',
+  T4: 'All-Pro',
+  T5: 'Veteran',
+  T6: 'Starter',
+}
+
+function tierNameFromCode(tier: string | null | undefined): string | null {
+  if (!tier?.trim()) return null
+  const m = /^T(\d+)/i.exec(tier.trim())
+  if (!m) return null
+  const n = Math.min(6, Math.max(1, parseInt(m[1], 10)))
+  return TIER_SHOWCASE_NAMES[`T${n}`] ?? null
+}
 
 function clampScore(value: unknown, fallback = 70) {
   const score = Number(value)
@@ -117,35 +141,58 @@ async function loadProfileRankFlags(userId: string): Promise<{
   }
 }
 
+const RANK_DENORM_SELECT_FULL = {
+  rankTier: true,
+  xpTotal: true,
+  xpLevel: true,
+  legacyCareerTier: true,
+  legacyCareerTierName: true,
+  legacyCareerLevel: true,
+  legacyCareerXp: true,
+  careerWins: true,
+  careerLosses: true,
+  careerChampionships: true,
+  careerPlayoffAppearances: true,
+  careerSeasonsPlayed: true,
+  careerLeaguesPlayed: true,
+  rankCalculatedAt: true,
+} as const
+
+const RANK_DENORM_SELECT_MIN = {
+  rankTier: true,
+  xpTotal: true,
+  xpLevel: true,
+  careerWins: true,
+  careerLosses: true,
+  careerChampionships: true,
+  careerPlayoffAppearances: true,
+  careerSeasonsPlayed: true,
+  careerLeaguesPlayed: true,
+  rankCalculatedAt: true,
+} as const
+
 /** Denormalized rank on user_profiles — used when rank cache row is missing or as UI fallback. */
 async function loadProfileRankDenorm(userId: string) {
   try {
     return await prisma.userProfile.findUnique({
       where: { userId },
-      select: {
-        rankTier: true,
-        xpTotal: true,
-        xpLevel: true,
-        legacyCareerTier: true,
-        legacyCareerTierName: true,
-        legacyCareerLevel: true,
-        legacyCareerXp: true,
-        careerWins: true,
-        careerLosses: true,
-        careerChampionships: true,
-        careerPlayoffAppearances: true,
-        careerSeasonsPlayed: true,
-        careerLeaguesPlayed: true,
-        rankCalculatedAt: true,
-      },
+      select: RANK_DENORM_SELECT_FULL,
     })
   } catch (err: unknown) {
-    console.error('[api/user/rank] userProfile denorm rank fields query failed:', err)
-    return null
+    logFullError('[api/user/rank] userProfile denorm (full) failed; retrying minimal columns', err)
+    try {
+      return await prisma.userProfile.findUnique({
+        where: { userId },
+        select: RANK_DENORM_SELECT_MIN,
+      })
+    } catch (err2: unknown) {
+      logFullError('[api/user/rank] userProfile denorm (minimal) failed', err2)
+      return null
+    }
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = (await getServerSession(authOptions as never)) as {
     user?: { id?: string }
   } | null
@@ -157,8 +204,49 @@ export async function GET() {
   const userId = session.user.id
 
   try {
-    const [appUser, profileFlags] = await Promise.all([
-      prisma.appUser.findUnique({
+    const url = new URL(request.url)
+    if (url.searchParams.get('recalculate') === 'true') {
+      try {
+        await calculateAndSaveRank(userId)
+      } catch (recalcErr: unknown) {
+        logFullError('[api/user/rank] recalculate', recalcErr)
+      }
+    }
+
+    const profileExists = await prisma.userProfile
+      .findUnique({ where: { userId }, select: { userId: true } })
+      .catch((e: unknown) => {
+        logFullError('[api/user/rank] userProfile existence check', e)
+        return null
+      })
+    if (!profileExists) {
+      return NextResponse.json({
+        tier: null,
+        stats: null,
+        careerStats: null,
+        imported: false,
+        rank: null,
+        tierName: null,
+        xpTotal: null,
+        xpLevel: null,
+        rankProcessing: false,
+        rankCalculatedAt: null,
+        legacyUsername: null,
+        overviewProfile: null,
+      })
+    }
+
+    let appUser:
+      | {
+          id: string
+          legacyUserId: string | null
+          username: string
+          displayName: string | null
+          legacyUser: { sleeperUsername: string } | null
+        }
+      | null = null
+    try {
+      appUser = await prisma.appUser.findUnique({
         where: { id: userId },
         select: {
           id: true,
@@ -171,13 +259,131 @@ export async function GET() {
             },
           },
         },
-      }),
-      loadProfileRankFlags(userId),
-    ])
+      })
+    } catch (e: unknown) {
+      logFullError('[api/user/rank] appUser query failed; retrying without legacyUser join', e)
+      appUser = await prisma.appUser
+        .findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            legacyUserId: true,
+            username: true,
+            displayName: true,
+          },
+        })
+        .then((u) => (u ? { ...u, legacyUser: null } : null))
+        .catch(() => null)
+    }
+
+    const [profileFlags] = await Promise.all([loadProfileRankFlags(userId)])
 
     const { rankProcessing, rankCalculatedAtIso } = profileFlags
 
-    if (!appUser?.legacyUserId) {
+    if (!appUser) {
+      return NextResponse.json({
+        tier: null,
+        stats: null,
+        careerStats: null,
+        imported: false,
+        rank: null,
+        tierName: null,
+        xpTotal: null,
+        xpLevel: null,
+        rankProcessing: false,
+        rankCalculatedAt: null,
+        legacyUsername: null,
+        overviewProfile: null,
+      })
+    }
+
+    if (!appUser.legacyUserId) {
+      const denormEarly = await loadProfileRankDenorm(userId)
+      const tierLabelEarly = denormEarly?.rankTier?.trim()
+      if (tierLabelEarly) {
+        const legacyUsernameEarly =
+          appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
+        const tierMatch = /^T(\d+)/i.exec(tierLabelEarly)
+        let careerTierNum = 1
+        if (
+          denormEarly &&
+          'legacyCareerTier' in denormEarly &&
+          typeof denormEarly.legacyCareerTier === 'number'
+        ) {
+          careerTierNum = denormEarly.legacyCareerTier
+        } else if (tierMatch) {
+          careerTierNum = Math.min(10, Math.max(1, parseInt(tierMatch[1], 10)))
+        }
+        const tier = `T${Math.min(6, Math.max(1, careerTierNum))}` as
+          | 'T1'
+          | 'T2'
+          | 'T3'
+          | 'T4'
+          | 'T5'
+          | 'T6'
+        const xpNum =
+          denormEarly?.xpTotal != null
+            ? Number(denormEarly.xpTotal)
+            : Number(
+                denormEarly && 'legacyCareerXp' in denormEarly ? denormEarly.legacyCareerXp ?? 0 : 0,
+              )
+        const careerStats: UserRankCareerStats = {
+          seasonsPlayed: denormEarly?.careerSeasonsPlayed ?? 0,
+          totalWins: denormEarly?.careerWins ?? 0,
+          totalLosses: denormEarly?.careerLosses ?? 0,
+          championships: denormEarly?.careerChampionships ?? 0,
+          playoffAppearances: denormEarly?.careerPlayoffAppearances ?? 0,
+          leaguesPlayed: denormEarly?.careerLeaguesPlayed ?? 0,
+        }
+        const tierNameResolved =
+          tierNameFromCode(tier) ??
+          (denormEarly && 'legacyCareerTierName' in denormEarly
+            ? denormEarly.legacyCareerTierName
+            : null) ??
+          'Veteran'
+        const rank = {
+          careerTier: careerTierNum,
+          careerTierName: tierNameResolved,
+          careerLevel:
+            denormEarly && 'legacyCareerLevel' in denormEarly
+              ? denormEarly.legacyCareerLevel ?? denormEarly.xpLevel ?? 1
+              : denormEarly?.xpLevel ?? 1,
+          careerXp: String(
+            denormEarly && 'legacyCareerXp' in denormEarly
+              ? denormEarly.legacyCareerXp ?? denormEarly.xpTotal ?? 0
+              : denormEarly?.xpTotal ?? 0,
+          ),
+          aiReportGrade: 'B',
+          aiScore: 70,
+          aiInsight: 'Import your leagues to generate your AI insight.',
+          winRate: 0,
+          playoffRate: 0,
+          championshipCount: careerStats.championships,
+          seasonsPlayed: careerStats.seasonsPlayed,
+          totalWins: careerStats.totalWins,
+          totalLosses: careerStats.totalLosses,
+          totalTies: 0,
+          playoffAppearances: careerStats.playoffAppearances,
+          importedAt: denormEarly?.rankCalculatedAt?.toISOString() ?? null,
+        }
+        return NextResponse.json({
+          imported: true,
+          tier,
+          tierName: tierNameResolved,
+          xpTotal: xpNum,
+          xpLevel:
+            denormEarly && 'legacyCareerLevel' in denormEarly
+              ? denormEarly.legacyCareerLevel ?? denormEarly.xpLevel ?? 1
+              : denormEarly?.xpLevel ?? 1,
+          careerStats,
+          stats: careerStats,
+          rank,
+          rankProcessing,
+          rankCalculatedAt: denormEarly?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
+          legacyUsername: legacyUsernameEarly,
+          overviewProfile: null,
+        })
+      }
       return NextResponse.json({
         imported: false,
         rank: null,
@@ -186,26 +392,43 @@ export async function GET() {
         xpTotal: null,
         xpLevel: null,
         careerStats: null,
+        stats: null,
         rankProcessing: false,
         rankCalculatedAt: null,
+        legacyUsername: null,
+        overviewProfile: null,
       })
     }
 
     const legacyUsername =
       appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
 
-    const rankCache = await prisma.legacyUserRankCache.findUnique({
-      where: { legacyUserId: appUser.legacyUserId },
-    })
+    let rankCache: Awaited<ReturnType<typeof prisma.legacyUserRankCache.findUnique>> = null
+    try {
+      rankCache = await prisma.legacyUserRankCache.findUnique({
+        where: { legacyUserId: appUser.legacyUserId },
+      })
+    } catch (cacheErr: unknown) {
+      logFullError('[api/user/rank] legacyUserRankCache query failed', cacheErr)
+      rankCache = null
+    }
 
     if (!rankCache) {
       const denorm = await loadProfileRankDenorm(userId)
       const tierLabel = denorm?.rankTier?.trim()
       if (tierLabel) {
         const tierMatch = /^T(\d+)/i.exec(tierLabel)
-        const careerTierNum = denorm?.legacyCareerTier ?? (tierMatch ? Math.min(10, Math.max(1, parseInt(tierMatch[1], 10))) : 1)
+        let careerTierNum = 1
+        if (denorm && 'legacyCareerTier' in denorm && typeof denorm.legacyCareerTier === 'number') {
+          careerTierNum = denorm.legacyCareerTier
+        } else if (tierMatch) {
+          careerTierNum = Math.min(10, Math.max(1, parseInt(tierMatch[1], 10)))
+        }
         const tier = `T${Math.min(6, Math.max(1, careerTierNum))}` as 'T1' | 'T2' | 'T3' | 'T4' | 'T5' | 'T6'
-        const xpNum = denorm?.xpTotal != null ? Number(denorm.xpTotal) : Number(denorm?.legacyCareerXp ?? 0)
+        const xpNum =
+          denorm?.xpTotal != null
+            ? Number(denorm.xpTotal)
+            : Number(denorm && 'legacyCareerXp' in denorm ? denorm.legacyCareerXp ?? 0 : 0)
         const careerStats: UserRankCareerStats = {
           seasonsPlayed: denorm?.careerSeasonsPlayed ?? 0,
           totalWins: denorm?.careerWins ?? 0,
@@ -214,11 +437,22 @@ export async function GET() {
           playoffAppearances: denorm?.careerPlayoffAppearances ?? 0,
           leaguesPlayed: denorm?.careerLeaguesPlayed ?? 0,
         }
+        const tierNameResolved =
+          tierNameFromCode(tier) ??
+          (denorm && 'legacyCareerTierName' in denorm ? denorm.legacyCareerTierName : null) ??
+          'Veteran'
         const rank = {
           careerTier: careerTierNum,
-          careerTierName: denorm?.legacyCareerTierName ?? 'Veteran',
-          careerLevel: denorm?.legacyCareerLevel ?? denorm?.xpLevel ?? 1,
-          careerXp: String(denorm?.legacyCareerXp ?? denorm?.xpTotal ?? 0),
+          careerTierName: tierNameResolved,
+          careerLevel:
+            denorm && 'legacyCareerLevel' in denorm
+              ? denorm.legacyCareerLevel ?? denorm?.xpLevel ?? 1
+              : denorm?.xpLevel ?? 1,
+          careerXp: String(
+            denorm && 'legacyCareerXp' in denorm
+              ? denorm.legacyCareerXp ?? denorm?.xpTotal ?? 0
+              : denorm?.xpTotal ?? 0,
+          ),
           aiReportGrade: 'B',
           aiScore: 70,
           aiInsight: 'Import your leagues to generate your AI insight.',
@@ -235,10 +469,14 @@ export async function GET() {
         return NextResponse.json({
           imported: true,
           tier,
-          tierName: denorm?.legacyCareerTierName ?? 'Veteran',
+          tierName: tierNameResolved,
           xpTotal: xpNum,
-          xpLevel: denorm?.xpLevel ?? denorm?.legacyCareerLevel ?? 1,
+          xpLevel:
+            denorm && 'legacyCareerLevel' in denorm
+              ? denorm.legacyCareerLevel ?? denorm?.xpLevel ?? 1
+              : denorm?.xpLevel ?? 1,
           careerStats,
+          stats: careerStats,
           rank,
           rankProcessing,
           rankCalculatedAt: denorm?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
@@ -255,6 +493,7 @@ export async function GET() {
         xpTotal: null,
         xpLevel: null,
         careerStats: null,
+        stats: null,
         rankProcessing,
         rankCalculatedAt: rankCalculatedAtIso,
         legacyUsername,
@@ -439,6 +678,7 @@ export async function GET() {
       xpTotal: xpTotalNum,
       xpLevel: rankCache.careerLevel,
       careerStats,
+      stats: careerStats,
       rank,
       rankProcessing,
       rankCalculatedAt: rankCalculatedAtIso,
@@ -446,10 +686,7 @@ export async function GET() {
       overviewProfile,
     })
   } catch (err: unknown) {
-    console.error('[api/user/rank] error:', err)
-    if (err instanceof Error && err.stack) {
-      console.error('[api/user/rank] stack:', err.stack)
-    }
+    logFullError('[api/user/rank] unhandled', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

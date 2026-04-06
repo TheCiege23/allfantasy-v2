@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
+import { calculateAndSaveRank } from "@/lib/rank/calculateRank";
+import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
