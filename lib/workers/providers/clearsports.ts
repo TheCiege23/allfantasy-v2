@@ -8,7 +8,27 @@ import {
 } from '@/lib/clear-sports'
 import { clearSportsFetch } from '@/lib/clear-sports/client'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
-import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
+import {
+  toApiChainSport,
+  type ApiChainSport,
+  type ApiFetchParams,
+  type ApiProvider,
+} from '@/lib/workers/api-config'
+
+function toClearSportsSport(params: ApiFetchParams): ClearSportsSport | null {
+  const chain = toApiChainSport(params.sport as string)
+  if (!chain) return null
+  const map: Partial<Record<ApiChainSport, ClearSportsSport>> = {
+    nfl: 'NFL',
+    nba: 'NBA',
+    mlb: 'MLB',
+    nhl: 'NHL',
+    ncaab: 'NCAAB',
+    ncaaf: 'NCAAF',
+    soccer_euro: 'SOCCER',
+  }
+  return map[chain] ?? null
+}
 
 function leagueCodeForSport(sport: ClearSportsSport): string {
   switch (sport) {
@@ -61,7 +81,7 @@ async function fetchAllPlayers(
 
 export const clearSportsProvider: ApiProvider = {
   name: 'clearsports',
-  supports: ({ sport, dataType }: ApiFetchParams) =>
+  supports: (params: ApiFetchParams) =>
     [
       'teams',
       'players',
@@ -72,9 +92,11 @@ export const clearSportsProvider: ApiProvider = {
       'projections',
       'player_headshots',
       'team_logos',
-    ].includes(dataType) && Boolean(sport),
-  async fetch({ sport, dataType, query = {} }: ApiFetchParams) {
-    const clearSport = sport as ClearSportsSport
+    ].includes(params.dataType) && toClearSportsSport(params) != null,
+  async fetch(params: ApiFetchParams) {
+    const { dataType, query = {} } = params
+    const clearSport = toClearSportsSport(params)
+    if (!clearSport) return null
     const season = typeof query.season === 'string' ? query.season : undefined
     const search = toSearch(query.search ?? query.playerName)
     const teamCode = normalizeTeamAbbrev(String(query.teamCode ?? query.team ?? ''))

@@ -1,153 +1,114 @@
-import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import {
-  fetchNFLRoster,
-  fetchNFLSchedule,
-  fetchNFLTeams,
-  fetchNFLTeamsFull,
-  getCurrentNFLSeason,
-  searchNFLPlayer,
-} from '@/lib/rolling-insights'
-import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
+  type ApiChainSport,
+  type ApiDataType,
+  type ApiFetchParams,
+  type ChainFetchResult,
+  toApiChainSport,
+} from '@/lib/workers/api-config'
 
-function toSeason(value: unknown): string {
-  if (typeof value === 'string' && value.trim()) return value.trim()
-  return getCurrentNFLSeason()
+const SPORT_PATH: Record<ApiChainSport, string> = {
+  nfl: 'nfl',
+  mlb: 'mlb',
+  nhl: 'nhl',
+  nba: 'nba',
+  ncaab: 'ncaab',
+  ncaaf: 'ncaaf',
+  soccer_euro: 'soccer/euro',
 }
 
-function toSearch(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
+const DATA_TYPE_PATH: Record<string, string> = {
+  players: 'players',
+  teams: 'teams',
+  injuries: 'injuries',
+  news: 'news',
+  scores: 'scores',
+  schedule: 'schedule',
+  standings: 'standings',
+  projections: 'projections',
+  rankings: 'rankings',
+  adp: 'adp',
+  roster: 'rosters',
+  games: 'scores',
+  live_game: 'scores',
+  player_headshots: 'players',
+  team_logos: 'teams',
+  trending: 'trending',
+  rolling_insights: 'feed',
 }
 
-function namesEqual(left: string | null | undefined, right: string | null | undefined): boolean {
-  return (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase()
+function pathForDataType(dataType: ApiDataType): string {
+  return DATA_TYPE_PATH[dataType] ?? dataType
 }
 
-export const rollingInsightsProvider: ApiProvider = {
-  name: 'rolling_insights',
-  supports: ({ sport, dataType }: ApiFetchParams) =>
-    sport === 'NFL' &&
-    [
-      'teams',
-      'players',
-      'games',
-      'schedule',
-      'injuries',
-      'player_headshots',
-      'team_logos',
-    ].includes(dataType),
-  async fetch({ dataType, query = {} }: ApiFetchParams) {
-    const season = toSeason(query.season)
-    const search = toSearch(query.search ?? query.playerName)
-    const teamCode = normalizeTeamAbbrev(String(query.teamCode ?? query.team ?? ''))
-    const teamName = typeof query.teamName === 'string' ? query.teamName.trim() : ''
+function extractPayload(json: unknown): unknown {
+  if (json == null) return null
+  if (Array.isArray(json)) return json
+  if (typeof json === 'object') {
+    const o = json as Record<string, unknown>
+    if (Array.isArray(o.data)) return o.data
+    if (Array.isArray(o.results)) return o.results
+    if (Array.isArray(o.items)) return o.items
+  }
+  return json
+}
 
-    switch (dataType) {
-      case 'teams': {
-        const teams = await fetchNFLTeams()
-        return teams.map((team) => ({
-          id: team.id,
-          name: team.team,
-          shortName: team.abbrv,
-          city: team.team.replace(` ${team.mascot}`, ''),
-          logo: team.img ?? null,
-          source: 'rolling_insights',
-        }))
-      }
-      case 'players': {
-        const players = search
-          ? await searchNFLPlayer(search)
-          : await fetchNFLRoster({ season })
-        return players.map((player) => ({
-          id: player.id,
-          name: player.player,
-          position: player.position,
-          team: normalizeTeamAbbrev(player.team?.abbrv) ?? null,
-          teamId: player.team?.id ?? null,
-          number: player.number ?? null,
-          height: player.height ?? null,
-          weight: player.weight ?? null,
-          college: player.college ?? null,
-          dob: player.dob ?? null,
-          status: player.status ?? null,
-          imageUrl: player.img ?? null,
-          source: 'rolling_insights',
-        }))
-      }
-      case 'games':
-      case 'schedule': {
-        const games = await fetchNFLSchedule({ season })
-        return games.map((game) => ({
-          id: game.gameId,
-          homeTeam: normalizeTeamAbbrev(game.homeTeam) ?? game.homeTeam,
-          awayTeam: normalizeTeamAbbrev(game.awayTeam) ?? game.awayTeam,
-          date: game.date,
-          status: game.status,
-          season: game.season,
-          venue: game.venue?.arena ?? null,
-          source: 'rolling_insights',
-        }))
-      }
-      case 'injuries': {
-        const teams = await fetchNFLTeamsFull({
-          season,
-          teamName: teamName || teamCode || undefined,
-        })
-        return teams.flatMap((team) =>
-          (team.injuries ?? [])
-            .filter((injury) => Boolean(injury.player))
-            .map((injury, index) => ({
-              externalId: injury.playerId ?? `${team.abbrv}:${injury.player}:${injury.date ?? index}`,
-              playerId: injury.playerId ?? null,
-              playerName: injury.player ?? 'Unknown Player',
-              team: normalizeTeamAbbrev(team.abbrv) ?? team.abbrv,
-              status: injury.injury ?? 'injured',
-              bodyPart: injury.injury ?? null,
-              notes: injury.returns ?? null,
-              reportDate: injury.date ?? null,
-              source: 'rolling_insights',
-            }))
-        )
-      }
-      case 'player_headshots': {
-        if (!search) return null
-        const players = await searchNFLPlayer(search)
-        const matched = players.find((player) => {
-          const sameName = namesEqual(player.player, search)
-          const sameTeam = !teamCode || normalizeTeamAbbrev(player.team?.abbrv) === teamCode
-          return sameName && sameTeam
-        }) ?? players[0]
-        if (!matched?.img) return null
-        return {
-          playerId: matched.id,
-          playerName: matched.player,
-          teamCode: normalizeTeamAbbrev(matched.team?.abbrv) ?? null,
-          headshotUrl: matched.img,
-          headshotUrlSm: matched.img,
-          headshotUrlLg: matched.img,
-          headshotSource: 'rolling_insights',
-        }
-      }
-      case 'team_logos': {
-        const teams = await fetchNFLTeams()
-        const matched = teams.find((team) => {
-          const normalizedShort = normalizeTeamAbbrev(team.abbrv)
-          return (
-            (!!teamCode && normalizedShort === teamCode) ||
-            (!!teamName && namesEqual(team.team, teamName))
-          )
-        }) ?? teams.find((team) => normalizeTeamAbbrev(team.abbrv) === teamCode)
-        if (!matched?.img) return null
-        return {
-          teamCode: normalizeTeamAbbrev(matched.abbrv) ?? matched.abbrv,
-          teamName: matched.team,
-          logoUrl: matched.img,
-          logoUrlSm: matched.img,
-          logoUrlLg: matched.img,
-          logoSource: 'rolling_insights',
-        }
-      }
-      default:
-        return null
+/**
+ * Primary Rolling Insights REST fetch for all 7 sports.
+ * Always returns { data, fromCache: false, error? }.
+ */
+export async function rollingInsightsProvider(params: ApiFetchParams): Promise<ChainFetchResult> {
+  if (!process.env.ROLLING_INSIGHTS_API_KEY) {
+    console.error('[rolling-insights] ROLLING_INSIGHTS_API_KEY not set')
+    return { data: null, error: 'API key not configured', fromCache: false }
+  }
+
+  const chainSport = toApiChainSport(params.sport as string)
+  if (!chainSport) {
+    return { data: null, error: 'Unsupported sport', fromCache: false }
+  }
+
+  const base =
+    process.env.ROLLING_INSIGHTS_BASE_URL?.trim().replace(/\/+$/, '') ??
+    process.env.ROLLING_INSIGHTS_REST_BASE?.trim().replace(/\/+$/, '') ??
+    'https://api.rollinginsights.com/v1'
+
+  const pathSeg = pathForDataType(params.dataType)
+  const url = new URL(`${base}/${SPORT_PATH[chainSport]}/${pathSeg}`)
+  const merged = { ...(params.query ?? {}), ...(params.options ?? {}) }
+  Object.entries(merged).forEach(([k, v]) => {
+    if (v == null) return
+    url.searchParams.set(k, String(v))
+  })
+
+  const started = Date.now()
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        'x-api-key': process.env.ROLLING_INSIGHTS_API_KEY ?? '',
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      const err = `HTTP ${res.status}`
+      console.warn(`[rolling-insights] ${err} ${url.toString()}`)
+      return { data: null, error: err, fromCache: false }
     }
-  },
+    const json = await res.json()
+    const data = extractPayload(json)
+    return {
+      data: data as ChainFetchResult['data'],
+      fromCache: false,
+      source: 'rolling_insights',
+      latency: Date.now() - started,
+    }
+  } catch (e) {
+    console.warn(`[rolling-insights] fetch failed ${chainSport}/${params.dataType}:`, e)
+    return { data: null, error: e instanceof Error ? e.message : 'Request failed', fromCache: false }
+  }
+}
+
+/** @deprecated Use rollingInsightsProvider — kept for incremental migration. */
+export async function rollingInsightsProviderFetch(params: ApiFetchParams): Promise<ChainFetchResult> {
+  return rollingInsightsProvider(params)
 }

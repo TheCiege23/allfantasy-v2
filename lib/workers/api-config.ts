@@ -1,18 +1,17 @@
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
-export type ApiChainSport = SupportedSport
+/** Rolling Insights REST + cache chain — canonical lowercase keys (7 sports). */
+export const SUPPORTED_SPORTS = [
+  'nfl',
+  'mlb',
+  'nhl',
+  'nba',
+  'ncaab',
+  'ncaaf',
+  'soccer_euro',
+] as const
 
-export type ApiDataType =
-  | 'teams'
-  | 'players'
-  | 'games'
-  | 'schedule'
-  | 'injuries'
-  | 'news'
-  | 'rankings'
-  | 'projections'
-  | 'player_headshots'
-  | 'team_logos'
+export type ApiChainSport = (typeof SUPPORTED_SPORTS)[number]
 
 export type ApiProviderName =
   | 'rolling_insights'
@@ -21,10 +20,41 @@ export type ApiProviderName =
   | 'thesportsdb'
   | 'cfbd'
 
+/** Cache TTLs in seconds — drives all cache expiry (DB-first). */
+export const API_CHAIN_TTLS = {
+  scores: 60,
+  live_game: 30,
+  injuries: 900,
+  news: 300,
+  trending: 600,
+  players: 86400,
+  teams: 86400,
+  schedule: 3600,
+  standings: 1800,
+  projections: 3600,
+  rankings: 3600,
+  player_headshots: 604800,
+  team_logos: 604800,
+  roster: 3600,
+  rolling_insights: 1800,
+  adp: 21600,
+  /** Alias for live / game lists (same as scores). */
+  games: 60,
+  /** Stats / misc. */
+  stats: 3600,
+  depth_charts: 3600,
+  team_stats: 3600,
+} as const
+
+export type ApiDataType = keyof typeof API_CHAIN_TTLS
+
 export interface ApiFetchParams {
-  sport: ApiChainSport
+  sport: ApiChainSport | SupportedSport | string
   dataType: ApiDataType
   query?: Record<string, unknown>
+  /** Alias for query (e.g. from route JSON). Merged into query. */
+  options?: Record<string, unknown>
+  forceRefresh?: boolean
 }
 
 export interface ApiProvider {
@@ -33,58 +63,116 @@ export interface ApiProvider {
   fetch: (params: ApiFetchParams) => Promise<unknown | null>
 }
 
+/** Legacy ApiChain result shape (used by workers). */
 export interface ApiResult<T = unknown> {
   data: T | null
   source: ApiProviderName | 'cache'
   latency: number
   cached?: boolean
   attemptedSources?: ApiProviderName[]
+  error?: string
 }
 
-function envFlag(name: string, fallback: boolean = false): boolean {
-  const raw = process.env[name]
-  if (raw == null || raw.trim() === '') return fallback
-  return raw.trim().toLowerCase() === 'true'
+/** Result from fetchWithChain (DB-first). */
+export interface ChainFetchResult<T = unknown> {
+  data: T | null
+  error?: string
+  fromCache: boolean
+  cacheAge?: number
+  source?: ApiProviderName | 'cache'
+  latency?: number
 }
 
-const rollingInsightsSportFlags = {
-  NFL: envFlag('RI_NFL_ENABLED', true),
-  NBA: envFlag('RI_NBA_ENABLED', false),
-  MLB: envFlag('RI_MLB_ENABLED', false),
-  NHL: envFlag('RI_NHL_ENABLED', false),
-  NCAAF: envFlag('RI_NCAAF_ENABLED', false),
-  NCAAB: envFlag('RI_NCAAB_ENABLED', false),
-  SOCCER: envFlag('RI_SOCCER_ENABLED', false),
-} as const satisfies Record<SupportedSport, boolean>
-
-// Alias `Soccer` for config readability while keeping `SOCCER` as the canonical sport key.
-export const ROLLING_INSIGHTS_SPORTS = {
-  ...rollingInsightsSportFlags,
-  Soccer: rollingInsightsSportFlags.SOCCER,
+export function isSupportedApiChainSport(value: string): value is ApiChainSport {
+  return (SUPPORTED_SPORTS as readonly string[]).includes(value.toLowerCase())
 }
 
-export const API_CHAIN_TTLS: Record<ApiDataType, number> = {
-  teams: 7 * 24 * 60 * 60 * 1000,
-  players: 24 * 60 * 60 * 1000,
-  games: 10 * 60 * 1000,
-  schedule: 12 * 60 * 60 * 1000,
-  injuries: 2 * 60 * 60 * 1000,
-  news: 30 * 60 * 1000,
-  rankings: 6 * 60 * 60 * 1000,
-  projections: 6 * 60 * 60 * 1000,
-  player_headshots: 30 * 24 * 60 * 60 * 1000,
-  team_logos: 90 * 24 * 60 * 60 * 1000,
+export function toApiChainSport(input: string | SupportedSport | undefined): ApiChainSport | null {
+  if (!input) return null
+  const raw = String(input).trim()
+  const lower = raw.toLowerCase()
+
+  if (isSupportedApiChainSport(lower)) return lower as ApiChainSport
+
+  const map: Record<string, ApiChainSport> = {
+    nfl: 'nfl',
+    nba: 'nba',
+    mlb: 'mlb',
+    nhl: 'nhl',
+    ncaab: 'ncaab',
+    ncaaf: 'ncaaf',
+    soccer: 'soccer_euro',
+    soccer_euro: 'soccer_euro',
+    euro: 'soccer_euro',
+    mls: 'soccer_euro',
+  }
+  if (map[lower]) return map[lower]
+
+  try {
+    const normalized = normalizeToSupportedSport(raw)
+    return legacySupportedSportToApiChain(normalized)
+  } catch {
+    return null
+  }
+}
+
+/** Map product SupportedSport → API chain sport. */
+export function legacySupportedSportToApiChain(sport: SupportedSport): ApiChainSport {
+  const m: Record<SupportedSport, ApiChainSport> = {
+    NFL: 'nfl',
+    NBA: 'nba',
+    MLB: 'mlb',
+    NHL: 'nhl',
+    NCAAB: 'ncaab',
+    NCAAF: 'ncaaf',
+    SOCCER: 'soccer_euro',
+  }
+  return m[sport]
+}
+
+/** Store in DB normalized tables using uppercase sport labels. */
+export function apiChainSportToDbSport(sport: ApiChainSport): string {
+  const m: Record<ApiChainSport, string> = {
+    nfl: 'NFL',
+    nba: 'NBA',
+    mlb: 'MLB',
+    nhl: 'NHL',
+    ncaab: 'NCAAB',
+    ncaaf: 'NCAAF',
+    soccer_euro: 'SOCCER',
+  }
+  return m[sport]
+}
+
+/** Rolling Insights enabled for all 7 chain sports. */
+export function isRollingInsightsEnabledForSport(sport: string | SupportedSport | ApiChainSport): boolean {
+  const chain =
+    typeof sport === 'string' ? toApiChainSport(sport) : legacySupportedSportToApiChain(sport as SupportedSport)
+  return chain != null && (SUPPORTED_SPORTS as readonly string[]).includes(chain)
+}
+
+export function isImageDataType(dataType: ApiDataType): boolean {
+  return dataType === 'player_headshots' || dataType === 'team_logos'
 }
 
 export function normalizeApiSport(sport: string | SupportedSport | undefined): SupportedSport {
   return normalizeToSupportedSport(sport)
 }
 
-export function isRollingInsightsEnabledForSport(sport: string | SupportedSport): boolean {
-  const normalized = normalizeApiSport(sport)
-  return rollingInsightsSportFlags[normalized]
-}
+/**
+ * Legacy flags for lib/provider-config.ts and lib/rolling-insights.ts (all enabled).
+ */
+export const ROLLING_INSIGHTS_SPORTS = {
+  NFL: true,
+  NBA: true,
+  MLB: true,
+  NHL: true,
+  NCAAF: true,
+  NCAAB: true,
+  SOCCER: true,
+  Soccer: true,
+} as const
 
-export function isImageDataType(dataType: ApiDataType): boolean {
-  return dataType === 'player_headshots' || dataType === 'team_logos'
+export function ttlSecondsForDataType(dataType: ApiDataType): number {
+  return API_CHAIN_TTLS[dataType] ?? 900
 }

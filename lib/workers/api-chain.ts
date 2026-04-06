@@ -1,37 +1,21 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import {
   API_CHAIN_TTLS,
-  isImageDataType,
   isRollingInsightsEnabledForSport,
+  ttlSecondsForDataType,
+  toApiChainSport,
+  type ApiChainSport,
   type ApiDataType,
   type ApiFetchParams,
   type ApiProvider,
   type ApiResult,
-  type ApiChainSport,
+  type ChainFetchResult,
 } from '@/lib/workers/api-config'
-import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
 import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
-import { cfbdProvider } from '@/lib/workers/providers/cfbd'
-import { clearSportsProvider } from '@/lib/workers/providers/clearsports'
-import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insights'
-import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
-
-const CACHE_PREFIX = 'api-chain'
-
-function stableStringify(value: unknown): string {
-  if (value == null) return 'null'
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`
-  if (typeof value === 'object') {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, entry]) => `${key}:${stableStringify(entry)}`)
-      .join(',')}}`
-  }
-  return JSON.stringify(value)
-}
+import { rollingInsightsProvider as fetchRollingInsightsRest } from '@/lib/workers/providers/rolling-insights'
+import { persistNormalizedSportsRows } from '@/lib/workers/sports-cache-persist'
 
 function isPopulatedResult(value: unknown): boolean {
   if (value == null) return false
@@ -40,179 +24,212 @@ function isPopulatedResult(value: unknown): boolean {
   return true
 }
 
-function cacheKey(params: ApiFetchParams): string {
-  return `${CACHE_PREFIX}:${params.sport}:${params.dataType}:${stableStringify(params.query ?? {})}`
+function mergeQuery(params: ApiFetchParams): Record<string, unknown> {
+  return { ...(params.query ?? {}), ...(params.options ?? {}) }
 }
 
 function toLatency(startedAt: number): number {
   return Math.max(0, Date.now() - startedAt)
 }
 
+function extractCachedPayload(raw: unknown): unknown {
+  if (raw == null) return null
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    if (o.data != null && (Array.isArray(o.data) || typeof o.data === 'object')) return o.data
+  }
+  return raw
+}
+
+async function saveToNormalizedTables(sport: string, dataType: string, data: unknown): Promise<void> {
+  const chain = toApiChainSport(sport)
+  if (!chain) return
+  if (dataType !== 'players' && dataType !== 'injuries' && dataType !== 'news') return
+  await persistNormalizedSportsRows(chain, dataType as ApiDataType, data)
+}
+
+/**
+ * DB-first sports fetch: SportsDataCache → Rolling Insights → api-sports fallback.
+ */
+export async function fetchWithChain(
+  params: ApiFetchParams & { forceRefresh?: boolean }
+): Promise<ChainFetchResult> {
+  const chainSport = toApiChainSport(params.sport as string)
+  if (!chainSport) {
+    return { data: null, error: 'Unsupported sport', fromCache: false }
+  }
+
+  const { dataType, forceRefresh } = params
+  const ttl = API_CHAIN_TTLS[dataType as ApiDataType] ?? ttlSecondsForDataType(dataType as ApiDataType)
+  const merged = mergeQuery(params)
+  const cacheKey = `${chainSport}:${dataType}:${JSON.stringify(merged)}`
+
+  // 1. CHECK DB CACHE FIRST (skip if forceRefresh)
+  if (!forceRefresh) {
+    try {
+      const cached = await prisma.sportsDataCache.findFirst({
+        where: {
+          sport: chainSport,
+          dataType,
+          cacheKey,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (cached?.data != null) {
+        const inner = extractCachedPayload(cached.data)
+        if (isPopulatedResult(inner)) {
+          return {
+            data: inner as ChainFetchResult['data'],
+            fromCache: true,
+            cacheAge: Math.floor((Date.now() - cached.createdAt.getTime()) / 1000),
+            source: 'cache',
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[api-chain] cache lookup failed:', e)
+    }
+  }
+
+  // 2. CACHE MISS — Rolling Insights (primary for all 7 sports)
+  let result: ChainFetchResult | null = null
+
+  const skipApiSportsFallback =
+    dataType === 'scores' || dataType === 'live_game' || dataType === 'games'
+
+  if (isRollingInsightsEnabledForSport(chainSport)) {
+    try {
+      const startedRi = Date.now()
+      const ri = await fetchRollingInsightsRest({
+        ...params,
+        sport: chainSport,
+        query: merged,
+      })
+      if (isPopulatedResult(ri.data)) {
+        result = {
+          data: ri.data,
+          fromCache: false,
+          source: 'rolling_insights',
+          latency: ri.latency ?? toLatency(startedRi),
+          error: ri.error,
+        }
+      }
+    } catch (e) {
+      console.warn(`[api-chain] Rolling Insights failed ${chainSport}/${dataType}:`, e)
+    }
+  }
+
+  // 3. FALLBACK to api-sports if RI failed (not for live scores)
+  if (!isPopulatedResult(result?.data) && !skipApiSportsFallback) {
+    try {
+      const normalized: ApiFetchParams = { ...params, sport: chainSport, query: merged }
+      const startedAt = Date.now()
+      if (apiSportsProvider.supports(normalized)) {
+        const data = await apiSportsProvider.fetch(normalized)
+        if (isPopulatedResult(data)) {
+          result = { data, fromCache: false, source: 'api_sports', latency: toLatency(startedAt) }
+        }
+      }
+    } catch (e) {
+      console.warn('[api-chain] api-sports fallback failed:', e)
+    }
+  }
+
+  if (!result || !isPopulatedResult(result.data)) {
+    return { data: null, error: result?.error ?? 'All providers failed', fromCache: false }
+  }
+
+  const ok = result
+
+  // 4. SAVE TO SportsDataCache
+  const expiresAt = new Date(Date.now() + ttl * 1000)
+  try {
+    await prisma.sportsDataCache.upsert({
+      where: { cacheKey },
+      update: { data: ok.data as object, expiresAt, updatedAt: new Date() },
+      create: {
+        sport: chainSport,
+        dataType,
+        cacheKey,
+        data: ok.data as object,
+        expiresAt,
+      },
+    })
+  } catch (e) {
+    console.error('[api-chain] cache save failed:', e)
+  }
+
+  // 5. Normalized tables (players / injuries / news)
+  await saveToNormalizedTables(chainSport, dataType, ok.data).catch(() => {})
+
+  return {
+    data: ok.data,
+    fromCache: false,
+    error: ok.error,
+    cacheAge: ok.cacheAge,
+    source: ok.source,
+    latency: ok.latency,
+  }
+}
+
 export class ApiChain {
   async fetch<T = unknown>(params: {
-    sport: ApiChainSport
+    sport: ApiFetchParams['sport']
     dataType: ApiDataType
     query?: Record<string, unknown>
+    options?: Record<string, unknown>
+    forceRefresh?: boolean
   }): Promise<ApiResult<T>> {
-    const normalized: ApiFetchParams = {
-      sport: normalizeToSupportedSport(params.sport),
-      dataType: params.dataType,
-      query: params.query ?? {},
-    }
-
-    const chain = this.buildChain(normalized.sport, normalized.dataType)
+    const startedAt = Date.now()
     const attemptedSources: ApiProvider['name'][] = []
 
-    for (const provider of chain) {
-      if (!provider.supports(normalized)) continue
-      attemptedSources.push(provider.name)
+    const chain = await fetchWithChain({
+      sport: params.sport as string,
+      dataType: params.dataType,
+      query: params.query,
+      options: params.options,
+      forceRefresh: params.forceRefresh,
+    })
 
-      const canCall = await rateLimitManager.canCall(provider.name, normalized.dataType)
-      if (!canCall) {
-        console.log(`[ApiChain] Rate limit hit for ${provider.name}, trying next provider`)
-        continue
-      }
-
-      const startedAt = Date.now()
-      try {
-        const result = await provider.fetch(normalized)
-        const latency = toLatency(startedAt)
-
-        if (!isPopulatedResult(result)) {
-          await this.logCall(provider.name, normalized.dataType, 204, latency)
-          continue
-        }
-
-        await this.logCall(provider.name, normalized.dataType, 200, latency)
-        await this.cacheResult(provider.name, normalized, result)
-
-        return {
-          data: result as T,
-          source: provider.name,
-          latency,
-          attemptedSources,
-          cached: false,
-        }
-      } catch (error) {
-        await this.logCall(
-          provider.name,
-          normalized.dataType,
-          500,
-          toLatency(startedAt),
-          error instanceof Error ? error.message : String(error)
-        )
-        console.warn(`[ApiChain] ${provider.name} failed for ${normalized.dataType}`, {
-          sport: normalized.sport,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    const cached = await this.getCachedResult<T>(normalized)
-    if (cached) {
+    if (chain.fromCache && chain.source === 'cache') {
       return {
-        ...cached,
+        data: chain.data as T,
+        source: 'cache',
+        latency: 0,
+        cached: true,
         attemptedSources,
       }
     }
 
+    if (chain.error && !chain.data) {
+      return {
+        data: null,
+        source: 'cache',
+        latency: toLatency(startedAt),
+        cached: false,
+        attemptedSources,
+        error: chain.error,
+      }
+    }
+
+    const src =
+      chain.source === 'rolling_insights'
+        ? 'rolling_insights'
+        : chain.source === 'api_sports'
+          ? 'api_sports'
+          : 'cache'
+
+    if (chain.source === 'rolling_insights') attemptedSources.push('rolling_insights')
+    if (chain.source === 'api_sports') attemptedSources.push('api_sports')
+
     return {
-      data: null,
-      source: 'cache',
-      latency: 0,
-      attemptedSources,
-      cached: true,
-    }
-  }
-
-  buildChain(sport: ApiChainSport, dataType: ApiDataType): ApiProvider[] {
-    const chain: ApiProvider[] = []
-
-    if (isRollingInsightsEnabledForSport(sport)) {
-      chain.push(rollingInsightsProvider)
-    }
-
-    if (isImageDataType(dataType)) {
-      chain.push(theSportsDbProvider, clearSportsProvider, apiSportsProvider)
-    } else {
-      chain.push(clearSportsProvider, apiSportsProvider, theSportsDbProvider)
-    }
-
-    if (sport === 'NCAAF') {
-      chain.push(cfbdProvider)
-    }
-
-    return chain
-  }
-
-  private async logCall(
-    provider: ApiProvider['name'],
-    endpoint: ApiDataType,
-    status: number,
-    latencyMs: number,
-    error?: string
-  ): Promise<void> {
-    await rateLimitManager.recordCall(provider, endpoint, status, latencyMs, {
-      error,
+      data: chain.data as T,
+      source: src as ApiResult<T>['source'],
+      latency: chain.latency ?? toLatency(startedAt),
       cached: false,
-    })
-  }
-
-  private async cacheResult(
-    provider: ApiProvider['name'],
-    params: ApiFetchParams,
-    result: unknown
-  ): Promise<void> {
-    const expiresAt = new Date(Date.now() + API_CHAIN_TTLS[params.dataType])
-    const key = cacheKey(params)
-
-    await prisma.sportsDataCache.upsert({
-      where: { key },
-      update: {
-        data: {
-          provider,
-          data: result,
-          sport: params.sport,
-          dataType: params.dataType,
-          query: params.query ?? {},
-          cachedAt: new Date().toISOString(),
-        },
-        expiresAt,
-      },
-      create: {
-        key,
-        data: {
-          provider,
-          data: result,
-          sport: params.sport,
-          dataType: params.dataType,
-          query: params.query ?? {},
-          cachedAt: new Date().toISOString(),
-        },
-        expiresAt,
-      },
-    }).catch(() => {})
-  }
-
-  private async getCachedResult<T>(params: ApiFetchParams): Promise<ApiResult<T> | null> {
-    const cached = await prisma.sportsDataCache.findUnique({
-      where: { key: cacheKey(params) },
-    }).catch(() => null)
-
-    if (!cached) return null
-
-    const payload = (cached.data ?? {}) as Record<string, unknown>
-    const data = (payload.data ?? cached.data) as T | null
-    if (!isPopulatedResult(data)) return null
-
-    return {
-      data,
-      source:
-        typeof payload.provider === 'string'
-          ? (payload.provider as ApiProvider['name'])
-          : 'cache',
-      latency: 0,
-      cached: true,
+      attemptedSources,
     }
   }
 }

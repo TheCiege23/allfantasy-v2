@@ -1,122 +1,103 @@
-import { withApiUsage } from "@/lib/telemetry/usage"
-import { NextRequest, NextResponse } from 'next/server';
-import { getSportsData, Sport, DataType } from '@/lib/sports-router';
-import { SUPPORTED_SPORTS, isSupportedSport } from '@/lib/sport-scope';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { fetchWithChain } from '@/lib/workers/api-chain'
+import { API_CHAIN_TTLS, SUPPORTED_SPORTS } from '@/lib/workers/api-config'
+import type { ApiChainSport, ApiDataType } from '@/lib/workers/api-config'
 
-const SPORT_ALIASES: Record<string, Sport> = {
-  MLS: 'SOCCER',
-  CFB: 'NCAAF',
-  NCAAFB: 'NCAAF',
-  NCAA_FOOTBALL: 'NCAAF',
-  NCAAM: 'NCAAB',
-  NCAABASKETBALL: 'NCAAB',
-  NCAA_BASKETBALL: 'NCAAB',
+export const dynamic = 'force-dynamic'
+
+function isApiDataType(v: string): v is ApiDataType {
+  return Object.prototype.hasOwnProperty.call(API_CHAIN_TTLS, v)
 }
 
-function normalizeSportInput(value: string | null | undefined): Sport | null {
-  const raw = value?.trim().toUpperCase()
-  if (!raw) return null
-  const mapped = SPORT_ALIASES[raw] ?? raw
-  return isSupportedSport(mapped) ? (mapped as Sport) : null
-}
+async function handleSports(req: {
+  sport: string
+  dataType: string
+  options?: Record<string, unknown>
+  forceRefresh?: boolean
+}) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-function buildResponseState(result: { cached: boolean; stale: boolean }): 'live' | 'cached' | 'stale' {
-  if (result.stale) return 'stale'
-  if (result.cached) return 'cached'
-  return 'live'
-}
-
-export const GET = withApiUsage({ endpoint: "/api/sports", tool: "Sports" })(async (request: NextRequest) => {
-  const searchParams = request.nextUrl.searchParams;
-  const sport = normalizeSportInput(searchParams.get('sport'));
-  const dataType = searchParams.get('type') as DataType;
-  const identifier = searchParams.get('id') || undefined;
-  const forceRefresh = searchParams.get('refresh') === 'true';
-
-  if (!sport) {
+  const sport = (req.sport || 'nfl').toLowerCase()
+  if (!(SUPPORTED_SPORTS as readonly string[]).includes(sport)) {
     return NextResponse.json(
-      { error: 'Missing or invalid sport parameter', validSports: SUPPORTED_SPORTS },
+      { error: `Unsupported sport: ${sport}. Supported: ${SUPPORTED_SPORTS.join(', ')}` },
       { status: 400 }
-    );
+    )
   }
 
-  if (!dataType) {
-    return NextResponse.json(
-      { error: 'Missing type parameter', validTypes: ['teams', 'players', 'games', 'stats', 'standings', 'schedule'] },
-      { status: 400 }
-    );
+  const rawType = (req.dataType || 'players').toLowerCase()
+  if (!isApiDataType(rawType)) {
+    return NextResponse.json({ error: `Unsupported data type: ${req.dataType}` }, { status: 400 })
   }
+  const dataType = rawType as ApiDataType
 
+  const result = await fetchWithChain({
+    sport: sport as ApiChainSport,
+    dataType,
+    options: req.options,
+    forceRefresh: req.forceRefresh,
+  })
+
+  return NextResponse.json({
+    sport,
+    dataType,
+    fromCache: result.fromCache,
+    cacheAge: result.cacheAge ?? null,
+    count: Array.isArray(result.data) ? result.data.length : null,
+    data: result.data,
+    error: result.error ?? null,
+  })
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const result = await getSportsData({
-      sport,
-      dataType,
-      identifier,
-      forceRefresh,
-    });
-
-    return NextResponse.json({
-      success: true,
-      sport,
-      dataType,
-      source: result.source,
-      cached: result.cached,
-      stale: result.stale,
-      state: buildResponseState(result),
-      refreshable: true,
-      fetchedAt: result.fetchedAt.toISOString(),
-      attemptedSources: result.attemptedSources ?? [],
-      data: result.data,
-    });
-  } catch (error) {
-    console.error('Sports data error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to fetch sports data';
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch sports data', details: message, refreshable: true, stale: false },
-      { status: 500 }
-    );
-  }
-})
-
-export const POST = withApiUsage({ endpoint: "/api/sports", tool: "Sports" })(async (request: NextRequest) => {
-  try {
-    const body = await request.json();
-    const { sport: sportRaw, dataType, identifier, forceRefresh } = body;
-    const sport = normalizeSportInput(typeof sportRaw === 'string' ? sportRaw : null)
-
-    if (!sport || !dataType) {
-      return NextResponse.json(
-        { error: 'Missing or invalid sport/dataType in request body', validSports: SUPPORTED_SPORTS },
-        { status: 400 }
-      );
+    const { searchParams } = new URL(req.url)
+    const forceRefresh = searchParams.get('refresh') === 'true'
+    let options: Record<string, unknown> | undefined
+    const optionsRaw = searchParams.get('options')
+    if (optionsRaw) {
+      try {
+        options = JSON.parse(optionsRaw) as Record<string, unknown>
+      } catch {
+        return NextResponse.json({ error: 'Invalid options JSON' }, { status: 400 })
+      }
     }
 
-    const result = await getSportsData({
-      sport,
-      dataType: dataType as DataType,
-      identifier,
+    return handleSports({
+      sport: searchParams.get('sport') ?? 'nfl',
+      dataType: searchParams.get('type') ?? 'players',
+      options,
       forceRefresh,
-    });
-
-    return NextResponse.json({
-      success: true,
-      sport: sport.toUpperCase(),
-      dataType,
-      source: result.source,
-      cached: result.cached,
-      stale: result.stale,
-      state: buildResponseState(result),
-      refreshable: true,
-      fetchedAt: result.fetchedAt.toISOString(),
-      attemptedSources: result.attemptedSources ?? [],
-      data: result.data,
-    });
-  } catch (error) {
-    console.error('Sports data error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to fetch sports data';
-    return NextResponse.json(
-      { success: false, error: 'Failed to fetch sports data', details: message, refreshable: true, stale: false },
-      { status: 500 }
-    );
+    })
+  } catch (err: unknown) {
+    const anyErr = err as { message?: string; stack?: string }
+    console.error('[api/sports] error:', anyErr?.message, anyErr?.stack)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
-})
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json().catch(() => ({}))) as {
+      sport?: string
+      type?: string
+      dataType?: string
+      options?: Record<string, unknown>
+      forceRefresh?: boolean
+      refresh?: boolean
+    }
+    return handleSports({
+      sport: body.sport ?? 'nfl',
+      dataType: body.type ?? body.dataType ?? 'players',
+      options: body.options,
+      forceRefresh: body.forceRefresh === true || body.refresh === true,
+    })
+  } catch (err: unknown) {
+    const anyErr = err as { message?: string; stack?: string }
+    console.error('[api/sports] POST error:', anyErr?.message, anyErr?.stack)
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+  }
+}
