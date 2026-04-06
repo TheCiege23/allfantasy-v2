@@ -267,32 +267,37 @@ export function ChatComposer({
   const handleSend = useCallback(async () => {
     if (!canSend || sending) return
     setSending(true)
+    // Optimistically clear input and attachments immediately
+    const prevText = text
+    const prevGif = pendingGif
+    const prevAttachments = attachments
+    const prevPoll = pollDraft
+    setText('')
+    setPendingGif(null)
+    setAttachments([])
+    setPollDraft(null)
+    setActivePicker(null)
+    queueMicrotask(() => {
+      const el = textareaRef.current
+      if (el) {
+        el.style.height = 'auto'
+        autoResize()
+      }
+    })
     try {
       const payload: LeagueComposerPayload = {
-        text: text.trim(),
-        ...(pendingGif && {
-          gifId: pendingGif.id,
-          giphyId: pendingGif.giphyId,
-          gifUrl: pendingGif.url,
-          previewUrl: pendingGif.previewUrl,
-          gifTitle: pendingGif.title,
+        text: prevText.trim(),
+        ...(prevGif && {
+          gifId: prevGif.id,
+          giphyId: prevGif.giphyId,
+          gifUrl: prevGif.url,
+          previewUrl: prevGif.previewUrl,
+          gifTitle: prevGif.title,
         }),
-        ...(attachments.length ? { attachments: attachments.map((a) => ({ ...a })) } : {}),
-        ...(pollDraft ? { poll: { ...pollDraft } } : {}),
+        ...(prevAttachments.length ? { attachments: prevAttachments.map((a) => ({ ...a })) } : {}),
+        ...(prevPoll ? { poll: { ...prevPoll } } : {}),
       }
       await onSend(payload)
-      setText('')
-      setPendingGif(null)
-      setAttachments([])
-      setPollDraft(null)
-      setActivePicker(null)
-      queueMicrotask(() => {
-        const el = textareaRef.current
-        if (el) {
-          el.style.height = 'auto'
-          autoResize()
-        }
-      })
     } finally {
       setSending(false)
     }

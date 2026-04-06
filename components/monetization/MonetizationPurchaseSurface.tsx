@@ -312,13 +312,14 @@ export default function MonetizationPurchaseSurface({
                 </span>
               </Link>
               <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href="/signup"
-                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 px-5 text-sm font-semibold text-[#041018] shadow-lg shadow-cyan-500/20 transition hover:from-cyan-400 hover:to-cyan-500"
-                  data-testid="pricing-cta-signup"
-                >
-                  Create free account
-                </Link>
+                  <Link
+                    href="/signup"
+                    className="inline-flex min-h-[54px] items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-400 via-cyan-400 to-fuchsia-400 px-8 text-lg font-extrabold text-[#041018] shadow-2xl shadow-cyan-500/30 ring-2 ring-cyan-300/40 transition hover:from-cyan-300 hover:to-fuchsia-300 hover:scale-[1.04] focus:outline-none focus:ring-4 focus:ring-emerald-300"
+                    style={{ letterSpacing: '0.04em' }}
+                    data-testid="pricing-cta-signup"
+                  >
+                    Unlock Full AI Access — Sign Up Free
+                  </Link>
                 <Link
                   href={`/login?next=${encodeURIComponent(pagePath)}`}
                   className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/20 bg-white/[0.06] px-4 text-sm font-semibold text-white/90 transition hover:bg-white/10"
@@ -328,6 +329,29 @@ export default function MonetizationPurchaseSurface({
                 </Link>
               </div>
             </header>
+
+              {/* Why Subscribe Section */}
+              <section className="mb-10 mt-2 flex flex-col items-center justify-center gap-6 rounded-2xl border border-cyan-400/15 bg-cyan-400/5 px-6 py-7 shadow-cyan-400/10 shadow-lg">
+                <h2 className="text-2xl font-bold text-cyan-200 mb-2 tracking-tight">Why Subscribe?</h2>
+                <ul className="max-w-2xl space-y-4 text-base text-white/90">
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
+                    <span><span className="font-semibold text-cyan-100">Win More:</span> Get advanced AI-driven trade, waiver, and draft insights tailored to your league.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
+                    <span><span className="font-semibold text-cyan-100">Commissioner Tools:</span> Automate league management and unlock powerful controls.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
+                    <span><span className="font-semibold text-cyan-100">All-Access Bundle:</span> One subscription for every premium feature — best value for serious players.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
+                    <span><span className="font-semibold text-cyan-100">Cancel Anytime:</span> No risk, no hassle. Try premium features and downgrade or cancel whenever you want.</span>
+                  </li>
+                </ul>
+              </section>
 
             <div className="mb-10 text-center">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/90">AllFantasy Premium</p>
