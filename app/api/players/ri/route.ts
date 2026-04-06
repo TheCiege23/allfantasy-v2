@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchRIPlayers } from '@/lib/players/ri-players-server'
+import { fetchRIPlayers, normalizeRIRouteSport } from '@/lib/players/ri-players-server'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { unstable_cache } from 'next/cache'
 
@@ -7,15 +7,6 @@ import { unstable_cache } from 'next/cache'
 export const maxDuration = 60
 
 const ALLOWED = new Set<string>(SUPPORTED_SPORTS as readonly string[])
-const LEGACY_RI_SPORT_MAP: Record<string, string> = {
-  NCAAFB: 'NCAAF',
-  NCAABB: 'NCAAB',
-}
-
-function normalizeRIRouteSport(rawSport: string): string {
-  const sport = rawSport.trim().toUpperCase()
-  return LEGACY_RI_SPORT_MAP[sport] ?? sport
-}
 
 const cacheFetch = (sport: string) =>
   unstable_cache(

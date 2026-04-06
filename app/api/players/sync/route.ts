@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchRIPlayers, fetchRITeams } from '@/lib/players/ri-players-server'
+import { fetchRIPlayers, fetchRITeams, normalizeRIRouteSport } from '@/lib/players/ri-players-server'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { revalidateTag } from 'next/cache'
 
@@ -7,15 +7,6 @@ import { revalidateTag } from 'next/cache'
 export const maxDuration = 60
 
 const ALLOWED = new Set<string>(SUPPORTED_SPORTS as readonly string[])
-const LEGACY_RI_SPORT_MAP: Record<string, string> = {
-  NCAAFB: 'NCAAF',
-  NCAABB: 'NCAAB',
-}
-
-function normalizeRIRouteSport(rawSport: string): string {
-  const sport = rawSport.trim().toUpperCase()
-  return LEGACY_RI_SPORT_MAP[sport] ?? sport
-}
 
 export async function POST(req: NextRequest) {
   const sport = normalizeRIRouteSport(req.nextUrl.searchParams.get('sport') || 'NFL')

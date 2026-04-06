@@ -347,6 +347,16 @@ function toRIRestSportKey(sport: string): string {
   return u
 }
 
+const LEGACY_RI_ROUTE_SPORT_MAP: Record<string, string> = {
+  NCAAFB: 'NCAAF',
+  NCAABB: 'NCAAB',
+}
+
+export function normalizeRIRouteSport(rawSport: string): string {
+  const sport = rawSport.trim().toUpperCase()
+  return LEGACY_RI_ROUTE_SPORT_MAP[sport] ?? sport
+}
+
 const REST_SPORTS = new Set(['NBA', 'NHL', 'MLB', 'SOCCER', 'NCAABB', 'NCAAFB'])
 
 export async function fetchRIPlayers(sport: string): Promise<RIPlayer[]> {
