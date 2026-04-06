@@ -535,20 +535,13 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               sport: string
               season: number
               leagueSize: number
-              importWins: number
-              importLosses: number
-              importTies: number
-              importMadePlayoffs: boolean
-              importWonChampionship: boolean
-              importFinalStanding: number | null
-              importPointsFor: number | null
             }> = []
 
             for (const league of sleeperLeagues) {
               const lid = league.league_id
               if (!lid) continue
-              const leagueSport = normalizeToSupportedSport(league.sport)
               const totalTeams = league.total_rosters ?? 12
+              const leagueSport = normalizeToSupportedSport(league.sport)
 
               leagueRecords.push({
                 platformLeagueId: String(lid),
@@ -556,13 +549,6 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                 sport: leagueSport,
                 season,
                 leagueSize: totalTeams,
-                importWins: 0,
-                importLosses: 0,
-                importTies: 0,
-                importMadePlayoffs: false,
-                importWonChampionship: false,
-                importFinalStanding: null,
-                importPointsFor: null,
               })
             }
 

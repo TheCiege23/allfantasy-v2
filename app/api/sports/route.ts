@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-
-import { authOptions } from '@/lib/auth'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { API_CHAIN_TTLS, SUPPORTED_SPORTS, toApiChainSport } from '@/lib/workers/api-config'
@@ -13,15 +10,16 @@ function isApiDataType(v: string): v is ApiDataType {
   return Object.prototype.hasOwnProperty.call(API_CHAIN_TTLS, v)
 }
 
+function isSupportedSportsDataType(v: string): boolean {
+  return isApiDataType(v) || v === 'games' || v === 'stats'
+}
+
 async function handleSports(req: {
   sport: string
   dataType: string
   options?: Record<string, unknown>
   forceRefresh?: boolean
 }) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const sportRaw = (req.sport || 'nfl').toLowerCase()
   const chainSport = toApiChainSport(sportRaw) as ApiChainSport | null
   if (!chainSport || !(SUPPORTED_SPORTS as readonly string[]).includes(chainSport)) {
@@ -32,10 +30,10 @@ async function handleSports(req: {
   }
 
   const rawType = (req.dataType || 'players').toLowerCase()
-  if (!isApiDataType(rawType)) {
+  if (!isSupportedSportsDataType(rawType)) {
     return NextResponse.json({ error: `Unsupported data type: ${req.dataType}` }, { status: 400 })
   }
-  const dataType = rawType as ApiDataType
+  const dataType = rawType as ApiDataType | 'games' | 'stats'
 
   const result = await fetchWithChain({
     sport: chainSport,
