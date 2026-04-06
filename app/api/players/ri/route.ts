@@ -7,6 +7,15 @@ import { unstable_cache } from 'next/cache'
 export const maxDuration = 60
 
 const ALLOWED = new Set<string>(SUPPORTED_SPORTS as readonly string[])
+const LEGACY_RI_SPORT_MAP: Record<string, string> = {
+  NCAAFB: 'NCAAF',
+  NCAABB: 'NCAAB',
+}
+
+function normalizeRIRouteSport(rawSport: string): string {
+  const sport = rawSport.trim().toUpperCase()
+  return LEGACY_RI_SPORT_MAP[sport] ?? sport
+}
 
 const cacheFetch = (sport: string) =>
   unstable_cache(
@@ -16,7 +25,7 @@ const cacheFetch = (sport: string) =>
   )
 
 export async function GET(req: NextRequest) {
-  const sport = (req.nextUrl.searchParams.get('sport') || 'NFL').trim().toUpperCase()
+  const sport = normalizeRIRouteSport(req.nextUrl.searchParams.get('sport') || 'NFL')
   if (!ALLOWED.has(sport)) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
   }

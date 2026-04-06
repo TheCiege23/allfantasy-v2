@@ -7,12 +7,11 @@ import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 
 /**
  * App routes that must have a valid NextAuth session (JWT).
- * Matches: /dashboard/rankings, /dashboard/rankings/*, /league/*, /api/leagues/import, /api/leagues/import/progress/*
+ * Matches: /dashboard/rankings, /dashboard/rankings/*, /league/*
  */
 function requiresSessionAuth(pathname: string): boolean {
   if (pathname.startsWith("/dashboard/rankings")) return true
   if (pathname.startsWith("/league/")) return true
-  if (pathname.startsWith("/api/leagues/import")) return true
   return false
 }
 
@@ -149,7 +148,7 @@ export async function middleware(request: NextRequest) {
 
 /**
  * Runs on all non-static routes; session checks apply only to
- * /dashboard/rankings, /league/*, /api/leagues/import/* (see requiresSessionAuth).
+ * /dashboard/rankings, /league/* (see requiresSessionAuth).
  */
 export const config = {
   matcher: ["/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
