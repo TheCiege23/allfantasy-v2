@@ -418,7 +418,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
       if (providerId === 'sleeper') {
         const username = importInputs[providerId]?.trim()
         if (!username) throw new Error('Sleeper username required')
-        const userRes = await fetch(`https://api.sleeper.app/v1/user/${username}`)
+        const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`)
         if (!userRes.ok) throw new Error('Sleeper username not found')
         const userData = await userRes.json()
         let importedAnySport = false

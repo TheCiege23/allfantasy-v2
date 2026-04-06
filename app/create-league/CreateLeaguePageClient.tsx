@@ -18,7 +18,7 @@ export function CreateLeaguePageClient({ userId, initialTemplateId }: CreateLeag
       <header className="px-4 pb-2 pt-4">
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <Link
-            href="/app"
+            href="/dashboard"
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/20 text-lg text-white/80 hover:bg-white/10 hover:text-white"
             aria-label="Back"
           >
