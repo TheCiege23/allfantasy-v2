@@ -69,9 +69,13 @@ function DashboardLegacyRankBadge() {
             setState('empty')
             return
           }
-          if (data.imported && data.rank) {
-            const label = data.tier ?? `T${data.rank.careerTier}`
-            const name = data.tierName ?? data.rank.careerTierName
+          const tierCode = data.tier?.trim()
+          if (data.imported && (tierCode || data.rank)) {
+            const label = tierCode ?? `T${data.rank?.careerTier ?? 1}`
+            const name =
+              data.tierName?.trim() ||
+              data.rank?.careerTierName ||
+              (tierCode ? `Tier ${tierCode}` : 'Ranked')
             setRank({ label, name })
             setState('ranked')
             return

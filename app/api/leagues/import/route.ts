@@ -378,8 +378,9 @@ export async function POST(req: Request) {
 
     try {
       await calculateAndSaveRank(userId);
+      console.log("[import] rank calculated and saved for", userId);
     } catch (rankErr: unknown) {
-      console.warn("[import] calculateAndSaveRank failed (non-fatal):", rankErr);
+      console.error("[import] rank calc failed (non-fatal):", rankErr);
     }
 
     try {

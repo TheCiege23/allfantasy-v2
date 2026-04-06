@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma'
 
+/** Returned `xpTotal` is the numeric XP total (same value persisted as BigInt on `user_profiles`). */
 export type CalculateRankResult = {
   rankTier: string
-  xpTotal: bigint
+  xpTotal: number
   xpLevel: number
   careerWins: number
   careerLosses: number
@@ -13,8 +14,8 @@ export type CalculateRankResult = {
 }
 
 /**
- * Computes T1–T6 tier + XP from imported `League` rows (Sleeper import stats) and persists to `user_profiles`.
- * Safe to call after Phase-1 league list import; does not require legacy DB rows.
+ * Computes T1–T6 tier + XP from imported `League` rows and persists to `user_profiles`.
+ * Variable names match DB columns: `careerSeasonsPlayed` = league row count, `careerLeaguesPlayed` = distinct seasons.
  */
 export async function calculateAndSaveRank(userId: string): Promise<CalculateRankResult | null> {
   try {
@@ -28,8 +29,8 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
         importWonChampionship: true,
         importFinalStanding: true,
         importPointsFor: true,
-        importPointsAgainst: true,
         season: true,
+        platform: true,
       },
     })
 
@@ -39,20 +40,17 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
     const careerLosses = leagues.reduce((s, l) => s + (l.importLosses ?? 0), 0)
     const careerChampionships = leagues.filter((l) => l.importWonChampionship === true).length
     const careerPlayoffAppearances = leagues.filter((l) => l.importMadePlayoffs === true).length
-    /** Total league-season rows (e.g. 489 across years). */
-    const careerLeaguesPlayed = leagues.length
-    /** Distinct calendar seasons with at least one league (e.g. 29). */
-    const careerSeasonsPlayed = new Set(leagues.map((l) => l.season)).size
+    const careerSeasonsPlayed = leagues.length
+    const careerLeaguesPlayed = new Set(leagues.map((l) => l.season)).size
 
-    const xpTotal = BigInt(
+    const xpNum =
       careerWins * 10 +
-        careerChampionships * 100 +
-        careerPlayoffAppearances * 25 +
-        careerSeasonsPlayed * 5,
-    )
-    const xpLevel = Math.floor(Number(xpTotal) / 100) + 1
+      careerChampionships * 100 +
+      careerPlayoffAppearances * 25 +
+      careerSeasonsPlayed * 5
+    const xpTotal = BigInt(xpNum)
+    const xpLevel = Math.floor(xpNum / 100) + 1
 
-    // Tier uses distinct seasons for “career breadth” (T4 All-Pro ≈ 5+ seasons, heavy volume).
     let rankTier = 'T6'
     if (careerChampionships >= 3) rankTier = 'T1'
     else if (careerChampionships >= 1) rankTier = 'T2'
@@ -114,7 +112,7 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
 
     return {
       rankTier,
-      xpTotal,
+      xpTotal: xpNum,
       xpLevel,
       careerWins,
       careerLosses,

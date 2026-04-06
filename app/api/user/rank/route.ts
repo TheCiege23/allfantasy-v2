@@ -134,6 +134,18 @@ export type UserRankCareerStats = {
   leaguesPlayed: number
 }
 
+/** Map DB denorm to API stats: DB `career_leagues_played` = distinct seasons → `seasonsPlayed`; DB `career_seasons_played` = row count → `leaguesPlayed`. */
+function careerStatsFromProfileDenorm(denorm: ProfileRankDenormResult): UserRankCareerStats {
+  return {
+    seasonsPlayed: denorm.careerLeaguesPlayed ?? 0,
+    totalWins: denorm.careerWins ?? 0,
+    totalLosses: denorm.careerLosses ?? 0,
+    championships: denorm.careerChampionships ?? 0,
+    playoffAppearances: denorm.careerPlayoffAppearances ?? 0,
+    leaguesPlayed: denorm.careerSeasonsPlayed ?? 0,
+  }
+}
+
 export const dynamic = 'force-dynamic'
 
 async function loadProfileRankFlags(userId: string): Promise<{
@@ -294,17 +306,6 @@ export async function GET(request: Request) {
   const userId = session.user.id
 
   try {
-    const profileRow = await prisma.userProfile
-      .findUnique({ where: { userId }, select: { userId: true } })
-      .catch((e: unknown) => {
-        if (e instanceof Error) console.error('[rank]', e.message, e.stack)
-        else console.error('[rank]', e)
-        return null
-      })
-    if (!profileRow) {
-      return tierNullResponse()
-    }
-
     const url = new URL(request.url)
     const forceRecalculate = url.searchParams.get('recalculate') === 'true'
 
@@ -329,6 +330,16 @@ export async function GET(request: Request) {
       } catch (recalcErr: unknown) {
         logFullError('[api/user/rank] calculateAndSaveRank (recalculate or rankCalculatedAt null)', recalcErr)
       }
+    }
+
+    let denormCatchup = await loadProfileRankDenorm(userId)
+    if (!denormCatchup?.rankTier?.trim()) {
+      try {
+        await calculateAndSaveRank(userId)
+      } catch (recalcErr: unknown) {
+        logFullError('[api/user/rank] calculateAndSaveRank (catch-up when rank_tier still empty)', recalcErr)
+      }
+      denormCatchup = await loadProfileRankDenorm(userId)
     }
 
     let appUser:
@@ -380,7 +391,7 @@ export async function GET(request: Request) {
     }
 
     if (!appUser.legacyUserId) {
-      const denormEarly = await loadProfileRankDenorm(userId)
+      const denormEarly = denormCatchup
       const tierLabelEarly = denormEarly?.rankTier?.trim()
       if (tierLabelEarly) {
         const legacyUsernameEarly =
@@ -409,14 +420,7 @@ export async function GET(request: Request) {
             : Number(
                 denormEarly && 'legacyCareerXp' in denormEarly ? denormEarly.legacyCareerXp ?? 0 : 0,
               )
-        const careerStats: UserRankCareerStats = {
-          seasonsPlayed: denormEarly?.careerSeasonsPlayed ?? 0,
-          totalWins: denormEarly?.careerWins ?? 0,
-          totalLosses: denormEarly?.careerLosses ?? 0,
-          championships: denormEarly?.careerChampionships ?? 0,
-          playoffAppearances: denormEarly?.careerPlayoffAppearances ?? 0,
-          leaguesPlayed: denormEarly?.careerLeaguesPlayed ?? 0,
-        }
+        const careerStats = careerStatsFromProfileDenorm(denormEarly!)
         const tierNameResolved =
           tierNameFromCode(tier) ??
           (denormEarly && 'legacyCareerTierName' in denormEarly
@@ -456,8 +460,16 @@ export async function GET(request: Request) {
           overviewProfile: null,
         })
       }
+      let hasLeagues = false
+      try {
+        hasLeagues = (await prisma.league.count({ where: { userId } })) > 0
+      } catch (cntErr: unknown) {
+        logFullError('[api/user/rank] league count (imported hint) failed', cntErr)
+      }
+      const legacyUsernameNoLegacy =
+        appUser.legacyUser?.sleeperUsername ?? appUser.displayName ?? appUser.username ?? null
       return NextResponse.json({
-        imported: false,
+        imported: hasLeagues,
         rank: null,
         tier: null,
         tierName: null,
@@ -467,7 +479,7 @@ export async function GET(request: Request) {
         stats: null,
         rankProcessing: false,
         rankCalculatedAt: null,
-        legacyUsername: null,
+        legacyUsername: legacyUsernameNoLegacy,
         overviewProfile: null,
       })
     }
@@ -486,7 +498,7 @@ export async function GET(request: Request) {
     }
 
     if (!rankCache) {
-      const denorm = await loadProfileRankDenorm(userId)
+      const denorm = denormCatchup
       const tierLabel = denorm?.rankTier?.trim()
       if (tierLabel) {
         const tierMatch = /^T(\d+)/i.exec(tierLabel)
@@ -501,14 +513,7 @@ export async function GET(request: Request) {
           denorm?.xpTotal != null
             ? Number(denorm.xpTotal)
             : Number(denorm && 'legacyCareerXp' in denorm ? denorm.legacyCareerXp ?? 0 : 0)
-        const careerStats: UserRankCareerStats = {
-          seasonsPlayed: denorm?.careerSeasonsPlayed ?? 0,
-          totalWins: denorm?.careerWins ?? 0,
-          totalLosses: denorm?.careerLosses ?? 0,
-          championships: denorm?.careerChampionships ?? 0,
-          playoffAppearances: denorm?.careerPlayoffAppearances ?? 0,
-          leaguesPlayed: denorm?.careerLeaguesPlayed ?? 0,
-        }
+        const careerStats = careerStatsFromProfileDenorm(denorm!)
         const tierNameResolved =
           tierNameFromCode(tier) ??
           (denorm && 'legacyCareerTierName' in denorm ? denorm.legacyCareerTierName : null) ??

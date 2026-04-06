@@ -60,6 +60,12 @@ const TIER_IMPORT_LABELS: Record<string, { name: string; emoji: string }> = {
   T6: { name: 'Starter', emoji: '▶️' },
 }
 
+function tierBadgeMeta(tier: string | null | undefined): { name: string; emoji: string } {
+  const m = /^T(\d+)/i.exec(String(tier ?? '').trim())
+  const key = m ? `T${Math.min(6, Math.max(1, parseInt(m[1], 10)))}` : 'T6'
+  return TIER_IMPORT_LABELS[key] ?? TIER_IMPORT_LABELS.T6
+}
+
 function tierLabelFromCode(tier: string | null | undefined): string {
   if (!tier?.trim()) return 'Veteran'
   const m = /^T(\d+)/i.exec(tier.trim())
@@ -552,6 +558,96 @@ function ProcessingImportState() {
   )
 }
 
+function CalculatingRankState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="space-y-6" data-testid="rank-calculating-state">
+      <div className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-[#0a1228] to-[#07071a] p-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-violet-500/35 border-t-violet-300" />
+        </div>
+        <h2 className="text-xl font-black text-white">Calculating your rank…</h2>
+        <p className="mt-2 text-sm text-white/50">
+          Your leagues are imported. We&apos;re finishing your tier and XP snapshot — this usually takes a few seconds.
+        </p>
+        <button
+          type="button"
+          onClick={() => void onRetry()}
+          className="mt-6 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-white/80 hover:border-cyan-500/35 hover:text-white"
+        >
+          Refresh now
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ImportRankSnapshotCard({ rank }: { rank: PlayerRank }) {
+  const tierCode = `T${Math.min(6, Math.max(1, rank.careerTier))}`
+  const meta = tierBadgeMeta(tierCode)
+  const xp = Number(rank.careerXp)
+  const level = rank.careerLevel
+  const nextLevelXp = level * 100
+  const prevLevelXp = Math.max(0, (level - 1) * 100)
+  const barPct =
+    nextLevelXp > prevLevelXp
+      ? Math.min(100, Math.max(0, ((xp - prevLevelXp) / (nextLevelXp - prevLevelXp)) * 100))
+      : 100
+
+  const cells = [
+    { label: 'Seasons', value: String(rank.seasonsPlayed ?? 0) },
+    { label: 'Wins', value: String(rank.totalWins ?? 0) },
+    { label: 'Losses', value: String(rank.totalLosses ?? 0) },
+    { label: 'Championships', value: String(rank.championshipCount ?? 0) },
+    {
+      label: 'Playoff appearances',
+      value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
+    },
+  ]
+
+  return (
+    <div
+      className="rounded-2xl border border-white/10 bg-[#0a1228]/80 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+      data-testid="import-rank-snapshot-card"
+    >
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3 text-center sm:text-left">
+          <span className="text-4xl" aria-hidden>
+            {meta.emoji}
+          </span>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300/80">Your rank</p>
+            <p className="text-lg font-black text-white">{rank.careerTierName}</p>
+            <p className="text-[11px] text-white/40">{meta.name}</p>
+          </div>
+        </div>
+        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-black text-white">
+          {tierCode}
+        </div>
+      </div>
+      <div className="mt-5">
+        <div className="mb-1 flex justify-between text-[11px] text-white/45">
+          <span>Level {level}</span>
+          <span>{xp.toLocaleString()} XP</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-cyan-500/80 to-violet-500/80 transition-all"
+            style={{ width: `${barPct}%` }}
+          />
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {cells.map((c) => (
+          <div key={c.label} className="rounded-xl border border-white/6 bg-white/[0.03] p-3 text-center">
+            <div className="text-lg font-bold text-white">{c.value}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/40">{c.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function EmptyRankState({ onImported }: { onImported: () => void }) {
   return (
     <div className="space-y-6">
@@ -629,6 +725,7 @@ function FullRankView({
 }) {
   return (
     <div className="space-y-6">
+      <ImportRankSnapshotCard rank={rank} />
       <RankHero rank={rank} username={username} />
 
       <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
@@ -670,8 +767,9 @@ function FullRankView({
                   disabled={recalculateLoading}
                   onClick={onRecalculate}
                   className="rounded-xl px-4 py-2 text-xs font-bold border border-cyan-500/35 text-cyan-200 hover:border-cyan-400/50 hover:text-white transition-all disabled:opacity-40"
+                  data-testid="rank-recalculate-button"
                 >
-                  {recalculateLoading ? 'Recalculating…' : 'Recalculate'}
+                  {recalculateLoading ? 'Recalculating…' : 'Recalculate Rank'}
                 </button>
               ) : null}
               <button
@@ -702,6 +800,8 @@ function MyRankingsPageInner() {
   const [showImport, setShowImport] = useState(false)
   const [importBannerDismissed, setImportBannerDismissed] = useState(false)
   const [recalculateLoading, setRecalculateLoading] = useState(false)
+  const [apiImported, setApiImported] = useState(false)
+  const [apiTier, setApiTier] = useState<string | null>(null)
   const justImported = searchParams.get('imported') === 'true'
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
@@ -713,6 +813,8 @@ function MyRankingsPageInner() {
       if (response.ok) {
         setRankFetchError(false)
         setImportProcessing(data.rankProcessing === true)
+        setApiImported(data.imported === true)
+        setApiTier(data.tier ?? null)
         const displayRank = playerRankFromApiResponse(data)
         if (displayRank) {
           setRank(displayRank)
@@ -729,6 +831,8 @@ function MyRankingsPageInner() {
         setOverviewProfile(null)
         setLegacyUsername(null)
         setImportProcessing(false)
+        setApiImported(false)
+        setApiTier(null)
       }
     } catch {
       setRankFetchError(true)
@@ -736,6 +840,8 @@ function MyRankingsPageInner() {
       setOverviewProfile(null)
       setLegacyUsername(null)
       setImportProcessing(false)
+      setApiImported(false)
+      setApiTier(null)
     } finally {
       if (!silent) setLoading(false)
     }
@@ -761,6 +867,20 @@ function MyRankingsPageInner() {
     const id = window.setInterval(() => void loadRank({ silent: true }), 5000)
     return () => window.clearInterval(id)
   }, [justImported, importProcessing, loadRank])
+
+  /** Tier pending after import: poll /api/user/rank (max 10 tries, 3s apart). */
+  useEffect(() => {
+    if (rank) return
+    if (!apiImported || apiTier) return
+    if (rankFetchError) return
+    let tries = 0
+    const id = window.setInterval(() => {
+      tries += 1
+      void loadRank({ silent: true })
+      if (tries >= 10) window.clearInterval(id)
+    }, 3000)
+    return () => window.clearInterval(id)
+  }, [rank, apiImported, apiTier, rankFetchError, loadRank])
 
   const username =
     legacyUsername ||
@@ -886,6 +1006,15 @@ function MyRankingsPageInner() {
           />
         ) : !rank && importProcessing && justImported && !rankFetchError ? (
           <ProcessingImportState />
+        ) : apiImported && !apiTier && !rankFetchError ? (
+          <CalculatingRankState onRetry={() => void loadRank({ silent: true })} />
+        ) : !apiImported ? (
+          <EmptyRankState
+            onImported={() => {
+              setShowImport(false)
+              void loadRank()
+            }}
+          />
         ) : (
           <EmptyRankState
             onImported={() => {
