@@ -35,7 +35,7 @@ const defaultDeps: TradeAnalyzerIntelDeps = {
     }),
   findKtcCache: () =>
     prisma.sportsDataCache.findUnique({
-      where: { key: 'ktc-dynasty-rankings' },
+      where: { cacheKey: 'ktc-dynasty-rankings' },
     }),
 }
 

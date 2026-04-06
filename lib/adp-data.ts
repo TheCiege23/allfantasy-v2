@@ -47,7 +47,7 @@ export async function fetchFFCADP(
   const cacheKey = `ffc-adp-${format}-${teams}-${ffcYear}`;
 
   try {
-    const cached = await prisma.sportsDataCache.findUnique({ where: { key: cacheKey } });
+    const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } });
     if (cached && new Date(cached.expiresAt) > new Date()) {
       const parsed = cached.data as any;
       return { players: parsed.players || [], meta: parsed.meta || null };
@@ -101,9 +101,9 @@ export async function fetchFFCADP(
 
     try {
       await prisma.sportsDataCache.upsert({
-        where: { key: cacheKey },
+        where: { cacheKey },
         update: { data: { players, meta } as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
-        create: { key: cacheKey, data: { players, meta } as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
+        create: { cacheKey, data: { players, meta } as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
       });
     } catch {}
 
@@ -142,7 +142,7 @@ export async function getLiveADP(
 
   const dbCacheKey = `adp-multi-${type}-${new Date().toISOString().slice(0, 10)}`;
   try {
-    const cached = await prisma.sportsDataCache.findUnique({ where: { key: dbCacheKey } });
+    const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey: dbCacheKey } });
     if (cached && new Date(cached.expiresAt) > new Date()) {
       const data = cached.data as unknown as ADPEntry[];
       adpCache = { data, ts: Date.now(), type };
@@ -223,7 +223,7 @@ export async function getLiveADP(
   }
 
   try {
-    const ktcCache = await prisma.sportsDataCache.findUnique({ where: { key: 'ktc-dynasty-rankings' } });
+    const ktcCache = await prisma.sportsDataCache.findUnique({ where: { cacheKey: 'ktc-dynasty-rankings' } });
     if (ktcCache?.data && Array.isArray(ktcCache.data)) {
       const existingNames = new Set(entries.map(e => e.name.toLowerCase()));
       for (const p of ktcCache.data as any[]) {
@@ -299,9 +299,9 @@ export async function getLiveADP(
 
   try {
     await prisma.sportsDataCache.upsert({
-      where: { key: dbCacheKey },
+      where: { cacheKey: dbCacheKey },
       update: { data: entries as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
-      create: { key: dbCacheKey, data: entries as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
+      create: { cacheKey: dbCacheKey, data: entries as any, expiresAt: new Date(Date.now() + DB_CACHE_TTL) },
     });
   } catch {}
 

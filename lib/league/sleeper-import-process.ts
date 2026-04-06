@@ -326,7 +326,7 @@ async function fetchJsonWithTimeout<T>(url: string, timeoutMs = 10000): Promise<
 
 export async function cachedSleeperFetch<T>(url: string, cacheKey: string): Promise<T | null> {
   const cached = await prisma.sportsDataCache.findUnique({
-    where: { key: cacheKey },
+    where: { cacheKey },
   });
 
   if (cached && cached.expiresAt > new Date()) {
@@ -339,13 +339,13 @@ export async function cachedSleeperFetch<T>(url: string, cacheKey: string): Prom
   }
 
   await prisma.sportsDataCache.upsert({
-    where: { key: cacheKey },
+    where: { cacheKey },
     update: {
       data,
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
     },
     create: {
-      key: cacheKey,
+      cacheKey,
       data,
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
     },
@@ -431,13 +431,13 @@ export async function processLeague(
   });
 
   await prisma.sportsDataCache.upsert({
-    where: { key: `sleeper:league:${platformLeagueId}` },
+    where: { cacheKey: `sleeper:league:${platformLeagueId}` },
     update: {
       data: leagueData,
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
     },
     create: {
-      key: `sleeper:league:${platformLeagueId}`,
+      cacheKey: `sleeper:league:${platformLeagueId}`,
       data: leagueData,
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
     },

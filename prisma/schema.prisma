@@ -61,11 +61,15 @@ model QuestionnaireResponse {
 }
 
 model SportsDataCache {
-  key       String   @id
+  cacheKey  String   @id @map("key")
+  sport     String   @default("")
+  dataType  String   @default("")
   data      Json
   expiresAt DateTime
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
+  @@index([sport, dataType, expiresAt])
   @@index([expiresAt])
 }
 

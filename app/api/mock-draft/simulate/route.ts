@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     let draftOrderContext = ''
     try {
       const draftOrderCache = await prisma.sportsDataCache.findFirst({
-        where: { key: `draft-order-${league.platformLeagueId}` },
+        where: { cacheKey: `draft-order-${league.platformLeagueId}` },
       })
       if (draftOrderCache?.data && typeof draftOrderCache.data === 'object') {
         const orderMap = draftOrderCache.data as Record<string, number>

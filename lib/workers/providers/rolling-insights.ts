@@ -8,12 +8,12 @@ import {
 
 const SPORT_PATH: Record<ApiChainSport, string> = {
   nfl: 'nfl',
+  nba: 'nba',
   mlb: 'mlb',
   nhl: 'nhl',
-  nba: 'nba',
-  ncaab: 'ncaab',
-  ncaaf: 'ncaaf',
-  soccer_euro: 'soccer/euro',
+  nascar: 'nascar',
+  pga: 'pga',
+  mls: process.env.ROLLING_INSIGHTS_SOCCER_PATH?.trim() || 'mls',
 }
 
 const DATA_TYPE_PATH: Record<string, string> = {

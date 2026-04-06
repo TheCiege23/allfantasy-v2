@@ -146,16 +146,16 @@ export async function persistGrokDeltaEvents(events: GrokNormalizedDeltaEvent[])
   let saved = 0
 
   for (const e of events) {
-    const key = `legacy:grok_delta:${e.event.entity_type}:${e.event.entity_id}`
+    const cacheKey = `legacy:grok_delta:${e.event.entity_type}:${e.event.entity_id}`
     try {
       await prisma.sportsDataCache.upsert({
-        where: { key },
+        where: { cacheKey },
         update: {
           data: e as any,
           expiresAt,
         },
         create: {
-          key,
+          cacheKey,
           data: e as any,
           expiresAt,
         },
@@ -176,13 +176,13 @@ export async function persistGrokDeltaEvents(events: GrokNormalizedDeltaEvent[])
       headline: e.event.source.headline,
     }))
     await prisma.sportsDataCache.upsert({
-      where: { key: recentKey },
+      where: { cacheKey: recentKey },
       update: {
         data: snapshot as any,
         expiresAt,
       },
       create: {
-        key: recentKey,
+        cacheKey: recentKey,
         data: snapshot as any,
         expiresAt,
       },

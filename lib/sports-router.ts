@@ -781,7 +781,7 @@ async function getSportsDataInternal(
 
   if (!forceRefresh) {
     const cached = await (prisma.sportsDataCache as any).findUnique({
-      where: { key },
+      where: { cacheKey: key },
     });
 
     if (cached && cached.expiresAt > new Date()) {
@@ -842,13 +842,13 @@ async function getSportsDataInternal(
   const expiresAt = new Date(Date.now() + freshnessMs);
 
   await (prisma.sportsDataCache as any).upsert({
-    where: { key },
+    where: { cacheKey: key },
     update: {
       data: fetchedData as object,
       expiresAt,
     },
     create: {
-      key,
+      cacheKey: key,
       data: fetchedData as object,
       expiresAt,
     },
@@ -881,13 +881,13 @@ async function refreshInBackground(sport: Sport, dataType: DataType, identifier?
       const expiresAt = new Date(Date.now() + freshnessMs);
 
       await (prisma.sportsDataCache as any).upsert({
-        where: { key },
+        where: { cacheKey: key },
         update: {
           data: data as object,
           expiresAt,
         },
         create: {
-          key,
+          cacheKey: key,
           data: data as object,
           expiresAt,
         },

@@ -470,7 +470,7 @@ export async function getTeamDevyRoster(team: string, year?: number): Promise<De
 
 async function getCachedOrFetch<T>(cacheKey: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T | null> {
   try {
-    const cached = await prisma.sportsDataCache.findUnique({ where: { key: cacheKey } })
+    const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } })
     if (cached && cached.expiresAt > new Date()) {
       return cached.data as T
     }
@@ -481,8 +481,8 @@ async function getCachedOrFetch<T>(cacheKey: string, ttlMs: number, fetcher: () 
     if (data !== null && data !== undefined) {
       const expiresAt = new Date(Date.now() + ttlMs)
       await prisma.sportsDataCache.upsert({
-        where: { key: cacheKey },
-        create: { key: cacheKey, data: data as any, expiresAt },
+        where: { cacheKey },
+        create: { cacheKey, data: data as any, expiresAt },
         update: { data: data as any, expiresAt },
       })
     }

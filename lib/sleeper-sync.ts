@@ -277,16 +277,16 @@ export async function syncSleeperLeague(
         const thirtyDays = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30);
 
         await prisma.sportsDataCache.upsert({
-          where: { key: `draft-${draftId}` },
+          where: { cacheKey: `draft-${draftId}` },
           update: { data: draftData, expiresAt: thirtyDays },
-          create: { key: `draft-${draftId}`, data: draftData, expiresAt: thirtyDays },
+          create: { cacheKey: `draft-${draftId}`, data: draftData, expiresAt: thirtyDays },
         });
 
         const orderMapping = draftData.draft_order || {};
         await prisma.sportsDataCache.upsert({
-          where: { key: `draft-order-${sleeperLeagueId}` },
+          where: { cacheKey: `draft-order-${sleeperLeagueId}` },
           update: { data: orderMapping, expiresAt: thirtyDays },
-          create: { key: `draft-order-${sleeperLeagueId}`, data: orderMapping, expiresAt: thirtyDays },
+          create: { cacheKey: `draft-order-${sleeperLeagueId}`, data: orderMapping, expiresAt: thirtyDays },
         });
       }
     } catch (draftErr) {

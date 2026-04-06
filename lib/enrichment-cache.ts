@@ -36,7 +36,7 @@ export async function readCache<T = unknown>(
 
   try {
     const row = await prisma.sportsDataCache.findUnique({
-      where: { key },
+      where: { cacheKey: key },
       select: {
         data: true,
         createdAt: true,
@@ -47,7 +47,7 @@ export async function readCache<T = unknown>(
     if (!row) return null
 
     if (row.expiresAt < new Date()) {
-      prisma.sportsDataCache.delete({ where: { key } }).catch(() => {})
+      prisma.sportsDataCache.delete({ where: { cacheKey: key } }).catch(() => {})
       return null
     }
 
@@ -74,13 +74,13 @@ export async function writeCache(
 
   try {
     await prisma.sportsDataCache.upsert({
-      where: { key },
+      where: { cacheKey: key },
       update: {
         data: data as any,
         expiresAt,
       },
       create: {
-        key,
+        cacheKey: key,
         data: data as any,
         expiresAt,
       },

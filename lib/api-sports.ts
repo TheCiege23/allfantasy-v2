@@ -824,9 +824,9 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
     const teamAbbrev = teamNameToAbbrev(s.team.name) || s.team.name;
 
     try {
-      const key = `NFL:standings:${currentSeason}:${teamAbbrev}`;
+      const cacheKey = `NFL:standings:${currentSeason}:${teamAbbrev}`;
       await (prisma.sportsDataCache as any).upsert({
-        where: { key },
+        where: { cacheKey },
         update: {
           data: {
             team: teamAbbrev,
@@ -845,7 +845,7 @@ export async function syncAPISportsStandingsToDb(season?: string): Promise<numbe
           expiresAt,
         },
         create: {
-          key,
+          cacheKey,
           data: {
             team: teamAbbrev,
             teamName: s.team.name,

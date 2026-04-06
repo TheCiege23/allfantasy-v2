@@ -7,7 +7,7 @@ import {
   getCurrentNFLSeasonForAPISports,
   teamNameToAbbrev,
 } from '@/lib/api-sports'
-import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
+import { toApiChainSport, type ApiFetchParams, type ApiProvider } from '@/lib/workers/api-config'
 
 function toSeason(value: unknown): string {
   if (typeof value === 'string' && value.trim()) return value.trim()
@@ -25,7 +25,7 @@ function namesEqual(left: string | null | undefined, right: string | null | unde
 export const apiSportsProvider: ApiProvider = {
   name: 'api_sports',
   supports: ({ sport, dataType }: ApiFetchParams) =>
-    sport === 'NFL' &&
+    toApiChainSport(sport as string) === 'nfl' &&
     [
       'teams',
       'players',

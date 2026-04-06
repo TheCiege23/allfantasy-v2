@@ -1,9 +1,15 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { apiChain } from '@/lib/workers/api-chain'
+import {
+  SUPPORTED_SPORTS as API_CHAIN_SPORTS,
+  apiChainSportToDbSport,
+  legacySupportedSportToApiChain,
+  type ApiChainSport,
+} from '@/lib/workers/api-config'
 
 function inferImpact(text: string): 'high' | 'medium' | 'low' {
   const lower = text.toLowerCase()
@@ -61,15 +67,20 @@ function normalizeNewsRecord(
 export async function runNewsImporter(options?: {
   sports?: string[]
 }): Promise<{ imported: number; sports: string[] }> {
-  const sports = Array.from(
-    new Set((options?.sports?.length ? options.sports : SUPPORTED_SPORTS).map((sport) => normalizeToSupportedSport(sport)))
+  const sports: ApiChainSport[] = Array.from(
+    new Set(
+      options?.sports?.length
+        ? options.sports.map((s) => legacySupportedSportToApiChain(normalizeToSupportedSport(s)))
+        : [...API_CHAIN_SPORTS]
+    )
   )
 
   let imported = 0
   for (const sport of sports) {
+    const dbSport = apiChainSportToDbSport(sport)
     const [legacyRows, chainResponse] = await Promise.all([
       prisma.sportsNews.findMany({
-        where: { sport },
+        where: { sport: dbSport },
         orderBy: { publishedAt: 'desc' },
         take: 250,
       }),
@@ -88,7 +99,7 @@ export async function runNewsImporter(options?: {
       ...legacyRows
         .map((row) =>
           normalizeNewsRecord(
-            sport,
+            dbSport,
             {
               playerId: row.playerId,
               playerName: row.playerName,
@@ -103,7 +114,7 @@ export async function runNewsImporter(options?: {
         )
         .filter((row): row is NonNullable<typeof row> => Boolean(row)),
       ...providerRows
-        .map((row) => normalizeNewsRecord(sport, row, chainResponse.source))
+        .map((row) => normalizeNewsRecord(dbSport, row, chainResponse.source))
         .filter((row): row is NonNullable<typeof row> => Boolean(row)),
     ]
 
@@ -115,5 +126,5 @@ export async function runNewsImporter(options?: {
     imported += records.length
   }
 
-  return { imported, sports }
+  return { imported, sports: sports.map((s) => apiChainSportToDbSport(s)) }
 }

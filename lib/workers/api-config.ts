@@ -1,15 +1,7 @@
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 /** Rolling Insights REST + cache chain — canonical lowercase keys (7 sports). */
-export const SUPPORTED_SPORTS = [
-  'nfl',
-  'mlb',
-  'nhl',
-  'nba',
-  'ncaab',
-  'ncaaf',
-  'soccer_euro',
-] as const
+export const SUPPORTED_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'nascar', 'pga', 'mls'] as const
 
 export type ApiChainSport = (typeof SUPPORTED_SPORTS)[number]
 
@@ -99,12 +91,14 @@ export function toApiChainSport(input: string | SupportedSport | undefined): Api
     nba: 'nba',
     mlb: 'mlb',
     nhl: 'nhl',
-    ncaab: 'ncaab',
-    ncaaf: 'ncaaf',
-    soccer: 'soccer_euro',
-    soccer_euro: 'soccer_euro',
-    euro: 'soccer_euro',
-    mls: 'soccer_euro',
+    nascar: 'nascar',
+    pga: 'pga',
+    mls: 'mls',
+    soccer: 'mls',
+    soccer_euro: 'mls',
+    euro: 'mls',
+    ncaab: 'nba',
+    ncaaf: 'nfl',
   }
   if (map[lower]) return map[lower]
 
@@ -123,9 +117,9 @@ export function legacySupportedSportToApiChain(sport: SupportedSport): ApiChainS
     NBA: 'nba',
     MLB: 'mlb',
     NHL: 'nhl',
-    NCAAB: 'ncaab',
-    NCAAF: 'ncaaf',
-    SOCCER: 'soccer_euro',
+    NCAAB: 'nba',
+    NCAAF: 'nfl',
+    SOCCER: 'mls',
   }
   return m[sport]
 }
@@ -137,9 +131,9 @@ export function apiChainSportToDbSport(sport: ApiChainSport): string {
     nba: 'NBA',
     mlb: 'MLB',
     nhl: 'NHL',
-    ncaab: 'NCAAB',
-    ncaaf: 'NCAAF',
-    soccer_euro: 'SOCCER',
+    nascar: 'NASCAR',
+    pga: 'PGA',
+    mls: 'MLS',
   }
   return m[sport]
 }

@@ -184,7 +184,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
           teams: asTeams,
           games: asGames,
           injuries: asInjuries,
-          standings: await prisma.sportsDataCache.count({ where: { key: { startsWith: 'NFL:standings:' } } }),
+          standings: await prisma.sportsDataCache.count({ where: { cacheKey: { startsWith: 'NFL:standings:' } } }),
           lastSyncAt: latestASSync?.fetchedAt?.toISOString() || null,
         },
         sleeper: {

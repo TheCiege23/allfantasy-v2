@@ -112,13 +112,13 @@ async function saveCurrentSnapshot(
   }
 
   await prisma.sportsDataCache.upsert({
-    where: { key: cacheKey },
+    where: { cacheKey },
     update: {
       data: snapshot as any,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
     create: {
-      key: cacheKey,
+      cacheKey,
       data: snapshot as any,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
@@ -132,7 +132,7 @@ async function getPreviousSnapshot(leagueId: string) {
   const cacheKey = `board-drift-snapshot-${leagueId}-${prevWeek}`
 
   const cached = await prisma.sportsDataCache.findUnique({
-    where: { key: cacheKey },
+    where: { cacheKey },
   })
 
   if (!cached) return null
