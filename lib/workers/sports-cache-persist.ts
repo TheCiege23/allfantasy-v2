@@ -144,6 +144,7 @@ export async function persistNormalizedSportsRows(
           },
           update: {
             title,
+            sourceId: externalId,
             description: typeof article.description === 'string' ? article.description : null,
             content:
               typeof article.body === 'string'
@@ -158,6 +159,7 @@ export async function persistNormalizedSportsRows(
           create: {
             sport: dbSport,
             externalId,
+            sourceId: externalId,
             title,
             description: typeof article.description === 'string' ? article.description : null,
             content:

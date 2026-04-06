@@ -96,6 +96,7 @@ export async function fetchWithChain(
   // 2. CACHE MISS — Rolling Insights (primary for all 7 sports)
   let result: ChainFetchResult | null = null
 
+  /** Live / game scores: Rolling Insights only (no api-sports fallback). TTL from API_CHAIN_TTLS.scores (60s). */
   const skipApiSportsFallback =
     dataType === 'scores' || dataType === 'live_game' || dataType === 'games'
 

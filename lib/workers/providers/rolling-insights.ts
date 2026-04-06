@@ -57,7 +57,8 @@ function extractPayload(json: unknown): unknown {
  * Always returns { data, fromCache: false, error? }.
  */
 export async function rollingInsightsProvider(params: ApiFetchParams): Promise<ChainFetchResult> {
-  if (!process.env.ROLLING_INSIGHTS_API_KEY) {
+  const apiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim()
+  if (!apiKey) {
     console.error('[rolling-insights] ROLLING_INSIGHTS_API_KEY not set')
     return { data: null, error: 'API key not configured', fromCache: false }
   }
@@ -84,7 +85,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
   try {
     const res = await fetch(url.toString(), {
       headers: {
-        'x-api-key': process.env.ROLLING_INSIGHTS_API_KEY ?? '',
+        'x-api-key': apiKey,
         Accept: 'application/json',
       },
       cache: 'no-store',

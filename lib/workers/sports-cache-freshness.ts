@@ -13,30 +13,35 @@ const SWEEP_TYPES: ApiDataType[] = [
   'standings',
 ]
 
+/** Must match `fetchWithChain` (empty merged query/options → `{}`). */
+export function defaultSportsCacheKey(sport: ApiChainSport, dataType: ApiDataType): string {
+  const merged: Record<string, unknown> = {}
+  return `${sport}:${dataType}:${JSON.stringify(merged)}`
+}
+
 /**
- * Proactively refresh cache entries that expire within the next `withinMinutes`.
+ * Refresh default-query cache rows when missing or expired (stale).
  */
-export async function runSportsDataFreshnessSweep(options?: { withinMinutes?: number }): Promise<{
+export async function runSportsDataFreshnessSweep(): Promise<{
   refreshed: number
   errors: string[]
 }> {
-  const withinMinutes = options?.withinMinutes ?? 5
-  const horizon = new Date(Date.now() + withinMinutes * 60 * 1000)
   const errors: string[] = []
   let refreshed = 0
 
   for (const sport of [...SUPPORTED_SPORTS] as ApiChainSport[]) {
     for (const dataType of SWEEP_TYPES) {
       try {
-        const stale = await prisma.sportsDataCache.findFirst({
+        const cacheKey = defaultSportsCacheKey(sport, dataType)
+        const fresh = await prisma.sportsDataCache.findFirst({
           where: {
             sport,
             dataType,
-            expiresAt: { lt: horizon },
+            cacheKey,
+            expiresAt: { gt: new Date() },
           },
-          orderBy: { expiresAt: 'asc' },
         })
-        if (!stale) continue
+        if (fresh) continue
 
         await fetchWithChain({ sport, dataType, query: {}, forceRefresh: true })
         refreshed += 1

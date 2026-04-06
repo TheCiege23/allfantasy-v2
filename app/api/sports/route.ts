@@ -46,9 +46,7 @@ async function handleSports(req: {
     dataType,
     fromCache: result.fromCache,
     cacheAge: result.cacheAge ?? null,
-    count: Array.isArray(result.data) ? result.data.length : null,
     data: result.data,
-    error: result.error ?? null,
   })
 }
 

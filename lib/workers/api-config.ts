@@ -138,11 +138,15 @@ export function apiChainSportToDbSport(sport: ApiChainSport): string {
   return m[sport]
 }
 
-/** Rolling Insights enabled for all 7 chain sports. */
+/**
+ * Rolling Insights is enabled for every supported chain sport (all 7).
+ * Resolves aliases (e.g. SOCCER → mls) then checks membership in SUPPORTED_SPORTS.
+ */
 export function isRollingInsightsEnabledForSport(sport: string | SupportedSport | ApiChainSport): boolean {
   const chain =
     typeof sport === 'string' ? toApiChainSport(sport) : legacySupportedSportToApiChain(sport as SupportedSport)
-  return chain != null && (SUPPORTED_SPORTS as readonly string[]).includes(chain)
+  if (chain == null) return false
+  return (SUPPORTED_SPORTS as readonly string[]).includes(chain)
 }
 
 export function isImageDataType(dataType: ApiDataType): boolean {
