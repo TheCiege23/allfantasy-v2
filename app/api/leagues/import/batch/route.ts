@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
+import { runWithConcurrency } from '@/lib/async-utils'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -120,20 +121,22 @@ export async function POST(req: NextRequest) {
         : []
     )
 
-    let saved = 0
-    for (const league of leagues) {
+    const saveResults = await runWithConcurrency(leagues, 8, async (league) => {
       try {
         const platformLeagueId = String(league.platformLeagueId ?? '')
-        if (!platformLeagueId) continue
+        if (!platformLeagueId) return 0
 
         const sleeperLeague = leaguesById.get(platformLeagueId)
-        if (!sleeperLeague) continue
+        if (!sleeperLeague) return 0
 
         const rosterRes = await fetch(
           `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/rosters`,
-          { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } }
-        )
-        if (!rosterRes.ok) continue
+          {
+            headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
+            signal: AbortSignal.timeout(4500),
+          }
+        ).catch(() => null)
+        if (!rosterRes?.ok) return 0
         const rosters = (await rosterRes.json().catch(() => [])) as SleeperRosterApi[]
         const mine = Array.isArray(rosters)
           ? rosters.find((row) => {
@@ -203,11 +206,13 @@ export async function POST(req: NextRequest) {
             importedAt: new Date(),
           },
         })
-        saved++
+        return 1
       } catch (e) {
         console.error(`[import/batch] league ${league.platformLeagueId}:`, e)
+        return 0
       }
-    }
+    })
+    const saved = saveResults.reduce((sum, value) => sum + value, 0)
 
     const rankResult = await calculateAndSaveRank(userId).catch(() => null)
 
