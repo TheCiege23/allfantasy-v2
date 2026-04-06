@@ -209,74 +209,76 @@ function RankingWidget({
       : record
 
   return (
-    <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400 bg-clip-text text-5xl font-black text-transparent">
-            {payload.rank.careerTier}
+    <>
+      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400 bg-clip-text text-5xl font-black text-transparent">
+              {payload.rank.careerTier}
+            </div>
+            <p className="mt-2 text-sm font-semibold text-white/80">{payload.rank.careerTierName}</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {connectedPlatforms.map((platform) => (
+                <span
+                  key={platform}
+                  className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
+                >
+                  {getPlatformBadge(platform)}
+                </span>
+              ))}
+            </div>
           </div>
-          <p className="mt-2 text-sm font-semibold text-white/80">{payload.rank.careerTierName}</p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {connectedPlatforms.map((platform) => (
-              <span
-                key={platform}
-                className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
-              >
-                {getPlatformBadge(platform)}
-              </span>
-            ))}
+          {/* AI GRADE BADGE */}
+          <div className="flex shrink-0 flex-col items-center gap-0.5">
+            <div className="min-w-[56px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
+              <div className="text-2xl font-black leading-none text-violet-300">{payload.rank.aiReportGrade}</div>
+              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
+            </div>
+            <div className="text-center">
+              <span className="text-sm font-bold text-white/80">{payload.rank.aiScore}</span>
+              <span className="text-[10px] text-white/30">/100</span>
+            </div>
           </div>
         </div>
-        {/* AI GRADE BADGE */}
-        <div className="flex shrink-0 flex-col items-center gap-0.5">
-          <div className="min-w-[56px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-            <div className="text-2xl font-black leading-none text-violet-300">{payload.rank.aiReportGrade}</div>
-            <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
-          </div>
-          <div className="text-center">
-            <span className="text-sm font-bold text-white/80">{payload.rank.aiScore}</span>
-            <span className="text-[10px] text-white/30">/100</span>
-          </div>
-        </div>
-      </div>
 
-      <div className="mt-4">
-        <div className="mb-1 flex items-center justify-between text-[11px] text-white/45">
-          <span>{xp.toLocaleString()} / {nextThreshold.toLocaleString()} XP</span>
-          <span>Level {payload.rank.careerLevel}</span>
+        <div className="mt-4">
+          <div className="mb-1 flex items-center justify-between text-[11px] text-white/45">
+            <span>{xp.toLocaleString()} / {nextThreshold.toLocaleString()} XP</span>
+            <span>Level {payload.rank.careerLevel}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/60">
-        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-          <span className="block text-[9px] uppercase tracking-wide text-white/35">Record</span>
-          {careerRecord}
+        <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/60">
+          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <span className="block text-[9px] uppercase tracking-wide text-white/35">Record</span>
+            {careerRecord}
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <span className="block text-[9px] uppercase tracking-wide text-white/35">Titles</span>
+            {payload.rank.championshipCount}
+          </div>
+          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+            <span className="block text-[9px] uppercase tracking-wide text-white/35">Seasons</span>
+            {payload.rank.seasonsPlayed}
+          </div>
         </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-          <span className="block text-[9px] uppercase tracking-wide text-white/35">Titles</span>
-          {payload.rank.championshipCount}
-        </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-          <span className="block text-[9px] uppercase tracking-wide text-white/35">Seasons</span>
-          {payload.rank.seasonsPlayed}
-        </div>
-      </div>
 
-      <Link
-        href="/dashboard/rankings"
-        className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-      >
-        View full rankings
-        <ArrowRight className="h-4 w-4" />
-      </Link>
-    </div>
-    <LegacyImportProgressWidget />
+        <Link
+          href="/dashboard/rankings"
+          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
+        >
+          View full rankings
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      </div>
+      <LegacyImportProgressWidget />
+    </>
   )
 }
 
