@@ -359,10 +359,29 @@ type SleeperLeague = {
   sport?: string
   name?: string
   total_rosters?: number
-  settings?: { playoff_teams?: number }
+  settings?: { playoff_teams?: number; num_teams?: number }
+}
+
+type SleeperRoster = {
+  owner_id?: string
+  co_owners?: string[]
+  settings?: Record<string, unknown>
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+function toImportNumber(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function toImportIntegerOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value)
+  if (value == null) return null
+  const parsed = Number.parseInt(String(value), 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 async function fetchJsonWithTimeout<T>(
   url: string,
@@ -535,13 +554,53 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               sport: string
               season: number
               leagueSize: number
+              importWins: number
+              importLosses: number
+              importTies: number
+              importMadePlayoffs: boolean
+              importWonChampionship: boolean
+              importFinalStanding: number | null
+              importPointsFor: number | null
             }> = []
 
             for (const league of sleeperLeagues) {
               const lid = league.league_id
               if (!lid) continue
-              const totalTeams = league.total_rosters ?? 12
+              const totalTeams =
+                typeof league.total_rosters === 'number' && league.total_rosters >= 1
+                  ? league.total_rosters
+                  : typeof league.settings?.num_teams === 'number' && league.settings.num_teams >= 1
+                    ? league.settings.num_teams
+                    : 12
+              const playoffTeams =
+                typeof league.settings?.playoff_teams === 'number' && league.settings.playoff_teams >= 1
+                  ? league.settings.playoff_teams
+                  : Math.max(1, Math.ceil(totalTeams / 3))
               const leagueSport = normalizeToSupportedSport(league.sport)
+              const rostersPayload = await fetchJsonWithTimeout<unknown>(
+                `https://api.sleeper.app/v1/league/${encodeURIComponent(String(lid))}/rosters`,
+                undefined,
+                { timeoutMs: 4500, retries: 0 }
+              ).catch(() => [])
+              const rosters = Array.isArray(rostersPayload) ? (rostersPayload as SleeperRoster[]) : []
+              const myRoster = rosters.find((row) => {
+                const ownerId = row?.owner_id != null ? String(row.owner_id) : ''
+                const coOwners = Array.isArray(row?.co_owners) ? row.co_owners.map(String) : []
+                return ownerId === sleeperUserId || coOwners.includes(sleeperUserId)
+              })
+              const rosterSettings = (myRoster?.settings ?? {}) as Record<string, unknown>
+              const importWins = toImportNumber(rosterSettings.wins, 0)
+              const importLosses = toImportNumber(rosterSettings.losses, 0)
+              const importTies = toImportNumber(rosterSettings.ties, 0)
+              const importFinalStanding = toImportIntegerOrNull(
+                rosterSettings.final_standing ?? rosterSettings.rank
+              )
+              const importMadePlayoffs =
+                importFinalStanding != null ? importFinalStanding <= playoffTeams : false
+              const importWonChampionship = importFinalStanding === 1
+              const fpts = toImportNumber(rosterSettings.fpts, Number.NaN)
+              const fptsDecimal = toImportNumber(rosterSettings.fpts_decimal, 0)
+              const importPointsFor = Number.isFinite(fpts) ? fpts + fptsDecimal / 100 : null
 
               leagueRecords.push({
                 platformLeagueId: String(lid),
@@ -549,6 +608,13 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                 sport: leagueSport,
                 season,
                 leagueSize: totalTeams,
+                importWins,
+                importLosses,
+                importTies,
+                importMadePlayoffs,
+                importWonChampionship,
+                importFinalStanding,
+                importPointsFor,
               })
             }
 
