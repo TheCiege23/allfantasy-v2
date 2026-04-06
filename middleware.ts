@@ -1,7 +1,20 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
+import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
+
+/**
+ * App routes that must have a valid NextAuth session (JWT).
+ * Matches: /dashboard/rankings, /dashboard/rankings/*, /league/*, /api/leagues/import, /api/leagues/import/progress/*
+ */
+function requiresSessionAuth(pathname: string): boolean {
+  if (pathname.startsWith("/dashboard/rankings")) return true
+  if (pathname.startsWith("/league/")) return true
+  if (pathname.startsWith("/api/leagues/import")) return true
+  return false
+}
 
 /** Paths that skip geo logic. Includes `/api/auth` so NextAuth + OAuth callbacks are never geo-blocked. */
 const GEO_EXEMPT_PREFIXES = [
@@ -52,11 +65,25 @@ function isExemptPath(pathname: string): boolean {
   return false
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (isExemptPath(pathname)) {
     return NextResponse.next()
+  }
+
+  const authSecret = resolveAuthSecret()
+  if (authSecret && requiresSessionAuth(pathname)) {
+    const token = await getToken({ req: request, secret: authSecret })
+    if (!token) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+      const login = request.nextUrl.clone()
+      login.pathname = "/login"
+      login.searchParams.set("callbackUrl", `${pathname}${request.nextUrl.search}`)
+      return NextResponse.redirect(login)
+    }
   }
 
   const country = request.headers.get("x-vercel-ip-country")
@@ -120,6 +147,10 @@ export function middleware(request: NextRequest) {
   return response
 }
 
+/**
+ * Runs on all non-static routes; session checks apply only to
+ * /dashboard/rankings, /league/*, /api/leagues/import/* (see requiresSessionAuth).
+ */
 export const config = {
   matcher: ["/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 }

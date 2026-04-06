@@ -9,6 +9,7 @@ export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
+    // Missing/wrong secret is expected for probes — do not log as error
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

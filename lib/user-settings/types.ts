@@ -107,6 +107,7 @@ export interface UserProfileForSettings {
   careerWins?: number | null
   careerChampionships?: number | null
   careerSeasonsPlayed?: number | null
+  careerLeaguesPlayed?: number | null
   settings: UserSettingsRecord | null
   updatedAt: Date
 }

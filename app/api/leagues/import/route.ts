@@ -143,7 +143,8 @@ export async function POST(req: Request) {
     void processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
       const msg = e instanceof Error ? e.message : String(e);
       const stack = e instanceof Error ? e.stack : undefined;
-      console.error("[import] bg worker crashed:", msg, stack);
+      console.error("[import] background worker crashed:", msg);
+      console.error("[import] stack:", stack);
       return prisma.legacyImportJob
         .update({
           where: { id: job.id },

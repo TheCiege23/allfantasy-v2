@@ -79,6 +79,7 @@ async function queryBaseProfile(
           careerWins: true,
           careerChampionships: true,
           careerSeasonsPlayed: true,
+          careerLeaguesPlayed: true,
         },
       },
     },
@@ -142,6 +143,7 @@ async function queryBaseProfile(
     careerWins: profile?.careerWins ?? null,
     careerChampionships: profile?.careerChampionships ?? null,
     careerSeasonsPlayed: profile?.careerSeasonsPlayed ?? null,
+    careerLeaguesPlayed: profile?.careerLeaguesPlayed ?? null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }
@@ -216,6 +218,7 @@ async function queryBaseProfileMinimal(
     careerWins: null,
     careerChampionships: null,
     careerSeasonsPlayed: null,
+    careerLeaguesPlayed: null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }

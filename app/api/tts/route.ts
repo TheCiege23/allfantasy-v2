@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { DEFAULT_VOICE_ID, getAllowedElevenLabsVoiceIds } from "@/lib/tts/voices";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,13 @@ export const runtime = "nodejs";
 const ELEVENLABS_MODEL = "eleven_turbo_v2_5"; // latest turbo, best quality+speed
 
 export async function POST(req: Request) {
+  const session = (await getServerSession(authOptions as never)) as {
+    user?: { id?: string };
+  } | null;
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const allowedVoiceIds = getAllowedElevenLabsVoiceIds();
   const envVoiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
