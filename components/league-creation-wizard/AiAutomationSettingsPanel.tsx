@@ -84,7 +84,8 @@ export function AiAutomationSettingsPanel({
 }: AiAutomationSettingsPanelProps) {
   const router = useRouter()
   const { loading, featureAccess, upgradePath } = useEntitlement('commissioner_automation')
-  const locked = !loading && !featureAccess
+  /** While loading, do not treat as locked so the section does not flash grey before entitlement resolves. */
+  const locked = !loading && featureAccess !== true
   const upgradeUrl = getUpgradeUrlWithHighlightForFeature('commissioner_automation')
 
   const goSubscribe = () => {
