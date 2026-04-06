@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { signIn } from "next-auth/react"
+import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
+import { discordAvatarUrl } from "@/lib/discord/avatar"
 import {
   getConnectedAccounts,
   disconnectConnectedAccount,
@@ -15,6 +17,14 @@ import {
 } from "@/lib/connected-accounts"
 import { ConnectedIdentityRenderer } from "@/components/connected-accounts/ConnectedIdentityRenderer"
 import type { SettingsProfile } from "./settings-types"
+
+const IMPORT_PLATFORMS: { id: string; name: string; hint: string }[] = [
+  { id: "yahoo", name: "Yahoo Fantasy", hint: "League import & account linking" },
+  { id: "espn", name: "ESPN", hint: "League import & account linking" },
+  { id: "mfl", name: "MyFantasyLeague (MFL)", hint: "League import" },
+  { id: "fleaflicker", name: "Fleaflicker", hint: "League import" },
+  { id: "fantrax", name: "Fantrax", hint: "League import" },
+]
 
 export function ConnectedAccountsSettingsSection({
   profile,
@@ -79,6 +89,27 @@ export function ConnectedAccountsSettingsSection({
     })
   }
 
+  const handleDisconnectSleeper = async () => {
+    if (typeof window !== "undefined" && !window.confirm("Disconnect your Sleeper account from AllFantasy?")) return
+    const res = await fetch("/api/user/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disconnectSleeper: true }),
+    })
+    if (res.ok) {
+      onRefetchProfile()
+      await loadProviders(true)
+    }
+  }
+
+  const handleDisconnectDiscord = async () => {
+    const res = await fetch("/api/auth/discord/disconnect", { method: "POST" })
+    if (res.ok) {
+      onRefetchProfile()
+      await loadProviders(true)
+    }
+  }
+
   const handleDisconnect = async (provider: ProviderStatus) => {
     if (!canDisconnectProvider(provider, linkedProvidersCount, hasPassword)) {
       setStatusTone("error")
@@ -117,7 +148,8 @@ export function ConnectedAccountsSettingsSection({
       <div>
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Connected Accounts</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Sign-in providers and fantasy platform links. Connect to sign in with Google, Apple, or link Sleeper below.
+          Link sign-in providers (Google, Apple, and more), Discord for chat features, and fantasy platforms for league
+          import.
         </p>
       </div>
       {statusMessage && (
@@ -188,48 +220,122 @@ export function ConnectedAccountsSettingsSection({
           To prevent lockout, your last linked provider cannot be disconnected unless you have a password set.
         </p>
       </div>
+
       <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Fantasy platform (Legacy import)</p>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Sleeper</span>
-          {profile?.sleeperUsername ? (
+        <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Discord</p>
+        {!profile?.discordUserId ? (
+          <div className="space-y-3">
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              Connect Discord to show your Discord avatar and unlock league chat sync (bot features when enabled on this
+              deployment).
+            </p>
+            <a
+              href="/api/auth/discord"
+              data-testid="settings-connect-discord"
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+              style={{ borderColor: "#5865F2", background: "color-mix(in srgb, #5865F2 18%, transparent)", color: "var(--text)" }}
+            >
+              <DiscordIcon size={16} className="text-[#5865F2]" />
+              Connect Discord
+            </a>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <img
+                src={discordAvatarUrl(profile.discordUserId, profile.discordAvatar)}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-full"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                  {profile.discordUsername ?? "Discord"}
+                </p>
+                <p className="truncate text-xs" style={{ color: "var(--muted)" }}>
+                  {profile.discordEmail ?? "Connected"}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              data-testid="settings-disconnect-discord"
+              onClick={() => void handleDisconnectDiscord()}
+              className="rounded-lg border px-3 py-2 text-xs font-medium"
+              style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+        <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Fantasy platforms & import</p>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>
+          Link Sleeper for rankings and imports. Use Import for Yahoo, ESPN, MFL, Fleaflicker, and Fantrax leagues.
+        </p>
+        <ul className="space-y-3">
+          <li className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] pb-3">
+            <div>
+              <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Sleeper</span>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                {profile?.sleeperUsername ? `Linked as @${profile.sleeperUsername}` : "Not linked"}
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs" style={{ color: "var(--muted)" }}>Linked as @{profile.sleeperUsername}</span>
+              {profile?.sleeperUsername ? (
+                <>
+                  <span className="text-xs text-emerald-500">Linked</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleDisconnectSleeper()}
+                    className="rounded-lg border px-3 py-2 text-xs font-medium"
+                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                  >
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <Link
+                  href="/settings/connect/sleeper"
+                  className="rounded-lg border px-3 py-2 text-sm font-medium"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                >
+                  Connect Sleeper
+                </Link>
+              )}
+            </div>
+          </li>
+          {IMPORT_PLATFORMS.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{p.name}</span>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>{p.hint}</p>
+              </div>
               <Link
-                href="/dashboard"
-                className="rounded-lg border px-3 py-2 text-xs font-medium"
+                href="/import"
+                className="shrink-0 rounded-lg border px-3 py-2 text-xs font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Reconnect
+                Open Import
               </Link>
-            </div>
-          ) : (
-            <Link
-              href="/dashboard"
-              className="rounded-lg border px-3 py-2 text-sm font-medium"
-              style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            >
-              Connect Sleeper
-            </Link>
-          )}
-        </div>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Link Sleeper here or in Legacy Import to enable league import and rankings.
-        </p>
-        <div className="flex flex-wrap gap-2">
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2 pt-1">
           <Link
-            href="/settings?tab=legacy"
+            href="/legacy-import"
             className="rounded-lg border px-3 py-2 text-xs font-medium"
             style={{ borderColor: "var(--border)", color: "var(--text)" }}
           >
-            Open Legacy Import tab
+            Legacy / dynasty import
           </Link>
           <Link
             href="/import"
             className="rounded-lg border px-3 py-2 text-xs font-medium"
             style={{ borderColor: "var(--border)", color: "var(--text)" }}
           >
-            Import help
+            Import hub
           </Link>
         </div>
       </div>

@@ -84,28 +84,33 @@ export async function GET(req: NextRequest) {
 
   const username = data.global_name ?? data.username
 
-  await prisma.userProfile.upsert({
-    where: { userId: session.user.id },
-    create: {
-      userId: session.user.id,
-      discordUserId: data.id,
-      discordUsername: username,
-      discordEmail: data.email ?? null,
-      discordAvatar: data.avatar ?? null,
-      discordAccessToken: access_token,
-      discordRefreshToken: tokens.refresh_token ?? null,
-      discordConnectedAt: new Date(),
-    },
-    update: {
-      discordUserId: data.id,
-      discordUsername: username,
-      discordEmail: data.email ?? null,
-      discordAvatar: data.avatar ?? null,
-      discordAccessToken: access_token,
-      discordRefreshToken: tokens.refresh_token ?? null,
-      discordConnectedAt: new Date(),
-    },
-  })
+  try {
+    await prisma.userProfile.upsert({
+      where: { userId: session.user.id },
+      create: {
+        userId: session.user.id,
+        discordUserId: data.id,
+        discordUsername: username,
+        discordEmail: data.email ?? null,
+        discordAvatar: data.avatar ?? null,
+        discordAccessToken: access_token,
+        discordRefreshToken: tokens.refresh_token ?? null,
+        discordConnectedAt: new Date(),
+      },
+      update: {
+        discordUserId: data.id,
+        discordUsername: username,
+        discordEmail: data.email ?? null,
+        discordAvatar: data.avatar ?? null,
+        discordAccessToken: access_token,
+        discordRefreshToken: tokens.refresh_token ?? null,
+        discordConnectedAt: new Date(),
+      },
+    })
+  } catch (e) {
+    console.error("[api/auth/discord/callback] profile upsert failed:", e)
+    return NextResponse.redirect(new URL("/settings?discord=error", SETTINGS_BASE))
+  }
 
-  return NextResponse.redirect(new URL('/settings?discord=connected', SETTINGS_BASE))
+  return NextResponse.redirect(new URL("/settings?discord=connected", SETTINGS_BASE))
 }
