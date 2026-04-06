@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto'
 
 import { Prisma } from '@prisma/client'
 
+import { getLeagueRole } from '@/lib/league/permissions'
 import { prisma } from '@/lib/prisma'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 
@@ -207,9 +208,15 @@ export class DispersalDraftEngine {
     commissionerUserId: string
   ): Promise<DispersalDraftState> {
     const { assets } = await buildAssetPoolFromRosters(config.leagueId, config.sourceRosterIds)
+    if (assets.length === 0) {
+      throw new Error('No assets in pool — orphan rosters must include players, draft picks, or FAAB.')
+    }
     const participants = [...new Set(config.participantRosterIds)]
     if (participants.length === 0) {
       throw new Error('Dispersal draft requires at least one participant roster')
+    }
+    if (participants.length < 2) {
+      throw new Error('Dispersal draft requires at least two participating teams')
     }
 
     let baseOrder: string[] = []
@@ -253,10 +260,18 @@ export class DispersalDraftEngine {
 
   static async startDraft(draftId: string, commissionerUserId: string): Promise<DispersalDraftState> {
     const row = await prisma.dispersalDraft.findFirst({
-      where: { id: draftId, createdByUserId: commissionerUserId },
+      where: { id: draftId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
     if (!row) throw new Error('Draft not found')
+    const role = await getLeagueRole(row.leagueId, commissionerUserId)
+    const canStart =
+      role === 'commissioner' ||
+      role === 'co_commissioner' ||
+      row.createdByUserId === commissionerUserId
+    if (!canStart) {
+      throw new Error('Only a league commissioner can start this draft')
+    }
     if (row.status !== 'configuring') throw new Error('Draft is not in configuring status')
 
     const participants = await prisma.roster.findMany({

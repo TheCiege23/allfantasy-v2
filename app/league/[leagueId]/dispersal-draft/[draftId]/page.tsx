@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import type { DispersalAsset, DispersalDraftState } from '@/lib/dispersal-draft/types'
 
-const POLL_MS = 5000 as const
+const POLL_MS = 4000 as const
 
 type LeagueSettingsBrief = {
   userRole?: string | null
@@ -265,7 +265,7 @@ export default function DispersalDraftLivePage() {
     }
   }
 
-  const isCommissioner = settings?.userRole === 'commissioner'
+  const isCommissioner = settings?.userRole === 'commissioner' || settings?.userRole === 'co_commissioner'
 
   if (!state) {
     return (

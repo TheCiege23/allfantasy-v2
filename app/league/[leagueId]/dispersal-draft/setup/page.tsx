@@ -92,6 +92,9 @@ export default function DispersalDraftSetupPage() {
   const [autoPickOnTimeout, setAutoPickOnTimeout] = useState(true)
 
   const [launching, setLaunching] = useState(false)
+  const [eligibleParticipantCount, setEligibleParticipantCount] = useState(0)
+  const [settingsUserRole, setSettingsUserRole] = useState<string | null>(null)
+  const [settingsRoleLoaded, setSettingsRoleLoaded] = useState(false)
   const gateOptional = useSubscriptionGateOptional()
   const [localGate, setLocalGate] = useState<SubscriptionFeatureId | null>(null)
 
@@ -136,6 +139,7 @@ export default function DispersalDraftSetupPage() {
       const r = byId.get(m.rosterId)
       return r && !isOrphanPlatformUserId(r.platformUserId)
     })
+    setEligibleParticipantCount(nonOrphan.length)
     setParticipantOrder(nonOrphan.map((m) => m.rosterId))
     setParticipantLabels(
       Object.fromEntries(nonOrphan.map((m) => [m.rosterId, m.displayName ?? `Team ${m.rosterId.slice(0, 6)}`]))
@@ -145,6 +149,37 @@ export default function DispersalDraftSetupPage() {
   useEffect(() => {
     void loadOrphans().catch((e) => toast.error(e instanceof Error ? e.message : 'Load failed'))
   }, [loadOrphans])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft`, { cache: 'no-store' })
+      const json = (await res.json().catch(() => ({}))) as { draft?: { id?: string } | null }
+      if (cancelled || !res.ok) return
+      const id = json.draft?.id
+      if (id) {
+        router.replace(`/league/${leagueId}/dispersal-draft/${id}`)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId, router])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const res = await fetch(`/api/league/settings?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
+      const json = (await res.json().catch(() => ({}))) as { userRole?: string | null }
+      if (!cancelled) {
+        if (res.ok) setSettingsUserRole(json.userRole ?? null)
+        setSettingsRoleLoaded(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId])
 
   useEffect(() => {
     if (orphanPayload != null && orphanPayload.orphanCount < 2) {
@@ -225,6 +260,22 @@ export default function DispersalDraftSetupPage() {
   }
 
   const launch = async () => {
+    if (settingsUserRole !== 'commissioner' && settingsUserRole !== 'co_commissioner') {
+      toast.error('Only the commissioner or co-commissioner can launch a dispersal draft.')
+      return
+    }
+    if (eligibleParticipantCount < 2) {
+      toast.error('Need at least two active (non-orphan) managers in the league to run a dispersal draft.')
+      return
+    }
+    if (orderMode === 'commissioner_set' && participantOrder.length < 2) {
+      toast.error('Set draft order with at least two participants.')
+      return
+    }
+    if (!preview || preview.totalAssets < 1) {
+      toast.error('Calculate an asset pool with at least one asset before launching.')
+      return
+    }
     if (!scenario) {
       toast.error('Select a scenario before launching.')
       return
@@ -248,13 +299,17 @@ export default function DispersalDraftSetupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const json = (await res.json().catch(() => ({}))) as { draft?: { id: string }; error?: string }
+      const json = (await res.json().catch(() => ({}))) as {
+        draft?: { id: string }
+        error?: string
+        data?: { id?: string }
+      }
       if (res.status === 402) {
         openDispersalGate('commissioner_dispersal_draft')
         return
       }
       if (!res.ok) throw new Error(json.error ?? 'Could not create draft')
-      const draftId = json.draft?.id
+      const draftId = json.draft?.id ?? json.data?.id
       if (!draftId) throw new Error('Missing draft id')
       router.push(`/league/${leagueId}/dispersal-draft/${draftId}`)
     } catch (e: unknown) {
@@ -480,9 +535,23 @@ export default function DispersalDraftSetupPage() {
               Pool: {preview.playerCount} players, {preview.draftPickCount} picks, ${preview.totalFaab} FAAB
             </li>
           </ul>
+          {settingsRoleLoaded &&
+          settingsUserRole !== 'commissioner' &&
+          settingsUserRole !== 'co_commissioner' ? (
+            <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90">
+              Only the commissioner or co-commissioner can launch this draft.
+            </p>
+          ) : null}
           <button
             type="button"
-            disabled={launching}
+            disabled={
+              launching ||
+              !settingsRoleLoaded ||
+              eligibleParticipantCount < 2 ||
+              !preview ||
+              preview.totalAssets < 1 ||
+              (settingsUserRole !== 'commissioner' && settingsUserRole !== 'co_commissioner')
+            }
             onClick={() => void launch()}
             className="w-full rounded-xl border border-cyan-400/40 bg-cyan-500/20 py-3 text-sm font-bold text-cyan-50 hover:bg-cyan-500/30 disabled:opacity-50"
           >

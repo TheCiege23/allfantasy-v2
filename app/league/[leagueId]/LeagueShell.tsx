@@ -105,6 +105,8 @@ export type LeagueShellProps = {
   discordConnected?: boolean
   /** Deep-link prefill for league chat composer (`?zombieChimmy=`). */
   zombieChimmyPrefill?: string | null
+  /** Active dispersal draft with live picks — show join banner on league home. */
+  dispersalDraftInProgress?: { draftId: string } | null
 }
 
 export function LeagueShell({
@@ -123,6 +125,7 @@ export function LeagueShell({
   currentSleeperUserId,
   discordConnected = false,
   zombieChimmyPrefill = null,
+  dispersalDraftInProgress = null,
 }: LeagueShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -393,6 +396,20 @@ export function LeagueShell({
             capSummary={capSummary}
             capRosterId={capRosterId}
           />
+
+          {dispersalDraftInProgress ? (
+            <div className="shrink-0 border-b border-cyan-500/20 bg-[#081226] px-4 py-2.5">
+              <Link
+                href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
+                className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
+              >
+                <span>Dispersal draft in progress — join the draft room to make picks.</span>
+                <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+                  Join draft room →
+                </span>
+              </Link>
+            </div>
+          ) : null}
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
             <LeagueTabRouter

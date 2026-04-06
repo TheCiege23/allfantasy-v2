@@ -186,7 +186,11 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   }, [data?.league])
 
   useEffect(() => {
-    if (!leagueId || !isDispersalDraftLeague || data?.userRole !== 'commissioner') {
+    if (
+      !leagueId ||
+      !isDispersalDraftLeague ||
+      (data?.userRole !== 'commissioner' && data?.userRole !== 'co_commissioner')
+    ) {
       setOrphanApi(null)
       return
     }
@@ -787,7 +791,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         </div>
       </SettingsSection>
 
-      {isDispersalDraftLeague && isHeadCommissioner && orphanApi ? (
+      {isDispersalDraftLeague && canEdit && orphanApi ? (
         <div
           className={[
             'rounded-xl border p-4 mt-4',

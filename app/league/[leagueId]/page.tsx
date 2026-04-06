@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueRole } from '@/lib/league/permissions'
+import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
@@ -104,6 +105,10 @@ export default async function LeaguePage({
     }
   }
 
+  const activeDispersalDraft = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
+  const dispersalDraftInProgress =
+    activeDispersalDraft?.status === 'in_progress' ? { draftId: activeDispersalDraft.id } : null
+
   return (
     <LeagueShell
       league={league}
@@ -121,6 +126,7 @@ export default async function LeaguePage({
       currentSleeperUserId={currentSleeperUserId}
       discordConnected={Boolean(userProfile?.discordUserId)}
       zombieChimmyPrefill={zombieChimmyPrefill}
+      dispersalDraftInProgress={dispersalDraftInProgress}
     />
   )
 }
