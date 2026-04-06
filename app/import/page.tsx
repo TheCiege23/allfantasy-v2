@@ -103,25 +103,9 @@ export default function ImportPage() {
         throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`));
       }
 
-      if (data.success === true) {
-        const keys = Array.isArray(data.leagueKeys)
-          ? data.leagueKeys.filter(
-              (k): k is { platformLeagueId: string; season: number } =>
-                k != null &&
-                typeof k === "object" &&
-                typeof (k as { platformLeagueId?: string }).platformLeagueId === "string" &&
-                typeof (k as { season?: number }).season === "number"
-            )
-          : [];
-        if (keys.length > 0) {
-          void fetch("/api/leagues/import/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ leagueKeys: keys }),
-          }).catch(() => undefined);
-        }
-        router.push("/dashboard/rankings?imported=true");
+      if (data.success === true && typeof data.jobId === "string" && data.jobId.length > 0) {
+        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(data.jobId)}`);
+        return;
       }
 
       const leagueKeysParsed =
@@ -285,7 +269,11 @@ export default function ImportPage() {
                     </p>
                   ) : null}
                   <Link
-                    href="/dashboard/rankings?imported=true"
+                    href={
+                      result.jobId
+                        ? `/dashboard/rankings?jobId=${encodeURIComponent(result.jobId)}`
+                        : "/dashboard/rankings"
+                    }
                     className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
                   >
                     View rank &amp; legacy profile →

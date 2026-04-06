@@ -472,20 +472,56 @@ model PlatformIdentity {
 }
 
 model LegacyImportJob {
-  id            String     @id @default(uuid())
-  userId        String
-  status        String     @default("queued")
-  progress      Int        @default(0)
-  currentSeason Int?
-  emptyYears    Int        @default(0)
-  error         String?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  user          LegacyUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String            @id @default(uuid())
+  userId               String
+  status               String            @default("queued")
+  progress             Int               @default(0)
+  currentSeason        Int?
+  emptyYears           Int               @default(0)
+  error                String?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  totalSeasons         Int               @default(0)
+  seasonsCompleted     Int               @default(0)
+  currentSeasonLeagues Int               @default(0)
+  totalLeaguesSaved    Int               @default(0)
+  lastRankTier         String?
+  lastRankLevel        Int?
+  lastXpTotal          Int               @default(0)
+  notificationSent     Boolean           @default(false)
+  seasonsSummary       Json              @default("[]")
+  appUserId            String?
+  user                 LegacyUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appUser              AppUser?          @relation(fields: [appUserId], references: [id], onDelete: SetNull)
+  importJobSeasons     ImportJobSeason[]
 
   @@index([userId, status])
+  @@index([appUserId])
+}
+
+/// Per-season row for phased Sleeper NFL import (`processImportJob`).
+model ImportJobSeason {
+  id             String          @id @default(cuid())
+  jobId          String
+  season         Int
+  status         String          @default("pending")
+  leagueCount    Int             @default(0)
+  wins           Int             @default(0)
+  losses         Int             @default(0)
+  championships  Int             @default(0)
+  playoffApps    Int             @default(0)
+  xpEarned       Int             @default(0)
+  rankAfter      String?
+  levelAfter     Int?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  job            LegacyImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, season])
+  @@index([jobId])
+  @@map("import_job_seasons")
 }
 
 model LegacyLeague {
@@ -2618,6 +2654,7 @@ model AppUser {
   platformChatThreadMemberships  PlatformChatThreadMember[]
   platformChatMessages           PlatformChatMessage[]      @relation("PlatformChatMessageSender")
   platformNotifications          PlatformNotification[]
+  legacyImportJobs               LegacyImportJob[]
   webPushSubscriptions           WebPushSubscription[]
   engagementEvents               EngagementEvent[]
   podcastEpisodes                PodcastEpisode[]

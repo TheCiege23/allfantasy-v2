@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -166,8 +166,162 @@ function mapLegacyImportError(payload: Record<string, unknown>, status: number):
       ? payload.error
       : 'This Sleeper account is linked to another AllFantasy user.'
   if (status === 429) return 'Too many attempts. Try again in a minute.'
-  if (status === 404) return 'Sleeper username not found. Check spelling (e.g. TheCiege24).'
+  if (status === 404) {
+    if (code.includes('No Sleeper NFL leagues')) return code
+    return typeof payload.error === 'string' ? payload.error : 'Sleeper username not found. Check spelling (e.g. TheCiege24).'
+  }
   return typeof payload.error === 'string' ? payload.error : 'Import failed'
+}
+
+type ImportJobProgressResponse = {
+  status: string
+  progress: number
+  currentSeason: number | null
+  seasonsCompleted: number | null
+  totalSeasons: number | null
+  totalLeaguesSaved: number | null
+  lastRankTier: string | null
+  lastRankLevel: number | null
+  lastXpTotal: number | null
+  seasons: Array<{
+    season: number
+    status: string
+    leagueCount: number | null
+    wins: number | null
+    losses: number | null
+    rankAfter: string | null
+    levelAfter: number | null
+  }>
+}
+
+function seasonPillState(season: number, job: ImportJobProgressResponse): 'pending' | 'processing' | 'done' | 'error' {
+  const row = job.seasons.find((s) => s.season === season)
+  if (row?.status === 'error') return 'error'
+  if (job.status === 'running' && job.currentSeason === season && (row?.status === 'processing' || row?.status === 'pending'))
+    return 'processing'
+  if (row?.status === 'processing') return 'processing'
+  if (row?.status === 'complete' || row?.status === 'empty') return 'done'
+  if (row?.status === 'pending') return 'pending'
+  return 'pending'
+}
+
+function ImportProgressPanel({
+  job,
+  loading,
+  error,
+}: {
+  job: ImportJobProgressResponse | null
+  loading: boolean
+  error: string | null
+}) {
+  const seasonsSorted = job?.seasons?.length
+    ? [...job.seasons].sort((a, b) => a.season - b.season)
+    : []
+  const pct = Math.min(100, Math.max(0, job?.progress ?? 0))
+  const total = job?.totalSeasons ?? seasonsSorted.length
+  const done = job?.seasonsCompleted ?? 0
+  const levelName =
+    typeof job?.lastXpTotal === 'number' ? getLevelFromXp(job.lastXpTotal).name : '—'
+
+  return (
+    <div
+      className="mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a1228] to-[#07071a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+      data-testid="import-progress-panel"
+    >
+      <h2 className="text-lg font-bold text-white">Importing your legacy history</h2>
+      {error ? (
+        <p className="mt-2 text-sm text-red-300">{error}</p>
+      ) : null}
+      {loading && !job ? (
+        <div className="mt-4 flex items-center gap-2 text-sm text-white/50">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-300" />
+          Loading job status…
+        </div>
+      ) : null}
+
+      {job ? (
+        <>
+          <div className="mt-4">
+            <div className="mb-1 flex justify-between text-xs font-semibold text-white/50">
+              <span>
+                {pct}% ({done}/{total || '—'} seasons)
+              </span>
+              <span>{job.totalLeaguesSaved ?? 0} leagues saved</span>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-600 to-violet-500 transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+
+          <p className="mt-4 text-sm text-white/70">
+            Currently processing:{' '}
+            <span className="font-semibold text-cyan-200">{job.currentSeason ?? '—'}</span>
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {seasonsSorted.map((s) => {
+              const st = seasonPillState(s.season, job)
+              const base =
+                'inline-flex min-w-[3.25rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums'
+              if (st === 'done') {
+                return (
+                  <span
+                    key={s.season}
+                    className={`${base} border-emerald-500/35 bg-emerald-500/15 text-emerald-200`}
+                  >
+                    {s.season} ✓
+                  </span>
+                )
+              }
+              if (st === 'processing') {
+                return (
+                  <span
+                    key={s.season}
+                    className={`${base} border-cyan-500/40 bg-cyan-500/10 text-cyan-100`}
+                  >
+                    <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border border-cyan-400/40 border-t-cyan-200" />
+                    {s.season}
+                  </span>
+                )
+              }
+              if (st === 'error') {
+                return (
+                  <span
+                    key={s.season}
+                    className={`${base} border-red-500/35 bg-red-500/10 text-red-200`}
+                  >
+                    {s.season} ✕
+                  </span>
+                )
+              }
+              return (
+                <span key={s.season} className={`${base} border-white/10 bg-white/[0.04] text-white/35`}>
+                  {s.season} ·
+                </span>
+              )
+            })}
+          </div>
+
+          <div className="mt-6 border-t border-white/10 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-white/35">Current rank</p>
+            <p className="mt-1 text-sm text-white">
+              ⭐ Level {job.lastRankLevel ?? '—'}{' '}
+              <span className="text-white/80">{job.lastRankTier ?? '—'}</span>
+              {levelName !== '—' ? (
+                <span className="text-white/60"> — {levelName}</span>
+              ) : null}
+            </p>
+            <p className="mt-1 text-xs text-white/45">
+              XP so far: {(job.lastXpTotal ?? 0).toLocaleString()}
+            </p>
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 const PLATFORMS = [
@@ -265,20 +419,27 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
     try {
-      const response = await fetch('/api/legacy/import', {
+      const response = await fetch('/api/leagues/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ sleeper_username: state.username.trim().toLowerCase() }),
+        body: JSON.stringify({ username: state.username.trim().toLowerCase() }),
       })
       const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
       if (!response.ok) {
         throw new Error(mapLegacyImportError(data, response.status))
       }
+      const jobId = typeof data.jobId === 'string' ? data.jobId : null
+      if (data.success === true && jobId) {
+        setState((current) => ({ ...current, loading: false, error: null, successMessage: null }))
+        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(jobId)}`)
+        onImportSuccess()
+        return
+      }
       const msg =
         typeof data.message === 'string'
           ? data.message
-          : 'Import queued. Your rank and history update as the sync runs (usually a few minutes). This does not add leagues to My Leagues on the dashboard — only full league import or leagues you create here do.'
+          : 'Import queued. Your rank updates as each season finishes.'
       setState((current) => ({
         ...current,
         loading: false,
@@ -880,6 +1041,17 @@ function MyRankingsPageInner() {
   const [apiTier, setApiTier] = useState<string | null>(null)
   const [levelRank, setLevelRank] = useState<RankLevelApiPayload | null>(null)
   const justImported = searchParams.get('imported') === 'true'
+  const jobIdParam = searchParams.get('jobId')
+  const [jobProgress, setJobProgress] = useState<ImportJobProgressResponse | null>(null)
+  const [jobProgressError, setJobProgressError] = useState<string | null>(null)
+  const [importCompleteBanner, setImportCompleteBanner] = useState<{
+    level: number | null
+    tier: string | null
+    levelName: string
+  } | null>(null)
+  const [importBannerDismissed2, setImportBannerDismissed2] = useState(false)
+  const completedJobHandledRef = useRef<string | null>(null)
+  const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true
@@ -942,6 +1114,73 @@ function MyRankingsPageInner() {
   }, [loadRank])
 
   useEffect(() => {
+    if (!jobIdParam) {
+      setJobProgress(null)
+      setJobProgressError(null)
+      return
+    }
+    const jobId = jobIdParam
+    let cancelled = false
+
+    async function poll() {
+      try {
+        const res = await fetch(`/api/leagues/import/progress/${encodeURIComponent(jobId)}`, {
+          cache: 'no-store',
+          credentials: 'include',
+        })
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+        if (!res.ok) {
+          if (!cancelled) {
+            setJobProgressError(typeof data.error === 'string' ? data.error : 'Could not load import progress')
+          }
+          return
+        }
+        if (!cancelled) {
+          setJobProgressError(null)
+          setJobProgress(data as ImportJobProgressResponse)
+        }
+        const jp = data as ImportJobProgressResponse
+        if (jp && (jp.status === 'complete' || jp.status === 'error')) {
+          if (importPollRef.current) {
+            clearInterval(importPollRef.current)
+            importPollRef.current = null
+          }
+        }
+      } catch {
+        if (!cancelled) setJobProgressError('Could not load import progress')
+      }
+    }
+
+    void poll()
+    importPollRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      void poll()
+    }, 2000)
+
+    return () => {
+      cancelled = true
+      if (importPollRef.current) {
+        clearInterval(importPollRef.current)
+        importPollRef.current = null
+      }
+    }
+  }, [jobIdParam])
+
+  useEffect(() => {
+    if (!jobIdParam || !jobProgress) return
+    if (jobProgress.status !== 'complete') return
+    if (completedJobHandledRef.current === jobIdParam) return
+    completedJobHandledRef.current = jobIdParam
+    setImportCompleteBanner({
+      level: jobProgress.lastRankLevel,
+      tier: jobProgress.lastRankTier,
+      levelName: getLevelFromXp(jobProgress.lastXpTotal ?? 0).name,
+    })
+    void loadRank({ silent: false })
+    router.replace('/dashboard/rankings', { scroll: false })
+  }, [jobIdParam, jobProgress, loadRank, router])
+
+  useEffect(() => {
     if (!justImported) return
     if (!importProcessing) return
     const id = window.setInterval(() => void loadRank({ silent: true }), 5000)
@@ -967,6 +1206,9 @@ function MyRankingsPageInner() {
     session?.user?.name ||
     session?.user?.email?.split('@')[0] ||
     'manager'
+
+  const hideRankForPhasedImport =
+    Boolean(jobIdParam) && (jobProgress == null || jobProgress.status === 'running')
 
   if (loading) {
     return (
@@ -1042,6 +1284,21 @@ function MyRankingsPageInner() {
             </button>
           </div>
         ) : null}
+        {importCompleteBanner && !importBannerDismissed2 ? (
+          <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-emerald-100">
+              Your legacy profile is ready — Level {importCompleteBanner.level ?? '—'} {importCompleteBanner.levelName}
+              {importCompleteBanner.tier ? ` · ${importCompleteBanner.tier}` : ''} unlocked!
+            </p>
+            <button
+              type="button"
+              onClick={() => setImportBannerDismissed2(true)}
+              className="shrink-0 text-xs font-semibold text-emerald-200/80 underline-offset-2 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
         <div className="mb-8">
           <Link
             href="/dashboard"
@@ -1068,7 +1325,15 @@ function MyRankingsPageInner() {
           </p>
         </div>
 
-        {showImport ? (
+        {jobIdParam && jobProgress?.status !== 'complete' ? (
+          <ImportProgressPanel
+            job={jobProgress}
+            loading={jobProgress == null && !jobProgressError}
+            error={jobProgressError}
+          />
+        ) : null}
+
+        {hideRankForPhasedImport ? null : showImport ? (
           <EmptyRankState
             onImported={() => {
               setShowImport(false)

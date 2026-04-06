@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 const SLEEPER_LAUNCH_YEAR = 2017
@@ -14,6 +15,7 @@ export type SleeperImportResult = {
   sports?: Record<string, number>
   sleeperUserId?: string
   success?: boolean
+  jobId?: string
   leagues?: { name: string; sport: string; seasons: string[] }[]
 }
 
@@ -32,6 +34,7 @@ function getImportErrorMessage(data: { error?: string } | null | undefined, fall
 }
 
 export default function SleeperImportForm() {
+  const router = useRouter()
   const [sleeperUsername, setSleeperUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SleeperImportResult | null>(null)
@@ -65,6 +68,10 @@ export default function SleeperImportForm() {
       }
 
       if (!res.ok) throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`))
+      if (data.success === true && typeof (data as { jobId?: string }).jobId === 'string') {
+        router.push(`/dashboard/rankings?jobId=${encodeURIComponent((data as { jobId: string }).jobId)}`)
+        return
+      }
       setResult(data)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Import failed. Please try again.')

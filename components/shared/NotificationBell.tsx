@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import { NotificationPanelView } from "@/components/notifications/NotificationPanel"
-import { getUnreadBadgeCount } from "@/lib/notification-center"
+import { getUnreadCount } from "@/lib/notification-center"
 import { isNotificationDrawerCloseKey } from "@/lib/notification-center"
 
 export default function NotificationBell() {
@@ -16,8 +16,35 @@ export default function NotificationBell() {
   const lastPathRef = useRef(pathname)
   const notificationsState = useNotifications(40, { usePlaceholders: false })
   const { notifications } = notificationsState
-  const unreadBadge = getUnreadBadgeCount(notifications, 9)
+  const [serverUnreadCount, setServerUnreadCount] = useState<number | null>(null)
+  const listUnread = getUnreadCount(notifications)
+  const mergedUnread = serverUnreadCount != null ? Math.max(serverUnreadCount, listUnread) : listUnread
+  const unreadBadge: number | string =
+    mergedUnread <= 0 ? 0 : mergedUnread <= 9 ? mergedUnread : "9+"
   const panelId = "notification-center-drawer"
+
+  useEffect(() => {
+    let cancelled = false
+    async function pollUnread() {
+      try {
+        const res = await fetch("/api/notifications/unread", { cache: "no-store", credentials: "include" })
+        const data = (await res.json().catch(() => ({}))) as { count?: unknown }
+        const n = typeof data.count === "number" && Number.isFinite(data.count) ? data.count : 0
+        if (!cancelled) setServerUnreadCount(n)
+      } catch {
+        if (!cancelled) setServerUnreadCount((c) => c ?? 0)
+      }
+    }
+    void pollUnread()
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return
+      void pollUnread()
+    }, 30_000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
