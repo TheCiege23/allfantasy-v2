@@ -29,8 +29,24 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const draft = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
-    return NextResponse.json({ data: draft, draft })
+    const row = await prisma.dispersalDraft.findFirst({
+      where: {
+        leagueId,
+        status: { in: ['pending', 'configuring', 'in_progress'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        picks: { orderBy: { pickNumber: 'asc' } },
+        participants: { orderBy: { draftSlot: 'asc' } },
+      },
+    })
+    const state = row ? await DispersalDraftEngine.getDraftState(row.id) : null
+    return NextResponse.json({
+      data: state,
+      draft: state,
+      picks: row?.picks ?? [],
+      participants: row?.participants ?? [],
+    })
   } catch (err) {
     console.error('[dispersal-draft]', err)
     return NextResponse.json({ error: 'Internal server error', data: null, draft: null }, { status: 500 })
@@ -141,8 +157,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     }
 
     try {
-      const draft = await DispersalDraftEngine.createDraft(config, commissionerUserId)
-      return NextResponse.json({ data: draft, draft })
+      const draftState = await DispersalDraftEngine.createDraft(config, commissionerUserId)
+      return NextResponse.json({
+        data: draftState,
+        draft: draftState,
+        draftId: draftState.id,
+      })
     } catch (e) {
       console.error('[dispersal-draft]', e)
       const msg = e instanceof Error ? e.message : 'Failed to create draft'

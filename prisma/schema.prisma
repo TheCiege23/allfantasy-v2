@@ -5267,6 +5267,10 @@ model DispersalDraft {
   league League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   picks  DispersalDraftPick[]
 
+  rosters       DispersalDraftRoster[]
+  assetPoolRows DispersalAssetPool[]
+  participants  DispersalDraftParticipant[]
+
   @@index([leagueId])
   @@index([status])
   @@map("supplemental_drafts")
@@ -5284,6 +5288,7 @@ model DispersalDraftPick {
   assetId          String? @db.VarChar(128)
   assetDisplayName String? @db.VarChar(256)
   isPassed         Boolean @default(false)
+  isAutoPick       Boolean @default(false)
 
   pickedAt DateTime?
 
@@ -5292,6 +5297,72 @@ model DispersalDraftPick {
   @@unique([dispersalDraftId, pickNumber])
   @@index([dispersalDraftId, rosterId])
   @@map("supplemental_draft_picks")
+}
+
+/// Per-manager roster snapshot during dispersal (mirrors JSON on draft + normalized rows).
+model DispersalDraftRoster {
+  id                  String         @id @default(cuid())
+  draftId             String
+  leagueId            String
+  userId              String
+  teamId              String?
+  players             Json           @default("[]")
+  draftSlot           Int?
+  isEligible          Boolean        @default(true)
+  ineligibilityReason String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  draft               DispersalDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, userId])
+  @@index([draftId])
+  @@map("dispersal_draft_rosters")
+}
+
+/// Normalized asset pool rows (parallel to DispersalDraft.assetPool JSON for pick-time queries).
+/// `playerId` stores the pool asset key: for players use NFL id when present, else DispersalAsset.id.
+model DispersalAssetPool {
+  id             String         @id @default(cuid())
+  draftId        String
+  leagueId       String
+  playerId       String
+  playerName     String
+  playerPosition String?
+  playerTeam     String?
+  playerAge      Int?
+  sourceRosterId String?
+  sourcePlatform String?
+  isAvailable    Boolean        @default(true)
+  pickedInPickId String?
+  metadata       Json?          @default("{}")
+  createdAt      DateTime       @default(now())
+  draft          DispersalDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, playerId])
+  @@index([draftId])
+  @@index([isAvailable])
+  @@map("dispersal_asset_pool")
+}
+
+model DispersalDraftParticipant {
+  id             String         @id @default(cuid())
+  draftId        String
+  leagueId       String
+  userId         String
+  displayName    String?
+  teamName       String?
+  draftSlot      Int?
+  isCommissioner Boolean        @default(false)
+  isReady        Boolean        @default(false)
+  isOnTheClock   Boolean        @default(false)
+  isConnected    Boolean        @default(false)
+  lastSeenAt     DateTime?
+  joinedAt       DateTime       @default(now())
+  draft          DispersalDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, userId])
+  @@index([draftId])
+  @@map("dispersal_draft_participants")
 }
 
 model AiCommissionerConfig {

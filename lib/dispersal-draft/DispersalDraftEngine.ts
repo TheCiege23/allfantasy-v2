@@ -14,6 +14,107 @@ import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterReso
 import { buildAssetPoolFromRosters } from './assetPoolBuilder'
 import type { DispersalAsset, DispersalDraftConfig, DispersalDraftState } from './types'
 
+/** Transaction client for nested writes in dispersal draft seeding. */
+type DispersalTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+function assetDisplayNameForPool(a: DispersalAsset): string {
+  if (a.assetType === 'player') return a.playerName ?? a.playerId ?? 'Player'
+  if (a.assetType === 'draft_pick') return a.pickLabel ?? 'Draft pick'
+  if (a.assetType === 'faab') return `FAAB $${a.faabAmount ?? 0}`
+  return 'Asset'
+}
+
+async function seedDispersalDraftSecondaryTables(
+  tx: DispersalTx,
+  draft: { id: string; leagueId: string },
+  assets: DispersalAsset[],
+  participantRosterIds: string[],
+  commissionerUserId: string
+): Promise<void> {
+  if (assets.length > 0) {
+    await tx.dispersalAssetPool.createMany({
+      data: assets.map((a) => ({
+        draftId: draft.id,
+        leagueId: draft.leagueId,
+        playerId: a.id,
+        playerName: assetDisplayNameForPool(a),
+        playerPosition: a.playerPosition ?? null,
+        playerTeam: a.playerTeam ?? null,
+        sourceRosterId: a.sourceRosterId,
+        isAvailable: a.isAvailable,
+        metadata: {
+          assetType: a.assetType,
+          pickId: a.pickId,
+          faabAmount: a.faabAmount,
+        } as Prisma.InputJsonValue,
+      })),
+    })
+  }
+
+  let slot = 0
+  for (const rosterId of participantRosterIds) {
+    const team = await tx.leagueTeam.findFirst({
+      where: { leagueId: draft.leagueId, externalId: rosterId },
+      select: {
+        id: true,
+        teamName: true,
+        claimedByUserId: true,
+        isCommissioner: true,
+      },
+    })
+    const userId = team?.claimedByUserId?.trim() || `unclaimed-${rosterId}`
+    await tx.dispersalDraftParticipant.create({
+      data: {
+        draftId: draft.id,
+        leagueId: draft.leagueId,
+        userId,
+        displayName: null,
+        teamName: team?.teamName ?? null,
+        draftSlot: slot++,
+        isCommissioner: userId === commissionerUserId || Boolean(team?.isCommissioner),
+      },
+    })
+    await tx.dispersalDraftRoster.create({
+      data: {
+        draftId: draft.id,
+        leagueId: draft.leagueId,
+        userId,
+        teamId: team?.id ?? null,
+        players: [],
+      },
+    })
+  }
+}
+
+async function syncParticipantOnClockFlags(
+  tx: DispersalTx | typeof prisma,
+  draftId: string,
+  leagueId: string,
+  pickIndex: number
+): Promise<void> {
+  await tx.dispersalDraftParticipant.updateMany({
+    where: { draftId },
+    data: { isOnTheClock: false },
+  })
+  const row = await tx.dispersalDraft.findUnique({
+    where: { id: draftId },
+    select: { draftOrder: true, passedRosterIds: true, currentPickIndex: true },
+  })
+  if (!row) return
+  const rosterId = getCurrentRosterId(row.draftOrder, pickIndex, row.passedRosterIds)
+  if (!rosterId) return
+  const team = await tx.leagueTeam.findFirst({
+    where: { leagueId, externalId: rosterId },
+    select: { claimedByUserId: true },
+  })
+  const uid = team?.claimedByUserId?.trim()
+  if (!uid) return
+  await tx.dispersalDraftParticipant.updateMany({
+    where: { draftId, userId: uid },
+    data: { isOnTheClock: true },
+  })
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -77,6 +178,7 @@ async function rowToState(row: {
     assetDisplayName: string | null
     isPassed: boolean
     pickedAt: Date | null
+    isAutoPick?: boolean
   }[]
 }): Promise<DispersalDraftState> {
   const assetPool = parseAssetPool(row.assetPool)
@@ -109,6 +211,7 @@ async function rowToState(row: {
       assetDisplayName: p.assetDisplayName ?? undefined,
       isPassed: p.isPassed,
       pickedAt: p.pickedAt?.toISOString(),
+      isAutoPick: p.isAutoPick === true,
     })),
     currentRosterId,
     currentPickNumber,
@@ -233,29 +336,33 @@ export class DispersalDraftEngine {
     const { totalRounds, picksPerRound } = computeRoundsPicksPerRound(assets, baseOrder.length)
     const draftOrder = buildLinearDraftOrder(baseOrder, totalRounds)
 
-    const draft = await prisma.dispersalDraft.create({
-      data: {
-        leagueId: config.leagueId,
-        scenario: config.scenario,
-        status: 'configuring',
-        participantRosterIds: participants,
-        passedRosterIds: [],
-        draftOrder,
-        currentPickIndex: 0,
-        totalRounds,
-        picksPerRound,
-        sourceRosterIds: config.sourceRosterIds,
-        assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
-        orderMode: config.orderMode,
-        draftType: 'linear',
-        pickTimeSeconds: config.pickTimeSeconds,
-        autoPickOnTimeout: config.autoPickOnTimeout,
-        createdByUserId: commissionerUserId,
-      },
-      include: { picks: { orderBy: { pickNumber: 'asc' } } },
+    const created = await prisma.$transaction(async (tx) => {
+      const draft = await tx.dispersalDraft.create({
+        data: {
+          leagueId: config.leagueId,
+          scenario: config.scenario,
+          status: 'configuring',
+          participantRosterIds: participants,
+          passedRosterIds: [],
+          draftOrder,
+          currentPickIndex: 0,
+          totalRounds,
+          picksPerRound,
+          sourceRosterIds: config.sourceRosterIds,
+          assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
+          orderMode: config.orderMode,
+          draftType: 'linear',
+          pickTimeSeconds: config.pickTimeSeconds,
+          autoPickOnTimeout: config.autoPickOnTimeout,
+          createdByUserId: commissionerUserId,
+        },
+        include: { picks: { orderBy: { pickNumber: 'asc' } } },
+      })
+      await seedDispersalDraftSecondaryTables(tx, draft, assets, participants, commissionerUserId)
+      return draft
     })
 
-    return rowToState(draft)
+    return rowToState(created)
   }
 
   static async startDraft(draftId: string, commissionerUserId: string): Promise<DispersalDraftState> {
@@ -303,10 +410,17 @@ export class DispersalDraftEngine {
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
 
-    return rowToState(updated)
+    const state = rowToState(updated)
+    await syncParticipantOnClockFlags(prisma, draftId, row.leagueId, nextIndex)
+    return state
   }
 
-  static async makePick(draftId: string, rosterId: string, assetId: string): Promise<DispersalDraftState> {
+  static async makePick(
+    draftId: string,
+    rosterId: string,
+    assetId: string,
+    opts?: { isAutoPick?: boolean }
+  ): Promise<DispersalDraftState> {
     const after = await prisma.$transaction(
       async (tx) => {
         const row = await tx.dispersalDraft.findUnique({
@@ -370,8 +484,11 @@ export class DispersalDraftEngine {
               completedAt,
             },
           })
+          await syncParticipantOnClockFlags(tx, draftId, row.leagueId, nextIndex)
         } else {
-          const asset = assets.find((a) => a.id === assetId)
+          const asset =
+            assets.find((a) => a.id === assetId && a.isAvailable) ||
+            assets.find((a) => (a.playerId === assetId || a.id === assetId) && a.isAvailable)
           if (!asset || !asset.isAvailable) throw new Error('Asset not available')
 
           asset.isAvailable = false
@@ -389,7 +506,7 @@ export class DispersalDraftEngine {
 
           const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
 
-          await tx.dispersalDraftPick.create({
+          const createdPick = await tx.dispersalDraftPick.create({
             data: {
               dispersalDraftId: draftId,
               pickNumber: pickNo,
@@ -401,7 +518,13 @@ export class DispersalDraftEngine {
               assetDisplayName: display,
               isPassed: false,
               pickedAt: new Date(),
+              isAutoPick: opts?.isAutoPick ?? false,
             },
+          })
+
+          await tx.dispersalAssetPool.updateMany({
+            where: { draftId, playerId: asset.id },
+            data: { isAvailable: false, pickedInPickId: createdPick.id },
           })
 
           let status: string = row.status
@@ -420,6 +543,8 @@ export class DispersalDraftEngine {
               completedAt,
             },
           })
+
+          await syncParticipantOnClockFlags(tx, draftId, row.leagueId, nextIndex)
         }
 
         return tx.dispersalDraft.findUnique({
@@ -442,28 +567,42 @@ export class DispersalDraftEngine {
   }
 
   /**
-   * Auto-advance when the pick timer expires — does NOT add the manager to passedRosterIds (one turn only).
+   * Auto-pick when the pick timer expires: claims the best available asset (player first), else advances.
    */
   static async advancePickOnTimeout(draftId: string, rosterId: string): Promise<DispersalDraftState> {
+    const row = await prisma.dispersalDraft.findUnique({
+      where: { id: draftId },
+      include: { picks: { orderBy: { pickNumber: 'asc' } } },
+    })
+    if (!row) throw new Error('Draft not found')
+    if (row.status !== 'in_progress') throw new Error('Draft is not active')
+    if (!row.autoPickOnTimeout) throw new Error('Auto-pick on timeout is off')
+    if (row.pickTimeSeconds <= 0) throw new Error('No pick timer configured')
+    const current = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
+    if (!current || current !== rosterId) throw new Error('Not your pick')
+    if (row.passedRosterIds.includes(rosterId)) throw new Error('You have passed out of this dispersal draft')
+
+    const assets = parseAssetPool(row.assetPool)
+    const candidate =
+      assets.find((a) => a.isAvailable && a.assetType === 'player') ??
+      assets.find((a) => a.isAvailable && a.assetType === 'draft_pick') ??
+      assets.find((a) => a.isAvailable)
+    if (candidate) {
+      return DispersalDraftEngine.makePick(draftId, rosterId, candidate.id, { isAutoPick: true })
+    }
+
     const after = await prisma.$transaction(
       async (tx) => {
-        const row = await tx.dispersalDraft.findUnique({
+        const r = await tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
-        if (!row) throw new Error('Draft not found')
-        if (row.status !== 'in_progress') throw new Error('Draft is not active')
-        if (!row.autoPickOnTimeout) throw new Error('Auto-pick on timeout is off')
-        if (row.pickTimeSeconds <= 0) throw new Error('No pick timer configured')
-        const current = getCurrentRosterId(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
-        if (!current || current !== rosterId) throw new Error('Not your pick')
-        if (row.passedRosterIds.includes(rosterId)) throw new Error('You have passed out of this dispersal draft')
-
-        const assets = parseAssetPool(row.assetPool)
-        const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
-        const round = Math.ceil(pickNo / Math.max(1, row.picksPerRound))
-        const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
-        const nextIndex = advanceToNextSlot(row.draftOrder, row.currentPickIndex, row.passedRosterIds)
+        if (!r) throw new Error('Draft not found')
+        const pool = parseAssetPool(r.assetPool)
+        const pickNo = r.picks.length > 0 ? Math.max(...r.picks.map((p) => p.pickNumber)) + 1 : 1
+        const round = Math.ceil(pickNo / Math.max(1, r.picksPerRound))
+        const pickInRound = ((pickNo - 1) % Math.max(1, r.picksPerRound)) + 1
+        const nextIndex = advanceToNextSlot(r.draftOrder, r.currentPickIndex, r.passedRosterIds)
 
         await tx.dispersalDraftPick.create({
           data: {
@@ -472,15 +611,16 @@ export class DispersalDraftEngine {
             round,
             pickInRound,
             rosterId,
-            assetDisplayName: 'Timer expired (auto)',
+            assetDisplayName: 'No assets left — turn skipped',
             isPassed: false,
             pickedAt: new Date(),
+            isAutoPick: true,
           },
         })
 
-        let status: string = row.status
-        let completedAt: Date | null = row.completedAt
-        if (allAssetsClaimed(assets) || nextIndex >= row.draftOrder.length) {
+        let status: string = r.status
+        let completedAt: Date | null = r.completedAt
+        if (allAssetsClaimed(pool) || nextIndex >= r.draftOrder.length) {
           status = 'completed'
           completedAt = new Date()
         }
@@ -493,6 +633,7 @@ export class DispersalDraftEngine {
             completedAt,
           },
         })
+        await syncParticipantOnClockFlags(tx, draftId, r.leagueId, nextIndex)
 
         return tx.dispersalDraft.findUnique({
           where: { id: draftId },

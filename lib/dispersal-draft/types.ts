@@ -65,6 +65,7 @@ export type DispersalDraftState = {
     assetDisplayName?: string
     isPassed: boolean
     pickedAt?: string
+    isAutoPick?: boolean
   }[]
   currentRosterId: string | null
   currentPickNumber: number

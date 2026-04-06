@@ -105,8 +105,8 @@ export type LeagueShellProps = {
   discordConnected?: boolean
   /** Deep-link prefill for league chat composer (`?zombieChimmy=`). */
   zombieChimmyPrefill?: string | null
-  /** Active dispersal draft with live picks — show join banner on league home. */
-  dispersalDraftInProgress?: { draftId: string } | null
+  /** Active dispersal draft — show join/setup banner on league home. */
+  dispersalDraftInProgress?: { draftId: string; status: string } | null
 }
 
 export function LeagueShell({
@@ -403,9 +403,13 @@ export function LeagueShell({
                 href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
                 className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
               >
-                <span>Dispersal draft in progress — join the draft room to make picks.</span>
+                <span>
+                  {dispersalDraftInProgress.status === 'in_progress'
+                    ? 'Dispersal draft in progress — join the draft room to make picks.'
+                    : 'Dispersal draft open — continue setup or open the draft room.'}
+                </span>
                 <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
-                  Join draft room →
+                  {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
                 </span>
               </Link>
             </div>

@@ -637,6 +637,12 @@ export function DashboardOverview({
             >
               Find League
             </Link>
+            <Link
+              href="/dashboard/dispersal"
+              className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100"
+            >
+              Dispersal drafts
+            </Link>
           </div>
         </section>
 

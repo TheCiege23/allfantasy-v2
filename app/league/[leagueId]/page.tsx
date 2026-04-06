@@ -107,7 +107,10 @@ export default async function LeaguePage({
 
   const activeDispersalDraft = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
   const dispersalDraftInProgress =
-    activeDispersalDraft?.status === 'in_progress' ? { draftId: activeDispersalDraft.id } : null
+    activeDispersalDraft &&
+    ['pending', 'configuring', 'in_progress'].includes(activeDispersalDraft.status)
+      ? { draftId: activeDispersalDraft.id, status: activeDispersalDraft.status }
+      : null
 
   return (
     <LeagueShell

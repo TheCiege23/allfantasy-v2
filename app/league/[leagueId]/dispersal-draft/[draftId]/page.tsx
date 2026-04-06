@@ -6,7 +6,15 @@ import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import type { DispersalAsset, DispersalDraftState } from '@/lib/dispersal-draft/types'
 
-const POLL_MS = 4000 as const
+const POLL_MS = 3000 as const
+
+const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DL', 'LB', 'DB', 'FLEX', ''] as const
+
+function fmtMmSs(sec: number): string {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
 
 type LeagueSettingsBrief = {
   userRole?: string | null
@@ -32,19 +40,24 @@ export default function DispersalDraftLivePage() {
   const [deadline, setDeadline] = useState<number | null>(null)
   const [pollError, setPollError] = useState<string | null>(null)
   const timeoutSentForPickRef = useRef<string | null>(null)
+  const [poolSearch, setPoolSearch] = useState('')
 
   const loadState = useCallback(async () => {
-    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/state`, {
+    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}`, {
       cache: 'no-store',
     })
-    const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
+    const json = (await res.json().catch(() => ({}))) as {
+      state?: DispersalDraftState
+      error?: string
+    } & Partial<DispersalDraftState>
     if (!res.ok) {
-      const err = (json as { error?: string }).error ?? 'Could not load draft'
+      const err = json.error ?? 'Could not load draft'
       setPollError(err)
       return
     }
     setPollError(null)
-    setState(json)
+    const next = json.state ?? (json as DispersalDraftState)
+    if (next && typeof next === 'object' && 'id' in next) setState(next as DispersalDraftState)
   }, [draftId, leagueId])
 
   useEffect(() => {
@@ -116,20 +129,17 @@ export default function DispersalDraftLivePage() {
     timeoutSentForPickRef.current = key
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/timeout`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rosterId: myRosterId }),
-          }
-        )
-        const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'auto_pick' }),
+        })
+        const json = (await res.json().catch(() => ({}))) as { state?: DispersalDraftState; error?: string }
         if (!res.ok) {
           timeoutSentForPickRef.current = null
           return
         }
-        setState(json)
+        if (json.state) setState(json.state)
       } catch {
         timeoutSentForPickRef.current = null
       }
@@ -148,9 +158,31 @@ export default function DispersalDraftLivePage() {
 
   const pool = state?.assetPool ?? []
   const filtered: DispersalAsset[] = useMemo(() => {
-    if (tab === 'all') return pool.filter((a) => a.isAvailable)
-    return pool.filter((a) => a.isAvailable && a.assetType === tab)
-  }, [pool, tab])
+    const q = poolSearch.trim().toLowerCase()
+    const base =
+      tab === 'all' ? pool.filter((a) => a.isAvailable) : pool.filter((a) => a.isAvailable && a.assetType === tab)
+    const searched = !q
+      ? base
+      : base.filter((a) => {
+          const hay = `${a.playerName ?? ''} ${a.playerPosition ?? ''} ${a.playerTeam ?? ''} ${a.pickLabel ?? ''}`.toLowerCase()
+          return hay.includes(q)
+        })
+    return searched
+  }, [pool, tab, poolSearch])
+
+  const playersByPosition = useMemo(() => {
+    const players = filtered.filter((a) => a.assetType === 'player')
+    const map = new Map<string, DispersalAsset[]>()
+    for (const p of players) {
+      const pos = (p.playerPosition ?? '').toUpperCase() || 'OTHER'
+      if (!map.has(pos)) map.set(pos, [])
+      map.get(pos)!.push(p)
+    }
+    const ordered = [...POSITION_ORDER.filter((k) => k !== ''), 'OTHER']
+    return ordered
+      .filter((k) => map.has(k))
+      .map((k) => ({ position: k, assets: map.get(k)! }))
+  }, [filtered])
 
   const roundNo =
     state && state.picksPerRound > 0
@@ -161,21 +193,34 @@ export default function DispersalDraftLivePage() {
       ? ((state.currentPickNumber - 1) % Math.max(1, state.picksPerRound)) + 1
       : state?.currentPickNumber ?? 1
 
+  const pickBoardRounds = useMemo(() => {
+    if (!state) return []
+    const m = new Map<number, DispersalDraftState['picks']>()
+    for (const p of state.picks) {
+      if (!m.has(p.round)) m.set(p.round, [])
+      m.get(p.round)!.push(p)
+    }
+    return [...m.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([round, picks]) => ({
+        round,
+        picks: [...picks].sort((a, b) => a.pickInRound - b.pickInRound),
+      }))
+  }, [state])
+
   const submitPick = async (assetId: string) => {
     if (!myRosterId) return
+    if (!window.confirm('Confirm this pick?')) return
     setPickBusy(true)
     try {
-      const res = await fetch(
-        `/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}/pick`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assetId }),
-        }
-      )
-      const json = (await res.json().catch(() => ({}))) as DispersalDraftState & { error?: string }
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/dispersal-draft/${encodeURIComponent(draftId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'make_pick', playerId: assetId }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { state?: DispersalDraftState; error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Pick failed')
-      setState(json as DispersalDraftState)
+      if (json.state) setState(json.state)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Pick failed')
     } finally {
@@ -287,7 +332,8 @@ export default function DispersalDraftLivePage() {
     return (
       <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 text-white">
         <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-6 text-center">
-          <h1 className="text-xl font-semibold text-emerald-100">✅ Dispersal draft complete</h1>
+          <h1 className="text-xl font-semibold text-emerald-100">Draft complete!</h1>
+          <p className="mt-2 text-sm text-emerald-200/80">All picks are locked in. Final assignments are shown below.</p>
         </div>
         <div className="overflow-x-auto rounded-xl border border-white/10">
           <table className="w-full text-left text-xs">
@@ -355,6 +401,14 @@ export default function DispersalDraftLivePage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-[#0a1328] p-4">
+          <input
+            type="search"
+            value={poolSearch}
+            onChange={(e) => setPoolSearch(e.target.value)}
+            placeholder="Search assets…"
+            className="mb-3 w-full rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-[11px] text-white/90 placeholder:text-white/30"
+            aria-label="Search asset pool"
+          />
           <div className="mb-3 flex flex-wrap gap-2 text-[10px]">
             {(['all', 'player', 'draft_pick', 'faab'] as const).map((k) => (
               <button
@@ -373,51 +427,82 @@ export default function DispersalDraftLivePage() {
               </button>
             ))}
           </div>
-          <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
-            {filtered.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-2 py-2 text-[11px]"
-              >
-                <div className="min-w-0">
-                  {a.assetType === 'player' ? (
-                    <p className="truncate text-white/90">
-                      {a.playerName}{' '}
-                      <span className="text-white/45">
-                        {a.playerPosition} {a.playerTeam}
-                      </span>
-                    </p>
-                  ) : a.assetType === 'draft_pick' ? (
-                    <div>
-                      <p>
-                        {a.pickYear} Round {a.pickRound}
-                        {a.isTradedPick ? (
-                          <span className="ml-2 rounded bg-amber-500/20 px-1.5 text-[9px] text-amber-200">TRADED</span>
-                        ) : null}
-                      </p>
-                      {a.isTradedPick && a.originalOwnerRosterId ? (
-                        <p className="mt-0.5 text-[9px] text-white/40">
-                          Original owner roster preserved in DB — pick routes to winner on claim.
-                        </p>
-                      ) : null}
+          <div className="max-h-[480px] space-y-3 overflow-y-auto pr-1">
+            {tab === 'player'
+              ? playersByPosition.map(({ position, assets: group }) => (
+                  <div key={position}>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/35">{position}</p>
+                    <div className="space-y-2">
+                      {group.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-2 py-2 text-[11px]"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-white/90">
+                              {a.playerName}{' '}
+                              <span className="text-white/45">
+                                {a.playerPosition} {a.playerTeam}
+                              </span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!isMyTurn || isPassed || pickBusy || state.status !== 'in_progress'}
+                            onClick={() => void submitPick(a.id)}
+                            className="shrink-0 rounded border border-cyan-400/35 px-2 py-1 text-[10px] font-bold text-cyan-100 disabled:opacity-30"
+                          >
+                            Pick →
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
-                    <p>
-                      ${a.faabAmount ?? 0}{' '}
-                      <span className="text-amber-200/80">⚠️ Lost if unclaimed</span>
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  disabled={!isMyTurn || isPassed || pickBusy || state.status !== 'in_progress'}
-                  onClick={() => void submitPick(a.id)}
-                  className="shrink-0 rounded border border-cyan-400/35 px-2 py-1 text-[10px] font-bold text-cyan-100 disabled:opacity-30"
-                >
-                  Pick →
-                </button>
-              </div>
-            ))}
+                  </div>
+                ))
+              : filtered.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-2 py-2 text-[11px]"
+                  >
+                    <div className="min-w-0">
+                      {a.assetType === 'player' ? (
+                        <p className="truncate text-white/90">
+                          {a.playerName}{' '}
+                          <span className="text-white/45">
+                            {a.playerPosition} {a.playerTeam}
+                          </span>
+                        </p>
+                      ) : a.assetType === 'draft_pick' ? (
+                        <div>
+                          <p>
+                            {a.pickYear} Round {a.pickRound}
+                            {a.isTradedPick ? (
+                              <span className="ml-2 rounded bg-amber-500/20 px-1.5 text-[9px] text-amber-200">TRADED</span>
+                            ) : null}
+                          </p>
+                          {a.isTradedPick && a.originalOwnerRosterId ? (
+                            <p className="mt-0.5 text-[9px] text-white/40">
+                              Original owner roster preserved in DB — pick routes to winner on claim.
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p>
+                          ${a.faabAmount ?? 0}{' '}
+                          <span className="text-amber-200/80">⚠️ Lost if unclaimed</span>
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!isMyTurn || isPassed || pickBusy || state.status !== 'in_progress'}
+                      onClick={() => void submitPick(a.id)}
+                      className="shrink-0 rounded border border-cyan-400/35 px-2 py-1 text-[10px] font-bold text-cyan-100 disabled:opacity-30"
+                    >
+                      Pick →
+                    </button>
+                  </div>
+                ))}
           </div>
         </div>
 
@@ -435,8 +520,16 @@ export default function DispersalDraftLivePage() {
           </p>
           <p className="mt-1 text-[11px] text-white/40">is on the clock</p>
           {isMyTurn ? <p className="mt-2 text-sm font-bold text-cyan-300">YOUR PICK</p> : null}
-          {pickTimeSeconds > 0 && state.status === 'in_progress' ? (
-            <p className={`mt-3 text-2xl font-mono ${secondsLeft <= 10 ? 'text-red-400' : 'text-white/80'}`}>
+          {pickTimeSeconds > 0 && state.status === 'in_progress' && isMyTurn ? (
+            <p className="mt-2 text-[11px] text-white/55">
+              Your pick — <span className="font-mono text-white/90">{fmtMmSs(secondsLeft)}</span> remaining
+            </p>
+          ) : null}
+          {pickTimeSeconds > 0 && state.status === 'in_progress' && !isMyTurn ? (
+            <p className="mt-2 text-[11px] text-white/45">Pick timer: {pickTimeSeconds}s per turn (read-only)</p>
+          ) : null}
+          {pickTimeSeconds > 0 && state.status === 'in_progress' && isMyTurn ? (
+            <p className={`mt-2 text-2xl font-mono ${secondsLeft <= 10 ? 'text-red-400' : 'text-white/80'}`}>
               {secondsLeft}s
             </p>
           ) : null}
@@ -505,6 +598,40 @@ export default function DispersalDraftLivePage() {
           </button>
         </div>
       ) : null}
+
+      <div className="mt-6 rounded-2xl border border-white/10 bg-[#080f1f] p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Pick board</p>
+        <p className="mt-1 text-[10px] text-white/35">
+          Next overall pick #{state.currentPickNumber}
+          {state.status === 'in_progress' && currentRosterId ? (
+            <span className="text-cyan-200/90"> · On the clock: {nameFor(currentRosterId)}</span>
+          ) : null}
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {pickBoardRounds.map(({ round, picks }) => (
+            <div key={round} className="rounded-xl border border-white/[0.07] bg-black/20 p-2">
+              <p className="text-[10px] font-bold text-white/40">Round {round}</p>
+              <ul className="mt-2 space-y-1.5">
+                {picks.map((p) => {
+                  const isLatest =
+                    state.status === 'in_progress' && p.pickNumber === state.currentPickNumber - 1 && state.currentPickNumber > 1
+                  return (
+                    <li
+                      key={p.pickNumber}
+                      className={`rounded-lg border px-2 py-1.5 text-[10px] ${
+                        isLatest ? 'border-cyan-400/35 bg-cyan-500/10' : 'border-white/[0.06] text-white/75'
+                      }`}
+                    >
+                      <span className="text-white/45">#{p.pickNumber}</span> {nameFor(p.rosterId)} —{' '}
+                      {p.isPassed ? <span className="text-amber-200/90">PASS</span> : (p.assetDisplayName ?? '—')}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="mt-6 rounded-2xl border border-white/10 bg-[#080f1f] p-4">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Draft log</p>
