@@ -1,9 +1,9 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getResendClient } from "@/lib/resend-client";
-import OpenAI from "openai";
 
 const feedbackSchema = z.object({
   feedbackType: z.string().min(1),
@@ -31,7 +31,7 @@ async function runAiTriage(feedback: {
   stepsToReproduce: string | null;
 }) {
   try {
-    const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' });
+    const openai = getOpenAIRouteClient()
     
     const prompt = `You are an AI assistant helping triage bug reports and feedback for a fantasy sports application called AllFantasy. Analyze the following feedback and provide a structured triage.
 

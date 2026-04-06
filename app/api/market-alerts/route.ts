@@ -3,7 +3,7 @@ import { fetchFantasyCalcValues, type FantasyCalcPlayer } from '@/lib/fantasycal
 import { prisma } from '@/lib/prisma'
 import { computeAllDevyIntelMetrics } from '@/lib/devy-intel'
 import { getCFBPlayerStats } from '@/lib/cfb-player-data'
-import OpenAI from 'openai'
+import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import type { MarketSignal, MarketAlert, MarketAlertResponse } from '@/lib/types/market-alerts'
 
 type CrowdTrendRow = {
@@ -17,7 +17,7 @@ type CrowdTrendRow = {
   dropRank: number | null
 }
 
-const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1' })
+const openai = getOpenAIRouteClient()
 
 let narrativeCache: { data: Map<string, { headline: string; reasoning: string }>; ts: number } | null = null
 const NARRATIVE_CACHE_TTL = 1000 * 60 * 15
