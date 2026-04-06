@@ -20,6 +20,8 @@ import {
 } from "@/lib/monetization-analytics";
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction";
 import { Check } from "lucide-react";
+import { PLAN_FAMILY_INCLUDES, PLAN_FAMILY_SHORT_TAGLINE } from "@/lib/monetization/planIncludes";
+import { StripePaymentHint } from "@/components/monetization/StripePaymentHint";
 
 export type PlanFamily = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access";
 
@@ -103,14 +105,6 @@ const PLAN_FAMILY_LABELS: Record<PlanFamily, string> = {
   af_commissioner: "AF Commissioner",
   af_war_room: "AF War Room",
   af_all_access: "AF All-Access",
-};
-
-const PLAN_FAMILY_EXPLANATIONS: Record<PlanFamily, string> = {
-  af_pro: "Player-specific AI tools for trade analysis, waivers, matchups, and player workflows.",
-  af_commissioner:
-    "League-specific commissioner tools for governance, automations, and advanced oversight.",
-  af_war_room: "Draft and long-term planning tools for deeper roster and multi-season strategy.",
-  af_all_access: "Combined access across AF Pro, AF Commissioner, and AF War Room workflows.",
 };
 
 const PRICING_CONVERSION_BULLETS: readonly string[] = [
@@ -454,22 +448,34 @@ export default function MonetizationPurchaseSurface({
           <AFAllAccessBundleSpotlight className="mb-4" />
         ) : null}
 
-        <section className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4" data-testid="monetization-plan-explanations">
-          <h2 className="text-xs uppercase tracking-[0.16em] text-cyan-300/80">What each plan includes</h2>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <section className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5" data-testid="monetization-plan-explanations">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300/80">What each plan includes</h2>
+          <p className="mt-1 text-[11px] text-white/50">
+            Subscriptions unlock product areas; many AI actions still use tokens so usage stays fair at scale.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {PLAN_FAMILY_ORDER.map((family) => (
               <article
                 key={family}
-                className="rounded-lg border border-white/10 bg-black/20 p-3"
+                className="rounded-xl border border-white/10 bg-black/25 p-4"
                 data-testid={`pricing-plan-summary-${family}`}
               >
                 <p className="text-sm font-semibold text-white">{PLAN_FAMILY_LABELS[family]}</p>
-                <p className="mt-1 text-xs text-white/65">{PLAN_FAMILY_EXPLANATIONS[family]}</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/65">{PLAN_FAMILY_SHORT_TAGLINE[family]}</p>
+                <ul className="mt-3 list-none space-y-2 border-t border-white/[0.08] pt-3">
+                  {PLAN_FAMILY_INCLUDES[family].map((line) => (
+                    <li key={line} className="flex gap-2 text-[11px] leading-snug text-white/80">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400/90" aria-hidden />
+                      <span className="min-w-0 break-words">{line}</span>
+                    </li>
+                  ))}
+                </ul>
               </article>
             ))}
           </div>
-          <p className="mt-3 text-xs text-white/60" data-testid="pricing-token-model-copy">
-            Tokens provide pay-per-use access. Different features cost different token amounts based on complexity.
+          <p className="mt-4 text-xs leading-relaxed text-white/55" data-testid="pricing-token-model-copy">
+            <span className="font-medium text-white/70">Tokens:</span> pay-per-use credits for heavy AI features. Costs vary by
+            action; subscribers may get discounts on eligible rules.
           </p>
         </section>
 
@@ -499,7 +505,7 @@ export default function MonetizationPurchaseSurface({
                 {checkoutError}
               </div>
             ) : null}
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-5 md:grid-cols-2">
               {orderedFamilies.map((family) => {
                 const plan = plansByFamily.get(family);
                 if (!plan) return null;
@@ -509,11 +515,12 @@ export default function MonetizationPurchaseSurface({
                 const primary = monthly ?? yearly;
                 if (!primary) return null;
                 const focused = family === focusPlanFamily;
+                const includes = PLAN_FAMILY_INCLUDES[family];
                 return (
                   <article
                     key={family}
                     id={`plan-card-${family}`}
-                    className={`rounded-2xl border bg-gradient-to-br from-[#0a0f1d] via-[#0b1326] to-[#080d19] p-4 ${
+                    className={`flex min-h-[28rem] flex-col rounded-2xl border bg-gradient-to-br from-[#0a0f1d] via-[#0b1326] to-[#080d19] p-5 ${
                       focused ? "border-cyan-300/40 shadow-[0_0_0_1px_rgba(34,211,238,0.2)]" : "border-white/10"
                     }`}
                     data-testid={`pricing-plan-card-${family}`}
@@ -528,10 +535,20 @@ export default function MonetizationPurchaseSurface({
                         </span>
                       ) : null}
                     </div>
-                    <h2 className="mt-2 text-lg font-semibold text-white">
+                    <h2 className="mt-2 text-lg font-semibold leading-snug text-white">
                       {primary.title.replace(" Monthly", "").replace(" Yearly", "")}
                     </h2>
-                    <p className="mt-1 text-sm text-white/60">{primary.description}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-white/60 [overflow-wrap:anywhere]">
+                      {primary.description}
+                    </p>
+                    <ul className="mt-3 flex-1 list-none space-y-2 border-t border-white/[0.08] pt-3">
+                      {includes.map((line) => (
+                        <li key={line} className="flex gap-2 text-[11px] leading-snug text-white/78">
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-400/90" aria-hidden />
+                          <span className="min-w-0 break-words">{line}</span>
+                        </li>
+                      ))}
+                    </ul>
                     {focused && focusPlanFamily !== "af_all_access" ? (
                       <Link
                         href="/all-access"
@@ -543,76 +560,111 @@ export default function MonetizationPurchaseSurface({
                             pagePath,
                           })
                         }
-                        className="mt-2 inline-flex rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
+                        className="mt-3 inline-flex rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-emerald-100 hover:bg-emerald-500/20"
                         data-testid={`pricing-cross-upgrade-all-access-${family}`}
                       >
                         Prefer one bundle? Get AF All-Access
                       </Link>
                     ) : null}
-                    <div className="mt-3 space-y-1 text-sm">
+                    <div className="mt-auto space-y-3 pt-4">
                       {monthly ? (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
-                          <div className="flex items-center justify-between text-white/85">
-                            <span>Monthly</span>
-                            <span className="font-semibold">{formatUsd(monthly.amountUsd)}</span>
+                        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                          <div className="flex flex-wrap items-end justify-between gap-2 text-white/85">
+                            <span className="text-sm font-medium">Billed monthly</span>
+                            <span className="text-lg font-bold tabular-nums text-cyan-200">{formatUsd(monthly.amountUsd)}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", monthly.sku)}
                             disabled={pendingSku != null || !monthly.stripePriceConfigured || blockPaidCommerce}
-                            className="mt-2 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="mt-3 min-h-[44px] w-full rounded-lg bg-cyan-500/90 px-3 py-2.5 text-xs font-semibold text-[#041018] shadow-md shadow-cyan-500/15 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`pricing-subscription-cta-${monthly.sku}`}
                           >
-                            {pendingSku === monthly.sku ? "Starting checkout..." : "Checkout monthly"}
+                            {pendingSku === monthly.sku
+                              ? "Opening Stripe…"
+                              : "Continue with Stripe — Monthly"}
                           </button>
+                          {monthly.stripePriceConfigured ? (
+                            <StripePaymentHint className="mt-2" />
+                          ) : (
+                            <p className="mt-2 text-[10px] text-amber-200/90">
+                              Checkout unavailable until this price is configured in Stripe.
+                            </p>
+                          )}
                         </div>
                       ) : null}
                       {yearly ? (
-                        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
-                          <div className="flex items-center justify-between text-white/85">
-                            <span>Yearly</span>
-                            <span className="font-semibold">{formatUsd(yearly.amountUsd)}</span>
+                        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                          <div className="flex flex-wrap items-end justify-between gap-2 text-white/85">
+                            <span className="text-sm font-medium">Billed yearly</span>
+                            <span className="text-lg font-bold tabular-nums text-cyan-200">{formatUsd(yearly.amountUsd)}</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => startCheckout("subscription", yearly.sku)}
                             disabled={pendingSku != null || !yearly.stripePriceConfigured || blockPaidCommerce}
-                            className="mt-2 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="mt-3 min-h-[44px] w-full rounded-lg border border-cyan-400/35 bg-cyan-500/20 px-3 py-2.5 text-xs font-semibold text-cyan-50 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`pricing-subscription-cta-${yearly.sku}`}
                           >
-                            {pendingSku === yearly.sku ? "Starting checkout..." : "Checkout yearly"}
+                            {pendingSku === yearly.sku
+                              ? "Opening Stripe…"
+                              : "Continue with Stripe — Yearly"}
                           </button>
+                          {yearly.stripePriceConfigured ? (
+                            <StripePaymentHint className="mt-2" />
+                          ) : (
+                            <p className="mt-2 text-[10px] text-amber-200/90">
+                              Checkout unavailable until this price is configured in Stripe.
+                            </p>
+                          )}
                         </div>
                       ) : null}
                     </div>
-                    <p className="mt-3 text-[11px] text-white/50">
-                      Stripe setup: {primary.stripePriceConfigured ? "configured" : "pending"}
-                    </p>
                   </article>
                 );
               })}
             </div>
 
-            <section className="mt-6">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/70">AI Token Packs</h2>
-              <p className="mt-1 text-xs text-white/55">
-                Pay only for the AI actions you use. Feature costs vary by token amount.
+            <section className="mt-8 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/75">AI token packs</h2>
+              <p className="mt-1 max-w-3xl text-xs leading-relaxed text-white/55">
+                Top up when you need more AI runs. Checkout is powered by{" "}
+                <a
+                  href="https://stripe.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+                >
+                  Stripe
+                </a>{" "}
+                — same secure flow as subscriptions.
               </p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {(payload?.catalog.tokenPacks ?? []).map((pack) => (
-                  <article key={pack.sku} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <h3 className="text-sm font-semibold text-white">{pack.title}</h3>
-                    <p className="mt-1 text-xs text-white/60">{pack.description}</p>
-                    <div className="mt-2 text-lg font-bold text-cyan-300">{formatUsd(pack.amountUsd)}</div>
+                  <article
+                    key={pack.sku}
+                    className="flex min-h-[16rem] flex-col rounded-xl border border-white/10 bg-[#0a1220]/90 p-4"
+                  >
+                    <h3 className="text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]">{pack.title}</h3>
+                    <p className="mt-2 flex-1 text-xs leading-relaxed text-white/58 [overflow-wrap:anywhere]">
+                      {pack.description}
+                    </p>
+                    {pack.tokenAmount != null && pack.tokenAmount > 0 ? (
+                      <p className="mt-2 text-[11px] font-medium text-cyan-200/90">
+                        {pack.tokenAmount.toLocaleString()} AI tokens included
+                      </p>
+                    ) : null}
+                    <div className="mt-3 text-xl font-bold tabular-nums text-cyan-300">{formatUsd(pack.amountUsd)}</div>
                     <button
                       type="button"
                       onClick={() => startCheckout("token_pack", pack.sku)}
                       disabled={pendingSku != null || !pack.stripePriceConfigured || blockPaidCommerce}
-                      className="mt-3 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-3 min-h-[44px] w-full rounded-lg bg-cyan-500/90 px-3 py-2.5 text-xs font-semibold text-[#041018] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                       data-testid={`pricing-token-cta-${pack.sku}`}
                     >
-                      {pendingSku === pack.sku ? "Starting checkout..." : "Buy token pack"}
+                      {pendingSku === pack.sku ? "Opening Stripe…" : "Buy with Stripe"}
                     </button>
+                    {pack.stripePriceConfigured ? <StripePaymentHint className="mt-2" /> : null}
                   </article>
                 ))}
               </div>

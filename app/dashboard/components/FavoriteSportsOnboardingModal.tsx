@@ -23,7 +23,7 @@ const SPORT_LABELS: Record<LeagueSport, string> = {
 type FavoriteSportsOnboardingModalProps = {
   open: boolean
   onClose: () => void
-  onSaved: () => void
+  onSaved: (selection: FavoriteSportsSelection) => void
 }
 
 export function FavoriteSportsOnboardingModal({ open, onClose, onSaved }: FavoriteSportsOnboardingModalProps) {
@@ -92,7 +92,7 @@ export function FavoriteSportsOnboardingModal({ open, onClose, onSaved }: Favori
       return
     }
     writeFavoriteSportsSelection(selection)
-    onSaved()
+    onSaved(selection)
     onClose()
   }
 

@@ -3948,6 +3948,9 @@ model UserProfile {
   /// ElevenLabs `voice_id` for Chimmy TTS; synced across devices with dashboard/settings picker.
   chimmyTtsVoiceId String? @map("chimmy_tts_voice_id")
 
+  /// Dashboard Get Started checklist + extended favorite sports (custom strings). Synced across devices.
+  dashboardOnboarding Json? @map("dashboard_onboarding")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

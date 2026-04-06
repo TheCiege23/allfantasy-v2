@@ -16,9 +16,11 @@ import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
 import { ConnectPlatformsModal } from './ConnectPlatformsModal'
+import type { FavoriteSportsSelection } from '@/lib/dashboard/favorite-sports-storage'
 import {
   hasAnyFavoriteSport,
   readFavoriteSportsSelection,
+  writeFavoriteSportsSelection,
 } from '@/lib/dashboard/favorite-sports-storage'
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 
@@ -318,6 +320,43 @@ export function DashboardOverview({
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    void fetch('/api/user/dashboard-onboarding', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          data: {
+            checklist?: Partial<OnboardingState>
+            favoriteSports?: FavoriteSportsSelection
+          } | null
+        ) => {
+          if (!data || cancelled) return
+          if (data.checklist) {
+            const s = data.checklist
+            setOnboarding((prev) => {
+              const next: OnboardingState = {
+                step1: prev.step1 || s.step1 === true,
+                step2: prev.step2 || s.step2 === true,
+                step3: prev.step3 || s.step3 === true,
+                step4: prev.step4 || s.step4 === true,
+                step5: prev.step5 || s.step5 === true,
+              }
+              writeOnboardingState(next)
+              return next
+            })
+          }
+          if (data.favoriteSports && (data.favoriteSports.supported?.length || data.favoriteSports.custom?.length)) {
+            writeFavoriteSportsSelection(data.favoriteSports)
+          }
+        }
+      )
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     const fav = readFavoriteSportsSelection()
     if (!hasAnyFavoriteSport(fav)) return
     setOnboarding((prev) => {
@@ -326,6 +365,16 @@ export function DashboardOverview({
       writeOnboardingState(next)
       return next
     })
+  }, [])
+
+  const patchChecklistOnServer = useCallback(async (partial: Partial<OnboardingState>) => {
+    try {
+      await fetch('/api/user/dashboard-onboarding', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: partial }),
+      })
+    } catch {}
   }, [])
 
   useEffect(() => {
@@ -338,17 +387,22 @@ export function DashboardOverview({
         step3: true,
       }
       writeOnboardingState(next)
+      void patchChecklistOnServer({ step2: true, step3: true })
       return next
     })
-  }, [leagues.length])
+  }, [leagues.length, patchChecklistOnServer])
 
-  const updateOnboardingStep = (step: keyof OnboardingState, value = true) => {
-    setOnboarding((current) => {
-      const next = { ...current, [step]: value }
-      writeOnboardingState(next)
-      return next
-    })
-  }
+  const updateOnboardingStep = useCallback(
+    (step: keyof OnboardingState, value = true) => {
+      setOnboarding((current) => {
+        const next = { ...current, [step]: value }
+        writeOnboardingState(next)
+        return next
+      })
+      void patchChecklistOnServer({ [step]: value })
+    },
+    [patchChecklistOnServer]
+  )
 
   const checklistSteps = useMemo<ChecklistStep[]>(
     () => [
@@ -403,7 +457,17 @@ export function DashboardOverview({
   }
 
   const handleCopyReferral = async () => {
-    const inviteUrl = buildLandingInviteUrl()
+    let inviteUrl = ''
+    try {
+      const res = await fetch('/api/user/landing-invite', { cache: 'no-store' })
+      if (res.ok) {
+        const data = (await res.json()) as { landingUrl?: string }
+        if (typeof data.landingUrl === 'string' && data.landingUrl.startsWith('http')) {
+          inviteUrl = data.landingUrl
+        }
+      }
+    } catch {}
+    if (!inviteUrl) inviteUrl = buildLandingInviteUrl()
     if (!inviteUrl) return
 
     try {
@@ -755,7 +819,21 @@ export function DashboardOverview({
       <FavoriteSportsOnboardingModal
         open={sportsModalOpen}
         onClose={() => setSportsModalOpen(false)}
-        onSaved={() => updateOnboardingStep('step1')}
+        onSaved={(selection) => {
+          setOnboarding((c) => {
+            const next = { ...c, step1: true }
+            writeOnboardingState(next)
+            return next
+          })
+          void fetch('/api/user/dashboard-onboarding', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              checklist: { step1: true },
+              favoriteSports: selection,
+            }),
+          }).catch(() => {})
+        }}
       />
       <ConnectPlatformsModal
         open={platformModalOpen}
