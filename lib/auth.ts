@@ -1,4 +1,5 @@
 import type { NextAuthOptions, Profile } from "next-auth";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
@@ -11,16 +12,26 @@ import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret";
 
+/** Only used while `next build` evaluates API routes; never used at runtime on Vercel if env is set. */
+const BUILD_TIME_AUTH_SECRET_PLACEHOLDER =
+  "build-only-placeholder-nextauth-secret-min-32-chars!!";
+
 function getAuthSecret(): string {
   const secret = resolveAuthSecret();
 
-  if (!secret) {
-    throw new Error(
-      "NEXTAUTH_SECRET (or AUTH_SECRET) is not set. Add it to your local environment and Vercel project settings."
-    );
+  if (secret) {
+    return secret;
   }
 
-  return secret;
+  // During `next build`, Next imports route modules to collect page data; CI may not inject secrets.
+  // Production/preview runtime must still set NEXTAUTH_SECRET or AUTH_SECRET in the Vercel project.
+  if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
+    return BUILD_TIME_AUTH_SECRET_PLACEHOLDER;
+  }
+
+  throw new Error(
+    "NEXTAUTH_SECRET (or AUTH_SECRET) is not set. Add it to your local environment and Vercel project settings."
+  );
 }
 
 function buildSleeperAvatarUrl(avatar: string | null | undefined): string | null {
