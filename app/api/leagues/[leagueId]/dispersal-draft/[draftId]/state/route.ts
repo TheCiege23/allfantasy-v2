@@ -31,7 +31,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ leagueId: stri
     if (!state) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
     return NextResponse.json(state)
   } catch (err) {
-    console.error('[dispersal-draft]', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[dispersal-draft/[draftId]/state GET]', e.message, e.stack)
+    return NextResponse.json({ error: e.message || 'Internal server error' }, { status: 500 })
   }
 }

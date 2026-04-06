@@ -27,9 +27,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const detail = await getDispersalDraftDetail(leagueId, draftId)
-    if (!detail) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
-    return NextResponse.json(detail)
+    const state = await DispersalDraftEngine.getDraftState(draftId)
+    if (!state || state.leagueId !== leagueId) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+    }
+    return NextResponse.json(state)
   } catch (err: unknown) {
     const e = err instanceof Error ? err : new Error(String(err))
     console.error('[dispersal-draft/[draftId] GET]', e?.message, e?.stack)
@@ -74,7 +76,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ leagueId:
         const detail = await getDispersalDraftDetail(leagueId, draftId)
         return NextResponse.json({ state, detail })
       } catch (e) {
-        console.error('[dispersal-draft]', e)
+        console.error('[dispersal-draft/[draftId] PATCH start]', e instanceof Error ? e.message : e, e instanceof Error ? e.stack : '')
         const msg = e instanceof Error ? e.message : 'Start failed'
         return NextResponse.json({ error: msg }, { status: 400 })
       }
@@ -92,7 +94,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ leagueId:
         const detail = await getDispersalDraftDetail(leagueId, draftId)
         return NextResponse.json({ state, detail })
       } catch (e) {
-        console.error('[dispersal-draft]', e)
+        console.error('[dispersal-draft/[draftId] PATCH make_pick]', e instanceof Error ? e.message : e, e instanceof Error ? e.stack : '')
         const msg = e instanceof Error ? e.message : 'Pick failed'
         return NextResponse.json({ error: msg }, { status: 400 })
       }
@@ -106,7 +108,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ leagueId:
         const detail = await getDispersalDraftDetail(leagueId, draftId)
         return NextResponse.json({ state, detail })
       } catch (e) {
-        console.error('[dispersal-draft]', e)
+        console.error('[dispersal-draft/[draftId] PATCH auto_pick]', e instanceof Error ? e.message : e, e instanceof Error ? e.stack : '')
         const msg = e instanceof Error ? e.message : 'Auto-pick failed'
         return NextResponse.json({ error: msg }, { status: 400 })
       }

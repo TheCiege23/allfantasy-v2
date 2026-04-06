@@ -11,37 +11,44 @@ import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string; draftId: string }> }) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { leagueId, draftId } = await ctx.params
-  if (!leagueId || !draftId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
-
   try {
-    await requireDispersalDraftForLeague(draftId, leagueId)
-  } catch (e) {
-    const status = (e as Error & { status?: number }).status ?? 404
-    return NextResponse.json({ error: 'Draft not found' }, { status })
-  }
+    const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = (await req.json().catch(() => ({}))) as { rosterId?: string }
-  let rosterId = typeof body.rosterId === 'string' ? body.rosterId.trim() : ''
-  if (!rosterId) {
-    const mine = await getCurrentUserRosterIdForLeague(leagueId, userId)
-    if (!mine) return NextResponse.json({ error: 'No roster in this league' }, { status: 403 })
-    rosterId = mine
-  }
+    const { leagueId, draftId } = await ctx.params
+    if (!leagueId || !draftId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
-  if (!(await canSubmitPickForRoster(leagueId, userId, rosterId))) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+    try {
+      await requireDispersalDraftForLeague(draftId, leagueId)
+    } catch (e) {
+      const status = (e as Error & { status?: number }).status ?? 404
+      return NextResponse.json({ error: 'Draft not found' }, { status })
+    }
 
-  try {
-    const state = await DispersalDraftEngine.advancePickOnTimeout(draftId, rosterId)
-    return NextResponse.json(state)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Advance failed'
-    return NextResponse.json({ error: msg }, { status: 400 })
+    const body = (await req.json().catch(() => ({}))) as { rosterId?: string }
+    let rosterId = typeof body.rosterId === 'string' ? body.rosterId.trim() : ''
+    if (!rosterId) {
+      const mine = await getCurrentUserRosterIdForLeague(leagueId, userId)
+      if (!mine) return NextResponse.json({ error: 'No roster in this league' }, { status: 403 })
+      rosterId = mine
+    }
+
+    if (!(await canSubmitPickForRoster(leagueId, userId, rosterId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    try {
+      const state = await DispersalDraftEngine.advancePickOnTimeout(draftId, rosterId)
+      return NextResponse.json(state)
+    } catch (e) {
+      const ex = e instanceof Error ? e : new Error(String(e))
+      console.error('[dispersal-draft/[draftId]/timeout POST inner]', ex.message, ex.stack)
+      return NextResponse.json({ error: ex.message || 'Advance failed' }, { status: 400 })
+    }
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[dispersal-draft/[draftId]/timeout POST]', e.message, e.stack)
+    return NextResponse.json({ error: e.message || 'Internal server error' }, { status: 500 })
   }
 }

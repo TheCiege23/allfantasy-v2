@@ -48,7 +48,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
       participants: row?.participants ?? [],
     })
   } catch (err) {
-    console.error('[dispersal-draft]', err)
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[dispersal-draft GET]', e.message, e.stack)
     return NextResponse.json({ error: 'Internal server error', data: null, draft: null }, { status: 500 })
   }
 }
@@ -164,12 +165,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
         draftId: draftState.id,
       })
     } catch (e) {
-      console.error('[dispersal-draft]', e)
-      const msg = e instanceof Error ? e.message : 'Failed to create draft'
+      const ex = e instanceof Error ? e : new Error(String(e))
+      console.error('[dispersal-draft POST createDraft]', ex.message, ex.stack)
+      const msg = ex.message || 'Failed to create draft'
       return NextResponse.json({ error: msg, data: null, draft: null }, { status: 400 })
     }
   } catch (err) {
-    console.error('[dispersal-draft]', err)
+    const e = err instanceof Error ? err : new Error(String(err))
+    console.error('[dispersal-draft POST]', e.message, e.stack)
     return NextResponse.json({ error: 'Internal server error', data: null, draft: null }, { status: 500 })
   }
 }
