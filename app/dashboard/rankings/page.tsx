@@ -427,10 +427,190 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
     error: null,
     successMessage: null,
   })
+  const [isImporting, setImporting] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [totalSeasons, setTotalSeasons] = useState(0)
+  const [currentSeason, setCurrentSeason] = useState<number | null>(null)
+  const [seasonIndex, setSeasonIndex] = useState(0)
+  const [leaguesSaved, setLeaguesSaved] = useState(0)
+  const [completedSeasons, setCompletedSeasons] = useState<
+    { season: number; leagues: number; level?: number }[]
+  >([])
+  const [currentLevel, setCurrentLevel] = useState<number | null>(null)
+  const [currentTier, setCurrentTier] = useState<string | null>(null)
+  const [currentXp, setCurrentXp] = useState<number | null>(null)
 
   const selectedPlatform = useMemo(
     () => PLATFORMS.find((entry) => entry.id === state.platform) ?? PLATFORMS[0],
     [state.platform]
+  )
+
+  const runClientSideImport = useCallback(
+    async (sleeperUsername: string) => {
+      setImporting(true)
+      setImportError(null)
+      setTotalSeasons(0)
+      setCurrentSeason(null)
+      setSeasonIndex(0)
+      setLeaguesSaved(0)
+      setCompletedSeasons([])
+      setCurrentLevel(null)
+      setCurrentTier(null)
+      setCurrentXp(null)
+
+      try {
+        const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername)}`)
+        if (!userRes.ok) throw new Error('Sleeper user not found')
+        const sleeperUser = (await userRes.json()) as { user_id?: string }
+        const sleeperUserId = sleeperUser.user_id
+        if (!sleeperUserId) throw new Error('Sleeper user not found')
+
+        const currentYear = new Date().getFullYear()
+        const years = Array.from({ length: currentYear - 2016 }, (_, i) => 2017 + i)
+        const seasonsWithLeagues: number[] = []
+
+        for (const year of years) {
+          const r = await fetch(`https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${year}`)
+          const data = await r.json()
+          if (Array.isArray(data) && data.length > 0) {
+            seasonsWithLeagues.push(year)
+          }
+        }
+
+        if (seasonsWithLeagues.length === 0) {
+          throw new Error('No Sleeper leagues found for this username')
+        }
+
+        setTotalSeasons(seasonsWithLeagues.length)
+
+        for (let i = 0; i < seasonsWithLeagues.length; i++) {
+          const season = seasonsWithLeagues[i]
+          setCurrentSeason(season)
+          setSeasonIndex(i)
+
+          try {
+            const leagueRes = await fetch(
+              `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${season}`
+            )
+            const sleeperLeagues = await leagueRes.json()
+            if (!Array.isArray(sleeperLeagues)) continue
+
+            const leagueRecords: Array<{
+              platformLeagueId: string
+              name: string
+              season: number
+              leagueSize: number
+              importWins: number
+              importLosses: number
+              importTies: number
+              importMadePlayoffs: boolean
+              importWonChampionship: boolean
+              importFinalStanding: number | null
+              importPointsFor: number | null
+            }> = []
+
+            for (const league of sleeperLeagues as Array<{
+              league_id?: string
+              name?: string
+              total_rosters?: number
+              settings?: { playoff_teams?: number }
+            }>) {
+              try {
+                const lid = league.league_id
+                if (!lid) continue
+                const rosterRes = await fetch(`https://api.sleeper.app/v1/league/${lid}/rosters`)
+                const rosters = await rosterRes.json()
+                const mine = Array.isArray(rosters)
+                  ? (rosters as Array<{
+                      owner_id?: string
+                      co_owners?: string[]
+                      settings?: {
+                        wins?: number
+                        losses?: number
+                        ties?: number
+                        fpts?: number
+                        final_standing?: number
+                      }
+                    }>).find(
+                      (row) =>
+                        row.owner_id === sleeperUserId || row.co_owners?.includes(sleeperUserId)
+                    )
+                  : null
+
+                const totalTeams = league.total_rosters ?? 12
+                const playoffTeams =
+                  league.settings?.playoff_teams ?? Math.ceil(totalTeams / 3)
+                const finalStanding = mine?.settings?.final_standing ?? null
+
+                leagueRecords.push({
+                  platformLeagueId: String(lid),
+                  name: league.name ?? `League ${lid}`,
+                  season,
+                  leagueSize: totalTeams,
+                  importWins: mine?.settings?.wins ?? 0,
+                  importLosses: mine?.settings?.losses ?? 0,
+                  importTies: mine?.settings?.ties ?? 0,
+                  importMadePlayoffs: finalStanding ? finalStanding <= playoffTeams : false,
+                  importWonChampionship: finalStanding === 1,
+                  importFinalStanding: finalStanding,
+                  importPointsFor: mine?.settings?.fpts ?? null,
+                })
+              } catch {
+                // skip individual league error
+              }
+            }
+
+            const isLastSeason = i === seasonsWithLeagues.length - 1
+            const batchRes = await fetch('/api/leagues/import/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                season,
+                leagues: leagueRecords,
+                sleeperUserId,
+                isLastSeason,
+              }),
+            })
+            const batchData = (await batchRes.json().catch(() => ({}))) as {
+              xpLevel?: number
+              rankTier?: string | null
+              xpTotal?: number | null
+              error?: string
+            }
+            if (!batchRes.ok) {
+              throw new Error(
+                typeof batchData.error === 'string' ? batchData.error : 'Failed to save import batch'
+              )
+            }
+
+            if (batchData.xpLevel != null) {
+              setCurrentLevel(batchData.xpLevel)
+              setCurrentTier(batchData.rankTier ?? null)
+              setCurrentXp(batchData.xpTotal ?? null)
+            }
+
+            setCompletedSeasons((prev) => [
+              ...prev,
+              { season, leagues: leagueRecords.length, level: batchData.xpLevel },
+            ])
+            setLeaguesSaved((prev) => prev + leagueRecords.length)
+          } catch (seasonErr) {
+            console.error(`[import] season ${season}:`, seasonErr)
+          }
+
+          await new Promise((r) => setTimeout(r, 300))
+        }
+
+        setImporting(false)
+        onImportSuccess()
+        router.push('/dashboard/rankings?imported=true&done=true')
+      } catch (err: unknown) {
+        setImportError(err instanceof Error ? err.message : 'Import failed')
+        setImporting(false)
+      }
+    },
+    [onImportSuccess, router]
   )
 
   const handleImport = useCallback(async () => {
@@ -447,44 +627,102 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
 
     setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
-    try {
-      const response = await fetch('/api/leagues/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username: state.username.trim().toLowerCase() }),
-      })
-      const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
-      if (!response.ok) {
-        throw new Error(mapLegacyImportError(data, response.status))
-      }
-      const jobId = typeof data.jobId === 'string' ? data.jobId : null
-      if (data.success === true && jobId) {
-        setState((current) => ({ ...current, loading: false, error: null, successMessage: null }))
-        router.push(`/dashboard/rankings?jobId=${encodeURIComponent(jobId)}`)
-        onImportSuccess()
-        return
-      }
-      const msg =
-        typeof data.message === 'string'
-          ? data.message
-          : 'Import queued. Your rank updates as each season finishes.'
-      setState((current) => ({
-        ...current,
-        loading: false,
-        successMessage: msg,
-        error: null,
-      }))
-      onImportSuccess()
-    } catch (error: unknown) {
-      setState((current) => ({
-        ...current,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Import failed',
-      }))
-      return
-    }
-  }, [onImportSuccess, router, selectedPlatform.label, state.platform, state.username])
+    await runClientSideImport(state.username.trim().toLowerCase())
+    setState((current) => ({ ...current, loading: false, error: null, successMessage: null }))
+  }, [router, runClientSideImport, selectedPlatform.label, state.platform, state.username])
+
+  if (isImporting) {
+    const pct =
+      totalSeasons > 0 ? Math.round((seasonIndex / totalSeasons) * 100) : 0
+    return (
+      <div
+        className="rounded-2xl border border-white/8 bg-gradient-to-br from-[#12082a] to-[#0a0a1e] p-6 shadow-2xl"
+        data-testid="client-import-progress"
+      >
+        <div style={{ textAlign: 'center', padding: 32 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#f8fafc' }}>
+            Importing your history...
+          </div>
+          <div style={{ fontSize: 13, color: 'gray', marginBottom: 20 }}>
+            {currentSeason != null
+              ? `Season ${currentSeason} (${seasonIndex + 1} of ${totalSeasons})`
+              : 'Discovering seasons...'}
+          </div>
+
+          <div
+            style={{
+              height: 8,
+              background: '#eee',
+              borderRadius: 4,
+              margin: '0 auto 20px',
+              maxWidth: 400,
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                borderRadius: 4,
+                width: `${pct}%`,
+                background: '#185FA5',
+                transition: 'width 0.5s',
+              }}
+            />
+          </div>
+
+          {currentLevel != null ? (
+            <div style={{ fontSize: 14, color: '#185FA5' }}>
+              Current rank: Level {currentLevel}
+              {currentTier ? ` · ${currentTier}` : ''}
+              {currentXp != null ? <span> · {currentXp.toLocaleString()} XP</span> : null}
+            </div>
+          ) : null}
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              marginTop: 16,
+            }}
+          >
+            {completedSeasons.map((s) => (
+              <span
+                key={s.season}
+                style={{
+                  background: '#EAF3DE',
+                  color: '#27500A',
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                }}
+              >
+                ✓ {s.season} ({s.leagues} leagues)
+              </span>
+            ))}
+            {currentSeason != null && !completedSeasons.find((x) => x.season === currentSeason) ? (
+              <span
+                style={{
+                  background: '#E6F1FB',
+                  color: '#0C447C',
+                  padding: '3px 10px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                  border: '1px solid #185FA5',
+                }}
+              >
+                ⟳ {currentSeason}...
+              </span>
+            ) : null}
+          </div>
+
+          <div style={{ marginTop: 16, fontSize: 13, color: 'gray' }}>
+            {leaguesSaved} leagues saved so far
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-2xl border border-white/8 bg-gradient-to-br from-[#12082a] to-[#0a0a1e] p-6 shadow-2xl">
@@ -544,9 +782,9 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         </div>
       ) : null}
 
-      {state.error ? (
+      {(state.error || importError) ? (
         <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {state.error}
+          {importError ?? state.error}
         </div>
       ) : null}
 
@@ -767,6 +1005,26 @@ function CalculatingRankState({ onRetry }: { onRetry: () => void }) {
           className="mt-6 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-white/80 hover:border-cyan-500/35 hover:text-white"
         >
           Refresh now
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RankImportTimeoutState() {
+  const router = useRouter()
+  return (
+    <div className="space-y-6" data-testid="rank-import-timeout">
+      <div className="rounded-3xl border border-amber-500/25 bg-gradient-to-br from-[#0a1228] to-[#07071a] p-10 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+        <p className="text-sm text-white/90">
+          Import didn&apos;t complete — this can happen due to a timeout.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push('/dashboard/rankings')}
+          className="mt-6 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-4 py-2.5 text-sm font-semibold text-cyan-100 hover:border-cyan-400/50 hover:text-white"
+        >
+          Try importing again
         </button>
       </div>
     </div>
@@ -1070,6 +1328,7 @@ function MyRankingsPageInner() {
   const [apiTier, setApiTier] = useState<string | null>(null)
   const [levelRank, setLevelRank] = useState<RankLevelApiPayload | null>(null)
   const justImported = searchParams.get('imported') === 'true'
+  const importDone = searchParams.get('done') === 'true'
   const jobIdParam = searchParams.get('jobId')
   const [jobProgress, setJobProgress] = useState<ImportJobProgressResponse | null>(null)
   const [jobProgressError, setJobProgressError] = useState<string | null>(null)
@@ -1081,6 +1340,7 @@ function MyRankingsPageInner() {
   const [importPhasedBannerDismissed, setImportPhasedBannerDismissed] = useState(false)
   const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams.get('jobId')))
   const [showLevelUpBurst, setShowLevelUpBurst] = useState(false)
+  const [importStuck, setImportStuck] = useState(false)
   const completedJobHandledRef = useRef<string | null>(null)
   const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialImportLevelRef = useRef<number | null>(null)
@@ -1144,6 +1404,26 @@ function MyRankingsPageInner() {
   useEffect(() => {
     void loadRank()
   }, [loadRank])
+
+  /** After client-side import, force recalculate from DB and show rank without endless polling. */
+  useEffect(() => {
+    if (!justImported || !importDone) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        await fetch('/api/user/rank?recalculate=true', { cache: 'no-store', credentials: 'include' })
+        if (cancelled) return
+        await loadRank({ silent: true })
+      } finally {
+        if (!cancelled) {
+          router.replace('/dashboard/rankings', { scroll: false })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [justImported, importDone, loadRank, router])
 
   useEffect(() => {
     if (!jobIdParam) {
@@ -1418,7 +1698,11 @@ function MyRankingsPageInner() {
         ) : !rank && importProcessing && justImported && !rankFetchError ? (
           <ProcessingImportState />
         ) : apiImported && !apiTier && !rankFetchError ? (
-          <CalculatingRankState onRetry={() => void loadRank({ silent: true })} />
+          importStuck ? (
+            <RankImportTimeoutState />
+          ) : (
+            <CalculatingRankState onRetry={() => void loadRank({ silent: true })} />
+          )
         ) : !apiImported ? (
           <EmptyRankState
             onImported={() => {
