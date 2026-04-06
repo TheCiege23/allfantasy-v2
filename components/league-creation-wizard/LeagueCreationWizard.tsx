@@ -96,18 +96,14 @@ function StepPanelSkeleton() {
   )
 }
 
-const STEP_LABELS: Record<WizardStepId, string> = {
+type ActiveWizardStepId = (typeof WIZARD_STEP_ORDER)[number]
+
+const STEP_LABELS: Record<ActiveWizardStepId, string> = {
   sport: 'Sport & format',
-  league_type: 'League Type',
-  draft_type: 'Draft Type',
   team_setup: 'League details',
   scoring: 'Scoring & schedule',
   draft_settings: 'Draft settings',
-  waiver_settings: 'Waiver Settings',
-  playoff_settings: 'Playoff Settings',
-  schedule_settings: 'Schedule Settings',
   ai_settings: 'Draft help & AI',
-  automation: 'Automation Settings',
   privacy: 'Privacy',
   review: 'Review',
 }
@@ -359,7 +355,10 @@ export function LeagueCreationWizard({
   const stepIndex = WIZARD_STEP_ORDER.indexOf(state.step)
   const currentStepNumber = stepIndex + 1
   const totalSteps = WIZARD_STEP_ORDER.length
-  const stepLabel = STEP_LABELS[state.step]
+  const stepLabel =
+    state.step in STEP_LABELS
+      ? STEP_LABELS[state.step as ActiveWizardStepId]
+      : STEP_LABELS.sport
   const stepValidationError = useMemo(() => {
     if (state.step === 'sport') {
       if (!isLeagueTypeAllowedForSport(state.leagueType, state.sport)) {
@@ -367,18 +366,6 @@ export function LeagueCreationWizard({
       }
       if (!isDraftTypeAllowedForLeagueType(state.draftType, state.leagueType)) {
         return 'Draft style is not valid for the selected format.'
-      }
-      return null
-    }
-    if (state.step === 'league_type') {
-      if (!isLeagueTypeAllowedForSport(state.leagueType, state.sport)) {
-        return 'League type is not valid for this sport.'
-      }
-      return null
-    }
-    if (state.step === 'draft_type') {
-      if (!isDraftTypeAllowedForLeagueType(state.draftType, state.leagueType)) {
-        return 'Draft type is not valid for the selected league type.'
       }
       return null
     }
