@@ -94,7 +94,7 @@ describe("notification center services", () => {
         meta: { leagueId: "league-123", sport: "ncaaf" },
       })
     )
-    expect(draft).toEqual({ href: "/app/league/league-123/draft?sport=NCAAF", label: "Open draft" })
+    expect(draft).toEqual({ href: "/league/league-123/draft?sport=NCAAF", label: "Open draft" })
 
     const blockedDeepLink = getNotificationDestination(
       makeNotification({
