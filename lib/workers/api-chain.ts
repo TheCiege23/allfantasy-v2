@@ -14,7 +14,7 @@ import {
   type ChainFetchResult,
 } from '@/lib/workers/api-config'
 import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
-import { rollingInsightsProvider as fetchRollingInsightsRest } from '@/lib/workers/providers/rolling-insights'
+import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insights'
 import { persistNormalizedSportsRows } from '@/lib/workers/sports-cache-persist'
 
 function isPopulatedResult(value: unknown): boolean {
@@ -51,6 +51,7 @@ async function saveToNormalizedTables(sport: string, dataType: string, data: unk
 
 /**
  * DB-first sports fetch: SportsDataCache → Rolling Insights → api-sports fallback.
+ * Cache key uses `sport`, `dataType`, and `JSON.stringify(options ?? {})` (query is not part of the key).
  */
 export async function fetchWithChain(
   params: ApiFetchParams & { forceRefresh?: boolean }
@@ -61,9 +62,13 @@ export async function fetchWithChain(
   }
 
   const { dataType, forceRefresh } = params
-  const ttl = API_CHAIN_TTLS[dataType as ApiDataType] ?? ttlSecondsForDataType(dataType as ApiDataType)
+  const dt = String(dataType)
+  const ttl =
+    dt in API_CHAIN_TTLS
+      ? API_CHAIN_TTLS[dt as ApiDataType]
+      : ttlSecondsForDataType(dt)
+  const cacheKey = `${chainSport}:${dt}:${JSON.stringify(params.options ?? {})}`
   const merged = mergeQuery(params)
-  const cacheKey = `${chainSport}:${dataType}:${JSON.stringify(merged)}`
 
   // 1. CHECK DB CACHE FIRST (skip if forceRefresh)
   if (!forceRefresh) {
@@ -71,7 +76,7 @@ export async function fetchWithChain(
       const cached = await prisma.sportsDataCache.findFirst({
         where: {
           sport: chainSport,
-          dataType,
+          dataType: dt,
           cacheKey,
           expiresAt: { gt: new Date() },
         },
@@ -96,16 +101,15 @@ export async function fetchWithChain(
   // 2. CACHE MISS — Rolling Insights (primary for all 7 sports)
   let result: ChainFetchResult | null = null
 
-  /** Live / game scores: Rolling Insights only (no api-sports fallback). TTL from API_CHAIN_TTLS.scores (60s). */
-  const skipApiSportsFallback =
-    dataType === 'scores' || dataType === 'live_game' || dataType === 'games'
+  const skipApiSportsFallback = dt === 'scores' || dt === 'live_game' || dt === 'games'
 
   if (isRollingInsightsEnabledForSport(chainSport)) {
     try {
       const startedRi = Date.now()
-      const ri = await fetchRollingInsightsRest({
+      const ri = await rollingInsightsProvider({
         ...params,
         sport: chainSport,
+        dataType: dt,
         query: merged,
       })
       if (isPopulatedResult(ri.data)) {
@@ -118,14 +122,14 @@ export async function fetchWithChain(
         }
       }
     } catch (e) {
-      console.warn(`[api-chain] Rolling Insights failed ${chainSport}/${dataType}:`, e)
+      console.warn(`[api-chain] Rolling Insights failed ${chainSport}/${dt}:`, e)
     }
   }
 
-  // 3. FALLBACK to api-sports if RI failed (not for live scores)
+  // 3. FALLBACK to api-sports if RI failed (not for live scores / games)
   if (!isPopulatedResult(result?.data) && !skipApiSportsFallback) {
     try {
-      const normalized: ApiFetchParams = { ...params, sport: chainSport, query: merged }
+      const normalized: ApiFetchParams = { ...params, sport: chainSport, dataType: dt, query: merged }
       const startedAt = Date.now()
       if (apiSportsProvider.supports(normalized)) {
         const data = await apiSportsProvider.fetch(normalized)
@@ -152,7 +156,7 @@ export async function fetchWithChain(
       update: { data: ok.data as object, expiresAt, updatedAt: new Date() },
       create: {
         sport: chainSport,
-        dataType,
+        dataType: dt,
         cacheKey,
         data: ok.data as object,
         expiresAt,
@@ -162,8 +166,8 @@ export async function fetchWithChain(
     console.error('[api-chain] cache save failed:', e)
   }
 
-  // 5. Normalized tables (players / injuries / news)
-  await saveToNormalizedTables(chainSport, dataType, ok.data).catch(() => {})
+  // 5. ALSO SAVE to normalized tables (SportsPlayer, SportsInjury, SportsNews)
+  await saveToNormalizedTables(chainSport, dt, ok.data).catch(() => {})
 
   return {
     data: ok.data,
@@ -178,7 +182,7 @@ export async function fetchWithChain(
 export class ApiChain {
   async fetch<T = unknown>(params: {
     sport: ApiFetchParams['sport']
-    dataType: ApiDataType
+    dataType: ApiDataType | string
     query?: Record<string, unknown>
     options?: Record<string, unknown>
     forceRefresh?: boolean

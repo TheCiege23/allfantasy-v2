@@ -1,6 +1,5 @@
 import {
   type ApiChainSport,
-  type ApiDataType,
   type ApiFetchParams,
   type ChainFetchResult,
   toApiChainSport,
@@ -8,12 +7,12 @@ import {
 
 const SPORT_PATH: Record<ApiChainSport, string> = {
   nfl: 'nfl',
-  nba: 'nba',
   mlb: 'mlb',
   nhl: 'nhl',
-  nascar: 'nascar',
-  pga: 'pga',
-  mls: process.env.ROLLING_INSIGHTS_SOCCER_PATH?.trim() || 'mls',
+  nba: 'nba',
+  ncaab: 'ncaab',
+  ncaaf: 'ncaaf',
+  soccer_euro: 'soccer/euro',
 }
 
 const DATA_TYPE_PATH: Record<string, string> = {
@@ -28,16 +27,16 @@ const DATA_TYPE_PATH: Record<string, string> = {
   rankings: 'rankings',
   adp: 'adp',
   roster: 'rosters',
-  games: 'scores',
-  live_game: 'scores',
-  player_headshots: 'players',
-  team_logos: 'teams',
-  trending: 'trending',
-  rolling_insights: 'feed',
 }
 
-function pathForDataType(dataType: ApiDataType): string {
-  return DATA_TYPE_PATH[dataType] ?? dataType
+function pathSegmentForDataType(dataType: string): string {
+  if (DATA_TYPE_PATH[dataType]) return DATA_TYPE_PATH[dataType]
+  if (dataType === 'games' || dataType === 'live_game') return 'scores'
+  if (dataType === 'player_headshots') return 'players'
+  if (dataType === 'team_logos') return 'teams'
+  if (dataType === 'rolling_insights') return 'feed'
+  if (dataType === 'trending') return 'trending'
+  return dataType
 }
 
 function extractPayload(json: unknown): unknown {
@@ -57,8 +56,7 @@ function extractPayload(json: unknown): unknown {
  * Always returns { data, fromCache: false, error? }.
  */
 export async function rollingInsightsProvider(params: ApiFetchParams): Promise<ChainFetchResult> {
-  const apiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim()
-  if (!apiKey) {
+  if (!process.env.ROLLING_INSIGHTS_API_KEY) {
     console.error('[rolling-insights] ROLLING_INSIGHTS_API_KEY not set')
     return { data: null, error: 'API key not configured', fromCache: false }
   }
@@ -69,12 +67,10 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
   }
 
   const base =
-    process.env.ROLLING_INSIGHTS_BASE_URL?.trim().replace(/\/+$/, '') ??
-    process.env.ROLLING_INSIGHTS_REST_BASE?.trim().replace(/\/+$/, '') ??
-    'https://api.rollinginsights.com/v1'
-
-  const pathSeg = pathForDataType(params.dataType)
-  const url = new URL(`${base}/${SPORT_PATH[chainSport]}/${pathSeg}`)
+    process.env.ROLLING_INSIGHTS_BASE_URL?.trim().replace(/\/+$/, '') ?? 'https://api.rollinginsights.com/v1'
+  const sportSeg = SPORT_PATH[chainSport]
+  const dataSeg = pathSegmentForDataType(String(params.dataType))
+  const url = new URL(`${base}/${sportSeg}/${dataSeg}`)
   const merged = { ...(params.query ?? {}), ...(params.options ?? {}) }
   Object.entries(merged).forEach(([k, v]) => {
     if (v == null) return
@@ -85,7 +81,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
   try {
     const res = await fetch(url.toString(), {
       headers: {
-        'x-api-key': apiKey,
+        'x-api-key': process.env.ROLLING_INSIGHTS_API_KEY ?? '',
         Accept: 'application/json',
       },
       cache: 'no-store',

@@ -1,7 +1,15 @@
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 /** Rolling Insights REST + cache chain — canonical lowercase keys (7 sports). */
-export const SUPPORTED_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'nascar', 'pga', 'mls'] as const
+export const SUPPORTED_SPORTS = [
+  'nfl',
+  'mlb',
+  'nhl',
+  'nba',
+  'ncaab',
+  'ncaaf',
+  'soccer_euro',
+] as const
 
 export type ApiChainSport = (typeof SUPPORTED_SPORTS)[number]
 
@@ -30,21 +38,15 @@ export const API_CHAIN_TTLS = {
   roster: 3600,
   rolling_insights: 1800,
   adp: 21600,
-  /** Alias for live / game lists (same as scores). */
-  games: 60,
-  /** Stats / misc. */
-  stats: 3600,
-  depth_charts: 3600,
-  team_stats: 3600,
 } as const
 
 export type ApiDataType = keyof typeof API_CHAIN_TTLS
 
 export interface ApiFetchParams {
   sport: ApiChainSport | SupportedSport | string
-  dataType: ApiDataType
+  dataType: ApiDataType | string
   query?: Record<string, unknown>
-  /** Alias for query (e.g. from route JSON). Merged into query. */
+  /** Alias for query (e.g. from route JSON). Merged into provider requests. */
   options?: Record<string, unknown>
   forceRefresh?: boolean
 }
@@ -75,6 +77,14 @@ export interface ChainFetchResult<T = unknown> {
   latency?: number
 }
 
+/** Rolling Insights enabled for all 7 chain sports. */
+export function isRollingInsightsEnabledForSport(sport: ApiChainSport | string): boolean {
+  if (typeof sport === 'string') {
+    return toApiChainSport(sport) != null
+  }
+  return true
+}
+
 export function isSupportedApiChainSport(value: string): value is ApiChainSport {
   return (SUPPORTED_SPORTS as readonly string[]).includes(value.toLowerCase())
 }
@@ -91,14 +101,13 @@ export function toApiChainSport(input: string | SupportedSport | undefined): Api
     nba: 'nba',
     mlb: 'mlb',
     nhl: 'nhl',
-    nascar: 'nascar',
-    pga: 'pga',
-    mls: 'mls',
-    soccer: 'mls',
-    soccer_euro: 'mls',
-    euro: 'mls',
-    ncaab: 'nba',
-    ncaaf: 'nfl',
+    ncaab: 'ncaab',
+    ncaaf: 'ncaaf',
+    soccer: 'soccer_euro',
+    soccer_euro: 'soccer_euro',
+    euro: 'soccer_euro',
+    epl: 'soccer_euro',
+    mls: 'soccer_euro',
   }
   if (map[lower]) return map[lower]
 
@@ -117,9 +126,9 @@ export function legacySupportedSportToApiChain(sport: SupportedSport): ApiChainS
     NBA: 'nba',
     MLB: 'mlb',
     NHL: 'nhl',
-    NCAAB: 'nba',
-    NCAAF: 'nfl',
-    SOCCER: 'mls',
+    NCAAB: 'ncaab',
+    NCAAF: 'ncaaf',
+    SOCCER: 'soccer_euro',
   }
   return m[sport]
 }
@@ -131,22 +140,11 @@ export function apiChainSportToDbSport(sport: ApiChainSport): string {
     nba: 'NBA',
     mlb: 'MLB',
     nhl: 'NHL',
-    nascar: 'NASCAR',
-    pga: 'PGA',
-    mls: 'MLS',
+    ncaab: 'NCAAB',
+    ncaaf: 'NCAAF',
+    soccer_euro: 'SOCCER_EURO',
   }
   return m[sport]
-}
-
-/**
- * Rolling Insights is enabled for every supported chain sport (all 7).
- * Resolves aliases (e.g. SOCCER → mls) then checks membership in SUPPORTED_SPORTS.
- */
-export function isRollingInsightsEnabledForSport(sport: string | SupportedSport | ApiChainSport): boolean {
-  const chain =
-    typeof sport === 'string' ? toApiChainSport(sport) : legacySupportedSportToApiChain(sport as SupportedSport)
-  if (chain == null) return false
-  return (SUPPORTED_SPORTS as readonly string[]).includes(chain)
 }
 
 export function isImageDataType(dataType: ApiDataType): boolean {
@@ -158,7 +156,7 @@ export function normalizeApiSport(sport: string | SupportedSport | undefined): S
 }
 
 /**
- * Legacy flags for lib/provider-config.ts and lib/rolling-insights.ts (all enabled).
+ * Legacy flags for lib/provider-config.ts (all enabled for chain sports).
  */
 export const ROLLING_INSIGHTS_SPORTS = {
   NFL: true,
@@ -171,6 +169,9 @@ export const ROLLING_INSIGHTS_SPORTS = {
   Soccer: true,
 } as const
 
-export function ttlSecondsForDataType(dataType: ApiDataType): number {
-  return API_CHAIN_TTLS[dataType] ?? 900
+export function ttlSecondsForDataType(dataType: string): number {
+  const key = dataType as keyof typeof API_CHAIN_TTLS
+  if (key in API_CHAIN_TTLS) return API_CHAIN_TTLS[key]
+  if (dataType === 'games') return API_CHAIN_TTLS.scores
+  return 900
 }

@@ -60,6 +60,7 @@ model QuestionnaireResponse {
   @@index([email])
 }
 
+/// Row key is `cacheKey` (mapped column `key`) — unique by definition as @id.
 model SportsDataCache {
   cacheKey  String   @id @map("key")
   sport     String   @default("")
@@ -251,6 +252,7 @@ model SportsNews {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  /// Dedupe key for upserts; `sourceId` mirrors provider id when present.
   @@unique([sport, externalId, source])
   @@index([sport, publishedAt])
   @@index([playerName])
@@ -502,7 +504,7 @@ model LegacyImportJob {
   importJobSeasons     ImportJobSeason[]
 
   @@index([userId, status])
-  @@index([appUserId])
+  @@index([appUserId, status])
 }
 
 /// Per-season row for phased Sleeper NFL import (`processImportJob`).
@@ -524,7 +526,7 @@ model ImportJobSeason {
   job            LegacyImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   @@unique([jobId, season])
-  @@index([jobId])
+  @@index([jobId, status])
   @@map("import_job_seasons")
 }
 

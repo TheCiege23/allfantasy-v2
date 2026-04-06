@@ -13,10 +13,9 @@ const SWEEP_TYPES: ApiDataType[] = [
   'standings',
 ]
 
-/** Must match `fetchWithChain` (empty merged query/options → `{}`). */
+/** Must match `fetchWithChain` (`options` only; default → `{}`). */
 export function defaultSportsCacheKey(sport: ApiChainSport, dataType: ApiDataType): string {
-  const merged: Record<string, unknown> = {}
-  return `${sport}:${dataType}:${JSON.stringify(merged)}`
+  return `${sport}:${dataType}:${JSON.stringify({})}`
 }
 
 /**

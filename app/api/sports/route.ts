@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+
 import { authOptions } from '@/lib/auth'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { API_CHAIN_TTLS, SUPPORTED_SPORTS, toApiChainSport } from '@/lib/workers/api-config'
-import type { ApiDataType } from '@/lib/workers/api-config'
+import type { ApiChainSport, ApiDataType } from '@/lib/workers/api-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,11 +22,11 @@ async function handleSports(req: {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const sport = (req.sport || 'nfl').toLowerCase()
-  const chainSport = toApiChainSport(sport)
-  if (!chainSport) {
+  const sportRaw = (req.sport || 'nfl').toLowerCase()
+  const chainSport = toApiChainSport(sportRaw) as ApiChainSport | null
+  if (!chainSport || !(SUPPORTED_SPORTS as readonly string[]).includes(chainSport)) {
     return NextResponse.json(
-      { error: `Unsupported sport: ${sport}. Supported: ${SUPPORTED_SPORTS.join(', ')}` },
+      { error: `Unsupported sport: ${sportRaw}. Supported: ${SUPPORTED_SPORTS.join(', ')}` },
       { status: 400 }
     )
   }
@@ -43,37 +44,11 @@ async function handleSports(req: {
     forceRefresh: req.forceRefresh,
   })
 
-  const fetchedAt =
-    result.fromCache && typeof result.cacheAge === 'number'
-      ? new Date(Date.now() - result.cacheAge * 1000).toISOString()
-      : new Date().toISOString()
-
-  if (!result.data) {
-    return NextResponse.json(
-      {
-        sport,
-        dataType,
-        fromCache: result.fromCache,
-        cacheAge: result.cacheAge ?? null,
-        source: result.source ?? null,
-        cached: result.fromCache,
-        fetchedAt,
-        count: null,
-        data: null,
-        error: result.error ?? 'All providers failed',
-      },
-      { status: 502 }
-    )
-  }
-
   return NextResponse.json({
-    sport,
+    sport: chainSport,
     dataType,
     fromCache: result.fromCache,
     cacheAge: result.cacheAge ?? null,
-    source: result.source ?? null,
-    cached: result.fromCache,
-    fetchedAt,
     count: Array.isArray(result.data) ? result.data.length : null,
     data: result.data,
     error: result.error ?? null,
@@ -85,8 +60,8 @@ const getSportsHandler = async (req: NextRequest) => {
     const { searchParams } = new URL(req.url)
     const forceRefresh = searchParams.get('refresh') === 'true'
     const identifier = searchParams.get('id') || undefined
-    let options: Record<string, unknown> | undefined
     const optionsRaw = searchParams.get('options')
+    let options: Record<string, unknown> | undefined
     if (optionsRaw) {
       try {
         options = JSON.parse(optionsRaw) as Record<string, unknown>
@@ -94,8 +69,7 @@ const getSportsHandler = async (req: NextRequest) => {
         return NextResponse.json({ error: 'Invalid options JSON' }, { status: 400 })
       }
     }
-
-    const mergedOptions = options ? { ...options } : {}
+    const mergedOptions: Record<string, unknown> = options ? { ...options } : {}
     if (identifier) {
       mergedOptions.id ??= identifier
       mergedOptions.identifier ??= identifier
