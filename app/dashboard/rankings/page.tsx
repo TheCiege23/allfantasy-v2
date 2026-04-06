@@ -1384,7 +1384,6 @@ function MyRankingsPageInner() {
             </svg>
             Dashboard
           </Link>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300/80">Dashboard</p>
           <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">My Rankings</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
             Your AllFantasy rank, AI grade, import flow, and league access rules in one place.
