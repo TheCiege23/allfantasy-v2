@@ -5,7 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
 import { processImportJob } from "@/lib/import/processImportJob";
+import { canChainImportSteps, scheduleImportSeasonStep } from "@/lib/import/triggerImportChain";
 import { SLEEPER_IMPORT_SPORTS } from "@/lib/league-import/sleeper/import-sports";
+import { waitUntil } from "@vercel/functions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,22 +163,40 @@ export async function POST(req: Request) {
       console.warn("[import] importJobSeason seed:", e);
     }
 
-    void processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      const stack = e instanceof Error ? e.stack : undefined;
-      console.error("[import] background worker crashed:", msg);
-      console.error("[import] stack:", stack);
-      return prisma.legacyImportJob
-        .update({
-          where: { id: job.id },
-          data: {
-            status: "error",
-            error: e instanceof Error ? e.message : String(e),
-            completedAt: new Date(),
-          },
-        })
-        .catch(() => null);
-    });
+    const runFullImport = () =>
+      processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        const stack = e instanceof Error ? e.stack : undefined;
+        console.error("[import] background worker crashed:", msg);
+        console.error("[import] stack:", stack);
+        return prisma.legacyImportJob
+          .update({
+            where: { id: job.id },
+            data: {
+              status: "error",
+              error: e instanceof Error ? e.message : String(e),
+              completedAt: new Date(),
+            },
+          })
+          .catch(() => null);
+      });
+
+    /** Vercel serverless drops fire-and-forget work after the response — chain one season per request when secrets + URL exist. */
+    if (canChainImportSteps()) {
+      scheduleImportSeasonStep({
+        jobId: job.id,
+        userId,
+        sleeperUserId,
+        seasons,
+        seasonIndex: 0,
+      });
+    } else {
+      try {
+        waitUntil(runFullImport());
+      } catch {
+        void runFullImport();
+      }
+    }
 
     return NextResponse.json({
       success: true,
