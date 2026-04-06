@@ -71,7 +71,8 @@ function tierLabelFromCode(tier: string | null | undefined): string {
 function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
   if (data.rank) return data.rank
   const cs = data.careerStats ?? data.stats ?? null
-  if (data.tier && data.xpTotal != null) {
+  if (data.tier) {
+    const xpNum = data.xpTotal ?? 0
     const m = /^T(\d+)/.exec(data.tier)
     const careerTier = m ? Math.min(10, Math.max(1, parseInt(m[1], 10))) : 1
     const tierName = data.tierName?.trim() || tierLabelFromCode(data.tier)
@@ -79,7 +80,7 @@ function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
       careerTier,
       careerTierName: tierName,
       careerLevel: data.xpLevel ?? 1,
-      careerXp: String(data.xpTotal),
+      careerXp: String(xpNum),
       aiReportGrade: 'B',
       aiScore: 70,
       aiInsight: 'Import your leagues to generate your AI insight.',
@@ -701,7 +702,6 @@ function MyRankingsPageInner() {
   const [showImport, setShowImport] = useState(false)
   const [importBannerDismissed, setImportBannerDismissed] = useState(false)
   const [recalculateLoading, setRecalculateLoading] = useState(false)
-
   const justImported = searchParams.get('imported') === 'true'
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {

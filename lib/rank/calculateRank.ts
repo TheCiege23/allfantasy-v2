@@ -39,9 +39,10 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
     const careerLosses = leagues.reduce((s, l) => s + (l.importLosses ?? 0), 0)
     const careerChampionships = leagues.filter((l) => l.importWonChampionship === true).length
     const careerPlayoffAppearances = leagues.filter((l) => l.importMadePlayoffs === true).length
-    // Match product spec: league-season rows drive “seasons played” metric; distinct seasons = leagues played span
-    const careerSeasonsPlayed = leagues.length
-    const careerLeaguesPlayed = new Set(leagues.map((l) => l.season)).size
+    /** Total league-season rows (e.g. 489 across years). */
+    const careerLeaguesPlayed = leagues.length
+    /** Distinct calendar seasons with at least one league (e.g. 29). */
+    const careerSeasonsPlayed = new Set(leagues.map((l) => l.season)).size
 
     const xpTotal = BigInt(
       careerWins * 10 +
@@ -51,6 +52,7 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
     )
     const xpLevel = Math.floor(Number(xpTotal) / 100) + 1
 
+    // Tier uses distinct seasons for “career breadth” (T4 All-Pro ≈ 5+ seasons, heavy volume).
     let rankTier = 'T6'
     if (careerChampionships >= 3) rankTier = 'T1'
     else if (careerChampionships >= 1) rankTier = 'T2'

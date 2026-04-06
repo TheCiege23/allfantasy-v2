@@ -346,13 +346,6 @@ export async function POST(req: Request) {
 
     const jobId = randomUUID();
 
-    if (leagueKeys.length > 0) {
-      await prisma.userProfile.update({
-        where: { userId },
-        data: { leagueImportDetailPending: true },
-      });
-    }
-
     const uniqueSeasons = new Set(
       leaguesToImport.map((l) => {
         const raw = l.season ?? l._year;
@@ -371,6 +364,29 @@ export async function POST(req: Request) {
           .filter((n): n is number => n != null)
       ),
     ].sort((a, b) => a - b);
+
+    if (leagueKeys.length > 0) {
+      try {
+        await prisma.userProfile.update({
+          where: { userId },
+          data: { leagueImportDetailPending: true },
+        });
+      } catch (pendingErr: unknown) {
+        console.warn("[import] leagueImportDetailPending update skipped:", pendingErr);
+      }
+    }
+
+    try {
+      await calculateAndSaveRank(userId);
+    } catch (rankErr: unknown) {
+      console.warn("[import] calculateAndSaveRank failed (non-fatal):", rankErr);
+    }
+
+    try {
+      await refreshUserRankingsContext(userId);
+    } catch (ctxErr: unknown) {
+      console.warn("[import] refreshUserRankingsContext failed (non-fatal):", ctxErr);
+    }
 
     return NextResponse.json({
       success: true,

@@ -11,19 +11,7 @@ function logFullError(context: string, err: unknown) {
   console.error(context, '[api/user/rank] FULL ERROR:', JSON.stringify(payload, null, 2))
 }
 
-/** Matches user request: log enumerable Error properties for Vercel. */
-function logRankFatal(err: unknown) {
-  if (err instanceof Error) {
-    console.error(
-      '[rank] FULL ERROR:',
-      JSON.stringify(err, Object.getOwnPropertyNames(err)),
-    )
-  } else {
-    console.error('[rank] FULL ERROR:', JSON.stringify(err, null, 2))
-  }
-}
-
-function emptyRank200() {
+function tierNullResponse() {
   return NextResponse.json({
     tier: null,
     stats: null,
@@ -306,6 +294,17 @@ export async function GET(request: Request) {
   const userId = session.user.id
 
   try {
+    const profileRow = await prisma.userProfile
+      .findUnique({ where: { userId }, select: { userId: true } })
+      .catch((e: unknown) => {
+        if (e instanceof Error) console.error('[rank]', e.message, e.stack)
+        else console.error('[rank]', e)
+        return null
+      })
+    if (!profileRow) {
+      return tierNullResponse()
+    }
+
     const url = new URL(request.url)
     const forceRecalculate = url.searchParams.get('recalculate') === 'true'
 
@@ -377,7 +376,7 @@ export async function GET(request: Request) {
     const { rankProcessing, rankCalculatedAtIso } = profileFlags
 
     if (!appUser) {
-      return emptyRank200()
+      return tierNullResponse()
     }
 
     if (!appUser.legacyUserId) {
@@ -750,7 +749,11 @@ export async function GET(request: Request) {
       overviewProfile,
     })
   } catch (err: unknown) {
-    logRankFatal(err)
-    return emptyRank200()
+    if (err instanceof Error) {
+      console.error('[rank]', err.message, err.stack)
+    } else {
+      console.error('[rank]', err)
+    }
+    return tierNullResponse()
   }
 }
