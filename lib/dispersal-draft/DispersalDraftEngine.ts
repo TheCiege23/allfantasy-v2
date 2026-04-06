@@ -335,6 +335,10 @@ export class DispersalDraftEngine {
 
     const { totalRounds, picksPerRound } = computeRoundsPicksPerRound(assets, baseOrder.length)
     const draftOrder = buildLinearDraftOrder(baseOrder, totalRounds)
+    const draftTypeStored =
+      typeof config.draftType === 'string' && config.draftType.trim()
+        ? config.draftType.trim().slice(0, 16)
+        : 'linear'
 
     const created = await prisma.$transaction(async (tx) => {
       const draft = await tx.dispersalDraft.create({
@@ -351,7 +355,7 @@ export class DispersalDraftEngine {
           sourceRosterIds: config.sourceRosterIds,
           assetPool: JSON.parse(JSON.stringify(assets)) as Prisma.InputJsonValue,
           orderMode: config.orderMode,
-          draftType: 'linear',
+          draftType: draftTypeStored,
           pickTimeSeconds: config.pickTimeSeconds,
           autoPickOnTimeout: config.autoPickOnTimeout,
           createdByUserId: commissionerUserId,

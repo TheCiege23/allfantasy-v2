@@ -97,6 +97,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     const body = (await req.json().catch(() => ({}))) as Partial<DispersalDraftConfig> & {
       sourceRosterIds?: string[]
       participantRosterIds?: string[]
+      draftType?: string
     }
 
     let sourceRosterIds: string[]
@@ -146,6 +147,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     const autoPickOnTimeout = body.autoPickOnTimeout !== false
     const scenario = body.scenario === 'league_downsizing' ? 'league_downsizing' : 'orphan_teams'
 
+    const draftType = typeof body.draftType === 'string' && body.draftType.trim() ? body.draftType.trim() : 'linear'
+
     const config: DispersalDraftConfig = {
       leagueId,
       scenario,
@@ -155,6 +158,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
       manualOrder: Array.isArray(body.manualOrder) ? body.manualOrder.map(String) : undefined,
       pickTimeSeconds,
       autoPickOnTimeout,
+      draftType,
     }
 
     try {

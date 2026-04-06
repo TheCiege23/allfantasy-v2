@@ -40,6 +40,8 @@ export type DispersalDraftConfig = {
   manualOrder?: string[]
   pickTimeSeconds: number
   autoPickOnTimeout: boolean
+  /** Stored on draft row (e.g. linear); pick construction may still be linear until snake is implemented end-to-end. */
+  draftType?: string
 }
 
 export type DispersalDraftState = {
