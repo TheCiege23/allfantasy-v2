@@ -1,4 +1,5 @@
 import type { LeagueSport } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, isSupportedSport } from '@/lib/sport-scope'
 import type {
@@ -98,17 +99,22 @@ export async function saveDashboardOnboardingState(
   const preferredSportsUpdate: LeagueSport[] | null =
     nextFavorites.supported.length > 0 ? nextFavorites.supported : null
 
+  const preferredSportsJson: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue =
+    preferredSportsUpdate === null
+      ? Prisma.DbNull
+      : (preferredSportsUpdate as unknown as Prisma.InputJsonValue)
+
   try {
     await prisma.userProfile.upsert({
       where: { userId },
       create: {
         userId,
-        dashboardOnboarding: payload as object,
-        preferredSports: preferredSportsUpdate,
+        dashboardOnboarding: payload as Prisma.InputJsonValue,
+        preferredSports: preferredSportsJson,
       },
       update: {
-        dashboardOnboarding: payload as object,
-        ...(patch.favoriteSports !== undefined ? { preferredSports: preferredSportsUpdate } : {}),
+        dashboardOnboarding: payload as Prisma.InputJsonValue,
+        ...(patch.favoriteSports !== undefined ? { preferredSports: preferredSportsJson } : {}),
       },
     })
     return { ok: true }
