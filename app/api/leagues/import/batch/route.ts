@@ -154,9 +154,7 @@ export async function POST(req: NextRequest) {
         continue
       }
     }
-    if (leaguesById.size === 0) {
-      return NextResponse.json({ error: 'Failed to verify Sleeper leagues' }, { status: 502 })
-    }
+    const sleeperVerificationUnavailable = leaguesById.size === 0
 
     const saveResults = await runWithConcurrency(leagues, 8, async (league) => {
       try {
@@ -176,6 +174,14 @@ export async function POST(req: NextRequest) {
           for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
             sleeperLeague = leaguesById.get(toLeagueMapKey(platformLeagueId, sleeperSport))
             if (sleeperLeague) break
+          }
+        }
+        if (!sleeperLeague && sleeperVerificationUnavailable) {
+          sleeperLeague = {
+            league_id: platformLeagueId,
+            name: league.name,
+            sport: requestedSleeperSport ?? undefined,
+            total_rosters: league.leagueSize,
           }
         }
         if (!sleeperLeague) return 0
