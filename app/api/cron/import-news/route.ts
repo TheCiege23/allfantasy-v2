@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
 
   let saved = 0
   let errors = 0
+  let attempts = 0
 
   for (const sport of SUPPORTED_SPORTS) {
+    attempts++
     try {
       const result = await fetchWithChain({
         sport,
@@ -32,5 +34,6 @@ export async function GET(req: NextRequest) {
   }
 
   console.log(`[import-news] saved=${saved} errors=${errors}`)
-  return NextResponse.json({ saved, errors })
+  const status = attempts > 0 && errors === attempts ? 500 : 200
+  return NextResponse.json({ saved, errors }, { status })
 }
