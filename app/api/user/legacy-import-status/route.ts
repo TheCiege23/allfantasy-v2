@@ -71,7 +71,7 @@ export async function GET() {
   }
   for (const id of LEGACY_PROVIDER_IDS) {
     if (id === "sleeper") continue
-    providers[id] = { linked: false, importStatus: null, available: false }
+    providers[id] = { linked: false, importStatus: null, available: true }
   }
 
   return NextResponse.json({

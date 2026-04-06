@@ -1,6 +1,15 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  refreshLegacyImportStatus,
+  LEGACY_PROVIDER_IDS,
+  getLegacyProviderName,
+  getImportStatusLabel,
+  getProviderStatus,
+  getLegacyProviderHelpHref,
+} from '@/lib/legacy-import-settings'
+import { StepHelp } from '@/components/league-creation-wizard/StepHelp'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -461,30 +470,49 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
 
 function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
   const router = useRouter()
-  const [state, setState] = useState<ImportState>({
-    platform: 'sleeper',
-    username: '',
-    loading: false,
-    error: null,
-    successMessage: null,
-  })
-  const [isImporting, setImporting] = useState(false)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [totalSeasons, setTotalSeasons] = useState(0)
-  const [currentSeason, setCurrentSeason] = useState<number | null>(null)
-  const [seasonIndex, setSeasonIndex] = useState(0)
-  const [leaguesSaved, setLeaguesSaved] = useState(0)
-  const [completedSeasons, setCompletedSeasons] = useState<
-    { season: number; leagues: number; level?: number }[]
-  >([])
-  const [currentLevel, setCurrentLevel] = useState<number | null>(null)
-  const [currentTier, setCurrentTier] = useState<string | null>(null)
-  const [currentXp, setCurrentXp] = useState<number | null>(null)
+  const [legacyStatus, setLegacyStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [importInputs, setImportInputs] = useState<Record<string, string>>({})
+  const [importing, setImporting] = useState<Record<string, boolean>>({})
+  const [importError, setImportError] = useState<Record<string, string | null>>({})
 
-  const selectedPlatform = useMemo(
-    () => PLATFORMS.find((entry) => entry.id === state.platform) ?? PLATFORMS[0],
-    [state.platform]
-  )
+  useEffect(() => {
+    void (async () => {
+      setLoading(true)
+      setLegacyStatus(await refreshLegacyImportStatus())
+      setLoading(false)
+    })()
+  }, [])
+
+  const handleImport = async (providerId: string) => {
+    setImporting((prev) => ({ ...prev, [providerId]: true }))
+    setImportError((prev) => ({ ...prev, [providerId]: null }))
+    try {
+      if (providerId === 'sleeper') {
+        const username = importInputs[providerId]?.trim()
+        if (!username) throw new Error('Sleeper username required')
+        const userRes = await fetch(`https://api.sleeper.app/v1/user/${username}`)
+        if (!userRes.ok) throw new Error('Sleeper username not found')
+        const userData = await userRes.json()
+        await fetch('/api/import-sleeper', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sleeperUserId: userData.user_id, sport: 'nfl', isLegacy: true }),
+        })
+      } else if (providerId === 'espn') {
+        // Add ESPN import logic here
+        throw new Error('ESPN import coming soon')
+      } else {
+        throw new Error('Import for this provider coming soon')
+      }
+      setLegacyStatus(await refreshLegacyImportStatus())
+    } catch (e: any) {
+      setImportError((prev) => ({ ...prev, [providerId]: e.message || 'Import failed' }))
+    } finally {
+      setImporting((prev) => ({ ...prev, [providerId]: false }))
+    }
+  }
 
   const runClientSideImport = useCallback(
     async (sleeperUsername: string) => {
@@ -797,75 +825,51 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
           Import your fantasy history to calculate your AllFantasy rank, XP progress, and AI grade.
         </p>
       </div>
-
-      <div className="grid grid-cols-5 gap-2 mb-5">
-        {PLATFORMS.map((platform) => {
-          const isSelected = state.platform === platform.id
-          return (
-            <button
-              key={platform.id}
-              type="button"
-              onClick={() =>
-                setState((current) => ({ ...current, platform: platform.id, error: null, successMessage: null }))
-              }
-              className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border transition-all text-xs font-semibold ${
-                isSelected
-                  ? 'border-cyan-500/60 bg-cyan-500/10 text-white'
-                  : 'border-white/10 text-white/60 hover:border-white/20 hover:text-white'
-              }`}
-            >
-              <span className="text-xl">{platform.emoji}</span>
-              <span>{platform.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="mb-4">
-        <label className="text-[11px] font-semibold text-white/40 uppercase tracking-widest mb-2 block">
-          {state.platform === 'sleeper' ? 'Platform Username' : 'Provider Handle or League ID'}
-        </label>
-        <input
-          type="text"
-          value={state.username}
-          onChange={(event) => setState((current) => ({ ...current, username: event.target.value }))}
-          onKeyDown={(event) => event.key === 'Enter' && void handleImport()}
-          placeholder={state.platform === 'sleeper' ? 'your_sleeper_username' : 'continue in full legacy import'}
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/25 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition-all"
-        />
-        <p className="text-[11px] text-white/30 mt-2">
-          Sleeper is wired directly here. Other providers hand off to the full AF Legacy import experience.
-        </p>
-        <p className="text-[11px] text-cyan-200/40 mt-2">
-          Rankings import builds your career history only — it does not add leagues to the dashboard &quot;My Leagues&quot; list (that&apos;s for full sync from Import or leagues you create on AllFantasy).
-        </p>
-      </div>
-
-      {state.successMessage ? (
-        <div className="mb-4 rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-          {state.successMessage}
+      {loading ? (
+        <p className="text-sm text-white/40">Loading import status…</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {LEGACY_PROVIDER_IDS.map((providerId) => {
+            const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
+            const name = getLegacyProviderName(providerId)
+            const importStatusLabel = status?.importStatus ? getImportStatusLabel(status.importStatus) : '—'
+            const imported = status?.importStatus === 'completed'
+            const isDisabled = imported || importing[providerId]
+            return (
+              <div key={providerId} className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2 relative">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-white text-base">{name}</span>
+                  <StepHelp title={`How to import from ${name}`}>Import instructions for {name} will appear here.</StepHelp>
+                </div>
+                <div className="text-xs text-white/50 mb-1">Status: {importStatusLabel}</div>
+                {imported ? (
+                  <div className="text-green-400 text-xs font-semibold">Imported</div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={importInputs[providerId] || ''}
+                      onChange={e => setImportInputs(inputs => ({ ...inputs, [providerId]: e.target.value }))}
+                      placeholder={providerId === 'sleeper' ? 'Sleeper username' : providerId === 'espn' ? 'ESPN League ID' : 'Account/League ID'}
+                      className="w-full rounded border border-white/10 bg-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+                      disabled={isDisabled}
+                    />
+                    {importError[providerId] && <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>}
+                    <button
+                      type="button"
+                      onClick={() => handleImport(providerId)}
+                      disabled={isDisabled || !importInputs[providerId]?.trim()}
+                      className="mt-2 w-full rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white disabled:opacity-40"
+                    >
+                      {importing[providerId] ? 'Importing…' : `Import from ${name}`}
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
-      ) : null}
-
-      {(state.error || importError) ? (
-        <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          {importError ?? state.error}
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => void handleImport()}
-        disabled={state.loading || !state.username.trim()}
-        className="w-full rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{
-          background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
-          boxShadow: state.loading ? 'none' : '0 4px 24px rgba(124,58,237,0.4)',
-        }}
-      >
-        {state.loading ? 'Importing...' : state.platform === 'sleeper' ? '🔥 Build My Legacy Profile' : 'Open Full Legacy Import'}
-      </button>
-
+      )}
       <p className="text-center text-[11px] text-white/25 mt-3">
         Career rank cache, AI report, and overview cards all refresh from this import.
       </p>

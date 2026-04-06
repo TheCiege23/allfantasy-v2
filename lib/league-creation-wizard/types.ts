@@ -80,6 +80,32 @@ export interface WizardAISettings {
   draftHelperEnabled: boolean
 }
 
+/**
+ * Optional AF Commissioner AI tools (configured at creation; full controls stay in league settings).
+ * Persisted on league settings when the user has AF Commissioner access.
+ */
+export interface WizardCommissionerPreferences {
+  leagueAutomation: boolean
+  integrityMonitoring: boolean
+  weeklyRecaps: boolean
+  draftCopilot: boolean
+  matchupNarration: boolean
+  fairnessAudit: boolean
+  powerRankingsAi: boolean
+  constitutionAssistant: boolean
+}
+
+export const DEFAULT_COMMISSIONER_PREFERENCES: WizardCommissionerPreferences = {
+  leagueAutomation: false,
+  integrityMonitoring: false,
+  weeklyRecaps: false,
+  draftCopilot: false,
+  matchupNarration: false,
+  fairnessAudit: false,
+  powerRankingsAi: false,
+  constitutionAssistant: false,
+}
+
 export interface WizardWaiverSettings {
   waiverType: 'faab' | 'rolling' | 'reverse_standings' | 'fcfs' | 'standard'
   processingDays: number[]
@@ -157,6 +183,8 @@ export interface LeagueCreationWizardState {
   tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
+  /** AF Commissioner-tier AI (gated in UI unless subscribed). */
+  commissionerPreferences: WizardCommissionerPreferences
   privacySettings: WizardPrivacySettings
   /**
    * Optional full settings snapshot from a saved template.
@@ -165,15 +193,13 @@ export interface LeagueCreationWizardState {
   templateSettingsOverrides?: Record<string, unknown>
 }
 
+/** Streamlined flow: sport includes format + draft style; AI + draft automation share one step. */
 export const WIZARD_STEP_ORDER: WizardStepId[] = [
   'sport',
-  'league_type',
-  'draft_type',
   'team_setup',
   'scoring',
   'draft_settings',
   'ai_settings',
-  'automation',
   'privacy',
   'review',
 ]

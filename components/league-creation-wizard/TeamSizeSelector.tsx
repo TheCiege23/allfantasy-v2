@@ -3,12 +3,18 @@
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import {
+  clampTeamCountForSport,
+  getMaxTeamsForSport,
+  getTeamCountOptionsForSport,
+} from '@/lib/league-creation-wizard/sport-team-limits'
 import { StepHeader } from './StepHelp'
 
-const TEAM_COUNTS = [4, 6, 8, 10, 12, 14, 16, 18, 20, 24] as const
 const ROSTER_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30] as const
 
 export type TeamSizeSelectorProps = {
+  /** Used to cap league size (one manager per team), ESPN / Sleeper–style limits per sport. */
+  sport: string
   name: string
   teamCount: number
   rosterSize: number | null
@@ -23,6 +29,7 @@ export type TeamSizeSelectorProps = {
  * League name, number of teams, and optional roster size.
  */
 export function TeamSizeSelector({
+  sport,
   name,
   teamCount,
   rosterSize,
@@ -32,7 +39,9 @@ export function TeamSizeSelector({
   onRosterSizeChange,
   onTradeReviewModeChange,
 }: TeamSizeSelectorProps) {
-  const safeTeamCount = teamCount >= 4 && teamCount <= 24 ? teamCount : 12
+  const teamCounts = getTeamCountOptionsForSport(sport)
+  const maxTeams = getMaxTeamsForSport(sport)
+  const safeTeamCount = clampTeamCountForSport(sport, teamCount)
   return (
     <div className="space-y-6">
       <h3 className="sr-only">Team setup</h3>
@@ -67,7 +76,7 @@ export function TeamSizeSelector({
           </div>
           <Label className="text-cyan-300">Quick team size picks</Label>
           <div className="grid grid-cols-4 gap-2">
-            {TEAM_COUNTS.map((n) => (
+            {teamCounts.map((n) => (
               <button
                 key={n}
                 type="button"
@@ -95,14 +104,16 @@ export function TeamSizeSelector({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TEAM_COUNTS.map((n) => (
+              {teamCounts.map((n) => (
                 <SelectItem key={n} value={String(n)}>
                   {n} teams
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-1 text-xs text-white/50">Standard leagues use 10 or 12 teams.</p>
+          <p className="mt-1 text-xs text-white/50">
+            Up to {maxTeams} teams for {sport}. Most leagues use 10 or 12.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label className="text-white/90">Trade review mode</Label>
