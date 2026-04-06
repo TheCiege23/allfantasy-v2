@@ -12,10 +12,14 @@ export function requireCronAuth(req: NextRequest, preferredSecretEnv?: string): 
     (preferredSecretEnv ? process.env[preferredSecretEnv] : undefined) ??
     process.env.LEAGUE_CRON_SECRET ??
     process.env.CRON_SECRET
+  /** Same value used by `scheduleImportSeasonStep` (preferred over CRON_SECRET in Bearer). */
+  const importWorkerSecret = process.env.IMPORT_WORKER_SECRET?.trim()
   const adminSecret = process.env.BRACKET_ADMIN_SECRET || process.env.ADMIN_PASSWORD
 
   return Boolean(
     provided &&
-      ((cronSecret && provided === cronSecret) || (adminSecret && provided === adminSecret))
+      ((cronSecret && provided === cronSecret) ||
+        (importWorkerSecret && provided === importWorkerSecret) ||
+        (adminSecret && provided === adminSecret))
   )
 }
