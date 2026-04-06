@@ -35,8 +35,12 @@ const PAID_GEO_PREFIXES = [
   "/api/user/autocoach",
 ]
 
+/** Paid / premium surfaces — align with product geo policy (dispersal, import, rankings, league draft room). */
 const PAID_GEO_PATTERNS = [
   /^\/api\/leagues\/[^/]+\/dispersal-draft/,
+  /^\/league\/[^/]+\/dispersal-draft/,
+  /^\/api\/leagues\/import/,
+  /^\/dashboard\/rankings/,
   /^\/api\/leagues\/[^/]+\/integrity(?:\/|$)/,
   /^\/api\/leagues\/[^/]+\/autocoach-settings/,
 ]

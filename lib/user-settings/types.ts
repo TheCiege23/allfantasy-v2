@@ -99,6 +99,14 @@ export interface UserProfileForSettings {
   onboardingCompletedAt: Date | null
   /** Minutes of inactivity before auto sign-out; null/0 = off (allowed: 30, 60, 240, 720, 1440). */
   sessionIdleTimeoutMinutes: number | null
+  /** Denormalized rank snapshot from `user_profiles` (dashboard / settings). */
+  rankTier?: string | null
+  xpLevel?: number | null
+  xpTotal?: number | null
+  rankCalculatedAt?: Date | null
+  careerWins?: number | null
+  careerChampionships?: number | null
+  careerSeasonsPlayed?: number | null
   settings: UserSettingsRecord | null
   updatedAt: Date
 }

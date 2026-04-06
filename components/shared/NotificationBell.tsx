@@ -1,12 +1,33 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { Bell } from "lucide-react"
 import { useNotifications } from "@/hooks/useNotifications"
 import { NotificationPanelView } from "@/components/notifications/NotificationPanel"
 import { getUnreadCount } from "@/lib/notification-center"
 import { isNotificationDrawerCloseKey } from "@/lib/notification-center"
+
+const USER_NOTIFICATIONS_UNREAD = "/api/user/notifications?unread=true&limit=1"
+
+async function fetchUnreadTotal(): Promise<number> {
+  const res = await fetch(USER_NOTIFICATIONS_UNREAD, {
+    cache: "no-store",
+    credentials: "include",
+  })
+  if (!res.ok) return 0
+  const data = (await res.json().catch(() => ({}))) as {
+    unreadTotal?: unknown
+    unreadCount?: unknown
+  }
+  if (typeof data.unreadTotal === "number" && Number.isFinite(data.unreadTotal)) {
+    return data.unreadTotal
+  }
+  if (typeof data.unreadCount === "number" && Number.isFinite(data.unreadCount)) {
+    return data.unreadCount
+  }
+  return 0
+}
 
 export default function NotificationBell() {
   const pathname = usePathname()
@@ -15,7 +36,7 @@ export default function NotificationBell() {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const lastPathRef = useRef(pathname)
   const notificationsState = useNotifications(40, { usePlaceholders: false })
-  const { notifications } = notificationsState
+  const { notifications, refresh } = notificationsState
   const [serverUnreadCount, setServerUnreadCount] = useState<number | null>(null)
   const listUnread = getUnreadCount(notifications)
   const mergedUnread = serverUnreadCount != null ? Math.max(serverUnreadCount, listUnread) : listUnread
@@ -23,28 +44,25 @@ export default function NotificationBell() {
     mergedUnread <= 0 ? 0 : mergedUnread <= 9 ? mergedUnread : "9+"
   const panelId = "notification-center-drawer"
 
+  const pollUnread = useCallback(async () => {
+    const n = await fetchUnreadTotal()
+    setServerUnreadCount(n)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
-    async function pollUnread() {
-      try {
-        const res = await fetch("/api/notifications/unread", { cache: "no-store", credentials: "include" })
-        const data = (await res.json().catch(() => ({}))) as { count?: unknown }
-        const n = typeof data.count === "number" && Number.isFinite(data.count) ? data.count : 0
-        if (!cancelled) setServerUnreadCount(n)
-      } catch {
-        if (!cancelled) setServerUnreadCount((c) => c ?? 0)
-      }
-    }
-    void pollUnread()
+    void pollUnread().then(() => {
+      if (cancelled) return
+    })
     const id = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return
       void pollUnread()
-    }, 30_000)
+    }, 60_000)
     return () => {
       cancelled = true
       clearInterval(id)
     }
-  }, [])
+  }, [pollUnread])
 
   useEffect(() => {
     if (!open) return
@@ -80,12 +98,31 @@ export default function NotificationBell() {
     }
   }, [pathname])
 
+  const handleBellClick = async () => {
+    const next = !open
+    if (next) {
+      try {
+        await fetch("/api/user/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ ids: "all" }),
+        })
+        setServerUnreadCount(0)
+        await refresh()
+      } catch {
+        /* still open panel */
+      }
+    }
+    setOpen(next)
+  }
+
   return (
     <div className="relative">
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => void handleBellClick()}
         className="relative rounded-lg border p-2 transition"
         style={{
           borderColor: "var(--border)",

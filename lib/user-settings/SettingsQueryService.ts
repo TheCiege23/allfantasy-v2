@@ -72,6 +72,13 @@ async function queryBaseProfile(
           onboardingCompletedAt: true,
           sessionIdleTimeoutMinutes: true,
           updatedAt: true,
+          rankTier: true,
+          xpLevel: true,
+          xpTotal: true,
+          rankCalculatedAt: true,
+          careerWins: true,
+          careerChampionships: true,
+          careerSeasonsPlayed: true,
         },
       },
     },
@@ -128,6 +135,13 @@ async function queryBaseProfile(
       typeof profile?.sessionIdleTimeoutMinutes === "number"
         ? profile.sessionIdleTimeoutMinutes
         : null,
+    rankTier: profile?.rankTier ?? null,
+    xpLevel: profile?.xpLevel ?? null,
+    xpTotal: profile?.xpTotal != null ? Number(profile.xpTotal) : null,
+    rankCalculatedAt: profile?.rankCalculatedAt ?? null,
+    careerWins: profile?.careerWins ?? null,
+    careerChampionships: profile?.careerChampionships ?? null,
+    careerSeasonsPlayed: profile?.careerSeasonsPlayed ?? null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }
@@ -195,6 +209,13 @@ async function queryBaseProfileMinimal(
     onboardingStep: profile?.onboardingStep ?? null,
     onboardingCompletedAt: null,
     sessionIdleTimeoutMinutes: null,
+    rankTier: null,
+    xpLevel: null,
+    xpTotal: null,
+    rankCalculatedAt: null,
+    careerWins: null,
+    careerChampionships: null,
+    careerSeasonsPlayed: null,
     updatedAt: profile?.updatedAt ?? new Date(),
   }
 }

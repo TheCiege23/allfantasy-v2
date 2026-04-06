@@ -16,7 +16,8 @@ const DEFAULT_DASHBOARD_TOGGLES = {
 
 /**
  * GET /api/user/notifications
- * Platform notification inbox (read state) + unread count.
+ * Query: `unread=true` (only unread), `limit` (default 20, max 50).
+ * `unreadCount` = unread rows in this page; `unreadTotal` = total unread for badge.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -28,16 +29,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const limit = Math.min(
-      100,
-      Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 40)
-    )
+    const { searchParams } = req.nextUrl
+    const unreadOnly = searchParams.get("unread") === "true"
+    const limitRaw = Number(searchParams.get("limit") ?? 20)
+    const limit = Math.min(50, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 20))
 
     const userId = session.user.id
 
-    const [items, unreadCount] = await Promise.all([
+    const [items, unreadTotal] = await Promise.all([
       prisma.platformNotification.findMany({
-        where: { userId },
+        where: {
+          userId,
+          ...(unreadOnly ? { readAt: null } : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: limit,
       }),
@@ -59,7 +63,9 @@ export async function GET(req: NextRequest) {
       meta: (n.meta as Record<string, unknown> | null) ?? undefined,
     }))
 
-    return NextResponse.json({ notifications, unreadCount })
+    const unreadCount = items.filter((n) => n.readAt == null).length
+
+    return NextResponse.json({ notifications, unreadCount, unreadTotal })
   } catch (err) {
     const e = err instanceof Error ? err : new Error(String(err))
     console.error("[notifications GET]", e.message, e.stack)

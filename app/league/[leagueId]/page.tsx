@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueRole } from '@/lib/league/permissions'
-import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
@@ -105,14 +104,45 @@ export default async function LeaguePage({
     }
   }
 
-  const activeDispersalDraft = await DispersalDraftEngine.getActiveDraftForLeague(leagueId)
-  const dispersalDraftInProgress =
-    activeDispersalDraft &&
-    ['pending', 'configuring', 'in_progress'].includes(activeDispersalDraft.status)
-      ? { draftId: activeDispersalDraft.id, status: activeDispersalDraft.status }
-      : null
+  const activeDraft =
+    (await prisma.dispersalDraft
+      .findFirst({
+        where: {
+          leagueId,
+          status: { in: ['pending', 'configuring', 'in_progress'] },
+        },
+        select: { id: true, status: true },
+      })
+      .catch(() => null)) ?? null
 
   return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {activeDraft ? (
+        <div
+          style={{
+            background: '#E6F1FB',
+            border: '1px solid #185FA5',
+            borderRadius: 8,
+            padding: '10px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span style={{ color: '#0C447C', fontWeight: 500 }}>
+            {activeDraft.status === 'in_progress'
+              ? 'Dispersal draft is live!'
+              : 'Dispersal draft is scheduled'}
+          </span>
+          <a
+            href={`/league/${leagueId}/dispersal-draft/${activeDraft.id}`}
+            style={{ color: '#185FA5', fontWeight: 500, fontSize: 13 }}
+          >
+            Join Draft Room →
+          </a>
+        </div>
+      ) : null}
     <LeagueShell
       league={league}
       userTeam={userTeam}
@@ -129,7 +159,8 @@ export default async function LeaguePage({
       currentSleeperUserId={currentSleeperUserId}
       discordConnected={Boolean(userProfile?.discordUserId)}
       zombieChimmyPrefill={zombieChimmyPrefill}
-      dispersalDraftInProgress={dispersalDraftInProgress}
+      dispersalDraftInProgress={null}
     />
+    </div>
   )
 }
