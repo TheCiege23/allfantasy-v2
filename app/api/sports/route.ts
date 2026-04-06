@@ -42,12 +42,40 @@ async function handleSports(req: {
     forceRefresh: req.forceRefresh,
   })
 
+  const fetchedAt =
+    result.fromCache && typeof result.cacheAge === 'number'
+      ? new Date(Date.now() - result.cacheAge * 1000).toISOString()
+      : new Date().toISOString()
+
+  if (!result.data) {
+    return NextResponse.json(
+      {
+        sport,
+        dataType,
+        fromCache: result.fromCache,
+        cacheAge: result.cacheAge ?? null,
+        source: result.source ?? null,
+        cached: result.fromCache,
+        fetchedAt,
+        count: null,
+        data: null,
+        error: result.error ?? 'All providers failed',
+      },
+      { status: 502 }
+    )
+  }
+
   return NextResponse.json({
     sport,
     dataType,
     fromCache: result.fromCache,
     cacheAge: result.cacheAge ?? null,
+    source: result.source ?? null,
+    cached: result.fromCache,
+    fetchedAt,
+    count: Array.isArray(result.data) ? result.data.length : null,
     data: result.data,
+    error: result.error ?? null,
   })
 }
 

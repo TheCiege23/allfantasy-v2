@@ -9,6 +9,7 @@ import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
+import { SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 interface PlayerRank {
   careerTier: number
@@ -343,6 +344,20 @@ const PLATFORMS = [
   { id: 'espn', label: 'ESPN', emoji: '🔴' },
 ] as const
 
+const SLEEPER_SPORT_BY_SUPPORTED: Record<SupportedSport, string> = {
+  NFL: 'nfl',
+  NHL: 'nhl',
+  NBA: 'nba',
+  MLB: 'mlb',
+  NCAAF: 'nfl',
+  NCAAB: 'nba',
+  SOCCER: 'mls',
+}
+
+const SLEEPER_IMPORT_SPORTS = Array.from(
+  new Set(SUPPORTED_SPORTS.map((sport) => SLEEPER_SPORT_BY_SUPPORTED[sport]))
+)
+
 type TierVisual = {
   tier: number
   name: string
@@ -354,6 +369,7 @@ type TierVisual = {
 
 type SleeperLeague = {
   league_id?: string
+  sport?: string
   name?: string
   total_rosters?: number
   settings?: { playoff_teams?: number }
@@ -490,12 +506,24 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         const leaguesBySeason = new Map<number, SleeperLeague[]>()
 
         for (const year of years) {
-          const data = await fetchJsonWithTimeout<unknown>(
-            `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/nfl/${year}`
-          )
-          if (Array.isArray(data) && data.length > 0) {
+          const seasonLeaguesById = new Map<string, SleeperLeague>()
+          for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
+            const data = await fetchJsonWithTimeout<unknown>(
+              `https://api.sleeper.app/v1/user/${sleeperUserId}/leagues/${sleeperSport}/${year}`
+            ).catch(() => [])
+            if (!Array.isArray(data)) continue
+            for (const league of data as SleeperLeague[]) {
+              const leagueId = typeof league.league_id === 'string' ? league.league_id : ''
+              if (!leagueId || seasonLeaguesById.has(leagueId)) continue
+              seasonLeaguesById.set(leagueId, {
+                ...league,
+                sport: typeof league.sport === 'string' ? league.sport : sleeperSport,
+              })
+            }
+          }
+          if (seasonLeaguesById.size > 0) {
             seasonsWithLeagues.push(year)
-            leaguesBySeason.set(year, data as SleeperLeague[])
+            leaguesBySeason.set(year, Array.from(seasonLeaguesById.values()))
           }
         }
 
@@ -517,6 +545,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
             const leagueRecords: Array<{
               platformLeagueId: string
               name: string
+              sport: string
               season: number
               leagueSize: number
               importWins: number
@@ -556,10 +585,12 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                 const playoffTeams =
                   league.settings?.playoff_teams ?? Math.ceil(totalTeams / 3)
                 const finalStanding = mine?.settings?.final_standing ?? null
+                const leagueSport = normalizeToSupportedSport(league.sport)
 
                 leagueRecords.push({
                   platformLeagueId: String(lid),
                   name: league.name ?? `League ${lid}`,
+                  sport: leagueSport,
                   season,
                   leagueSize: totalTeams,
                   importWins: mine?.settings?.wins ?? 0,

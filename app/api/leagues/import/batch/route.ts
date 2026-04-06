@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { runWithConcurrency } from '@/lib/async-utils'
+import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -11,6 +12,7 @@ export const maxDuration = 30
 interface LeagueRecord {
   platformLeagueId: string
   name: string
+  sport?: string
   season: number
   leagueSize: number
   importWins: number
@@ -24,6 +26,7 @@ interface LeagueRecord {
 
 type SleeperLeagueApi = {
   league_id?: string
+  sport?: string
   name?: string
   total_rosters?: number
   settings?: {
@@ -36,6 +39,45 @@ type SleeperRosterApi = {
   owner_id?: string
   co_owners?: string[]
   settings?: Record<string, unknown>
+}
+
+const SLEEPER_SPORT_BY_SUPPORTED: Record<SupportedSport, string> = {
+  NFL: 'nfl',
+  NHL: 'nhl',
+  NBA: 'nba',
+  MLB: 'mlb',
+  NCAAF: 'nfl',
+  NCAAB: 'nba',
+  SOCCER: 'mls',
+}
+
+const SLEEPER_IMPORT_SPORTS = Array.from(
+  new Set(SUPPORTED_SPORTS.map((sport) => SLEEPER_SPORT_BY_SUPPORTED[sport]))
+)
+
+const SUPPORTED_BY_SLEEPER_SPORT: Record<string, SupportedSport> = {
+  nfl: 'NFL',
+  nhl: 'NHL',
+  nba: 'NBA',
+  mlb: 'MLB',
+  mls: 'SOCCER',
+  soccer: 'SOCCER',
+  epl: 'SOCCER',
+}
+
+function toLeagueMapKey(platformLeagueId: string, sleeperSport: string): string {
+  return `${platformLeagueId}:${sleeperSport.toLowerCase()}`
+}
+
+function toSupportedSportFromSleeperSport(
+  sleeperSport: string | null | undefined,
+  fallbackSport: string | null | undefined
+): SupportedSport {
+  const raw = typeof sleeperSport === 'string' ? sleeperSport.trim().toLowerCase() : ''
+  if (raw && SUPPORTED_BY_SLEEPER_SPORT[raw]) {
+    return SUPPORTED_BY_SLEEPER_SPORT[raw]
+  }
+  return normalizeToSupportedSport(fallbackSport)
 }
 
 function toNumber(value: unknown, fallback = 0): number {
@@ -105,29 +147,55 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const userLeaguesRes = await fetch(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/nfl/${season}`,
-      { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } }
-    )
-    if (!userLeaguesRes.ok) {
+    const leaguesById = new Map<string, SleeperLeagueApi>()
+    for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
+      try {
+        const userLeaguesRes = await fetch(
+          `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/${sleeperSport}/${season}`,
+          { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } }
+        )
+        if (!userLeaguesRes.ok) continue
+        const sleeperLeagues = (await userLeaguesRes.json().catch(() => [])) as SleeperLeagueApi[]
+        if (!Array.isArray(sleeperLeagues)) continue
+        for (const row of sleeperLeagues) {
+          const leagueId = typeof row?.league_id === 'string' ? row.league_id : ''
+          if (!leagueId) continue
+          const rowSport = typeof row.sport === 'string' ? row.sport.toLowerCase() : sleeperSport
+          leaguesById.set(toLeagueMapKey(leagueId, rowSport), row)
+        }
+      } catch {
+        continue
+      }
+    }
+    if (leaguesById.size === 0) {
       return NextResponse.json({ error: 'Failed to verify Sleeper leagues' }, { status: 502 })
     }
-    const sleeperLeagues = (await userLeaguesRes.json().catch(() => [])) as SleeperLeagueApi[]
-    const leaguesById = new Map<string, SleeperLeagueApi>(
-      Array.isArray(sleeperLeagues)
-        ? sleeperLeagues
-            .filter((row) => typeof row?.league_id === 'string' && row.league_id.length > 0)
-            .map((row) => [String(row.league_id), row])
-        : []
-    )
 
     const saveResults = await runWithConcurrency(leagues, 8, async (league) => {
       try {
         const platformLeagueId = String(league.platformLeagueId ?? '')
         if (!platformLeagueId) return 0
 
-        const sleeperLeague = leaguesById.get(platformLeagueId)
+        const requestedSport =
+          typeof league.sport === 'string' ? normalizeToSupportedSport(league.sport) : null
+        const requestedSleeperSport = requestedSport
+          ? SLEEPER_SPORT_BY_SUPPORTED[requestedSport]
+          : null
+
+        let sleeperLeague = requestedSleeperSport
+          ? leaguesById.get(toLeagueMapKey(platformLeagueId, requestedSleeperSport))
+          : undefined
+        if (!sleeperLeague) {
+          for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
+            sleeperLeague = leaguesById.get(toLeagueMapKey(platformLeagueId, sleeperSport))
+            if (sleeperLeague) break
+          }
+        }
         if (!sleeperLeague) return 0
+        const resolvedLeagueSport = toSupportedSportFromSleeperSport(
+          typeof sleeperLeague.sport === 'string' ? sleeperLeague.sport : null,
+          requestedSport ?? league.sport
+        )
 
         const rosterRes = await fetch(
           `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/rosters`,
@@ -179,6 +247,7 @@ export async function POST(req: NextRequest) {
           },
           update: {
             name: sleeperLeague.name ?? league.name,
+            sport: resolvedLeagueSport,
             leagueSize: totalTeams,
             importWins: wins,
             importLosses: losses,
@@ -194,6 +263,7 @@ export async function POST(req: NextRequest) {
             platform: 'sleeper',
             platformLeagueId,
             name: sleeperLeague.name ?? league.name,
+            sport: resolvedLeagueSport,
             season,
             leagueSize: totalTeams,
             importWins: wins,
