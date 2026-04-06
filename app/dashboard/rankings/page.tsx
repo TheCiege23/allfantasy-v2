@@ -545,55 +545,28 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
             }> = []
 
             for (const league of sleeperLeagues) {
-              try {
-                const lid = league.league_id
-                if (!lid) continue
-                const rosters = await fetchJsonWithTimeout<unknown>(
-                  `https://api.sleeper.app/v1/league/${lid}/rosters`
-                )
-                const mine = Array.isArray(rosters)
-                  ? (rosters as Array<{
-                      owner_id?: string
-                      co_owners?: string[]
-                      settings?: {
-                        wins?: number
-                        losses?: number
-                        ties?: number
-                        fpts?: number
-                        final_standing?: number
-                      }
-                    }>).find(
-                      (row) =>
-                        row.owner_id === sleeperUserId || row.co_owners?.includes(sleeperUserId)
-                    )
-                  : null
+              const lid = league.league_id
+              if (!lid) continue
+              const leagueSport = normalizeToSupportedSport(league.sport)
+              const totalTeams = league.total_rosters ?? 12
 
-                const totalTeams = league.total_rosters ?? 12
-                const playoffTeams =
-                  league.settings?.playoff_teams ?? Math.ceil(totalTeams / 3)
-                const finalStanding = mine?.settings?.final_standing ?? null
-                const leagueSport = normalizeToSupportedSport(league.sport)
-
-                leagueRecords.push({
-                  platformLeagueId: String(lid),
-                  name: league.name ?? `League ${lid}`,
-                  sport: leagueSport,
-                  season,
-                  leagueSize: totalTeams,
-                  importWins: mine?.settings?.wins ?? 0,
-                  importLosses: mine?.settings?.losses ?? 0,
-                  importTies: mine?.settings?.ties ?? 0,
-                  importMadePlayoffs: finalStanding ? finalStanding <= playoffTeams : false,
-                  importWonChampionship: finalStanding === 1,
-                  importFinalStanding: finalStanding,
-                  importPointsFor: mine?.settings?.fpts ?? null,
-                })
-              } catch {
-                // skip individual league error
-              } finally {
-                await sleep(100)
-              }
+              leagueRecords.push({
+                platformLeagueId: String(lid),
+                name: league.name ?? `League ${lid}`,
+                sport: leagueSport,
+                season,
+                leagueSize: totalTeams,
+                importWins: 0,
+                importLosses: 0,
+                importTies: 0,
+                importMadePlayoffs: false,
+                importWonChampionship: false,
+                importFinalStanding: null,
+                importPointsFor: null,
+              })
             }
+
+            if (leagueRecords.length === 0) continue
 
             const isLastSeason = i === seasonsWithLeagues.length - 1
             const batchRes = await fetch('/api/leagues/import/batch', {
