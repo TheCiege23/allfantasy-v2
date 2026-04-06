@@ -6,7 +6,7 @@ import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultSchedu
 import { getLeagueTypeMedia, normalizeLeagueTypeKey } from '@/lib/league-media/leagueTypeMedia'
 import { resolveFormatRosterDefaults, type FormatRosterModifierId } from './roster-defaults'
 import { resolveFormatScoringDefaults, type FormatScoringModifierId } from './scoring-defaults'
-import { resolveKeeperPolicy } from './keeper-engine'
+import { resolveKeeperPolicy } from './keeper-policy'
 
 export type LeagueFormatId =
   | 'redraft'
