@@ -7,16 +7,22 @@
  */
 import type { LeagueSport } from '@prisma/client'
 
-/** All supported league sports (order matches common display; values match Prisma LeagueSport). */
+/**
+ * All supported league sports (values match Prisma `LeagueSport`).
+ * Order: major US leagues, then NCAA, then soccer (EURO / UEFA in product UI).
+ */
 export const SUPPORTED_SPORTS: LeagueSport[] = [
   'NFL',
-  'NHL',
   'NBA',
+  'NHL',
   'MLB',
   'NCAAF',
   'NCAAB',
   'SOCCER',
 ]
+
+/** Rolling Insights / DataFeeds imports only these league sports (same seven as `SUPPORTED_SPORTS`). */
+export const ROLLING_INSIGHTS_LEAGUE_SPORTS = SUPPORTED_SPORTS
 
 /** Default sport when league/context has no sport (first in list; do not hardcode one sport). */
 export const DEFAULT_SPORT: LeagueSport = SUPPORTED_SPORTS[0]!

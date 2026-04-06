@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client'
+import { SUPPORTED_SPORTS } from '../../lib/sport-scope'
 import {
   SPORT_CONFIGS,
   estimateMaxRosterSize,
@@ -11,7 +12,12 @@ function asJson(v: unknown): Prisma.InputJsonValue {
 }
 
 export async function seedSportConfigs(prisma: PrismaClient) {
-  for (const config of Object.values(SPORT_CONFIGS)) {
+  for (const sport of SUPPORTED_SPORTS) {
+    const config = SPORT_CONFIGS[sport]
+    if (!config) {
+      console.warn(`[seedSportConfigs] No SPORT_CONFIGS entry for ${sport}, skip`)
+      continue
+    }
     const statCategories = toLegacyStatCategories(config)
     const defaultPositions = toLegacyDefaultPositions(config)
     const maxRosterSize = estimateMaxRosterSize(config)

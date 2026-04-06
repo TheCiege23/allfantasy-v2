@@ -252,8 +252,9 @@ model SportsNews {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  /// Dedupe key for upserts; `sourceId` mirrors provider id when present.
+  /// Dedupe key for upserts; `sourceId` mirrors provider id when present (not unique — shared across rows).
   @@unique([sport, externalId, source])
+  @@index([sourceId])
   @@index([sport, publishedAt])
   @@index([playerName])
   @@index([team])

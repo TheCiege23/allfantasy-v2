@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchRIPlayers, fetchRITeams } from '@/lib/players/ri-players-server'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { revalidateTag } from 'next/cache'
 
 /** Seconds — Vercel Pro/hobby max; avoids timeout while RI REST returns large lists (15–30s). */
 export const maxDuration = 60
 
-const ALLOWED = new Set(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAFB', 'NCAABB', 'SOCCER', 'PGA'])
+const ALLOWED = new Set<string>(SUPPORTED_SPORTS as readonly string[])
 
 export async function POST(req: NextRequest) {
   const sport = (req.nextUrl.searchParams.get('sport') || 'NFL').trim().toUpperCase()

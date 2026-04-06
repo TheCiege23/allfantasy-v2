@@ -1,7 +1,7 @@
 /**
- * Rolling Insights DataFeeds
+ * Rolling Insights DataFeeds — seven league sports only (no PGA / NASCAR / MLS as separate chains).
  * GraphQL → NFL, MLB (`players` query + `nflTeams` / `mlbTeams`)
- * REST   → NBA, NHL, SOCCER, PGA, NCAABB, NCAAFB (`/api/v1/player-info/{sport}`)
+ * REST   → NBA, NHL, SOCCER, NCAABB, NCAAFB (`/api/v1/player-info/{sport}`)
  */
 
 import { unstable_cache } from 'next/cache'
@@ -339,19 +339,29 @@ async function fetchRESTTeams(sport: string): Promise<RITeam[]> {
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-const REST_SPORTS = new Set(['NBA', 'NHL', 'MLB', 'SOCCER', 'PGA', 'NCAABB', 'NCAAFB'])
+/** RI REST path keys (`NCAAB` / `NCAAF` in app → `NCAABB` / `NCAAFB` in API). */
+function toRIRestSportKey(sport: string): string {
+  const u = sport.toUpperCase()
+  if (u === 'NCAAB') return 'NCAABB'
+  if (u === 'NCAAF') return 'NCAAFB'
+  return u
+}
+
+const REST_SPORTS = new Set(['NBA', 'NHL', 'MLB', 'SOCCER', 'NCAABB', 'NCAAFB'])
 
 export async function fetchRIPlayers(sport: string): Promise<RIPlayer[]> {
   const s = sport.toUpperCase()
+  const key = toRIRestSportKey(s)
   if (s === 'NFL') return fetchRIPlayersGraphQL()
-  if (REST_SPORTS.has(s)) return fetchRIPlayersREST(s)
+  if (REST_SPORTS.has(key)) return fetchRIPlayersREST(key)
   throw new Error(`Unknown RI sport: ${sport}`)
 }
 
 export async function fetchRITeams(sport: string): Promise<RITeam[]> {
   const s = sport.toUpperCase()
+  const key = toRIRestSportKey(s)
   if (s === 'NFL' || s === 'MLB') return fetchGraphQLTeamsNflMlb(s as 'NFL' | 'MLB')
-  if (REST_SPORTS.has(s)) return fetchRESTTeams(s)
+  if (REST_SPORTS.has(key)) return fetchRESTTeams(key)
   return []
 }
 

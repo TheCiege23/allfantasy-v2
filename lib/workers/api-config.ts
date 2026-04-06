@@ -1,13 +1,13 @@
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
-/** Rolling Insights REST + cache chain — canonical lowercase keys (7 sports). */
+/** Rolling Insights REST + cache chain — canonical lowercase keys (7 sports; matches `LeagueSport`). */
 export const SUPPORTED_SPORTS = [
   'nfl',
-  'mlb',
-  'nhl',
   'nba',
-  'ncaab',
+  'nhl',
+  'mlb',
   'ncaaf',
+  'ncaab',
   'soccer_euro',
 ] as const
 
@@ -107,6 +107,7 @@ export function toApiChainSport(input: string | SupportedSport | undefined): Api
     soccer_euro: 'soccer_euro',
     euro: 'soccer_euro',
     epl: 'soccer_euro',
+    /** User/alternate label → same `soccer_euro` chain as SOCCER (not a separate RI sport). */
     mls: 'soccer_euro',
   }
   if (map[lower]) return map[lower]
@@ -142,7 +143,7 @@ export function apiChainSportToDbSport(sport: ApiChainSport): string {
     nhl: 'NHL',
     ncaab: 'NCAAB',
     ncaaf: 'NCAAF',
-    soccer_euro: 'SOCCER_EURO',
+    soccer_euro: 'SOCCER',
   }
   return m[sport]
 }
