@@ -551,6 +551,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
                 season,
                 leagues: leagueRecords,
                 sleeperUserId,
+                sleeperUsername,
                 isLastSeason,
               }),
             })
@@ -587,9 +588,11 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         setImporting(false)
         onImportSuccess()
         router.push('/dashboard/rankings?imported=true&done=true')
+        return true
       } catch (err: unknown) {
         setImportError(err instanceof Error ? err.message : 'Import failed')
         setImporting(false)
+        return false
       }
     },
     [onImportSuccess, router]
@@ -609,8 +612,10 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
 
     setState((current) => ({ ...current, loading: true, error: null, successMessage: null }))
 
-    await runClientSideImport(state.username.trim().toLowerCase())
-    setState((current) => ({ ...current, loading: false, error: null, successMessage: null }))
+    const importSucceeded = await runClientSideImport(state.username.trim().toLowerCase())
+    if (!importSucceeded) {
+      setState((current) => ({ ...current, loading: false }))
+    }
   }, [router, runClientSideImport, selectedPlatform.label, state.platform, state.username])
 
   if (isImporting) {
