@@ -76,10 +76,6 @@ function redirectDeprecatedAppRoutes(request: NextRequest): NextResponse | null 
     url.pathname = "/dashboard"
     return NextResponse.redirect(url)
   }
-  if (pathname === "/dashboard") {
-    url.pathname = "/dashboard"
-    return NextResponse.redirect(url)
-  }
   if (pathname.startsWith("/app/leagues")) {
     url.pathname = pathname.slice(4)
     return NextResponse.redirect(url)
