@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { fetchWithChain } from '@/lib/workers/api-chain'
-import { API_CHAIN_TTLS, SUPPORTED_SPORTS } from '@/lib/workers/api-config'
-import type { ApiChainSport, ApiDataType } from '@/lib/workers/api-config'
+import { API_CHAIN_TTLS, SUPPORTED_SPORTS, toApiChainSport } from '@/lib/workers/api-config'
+import type { ApiDataType } from '@/lib/workers/api-config'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,8 @@ async function handleSports(req: {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const sport = (req.sport || 'nfl').toLowerCase()
-  if (!(SUPPORTED_SPORTS as readonly string[]).includes(sport)) {
+  const chainSport = toApiChainSport(sport)
+  if (!chainSport) {
     return NextResponse.json(
       { error: `Unsupported sport: ${sport}. Supported: ${SUPPORTED_SPORTS.join(', ')}` },
       { status: 400 }
@@ -35,7 +36,7 @@ async function handleSports(req: {
   const dataType = rawType as ApiDataType
 
   const result = await fetchWithChain({
-    sport: sport as ApiChainSport,
+    sport: chainSport,
     dataType,
     options: req.options,
     forceRefresh: req.forceRefresh,
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return handleSports({
+    return await handleSports({
       sport: searchParams.get('sport') ?? 'nfl',
       dataType: searchParams.get('type') ?? 'players',
       options,
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       forceRefresh?: boolean
       refresh?: boolean
     }
-    return handleSports({
+    return await handleSports({
       sport: body.sport ?? 'nfl',
       dataType: body.type ?? body.dataType ?? 'players',
       options: body.options,
