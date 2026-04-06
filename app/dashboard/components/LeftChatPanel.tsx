@@ -9,6 +9,7 @@ import { LeagueAvatar } from './LeagueAvatar'
 import { LeagueChatInPanel } from './LeagueChatInPanel'
 import {
   CHIMMY_VOICES,
+  CHIMMY_VOICE_DROPDOWN_OPTIONS,
   CHIMMY_VOICE_ID_STORAGE_KEY,
   DEFAULT_VOICE_ID,
 } from '@/lib/tts/voices'
@@ -56,14 +57,14 @@ function ChimmyVoicePicker({
 
       {open && (
         <div
-          className="absolute bottom-full left-0 z-[200] mb-1 w-[220px] overflow-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
+          className="absolute bottom-full left-0 z-[200] mb-1 max-h-64 w-[220px] overflow-y-auto overflow-x-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl"
           role="listbox"
           aria-label="Chimmy voice"
         >
           <p className="border-b border-white/[0.06] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
             Chimmy Voice
           </p>
-          {CHIMMY_VOICES.map((voice) => (
+          {CHIMMY_VOICE_DROPDOWN_OPTIONS.map((voice) => (
             <button
               key={voice.id}
               type="button"

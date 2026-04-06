@@ -9,6 +9,9 @@ export type ChimmyVoice = {
   preview?: string
 }
 
+/** ElevenLabs premade Rachel (same id as `ELEVENLABS_RACHEL_PREMADE` in chimmy voice route). */
+export const ELEVENLABS_RACHEL_PREMADE_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'
+
 export const CHIMMY_VOICES: ChimmyVoice[] = [
   {
     id: 'XrExE9yKIg1WjnnlVkGX',
@@ -18,7 +21,7 @@ export const CHIMMY_VOICES: ChimmyVoice[] = [
     accent: 'American',
   },
   {
-    id: '21m00Tcm4TlvDq8ikWAM',
+    id: ELEVENLABS_RACHEL_PREMADE_VOICE_ID,
     name: 'Rachel',
     description: 'Calm, professional',
     gender: 'female',
@@ -56,6 +59,14 @@ export const CHIMMY_VOICES: ChimmyVoice[] = [
 
 export const DEFAULT_VOICE_ID = CHIMMY_VOICES[0]!.id
 
+/**
+ * Chimmy dashboard voice dropdown: primary ElevenLabs options (Allison custom + Rachel premade).
+ * Full list stays in {@link CHIMMY_VOICES} for TTS allowlist / localStorage.
+ */
+export const CHIMMY_VOICE_DROPDOWN_OPTIONS: ChimmyVoice[] = CHIMMY_VOICES.filter((v) =>
+  v.name === 'Allison' || v.name === 'Rachel',
+)
+
 export const CHIMMY_VOICE_ID_STORAGE_KEY = 'chimmy_voice_id'
 
 export function getChimmyVoiceLabel(voiceId: string): string {
@@ -77,7 +88,11 @@ export function readStoredChimmyVoiceId(): string {
 /** IDs allowed for POST /api/tts (static list + optional env override). */
 export function getAllowedElevenLabsVoiceIds(): Set<string> {
   const ids = new Set(CHIMMY_VOICES.map((v) => v.id))
-  const env = typeof process !== 'undefined' && process.env.ELEVENLABS_VOICE_ID?.trim()
-  if (env) ids.add(env)
+  if (typeof process !== 'undefined') {
+    const env = process.env.ELEVENLABS_VOICE_ID?.trim()
+    if (env) ids.add(env)
+    const envRachel = process.env.ELEVENLABS_RACHEL_VOICE_ID?.trim()
+    if (envRachel) ids.add(envRachel)
+  }
   return ids
 }
