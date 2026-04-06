@@ -11,42 +11,44 @@ export async function GET(_req: Request, context: { params: Promise<{ jobId: str
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
   const appUserId = session.user.id
   const { jobId } = await context.params
 
   const job = await prisma.legacyImportJob.findFirst({
     where: { id: jobId, appUserId },
-    include: {
-      importJobSeasons: {
-        orderBy: { season: 'asc' },
-      },
-    },
   })
 
   if (!job) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const seasons = job.importJobSeasons.map((s) => ({
-    season: s.season,
-    status: s.status,
-    leagueCount: s.leagueCount,
-    wins: s.wins,
-    losses: s.losses,
-    rankAfter: s.rankAfter,
-    levelAfter: s.levelAfter,
-  }))
+  const seasonRows = await prisma.importJobSeason.findMany({
+    where: { jobId },
+    orderBy: { season: 'asc' },
+  })
 
   return NextResponse.json({
     status: job.status,
     progress: job.progress,
     currentSeason: job.currentSeason,
-    seasonsCompleted: job.seasonsCompleted,
-    totalSeasons: job.totalSeasons,
-    totalLeaguesSaved: job.totalLeaguesSaved,
+    seasonsCompleted: job.seasonsCompleted ?? 0,
+    totalSeasons: job.totalSeasons ?? 0,
+    totalLeaguesSaved: job.totalLeaguesSaved ?? 0,
     lastRankTier: job.lastRankTier,
     lastRankLevel: job.lastRankLevel,
-    lastXpTotal: job.lastXpTotal,
-    seasons,
+    lastXpTotal: job.lastXpTotal ?? 0,
+    completedAt: job.completedAt,
+    seasons: seasonRows.map((s) => ({
+      season: s.season,
+      status: s.status,
+      leagueCount: s.leagueCount ?? 0,
+      wins: s.wins ?? 0,
+      losses: s.losses ?? 0,
+      championships: s.championships ?? 0,
+      rankAfter: s.rankAfter,
+      levelAfter: s.levelAfter,
+      xpEarned: s.xpEarned ?? 0,
+    })),
   })
 }

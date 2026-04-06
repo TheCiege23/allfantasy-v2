@@ -3,7 +3,7 @@ import { LeagueSport, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 
-import { sendImportCompleteNotification } from '@/lib/import/sendNotification'
+import { sendImportCompleteNotification } from '@/lib/import/sendImportNotification'
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -16,14 +16,15 @@ type SeasonSummaryRow = {
   losses: number
   championships: number
   xp: number
+  level?: number | null
 }
 
 /**
- * Phased NFL Sleeper import: one season at a time, rank recalc after each season with data.
+ * Phased NFL Sleeper import. `userId` is AppUser id (matches `League.userId` and `calculateAndSaveRank`).
  */
 export async function processImportJob(
   jobId: string,
-  appUserId: string,
+  userId: string,
   sleeperUserId: string,
   seasons: number[],
 ): Promise<void> {
@@ -32,13 +33,13 @@ export async function processImportJob(
 
   for (let i = 0; i < seasons.length; i++) {
     const season = seasons[i]
-    const progress = seasons.length > 0 ? Math.round((i / seasons.length) * 100) : 0
+    const progressPct = seasons.length > 0 ? Math.round((i / seasons.length) * 100) : 0
 
     await prisma.legacyImportJob.update({
       where: { id: jobId },
       data: {
         status: 'running',
-        progress,
+        progress: progressPct,
         currentSeason: season,
         seasonsCompleted: i,
       },
@@ -61,15 +62,15 @@ export async function processImportJob(
           where: { jobId_season: { jobId, season } },
           data: { status: 'empty', completedAt: new Date() },
         })
-        await sleep(300)
+        await sleep(400)
         continue
       }
 
-      let seasonWins = 0
-      let seasonLosses = 0
-      let seasonChamps = 0
-      let seasonPlayoffs = 0
-      let savedCount = 0
+      let sw = 0
+      let sl = 0
+      let sc = 0
+      let sp = 0
+      let saved = 0
 
       for (const league of sleeperLeagues as Array<{
         league_id?: string
@@ -78,11 +79,11 @@ export async function processImportJob(
         settings?: { playoff_teams?: number; num_teams?: number }
       }>) {
         try {
-          const rosterRes = await fetch(
+          const rRes = await fetch(
             `https://api.sleeper.app/v1/league/${encodeURIComponent(String(league.league_id))}/rosters`,
             { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } },
           )
-          const rosters: unknown = rosterRes.ok ? await rosterRes.json() : []
+          const rosters: unknown = rRes.ok ? await rRes.json() : []
           const mine = Array.isArray(rosters)
             ? rosters.find((r: { owner_id?: string; co_owners?: string[]; settings?: Record<string, unknown> }) => {
                 const oid = r?.owner_id != null ? String(r.owner_id) : ''
@@ -128,7 +129,7 @@ export async function processImportJob(
           await prisma.league.upsert({
             where: {
               userId_platform_platformLeagueId_season: {
-                userId: appUserId,
+                userId,
                 platform: 'sleeper',
                 platformLeagueId,
                 season,
@@ -147,7 +148,7 @@ export async function processImportJob(
               importPointsFor: fpts,
             },
             create: {
-              userId: appUserId,
+              userId,
               platform: 'sleeper',
               platformLeagueId,
               name: league.name ?? 'Unnamed League',
@@ -164,29 +165,29 @@ export async function processImportJob(
             },
           })
 
-          seasonWins += wins
-          seasonLosses += losses
-          if (wonChampionship) seasonChamps++
-          if (madePlayoffs) seasonPlayoffs++
-          savedCount++
+          sw += wins
+          sl += losses
+          if (wonChampionship) sc++
+          if (madePlayoffs) sp++
+          saved++
           totalLeaguesSaved++
-        } catch (leagueErr: unknown) {
-          console.error(`[import] league ${String(league.league_id)} error:`, leagueErr)
+        } catch (e: unknown) {
+          console.error(`[import] league ${String(league.league_id)}:`, e)
         }
       }
 
-      const rankResult = await calculateAndSaveRank(appUserId)
+      const rankResult = await calculateAndSaveRank(userId)
       const xpNow = rankResult?.xpTotal ?? 0
 
       await prisma.importJobSeason.update({
         where: { jobId_season: { jobId, season } },
         data: {
           status: 'complete',
-          leagueCount: savedCount,
-          wins: seasonWins,
-          losses: seasonLosses,
-          championships: seasonChamps,
-          playoffApps: seasonPlayoffs,
+          leagueCount: saved,
+          wins: sw,
+          losses: sl,
+          championships: sc,
+          playoffApps: sp,
           xpEarned: xpNow,
           rankAfter: rankResult?.rankTier ?? null,
           levelAfter: rankResult?.xpLevel ?? null,
@@ -196,11 +197,12 @@ export async function processImportJob(
 
       seasonsSummary.push({
         season,
-        leagues: savedCount,
-        wins: seasonWins,
-        losses: seasonLosses,
-        championships: seasonChamps,
+        leagues: saved,
+        wins: sw,
+        losses: sl,
+        championships: sc,
         xp: xpNow,
+        level: rankResult?.xpLevel,
       })
 
       await prisma.legacyImportJob.update({
@@ -208,22 +210,24 @@ export async function processImportJob(
         data: {
           totalLeaguesSaved,
           seasonsCompleted: i + 1,
-          currentSeasonLeagues: savedCount,
+          currentSeasonLeagues: saved,
           lastRankTier: rankResult?.rankTier ?? null,
           lastRankLevel: rankResult?.xpLevel ?? null,
           lastXpTotal: xpNow,
           seasonsSummary: seasonsSummary as unknown as Prisma.InputJsonValue,
         },
       })
-    } catch (seasonErr: unknown) {
-      console.error(`[import] season ${season} error:`, seasonErr)
-      await prisma.importJobSeason.update({
-        where: { jobId_season: { jobId, season } },
-        data: { status: 'error', completedAt: new Date() },
-      })
+    } catch (err: unknown) {
+      console.error(`[import] season ${season}:`, err)
+      await prisma.importJobSeason
+        .update({
+          where: { jobId_season: { jobId, season } },
+          data: { status: 'error', completedAt: new Date() },
+        })
+        .catch(() => {})
     }
 
-    await sleep(300)
+    await sleep(400)
   }
 
   await prisma.legacyImportJob.update({
@@ -237,5 +241,7 @@ export async function processImportJob(
     },
   })
 
-  await sendImportCompleteNotification(appUserId, jobId)
+  await sendImportCompleteNotification(userId, jobId).catch((e: unknown) =>
+    console.error('[import] notification failed:', e),
+  )
 }

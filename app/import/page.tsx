@@ -103,7 +103,7 @@ export default function ImportPage() {
         throw new Error(getImportErrorMessage(data, data.error || `Import failed (${res.status})`));
       }
 
-      if (data.success === true && typeof data.jobId === "string" && data.jobId.length > 0) {
+      if (data.success && typeof data.jobId === "string" && data.jobId.length > 0) {
         router.push(`/dashboard/rankings?jobId=${encodeURIComponent(data.jobId)}`);
         return;
       }

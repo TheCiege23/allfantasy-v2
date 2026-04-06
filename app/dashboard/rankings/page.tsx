@@ -183,27 +183,41 @@ type ImportJobProgressResponse = {
   lastRankTier: string | null
   lastRankLevel: number | null
   lastXpTotal: number | null
+  completedAt?: string | null
   seasons: Array<{
     season: number
     status: string
     leagueCount: number | null
     wins: number | null
     losses: number | null
+    championships?: number | null
     rankAfter: string | null
     levelAfter: number | null
+    xpEarned?: number | null
   }>
 }
 
-function seasonPillState(season: number, job: ImportJobProgressResponse): 'pending' | 'processing' | 'done' | 'error' {
-  const row = job.seasons.find((s) => s.season === season)
-  if (row?.status === 'error') return 'error'
-  if (job.status === 'running' && job.currentSeason === season && (row?.status === 'processing' || row?.status === 'pending'))
-    return 'processing'
-  if (row?.status === 'processing') return 'processing'
-  if (row?.status === 'complete' || row?.status === 'empty') return 'done'
-  if (row?.status === 'pending') return 'pending'
-  return 'pending'
-}
+const statusIcon = (s: string) =>
+  (
+    ({
+      complete: '✓',
+      processing: '⟳',
+      error: '✕',
+      empty: '—',
+      pending: '·',
+    }) as Record<string, string>
+  )[s] ?? '·'
+
+const statusColor = (s: string) =>
+  (
+    ({
+      complete: '#6EE7A0',
+      processing: '#38BDF8',
+      error: '#F87171',
+      empty: '#94A3B8',
+      pending: '#64748B',
+    }) as Record<string, string>
+  )[s] ?? '#64748B'
 
 function ImportProgressPanel({
   job,
@@ -214,112 +228,127 @@ function ImportProgressPanel({
   loading: boolean
   error: string | null
 }) {
-  const seasonsSorted = job?.seasons?.length
-    ? [...job.seasons].sort((a, b) => a.season - b.season)
-    : []
+  const seasonsSorted = job?.seasons?.length ? [...job.seasons].sort((a, b) => a.season - b.season) : []
   const pct = Math.min(100, Math.max(0, job?.progress ?? 0))
-  const total = job?.totalSeasons ?? seasonsSorted.length
-  const done = job?.seasonsCompleted ?? 0
-  const levelName =
-    typeof job?.lastXpTotal === 'number' ? getLevelFromXp(job.lastXpTotal).name : '—'
 
   return (
-    <div
-      className="mb-8 rounded-2xl border border-white/10 bg-gradient-to-br from-[#0a1228] to-[#07071a] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-      data-testid="import-progress-panel"
-    >
-      <h2 className="text-lg font-bold text-white">Importing your legacy history</h2>
-      {error ? (
-        <p className="mt-2 text-sm text-red-300">{error}</p>
-      ) : null}
-      {loading && !job ? (
-        <div className="mt-4 flex items-center gap-2 text-sm text-white/50">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-cyan-500/30 border-t-cyan-300" />
-          Loading job status…
-        </div>
-      ) : null}
+    <div data-testid="import-progress-panel">
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `@keyframes import-season-spin { to { transform: rotate(360deg); } }`,
+        }}
+      />
+      <div
+        style={{
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 16,
+          padding: 24,
+          background: 'linear-gradient(145deg, rgba(10,18,40,0.95), rgba(7,7,26,0.98))',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#f8fafc' }}>Importing your legacy history</h3>
+        {error ? <p style={{ marginTop: 10, fontSize: 14, color: '#fca5a5' }}>{error}</p> : null}
+        {loading && !job ? (
+          <p style={{ marginTop: 16, fontSize: 13, color: 'rgba(248,250,252,0.5)' }}>Loading job status…</p>
+        ) : null}
 
-      {job ? (
-        <>
-          <div className="mt-4">
-            <div className="mb-1 flex justify-between text-xs font-semibold text-white/50">
-              <span>
-                {pct}% ({done}/{total || '—'} seasons)
-              </span>
-              <span>{job.totalLeaguesSaved ?? 0} leagues saved</span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-white/10">
+        {job ? (
+          <>
+            <div style={{ margin: '16px 0 8px', height: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 5 }}>
               <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-600 to-violet-500 transition-all duration-500"
-                style={{ width: `${pct}%` }}
+                style={{
+                  height: '100%',
+                  width: `${pct}%`,
+                  background: 'linear-gradient(90deg, #185FA5, #7c3aed)',
+                  borderRadius: 5,
+                  transition: 'width 0.5s ease',
+                }}
               />
             </div>
-          </div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 12,
+                color: 'rgba(248,250,252,0.45)',
+                marginBottom: 20,
+              }}
+            >
+              <span>
+                {job.seasonsCompleted ?? 0} of {job.totalSeasons ?? seasonsSorted.length} seasons
+              </span>
+              <span>{pct}%</span>
+            </div>
 
-          <p className="mt-4 text-sm text-white/70">
-            Currently processing:{' '}
-            <span className="font-semibold text-cyan-200">{job.currentSeason ?? '—'}</span>
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {seasonsSorted.map((s) => {
-              const st = seasonPillState(s.season, job)
-              const base =
-                'inline-flex min-w-[3.25rem] items-center justify-center rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums'
-              if (st === 'done') {
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+              {seasonsSorted.map((s) => {
+                const st = s.status
+                const bg =
+                  st === 'complete'
+                    ? 'rgba(59, 109, 17, 0.2)'
+                    : st === 'processing'
+                      ? 'rgba(24, 95, 165, 0.2)'
+                      : st === 'error'
+                        ? 'rgba(226, 75, 74, 0.15)'
+                        : 'rgba(241, 239, 232, 0.06)'
                 return (
-                  <span
+                  <div
                     key={s.season}
-                    className={`${base} border-emerald-500/35 bg-emerald-500/15 text-emerald-200`}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      background: bg,
+                      color: statusColor(st),
+                      border: st === 'processing' ? '1px solid #185FA5' : '1px solid transparent',
+                    }}
                   >
-                    {s.season} ✓
-                  </span>
-                )
-              }
-              if (st === 'processing') {
-                return (
-                  <span
-                    key={s.season}
-                    className={`${base} border-cyan-500/40 bg-cyan-500/10 text-cyan-100`}
-                  >
-                    <span className="mr-1 inline-block h-3 w-3 animate-spin rounded-full border border-cyan-400/40 border-t-cyan-200" />
+                    <span
+                      style={
+                        st === 'processing'
+                          ? { display: 'inline-block', animation: 'import-season-spin 1s linear infinite' }
+                          : {}
+                      }
+                    >
+                      {statusIcon(st)}
+                    </span>
                     {s.season}
-                  </span>
+                    {st === 'complete' && (s.leagueCount ?? 0) > 0 ? (
+                      <span style={{ opacity: 0.6 }}>·{s.leagueCount}</span>
+                    ) : null}
+                  </div>
                 )
-              }
-              if (st === 'error') {
-                return (
-                  <span
-                    key={s.season}
-                    className={`${base} border-red-500/35 bg-red-500/10 text-red-200`}
-                  >
-                    {s.season} ✕
-                  </span>
-                )
-              }
-              return (
-                <span key={s.season} className={`${base} border-white/10 bg-white/[0.04] text-white/35`}>
-                  {s.season} ·
-                </span>
-              )
-            })}
-          </div>
+              })}
+            </div>
 
-          <div className="mt-6 border-t border-white/10 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-white/35">Current rank</p>
-            <p className="mt-1 text-sm text-white">
-              ⭐ Level {job.lastRankLevel ?? '—'}{' '}
-              <span className="text-white/80">{job.lastRankTier ?? '—'}</span>
-              {levelName !== '—' ? (
-                <span className="text-white/60"> — {levelName}</span>
-              ) : null}
-            </p>
-            <p className="mt-1 text-xs text-white/45">
-              XP so far: {(job.lastXpTotal ?? 0).toLocaleString()}
-            </p>
-          </div>
-        </>
-      ) : null}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+              {[
+                { label: 'Leagues saved', val: job.totalLeaguesSaved ?? 0 },
+                { label: 'Current level', val: job.lastRankLevel ?? '—' },
+                { label: 'XP earned', val: (job.lastXpTotal ?? 0).toLocaleString() },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    borderRadius: 8,
+                    padding: 12,
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}
+                >
+                  <div style={{ fontSize: 20, fontWeight: 600, color: '#f8fafc' }}>{row.val}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(248,250,252,0.45)', marginTop: 2 }}>{row.label}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -1044,14 +1073,17 @@ function MyRankingsPageInner() {
   const jobIdParam = searchParams.get('jobId')
   const [jobProgress, setJobProgress] = useState<ImportJobProgressResponse | null>(null)
   const [jobProgressError, setJobProgressError] = useState<string | null>(null)
-  const [importCompleteBanner, setImportCompleteBanner] = useState<{
-    level: number | null
-    tier: string | null
-    levelName: string
+  const [importPhasedSuccess, setImportPhasedSuccess] = useState<{
+    totalLeagues: number
+    totalSeasons: number
+    finalLevel: number | null
   } | null>(null)
-  const [importBannerDismissed2, setImportBannerDismissed2] = useState(false)
+  const [importPhasedBannerDismissed, setImportPhasedBannerDismissed] = useState(false)
+  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams.get('jobId')))
+  const [showLevelUpBurst, setShowLevelUpBurst] = useState(false)
   const completedJobHandledRef = useRef<string | null>(null)
   const importPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const initialImportLevelRef = useRef<number | null>(null)
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true
@@ -1119,6 +1151,9 @@ function MyRankingsPageInner() {
       setJobProgressError(null)
       return
     }
+    setImportRankHidden(true)
+    completedJobHandledRef.current = null
+    initialImportLevelRef.current = null
     const jobId = jobIdParam
     let cancelled = false
 
@@ -1155,7 +1190,7 @@ function MyRankingsPageInner() {
     importPollRef.current = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       void poll()
-    }, 2000)
+    }, 2500)
 
     return () => {
       cancelled = true
@@ -1171,14 +1206,33 @@ function MyRankingsPageInner() {
     if (jobProgress.status !== 'complete') return
     if (completedJobHandledRef.current === jobIdParam) return
     completedJobHandledRef.current = jobIdParam
-    setImportCompleteBanner({
-      level: jobProgress.lastRankLevel,
-      tier: jobProgress.lastRankTier,
-      levelName: getLevelFromXp(jobProgress.lastXpTotal ?? 0).name,
+    const finalLv = jobProgress.lastRankLevel ?? null
+    setImportPhasedSuccess({
+      totalLeagues: jobProgress.totalLeaguesSaved ?? 0,
+      totalSeasons: jobProgress.totalSeasons ?? 0,
+      finalLevel: finalLv,
     })
-    void loadRank({ silent: false })
     router.replace('/dashboard/rankings', { scroll: false })
+    window.setTimeout(() => {
+      void loadRank({ silent: false })
+      setImportRankHidden(false)
+      if (
+        initialImportLevelRef.current != null &&
+        finalLv != null &&
+        finalLv > initialImportLevelRef.current
+      ) {
+        setShowLevelUpBurst(true)
+        window.setTimeout(() => setShowLevelUpBurst(false), 2200)
+      }
+    }, 1500)
   }, [jobIdParam, jobProgress, loadRank, router])
+
+  useEffect(() => {
+    if (!jobIdParam) return
+    if (levelRank && initialImportLevelRef.current === null) {
+      initialImportLevelRef.current = levelRank.level
+    }
+  }, [jobIdParam, levelRank])
 
   useEffect(() => {
     if (!justImported) return
@@ -1207,8 +1261,7 @@ function MyRankingsPageInner() {
     session?.user?.email?.split('@')[0] ||
     'manager'
 
-  const hideRankForPhasedImport =
-    Boolean(jobIdParam) && (jobProgress == null || jobProgress.status === 'running')
+  const hideRankForPhasedImport = importRankHidden
 
   if (loading) {
     return (
@@ -1284,19 +1337,32 @@ function MyRankingsPageInner() {
             </button>
           </div>
         ) : null}
-        {importCompleteBanner && !importBannerDismissed2 ? (
+        {importPhasedSuccess && !importPhasedBannerDismissed ? (
           <div className="mb-6 flex flex-col gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold text-emerald-100">
-              Your legacy profile is ready — Level {importCompleteBanner.level ?? '—'} {importCompleteBanner.levelName}
-              {importCompleteBanner.tier ? ` · ${importCompleteBanner.tier}` : ''} unlocked!
+              Import complete! {importPhasedSuccess.totalLeagues} leagues across {importPhasedSuccess.totalSeasons}{' '}
+              seasons
+              {importPhasedSuccess.finalLevel != null ? (
+                <span className="text-emerald-200/90"> — Level {importPhasedSuccess.finalLevel}</span>
+              ) : null}
             </p>
             <button
               type="button"
-              onClick={() => setImportBannerDismissed2(true)}
+              onClick={() => setImportPhasedBannerDismissed(true)}
               className="shrink-0 text-xs font-semibold text-emerald-200/80 underline-offset-2 hover:underline"
             >
               Dismiss
             </button>
+          </div>
+        ) : null}
+        {showLevelUpBurst ? (
+          <div
+            className="pointer-events-none fixed inset-x-0 top-24 z-[60] flex justify-center"
+            aria-live="polite"
+          >
+            <div className="animate-bounce rounded-2xl border border-amber-400/40 bg-amber-500/20 px-6 py-3 text-lg font-black text-amber-100 shadow-lg shadow-amber-500/20">
+              Level up!
+            </div>
           </div>
         ) : null}
         <div className="mb-8">
