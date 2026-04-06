@@ -16,6 +16,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
 import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
+import { SLEEPER_IMPORT_SPORTS } from '@/lib/league-import/sleeper/import-sports'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
 
@@ -418,11 +419,29 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         const userRes = await fetch(`https://api.sleeper.app/v1/user/${username}`)
         if (!userRes.ok) throw new Error('Sleeper username not found')
         const userData = await userRes.json()
-        await fetch('/api/import-sleeper', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sleeperUserId: userData.user_id, sport: 'nfl', isLegacy: true }),
-        })
+        let importedAnySport = false
+        let sawNoLeagues = false
+        for (const sport of SLEEPER_IMPORT_SPORTS) {
+          const importRes = await fetch('/api/import-sleeper', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sleeperUserId: userData.user_id, sport, isLegacy: true }),
+          })
+          if (importRes.ok) {
+            importedAnySport = true
+            continue
+          }
+          const importData = (await importRes.json().catch(() => ({}))) as { error?: string }
+          const errorMessage = importData.error?.trim() || 'Import failed'
+          if (importRes.status === 404) {
+            sawNoLeagues = true
+            continue
+          }
+          throw new Error(errorMessage)
+        }
+        if (!importedAnySport) {
+          throw new Error(sawNoLeagues ? 'No Sleeper leagues found for this account' : 'Import failed')
+        }
       } else if (providerId === 'espn') {
         // Add ESPN import logic here
         throw new Error('ESPN import coming soon')

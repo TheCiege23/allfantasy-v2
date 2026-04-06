@@ -34,15 +34,17 @@ const leagueImportLimit = pLimit(8);
 
 const bodySchema = z.object({
   sleeperUserId: z.string().min(1).max(100),
-  sport: z.enum(["nfl", "nba", "mlb"]).default("nfl"),
+  sport: z.enum(["nfl", "nba", "mlb", "nhl", "mls"]).default("nfl"),
   season: z.number().int().min(2020).max(2035).default(CURRENT_IMPORT_SEASON),
   isLegacy: z.boolean().default(false),
 });
 
-const sportMap: Record<"nfl" | "nba" | "mlb", LeagueSport> = {
+const sportMap: Record<"nfl" | "nba" | "mlb" | "nhl" | "mls", LeagueSport> = {
   nfl: LeagueSport.NFL,
   nba: LeagueSport.NBA,
   mlb: LeagueSport.MLB,
+  nhl: LeagueSport.NHL,
+  mls: LeagueSport.SOCCER,
 };
 
 export async function POST(req: Request) {
