@@ -2042,7 +2042,7 @@ model WeeklyMatchup {
 model RankingsSnapshot {
   id           BigInt   @id @default(autoincrement())
   leagueId     String
-  sportType    String?  @db.VarChar(16)
+  sportType    String? @map("sport_type")  @db.VarChar(16)
   season       String
   week         Int
   rosterId     String
@@ -8901,7 +8901,7 @@ model ZombieAuditLog {
 /// Multi-sport: roster template per sport/format (slot definitions)
 model RosterTemplate {
   id         String               @id @default(cuid())
-  sportType  String               @db.VarChar(12)
+  sportType  String @map("sport_type")               @db.VarChar(12)
   name       String               @db.VarChar(64)
   formatType String               @db.VarChar(32)
   createdAt  DateTime             @default(now())
@@ -8945,7 +8945,7 @@ model LeagueRosterConfig {
 /// Multi-sport: scoring template per sport/format
 model ScoringTemplate {
   id         String        @id @default(cuid())
-  sportType  String        @db.VarChar(12)
+  sportType  String @map("sport_type")        @db.VarChar(12)
   name       String        @db.VarChar(64)
   formatType String        @db.VarChar(32)
   createdAt  DateTime      @default(now())
@@ -8987,7 +8987,7 @@ model LeagueScoringOverride {
 /// Commissioners can override only where the sport allows; validation uses these flags.
 model SportFeatureFlags {
   id                    String   @id @default(cuid())
-  sportType             String   @unique @db.VarChar(12)
+  sportType             String @map("sport_type")   @unique @db.VarChar(12)
   supportsBestBall      Boolean  @default(false)
   supportsSuperflex     Boolean  @default(false)
   supportsTePremium     Boolean  @default(false)
@@ -9010,7 +9010,7 @@ model SportFeatureFlags {
 /// Separate from real-world season metadata. One default per sport (formatType = 'DEFAULT').
 model ScheduleTemplate {
   id                    String   @id @default(cuid())
-  sportType             String   @db.VarChar(12)
+  sportType             String @map("sport_type")   @db.VarChar(12)
   name                  String   @db.VarChar(64)
   formatType            String   @db.VarChar(32)
   matchupType           String   @db.VarChar(48)
@@ -9037,7 +9037,7 @@ model ScheduleTemplate {
 /// One default per sport (formatType = 'DEFAULT').
 model SeasonCalendar {
   id                           String   @id @default(cuid())
-  sportType                    String   @db.VarChar(12)
+  sportType                    String @map("sport_type")   @db.VarChar(12)
   name                         String   @db.VarChar(64)
   formatType                   String   @db.VarChar(32)
   preseasonPeriod              Json? // e.g. { monthStart: 8, monthEnd: 8, label: "August" }
@@ -9056,7 +9056,7 @@ model SeasonCalendar {
 /// Multi-sport: scheduled games for schedule/stats pipeline
 model GameSchedule {
   id          String    @id @default(cuid())
-  sportType   String    @db.VarChar(12)
+  sportType   String @map("sport_type")    @db.VarChar(12)
   season      Int
   weekOrRound Int
   externalId  String    @db.VarChar(64)
@@ -9084,7 +9084,7 @@ model GameSchedule {
 model PlayerGameStat {
   id                String   @id @default(cuid())
   playerId          String   @db.VarChar(64)
-  sportType         String   @db.VarChar(12)
+  sportType         String @map("sport_type")   @db.VarChar(12)
   gameId            String   @db.VarChar(64)
   season            Int
   weekOrRound       Int
@@ -9102,7 +9102,7 @@ model PlayerGameStat {
 /// Multi-sport: team-level game stats (optional aggregate)
 model TeamGameStat {
   id          String   @id @default(cuid())
-  sportType   String   @db.VarChar(12)
+  sportType   String @map("sport_type")   @db.VarChar(12)
   gameId      String   @db.VarChar(64)
   teamId      String   @db.VarChar(32)
   season      Int
@@ -9118,7 +9118,7 @@ model TeamGameStat {
 /// Multi-sport: stat ingestion job tracking
 model StatIngestionJob {
   id           String    @id @default(cuid())
-  sportType    String    @db.VarChar(12)
+  sportType    String @map("sport_type")    @db.VarChar(12)
   season       Int
   weekOrRound  Int?
   source       String    @db.VarChar(32)
@@ -9246,7 +9246,7 @@ model PositionMetaTrend {
 model WaiverClaim {
   id            String    @id @default(uuid())
   leagueId      String
-  sportType     String?   @db.VarChar(16)
+  sportType     String? @map("sport_type")   @db.VarChar(16)
   rosterId      String
   addPlayerId   String
   dropPlayerId  String?
@@ -9272,7 +9272,7 @@ model WaiverClaim {
 model WaiverTransaction {
   id                   String   @id @default(uuid())
   leagueId             String
-  sportType            String?  @db.VarChar(16)
+  sportType            String? @map("sport_type")  @db.VarChar(16)
   rosterId             String
   claimId              String?
   addPlayerId          String
@@ -9414,7 +9414,7 @@ model MockDraftChat {
 model DraftSession {
   id                     String    @id @default(uuid())
   leagueId               String
-  sportType              String?   @db.VarChar(16)
+  sportType              String? @map("sport_type")   @db.VarChar(16)
   /// Sleeper `draft_id` when syncing live drafts from Sleeper (optional).
   sleeperDraftId         String?   @unique
   /// `live` = Sleeper-synced; `mock` = AllFantasy mock (may also use MockDraftRoom).
@@ -9482,7 +9482,7 @@ model DraftSession {
 model DraftPick {
   id             String       @id @default(uuid())
   sessionId      String
-  sportType      String?      @db.VarChar(16)
+  sportType      String? @map("sport_type")      @db.VarChar(16)
   session        DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   overall        Int // 1-based
   round          Int
@@ -9646,7 +9646,7 @@ model RankingsBacktestResult {
 model DraftPredictionSnapshot {
   id           String   @id @default(uuid())
   leagueId     String
-  sportType    String?  @db.VarChar(16)
+  sportType    String? @map("sport_type")  @db.VarChar(16)
   userId       String
   season       Int
   draftId      String?
@@ -9668,7 +9668,7 @@ model DraftPredictionSnapshot {
 model DraftRetrospective {
   id                   String   @id @default(uuid())
   leagueId             String
-  sportType            String?  @db.VarChar(16)
+  sportType            String? @map("sport_type")  @db.VarChar(16)
   userId               String
   season               Int
   draftId              String
@@ -9693,7 +9693,7 @@ model DraftRetrospective {
 model LeagueDraftCalibration {
   id             String   @id @default(uuid())
   leagueId       String
-  sportType      String?  @db.VarChar(16)
+  sportType      String? @map("sport_type")  @db.VarChar(16)
   season         Int
   adpWeight      Float    @default(1.0)
   needWeight     Float    @default(1.0)
@@ -10343,7 +10343,7 @@ model WalletLedgerEntry {
 model SeasonForecastSnapshot {
   id            String   @id @default(cuid())
   leagueId      String   @db.VarChar(64)
-  sportType     String?  @db.VarChar(16)
+  sportType     String? @map("sport_type")  @db.VarChar(16)
   season        Int
   week          Int
   teamForecasts Json // TeamSeasonForecast[]
@@ -10360,7 +10360,7 @@ model SeasonForecastSnapshot {
 model DynastyProjectionSnapshot {
   id                        String   @id @default(cuid())
   leagueId                  String   @db.VarChar(64)
-  sportType                 String?  @db.VarChar(16)
+  sportType                 String? @map("sport_type")  @db.VarChar(16)
   teamId                    String   @db.VarChar(64)
   season                    Int
   projectedStrengthNextYear Float
@@ -10408,7 +10408,7 @@ model PlayerCareerProjection {
 model TeamWindowProfile {
   id                   String   @id @default(cuid())
   leagueId             String   @db.VarChar(64)
-  sportType            String?  @db.VarChar(16)
+  sportType            String? @map("sport_type")  @db.VarChar(16)
   teamId               String   @db.VarChar(64)
   season               Int
   windowStatus         String   @db.VarChar(32) // Contender, Rising, Competitive, Declining, Rebuilding, Tank Risk
