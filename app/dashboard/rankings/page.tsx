@@ -556,6 +556,7 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               }),
             })
             const batchData = (await batchRes.json().catch(() => ({}))) as {
+              saved?: number
               xpLevel?: number
               rankTier?: string | null
               xpTotal?: number | null
@@ -573,11 +574,12 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
               setCurrentXp(batchData.xpTotal ?? null)
             }
 
+            const savedLeaguesForSeason = typeof batchData.saved === 'number' ? batchData.saved : 0
             setCompletedSeasons((prev) => [
               ...prev,
-              { season, leagues: leagueRecords.length, level: batchData.xpLevel },
+              { season, leagues: savedLeaguesForSeason, level: batchData.xpLevel },
             ])
-            setLeaguesSaved((prev) => prev + leagueRecords.length)
+            setLeaguesSaved((prev) => prev + savedLeaguesForSeason)
           } catch (seasonErr) {
             console.error(`[import] season ${season}:`, seasonErr)
           }

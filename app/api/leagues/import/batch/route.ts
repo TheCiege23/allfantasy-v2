@@ -89,24 +89,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'sleeperUserId required' }, { status: 400 })
     }
 
-    if (resolvedSleeperUserId) {
-      await prisma.userProfile
-        .upsert({
-          where: { userId },
-          update: {
-            sleeperUserId: resolvedSleeperUserId,
-            ...(sleeperUsernameTrimmed ? { sleeperUsername: sleeperUsernameTrimmed.toLowerCase() } : {}),
-            sleeperLinkedAt: new Date(),
-          },
-          create: {
-            userId,
-            sleeperUserId: resolvedSleeperUserId,
-            ...(sleeperUsernameTrimmed ? { sleeperUsername: sleeperUsernameTrimmed.toLowerCase() } : {}),
-            sleeperLinkedAt: new Date(),
-          },
-        })
-        .catch(() => {})
-    }
+    await prisma.userProfile.upsert({
+      where: { userId },
+      update: {
+        sleeperUserId: resolvedSleeperUserId,
+        ...(sleeperUsernameTrimmed ? { sleeperUsername: sleeperUsernameTrimmed.toLowerCase() } : {}),
+        sleeperLinkedAt: new Date(),
+      },
+      create: {
+        userId,
+        sleeperUserId: resolvedSleeperUserId,
+        ...(sleeperUsernameTrimmed ? { sleeperUsername: sleeperUsernameTrimmed.toLowerCase() } : {}),
+        sleeperLinkedAt: new Date(),
+      },
+    })
 
     const userLeaguesRes = await fetch(
       `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/nfl/${season}`,
