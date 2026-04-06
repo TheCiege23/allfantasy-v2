@@ -7,9 +7,10 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
 import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
 import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
+import { SLEEPER_IMPORT_SPORTS } from '@/lib/league-import/sleeper/import-sports'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
-import { SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 interface PlayerRank {
   careerTier: number
@@ -343,20 +344,6 @@ const PLATFORMS = [
   { id: 'fantrax', label: 'Fantrax', emoji: '📊' },
   { id: 'espn', label: 'ESPN', emoji: '🔴' },
 ] as const
-
-const SLEEPER_SPORT_BY_SUPPORTED: Record<SupportedSport, string> = {
-  NFL: 'nfl',
-  NHL: 'nhl',
-  NBA: 'nba',
-  MLB: 'mlb',
-  NCAAF: 'nfl',
-  NCAAB: 'nba',
-  SOCCER: 'mls',
-}
-
-const SLEEPER_IMPORT_SPORTS = Array.from(
-  new Set(SUPPORTED_SPORTS.map((sport) => SLEEPER_SPORT_BY_SUPPORTED[sport]))
-)
 
 type TierVisual = {
   tier: number

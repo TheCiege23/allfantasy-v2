@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { requireCronAuth } from '@/app/api/cron/_auth'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { SUPPORTED_SPORTS } from '@/lib/workers/api-config'
 
@@ -8,8 +9,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get('authorization')
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!requireCronAuth(req, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

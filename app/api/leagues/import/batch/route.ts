@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { runWithConcurrency } from '@/lib/async-utils'
-import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import { SLEEPER_IMPORT_SPORTS, SLEEPER_SPORT_BY_SUPPORTED } from '@/lib/league-import/sleeper/import-sports'
+import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -40,20 +41,6 @@ type SleeperRosterApi = {
   co_owners?: string[]
   settings?: Record<string, unknown>
 }
-
-const SLEEPER_SPORT_BY_SUPPORTED: Record<SupportedSport, string> = {
-  NFL: 'nfl',
-  NHL: 'nhl',
-  NBA: 'nba',
-  MLB: 'mlb',
-  NCAAF: 'nfl',
-  NCAAB: 'nba',
-  SOCCER: 'mls',
-}
-
-const SLEEPER_IMPORT_SPORTS = Array.from(
-  new Set(SUPPORTED_SPORTS.map((sport) => SLEEPER_SPORT_BY_SUPPORTED[sport]))
-)
 
 const SUPPORTED_BY_SLEEPER_SPORT: Record<string, SupportedSport> = {
   nfl: 'NFL',
