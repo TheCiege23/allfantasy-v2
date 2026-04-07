@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { DEFAULT_LANG, resolveLanguage } from "@/lib/i18n/constants"
 import { translations } from "@/lib/i18n/translations"
-import { translateMissingEnglishKeysWithDeepL } from "@/lib/i18n/deepl-server"
+import { translateMissingEnglishKeysWithGoogle } from "@/lib/i18n/google-translate-server"
 
 export const runtime = "nodejs"
 
@@ -16,14 +16,15 @@ export async function GET(req: Request) {
     ...selected,
   }
 
-  let deeplMessages: Record<string, string> = {}
+
+  let googleMessages: Record<string, string> = {}
   if (lang === "es") {
     const missingEsEntries: Record<string, string> = {}
     for (const [key, value] of Object.entries(fallback)) {
       if (selected[key] !== undefined) continue
       missingEsEntries[key] = value
     }
-    deeplMessages = await translateMissingEnglishKeysWithDeepL(missingEsEntries)
+    googleMessages = await translateMissingEnglishKeysWithGoogle(missingEsEntries, lang)
   }
 
   return NextResponse.json({
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     language: lang,
     messages: {
       ...merged,
-      ...deeplMessages,
+      ...googleMessages,
     },
   })
 }
