@@ -15,8 +15,6 @@
     "incremental": true,
     // Deprecated: Remove before TypeScript 7.0
     "downlevelIteration": true,
-    // Silence deprecation warnings for TS 6.x
-    "ignoreDeprecations": "6.0",
     "plugins": [
       {
         "name": "next"
