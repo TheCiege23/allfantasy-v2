@@ -287,6 +287,20 @@ export async function POST(req: NextRequest) {
           pf = Number.isFinite(fpts) ? fpts + fptsDecimal / 100 : pf
         }
 
+        const leagueImportData = {
+          name: sleeperLeague.name ?? league.name,
+          sport: resolvedLeagueSport,
+          leagueSize: totalTeams,
+          importWins: wins,
+          importLosses: losses,
+          importTies: ties,
+          importMadePlayoffs: madePlayoffs,
+          importWonChampionship: wonChampionship,
+          importFinalStanding: finalStanding,
+          importPointsFor: pf,
+          importedAt: new Date(),
+        }
+
         await prisma.league.upsert({
           where: {
             userId_platform_platformLeagueId_season: {
@@ -296,36 +310,14 @@ export async function POST(req: NextRequest) {
               season: validatedSeason,
             },
           },
-          update: {
-            name: sleeperLeague.name ?? league.name,
-            sport: resolvedLeagueSport,
-            leagueSize: totalTeams,
-            importWins: wins,
-            importLosses: losses,
-            importTies: ties,
-            importMadePlayoffs: madePlayoffs,
-            importWonChampionship: wonChampionship,
-            importFinalStanding: finalStanding,
-            importPointsFor: pf,
-            importedAt: new Date(),
-          },
+          update: leagueImportData as any,
           create: {
             userId,
             platform: 'sleeper',
             platformLeagueId,
-            name: sleeperLeague.name ?? league.name,
-            sport: resolvedLeagueSport,
             season: validatedSeason,
-            leagueSize: totalTeams,
-            importWins: wins,
-            importLosses: losses,
-            importTies: ties,
-            importMadePlayoffs: madePlayoffs,
-            importWonChampionship: wonChampionship,
-            importFinalStanding: finalStanding,
-            importPointsFor: pf,
-            importedAt: new Date(),
-          },
+            ...(leagueImportData as any),
+          } as any,
         })
         return 1
       } catch (e) {

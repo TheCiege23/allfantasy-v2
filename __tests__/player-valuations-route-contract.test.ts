@@ -331,4 +331,83 @@ describe('computePlayerValuation', () => {
     expect(val.value).toBeGreaterThan(0)
     expect(val.healthScore).toBe(100)
   })
+
+  it('scores NFL IDP linebacker from defensive stats', async () => {
+    const { computePlayerValuation } = await import('@/lib/player-valuation-features')
+    const val = computePlayerValuation({
+      playerId: 'idp1',
+      name: 'IDP LB',
+      sport: 'nfl',
+      position: 'LB',
+      team: 'PIT',
+      stats: {
+        solo_tackles: 90,
+        assisted_tackles: 35,
+        tackles_for_loss: 14,
+        sacks: 8,
+        forced_fumbles: 3,
+        interceptions: 2,
+      },
+      injuryStatus: 'active',
+      adp: 75,
+      syncedAt: new Date().toISOString(),
+    })
+
+    expect(val.value).toBeGreaterThan(0)
+    expect(val.opportunityScore).toBeGreaterThan(0)
+    expect(val.tier).toMatch(/^[SABCD]$/)
+  })
+
+  it('gives better opportunity score for lower ADP', async () => {
+    const { computePlayerValuation } = await import('@/lib/player-valuation-features')
+    const lowAdp = computePlayerValuation({
+      playerId: 'adp-low',
+      name: 'Low ADP',
+      sport: 'nfl',
+      position: 'WR',
+      team: 'LAR',
+      stats: { receiving_yards: 800, receiving_tds: 6, receptions: 70 },
+      injuryStatus: 'active',
+      adp: 12,
+      syncedAt: new Date().toISOString(),
+    })
+
+    const highAdp = computePlayerValuation({
+      playerId: 'adp-high',
+      name: 'High ADP',
+      sport: 'nfl',
+      position: 'WR',
+      team: 'LAR',
+      stats: { receiving_yards: 800, receiving_tds: 6, receptions: 70 },
+      injuryStatus: 'active',
+      adp: 180,
+      syncedAt: new Date().toISOString(),
+    })
+
+    expect(lowAdp.opportunityScore).toBeGreaterThan(highAdp.opportunityScore)
+    expect(lowAdp.value).toBeGreaterThan(highAdp.value)
+  })
+
+  it('uses IDP production fallback when ADP is missing', async () => {
+    const { computePlayerValuation } = await import('@/lib/player-valuation-features')
+    const val = computePlayerValuation({
+      playerId: 'idp-no-adp',
+      name: 'No ADP LB',
+      sport: 'nfl',
+      position: 'LB',
+      team: 'BAL',
+      stats: {
+        solo_tackles: 100,
+        assisted_tackles: 30,
+        tackles_for_loss: 16,
+        sacks: 9,
+      },
+      injuryStatus: 'active',
+      adp: null,
+      syncedAt: new Date().toISOString(),
+    })
+
+    expect(val.opportunityScore).toBeGreaterThan(50)
+    expect(val.value).toBeGreaterThan(0)
+  })
 })

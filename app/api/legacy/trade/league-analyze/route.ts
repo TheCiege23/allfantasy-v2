@@ -295,7 +295,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
     })
 
     // Parse roster structure
-    const numTeams = leagueInfo.total_rosters || leagueSettings.num_teams || 12
+    const parsedNumTeams = Number(leagueInfo.total_rosters ?? leagueSettings.num_teams)
+    const numTeams = Number.isFinite(parsedNumTeams) && parsedNumTeams > 0 ? parsedNumTeams : 12
     const taxiSlots = Number(leagueSettings.taxi_slots || 0)
     const benchSlots = rosterPositions.filter((p: string) => String(p).toUpperCase() === 'BN').length
     const starterSlots = rosterPositions.filter((p: string) => {
@@ -429,11 +430,17 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
     try {
       let fcPlayers: any[] = []
       try {
+        const fcIsDynasty = leagueSettings.type === 2
+        const fcNumQbs: 1 | 2 = isSF ? 2 : 1
+        const fcNumTeams = Number.isFinite(Number(numTeams)) && Number(numTeams) > 0 ? Number(numTeams) : 12
+        const recSetting = Number(scoringSettings.rec ?? 1)
+        const fcPpr: 0 | 0.5 | 1 = recSetting >= 1 ? 1 : recSetting >= 0.5 ? 0.5 : 0
+
         fcPlayers = await fetchFantasyCalcValues({
-          isDynasty: leagueSettings.type === 2,
-          numQbs: isSF ? 2 : 1,
-          numTeams: numTeams,
-          ppr: 1,
+          isDynasty: fcIsDynasty,
+          numQbs: fcNumQbs,
+          numTeams: fcNumTeams,
+          ppr: fcPpr,
         })
       } catch { fcPlayers = [] }
 

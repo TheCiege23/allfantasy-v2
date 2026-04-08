@@ -1157,6 +1157,36 @@ function isPlayerMovementIntent(intent: IntentType, userMessage: string): boolea
   )
 }
 
+function requiresLeagueGrounding(intent: IntentType, userMessage: string, ctx: UserContext): boolean {
+  const source = String(ctx.source ?? '').toLowerCase()
+  const message = userMessage.toLowerCase()
+
+  if (ctx.teamId) return true
+  if (
+    ['trade_evaluation', 'waiver_wire', 'matchup_simulator', 'dynasty_legacy', 'player_comparison'].includes(
+      intent
+    )
+  ) {
+    return true
+  }
+  if (source.includes('trade') || source.includes('waiver') || source.includes('lineup')) {
+    return true
+  }
+  return /\b(trade|waiver|lineup|start|sit|bench|my team|my roster|future|next season|for my team)\b/.test(
+    message
+  )
+}
+
+function buildLeagueGroundingRequiredResponse(intent: IntentType): AgentResponse {
+  return {
+    result:
+      'League context is required for trade, waiver, and team-specific planning requests. Open Chimmy from a league page or include leagueId.',
+    intent,
+    model: MODELS.orchestrator,
+    tokensUsed: 0,
+  }
+}
+
 async function buildPlayerContextMap(
   playerNames: string[],
   sport: SupportedSport,
@@ -1791,6 +1821,10 @@ export async function runAgentPipeline(
     const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
 
     if (wordCount <= 8 && !ctx.image) {
+      if (requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) && !ctx.leagueId) {
+        return buildLeagueGroundingRequiredResponse('quick_ask')
+      }
+
       const quickPayload = { userMessage: trimmedMessage }
       const cacheAddress = buildResponseCacheAddress({
         intent: 'quick_ask',
@@ -1804,6 +1838,18 @@ export async function runAgentPipeline(
       const structuredFantasyContext = isPlayerMovementIntent('quick_ask', trimmedMessage)
         ? await buildStructuredFantasyContext('quick_ask', quickPayload, ctx).catch(() => null)
         : null
+      if (
+        requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
+        !structuredFantasyContext
+      ) {
+        return {
+          result:
+            'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+          intent: 'quick_ask',
+          model: MODELS.orchestrator,
+          tokensUsed: 0,
+        }
+      }
       const quickResult = await withTimeout(
         runSpecialist('quick_ask', quickPayload, ctx, undefined, structuredFantasyContext),
         AGENT_TIMEOUT_MS,
@@ -1841,6 +1887,22 @@ export async function runAgentPipeline(
           () => null
         )
       : null
+
+    if (requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) && !ctx.leagueId) {
+      return buildLeagueGroundingRequiredResponse(classification.result.intent)
+    }
+    if (
+      requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
+      !structuredFantasyContext
+    ) {
+      return {
+        result:
+          'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+      }
+    }
 
     if (classification.result.isQuickAsk) {
       const quickResult = await withTimeout(
@@ -1931,6 +1993,12 @@ export async function streamAgentPipeline(
     const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
 
     if (wordCount <= 8 && !ctx.image) {
+      if (requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) && !ctx.leagueId) {
+        const blocked = buildLeagueGroundingRequiredResponse('quick_ask')
+        onText(blocked.result, blocked.result)
+        return blocked
+      }
+
       const quickPayload = { userMessage: trimmedMessage }
       const cacheAddress = buildResponseCacheAddress({
         intent: 'quick_ask',
@@ -1947,6 +2015,20 @@ export async function streamAgentPipeline(
       const structuredFantasyContext = isPlayerMovementIntent('quick_ask', trimmedMessage)
         ? await buildStructuredFantasyContext('quick_ask', quickPayload, ctx).catch(() => null)
         : null
+      if (
+        requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
+        !structuredFantasyContext
+      ) {
+        const blocked: AgentResponse = {
+          result:
+            'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+          intent: 'quick_ask',
+          model: MODELS.orchestrator,
+          tokensUsed: 0,
+        }
+        onText(blocked.result, blocked.result)
+        return blocked
+      }
       const quickResult = await withTimeout(
         streamSpecialist(
           'quick_ask',
@@ -1994,6 +2076,26 @@ export async function streamAgentPipeline(
           () => null
         )
       : null
+
+    if (requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) && !ctx.leagueId) {
+      const blocked = buildLeagueGroundingRequiredResponse(classification.result.intent)
+      onText(blocked.result, blocked.result)
+      return blocked
+    }
+    if (
+      requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
+      !structuredFantasyContext
+    ) {
+      const blocked: AgentResponse = {
+        result:
+          'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+      }
+      onText(blocked.result, blocked.result)
+      return blocked
+    }
 
     if (classification.result.isQuickAsk) {
       const quickResult = await withTimeout(

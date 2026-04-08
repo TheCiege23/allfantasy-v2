@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { pricePlayer, ValuationContext } from '@/lib/hybrid-valuation'
-import { fetchFantasyCalcValues } from '@/lib/fantasycalc'
+import { fetchFantasyCalcValues, type FantasyCalcSettings } from '@/lib/fantasycalc'
 import { convertSleeperToAssets } from '@/lib/trade-engine'
 import { getPreAnalysisStatus } from '@/lib/trade-pre-analysis'
 import { findBestPartners, type MatchmakingGoal } from '@/lib/trade-finder/partner-matchmaking'
@@ -108,7 +108,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       return NextResponse.json({ error: 'Failed to fetch league data from Sleeper' }, { status: 502 })
     }
 
-    const userMap = new Map<string, { display_name?: string; username?: string; avatar?: string }>()
+    const userMap = new Map<string, { display_name?: string; username?: string; avatar?: string | null }>()
     for (const u of users) {
       userMap.set(u.user_id, u)
     }
@@ -130,7 +130,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
     const isSF = rosterPositions.some((p: string) => p === 'SUPER_FLEX')
     const isTEP = (league.scoring_settings?.bonus_rec_te ?? 0) > 0
     const tepBonus = league.scoring_settings?.bonus_rec_te ?? 0
-    const numTeams = leagueSettings.num_teams || rosters.length
+    const parsedNumTeams = Number(leagueSettings.num_teams)
+    const numTeams = Number.isFinite(parsedNumTeams) && parsedNumTeams > 0 ? parsedNumTeams : rosters.length
 
     const transactionsData = await getLeagueTransactions(leagueId, 1).catch(() => [])
     const tradeCountByRosterId: Record<number, number> = {}
@@ -185,19 +186,22 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
 
     let fcPlayers: any[] = []
     try {
-      fcPlayers = await fetchFantasyCalcValues({
+      const recSetting = Number(league.scoring_settings?.rec ?? 1)
+      const ppr: 0 | 0.5 | 1 = recSetting >= 1 ? 1 : recSetting >= 0.5 ? 0.5 : 0
+      const fcSettings: FantasyCalcSettings = {
         isDynasty: league.settings?.type === 2,
         numQbs: isSF ? 2 : 1,
-        numTeams,
-        ppr: 1,
-      })
+        numTeams: Number(numTeams) || 12,
+        ppr,
+      }
+      fcPlayers = await fetchFantasyCalcValues(fcSettings)
     } catch { fcPlayers = [] }
 
     const ctx: ValuationContext = {
       asOfDate: new Date().toISOString().slice(0, 10),
       isSuperFlex: isSF,
       fantasyCalcPlayers: fcPlayers,
-      numTeams,
+      numTeams: Number(numTeams),
     }
 
     const fantasyCalcValueMap: Record<string, { value: number; marketValue?: number; impactValue?: number; vorpValue?: number; volatility?: number }> = {}
@@ -362,7 +366,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
         rosterPositions,
         starterSlots: rosterPositions.filter((p: string) => p !== 'BN').length,
         benchSlots: rosterPositions.filter((p: string) => p === 'BN').length,
-        taxiSlots: league.settings?.taxi_slots ?? 0,
+        taxiSlots: Number(league.settings?.taxi_slots ?? 0) || 0,
       },
     }
 

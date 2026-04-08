@@ -5,7 +5,6 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { File as NodeFile } from 'node:buffer'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
@@ -141,6 +140,30 @@ function buildCompatibilityPayload(body: unknown, status: number) {
     upgradeRequired,
     upgradePath,
   }
+}
+
+function requiresLeagueGrounding(args: {
+  message: string
+  source?: string
+  teamId?: string
+  leagueId?: string
+  insightType?: string
+}): boolean {
+  const message = args.message.toLowerCase()
+  const source = String(args.source ?? '').toLowerCase()
+
+  if (args.teamId) return true
+  if (args.insightType === 'trade' || args.insightType === 'waiver' || args.insightType === 'dynasty') {
+    return true
+  }
+  if (source.includes('trade') || source.includes('waiver') || source.includes('lineup')) {
+    return true
+  }
+  if (/\b(trade|waiver|lineup|start|sit|bench|my team|my roster|future|next season|for my team)\b/.test(message)) {
+    return true
+  }
+
+  return false
 }
 
 async function toCompatibilityResponse(response: Response): Promise<NextResponse> {
@@ -340,8 +363,8 @@ function appendImageToFormData(formData: FormData, image?: z.infer<typeof Chimmy
   const bytes = Buffer.from(base64Payload, 'base64')
   const fileType = image.type || mimeType
   const fileName = image.name?.trim() || `chimmy-upload.${mimeType.split('/')[1] || 'bin'}`
-  const file = new NodeFile([bytes], fileName, { type: fileType })
-  formData.append('image', file)
+  const blob = new Blob([bytes], { type: fileType })
+  formData.append('image', blob, fileName)
 }
 
 function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJsonRequestSchema>) {
@@ -463,6 +486,27 @@ export async function POST(req: NextRequest) {
   }
 
   const anthropicImage = normalizeAnthropicImagePayload(parseResult.data.image)
+  const leagueGroundingRequired = requiresLeagueGrounding({
+    message: parseResult.data.message,
+    source: parseResult.data.userContext.source,
+    teamId: parseResult.data.userContext.teamId,
+    leagueId: parseResult.data.userContext.leagueId,
+    insightType: parseResult.data.userContext.insightType,
+  })
+
+  if (leagueGroundingRequired && !parseResult.data.userContext.leagueId) {
+    return NextResponse.json(
+      buildCompatibilityPayload(
+        {
+          error:
+            'League context is required for trade, waiver, and team-specific planning requests. Open Chimmy from a league context or include leagueId.',
+        },
+        412
+      ),
+      { status: 412 }
+    )
+  }
+
   const useAnthropicPath =
     (await isAnthropicChimmyEnabled()) &&
     isAnthropicPipelineAvailable() &&

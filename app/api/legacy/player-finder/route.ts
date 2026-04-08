@@ -27,7 +27,7 @@ interface SleeperPlayer {
   first_name?: string
   last_name?: string
   position?: string
-  team?: string
+  team?: string | null
   injury_status?: string
   injury_body_part?: string
   status?: string
@@ -64,7 +64,7 @@ async function getSleeperPlayers(sport: Sport): Promise<Record<string, SleeperPl
   if (playersCache[sport].data && now - playersCache[sport].at < CACHE_TTL) {
     return playersCache[sport].data!
   }
-  const data = await getPlayersBySport(sport)
+  const data = (await getPlayersBySport(sport)) as unknown as Record<string, SleeperPlayer>
   if (!data || Object.keys(data).length === 0) throw new Error('Failed to fetch players')
   playersCache[sport] = { at: now, data }
   return data

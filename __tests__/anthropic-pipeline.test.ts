@@ -103,6 +103,7 @@ describe("Anthropic Chimmy pipeline", () => {
       userId: "user-2",
       tier: "free",
       sport: "NFL",
+      leagueId: "league-1",
       leagueFormat: "redraft",
       scoring: "PPR",
     })
@@ -255,5 +256,19 @@ describe("Anthropic Chimmy pipeline", () => {
       model: "claude-haiku-4-5-20251001",
       tokensUsed: 41,
     })
+  })
+
+  it("blocks league-specific requests when league context is missing", async () => {
+    const { runAgentPipeline } = await import("@/lib/agents/anthropic-pipeline")
+    const result = await runAgentPipeline("Should I trade this player right now?", {
+      userId: "user-4",
+      tier: "pro",
+      sport: "NFL",
+      leagueFormat: "dynasty",
+      scoring: "PPR",
+    })
+
+    expect(result.result).toMatch(/League context is required/i)
+    expect(result.tokensUsed).toBe(0)
   })
 })

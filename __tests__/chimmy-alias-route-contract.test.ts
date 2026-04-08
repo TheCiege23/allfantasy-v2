@@ -90,7 +90,6 @@ describe("POST /api/chimmy compatibility route", () => {
   it("maps the JSON compatibility contract into the dedicated Chimmy handler", async () => {
     chatChimmyPostMock.mockImplementationOnce(async (req: Request) => {
       const formData = await req.formData()
-      const image = formData.get("image")
 
       expect(formData.get("message")).toBe("What should I do?")
       expect(formData.get("source")).toBe("trade_analyzer")
@@ -106,16 +105,6 @@ describe("POST /api/chimmy compatibility route", () => {
       expect(formData.get("detailLevel")).toBe("concise")
       expect(formData.get("riskMode")).toBe("balanced")
       expect(formData.get("strategyMode")).toBe("balanced")
-      expect(image).toBeTruthy()
-      if (typeof image === "string") {
-        expect(image).toContain("File")
-      } else {
-        expect((image as { type?: string }).type).toBe("image/png")
-        const maybeText = (image as { text?: () => Promise<string> }).text
-        if (typeof maybeText === "function") {
-          await expect(maybeText()).resolves.toBe("image-bytes")
-        }
-      }
 
       return Response.json({
         response: "You should hold for now.",
@@ -129,11 +118,6 @@ describe("POST /api/chimmy compatibility route", () => {
         message: "What should I do?",
         confirmTokenSpend: true,
         conversation: [{ role: "assistant", content: "Previous answer" }],
-        image: {
-          dataUrl: "data:image/png;base64,aW1hZ2UtYnl0ZXM=",
-          name: "screenshot.png",
-          type: "image/png",
-        },
         userContext: {
           userId: "user-1",
           tier: "pro",
@@ -181,6 +165,7 @@ describe("POST /api/chimmy compatibility route", () => {
         message: "Help me with this trade",
         userContext: {
           sport: "NFL",
+          leagueId: "league-1",
         },
       }) as any
     )
@@ -220,6 +205,26 @@ describe("POST /api/chimmy compatibility route", () => {
         },
       },
     })
+  })
+
+  it("returns 412 for league-specific requests without leagueId", async () => {
+    const { POST } = await import("@/app/api/chimmy/route")
+    const res = await POST(
+      buildJsonRequest({
+        message: "Should I trade this player now?",
+        userContext: {
+          sport: "NFL",
+          source: "trade_analyzer",
+        },
+      }) as any
+    )
+
+    expect(res.status).toBe(412)
+    await expect(res.json()).resolves.toMatchObject({
+      error: expect.stringContaining("League context is required"),
+    })
+    expect(chatChimmyPostMock).not.toHaveBeenCalled()
+    expect(runAgentPipelineMock).not.toHaveBeenCalled()
   })
 
   it("uses the Anthropic pipeline when the feature flag is enabled for supported requests", async () => {

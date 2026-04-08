@@ -74,6 +74,162 @@ const STAT_WEIGHTS: Partial<Record<ApiChainSport, Record<string, Record<string, 
       receiving_yards: 1, receiving_touchdowns: 6, receiving_tds: 6,
       receptions: 1, targets: 0.5,
     },
+    DL: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 2.5, tfl: 2.5,
+      sacks: 8,
+      qb_hits: 1.5,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 6,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    DE: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 2.5, tfl: 2.5,
+      sacks: 8,
+      qb_hits: 1.5,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 6,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    DT: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 2.5, tfl: 2.5,
+      sacks: 8,
+      qb_hits: 1.5,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 6,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    EDGE: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 2.5, tfl: 2.5,
+      sacks: 8,
+      qb_hits: 1.5,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 6,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    LB: {
+      tackles: 2, total_tackles: 2,
+      solo_tackles: 2.5, assisted_tackles: 1,
+      tackles_for_loss: 2, tfl: 2,
+      sacks: 7,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 7,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    ILB: {
+      tackles: 2, total_tackles: 2,
+      solo_tackles: 2.5, assisted_tackles: 1,
+      tackles_for_loss: 2, tfl: 2,
+      sacks: 7,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 7,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    OLB: {
+      tackles: 2, total_tackles: 2,
+      solo_tackles: 2.5, assisted_tackles: 1,
+      tackles_for_loss: 2, tfl: 2,
+      sacks: 7,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 2,
+      interceptions: 7,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    DB: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 1.5, tfl: 1.5,
+      sacks: 6,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 3,
+      interceptions: 8,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    CB: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 1.5, tfl: 1.5,
+      sacks: 6,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 3,
+      interceptions: 8,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    S: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 1.5, tfl: 1.5,
+      sacks: 6,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 3,
+      interceptions: 8,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    SS: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 1.5, tfl: 1.5,
+      sacks: 6,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 3,
+      interceptions: 8,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
+    FS: {
+      tackles: 1.5, total_tackles: 1.5,
+      solo_tackles: 2, assisted_tackles: 1,
+      tackles_for_loss: 1.5, tfl: 1.5,
+      sacks: 6,
+      qb_hits: 1,
+      forced_fumbles: 4,
+      fumbles_recovered: 4,
+      passes_defended: 3,
+      interceptions: 8,
+      defensive_touchdowns: 6, defensive_tds: 6,
+      safeties: 6,
+    },
     K: { field_goals_made: 3, fg_made: 3, extra_points_made: 1, pat_made: 1 },
     DEFAULT: { rushing_yards: 1, receiving_yards: 1, rushing_tds: 6, receiving_tds: 6 },
   },
@@ -199,6 +355,23 @@ function opportunityScore(adp: number | null | undefined): number {
   return Math.max(0, Math.min(100, Math.round((1 - (adp - 1) / 299) * 100)))
 }
 
+const NFL_IDP_POSITIONS = new Set(['DL', 'DE', 'DT', 'EDGE', 'LB', 'ILB', 'OLB', 'DB', 'CB', 'S', 'SS', 'FS'])
+
+function deriveIdpOpportunityFromProduction(
+  sport: ApiChainSport,
+  position: string,
+  normalizedBase: number,
+  adp: number | null | undefined
+): number | null {
+  if (sport !== 'nfl') return null
+  if (adp != null && adp > 0) return null
+  const pos = position.toUpperCase()
+  if (!NFL_IDP_POSITIONS.has(pos)) return null
+
+  // Temporary fallback while upstream ADP endpoint is unavailable for IDP.
+  return Math.max(35, Math.min(85, Math.round(35 + normalizedBase / 5)))
+}
+
 function assignTier(value: number): PlayerValuation['tier'] {
   if (value >= 8000) return 'S'
   if (value >= 6000) return 'A'
@@ -232,7 +405,8 @@ export function computePlayerValuation(input: ComputeValuationInput): PlayerValu
   const normalizedBase = Math.min(10000, Math.round(seasonScore / divisor))
 
   const health = healthScore(injuryStatus)
-  const opportunity = opportunityScore(adp)
+  const derivedIdpOpportunity = deriveIdpOpportunityFromProduction(sport, position, normalizedBase, adp)
+  const opportunity = derivedIdpOpportunity ?? opportunityScore(adp)
 
   // Recent-form vs per-game season average (assume ~17 games/matches for normalization)
   let recentFormScore = 50

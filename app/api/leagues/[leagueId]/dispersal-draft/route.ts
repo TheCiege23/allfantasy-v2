@@ -18,6 +18,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
   try {
+    const dispersalDraftClient = (prisma as any).dispersalDraft
     const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
     const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,7 +30,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ leagueId: 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const row = await prisma.dispersalDraft.findFirst({
+    const row = await dispersalDraftClient.findFirst({
       where: {
         leagueId,
         status: { in: ['pending', 'configuring', 'in_progress'] },

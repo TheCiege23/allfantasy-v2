@@ -1,0 +1,47 @@
+Issue Type,Summary,Description,Story Points,Epic Link,Assignee,Depends On
+Story,RED-001 League Season Core,"Implement redraft league-season lifecycle with archive and reset semantics.",8,REDRAFT-SYS,ENG-PLAT,
+Story,RED-002 Rules Versioning,"Add versioned league settings snapshots and immutable historical rule references.",8,REDRAFT-SYS,ENG-PLAT,RED-001
+Story,RED-003 Redraft Guardrails,"Block keeper and dynasty carryover fields in redraft mode across API and validation layers.",5,REDRAFT-SYS,ENG-PLAT,RED-001
+Story,RED-004 Core Schema Migration Set,"Create base schema for leagues, seasons, settings, teams, and memberships.",8,REDRAFT-SYS,ENG-DATA,RED-001
+Story,RED-005 Sport Profile Registry v1,"Implement sport profile registry for NFL, NBA, MLB, NHL, NCAAB, NCAAF, and Soccer.",8,REDRAFT-SYS,ENG-GAME,RED-001
+Story,RED-006 Roles and Permissions Baseline,"Enforce commissioner, manager, and viewer permission model on league mutations.",6,REDRAFT-SYS,ENG-PLAT,RED-001
+Story,RED-007 Audit Logging Framework,"Add mutation audit logging with actor, timestamp, and trace id metadata.",5,REDRAFT-SYS,ENG-PLAT,RED-001
+Story,RED-008 CI Migration Gate,"Add CI checks for migration forward/rollback and schema drift protection.",4,REDRAFT-SYS,ENG-DATA,RED-004
+Story,RED-009 Draft State Machine,"Implement draft entities and state machine for snake, linear, and auction flows.",8,REDRAFT-SYS,ENG-GAME,RED-004;RED-005
+Story,RED-010 Draft Timer Auto-Pick Worker,"Process draft pick timer expirations and fallback auto-picks with audit events.",8,REDRAFT-SYS,ENG-DATA,RED-009
+Story,RED-011 Draft APIs,"Implement start draft and make pick APIs with turn and legality validation.",8,REDRAFT-SYS,ENG-PLAT,RED-009;RED-006
+Story,RED-012 Roster and Lineup Model,"Create roster, slot, lineup, and lock event data model.",8,REDRAFT-SYS,ENG-GAME,RED-004;RED-005
+Story,RED-013 Lineup Instant-Apply API,"Implement mobile-first instant lineup mutation endpoint with lock checks.",8,REDRAFT-SYS,ENG-PLAT,RED-012
+Story,RED-014 Schedule Generator v1,"Generate balanced schedules with odd-team bye support and fairness checks.",6,REDRAFT-SYS,ENG-GAME,RED-004;RED-005
+Story,RED-015 Realtime Draft and Lineup Channels,"Broadcast draft and lineup events in real time with ordering metadata.",4,REDRAFT-SYS,ENG-RT,RED-011;RED-013
+Story,RED-016 Settings API Hardening,"Harden league create and settings patch route contracts for redraft behavior.",4,REDRAFT-SYS,ENG-PLAT,RED-002;RED-003
+Story,RED-017 Stat Ingestion and Recompute,"Build stat ingestion pipeline and deterministic retroactive correction recompute flow.",10,REDRAFT-SYS,ENG-DATA,RED-005;RED-012
+Story,RED-018 Standings Engine and API,"Compute standings with tie-break stack and expose detailed standings endpoint.",8,REDRAFT-SYS,ENG-GAME,RED-017
+Story,RED-019 Standings and Playoff Schema,"Add standings snapshot and playoff bracket schema entities.",8,REDRAFT-SYS,ENG-DATA,RED-004
+Story,RED-020 Playoff Seeding and Bracket Builder,"Auto-seed playoffs and generate brackets including 7-team and 9-team modes.",10,REDRAFT-SYS,ENG-GAME,RED-018;RED-019
+Story,RED-021 Standings Refresh Worker,"Recompute and publish standings after finalization and corrections.",6,REDRAFT-SYS,ENG-DATA,RED-018
+Story,RED-022 Playoff Advancement Worker,"Advance playoff winners and materialize next-round games automatically.",6,REDRAFT-SYS,ENG-DATA,RED-020
+Story,RED-023 Cadence Adapter,"Support daily versus weekly scoring period behavior by sport.",4,REDRAFT-SYS,ENG-GAME,RED-005
+Story,RED-024 Realtime Scores and Standings,"Push score deltas and standings updates to subscribed clients.",4,REDRAFT-SYS,ENG-RT,RED-017;RED-018
+Story,RED-025 Waiver and FAAB Schema,"Create waiver claims, batches, ledgers, and priority snapshot tables.",8,REDRAFT-SYS,ENG-DATA,RED-004
+Story,RED-026 Waiver Batch Resolver,"Process waiver claims in scheduled batches with deterministic tie-break logic.",10,REDRAFT-SYS,ENG-DATA,RED-025
+Story,RED-027 Waiver Claim API,"Implement claim submission endpoints for FAAB and priority-based modes.",6,REDRAFT-SYS,ENG-PLAT,RED-025
+Story,RED-028 Trade Schema and Vote Tracking,"Create trade entities, vote records, and review event history.",8,REDRAFT-SYS,ENG-DATA,RED-004
+Story,RED-029 Trade APIs,"Implement trade propose, accept, approve, and veto endpoints with deadline enforcement.",8,REDRAFT-SYS,ENG-PLAT,RED-028;RED-006
+Story,RED-030 Notification Outbox and Fanout,"Build event outbox and fanout worker for reminders and transaction updates.",11,REDRAFT-SYS,ENG-RT,RED-008;RED-025;RED-028
+Story,RED-031 Realtime Bootstrap Endpoint,"Provide startup channel bootstrap with cursor state for clients.",4,REDRAFT-SYS,ENG-RT,RED-015;RED-024
+Story,RED-032 Subscription Entitlement Model,"Implement AF Commissioner subscription entitlement checks.",6,REDRAFT-SYS,ENG-PLAT,RED-004;RED-006
+Story,RED-033 AI Draft Assistant API,"Provide draft recommendations based on needs, scarcity, and tendencies.",7,REDRAFT-SYS,ENG-AI,RED-009;RED-032
+Story,RED-034 AI Lineup Optimizer API,"Return start/sit recommendations with rationale and confidence.",7,REDRAFT-SYS,ENG-AI,RED-013;RED-032
+Story,RED-035 AI Waiver Assistant API,"Suggest add/drop and FAAB bids with projected impact.",7,REDRAFT-SYS,ENG-AI,RED-027;RED-032
+Story,RED-036 AI Trade Analyzer API,"Score fairness and provide short-term versus season impact analysis.",7,REDRAFT-SYS,ENG-AI,RED-029;RED-032
+Story,RED-037 AI Matchup and League Insights,"Generate win probability, power rankings, and playoff odds insights.",7,REDRAFT-SYS,ENG-AI,RED-018;RED-032
+Story,RED-038 Chimmy League Assistant API,"Enable league-scoped conversational assistant with data-grounded responses.",6,REDRAFT-SYS,ENG-AI,RED-032;RED-031
+Story,RED-039 AI Telemetry and Safety Controls,"Add AI action telemetry, safeguards, and fallback behavior.",6,REDRAFT-SYS,ENG-AI,RED-033;RED-034;RED-035;RED-036;RED-037;RED-038
+Story,RED-040 Contract Test Matrix Completion,"Complete route contract matrix for core redraft features across sports.",8,REDRAFT-SYS,QA-AUTO,RED-011;RED-013;RED-027;RED-029
+Story,RED-041 Integration and E2E Expansion,"Add end-to-end suites covering draft to playoffs lifecycle.",10,REDRAFT-SYS,QA-AUTO,RED-040
+Story,RED-042 Performance Tuning,"Optimize API and worker latency to meet p95 targets.",8,REDRAFT-SYS,ENG-PLAT,RED-017;RED-026;RED-030
+Story,RED-043 Observability and Alerts,"Build dashboards and alerts for queue lag, errors, and stream health.",6,REDRAFT-SYS,ENG-DATA,RED-042
+Story,RED-044 Feature Flag Rollout Plan,"Prepare canary and staged rollout strategy with rollback controls.",5,REDRAFT-SYS,PM,RED-040;RED-043
+Story,RED-045 Production Readiness Review,"Run go-live readiness review across engineering, QA, and product.",5,REDRAFT-SYS,PM,RED-044
+Story,RED-046 Post-Launch Monitoring Sprint,"Execute post-launch monitoring and hotfix SLA process.",8,REDRAFT-SYS,ENG-RT,RED-045

@@ -14,10 +14,15 @@ function getReactionEntries(metadata: unknown): ReactionEntry[] {
   return reactions
     .map((entry) => {
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null
-      const emoji = typeof (entry as Record<string, unknown>).emoji === "string" ? (entry as Record<string, unknown>).emoji.trim() : ""
-      const countRaw = (entry as Record<string, unknown>).count
+      const entryRecord = entry as {
+        emoji?: unknown
+        count?: unknown
+        userIds?: unknown
+      }
+      const emoji = typeof entryRecord.emoji === "string" ? entryRecord.emoji.trim() : ""
+      const countRaw = entryRecord.count
       const count = typeof countRaw === "number" && Number.isFinite(countRaw) ? Math.max(0, Math.floor(countRaw)) : 0
-      const userIdsRaw = (entry as Record<string, unknown>).userIds
+      const userIdsRaw = entryRecord.userIds
       const userIds = Array.isArray(userIdsRaw)
         ? userIdsRaw.filter((id): id is string => typeof id === "string" && id.trim().length > 0)
         : []

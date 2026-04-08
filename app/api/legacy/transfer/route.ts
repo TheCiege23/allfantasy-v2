@@ -11,6 +11,7 @@ import {
   getLeagueRosters,
   getLeagueTransactions,
   getLeagueUsers,
+  type SleeperTransaction,
 } from '@/lib/sleeper-client'
 import { computeRivalryWeek, type RivalryWeekData } from '@/lib/rivalry-engine'
 
@@ -64,17 +65,6 @@ interface SleeperMatchup {
   points: number
 }
 
-interface SleeperTransaction {
-  transaction_id: string
-  type: string
-  status: string
-  created: number
-  adds?: Record<string, string>
-  drops?: Record<string, string>
-  draft_picks?: any[]
-  roster_ids?: number[]
-}
-
 interface SleeperDraftPick {
   round: number
   roster_id: number
@@ -122,7 +112,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
     try {
       const currentWeek = 18
       for (let week = 1; week <= currentWeek; week++) {
-        const weekTx = await getLeagueTransactions(cleanId, week) as SleeperTransaction[]
+        const weekTx = await getLeagueTransactions(cleanId, week) as unknown as SleeperTransaction[]
         if (weekTx.length > 0) transactions = transactions.concat(weekTx)
       }
     } catch {}
@@ -504,8 +494,7 @@ Only include keys for cards that have data above. Keep each narrative under 50 w
         rosterIds.forEach(rid => { sides[rid] = { players: [], picks: 0 } })
 
         if (t.adds) {
-          for (const [pid, ridStr] of Object.entries(t.adds)) {
-            const rid = parseInt(ridStr)
+          for (const [pid, rid] of Object.entries(t.adds)) {
             if (!sides[rid]) sides[rid] = { players: [], picks: 0 }
             const p = playerMap[pid]
             sides[rid].players.push({

@@ -202,7 +202,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
     
     const { league, rosters, users, players } = sleeperData
     
-    if (!users || !rosters || !Array.isArray(users) || !Array.isArray(rosters)) {
+    if (!league || !users || !rosters || !Array.isArray(users) || !Array.isArray(rosters)) {
       return NextResponse.json({ error: 'Invalid league ID or league data unavailable' }, { status: 400 })
     }
     
@@ -227,8 +227,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
         ideas: [],
         error: 'This league has no roster data yet. This typically happens with BestBall leagues before the draft or during the season. Trade Finder requires roster data to generate trade ideas.',
         leagueInfo: {
-          name: league.name,
-          type: league.settings?.type === 2 ? 'Dynasty' : 'Redraft',
+          name: league?.name ?? 'Unknown league',
+          type: league?.settings?.type === 2 ? 'Dynasty' : 'Redraft',
           teams: rosters.length,
           scoring: 'Unknown'
         }
@@ -260,11 +260,17 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
     const userPlayerNames = userAnalysis.rosterPlayers.map(p => p.name)
     const allOtherPlayerNames = otherManagers.flatMap(m => m.players.map(p => p.name))
     
+    const qbSlotCount = (league.roster_positions || []).filter((p: string) => p === 'QB' || p === 'SUPER_FLEX').length
+    const numQbs: 1 | 2 = qbSlotCount >= 2 ? 2 : 1
+
+    const rawPpr = Number(league.scoring_settings?.rec ?? 0)
+    const ppr: 0 | 0.5 | 1 = rawPpr >= 1 ? 1 : rawPpr >= 0.5 ? 0.5 : 0
+
     const fcSettings: FantasyCalcSettings = {
       isDynasty: league.settings?.type === 2,
-      numQbs: (league.roster_positions || []).filter((p: string) => p === 'QB' || p === 'SUPER_FLEX').length,
+      numQbs,
       numTeams: rosters.length,
-      ppr: league.scoring_settings?.rec || 0
+      ppr,
     }
     
     const [userValuesMap, otherValuesMap] = await Promise.all([

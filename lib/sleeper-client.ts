@@ -81,6 +81,7 @@ export async function getLeagueHistory(leagueId: string, userIdentifier?: string
 export interface SleeperRoster {
   roster_id: number;
   owner_id: string;
+  co_owners?: string[];
   players: string[];
   starters: string[];
   reserve: string[];

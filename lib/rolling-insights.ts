@@ -31,43 +31,73 @@ function getEnabledRollingInsightsSports() {
 }
 
 async function getAccessToken(): Promise<string> {
-  const directApiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim();
-  if (directApiKey) {
-    return directApiKey;
-  }
-
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60000) {
     return cachedToken.accessToken;
   }
 
-  const clientId = process.env.ROLLING_INSIGHTS_CLIENT_ID;
-  const clientSecret = process.env.ROLLING_INSIGHTS_CLIENT_SECRET;
+  const credentialPairs = [
+    {
+      clientId: process.env.ROLLING_INSIGHTS_CLIENT_ID?.trim() || '',
+      clientSecret: process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim() || '',
+    },
+    {
+      clientId: process.env.ROLLING_INSIGHTS_CLIENT_ID2?.trim() || '',
+      clientSecret: process.env.ROLLING_INSIGHTS_CLIENT_SECRET2?.trim() || '',
+    },
+  ].filter((pair) => pair.clientId && pair.clientSecret)
+  const directApiKey = process.env.ROLLING_INSIGHTS_API_KEY?.trim();
 
-  if (!clientId || !clientSecret) {
+  if (!credentialPairs.length) {
+    if (directApiKey) {
+      return directApiKey;
+    }
     throw new Error('Rolling Insights credentials not configured');
   }
 
-  const response = await fetch(AUTH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
-  });
+  let lastStatus: number | null = null
 
-  if (!response.ok) {
-    throw new Error(`Rolling Insights auth failed: ${response.status}`);
+  for (const { clientId, clientSecret } of credentialPairs) {
+    const response = await fetch(AUTH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    lastStatus = response.status
+    if (!response.ok) {
+      continue
+    }
+
+    const data = await response.json();
+    if (!data.access_token) {
+      continue
+    }
+
+    cachedToken = {
+      accessToken: data.access_token,
+      expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
+    };
+
+    return cachedToken.accessToken;
   }
 
-  const data = await response.json();
-  cachedToken = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
-  };
+  if (directApiKey) {
+    return directApiKey;
+  }
 
-  return cachedToken.accessToken;
+  throw new Error(`Rolling Insights auth failed: ${lastStatus ?? 'unknown'}`);
+}
+
+/** Exported for `SportsDataService` / internal GraphQL gateway — same auth + endpoint as DataFeeds. */
+export async function rollingInsightsGraphqlQuery<T>(
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  return graphqlQuery<T>(query, variables)
 }
 
 async function graphqlQuery<T>(query: string, variables?: Record<string, unknown>): Promise<T> {

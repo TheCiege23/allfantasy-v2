@@ -113,9 +113,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/backfill/playoffs", to
       const rosters = await getLeagueRosters(t.sleeperLeagueId)
 
       const myRoster = rosters.find(
-        (r) =>
-          String(r.owner_id || '') === legacyUser.sleeperUserId ||
-          (Array.isArray(r.co_owners) && r.co_owners.map(String).includes(legacyUser.sleeperUserId))
+        (r) => {
+          const coOwners = Array.isArray((r as any).co_owners) ? (r as any).co_owners.map(String) : []
+          return String(r.owner_id || '') === legacyUser.sleeperUserId || coOwners.includes(legacyUser.sleeperUserId)
+        }
       )
       if (!myRoster) {
         return { ok: false, reason: 'owner_not_found' as const }

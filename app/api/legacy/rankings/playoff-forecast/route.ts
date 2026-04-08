@@ -287,9 +287,13 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/playoff-forec
     const targetYear = forecast_year || currentSeason
 
     const totalTeams = rosters.length
-    const playoffSpots = leagueData.settings?.playoff_teams || Math.ceil(totalTeams / 2)
-    const totalWeeks = leagueData.settings?.playoff_week_start 
-      ? leagueData.settings.playoff_week_start - 1 
+    const playoffTeamsSetting = Number(leagueData.settings?.playoff_teams)
+    const playoffSpots: number = Number.isFinite(playoffTeamsSetting) && playoffTeamsSetting > 0
+      ? playoffTeamsSetting
+      : Math.ceil(totalTeams / 2)
+    const playoffWeekStart = Number(leagueData.settings?.playoff_week_start)
+    const totalWeeks: number = Number.isFinite(playoffWeekStart) && playoffWeekStart > 0
+      ? playoffWeekStart - 1
       : (totalTeams >= 14 ? 14 : 13)
 
     let currentWeek = 0

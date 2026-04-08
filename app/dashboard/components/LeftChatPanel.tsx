@@ -258,7 +258,10 @@ export function LeftChatPanel({
           (!dmNotifThrottle[t.id] || now - dmNotifThrottle[t.id] > 60000)
         ) {
           // Notification content
-          const body = t.context?.lastMessagePreview || 'You have a new DM!';
+          const body =
+            typeof t.context?.lastMessagePreview === 'string' && t.context.lastMessagePreview.trim().length > 0
+              ? t.context.lastMessagePreview
+              : 'You have a new DM!';
           const icon = '/favicon.ico';
           // Browser notification
           if ('Notification' in window && Notification.permission === 'granted') {

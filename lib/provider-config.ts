@@ -35,6 +35,8 @@ const DEFAULT_CLEARSPORTS_BASE_URL = 'https://api.clearsportsapi.com/v1'
 const ROLLING_INSIGHTS_API_KEY_KEYS = ['ROLLING_INSIGHTS_API_KEY'] as const
 const ROLLING_INSIGHTS_CLIENT_ID_KEYS = ['ROLLING_INSIGHTS_CLIENT_ID'] as const
 const ROLLING_INSIGHTS_CLIENT_SECRET_KEYS = ['ROLLING_INSIGHTS_CLIENT_SECRET'] as const
+const ROLLING_INSIGHTS_CLIENT_ID2_KEYS = ['ROLLING_INSIGHTS_CLIENT_ID2'] as const
+const ROLLING_INSIGHTS_CLIENT_SECRET2_KEYS = ['ROLLING_INSIGHTS_CLIENT_SECRET2'] as const
 const ROLLING_INSIGHTS_BASE_URL_KEYS = ['ROLLING_INSIGHTS_BASE_URL', 'ROLLING_INSIGHTS_API_BASE'] as const
 const DEFAULT_ROLLING_INSIGHTS_BASE_URL = 'https://datafeeds.rolling-insights.com'
 
@@ -195,26 +197,34 @@ export function getRollingInsightsConfigFromEnv(): RollingInsightsProviderConfig
   const apiKey = resolveFirstEnv(ROLLING_INSIGHTS_API_KEY_KEYS)
   const clientId = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID_KEYS)
   const clientSecret = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET_KEYS)
+  const clientId2 = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID2_KEYS)
+  const clientSecret2 = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET2_KEYS)
   const baseUrl = normalizeBaseUrl(
     resolveFirstEnv(ROLLING_INSIGHTS_BASE_URL_KEYS).value,
     DEFAULT_ROLLING_INSIGHTS_BASE_URL
   )
   const enabledSports = getRollingInsightsEnabledSports()
+  const hasPrimaryClientPair = !!clientId.value && !!clientSecret.value
+  const hasSecondaryClientPair = !!clientId2.value && !!clientSecret2.value
+
+  if (hasPrimaryClientPair || hasSecondaryClientPair) {
+    const preferredKeySource = hasPrimaryClientPair
+      ? clientId.keyUsed ?? ROLLING_INSIGHTS_CLIENT_ID_KEYS[0]
+      : clientId2.keyUsed ?? ROLLING_INSIGHTS_CLIENT_ID2_KEYS[0]
+
+    return {
+      authMode: 'client_credentials',
+      baseUrl,
+      keySource: preferredKeySource,
+      enabledSports,
+    }
+  }
 
   if (apiKey.value) {
     return {
       authMode: 'api_key',
       baseUrl,
       keySource: apiKey.keyUsed ?? ROLLING_INSIGHTS_API_KEY_KEYS[0],
-      enabledSports,
-    }
-  }
-
-  if (clientId.value && clientSecret.value) {
-    return {
-      authMode: 'client_credentials',
-      baseUrl,
-      keySource: clientId.keyUsed ?? ROLLING_INSIGHTS_CLIENT_ID_KEYS[0],
       enabledSports,
     }
   }
@@ -313,18 +323,41 @@ export function getProviderStartupValidationNotes(): ProviderStartupValidationNo
   const rollingInsightsApiKey = resolveFirstEnv(ROLLING_INSIGHTS_API_KEY_KEYS)
   const rollingInsightsClientId = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID_KEYS)
   const rollingInsightsClientSecret = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET_KEYS)
+  const rollingInsightsClientId2 = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_ID2_KEYS)
+  const rollingInsightsClientSecret2 = resolveFirstEnv(ROLLING_INSIGHTS_CLIENT_SECRET2_KEYS)
   const rollingInsightsExtraSports = Object.entries(getRollingInsightsEnabledSports())
     .filter(([sport, enabled]) => sport !== 'NFL' && enabled)
     .map(([sport]) => sport)
 
   const hasRollingInsightsApiKey = !!rollingInsightsApiKey.value
-  const hasRollingInsightsClientPair = !!rollingInsightsClientId.value && !!rollingInsightsClientSecret.value
+  const hasRollingInsightsPrimaryClientPair =
+    !!rollingInsightsClientId.value && !!rollingInsightsClientSecret.value
+  const hasRollingInsightsSecondaryClientPair =
+    !!rollingInsightsClientId2.value && !!rollingInsightsClientSecret2.value
+  const hasRollingInsightsClientPair =
+    hasRollingInsightsPrimaryClientPair || hasRollingInsightsSecondaryClientPair
 
-  if (!hasRollingInsightsApiKey && !!rollingInsightsClientId.value !== !!rollingInsightsClientSecret.value) {
+  if (
+    !hasRollingInsightsApiKey &&
+    !hasRollingInsightsPrimaryClientPair &&
+    (!!rollingInsightsClientId.value !== !!rollingInsightsClientSecret.value)
+  ) {
     notes.push({
       level: 'warn',
-      code: 'rolling_insights_partial_config',
+      code: 'rolling_insights_primary_partial_config',
       message: 'Rolling Insights client credentials are partial. Set both ROLLING_INSIGHTS_CLIENT_ID and ROLLING_INSIGHTS_CLIENT_SECRET.',
+    })
+  }
+
+  if (
+    !hasRollingInsightsApiKey &&
+    !hasRollingInsightsSecondaryClientPair &&
+    (!!rollingInsightsClientId2.value !== !!rollingInsightsClientSecret2.value)
+  ) {
+    notes.push({
+      level: 'warn',
+      code: 'rolling_insights_secondary_partial_config',
+      message: 'Rolling Insights secondary client credentials are partial. Set both ROLLING_INSIGHTS_CLIENT_ID2 and ROLLING_INSIGHTS_CLIENT_SECRET2.',
     })
   }
 

@@ -1,1 +1,1 @@
-export { AFChatDMPanel } from '../../../components/chat/AFChatDMPanel'
+export { default as AFChatDMPanel } from '../../../components/chat/AFChatDMPanel'
