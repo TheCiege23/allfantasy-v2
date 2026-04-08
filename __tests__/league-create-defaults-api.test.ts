@@ -1250,4 +1250,426 @@ describe('POST /api/league/create sport defaults integration', () => {
       cases[index]!.assert(payload)
     }
   })
+
+  it('supports next paths: dynasty+linear and tournament+snake', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'dynasty',
+        draftType: 'linear',
+        isDynasty: true,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(true)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'dynasty',
+              format_id: 'dynasty',
+              draft_type: 'linear',
+              requested_draft_type: 'linear',
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'tournament',
+        draftType: 'snake',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'tournament',
+              format_id: 'tournament',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
+
+  it('supports next paths: zombie+snake and tournament+linear', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'zombie',
+        draftType: 'snake',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBe('zombie')
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'zombie',
+              format_id: 'zombie',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'tournament',
+        draftType: 'linear',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'tournament',
+              format_id: 'tournament',
+              draft_type: 'linear',
+              requested_draft_type: 'linear',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
+
+  it('supports next paths: redraft+slow_draft and keeper+slow_draft', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'redraft',
+        draftType: 'slow_draft',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'redraft',
+              format_id: 'redraft',
+              draft_type: 'slow_draft',
+              requested_draft_type: 'slow_draft',
+              roster_mode: 'redraft',
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'keeper',
+        draftType: 'slow_draft',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'keeper',
+              format_id: 'keeper',
+              draft_type: 'slow_draft',
+              requested_draft_type: 'slow_draft',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
+
+  it('supports next paths: best_ball+linear and dynasty+slow_draft', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'best_ball',
+        draftType: 'linear',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'best_ball',
+              format_id: 'best_ball',
+              draft_type: 'linear',
+              requested_draft_type: 'linear',
+              best_ball: true,
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'dynasty',
+        draftType: 'slow_draft',
+        isDynasty: true,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(true)
+          expect(payload.leagueVariant).toBeNull()
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'dynasty',
+              format_id: 'dynasty',
+              draft_type: 'slow_draft',
+              requested_draft_type: 'slow_draft',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
+
+  it('supports next paths: guillotine+auction and survivor+snake', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'guillotine',
+        draftType: 'auction',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBe('guillotine')
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'guillotine',
+              format_id: 'guillotine',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'survivor',
+        draftType: 'snake',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBe('survivor')
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'survivor',
+              format_id: 'survivor',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
+
+  it('supports next paths: zombie+linear and salary_cap+auction', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const cases = [
+      {
+        sport: 'NFL',
+        leagueType: 'zombie',
+        draftType: 'linear',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBe('zombie')
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'zombie',
+              format_id: 'zombie',
+              draft_type: 'linear',
+              requested_draft_type: 'linear',
+            })
+          )
+        },
+      },
+      {
+        sport: 'NFL',
+        leagueType: 'salary_cap',
+        draftType: 'auction',
+        isDynasty: false,
+        assert: (payload: any) => {
+          expect(payload.isDynasty).toBe(false)
+          expect(payload.leagueVariant).toBe('salary_cap')
+          expect(payload.settings).toEqual(
+            expect.objectContaining({
+              league_type: 'salary_cap',
+              format_id: 'salary_cap',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
+            })
+          )
+        },
+      },
+    ] as const
+
+    for (const c of cases) {
+      const req = new Request('http://localhost/api/league/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${c.leagueType} ${c.draftType} path`,
+          platform: 'manual',
+          sport: c.sport,
+          leagueType: c.leagueType,
+          draftType: c.draftType,
+          leagueSize: 12,
+          scoring: 'standard',
+          isDynasty: c.isDynasty,
+        }),
+      })
+
+      const res = await POST(req)
+      expect(res.status).toBe(200)
+    }
+
+    const recentPayloads = leagueCreateMock.mock.calls.slice(-cases.length).map((c) => c[0]?.data)
+    expect(recentPayloads).toHaveLength(cases.length)
+    for (const [index, payload] of recentPayloads.entries()) {
+      expect(payload.isCommissioner).toBe(true)
+      cases[index]!.assert(payload)
+    }
+  })
 })

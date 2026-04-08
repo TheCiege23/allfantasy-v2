@@ -1,38 +1,81 @@
 import "server-only"
-import { v2 } from '@google-cloud/translate'
-
-const { Translate } = v2
 
 const REQUEST_BATCH_SIZE = 40
 const REQUEST_TIMEOUT_MS = 12000
-
-const googleTranslate = new Translate({
-  projectId: process.env.GOOGLE_PROJECT_ID,
-  key: process.env.GOOGLE_TRANSLATE_API_KEY,
-})
+const GOOGLE_TRANSLATE_ENDPOINT = "https://translation.googleapis.com/language/translate/v2"
 
 function isTemplateHeavy(value: string): boolean {
   return value.includes("{{") || value.includes("}}")
 }
 
+async function translateBatch(texts: string[], targetLang: string): Promise<string[] | null> {
+  const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY?.trim()
+  if (!apiKey || texts.length === 0) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(`${GOOGLE_TRANSLATE_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        q: texts,
+        source: "en",
+        target: targetLang,
+        format: "text",
+      }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) return null
+
+    const payload = (await response.json()) as {
+      data?: { translations?: Array<{ translatedText?: string }> }
+    }
+    const translated = payload.data?.translations
+    if (!Array.isArray(translated)) return null
+    return translated.map((entry) => String(entry?.translatedText ?? ""))
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function translateMissingEnglishKeysWithGoogle(entries: Record<string, string>, targetLang = 'es'): Promise<Record<string, string>> {
-  const keys = Object.keys(entries)
-  const values = Object.values(entries)
+  const filtered = Object.entries(entries).filter(
+    ([, value]) =>
+      typeof value === "string" &&
+      value.trim().length > 0 &&
+      !isTemplateHeavy(value)
+  ) as Array<[string, string]>
+
+  if (filtered.length === 0) return {}
+
   const result: Record<string, string> = {}
+  const keys = filtered.map(([key]) => key)
+  const values = filtered.map(([, value]) => value)
 
   for (let i = 0; i < values.length; i += REQUEST_BATCH_SIZE) {
     const batch = values.slice(i, i + REQUEST_BATCH_SIZE)
-    try {
-      const [translations] = await googleTranslate.translate(batch, targetLang)
-      for (let j = 0; j < batch.length; j++) {
-        result[keys[i + j]] = Array.isArray(translations) ? translations[j] : translations
-      }
-    } catch (err) {
+    const translated = await translateBatch(batch, targetLang)
+
+    if (!translated) {
       // fallback: just return English if Google fails
       for (let j = 0; j < batch.length; j++) {
         result[keys[i + j]] = batch[j]
       }
+      continue
+    }
+
+    for (let j = 0; j < batch.length; j++) {
+      const translatedText = translated[j]
+      result[keys[i + j]] = translatedText && translatedText.trim() ? translatedText : batch[j]
     }
   }
+
   return result
 }

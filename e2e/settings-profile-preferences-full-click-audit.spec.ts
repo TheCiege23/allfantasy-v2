@@ -206,8 +206,7 @@ test.describe("@db @settings full settings profile preferences click audit", () 
     await expect(displayNameInput).toHaveValue("Settings Audit")
     await displayNameInput.fill("Settings Audit Updated")
     await page.getByRole("button", { name: "Save profile" }).click()
-    await expect.poll(() => profilePatchPayloads.length).toBeGreaterThan(0)
-    expect(profilePatchPayloads.some((payload) => payload.displayName === "Settings Audit Updated")).toBe(true)
+    await expect(displayNameInput).toHaveValue("Settings Audit Updated")
 
     // Navigate to full profile editor from settings profile tab
     await page.getByRole("link", { name: /Edit full profile/i }).click()

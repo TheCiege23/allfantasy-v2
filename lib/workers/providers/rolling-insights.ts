@@ -6,6 +6,11 @@ import {
 } from '@/lib/workers/api-config'
 import { getRollingInsightsConfigFromEnv } from '@/lib/provider-config'
 
+const DEFAULT_RI_GRAPHQL_URL = 'https://datafeeds.rolling-insights.com/graphql'
+const DEFAULT_RI_REST_BASES = [
+  'https://rest.datafeeds.rolling-insights.com/api/v1',
+  'http://rest.datafeeds.rolling-insights.com/api/v1',
+] as const
 const SPORT_PATH: Record<ApiChainSport, string> = {
   nfl: 'nfl',
   mlb: 'mlb',
@@ -68,6 +73,121 @@ interface RollingInsightsAccessToken {
 }
 
 let cachedAccessToken: RollingInsightsAccessToken | null = null
+const RI_REQUEST_TIMEOUT_MS = 20_000
+
+function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, '')
+}
+
+function splitEnvList(value: string | undefined): string[] {
+  if (!value) return []
+  return value
+    .split(',')
+    .map((v) => normalizeBaseUrl(v))
+    .filter(Boolean)
+}
+
+function dedupe(values: string[]): string[] {
+  return Array.from(new Set(values))
+}
+
+function buildRestBaseCandidates(configBase: string): string[] {
+  const explicit = splitEnvList(process.env.ROLLING_INSIGHTS_REST_BASE_URL)
+  const normalizedConfig = normalizeBaseUrl(configBase)
+  const derivedFromConfig = [normalizedConfig, `${normalizedConfig}/api/v1`]
+
+  return dedupe([...explicit, ...derivedFromConfig, ...DEFAULT_RI_REST_BASES])
+}
+
+function buildRestPathCandidates(dataSeg: string, chainSport: ApiChainSport): string[] {
+  const sportCode = REST_SPORT_CODE[chainSport]
+  const sportLower = SPORT_PATH[chainSport]
+
+  return dedupe([`${dataSeg}/${sportCode}`, `${sportCode}/${dataSeg}`, `${dataSeg}/${sportLower}`])
+}
+
+interface RiGraphqlPlayer {
+  id?: string | number
+  player?: string
+  position?: string
+  status?: string
+  team?: { abbrv?: string | null } | null
+  regularSeason?: Array<{
+    DK_fantasy_points?: number | null
+    DK_fantasy_points_per_game?: number | null
+    games_played?: number | null
+  }> | null
+}
+
+async function fetchNflPlayersFromGraphql(accessToken: string, configBase: string): Promise<unknown[] | null> {
+  const explicitGraphqlUrl = process.env.ROLLING_INSIGHTS_GRAPHQL_URL?.trim()
+  const urls = dedupe(
+    [explicitGraphqlUrl, `${normalizeBaseUrl(configBase)}/graphql`, DEFAULT_RI_GRAPHQL_URL].filter(
+      Boolean
+    ) as string[]
+  )
+
+  const query = `
+    {
+      nflRoster {
+        id
+        player
+        position
+        status
+        team { abbrv }
+        regularSeason {
+          DK_fantasy_points
+          DK_fantasy_points_per_game
+          games_played
+        }
+      }
+    }
+  `
+
+  for (const gqlUrl of urls) {
+    try {
+      const res = await fetch(gqlUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ query }),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(RI_REQUEST_TIMEOUT_MS),
+      })
+
+      if (!res.ok) continue
+      const json = (await res.json()) as {
+        data?: { nflRoster?: RiGraphqlPlayer[] }
+        errors?: Array<{ message?: string }>
+      }
+      if (json.errors?.length) continue
+
+      const players = json.data?.nflRoster ?? []
+      return players.map((p) => {
+        const season = Array.isArray(p.regularSeason) ? p.regularSeason[0] : null
+        return {
+          id: p.id,
+          full_name: p.player,
+          position: p.position,
+          team_abbr: p.team?.abbrv ?? null,
+          status: p.status,
+          season_stats: {
+            fantasy_points: season?.DK_fantasy_points ?? null,
+            fantasy_points_per_game: season?.DK_fantasy_points_per_game ?? null,
+            games_played: season?.games_played ?? null,
+          },
+        }
+      })
+    } catch {
+      // try next GraphQL host
+    }
+  }
+
+  return null
+}
 
 async function getClientCredentialsAccessToken(baseUrl: string): Promise<string> {
   const directRscToken = process.env.ROLLING_INSIGHTS_RSC_TOKEN?.trim()
@@ -95,6 +215,7 @@ async function getClientCredentialsAccessToken(baseUrl: string): Promise<string>
       client_secret: clientSecret,
     }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(RI_REQUEST_TIMEOUT_MS),
   })
 
   if (!tokenRes.ok) {
@@ -139,18 +260,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
 
   const base = config.baseUrl
   const dataSeg = pathSegmentForDataType(String(params.dataType))
-  const sportSeg = SPORT_PATH[chainSport]
-  const url =
-    config.authMode === 'client_credentials'
-      ? new URL(
-          `${process.env.ROLLING_INSIGHTS_REST_BASE_URL?.trim().replace(/\/+$/, '') ?? 'https://rest.datafeeds.rolling-insights.com/api/v1'}/${dataSeg}/${REST_SPORT_CODE[chainSport]}`
-        )
-      : new URL(`${base}/${sportSeg}/${dataSeg}`)
   const merged = { ...(params.query ?? {}), ...(params.options ?? {}) }
-  Object.entries(merged).forEach(([k, v]) => {
-    if (v == null) return
-    url.searchParams.set(k, String(v))
-  })
 
   const started = Date.now()
   try {
@@ -159,31 +269,91 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     }
 
     if (config.authMode === 'api_key') {
+      const sportSeg = SPORT_PATH[chainSport]
+      const url = new URL(`${base}/${sportSeg}/${dataSeg}`)
+      Object.entries(merged).forEach(([k, v]) => {
+        if (v == null) return
+        url.searchParams.set(k, String(v))
+      })
+
       headers['x-api-key'] = process.env.ROLLING_INSIGHTS_API_KEY ?? ''
-    } else {
-      const accessToken = await getClientCredentialsAccessToken(base)
-      // Some RI REST surfaces require query token, others accept bearer auth.
-      url.searchParams.set('RSC_token', accessToken)
-      headers.Authorization = `Bearer ${accessToken}`
+      const res = await fetch(url.toString(), {
+        headers,
+        cache: 'no-store',
+        signal: AbortSignal.timeout(RI_REQUEST_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        const err = `HTTP ${res.status}`
+        console.warn(`[rolling-insights] ${err} ${chainSport}/${params.dataType}`)
+        return { data: null, error: err, fromCache: false }
+      }
+
+      const json = await res.json()
+      const data = extractPayload(json)
+      return {
+        data: data as ChainFetchResult['data'],
+        fromCache: false,
+        source: 'rolling_insights',
+        latency: Date.now() - started,
+      }
     }
 
-    const res = await fetch(url.toString(), {
-      headers,
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      const err = `HTTP ${res.status}`
-      console.warn(`[rolling-insights] ${err} ${chainSport}/${params.dataType}`)
-      return { data: null, error: err, fromCache: false }
+    const accessToken = await getClientCredentialsAccessToken(base)
+    headers.Authorization = `Bearer ${accessToken}`
+
+    const restBases = buildRestBaseCandidates(base)
+    const restPaths = buildRestPathCandidates(dataSeg, chainSport)
+    let lastHttpError: string | null = null
+
+    for (const restBase of restBases) {
+      for (const restPath of restPaths) {
+        const url = new URL(`${restBase}/${restPath}`)
+        Object.entries(merged).forEach(([k, v]) => {
+          if (v == null) return
+          url.searchParams.set(k, String(v))
+        })
+        url.searchParams.set('RSC_token', accessToken)
+
+        try {
+          const res = await fetch(url.toString(), {
+            headers,
+            cache: 'no-store',
+            signal: AbortSignal.timeout(RI_REQUEST_TIMEOUT_MS),
+          })
+          if (!res.ok) {
+            lastHttpError = `HTTP ${res.status}`
+            continue
+          }
+
+          const json = await res.json()
+          const data = extractPayload(json)
+          return {
+            data: data as ChainFetchResult['data'],
+            fromCache: false,
+            source: 'rolling_insights',
+            latency: Date.now() - started,
+          }
+        } catch {
+          // Continue probing other REST host/path candidates.
+        }
+      }
     }
-    const json = await res.json()
-    const data = extractPayload(json)
-    return {
-      data: data as ChainFetchResult['data'],
-      fromCache: false,
-      source: 'rolling_insights',
-      latency: Date.now() - started,
+
+    if (chainSport === 'nfl' && dataSeg === 'players') {
+      const gqlPlayers = await fetchNflPlayersFromGraphql(accessToken, base)
+      if (Array.isArray(gqlPlayers) && gqlPlayers.length > 0) {
+        return {
+          data: gqlPlayers as ChainFetchResult['data'],
+          fromCache: false,
+          source: 'rolling_insights',
+          latency: Date.now() - started,
+        }
+      }
     }
+
+    const err = lastHttpError ?? 'No successful Rolling Insights REST/GraphQL response'
+    console.warn(`[rolling-insights] ${err} ${chainSport}/${params.dataType}`)
+    return { data: null, error: err, fromCache: false }
   } catch (e) {
     console.warn(`[rolling-insights] fetch failed ${chainSport}/${params.dataType}:`, e)
     return { data: null, error: e instanceof Error ? e.message : 'Request failed', fromCache: false }
