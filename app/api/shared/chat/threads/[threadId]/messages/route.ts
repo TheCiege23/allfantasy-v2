@@ -216,6 +216,13 @@ export async function POST(
         })
       : rawMessage
   const source = normalizeLeagueChatSource(body?.source)
+  const isChimmyPrompt = /^@chimmy\b/i.test(message)
+  const parentMessageId =
+    typeof body?.parentMessageId === 'string' && body.parentMessageId.trim().length > 0
+      ? body.parentMessageId.trim()
+      : null
+  const imageUrl =
+    typeof body?.imageUrl === 'string' && body.imageUrl.trim().length > 0 ? body.imageUrl.trim() : null
 
   if (!message) {
     return NextResponse.json({ error: 'Message body required' }, { status: 400 })
@@ -237,7 +244,10 @@ export async function POST(
           leagueId,
           userId: user.appUserId,
           message,
-          type: 'text',
+          type: messageType,
+          imageUrl,
+          metadata,
+          replyToId: parentMessageId,
         },
         include: bracketMessageInclude,
       })
@@ -250,6 +260,33 @@ export async function POST(
       if (!sourceAllowed) {
         return NextResponse.json({ error: 'Not allowed to post in this tribe chat' }, { status: 403 })
       }
+      const { createLeagueChatMessage } = await import('@/lib/league-chat/LeagueChatMessageService')
+      if (isChimmyPrompt) {
+        const chimmyBody = message.replace(/^@chimmy\b\s*/i, '').trim()
+        const created = await createLeagueChatMessage(leagueId, user.appUserId, chimmyBody || 'help', {
+          type: messageType as 'text',
+          imageUrl,
+          metadata: {
+            ...(metadata ?? {}),
+            chimmyPrompt: true,
+            originalCommand: message,
+          },
+          source,
+          parentMessageId,
+          isPrivate: true,
+          visibleToUserId: user.appUserId,
+          messageSubtype: 'chimmy_prompt',
+        })
+        return NextResponse.json({
+          status: 'ok',
+          message: created,
+          commandResult: {
+            ok: true,
+            intent: 'chimmy_prompt',
+            message: 'Private Chimmy prompt sent. Open Chimmy for the response.',
+          },
+        })
+      }
       const commandResult = await processSurvivorOfficialCommand({
         leagueId,
         userId: user.appUserId,
@@ -259,18 +296,16 @@ export async function POST(
       if (commandResult.handled && !commandResult.ok) {
         return NextResponse.json({ error: commandResult.error ?? 'Survivor command failed' }, { status: commandResult.status ?? 400 })
       }
-      const { createLeagueChatMessage } = await import('@/lib/league-chat/LeagueChatMessageService')
-      const imageUrl =
-        typeof body?.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null
-      const metadata =
+      const messageMetadata =
         body?.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
           ? (body.metadata as Record<string, unknown>)
           : undefined
       const created = await createLeagueChatMessage(leagueId, user.appUserId, message, {
         type: messageType as 'text',
         imageUrl,
-        metadata,
+        metadata: messageMetadata,
         source,
+        parentMessageId,
       })
       return NextResponse.json({
         status: 'ok',

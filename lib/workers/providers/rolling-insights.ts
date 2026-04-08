@@ -4,6 +4,7 @@ import {
   type ChainFetchResult,
   toApiChainSport,
 } from '@/lib/workers/api-config'
+import { getRollingInsightsConfigFromEnv } from '@/lib/provider-config'
 
 const SPORT_PATH: Record<ApiChainSport, string> = {
   nfl: 'nfl',
@@ -13,6 +14,16 @@ const SPORT_PATH: Record<ApiChainSport, string> = {
   ncaab: 'ncaab',
   ncaaf: 'ncaaf',
   soccer_euro: 'soccer/euro',
+}
+
+const REST_SPORT_CODE: Record<ApiChainSport, string> = {
+  nfl: 'NFL',
+  mlb: 'MLB',
+  nhl: 'NHL',
+  nba: 'NBA',
+  ncaab: 'NCAABB',
+  ncaaf: 'NCAAFB',
+  soccer_euro: 'SOCCER',
 }
 
 const DATA_TYPE_PATH: Record<string, string> = {
@@ -51,14 +62,74 @@ function extractPayload(json: unknown): unknown {
   return json
 }
 
+interface RollingInsightsAccessToken {
+  value: string
+  expiresAtMs: number
+}
+
+let cachedAccessToken: RollingInsightsAccessToken | null = null
+
+async function getClientCredentialsAccessToken(baseUrl: string): Promise<string> {
+  const directRscToken = process.env.ROLLING_INSIGHTS_RSC_TOKEN?.trim()
+  if (directRscToken) {
+    return directRscToken
+  }
+
+  if (cachedAccessToken && cachedAccessToken.expiresAtMs > Date.now() + 60_000) {
+    return cachedAccessToken.value
+  }
+
+  const clientId = process.env.ROLLING_INSIGHTS_CLIENT_ID?.trim()
+  const clientSecret = process.env.ROLLING_INSIGHTS_CLIENT_SECRET?.trim()
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Rolling Insights client credentials not configured')
+  }
+
+  const tokenRes = await fetch(`${baseUrl}/auth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+    cache: 'no-store',
+  })
+
+  if (!tokenRes.ok) {
+    throw new Error(`Auth failed (${tokenRes.status})`)
+  }
+
+  const tokenJson = (await tokenRes.json()) as {
+    access_token?: string
+    token?: string
+    rsc_token?: string
+    RSC_token?: string
+    expires_in?: number
+  }
+  const token = tokenJson.access_token ?? tokenJson.token ?? tokenJson.rsc_token ?? tokenJson.RSC_token
+  if (!token) {
+    throw new Error('Auth response missing access token')
+  }
+
+  const expiresInSec = Number(tokenJson.expires_in ?? 3600)
+  cachedAccessToken = {
+    value: token,
+    expiresAtMs: Date.now() + Math.max(expiresInSec, 300) * 1000,
+  }
+  return token
+}
+
 /**
  * Primary Rolling Insights REST fetch for all 7 sports.
  * Always returns { data, fromCache: false, error? }.
  */
 export async function rollingInsightsProvider(params: ApiFetchParams): Promise<ChainFetchResult> {
-  if (!process.env.ROLLING_INSIGHTS_API_KEY) {
-    console.error('[rolling-insights] ROLLING_INSIGHTS_API_KEY not set')
-    return { data: null, error: 'API key not configured', fromCache: false }
+  const config = getRollingInsightsConfigFromEnv()
+  if (!config) {
+    console.error('[rolling-insights] credentials not configured')
+    return { data: null, error: 'credentials not configured', fromCache: false }
   }
 
   const chainSport = toApiChainSport(params.sport as string)
@@ -66,11 +137,15 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     return { data: null, error: 'Unsupported sport', fromCache: false }
   }
 
-  const base =
-    process.env.ROLLING_INSIGHTS_BASE_URL?.trim().replace(/\/+$/, '') ?? 'https://api.rollinginsights.com/v1'
-  const sportSeg = SPORT_PATH[chainSport]
+  const base = config.baseUrl
   const dataSeg = pathSegmentForDataType(String(params.dataType))
-  const url = new URL(`${base}/${sportSeg}/${dataSeg}`)
+  const sportSeg = SPORT_PATH[chainSport]
+  const url =
+    config.authMode === 'client_credentials'
+      ? new URL(
+          `${process.env.ROLLING_INSIGHTS_REST_BASE_URL?.trim().replace(/\/+$/, '') ?? 'https://rest.datafeeds.rolling-insights.com/api/v1'}/${dataSeg}/${REST_SPORT_CODE[chainSport]}`
+        )
+      : new URL(`${base}/${sportSeg}/${dataSeg}`)
   const merged = { ...(params.query ?? {}), ...(params.options ?? {}) }
   Object.entries(merged).forEach(([k, v]) => {
     if (v == null) return
@@ -79,16 +154,26 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
 
   const started = Date.now()
   try {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+    }
+
+    if (config.authMode === 'api_key') {
+      headers['x-api-key'] = process.env.ROLLING_INSIGHTS_API_KEY ?? ''
+    } else {
+      const accessToken = await getClientCredentialsAccessToken(base)
+      // Some RI REST surfaces require query token, others accept bearer auth.
+      url.searchParams.set('RSC_token', accessToken)
+      headers.Authorization = `Bearer ${accessToken}`
+    }
+
     const res = await fetch(url.toString(), {
-      headers: {
-        'x-api-key': process.env.ROLLING_INSIGHTS_API_KEY ?? '',
-        Accept: 'application/json',
-      },
+      headers,
       cache: 'no-store',
     })
     if (!res.ok) {
       const err = `HTTP ${res.status}`
-      console.warn(`[rolling-insights] ${err} ${url.toString()}`)
+      console.warn(`[rolling-insights] ${err} ${chainSport}/${params.dataType}`)
       return { data: null, error: err, fromCache: false }
     }
     const json = await res.json()

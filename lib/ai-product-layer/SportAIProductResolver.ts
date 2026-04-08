@@ -10,7 +10,7 @@ import type { SupportedSport } from './types';
  * All sports the AI product layer supports (single source of truth from sport-scope).
  */
 export function getSupportedSportsForAI(): readonly SupportedSport[] {
-  return SUPPORTED_SPORTS;
+  return ['NFL', 'NHL', 'NBA', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER'];
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { DevyImportSession, DevyImportSource } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
 function abortAfter(ms: number): AbortSignal {
   if (typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal && typeof AbortSignal.timeout === 'function') {
@@ -29,48 +30,22 @@ type ConnectionData = Record<string, unknown> & {
 async function fetchSleeperPlayerNames(playerIds: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
   const unique = [...new Set(playerIds)].slice(0, 120)
-  const batchSize = 15
-  for (let i = 0; i < unique.length; i += batchSize) {
-    const chunk = unique.slice(i, i + batchSize)
-    await Promise.all(
-      chunk.map(async id => {
-        try {
-          const r = await fetch(`https://api.sleeper.app/v1/player/nfl/${id}`, {
-            signal: abortAfter(6000),
-            headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
-          })
-          if (!r.ok) return
-          const j = (await r.json()) as { first_name?: string; last_name?: string; full_name?: string }
-          const name = j.full_name || [j.first_name, j.last_name].filter(Boolean).join(' ').trim() || `Player ${id}`
-          out[id] = name
-        } catch {
-          out[id] = `sleeper:${id}`
-        }
-      }),
-    )
+  const playersById = await getPlayersBySport('nfl').catch(() => ({}))
+  for (const id of unique) {
+    const p = playersById[id]
+    const name = p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() || `Player ${id}`
+    out[id] = name
   }
   return out
 }
 
 async function buildSleeperBundle(leagueId: string): Promise<Record<string, unknown>> {
-  const [leagueRes, rostersRes, usersRes] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}`, {
-      signal: abortAfter(12000),
-      headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
-    }),
-    fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`, {
-      signal: abortAfter(12000),
-      headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
-    }),
-    fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`, {
-      signal: abortAfter(12000),
-      headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
-    }),
+  const [league, rosters, users] = await Promise.all([
+    getLeagueInfo(leagueId),
+    getLeagueRosters(leagueId),
+    getLeagueUsers(leagueId),
   ])
-  if (!leagueRes.ok) throw new Error(`Sleeper league fetch failed (${leagueRes.status})`)
-  const league = await leagueRes.json()
-  const rosters = rostersRes.ok ? await rostersRes.json() : []
-  const users = usersRes.ok ? await usersRes.json() : []
+  if (!league) throw new Error('Sleeper league fetch failed')
 
   const playerIds: string[] = []
   for (const r of Array.isArray(rosters) ? rosters : []) {

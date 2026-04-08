@@ -1,14 +1,22 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { encrypt } from '@/lib/league-auth-crypto'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
 const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET
-const APP_URL = process.env.APP_URL || 'https://allfantasy.ai'
+const APP_URL = process.env.NEXTAUTH_URL || process.env.APP_URL || 'https://www.allfantasy.ai'
 // Must match exactly what's in Yahoo Developer Console
-const YAHOO_REDIRECT_URI = 'https://allfantasy.ai/api/auth/yahoo/callback'
+const YAHOO_REDIRECT_URI = `${APP_URL}/api/auth/yahoo/callback`
 
 export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "AuthYahooCallback" })(async (request: NextRequest) => {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
+    return NextResponse.redirect(`${APP_URL}/login?callbackUrl=/af-legacy`)
+  }
+
   const searchParams = request.nextUrl.searchParams
   const code = searchParams.get('code')
   const state = searchParams.get('state')
@@ -30,7 +38,8 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
   }
   
   const storedState = request.cookies.get('yahoo_oauth_state')?.value
-  if (!storedState || storedState !== state) {
+  const initiatingUserId = request.cookies.get('yahoo_oauth_user_id')?.value
+  if (!storedState || storedState !== state || !initiatingUserId || initiatingUserId !== session.user.id) {
     return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=invalid_state`)
   }
   
@@ -58,7 +67,7 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
     const tokens = await tokenResponse.json()
     const { access_token, refresh_token, expires_in } = tokens
     
-    const userResponse = await fetch('https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1?format=json', {
+    const userResponse = await fetch('https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1?format=json', { // db-first-exception: user-delegated OAuth import, requires live accessToken
       headers: {
         'Authorization': `Bearer ${access_token}`,
       },
@@ -75,12 +84,14 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
     const displayName = user?.profile?.display_name || user?.name || null
     
     const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000)
+    const encryptedAccessToken = encrypt(access_token)
+    const encryptedRefreshToken = refresh_token ? encrypt(refresh_token) : ''
     
     await prisma.yahooConnection.upsert({
       where: { yahooUserId },
       update: {
-        accessToken: access_token,
-        refreshToken: refresh_token,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         tokenExpiresAt,
         displayName,
         updatedAt: new Date(),
@@ -88,8 +99,8 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
       create: {
         yahooUserId,
         displayName,
-        accessToken: access_token,
-        refreshToken: refresh_token,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         tokenExpiresAt,
       },
     })
@@ -102,8 +113,17 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30,
     })
+
+    response.cookies.set('yahoo_owner_user_id', session.user.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30,
+      path: '/',
+    })
     
     response.cookies.delete('yahoo_oauth_state')
+    response.cookies.delete('yahoo_oauth_user_id')
     
     return response
   } catch (error: any) {

@@ -603,14 +603,14 @@ async function fetchFromESPN(sport: Sport, dataType: DataType, identifier?: stri
 
   switch (dataType) {
     case 'teams':
-      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/teams`;
+      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/teams`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
       break;
     case 'games':
     case 'schedule':
-      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`;
+      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/scoreboard`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
       break;
     case 'standings':
-      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/standings`;
+      url = `https://site.api.espn.com/apis/site/v2/sports/${path}/standings`; // db-first-exception: provider router fallback pending DB-first news/schedule mirror
       break;
     default:
       return null;

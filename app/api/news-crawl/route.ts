@@ -33,7 +33,7 @@ async function fetchEspnLive(): Promise<CrawlItem[]> {
 
   try {
     const res = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=25',
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=25', // db-first-exception: live news requires real-time ESPN feed
       { signal: AbortSignal.timeout(5000) }
     );
     if (res.ok) {
@@ -57,7 +57,7 @@ async function fetchEspnLive(): Promise<CrawlItem[]> {
 
   try {
     const injRes = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries',
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/injuries', // db-first-exception: live injury data requires real-time ESPN feed
       { signal: AbortSignal.timeout(5000) }
     );
     if (injRes.ok) {

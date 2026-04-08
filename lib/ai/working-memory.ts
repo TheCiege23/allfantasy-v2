@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { randomUUID } from 'node:crypto'
 
 import { prisma } from '@/lib/prisma'
@@ -49,7 +48,32 @@ const SUMMARY_MODEL =
   process.env.ANTHROPIC_MODEL_QUICKASK?.trim() || 'claude-haiku-4-5-20251001'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
-const anthropic = anthropicApiKey ? new Anthropic({ apiKey: anthropicApiKey }) : null
+const isServerRuntime = typeof window === 'undefined'
+
+type AnthropicSummaryClient = {
+  messages: {
+    create: (args: Record<string, unknown>) => Promise<any>
+  }
+}
+
+let anthropicSummaryClientPromise: Promise<AnthropicSummaryClient | null> | null = null
+
+async function getAnthropicSummaryClient(): Promise<AnthropicSummaryClient | null> {
+  if (!anthropicApiKey || !isServerRuntime) {
+    return null
+  }
+
+  if (!anthropicSummaryClientPromise) {
+    anthropicSummaryClientPromise = import('@anthropic-ai/sdk')
+      .then((mod) => {
+        const Anthropic = mod.default
+        return new Anthropic({ apiKey: anthropicApiKey }) as AnthropicSummaryClient
+      })
+      .catch(() => null)
+  }
+
+  return anthropicSummaryClientPromise
+}
 
 const TAG_DICTIONARY = [
   'trade',
@@ -301,6 +325,7 @@ async function summarizeChunk(entries: MemoryEntry[]): Promise<string> {
     ...entries.slice(0, 6).map((entry) => `- ${entry.type}: ${truncate(entry.content, 120)}`),
   ].join('\n')
 
+  const anthropic = await getAnthropicSummaryClient()
   if (!anthropic || entries.length === 0) {
     return deterministicSummary
   }

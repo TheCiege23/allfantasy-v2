@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
 const openai = getOpenAIRouteClient()
 
@@ -63,22 +64,10 @@ async function getSleeperPlayers(sport: Sport): Promise<Record<string, SleeperPl
   if (playersCache[sport].data && now - playersCache[sport].at < CACHE_TTL) {
     return playersCache[sport].data!
   }
-  const url = `https://api.sleeper.app/v1/players/${sport}`
-  const res = await fetch(url, { next: { revalidate: 86400 } })
-  if (!res.ok) throw new Error('Failed to fetch players')
-  const data = await res.json()
+  const data = await getPlayersBySport(sport)
+  if (!data || Object.keys(data).length === 0) throw new Error('Failed to fetch players')
   playersCache[sport] = { at: now, data }
   return data
-}
-
-async function fetchJson(url: string) {
-  try {
-    const res = await fetch(url, { next: { revalidate: 300 } })
-    if (!res.ok) return { ok: false, json: null }
-    return { ok: true, json: await res.json() }
-  } catch {
-    return { ok: false, json: null }
-  }
 }
 
 function normalizeName(name?: string): string {
@@ -304,6 +293,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/player-finder", tool: 
 
     const uniqueLeagueIds = Array.from(new Set(legacyUser.leagues.map(l => l.sleeperLeagueId)))
     const totalLeagueCount = uniqueLeagueIds.length
+    const rostersByLeague = new Map<string, SleeperRoster[]>()
+    const usersByLeague = new Map<string, Array<{ user_id?: string; display_name?: string; username?: string }>>()
     
     const results: Array<{
       playerId: string
@@ -347,10 +338,22 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/player-finder", tool: 
         const league = legacyUser.leagues.find(l => l.sleeperLeagueId === leagueId)
         if (!league) continue
 
-        const rostersRes = await fetchJson(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`)
-        if (!rostersRes.ok || !Array.isArray(rostersRes.json)) continue
+        let rosters = rostersByLeague.get(leagueId)
+        if (!rosters) {
+          const loadedRosters = await getLeagueRosters(leagueId) as unknown as SleeperRoster[]
+          if (!Array.isArray(loadedRosters) || loadedRosters.length === 0) {
+            continue
+          }
+          rosters = loadedRosters
+          rostersByLeague.set(leagueId, rosters)
+        }
 
-        const rosters = rostersRes.json as SleeperRoster[]
+        let users = usersByLeague.get(leagueId)
+        if (!users) {
+          const loadedUsers = await getLeagueUsers(leagueId) as unknown as Array<{ user_id?: string; display_name?: string; username?: string }>
+          users = Array.isArray(loadedUsers) ? loadedUsers : []
+          usersByLeague.set(leagueId, users)
+        }
         
         for (const roster of rosters) {
           const allPlayers = roster.players || []
@@ -368,12 +371,11 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/player-finder", tool: 
             rosterStatus = 'bench'
           }
 
-          const usersRes = await fetchJson(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`)
           let ownerName: string | null = null
           let isUserOwned = false
-          
-          if (usersRes.ok && Array.isArray(usersRes.json)) {
-            const owner = usersRes.json.find((u: any) => u.user_id === roster.owner_id)
+
+          if (users.length > 0) {
+            const owner = users.find((u: any) => u.user_id === roster.owner_id)
             ownerName = owner?.display_name || owner?.username || null
             isUserOwned = normalizeName(ownerName || '') === normalizeName(sleeperUsername)
           }

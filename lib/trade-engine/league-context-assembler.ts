@@ -13,6 +13,13 @@ import { getPlayerADP, type ADPEntry } from '../adp-data'
 import { getPreAnalysisStatus } from '../trade-pre-analysis'
 import { convertSleeperToAssets } from './convertSleeperToAssets'
 import {
+  getAllPlayers,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueTransactions,
+  getLeagueUsers,
+} from '../sleeper-client'
+import {
   type LeagueDecisionContext,
   type LeagueTeamSnapshot,
   type TradeDecisionContextV1,
@@ -93,9 +100,7 @@ const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 async function getSleeperPlayers(): Promise<Record<string, SleeperPlayer>> {
   const now = Date.now()
   if (playersCache.data && now - playersCache.at < CACHE_TTL_MS) return playersCache.data
-  const res = await fetch('https://api.sleeper.app/v1/players/nfl')
-  if (!res.ok) throw new Error(`Failed to fetch Sleeper players: ${res.status}`)
-  const data = await res.json()
+  const data = await getAllPlayers()
   playersCache.at = now
   playersCache.data = data
   return data
@@ -217,26 +222,15 @@ export async function buildLeagueDecisionContext(
   const warnings: string[] = []
   const { leagueId, username, platform } = input
 
-  const [leagueRes, rostersRes, usersRes, txRes] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/1`).catch(() => null),
+  const [leagueData, rostersData, usersData, transactionsData] = await Promise.all([
+    getLeagueInfo(leagueId),
+    getLeagueRosters(leagueId),
+    getLeagueUsers(leagueId),
+    getLeagueTransactions(leagueId, 1).catch(() => []),
   ])
 
-  if (!leagueRes.ok || !rostersRes.ok || !usersRes.ok) {
+  if (!leagueData || !Array.isArray(rostersData) || !Array.isArray(usersData)) {
     throw new Error('Failed to fetch league data from Sleeper')
-  }
-
-  const [leagueData, rostersData, usersData] = await Promise.all([
-    leagueRes.json(),
-    rostersRes.json(),
-    usersRes.json(),
-  ])
-
-  let transactionsData: any[] = []
-  if (txRes && txRes.ok) {
-    try { transactionsData = await txRes.json() } catch { transactionsData = [] }
   }
 
   const tradeCountByRosterId: Record<number, number> = {}

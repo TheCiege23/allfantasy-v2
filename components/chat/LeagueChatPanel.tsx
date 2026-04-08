@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -27,6 +27,7 @@ import {
 import type { PlatformChatMessage, PlatformChatThread } from "@/types/platform-shared"
 import type { ChatTabId } from "@/types/chat"
 import PinnedSection from "@/components/chat/PinnedSection"
+import LeagueMessageRow from "@/components/chat/LeagueMessageRow"
 import ChatStatsBotMessage, { placeholderStatsBotUpdate } from "@/components/chat/ChatStatsBotMessage"
 import CommissionerBroadcastForm from "@/components/chat/CommissionerBroadcastForm"
 import { ChimmyChatShell } from "@/components/chimmy"
@@ -121,6 +122,7 @@ export default function LeagueChatPanel({
   const [pinned, setPinned] = useState<PlatformChatMessage[]>([])
   const [dmThreadId, setDmThreadId] = useState<string | null>(null)
   const [dmMessages, setDmMessages] = useState<PlatformChatMessage[]>([])
+  const [dmPinned, setDmPinned] = useState<PlatformChatMessage[]>([])
   const [dmInput, setDmInput] = useState("")
   const [dmSending, setDmSending] = useState(false)
   const [input, setInput] = useState("")
@@ -141,6 +143,16 @@ export default function LeagueChatPanel({
   const [mediaViewerUrl, setMediaViewerUrl] = useState<string | null>(null)
   const [focusedMessageId, setFocusedMessageId] = useState<string | null>(null)
   const [aiDmContext, setAiDmContext] = useState<AIChatContext | null>(null)
+  const [threadParent, setThreadParent] = useState<PlatformChatMessage | null>(null)
+  const [replyToMessage, setReplyToMessage] = useState<PlatformChatMessage | null>(null)
+  const [leagueSearchQuery, setLeagueSearchQuery] = useState("")
+  const [leagueSearchResults, setLeagueSearchResults] = useState<PlatformChatMessage[]>([])
+  const [dmSearchQuery, setDmSearchQuery] = useState("")
+  const [dmSearchResults, setDmSearchResults] = useState<PlatformChatMessage[]>([])
+  const [typingUsers, setTypingUsers] = useState<Array<{ userId: string; displayName?: string | null; username?: string | null }>>([])
+  const [dmTypingUsers, setDmTypingUsers] = useState<Array<{ userId: string; displayName?: string | null; username?: string | null }>>([])
+  const [readReceiptLabel, setReadReceiptLabel] = useState("")
+  const [dmReadReceiptLabel, setDmReadReceiptLabel] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -230,13 +242,29 @@ export default function LeagueChatPanel({
       const pinList: PlatformChatMessage[] = Array.isArray(pinJson?.pinned) ? pinJson.pinned : []
       setMessages(list)
       setPinned(pinList)
+      fetch(`/api/shared/chat/threads/${encodeURIComponent(threadId)}/read-receipts`, { method: "POST" })
+        .then((res) => res.json())
+        .then((json) => {
+          const receipts = Array.isArray(json?.receipts) ? json.receipts : []
+          const otherReceipts = receipts.filter((r: any) => r?.userId && r.userId !== currentUserId && r.lastReadAt)
+          const latest = otherReceipts.sort(
+            (a: any, b: any) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime()
+          )[0]
+          if (latest) {
+            const name = latest.displayName || latest.username || "Member"
+            setReadReceiptLabel(`Seen by ${name}`)
+          } else {
+            setReadReceiptLabel("")
+          }
+        })
+        .catch(() => {})
     } catch {
       setMessages([])
       setPinned([])
     } finally {
       if (!options?.silent) setLoadingMessages(false)
     }
-  }, [chatSource])
+  }, [chatSource, currentUserId])
 
   useEffect(() => {
     if (activeTab !== "league" || !resolvedLeagueThreadId) return
@@ -379,6 +407,10 @@ export default function LeagueChatPanel({
       if (hasAttachment && attachmentPreview?.type === "image") {
         ;(payload as Record<string, unknown>).imageUrl = attachmentPreview.url
       }
+      // Threaded chat: include parentMessageId if replying
+      if (replyToMessage) {
+        (payload as Record<string, unknown>).parentMessageId = replyToMessage.id
+      }
       const res = await fetch(
         `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages`,
         {
@@ -401,6 +433,7 @@ export default function LeagueChatPanel({
         if (hasAttachment) {
           clearAttachmentState(setAttachmentPreview, setUploadError)
         }
+        setReplyToMessage(null)
         const usernames = parseMentions(text)
         if (!hasAttachment && usernames.length > 0) {
           fetch(LEAGUE_CHAT_MENTIONS_ENDPOINT, {
@@ -419,7 +452,7 @@ export default function LeagueChatPanel({
     } finally {
       setSending(false)
     }
-  }, [attachmentPreview, chatSource, input, sending, resolvedLeagueThreadId])
+  }, [attachmentPreview, chatSource, input, sending, resolvedLeagueThreadId, replyToMessage])
 
   const handlePin = useCallback(
     async (messageId: string) => {
@@ -505,23 +538,139 @@ export default function LeagueChatPanel({
   const loadDmMessages = useCallback(async (threadId: string, options?: { silent?: boolean }) => {
     if (!options?.silent) setLoadingDm(true)
     try {
-      const res = await fetch(
-        `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages?limit=50`,
-        { cache: "no-store" }
-      )
-      const json = await res.json().catch(() => ({}))
-      setDmMessages(Array.isArray(json?.messages) ? json.messages : [])
+      const [msgRes, pinRes] = await Promise.all([
+        fetch(
+          `/api/shared/chat/threads/${encodeURIComponent(threadId)}/messages?limit=50`,
+          { cache: "no-store" }
+        ),
+        fetch(
+          `/api/shared/chat/threads/${encodeURIComponent(threadId)}/pinned`,
+          { cache: "no-store" }
+        ),
+      ])
+      const msgJson = await msgRes.json().catch(() => ({}))
+      const pinJson = await pinRes.json().catch(() => ({}))
+      setDmMessages(Array.isArray(msgJson?.messages) ? msgJson.messages : [])
+      setDmPinned(Array.isArray(pinJson?.pinned) ? pinJson.pinned : [])
+      fetch(`/api/shared/chat/threads/${encodeURIComponent(threadId)}/read-receipts`, { method: "POST" })
+        .then((res) => res.json())
+        .then((json) => {
+          const receipts = Array.isArray(json?.receipts) ? json.receipts : []
+          const otherReceipts = receipts.filter((r: any) => r?.userId && r.userId !== currentUserId && r.lastReadAt)
+          const latest = otherReceipts.sort(
+            (a: any, b: any) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime()
+          )[0]
+          if (latest) {
+            const name = latest.displayName || latest.username || "Member"
+            setDmReadReceiptLabel(`Seen by ${name}`)
+          } else {
+            setDmReadReceiptLabel("")
+          }
+        })
+        .catch(() => {})
     } catch {
       setDmMessages([])
+      setDmPinned([])
     } finally {
       if (!options?.silent) setLoadingDm(false)
     }
+  }, [currentUserId])
+
+  const loadTypingUsers = useCallback(async (threadId: string, isDmThread: boolean) => {
+    try {
+      const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(threadId)}/typing`, { cache: "no-store" })
+      const json = await res.json().catch(() => ({}))
+      const list = Array.isArray(json?.typing) ? json.typing : []
+      if (isDmThread) {
+        setDmTypingUsers(list)
+      } else {
+        setTypingUsers(list)
+      }
+    } catch {
+      if (isDmThread) setDmTypingUsers([])
+      else setTypingUsers([])
+    }
   }, [])
+
+  const handleLeagueSearch = useCallback(async () => {
+    const query = leagueSearchQuery.trim()
+    if (!query || !resolvedLeagueThreadId) {
+      setLeagueSearchResults([])
+      return
+    }
+    try {
+      const params = new URLSearchParams({ q: query, limit: "20" })
+      const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/search?${params.toString()}`, { cache: "no-store" })
+      const json = await res.json().catch(() => ({}))
+      setLeagueSearchResults(Array.isArray(json?.messages) ? json.messages : [])
+    } catch {
+      setLeagueSearchResults([])
+    }
+  }, [leagueSearchQuery, resolvedLeagueThreadId])
+
+  const handleDmSearch = useCallback(async () => {
+    const query = dmSearchQuery.trim()
+    if (!query || !dmThreadId) {
+      setDmSearchResults([])
+      return
+    }
+    try {
+      const params = new URLSearchParams({ q: query, limit: "20" })
+      const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/search?${params.toString()}`, { cache: "no-store" })
+      const json = await res.json().catch(() => ({}))
+      setDmSearchResults(Array.isArray(json?.messages) ? json.messages : [])
+    } catch {
+      setDmSearchResults([])
+    }
+  }, [dmSearchQuery, dmThreadId])
 
   useEffect(() => {
     if (activeTab !== "dm" || !dmThreadId) return
     void loadDmMessages(dmThreadId)
   }, [activeTab, dmThreadId, loadDmMessages])
+
+  useEffect(() => {
+    if (activeTab === "league" && resolvedLeagueThreadId) {
+      void loadTypingUsers(resolvedLeagueThreadId, false)
+      const timer = window.setInterval(() => {
+        void loadTypingUsers(resolvedLeagueThreadId, false)
+      }, 5000)
+      return () => window.clearInterval(timer)
+    }
+    if (activeTab === "dm" && dmThreadId) {
+      void loadTypingUsers(dmThreadId, true)
+      const timer = window.setInterval(() => {
+        void loadTypingUsers(dmThreadId, true)
+      }, 5000)
+      return () => window.clearInterval(timer)
+    }
+  }, [activeTab, dmThreadId, loadTypingUsers, resolvedLeagueThreadId])
+
+  useEffect(() => {
+    if (activeTab !== "league" || !resolvedLeagueThreadId) return
+    const typing = input.trim().length > 0
+    const timer = window.setTimeout(() => {
+      fetch(`/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/typing`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ isTyping: typing }),
+      }).catch(() => {})
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [activeTab, input, resolvedLeagueThreadId])
+
+  useEffect(() => {
+    if (activeTab !== "dm" || !dmThreadId) return
+    const typing = dmInput.trim().length > 0
+    const timer = window.setTimeout(() => {
+      fetch(`/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/typing`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ isTyping: typing }),
+      }).catch(() => {})
+    }, 300)
+    return () => window.clearTimeout(timer)
+  }, [activeTab, dmInput, dmThreadId])
 
   useEffect(() => {
     if (activeTab !== "dm" || dmThreadId || dmThreads.length === 0) return
@@ -621,6 +770,42 @@ export default function LeagueChatPanel({
     { id: "ai", label: "AI Chat", icon: <Sparkles className="h-3.5 w-3.5" /> },
   ]
 
+  // Pin/unpin handlers for DMs
+  const handleDmPin = useCallback(
+    async (messageId: string) => {
+      if (!dmThreadId) return
+      try {
+        const res = await fetch(
+          `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/pin`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ messageId }),
+          }
+        )
+        if (res.ok) void loadDmMessages(dmThreadId)
+      } catch {}
+    },
+    [dmThreadId, loadDmMessages]
+  )
+  const handleDmUnpin = useCallback(
+    async (pinMessageId: string) => {
+      if (!dmThreadId) return
+      try {
+        const res = await fetch(
+          `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/unpin`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ pinMessageId }),
+          }
+        )
+        if (res.ok) void loadDmMessages(dmThreadId)
+      } catch {}
+    },
+    [dmThreadId, loadDmMessages]
+  )
+
   return (
     <section
       className={`flex flex-col rounded-2xl border shadow-xl ${className}`}
@@ -706,6 +891,54 @@ export default function LeagueChatPanel({
               </div>
             )}
 
+            <div className="mb-2 rounded-xl border p-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={leagueSearchQuery}
+                  onChange={(e) => setLeagueSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      void handleLeagueSearch()
+                    }
+                  }}
+                  placeholder="Search league messages"
+                  className="flex-1 rounded-lg border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleLeagueSearch()}
+                  className="rounded-lg border px-2 py-1 text-xs"
+                  style={{ borderColor: "var(--border)", color: "var(--text)" }}
+                >
+                  Search
+                </button>
+              </div>
+              {(typingUsers.length > 0 || readReceiptLabel) && (
+                <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: "var(--muted)" }}>
+                  <span>{typingUsers.length > 0 ? `${typingUsers[0]?.displayName || typingUsers[0]?.username || "Someone"} is typing...` : ""}</span>
+                  <span>{readReceiptLabel}</span>
+                </div>
+              )}
+              {leagueSearchResults.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {leagueSearchResults.slice(-6).map((result) => (
+                    <button
+                      key={result.id}
+                      type="button"
+                      onClick={() => setFocusedMessageId(result.id)}
+                      className="rounded border px-2 py-0.5 text-[10px]"
+                      style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+                    >
+                      {result.body.slice(0, 32) || "Message"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div
               className="flex-1 min-h-[200px] overflow-y-auto rounded-xl border px-2 py-2 relative"
               style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
@@ -717,62 +950,141 @@ export default function LeagueChatPanel({
               ) : (
                 <>
                   <ul className="space-y-2">
-                    {messages.map((m, index) => (
-                      <LeagueMessageRow
-                        key={m.id}
-                        msg={m}
-                        threadId={resolvedLeagueThreadId}
-                        previousMsg={index > 0 ? messages[index - 1] : null}
-                        onPin={() => handlePin(m.id)}
-                        onReaction={async (emoji, remove) => {
-                          try {
-                            await fetch(
-                              `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
-                              {
-                                method: remove ? "DELETE" : "POST",
-                                headers: { "content-type": "application/json" },
-                                body: JSON.stringify({ emoji }),
+                    {(threadParent
+                      ? messages.filter((msg) => msg.parentMessageId === threadParent.id)
+                      : messages.filter((msg) => !msg.parentMessageId)
+                    ).map((m, index, arr) => {
+                      // Find replies to this message
+                      const replies = messages.filter((msg) => msg.parentMessageId === m.id)
+                      return (
+                        <div key={m.id}>
+                          <LeagueMessageRow
+                            msg={m}
+                            threadId={resolvedLeagueThreadId}
+                            previousMsg={index > 0 ? arr[index - 1] : null}
+                            onPin={() => handlePin(m.id)}
+                            onReaction={async (emoji, remove) => {
+                              try {
+                                await fetch(
+                                  `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
+                                  {
+                                    method: remove ? "DELETE" : "POST",
+                                    headers: { "content-type": "application/json" },
+                                    body: JSON.stringify({ emoji }),
+                                  }
+                                )
+                                if (resolvedLeagueThreadId) loadMessages(resolvedLeagueThreadId)
+                              } catch {
+                                // ignore
                               }
-                            )
-                            if (resolvedLeagueThreadId) loadMessages(resolvedLeagueThreadId)
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        onStartDm={handleStartDmFromMessage}
-                        onPollVote={async (optionIndex) => {
-                          try {
-                            if (isLeagueVirtualChat(resolvedLeagueThreadId)) return
-                            await fetch(
-                              getLeaguePollVoteUrl(resolvedLeagueThreadId, m.id),
-                              {
-                                method: "POST",
-                                headers: { "content-type": "application/json" },
-                                body: JSON.stringify({ optionIndex }),
+                            }}
+                            onStartDm={handleStartDmFromMessage}
+                            onPollVote={async (optionIndex) => {
+                              try {
+                                if (isLeagueVirtualChat(resolvedLeagueThreadId)) return
+                                await fetch(
+                                  getLeaguePollVoteUrl(resolvedLeagueThreadId, m.id),
+                                  {
+                                    method: "POST",
+                                    headers: { "content-type": "application/json" },
+                                    body: JSON.stringify({ optionIndex }),
+                                  }
+                                )
+                                void loadMessages(resolvedLeagueThreadId, { silent: true })
+                              } catch {
+                                // ignore
                               }
-                            )
-                            void loadMessages(resolvedLeagueThreadId, { silent: true })
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        onPollClose={async () => {
-                          try {
-                            if (isLeagueVirtualChat(resolvedLeagueThreadId)) return
-                            await fetch(getLeaguePollCloseUrl(resolvedLeagueThreadId, m.id), { method: "POST" })
-                            void loadMessages(resolvedLeagueThreadId, { silent: true })
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        canClosePoll={isCommissioner && !isLeagueVirtualChat(resolvedLeagueThreadId)}
-                        pollVotingEnabled={!isLeagueVirtualChat(resolvedLeagueThreadId)}
-                        showPin={!isLeagueVirtualChat(resolvedLeagueThreadId)}
-                        currentUserId={currentUserId}
-                        highlighted={focusedMessageId === m.id}
-                        onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
-                      />
-                    ))}
+                            }}
+                            onPollClose={async () => {
+                              try {
+                                if (isLeagueVirtualChat(resolvedLeagueThreadId)) return
+                                await fetch(getLeaguePollCloseUrl(resolvedLeagueThreadId, m.id), { method: "POST" })
+                                void loadMessages(resolvedLeagueThreadId, { silent: true })
+                              } catch {
+                                // ignore
+                              }
+                            }}
+                            canClosePoll={isCommissioner && !isLeagueVirtualChat(resolvedLeagueThreadId)}
+                            pollVotingEnabled={!isLeagueVirtualChat(resolvedLeagueThreadId)}
+                            showPin={!isLeagueVirtualChat(resolvedLeagueThreadId)}
+                            currentUserId={currentUserId}
+                            highlighted={focusedMessageId === m.id}
+                            onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
+                            onReply={() => setReplyToMessage(m)}
+                          />
+                          {m.senderUserId && currentUserId && m.senderUserId === currentUserId && (
+                            <div className="mb-1 ml-8 flex gap-1 text-[10px]" style={{ color: "var(--muted)" }}>
+                              <button
+                                type="button"
+                                className="rounded border px-1.5 py-0.5"
+                                style={{ borderColor: "var(--border)" }}
+                                onClick={async () => {
+                                  const next = window.prompt("Edit message", m.body)
+                                  if (!next || next.trim() === m.body.trim()) return
+                                  await fetch(
+                                    `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}`,
+                                    {
+                                      method: "PATCH",
+                                      headers: { "content-type": "application/json" },
+                                      body: JSON.stringify({ body: next.trim() }),
+                                    }
+                                  )
+                                  void loadMessages(resolvedLeagueThreadId, { silent: true })
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border px-1.5 py-0.5"
+                                style={{ borderColor: "var(--border)" }}
+                                onClick={async () => {
+                                  if (!window.confirm("Delete this message?")) return
+                                  await fetch(
+                                    `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}`,
+                                    { method: "DELETE" }
+                                  )
+                                  void loadMessages(resolvedLeagueThreadId, { silent: true })
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                          {/* Threaded chat: visual indicator and thread view button */}
+                          {replies.length > 0 && !threadParent && (
+                            <button
+                              type="button"
+                              className="ml-8 mb-2 text-xs text-cyan-400 hover:underline"
+                              onClick={() => setThreadParent(m)}
+                            >
+                              <MessageCircle className="inline h-4 w-4 mr-1" />
+                              {replies.length} repl{replies.length === 1 ? "y" : "ies"}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {/* Threaded chat: thread view header */}
+                    {threadParent && (
+                      <div className="mb-2 flex items-center gap-2 ml-2">
+                        <button type="button" onClick={() => setThreadParent(null)} className="rounded p-1 text-cyan-400 hover:bg-cyan-900/40" aria-label="Back to main chat">
+                          <ChevronDown className="h-4 w-4 rotate-90" />
+                        </button>
+                        <span className="text-xs text-cyan-300">Viewing replies to:</span>
+                        <span className="text-xs text-white/80 truncate max-w-[180px]">{threadParent.body}</span>
+                      </div>
+                    )}
+                                {/* Threaded chat: reply context */}
+                                {replyToMessage && (
+                                  <div className="mb-2 flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+                                    <span className="text-[11px] text-cyan-400">Replying to:</span>
+                                    <span className="text-[11px] text-white/80 truncate max-w-[180px]">{replyToMessage.body}</span>
+                                    <button type="button" onClick={() => setReplyToMessage(null)} className="ml-auto rounded p-1" style={{ color: "var(--muted)" }} aria-label="Cancel reply">
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                )}
                     {messages.length === 0 && !loadingMessages && (
                       <li className="py-4 text-center text-[11px]" style={{ color: "var(--muted)" }}>
                         {isTribeChat ? "No messages in this tribe chat yet." : "No messages yet. Say something or @mention a manager."}
@@ -1066,7 +1378,39 @@ export default function LeagueChatPanel({
             <div className="flex flex-col min-h-0 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
               {dmThreadId ? (
                 <>
+                  {/* Pinned messages for DM */}
+                  <PinnedSection
+                    pinned={dmPinned}
+                    onUnpin={handleDmUnpin}
+                    onSelectPinned={(_pinMessage, referencedMessageId) => setFocusedMessageId(referencedMessageId)}
+                    canUnpin={true}
+                    className="mb-2"
+                  />
                   <div className="flex items-center justify-end border-b px-2 py-1.5" style={{ borderColor: "var(--border)" }}>
+                    <div className="mr-auto flex min-w-[200px] items-center gap-1">
+                      <input
+                        type="text"
+                        value={dmSearchQuery}
+                        onChange={(e) => setDmSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            void handleDmSearch()
+                          }
+                        }}
+                        placeholder="Search messages"
+                        className="w-full rounded-lg border px-2 py-1 text-[10px]"
+                        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleDmSearch()}
+                        className="rounded border px-2 py-1 text-[10px]"
+                        style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+                      >
+                        Go
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={handleOpenDmAi}
@@ -1078,59 +1422,122 @@ export default function LeagueChatPanel({
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto px-2 py-2 space-y-2">
+                    {(dmTypingUsers.length > 0 || dmReadReceiptLabel || dmSearchResults.length > 0) && (
+                      <div className="mb-2 rounded border px-2 py-1 text-[10px]" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                        <div className="flex items-center justify-between">
+                          <span>{dmTypingUsers.length > 0 ? `${dmTypingUsers[0]?.displayName || dmTypingUsers[0]?.username || "Someone"} is typing...` : ""}</span>
+                          <span>{dmReadReceiptLabel}</span>
+                        </div>
+                        {dmSearchResults.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {dmSearchResults.slice(-6).map((result) => (
+                              <button
+                                key={result.id}
+                                type="button"
+                                onClick={() => setFocusedMessageId(result.id)}
+                                className="rounded border px-1.5 py-0.5 text-[10px]"
+                                style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
+                              >
+                                {result.body.slice(0, 28) || "Message"}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {loadingDm ? (
                       <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--muted)" }} /></div>
                     ) : (
                       dmMessages.map((m, index) => (
-                        <LeagueMessageRow
-                          key={m.id}
-                          msg={m}
-                          threadId={dmThreadId ?? undefined}
-                          previousMsg={index > 0 ? dmMessages[index - 1] : null}
-                          onPin={() => {}}
-                          onReaction={dmThreadId ? async (emoji, remove) => {
-                            try {
-                              await fetch(
-                                `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
-                                {
-                                  method: remove ? "DELETE" : "POST",
+                        <div key={m.id}>
+                          <LeagueMessageRow
+                            msg={m}
+                            threadId={dmThreadId ?? undefined}
+                            previousMsg={index > 0 ? dmMessages[index - 1] : null}
+                            onPin={() => handleDmPin(m.id)}
+                            onReaction={dmThreadId ? async (emoji, remove) => {
+                              try {
+                                await fetch(
+                                  `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
+                                  {
+                                    method: remove ? "DELETE" : "POST",
+                                    headers: { "content-type": "application/json" },
+                                    body: JSON.stringify({ emoji }),
+                                  }
+                                )
+                                await loadDmMessages(dmThreadId)
+                              } catch {
+                                // ignore
+                              }
+                            } : undefined}
+                            onStartDm={handleStartDmFromMessage}
+                            onPollVote={dmThreadId ? async (optionIndex) => {
+                              try {
+                                await fetch(getLeaguePollVoteUrl(dmThreadId, m.id), {
+                                  method: "POST",
                                   headers: { "content-type": "application/json" },
-                                  body: JSON.stringify({ emoji }),
-                                }
-                              )
-                              await loadDmMessages(dmThreadId)
-                            } catch {
-                              // ignore
-                            }
-                          } : undefined}
-                          onStartDm={handleStartDmFromMessage}
-                          onPollVote={dmThreadId ? async (optionIndex) => {
-                            try {
-                              await fetch(getLeaguePollVoteUrl(dmThreadId, m.id), {
-                                method: "POST",
-                                headers: { "content-type": "application/json" },
-                                body: JSON.stringify({ optionIndex }),
-                              })
-                              await loadDmMessages(dmThreadId, { silent: true })
-                            } catch {
-                              // ignore
-                            }
-                          } : undefined}
-                          onPollClose={dmThreadId ? async () => {
-                            try {
-                              await fetch(getLeaguePollCloseUrl(dmThreadId, m.id), { method: "POST" })
-                              await loadDmMessages(dmThreadId, { silent: true })
-                            } catch {
-                              // ignore
-                            }
-                          } : undefined}
-                          canClosePoll
-                          pollVotingEnabled
-                          showPin={false}
-                          currentUserId={currentUserId}
-                          highlighted={focusedMessageId === m.id}
-                          onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
-                        />
+                                  body: JSON.stringify({ optionIndex }),
+                                })
+                                await loadDmMessages(dmThreadId, { silent: true })
+                              } catch {
+                                // ignore
+                              }
+                            } : undefined}
+                            onPollClose={dmThreadId ? async () => {
+                              try {
+                                await fetch(getLeaguePollCloseUrl(dmThreadId, m.id), { method: "POST" })
+                                await loadDmMessages(dmThreadId, { silent: true })
+                              } catch {
+                                // ignore
+                              }
+                            } : undefined}
+                            canClosePoll
+                            pollVotingEnabled
+                            showPin={true}
+                            currentUserId={currentUserId}
+                            highlighted={focusedMessageId === m.id}
+                            onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
+                          />
+                          {dmThreadId && m.senderUserId && currentUserId && m.senderUserId === currentUserId && (
+                            <div className="mb-1 ml-8 flex gap-1 text-[10px]" style={{ color: "var(--muted)" }}>
+                              <button
+                                type="button"
+                                className="rounded border px-1.5 py-0.5"
+                                style={{ borderColor: "var(--border)" }}
+                                onClick={async () => {
+                                  const next = window.prompt("Edit message", m.body)
+                                  if (!next || next.trim() === m.body.trim()) return
+                                  await fetch(
+                                    `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/messages/${encodeURIComponent(m.id)}`,
+                                    {
+                                      method: "PATCH",
+                                      headers: { "content-type": "application/json" },
+                                      body: JSON.stringify({ body: next.trim() }),
+                                    }
+                                  )
+                                  await loadDmMessages(dmThreadId, { silent: true })
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded border px-1.5 py-0.5"
+                                style={{ borderColor: "var(--border)" }}
+                                onClick={async () => {
+                                  if (!window.confirm("Delete this message?")) return
+                                  await fetch(
+                                    `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/messages/${encodeURIComponent(m.id)}`,
+                                    { method: "DELETE" }
+                                  )
+                                  await loadDmMessages(dmThreadId, { silent: true })
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ))
                     )}
                   </div>
@@ -1345,377 +1752,3 @@ function LeaguePollComposer({
   )
 }
 
-const QUICK_EMOJIS = ["👍", "😂", "🔥", "❤️", "👀"]
-
-function LeagueMessageRow({
-  msg,
-  threadId,
-  previousMsg,
-  onPin,
-  onReaction,
-  onStartDm,
-  onPollVote,
-  onPollClose,
-  canClosePoll,
-  pollVotingEnabled,
-  showPin,
-  currentUserId,
-  highlighted = false,
-  onMediaOpen,
-}: {
-  msg: PlatformChatMessage
-  threadId?: string
-  previousMsg?: PlatformChatMessage | null
-  onPin: () => void
-  onReaction?: (emoji: string, remove?: boolean) => void
-  onStartDm?: (username: string) => void
-  onPollVote?: (optionIndex: number) => void
-  onPollClose?: () => void
-  canClosePoll?: boolean
-  pollVotingEnabled?: boolean
-  showPin: boolean
-  currentUserId?: string | null
-  highlighted?: boolean
-  onMediaOpen?: (url: string) => void
-}) {
-  const { formatInTimezone } = useUserTimezone()
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const reactions = (msg.metadata as any)?.reactions as { emoji: string; count: number; userIds?: string[] }[] | undefined
-  const hasUserReacted = (emoji: string): boolean => {
-    if (!currentUserId || !Array.isArray(reactions)) return false
-    const entry = reactions.find((reaction) => reaction.emoji === emoji)
-    return Boolean(entry && Array.isArray(entry.userIds) && entry.userIds.includes(currentUserId))
-  }
-
-  const lastSeen = (msg.metadata as any)?.lastSeenAt as string | undefined
-  const presenceStatus = lastSeen ? getPresenceStatus(lastSeen) : null
-  const senderUsername =
-    typeof (msg as { senderUsername?: unknown }).senderUsername === "string"
-      ? ((msg as { senderUsername?: string }).senderUsername ?? "").trim()
-      : ""
-  const profileHref = senderUsername ? `/profile/${encodeURIComponent(senderUsername)}` : null
-  const messageDate = new Date(msg.createdAt).getTime()
-  const previousDate = previousMsg?.createdAt ? new Date(previousMsg.createdAt).getTime() : null
-  const groupedWithPrevious =
-    Boolean(previousMsg) &&
-    !isLeagueSystemNotice(previousMsg?.messageType ?? "") &&
-    previousMsg?.senderUserId &&
-    previousMsg.senderUserId === msg.senderUserId &&
-    previousMsg.senderUserId !== null &&
-    previousDate !== null &&
-    Math.abs(messageDate - previousDate) <= 5 * 60 * 1000 &&
-    !isLeagueSystemNotice(msg.messageType)
-  const isSystemNotice = isLeagueSystemNotice(msg.messageType)
-  const systemLabel =
-    msg.messageType === "broadcast"
-      ? "Commissioner"
-      : msg.messageType === "stats_bot"
-        ? "Chat Stats Bot"
-        : msg.messageType === "pin"
-          ? "Pinned"
-          : getLeagueSystemNoticeLabel(msg.messageType)
-  const poll = parseLeaguePollPayload({
-    body: msg.body,
-    metadata:
-      msg.metadata && typeof msg.metadata === "object" && !Array.isArray(msg.metadata)
-        ? msg.metadata
-        : null,
-  })
-  const pollVotes = poll?.votes ?? {}
-  const totalVotes = Object.values(pollVotes).reduce(
-    (sum, ids) => sum + (Array.isArray(ids) ? ids.length : 0),
-    0
-  )
-  let displayBody = msg.body
-  if (msg.messageType === "broadcast") displayBody = getBroadcastBody(msg.body)
-  else if (msg.messageType === "stats_bot") {
-    const p = getStatsBotPayload(msg.body)
-    displayBody = p ? `Best: ${p.bestTeam} · Worst: ${p.worstTeam} · Top: ${p.bestPlayer}` : msg.body
-  } else if (msg.messageType === "pin") displayBody = "Pinned message"
-  else if (isSystemNotice) displayBody = getSystemNoticeBody(msg.body)
-  const isRichMediaMessage = ["image", "gif", "file", "media"].includes(msg.messageType)
-
-  const mentionRanges = getLeagueMentionRanges(displayBody)
-  const renderBodyWithMentions = () => {
-    if (mentionRanges.length === 0) return displayBody
-    const parts: React.ReactNode[] = []
-    let cursor = 0
-    for (const range of mentionRanges) {
-      if (range.start > cursor) {
-        parts.push(displayBody.slice(cursor, range.start))
-      }
-      parts.push(
-        <Link
-          key={`${msg.id}-${range.start}-${range.username}`}
-          href={`/profile/${encodeURIComponent(range.username)}`}
-          className="underline"
-          style={{ color: "var(--accent-cyan-strong)" }}
-        >
-          @{range.username}
-        </Link>
-      )
-      cursor = range.end
-    }
-    if (cursor < displayBody.length) {
-      parts.push(displayBody.slice(cursor))
-    }
-    return parts
-  }
-
-  const actionHref =
-    msg.metadata && typeof msg.metadata === "object" && typeof (msg.metadata as Record<string, unknown>).actionHref === "string"
-      ? ((msg.metadata as Record<string, unknown>).actionHref as string)
-      : null
-
-  return (
-    <li
-      id={`league-message-${msg.id}`}
-      data-message-id={msg.id}
-      className={`group rounded-xl px-2 py-1.5 relative ${isSystemNotice ? "" : "hover:bg-black/5"} ${groupedWithPrevious ? "mt-0.5" : ""}`}
-      style={
-        msg.messageType === "broadcast"
-          ? { background: "color-mix(in srgb, var(--accent-amber) 8%, transparent)", borderLeft: "3px solid var(--accent-amber-strong)" }
-          : msg.messageType === "stats_bot"
-            ? { background: "color-mix(in srgb, var(--accent-cyan-strong) 6%, transparent)" }
-            : msg.messageType === "pin"
-              ? { background: "color-mix(in srgb, var(--accent-cyan-strong) 6%, transparent)" }
-              : highlighted
-                ? {
-                    border: "1px solid var(--accent-cyan-strong)",
-                    background: "color-mix(in srgb, var(--accent-cyan-strong) 8%, transparent)",
-                  }
-                : undefined
-      }
-    >
-      <div className="flex items-start gap-2">
-        {groupedWithPrevious ? (
-          <div className="h-7 w-7 shrink-0" />
-        ) : profileHref && !isSystemNotice ? (
-          <Link
-            href={profileHref}
-            className="mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold"
-            style={{
-              background: "var(--panel2)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-          >
-            {msg.senderName.slice(0, 2).toUpperCase()}
-          </Link>
-        ) : (
-          <div
-            className="mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-[10px] font-semibold"
-            style={{
-              background: msg.messageType === "broadcast" ? "var(--accent-amber-strong)" : "var(--panel2)",
-              border: "1px solid var(--border)",
-              color: msg.messageType === "broadcast" ? "var(--on-accent-bg)" : "var(--text)",
-            }}
-          >
-            {msg.messageType === "broadcast" ? <Megaphone className="h-3.5 w-3.5" /> : msg.senderName.slice(0, 2).toUpperCase()}
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          {!groupedWithPrevious && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {profileHref && !isSystemNotice ? (
-                <Link
-                  href={profileHref}
-                  className="text-[11px] font-semibold"
-                  style={{ color: "var(--text)" }}
-                >
-                  {msg.senderName}
-                </Link>
-              ) : (
-                <span className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>
-                  {isSystemNotice ? systemLabel : msg.senderName}
-                </span>
-              )}
-              <span className="text-[10px]" style={{ color: "var(--muted2)" }}>
-                {formatInTimezone(msg.createdAt, { hour: "numeric", minute: "2-digit" })}
-              </span>
-              {lastSeen && !isSystemNotice && (
-                <span className="text-[9px]" style={{ color: "var(--muted)" }}>
-                  {presenceStatus} · {formatInTimezone(lastSeen, { hour: "numeric", minute: "2-digit" })}
-                </span>
-              )}
-            </div>
-          )}
-          {poll ? (
-            <p className="mt-0.5 text-[11px] whitespace-pre-wrap" style={{ color: "var(--text)" }}>
-              {poll.question}
-            </p>
-          ) : isRichMediaMessage ? (
-            <div className="mt-1">
-              <RichMessageRenderer
-                message={msg}
-                onImageClick={(url) => onMediaOpen?.(url)}
-              />
-            </div>
-          ) : (
-            <p className="mt-0.5 text-[11px] whitespace-pre-wrap" style={{ color: "var(--text)" }}>
-              {renderBodyWithMentions()}
-            </p>
-          )}
-          {actionHref && (
-            <Link
-              href={actionHref}
-              className="mt-1 inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px]"
-              style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
-            >
-              Open details
-            </Link>
-          )}
-          {poll && (
-            <div className="mt-1.5 space-y-1">
-              {poll.options.map((label, optionIndex) => {
-                const count = Array.isArray(pollVotes[String(optionIndex)]) ? pollVotes[String(optionIndex)]!.length : 0
-                const pct = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0
-                return (
-                  <button
-                    key={`${msg.id}-opt-${optionIndex}`}
-                    type="button"
-                    onClick={() => onPollVote?.(optionIndex)}
-                    disabled={!pollVotingEnabled || Boolean(poll.closed)}
-                    className="flex w-full items-center justify-between rounded-lg border px-2 py-1 text-[10px] disabled:opacity-70"
-                    style={{ borderColor: "var(--border)", color: "var(--text)" }}
-                  >
-                    <span className="truncate">{label}</span>
-                    <span style={{ color: "var(--muted2)" }}>{pct}% ({count})</span>
-                  </button>
-                )
-              })}
-              {canClosePoll && !poll.closed && onPollClose && (
-                <button
-                  type="button"
-                  onClick={onPollClose}
-                  className="text-[10px]"
-                  style={{ color: "var(--muted2)" }}
-                >
-                  Close poll
-                </button>
-              )}
-            </div>
-          )}
-          <div className="mt-1 flex flex-wrap gap-1 items-center">
-            {reactions?.map((r) => (
-              <button
-                key={r.emoji}
-                type="button"
-                onClick={() => onReaction?.(r.emoji, hasUserReacted(r.emoji))}
-                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]"
-                style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
-              >
-                {r.emoji} {r.count}
-              </button>
-            ))}
-            {threadId && onReaction && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setPickerOpen((o) => !o)}
-                  className="inline-flex items-center justify-center rounded-full border px-1.5 py-0.5 text-[10px]"
-                  style={{ borderColor: "var(--border)", color: "var(--muted2)" }}
-                  aria-label="Add reaction"
-                >
-                  +
-                </button>
-                {pickerOpen && (
-                  <div
-                    className="absolute left-0 top-full z-10 mt-0.5 flex gap-1 rounded-lg border p-1 shadow-lg"
-                    style={{ borderColor: "var(--border)", background: "var(--panel)" }}
-                  >
-                    {QUICK_EMOJIS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        onClick={() => {
-                          onReaction(emoji, hasUserReacted(emoji))
-                          setPickerOpen(false)
-                        }}
-                        className="rounded p-1 text-sm hover:bg-black/10"
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          <div className="mt-0.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {showPin && !isSystemNotice && (
-              <button
-                type="button"
-                onClick={onPin}
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium"
-                style={{ color: "var(--muted2)" }}
-              >
-                <Pin className="h-3 w-3" />
-                Pin
-              </button>
-            )}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setMenuOpen((value) => !value)}
-                className="rounded p-0.5"
-                style={{ color: "var(--muted2)" }}
-                aria-label="More"
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </button>
-              {menuOpen && (
-                <div
-                  className="absolute right-0 top-full z-10 mt-1 min-w-[140px] rounded-lg border p-1 shadow-lg"
-                  style={{ borderColor: "var(--border)", background: "var(--panel)" }}
-                >
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(displayBody)
-                        toast.success("Message copied")
-                      } catch {
-                        toast.error("Unable to copy message")
-                      } finally {
-                        setMenuOpen(false)
-                      }
-                    }}
-                    className="w-full rounded px-2 py-1 text-left text-[10px]"
-                    style={{ color: "var(--text)" }}
-                  >
-                    Copy message
-                  </button>
-                  {senderUsername && (
-                    <Link
-                      href={`/profile/${encodeURIComponent(senderUsername)}`}
-                      onClick={() => setMenuOpen(false)}
-                      className="block w-full rounded px-2 py-1 text-left text-[10px]"
-                      style={{ color: "var(--text)" }}
-                    >
-                      View profile
-                    </Link>
-                  )}
-                  {senderUsername && onStartDm && !isSystemNotice && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onStartDm(senderUsername)
-                        setMenuOpen(false)
-                      }}
-                      className="w-full rounded px-2 py-1 text-left text-[10px]"
-                      style={{ color: "var(--text)" }}
-                    >
-                      Start DM
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </li>
-  )
-}

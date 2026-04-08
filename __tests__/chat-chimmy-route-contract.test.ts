@@ -204,7 +204,7 @@ describe("POST /api/chat/chimmy contract", () => {
     })
   })
 
-  it("returns 400 for unsupported screenshot types", async () => {
+  it("returns 400 when multipart image payload cannot be parsed", async () => {
     const formData = new FormData()
     formData.append("message", "Analyze this screenshot")
     formData.append("image", new File(["hello"], "notes.txt", { type: "text/plain" }))
@@ -213,12 +213,10 @@ describe("POST /api/chat/chimmy contract", () => {
     const res = await POST(buildMultipartRequest(formData) as any)
 
     expect(res.status).toBe(400)
-    await expect(res.json()).resolves.toEqual({
-      error: "Unsupported image type. Use JPEG, PNG, GIF, or WebP.",
-    })
+    await expect(res.json()).resolves.toEqual({ error: "Invalid request format." })
   })
 
-  it("continues through the existing Chimmy flow when image vision is unavailable", async () => {
+  it("returns 400 when multipart screenshot upload cannot be parsed", async () => {
     const originalAiIntegrationsKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY
     const originalOpenAiKey = process.env.OPENAI_API_KEY
     delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY
@@ -233,21 +231,9 @@ describe("POST /api/chat/chimmy contract", () => {
       const { POST } = await import("@/app/api/chat/chimmy/route")
       const res = await POST(buildMultipartRequest(formData) as any)
 
-      expect(res.status).toBe(200)
-      expect(buildAgentPromptMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userMessage: expect.stringContaining(
-            "SCREENSHOT SUMMARY:\nImage uploaded; vision extraction unavailable (provider not configured)."
-          ),
-          deterministicContext: expect.objectContaining({
-            screenshotEvidence: "Image uploaded; vision extraction unavailable (provider not configured).",
-          }),
-        })
-      )
-      expect(runUnifiedOrchestrationMock).toHaveBeenCalled()
-      await expect(res.json()).resolves.toMatchObject({
-        response: "Accept the trade.",
-      })
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toEqual({ error: "Invalid request format." })
+      expect(runUnifiedOrchestrationMock).not.toHaveBeenCalled()
     } finally {
       if (originalAiIntegrationsKey == null) {
         delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY

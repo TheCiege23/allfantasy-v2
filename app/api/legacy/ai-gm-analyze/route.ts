@@ -7,7 +7,7 @@ import {
   TradeParty,
   ComprehensiveTradeContext,
 } from '@/lib/ai-gm-intelligence'
-import { getSleeperUser, getLeagueInfo, getLeagueRosters, getAllPlayers } from '@/lib/sleeper-client'
+import { getSleeperUser, getLeagueInfo, getLeagueRosters, getAllPlayers, getLeagueUsers } from '@/lib/sleeper-client'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { requireAuthOrOrigin, forbiddenResponse, validateRequestOrigin } from '@/lib/api-auth'
@@ -83,6 +83,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai-gm-analyze", tool: 
 
     const rosters = await getLeagueRosters(leagueId)
     const allPlayers = await getAllPlayers()
+    const leagueUsers = await getLeagueUsers(leagueId)
 
     const userRoster = rosters?.find(r => r.owner_id === sleeperUser.user_id)
     if (!userRoster) {
@@ -113,9 +114,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai-gm-analyze", tool: 
       if (partnerRoster) {
         let partnerName = `Manager ${trade.partnerRosterId}`
         try {
-          const usersRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`)
-          const users = await usersRes.json()
-          const partner = users.find((u: { user_id: string }) => u.user_id === partnerRoster.owner_id)
+          const partner = leagueUsers.find((u) => u.user_id === partnerRoster.owner_id)
           if (partner) {
             partnerName = partner.display_name || partner.username || partnerName
           }

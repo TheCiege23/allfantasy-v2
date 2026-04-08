@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import OpenAI from 'openai'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
+import { getAllPlayers, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/sleeper-client'
 
 type SleeperTransaction = {
   transaction_id: string
@@ -33,30 +34,12 @@ type SleeperPlayer = {
 const playersCache: { at: number; data: Record<string, SleeperPlayer> | null } = { at: 0, data: null }
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 0 } })
-  const text = await res.text()
-  let json: any = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    // ignore
-  }
-  return { ok: res.ok, status: res.status, json, text }
-}
-
 async function getSleeperPlayers() {
   const now = Date.now()
   if (playersCache.data && now - playersCache.at < CACHE_TTL_MS) return playersCache.data
 
-  const url = 'https://api.sleeper.app/v1/players/nfl'
-  const r = await fetchJson(url)
-  if (!r.ok || !r.json) {
-    throw new Error(`Failed to fetch Sleeper players. status=${r.status}`)
-  }
-
   playersCache.at = now
-  playersCache.data = r.json as Record<string, SleeperPlayer>
+  playersCache.data = await getAllPlayers() as Record<string, SleeperPlayer>
   return playersCache.data
 }
 
@@ -150,14 +133,12 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
     const leagueUserRosterIds: Map<string, number> = new Map() // Maps league ID -> user's roster ID
 
     for (const league of legacyUser.leagues) {
-      const usersUrl = `https://api.sleeper.app/v1/league/${league.sleeperLeagueId}/users`
-      const rostersUrl = `https://api.sleeper.app/v1/league/${league.sleeperLeagueId}/rosters`
+      const [users, rosters] = await Promise.all([
+        getLeagueUsers(league.sleeperLeagueId) as Promise<Array<{ user_id: string; display_name?: string; username?: string }>>,
+        getLeagueRosters(league.sleeperLeagueId) as Promise<Array<{ roster_id: number; owner_id: string | null }>>,
+      ])
 
-      const [usersRes, rostersRes] = await Promise.all([fetchJson(usersUrl), fetchJson(rostersUrl)])
-
-      if (usersRes.ok && rostersRes.ok) {
-        const users = usersRes.json as Array<{ user_id: string; display_name?: string; username?: string }>
-        const rosters = rostersRes.json as Array<{ roster_id: number; owner_id: string | null }>
+      if (Array.isArray(users) && Array.isArray(rosters) && users.length > 0 && rosters.length > 0) {
 
         const userMap = new Map(users.map((u) => [u.user_id, u.display_name || u.username || 'Unknown']))
         const rosterMap = new Map<number, string>()
@@ -194,15 +175,11 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
         // Fetch week 1 transactions - Sleeper API only returns COMPLETED trades
         let allTrades: SleeperTransaction[] = []
         try {
-          const txUrl = `https://api.sleeper.app/v1/league/${league.sleeperLeagueId}/transactions/1`
-          const txRes = await fetchJson(txUrl)
-          
-          if (txRes.ok && Array.isArray(txRes.json)) {
-            // Get completed trades (pending trades are NOT exposed by Sleeper API)
-            allTrades = (txRes.json as SleeperTransaction[]).filter(
-              (tx) => tx.type === 'trade' && tx.status === 'complete'
-            )
-          }
+          const weekTransactions = await getLeagueTransactions(league.sleeperLeagueId, 1) as SleeperTransaction[]
+          // Get completed trades (pending trades are NOT exposed by Sleeper API)
+          allTrades = (Array.isArray(weekTransactions) ? weekTransactions : []).filter(
+            (tx) => tx.type === 'trade' && tx.status === 'complete'
+          )
         } catch {
           // Ignore fetch failures
         }
@@ -425,10 +402,8 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "L
     // Build a map of sleeperLeagueId -> user's roster ID
     const leagueUserRosterIds: Map<string, number> = new Map()
     for (const league of legacyUser.leagues) {
-      const rostersUrl = `https://api.sleeper.app/v1/league/${league.sleeperLeagueId}/rosters`
-      const rostersRes = await fetchJson(rostersUrl)
-      if (rostersRes.ok && Array.isArray(rostersRes.json)) {
-        const rosters = rostersRes.json as Array<{ roster_id: number; owner_id: string | null }>
+      const rosters = await getLeagueRosters(league.sleeperLeagueId) as Array<{ roster_id: number; owner_id: string | null }>
+      if (Array.isArray(rosters)) {
         for (const roster of rosters) {
           if (roster.owner_id === legacyUser.sleeperUserId) {
             leagueUserRosterIds.set(league.sleeperLeagueId, roster.roster_id)

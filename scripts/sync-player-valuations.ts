@@ -1,0 +1,280 @@
+/**
+ * Sync script: fetch Rolling Insights raw data for all 7 sports and write
+ * normalized player valuations to SportsDataCache (DB-first).
+ *
+ * Usage:
+ *   tsx scripts/sync-player-valuations.ts
+ *   tsx scripts/sync-player-valuations.ts --sports=nfl,nba
+ *   tsx scripts/sync-player-valuations.ts --ttlHours=12
+ */
+
+import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insights'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import {
+  computePlayerValuation,
+  writePlayerValuationsToDb,
+  type PlayerValuation,
+} from '@/lib/player-valuation-features'
+import type { ApiChainSport } from '@/lib/workers/api-config'
+
+function loadDotenv(fileName: string): void {
+  const filePath = resolve(process.cwd(), fileName)
+  if (!existsSync(filePath)) return
+
+  const content = readFileSync(filePath, 'utf8')
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex <= 0) continue
+
+    const key = trimmed.slice(0, eqIndex).trim()
+    let value = trimmed.slice(eqIndex + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+
+    if (process.env[key] === undefined) {
+      process.env[key] = value
+    }
+  }
+}
+
+loadDotenv('.env.local')
+loadDotenv('.env')
+
+const ALL_SPORTS: ApiChainSport[] = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro']
+
+const DEFAULT_TTL_HOURS = 6
+
+// ─── CLI arg parsing ──────────────────────────────────────────────────────────
+
+function parseSportsArg(): ApiChainSport[] {
+  const arg = process.argv.find((v) => v.startsWith('--sports='))
+  if (!arg) return ALL_SPORTS
+  const requested = arg
+    .split('=')[1]
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean) as ApiChainSport[]
+  const valid = requested.filter((s) => ALL_SPORTS.includes(s))
+  return valid.length ? valid : ALL_SPORTS
+}
+
+function parseTtlArg(): number {
+  const arg = process.argv.find((v) => v.startsWith('--ttlHours='))
+  const hours = arg ? Number(arg.split('=')[1]) : DEFAULT_TTL_HOURS
+  return Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_TTL_HOURS
+}
+
+// ─── Raw player shape from Rolling Insights ──────────────────────────────────
+
+interface RawRIPlayer {
+  id?: string | number
+  player_id?: string | number
+  playerId?: string | number
+  name?: string
+  full_name?: string
+  fullName?: string
+  first_name?: string
+  last_name?: string
+  position?: string
+  pos?: string
+  team?: string
+  team_abbr?: string
+  teamAbbr?: string
+  status?: string
+  injury_status?: string
+  injuryStatus?: string
+  adp?: number
+  stats?: Record<string, unknown>
+  season_stats?: Record<string, unknown>
+  seasonStats?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+interface RawRIInjury {
+  player_id?: string | number
+  playerId?: string | number
+  name?: string
+  player_name?: string
+  status?: string
+  injury_status?: string
+  [key: string]: unknown
+}
+
+// ─── Data extraction helpers ──────────────────────────────────────────────────
+
+function extractId(p: RawRIPlayer): string {
+  const raw = p.id ?? p.player_id ?? p.playerId
+  return raw != null ? String(raw) : ''
+}
+
+function extractName(p: RawRIPlayer): string {
+  if (p.full_name) return String(p.full_name)
+  if (p.fullName) return String(p.fullName)
+  if (p.name) return String(p.name)
+  if (p.first_name || p.last_name) return `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim()
+  return ''
+}
+
+function extractPosition(p: RawRIPlayer): string {
+  return String(p.position ?? p.pos ?? 'UNK').toUpperCase()
+}
+
+function extractTeam(p: RawRIPlayer): string {
+  return String(p.team ?? p.team_abbr ?? p.teamAbbr ?? 'UNK').toUpperCase()
+}
+
+function extractStats(p: RawRIPlayer): Record<string, unknown> {
+  // RI may embed stats directly on the player object or under a stats sub-object
+  const sub = p.stats ?? p.season_stats ?? p.seasonStats
+  if (sub && typeof sub === 'object') return sub as Record<string, unknown>
+  // Fall back: extract any numeric fields that look like stats
+  const inline: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(p)) {
+    if (typeof v === 'number' && !['id', 'player_id', 'adp'].includes(k)) {
+      inline[k] = v
+    }
+  }
+  return inline
+}
+
+function extractInjuryStatus(p: RawRIPlayer, injuryMap: Map<string, string>): string | null {
+  // Prefer injury map from dedicated /injuries endpoint
+  const id = extractId(p)
+  if (id && injuryMap.has(id)) return injuryMap.get(id)!
+  // Fallback: status on player object itself
+  const raw = p.injury_status ?? p.injuryStatus ?? p.status
+  return raw ? String(raw) : null
+}
+
+function toArray(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data
+  return []
+}
+
+// ─── Per-sport sync ───────────────────────────────────────────────────────────
+
+async function syncSport(sport: ApiChainSport, ttlMs: number): Promise<number> {
+  console.log(`[player-valuations] [${sport}] fetching players…`)
+
+  // 1. Fetch player list (includes bio + sometimes stats)
+  const playersResult = await rollingInsightsProvider({ sport, dataType: 'players' })
+  const rawPlayers = toArray(playersResult.data) as RawRIPlayer[]
+
+  if (!rawPlayers.length) {
+    console.warn(`[player-valuations] [${sport}] no players returned — skipping`)
+    return 0
+  }
+  console.log(`[player-valuations] [${sport}] got ${rawPlayers.length} players`)
+
+  // 2. Fetch injuries for health overlay
+  const injuriesResult = await rollingInsightsProvider({ sport, dataType: 'injuries' })
+  const rawInjuries = toArray(injuriesResult.data) as RawRIInjury[]
+
+  // Build injury map: playerId → status
+  const injuryMap = new Map<string, string>()
+  for (const inj of rawInjuries) {
+    const pid = inj.player_id ?? inj.playerId
+    const status = inj.status ?? inj.injury_status
+    if (pid != null && status) {
+      injuryMap.set(String(pid), String(status))
+    }
+  }
+  console.log(`[player-valuations] [${sport}] injury overlay: ${injuryMap.size} records`)
+
+  // 3. Fetch ADP (best-effort — not all sports have it)
+  const adpResult = await rollingInsightsProvider({ sport, dataType: 'adp' })
+  const rawAdp = toArray(adpResult.data) as Array<{ player_id?: unknown; playerId?: unknown; adp?: number }>
+  const adpMap = new Map<string, number>()
+  for (const row of rawAdp) {
+    const pid = row.player_id ?? row.playerId
+    if (pid != null && typeof row.adp === 'number') adpMap.set(String(pid), row.adp)
+  }
+
+  // 4. Optionally fetch projections/rankings for richer stats (best-effort)
+  const projResult = await rollingInsightsProvider({ sport, dataType: 'projections' })
+  const rawProj = toArray(projResult.data) as RawRIPlayer[]
+  const projMap = new Map<string, Record<string, unknown>>()
+  for (const p of rawProj) {
+    const id = extractId(p)
+    if (id) projMap.set(id, extractStats(p))
+  }
+
+  // 5. Compute valuations
+  const syncedAt = new Date().toISOString()
+  const valuations: PlayerValuation[] = []
+
+  for (const raw of rawPlayers) {
+    const playerId = extractId(raw)
+    if (!playerId) continue
+
+    const name = extractName(raw)
+    if (!name) continue
+
+    const position = extractPosition(raw)
+    const team = extractTeam(raw)
+    const playerStats = extractStats(raw)
+    // Merge projection stats on top of player stats for richer signal
+    const projStats = projMap.get(playerId) ?? {}
+    const mergedStats = { ...projStats, ...playerStats }
+
+    const injuryStatus = extractInjuryStatus(raw, injuryMap)
+    const adp = adpMap.get(playerId) ?? (typeof raw.adp === 'number' ? raw.adp : null)
+
+    const valuation = computePlayerValuation({
+      playerId,
+      name,
+      sport,
+      position,
+      team,
+      stats: mergedStats,
+      injuryStatus,
+      adp,
+      syncedAt,
+    })
+
+    valuations.push(valuation)
+  }
+
+  // 6. Write to DB
+  const result = await writePlayerValuationsToDb(sport, valuations, { ttlMs })
+  console.log(
+    `[player-valuations] [${sport}] ✓ ${result.count} valuations stored, key=${result.cacheKey}, expires=${result.expiresAt.toISOString()}`
+  )
+  return result.count
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const sports = parseSportsArg()
+  const ttlHours = parseTtlArg()
+  const ttlMs = ttlHours * 60 * 60 * 1000
+
+  console.log(
+    `[player-valuations] starting sync (sports=${sports.join(',')}, ttl=${ttlHours}h)`
+  )
+
+  let totalPlayers = 0
+  for (const sport of sports) {
+    try {
+      const count = await syncSport(sport, ttlMs)
+      totalPlayers += count
+    } catch (err) {
+      console.error(`[player-valuations] [${sport}] sync failed:`, err)
+    }
+  }
+
+  console.log(`[player-valuations] sync complete — ${totalPlayers} total valuations written`)
+}
+
+main().catch((err) => {
+  console.error('[player-valuations] fatal error:', err)
+  process.exit(1)
+})

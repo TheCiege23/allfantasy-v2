@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { getPlayerValuesForNames, FantasyCalcSettings } from '@/lib/fantasycalc'
 import { requireAuthOrOrigin, forbiddenResponse } from '@/lib/api-auth'
+import { getAllPlayers, getLeagueInfo, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/sleeper-client'
 
 function formatPlayerValues(values: Record<string, any>): string {
   const lines: string[] = []
@@ -39,18 +40,12 @@ interface SleeperTransaction {
 }
 
 async function fetchSleeperData(leagueId: string) {
-  const [leagueRes, rostersRes, usersRes] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`)
+  const [league, rosters, users, players] = await Promise.all([
+    getLeagueInfo(leagueId),
+    getLeagueRosters(leagueId),
+    getLeagueUsers(leagueId),
+    getAllPlayers(),
   ])
-  
-  const league = await leagueRes.json()
-  const rosters: SleeperRoster[] = await rostersRes.json()
-  const users: SleeperUser[] = await usersRes.json()
-  
-  const playersRes = await fetch('https://api.sleeper.app/v1/players/nfl')
-  const players = await playersRes.json()
   
   return { league, rosters, users, players }
 }
@@ -60,8 +55,7 @@ async function fetchTradeHistory(leagueId: string): Promise<SleeperTransaction[]
   
   for (let week = 1; week <= 18; week++) {
     try {
-      const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${week}`)
-      const weekTx = await res.json()
+      const weekTx = await getLeagueTransactions(leagueId, week)
       if (Array.isArray(weekTx)) {
         transactions.push(...weekTx.filter((t: any) => t.type === 'trade' && t.status === 'complete'))
       }

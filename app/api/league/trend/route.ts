@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'type must be add or drop' }, { status: 400 })
   }
 
-  const url = `https://api.sleeper.app/v1/players/${sport}/trending/${type}?lookback_hours=24&limit=25`
+  const url = `https://api.sleeper.app/v1/players/${sport}/trending/${type}?lookback_hours=24&limit=25` // db-first-exception: pass-through trending endpoint requires near-real-time public feed
   try {
     const res = await fetch(url, { next: { revalidate: 120 } })
     if (!res.ok) {

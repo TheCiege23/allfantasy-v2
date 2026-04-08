@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resolvePlatformUser } from "@/lib/platform/current-user"
 import { deletePinMessage } from "@/lib/platform/chat-service"
-import { isLeagueVirtualRoom } from "@/lib/chat-core"
+import { getLeagueIdFromVirtualRoom, isLeagueVirtualRoom } from "@/lib/chat-core"
+import { canAccessLeagueDraft } from "@/lib/live-draft-engine/auth"
+import { prisma } from "@/lib/prisma"
 
 /**
  * POST /api/shared/chat/threads/[threadId]/unpin
  * Body: { pinMessageId: string }
- * Removes the pin (deletes the pin-type message). Only for platform threads; virtual league rooms return 400.
+ * Removes the pin (deletes the pin-type message).
  */
 export async function POST(
   req: NextRequest,
@@ -16,13 +18,35 @@ export async function POST(
   if (!user.appUserId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const threadId = decodeURIComponent(params.threadId)
-  if (isLeagueVirtualRoom(threadId)) {
-    return NextResponse.json({ error: "Unpin not supported for league virtual room" }, { status: 400 })
-  }
-
   const body = await req.json().catch(() => ({}))
   const pinMessageId = String(body?.pinMessageId || "").trim()
   if (!pinMessageId) return NextResponse.json({ error: "pinMessageId required" }, { status: 400 })
+
+  if (isLeagueVirtualRoom(threadId)) {
+    const leagueId = getLeagueIdFromVirtualRoom(threadId)
+    if (!leagueId) return NextResponse.json({ error: "Invalid league room" }, { status: 400 })
+
+    const bracketMember = await (prisma as any).bracketLeagueMember.findUnique({
+      where: { leagueId_userId: { leagueId, userId: user.appUserId } },
+      select: { id: true },
+    })
+    if (bracketMember) {
+      const result = await (prisma as any).bracketLeagueMessage.deleteMany({
+        where: { id: pinMessageId, leagueId, type: "pin" },
+      })
+      if (!result?.count) return NextResponse.json({ error: "Unable to unpin" }, { status: 400 })
+      return NextResponse.json({ status: "ok" })
+    }
+
+    const canAccessMainLeague = await canAccessLeagueDraft(leagueId, user.appUserId)
+    if (!canAccessMainLeague) return NextResponse.json({ error: "Not a member" }, { status: 403 })
+
+    const result = await (prisma as any).leagueChatMessage.deleteMany({
+      where: { id: pinMessageId, leagueId, type: "pin" },
+    })
+    if (!result?.count) return NextResponse.json({ error: "Unable to unpin" }, { status: 400 })
+    return NextResponse.json({ status: "ok" })
+  }
 
   const ok = await deletePinMessage(user.appUserId, threadId, pinMessageId)
   if (!ok) return NextResponse.json({ error: "Unable to unpin" }, { status: 400 })

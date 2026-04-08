@@ -5,7 +5,7 @@ import {
   getQuickRecommendationsForUser,
   analyzeUserTradingProfile 
 } from '@/lib/smart-trade-recommendations'
-import { getSleeperUser, getLeagueRosters, getLeagueInfo, getAllPlayers } from '@/lib/sleeper-client'
+import { getSleeperUser, getLeagueRosters, getLeagueInfo, getAllPlayers, getLeagueUsers } from '@/lib/sleeper-client'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -87,15 +87,14 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/smart-recommendations"
 
     const userRosterFormatted = formatRoster(userRoster.players || [])
     
+    const leagueUsers = await getLeagueUsers(leagueId)
     const leagueRostersFormatted = await Promise.all(
       rosters
         .filter(r => r.owner_id !== sleeperUser.user_id)
         .map(async (roster) => {
           let managerName = `Manager ${roster.roster_id}`
           try {
-            const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`)
-            const users = await res.json()
-            const manager = users.find((u: { user_id: string }) => u.user_id === roster.owner_id)
+            const manager = leagueUsers.find((u) => u.user_id === roster.owner_id)
             if (manager) {
               managerName = manager.display_name || manager.username || managerName
             }

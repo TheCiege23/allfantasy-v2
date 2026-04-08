@@ -290,9 +290,9 @@ async function buildProviderHealth(): Promise<Record<string, HealthProviderEntry
     checkAnthropicHealth(),
     checkOpenAiHealth(),
     checkElevenLabsHealth(),
-    checkPublicApi('https://api.sleeper.app/v1/state/nfl', 1500),
-    checkPublicApi('https://fantasysports.yahooapis.com', 2000),
-    checkPublicApi('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', 2000),
+    checkPublicApi('https://api.sleeper.app/v1/state/nfl', 1500), // db-first-exception: live provider health probe
+    checkPublicApi('https://fantasysports.yahooapis.com', 2000), // db-first-exception: live provider health probe
+    checkPublicApi('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', 2000), // db-first-exception: live provider health probe
     checkPublicApi('https://api.myfantasyleague.com/2024/export?TYPE=rules', 2000),
     checkPublicApi('https://www.fantrax.com', 2000),
     checkPrimaryDatabase(),

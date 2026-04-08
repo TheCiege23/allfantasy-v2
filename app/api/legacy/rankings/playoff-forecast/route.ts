@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
+import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getNflState } from '@/lib/sleeper-client'
 
 const openai = getOpenAIRouteClient()
 
@@ -271,19 +272,15 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/playoff-forec
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const [leagueRes, rostersRes, usersRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${league_id}`),
-      fetch(`https://api.sleeper.app/v1/league/${league_id}/rosters`),
-      fetch(`https://api.sleeper.app/v1/league/${league_id}/users`),
+    const [leagueData, rosters, users] = await Promise.all([
+      getLeagueInfo(league_id),
+      getLeagueRosters(league_id),
+      getLeagueUsers(league_id),
     ])
 
-    if (!leagueRes.ok || !rostersRes.ok || !usersRes.ok) {
+    if (!leagueData || !Array.isArray(rosters) || rosters.length === 0 || !Array.isArray(users) || users.length === 0) {
       return NextResponse.json({ error: 'Failed to fetch league data' }, { status: 500 })
     }
-
-    const leagueData = await leagueRes.json()
-    const rosters = await rostersRes.json()
-    const users = await usersRes.json()
 
     const userMap = new Map(users.map((u: any) => [u.user_id, u]))
     const currentSeason = parseInt(leagueData.season) || new Date().getFullYear()
@@ -297,9 +294,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/playoff-forec
 
     let currentWeek = 0
     try {
-      const nflStateRes = await fetch('https://api.sleeper.app/v1/state/nfl')
-      if (nflStateRes.ok) {
-        const nflState = await nflStateRes.json()
+      const nflState = await getNflState()
+      if (nflState) {
         currentWeek = nflState.week || 0
         if (nflState.season !== String(currentSeason)) {
           currentWeek = 0

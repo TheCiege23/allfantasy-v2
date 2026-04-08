@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 
 export const dynamic = 'force-dynamic'
 
-const SLEEPER = 'https://api.sleeper.app/v1'
+const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant, fetch calls use template literals
 
 type IssueSeverity = 'critical' | 'warning' | 'info'
 

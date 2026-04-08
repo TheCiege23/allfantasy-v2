@@ -7,6 +7,7 @@ import { runWithConcurrency } from '@/lib/async-utils'
 import { SLEEPER_IMPORT_SPORTS, SLEEPER_SPORT_BY_SUPPORTED } from '@/lib/league-import/sleeper/import-sports'
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
+import { getUserLeagues, getLeagueRosters } from '@/lib/sleeper-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -182,12 +183,7 @@ export async function POST(req: NextRequest) {
     const leaguesById = new Map<string, SleeperLeagueApi>()
     for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
       try {
-        const userLeaguesRes = await fetch(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(resolvedSleeperUserId)}/leagues/${sleeperSport}/${validatedSeason}`,
-          { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } }
-        )
-        if (!userLeaguesRes.ok) continue
-        const sleeperLeagues = (await userLeaguesRes.json().catch(() => [])) as SleeperLeagueApi[]
+        const sleeperLeagues = await getUserLeagues(resolvedSleeperUserId, sleeperSport, String(validatedSeason)) as unknown as SleeperLeagueApi[]
         if (!Array.isArray(sleeperLeagues)) continue
         for (const row of sleeperLeagues) {
           const leagueId = typeof row?.league_id === 'string' ? row.league_id : ''
@@ -258,14 +254,7 @@ export async function POST(req: NextRequest) {
         let wonChampionship = hintedWonChampionship
         let pf = Number.isFinite(hintedPointsFor) ? hintedPointsFor : null
 
-        const rosterRes = await fetch(
-          `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/rosters`,
-          {
-            headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' },
-            signal: AbortSignal.timeout(4500),
-          }
-        ).catch(() => null)
-        const rosters = rosterRes?.ok ? ((await rosterRes.json().catch(() => [])) as SleeperRosterApi[]) : []
+        const rosters = await getLeagueRosters(platformLeagueId).catch(() => []) as unknown as SleeperRosterApi[]
         const mine = Array.isArray(rosters)
           ? rosters.find((row) => {
               const ownerId = row?.owner_id != null ? String(row.owner_id) : ''

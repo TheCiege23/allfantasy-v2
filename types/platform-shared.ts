@@ -34,6 +34,8 @@ export type PlatformChatThread = {
 export type PlatformChatMessage = {
   id: string
   threadId: string
+  /** For threaded chat: if set, this message is a reply to another message */
+  parentMessageId?: string | null
   senderUserId: string | null
   senderName: string
   senderUsername?: string | null

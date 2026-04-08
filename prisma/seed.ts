@@ -1,100 +1,123 @@
-import { PrismaClient } from '@prisma/client';
-import { seedSportConfigs } from './seed/sportConfigs';
-import { seedBestBallTemplates } from './seed/bestBallTemplates';
-import { seedSurvivorPowerTemplates } from './seed/survivorPowers';
-import { seedSurvivorSeasonArc } from './seed/survivorSeasonArc';
-import { seedSurvivorChallengeTemplates } from './seed/survivorChallenges';
-import { seedZombieRulesTemplates } from './seed/zombieRulesTemplates';
+import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  await seedSportConfigs(prisma);
-  await seedBestBallTemplates(prisma);
-  await seedSurvivorPowerTemplates(prisma);
-  await seedSurvivorSeasonArc(prisma);
-  await seedSurvivorChallengeTemplates(prisma);
-  await seedZombieRulesTemplates(prisma);
-  await prisma.teamPerformance.deleteMany({ where: { team: { league: { name: { contains: 'Test' } } } } });
-  await prisma.leagueTeam.deleteMany({ where: { league: { name: { contains: 'Test' } } } });
-  await prisma.roster.deleteMany({ where: { league: { name: { contains: 'Test' } } } });
-  await prisma.waiverPickup.deleteMany({ where: { league: { name: { contains: 'Test' } } } });
-  await prisma.league.deleteMany({ where: { name: { contains: 'Test' } } });
-
-  const league = await prisma.league.create({
-    data: {
-      userId: '6a0faf22-6bfa-4484-8acc-c6618028e334',
-      platform: 'sleeper',
-      platformLeagueId: 'test-league-123',
-      name: 'Test Dynasty League',
-      sport: 'NFL',
-      season: 2025,
-      scoring: 'ppr',
-      leagueSize: 10,
-      status: 'active',
+  const user = await prisma.appUser.upsert({
+    where: { email: "test@example.com" },
+    update: {},
+    create: {
+      email: "test@example.com",
+      username: "testuser",
     },
   });
 
-  const teamsData = [
-    { externalId: 't1', ownerName: 'Cjabar', teamName: 'Jersey Hitmen', pointsFor: 1452.3, aiPowerScore: 94, strengthNotes: 'Elite young RBs', riskNotes: 'QB age cliff soon', wins: 7, losses: 1 },
-    { externalId: 't2', ownerName: 'BallSoHard', teamName: 'PrimeTime', pointsFor: 1389.7, aiPowerScore: 88, strengthNotes: 'WR depth insane', riskNotes: 'Injury prone starters', wins: 6, losses: 2 },
-    { externalId: 't3', ownerName: 'GridironGuru', teamName: 'Sack Attack', pointsFor: 1321.1, aiPowerScore: 82, strengthNotes: 'Strong defense streaming', riskNotes: 'Thin at RB', wins: 5, losses: 3 },
-    { externalId: 't4', ownerName: 'You', teamName: 'Your Squad', pointsFor: 1287.4, aiPowerScore: 78, strengthNotes: 'Balanced', riskNotes: 'Bye week issues', wins: 4, losses: 4 },
-  ];
+  console.log("Seeded user:", user.id);
 
-  for (const t of teamsData) {
-    await prisma.leagueTeam.create({
-      data: {
-        leagueId: league.id,
-        externalId: t.externalId,
-        ownerName: t.ownerName,
-        teamName: t.teamName,
-        pointsFor: t.pointsFor,
-        aiPowerScore: t.aiPowerScore,
-        strengthNotes: t.strengthNotes ?? null,
-        riskNotes: t.riskNotes ?? null,
-        wins: t.wins,
-        losses: t.losses,
+  const league = await prisma.league.upsert({
+    where: {
+      userId_platform_platformLeagueId_season: {
+        userId: user.id,
+        platform: "sleeper",
+        platformLeagueId: "test-league-001",
+        season: 2025,
       },
-    });
-  }
-
-  const teams = await prisma.leagueTeam.findMany({
-    where: { leagueId: league.id },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      platform: "sleeper",
+      platformLeagueId: "test-league-001",
+      name: "Test Fantasy League",
+      sport: "NFL",
+      season: 2025,
+    },
   });
 
-  const opponents = ['Eagles', 'Cowboys', 'Giants', 'Commanders', 'Vikings', '49ers', 'Chiefs', 'Bills', 'Bengals', 'Lions'];
+  console.log("Seeded league:", league.id);
 
-  for (const team of teams) {
-    for (let week = 1; week <= 10; week++) {
-      const points = Math.round((Math.random() * 150 + 80) * 100) / 100;
-      const oppPoints = Math.round((Math.random() * 150 + 80) * 100) / 100;
-      const result = points > oppPoints ? 'W' : points < oppPoints ? 'L' : 'T';
+  const team = await prisma.leagueTeam.upsert({
+    where: {
+      leagueId_externalId: {
+        leagueId: league.id,
+        externalId: "roster-1",
+      },
+    },
+    update: {},
+    create: {
+      leagueId: league.id,
+      externalId: "roster-1",
+      ownerName: "testuser",
+      teamName: "Test Team",
+    },
+  });
 
-      await prisma.teamPerformance.upsert({
-        where: {
-          teamId_season_week: {
-            teamId: team.id,
-            season: 2025,
-            week,
-          },
-        },
-        update: { points, opponent: opponents[week - 1], result },
-        create: {
-          teamId: team.id,
-          week,
-          season: 2025,
-          points,
-          opponent: opponents[week - 1],
-          result,
-        },
-      });
-    }
-  }
+  console.log("Seeded league team:", team.id);
 
-  console.log('Test league, teams & weekly performances seeded!');
+  const performance = await prisma.teamPerformance.upsert({
+    where: {
+      teamId_season_week: {
+        teamId: team.id,
+        season: 2025,
+        week: 1,
+      },
+    },
+    update: {},
+    create: {
+      teamId: team.id,
+      season: 2025,
+      week: 1,
+      points: 112.4,
+      opponent: "Opponent Team",
+      result: "W",
+    },
+  });
+
+  console.log("Seeded team performance:", performance.id);
+
+  const leagueSeason = await prisma.leagueSeason.upsert({
+    where: {
+      leagueId_season: {
+        leagueId: league.id,
+        season: 2025,
+      },
+    },
+    update: {},
+    create: {
+      leagueId: league.id,
+      season: 2025,
+      platformLeagueId: "test-league-001",
+      championTeamId: team.id,
+      championName: "testuser",
+      status: "complete",
+    },
+  });
+
+  console.log("Seeded league season:", leagueSeason.id);
+
+  const leagueAuth = await prisma.leagueAuth.upsert({
+    where: {
+      userId_platform: {
+        userId: user.id,
+        platform: "sleeper",
+      },
+    },
+    update: {},
+    create: {
+      userId: user.id,
+      platform: "sleeper",
+    },
+  });
+
+  console.log("Seeded league auth:", leagueAuth.id);
 }
 
 main()
-  .catch(e => console.error(e))
-  .finally(async () => await prisma.$disconnect());
+  .then(async () => {
+    await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

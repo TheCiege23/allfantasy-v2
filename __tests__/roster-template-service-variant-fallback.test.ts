@@ -24,7 +24,7 @@ describe('RosterTemplateService variant fallback', () => {
     expect(findUniqueMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          uniq_roster_template_sport_format: {
+          sportType_formatType: {
             sportType: 'NFL',
             formatType: 'devy_dynasty',
           },

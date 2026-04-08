@@ -6,6 +6,7 @@ import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { computeAdaptiveRankings, type RankingView } from '@/lib/rankings-engine/adaptive-rankings'
 import { computeLeagueDemandIndex } from '@/lib/rankings-engine/league-demand-index'
 import type { LeagueRosterConfig } from '@/lib/vorp-engine'
+import { getLeagueInfo, getLeagueRosters } from '@/lib/sleeper-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -52,16 +53,14 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/adaptive", to
       return NextResponse.json({ error: 'User not found. Import your Sleeper account first.' }, { status: 404 })
     }
 
-    const [leagueRes, rostersRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}`),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`),
+    const [league, rosters] = await Promise.all([
+      getLeagueInfo(leagueId),
+      getLeagueRosters(leagueId),
     ])
 
-    if (!leagueRes.ok || !rostersRes.ok) {
+    if (!league || !Array.isArray(rosters) || rosters.length === 0) {
       return NextResponse.json({ error: 'Failed to fetch league data from Sleeper' }, { status: 502 })
     }
-
-    const [league, rosters] = await Promise.all([leagueRes.json(), rostersRes.json()])
 
     const rosterPositions: string[] = league.roster_positions || []
     const isSF = rosterPositions.filter((p: string) => p === 'SUPER_FLEX').length > 0

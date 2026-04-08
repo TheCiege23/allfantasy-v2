@@ -1,7 +1,7 @@
 'use client'
 
 import { Send } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AttachmentPreview, type PendingGif, type PollDraft, type UploadedAttachment } from './AttachmentPreview'
 import { EmojiPicker } from './EmojiPicker'

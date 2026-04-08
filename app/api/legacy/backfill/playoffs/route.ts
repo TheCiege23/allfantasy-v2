@@ -1,6 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getLeagueInfo, getLeagueRosters } from '@/lib/sleeper-client'
 
 function safeNum(v: unknown, fallback = 0): number {
   const n = Number(v)
@@ -9,17 +10,6 @@ function safeNum(v: unknown, fallback = 0): number {
 function jitter(minMs = 250, maxMs = 500) {
   const ms = Math.floor(minMs + Math.random() * (maxMs - minMs + 1))
   return new Promise((r) => setTimeout(r, ms))
-}
-async function sleeperFetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, {
-    cache: 'no-store',
-    headers: { Accept: 'application/json' },
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Sleeper ${res.status} ${res.statusText} :: ${text?.slice(0, 200)}`)
-  }
-  return (await res.json()) as T
 }
 async function runWithConcurrency<T, R>(
   items: T[],
@@ -106,10 +96,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/backfill/playoffs", to
 
       let playoffTeams: number | null = t.leaguePlayoffTeams
       if (playoffTeams == null || playoffTeams <= 0) {
-        const leagueMeta = await sleeperFetchJson<{
-          settings?: { playoff_teams?: number }
-          total_rosters?: number
-        }>(`https://api.sleeper.app/v1/league/${encodeURIComponent(t.sleeperLeagueId)}`)
+        const leagueMeta = await getLeagueInfo(t.sleeperLeagueId)
 
         const pt = safeNum(leagueMeta?.settings?.playoff_teams, 0)
         playoffTeams = pt > 0 ? pt : null
@@ -123,19 +110,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/backfill/playoffs", to
         }
       }
 
-      const rosters = await sleeperFetchJson<
-        Array<{
-          roster_id: number
-          owner_id?: string
-          co_owners?: string[]
-          settings?: {
-            playoff_seed?: number
-            seed?: number
-            rank?: number
-            final_rank?: number
-          }
-        }>
-      >(`https://api.sleeper.app/v1/league/${encodeURIComponent(t.sleeperLeagueId)}/rosters`)
+      const rosters = await getLeagueRosters(t.sleeperLeagueId)
 
       const myRoster = rosters.find(
         (r) =>

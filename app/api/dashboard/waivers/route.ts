@@ -8,7 +8,7 @@ import type { WaiverDashboardResponse, WaiverDrop, WaiverLeagueRec, WaiverPickup
 
 export const dynamic = 'force-dynamic'
 
-const SLEEPER = 'https://api.sleeper.app/v1'
+const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant for dashboard fan-out calls
 
 type SleeperRoster = {
   roster_id?: number

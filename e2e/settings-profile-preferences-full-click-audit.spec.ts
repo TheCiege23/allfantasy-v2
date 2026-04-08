@@ -51,6 +51,18 @@ test.describe("@db @settings full settings profile preferences click audit", () 
     const profilePatchPayloads: Array<Record<string, unknown>> = []
 
     await page.route("**/api/user/settings", async (route) => {
+      if (route.request().method() === "PATCH") {
+        const payload = (route.request().postDataJSON() ?? {}) as Record<string, unknown>
+        profilePatchPayloads.push(payload)
+        Object.assign(profileState, payload, { updatedAt: new Date().toISOString() })
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        })
+        return
+      }
+
       if (route.request().method() !== "GET") {
         await route.fallback()
         return

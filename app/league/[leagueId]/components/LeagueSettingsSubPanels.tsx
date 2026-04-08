@@ -485,7 +485,7 @@ function DraftResultsPanel({ draftId, isCommish }: { draftId: string | null; isC
     let cancelled = false
     setLoading(true)
     setErr(null)
-    void fetch(`https://api.sleeper.app/v1/draft/${draftId}/picks`)
+    void fetch(`https://api.sleeper.app/v1/draft/${draftId}/picks`) // db-first-exception: commissioner draft diagnostics panel
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('Draft picks unavailable'))))
       .then((data) => {
         if (!cancelled) setPicks(Array.isArray(data) ? data : [])
@@ -558,7 +558,7 @@ function LeagueHistoryPanel({
     setRows([])
     async function walk(id: string, depth: number) {
       if (depth > 8 || cancelled) return
-      const res = await fetch(`https://api.sleeper.app/v1/league/${id}`)
+      const res = await fetch(`https://api.sleeper.app/v1/league/${id}`) // db-first-exception: historical league walk tool pending DB history table
       if (!res.ok) return
       const L = (await res.json()) as Record<string, unknown>
       if (cancelled) return

@@ -594,6 +594,7 @@ export async function POST(req: Request) {
     const league = await (prisma as any).league.create({
       data: {
         userId: session.user.id,
+        isCommissioner: true,
         name,
         platform,
         platformLeagueId: platformLeagueId || `manual-${Date.now()}`,

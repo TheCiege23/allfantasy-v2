@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getUserLeagues } from '@/lib/sleeper-client';
 
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
@@ -33,18 +34,7 @@ export async function GET(req: NextRequest) {
     const season = searchParams.get('season') || String(new Date().getFullYear());
     const sport = searchParams.get('sport') || 'nfl';
 
-    const res = await fetch(
-      `https://api.sleeper.app/v1/user/${identifier}/leagues/${sport}/${season}`
-    );
-
-    if (!res.ok) {
-      const statusText = res.status === 404
-        ? 'Sleeper user not found. Check your linked Sleeper username.'
-        : `Sleeper API error (${res.status})`;
-      return NextResponse.json({ error: statusText }, { status: res.status });
-    }
-
-    const leaguesData = await res.json();
+    const leaguesData = await getUserLeagues(String(identifier), String(sport), String(season));
 
     if (!Array.isArray(leaguesData)) {
       return NextResponse.json({ leagues: [] });

@@ -1,5 +1,7 @@
 import "server-only"
-import { Translate } from '@google-cloud/translate'.v2
+import { v2 } from '@google-cloud/translate'
+
+const { Translate } = v2
 
 const REQUEST_BATCH_SIZE = 40
 const REQUEST_TIMEOUT_MS = 12000

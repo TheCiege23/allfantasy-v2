@@ -2,7 +2,16 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
-import { getAllPlayers } from '@/lib/sleeper-client'
+import {
+  getAllPlayers,
+  getDraftPicks,
+  getLeagueDrafts,
+  getLeagueInfo,
+  getLeagueMatchups,
+  getLeagueRosters,
+  getLeagueTransactions,
+  getLeagueUsers,
+} from '@/lib/sleeper-client'
 import { computeRivalryWeek, type RivalryWeekData } from '@/lib/rivalry-engine'
 
 const openai = getOpenAIRouteClient()
@@ -80,12 +89,6 @@ interface SleeperDraftPick {
   }
 }
 
-async function fetchSleeperData(url: string) {
-  const res = await fetch(url)
-  if (!res.ok) return null
-  return res.json()
-}
-
 export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "LegacyTransfer" })(async (req: NextRequest) => {
   try {
     const { leagueId } = await req.json()
@@ -96,15 +99,15 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
 
     const cleanId = leagueId.trim()
     
-    const league: SleeperLeague = await fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}`)
+    const league: SleeperLeague | null = await getLeagueInfo(cleanId) as SleeperLeague | null
     if (!league) {
       return NextResponse.json({ error: 'League not found. Please check your League ID.' }, { status: 404 })
     }
 
     const [users, rosters, drafts] = await Promise.all([
-      fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}/users`) as Promise<SleeperUser[]>,
-      fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}/rosters`) as Promise<SleeperRoster[]>,
-      fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}/drafts`),
+      getLeagueUsers(cleanId) as Promise<SleeperUser[]>,
+      getLeagueRosters(cleanId) as Promise<SleeperRoster[]>,
+      getLeagueDrafts(cleanId),
     ])
 
     const rosterToUser: Record<number, SleeperUser> = {}
@@ -119,8 +122,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
     try {
       const currentWeek = 18
       for (let week = 1; week <= currentWeek; week++) {
-        const weekTx = await fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}/transactions/${week}`)
-        if (weekTx) transactions = transactions.concat(weekTx)
+        const weekTx = await getLeagueTransactions(cleanId, week) as SleeperTransaction[]
+        if (weekTx.length > 0) transactions = transactions.concat(weekTx)
       }
     } catch {}
 
@@ -131,7 +134,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
     let draftInfo: { type?: string; status?: string; startTime?: number } = {}
     if (drafts && drafts.length > 0) {
       const latestDraft = drafts[0]
-      draftPicks = await fetchSleeperData(`https://api.sleeper.app/v1/draft/${latestDraft.draft_id}/picks`) || []
+      draftPicks = await getDraftPicks(latestDraft.draft_id) as SleeperDraftPick[]
       draftInfo = {
         type: latestDraft.type,
         status: latestDraft.status,
@@ -145,7 +148,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
 
     let allMatchups: { week: number; matchups: SleeperMatchup[] }[] = []
     for (let week = 1; week <= 18; week++) {
-      const weekMatchups = await fetchSleeperData(`https://api.sleeper.app/v1/league/${cleanId}/matchups/${week}`)
+      const weekMatchups = await getLeagueMatchups(cleanId, week) as SleeperMatchup[]
       if (weekMatchups && weekMatchups.length > 0) {
         allMatchups.push({ week, matchups: weekMatchups })
       }
@@ -154,7 +157,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/transfer", tool: "Lega
     let previousSeasons: { season: string; league: SleeperLeague }[] = []
     let prevId = league.previous_league_id
     while (prevId) {
-      const prevLeague = await fetchSleeperData(`https://api.sleeper.app/v1/league/${prevId}`)
+      const prevLeague = await getLeagueInfo(prevId) as SleeperLeague | null
       if (prevLeague) {
         previousSeasons.push({ season: prevLeague.season, league: prevLeague })
         prevId = prevLeague.previous_league_id

@@ -613,7 +613,7 @@ export async function fetchNewsContext(
   }
 
   if (dbNewsItemCount === 0 && newsApiKey) {
-    const headlinesUrl = `https://newsapi.org/v2/top-headlines?country=us&category=sports&pageSize=${limit}&apiKey=${newsApiKey}`
+    const headlinesUrl = `https://newsapi.org/v2/top-headlines?country=us&category=sports&pageSize=${limit}&apiKey=${newsApiKey}` // db-first-exception: emergency fallback when DB news is empty
     const headlinesData = await fetchJson<NewsApiResponse>(headlinesUrl)
 
     for (const article of headlinesData?.articles ?? []) {
@@ -663,7 +663,7 @@ export async function fetchNewsContext(
           ? `${teamAbbrevs.slice(0, 5).join(' OR ')} ${sport}`
           : `${sport} fantasy football`
 
-    const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=${limit}&language=en&apiKey=${newsApiKey}`
+    const everythingUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&sortBy=publishedAt&pageSize=${limit}&language=en&apiKey=${newsApiKey}` // db-first-exception: emergency fallback when DB news is empty
     const everythingData = await fetchJson<NewsApiResponse>(everythingUrl)
 
     for (const article of everythingData?.articles ?? []) {
@@ -701,7 +701,7 @@ export async function fetchNewsContext(
 
   if (dbNewsItemCount === 0) {
     const espnData = await fetchJson<EspnNewsResponse>(
-      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=15'
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=15' // db-first-exception: emergency fallback when DB news is empty
     )
 
     for (const article of espnData?.articles ?? []) {

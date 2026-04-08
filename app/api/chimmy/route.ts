@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { File as NodeFile } from 'node:buffer'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
@@ -337,9 +338,10 @@ function appendImageToFormData(formData: FormData, image?: z.infer<typeof Chimmy
 
   const [, mimeType, base64Payload] = match
   const bytes = Buffer.from(base64Payload, 'base64')
-  const blob = new Blob([bytes], { type: image.type || mimeType })
+  const fileType = image.type || mimeType
   const fileName = image.name?.trim() || `chimmy-upload.${mimeType.split('/')[1] || 'bin'}`
-  formData.append('image', blob, fileName)
+  const file = new NodeFile([bytes], fileName, { type: fileType })
+  formData.append('image', file)
 }
 
 function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJsonRequestSchema>) {

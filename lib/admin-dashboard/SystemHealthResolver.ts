@@ -9,13 +9,13 @@ import { getSportsAlertLatency } from "./SportsAlertLatencyResolver"
 
 const API_KEYS = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "espn", "openai", "grok"] as const
 const ENDPOINTS: Record<string, string> = {
-  sleeper: "https://api.sleeper.app/v1/state/nfl",
-  yahoo: "https://fantasysports.yahooapis.com",
+  sleeper: "https://api.sleeper.app/v1/state/nfl", // db-first-exception: live provider health probe
+  yahoo: "https://fantasysports.yahooapis.com", // db-first-exception: live provider health probe
   mfl: "https://api.myfantasyleague.com/2024/export",
   fantrax: "https://www.fantrax.com",
   fantasycalc: "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&numTeams=12&ppr=1",
   thesportsdb: "https://www.thesportsdb.com/api/v1/json/3/all_leagues.php",
-  espn: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
+  espn: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", // db-first-exception: live provider health probe
   openai: "https://api.openai.com/v1/models",
   grok: "https://api.x.ai/v1/models",
 }

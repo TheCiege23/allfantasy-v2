@@ -2,6 +2,15 @@ import { createMockNextRequest } from "@/__tests__/helpers/createMockNextRequest
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fetchMock = vi.fn();
+const getServerSessionMock = vi.fn();
+
+vi.mock("next-auth", () => ({
+  getServerSession: getServerSessionMock,
+}));
+
+vi.mock("@/lib/auth", () => ({
+  authOptions: {},
+}));
 
 vi.stubGlobal("fetch", fetchMock);
 
@@ -20,6 +29,7 @@ describe("POST /api/tts contract", () => {
   beforeEach(() => {
     vi.resetModules();
     fetchMock.mockReset();
+    getServerSessionMock.mockResolvedValue({ user: { id: "user-1" } });
     delete process.env.ELEVENLABS_API_KEY;
     delete process.env.ELEVENLABS_VOICE_ID;
   });

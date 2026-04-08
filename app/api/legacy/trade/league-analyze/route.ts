@@ -15,6 +15,7 @@ import { getCalibratedWeights } from '@/lib/trade-engine/accept-calibration'
 import { autoLogDecision } from '@/lib/decision-log'
 import { computeConfidenceRisk, getHistoricalHitRate } from '@/lib/analytics/confidence-risk-engine'
 import { buildLeagueDecisionContext, leagueContextToIntelligence } from '@/lib/trade-engine/league-context-assembler'
+import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
 type Sport = 'nfl' | 'nba'
 type RosterSlot = 'Starter' | 'Bench' | 'IR' | 'Taxi'
@@ -112,30 +113,17 @@ const playersCache: Record<
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 0 } })
-  const text = await res.text()
-  let json: any = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    // ignore
-  }
-  return { ok: res.ok, status: res.status, json, text }
-}
-
 async function getSleeperPlayers(sport: Sport) {
   const now = Date.now()
   const cached = playersCache[sport]
   if (cached.data && now - cached.at < CACHE_TTL_MS) return cached.data
 
-  const url = `https://api.sleeper.app/v1/players/${sport}`
-  const r = await fetchJson(url)
-  if (!r.ok || !r.json) {
-    throw new Error(`Failed to fetch Sleeper players (${sport}). status=${r.status}`)
+  const dict = await getPlayersBySport(sport)
+  if (!dict || Object.keys(dict).length === 0) {
+    throw new Error(`Failed to fetch Sleeper players (${sport}).`)
   }
 
-  playersCache[sport] = { at: now, data: r.json as Record<string, SleeperPlayer> }
+  playersCache[sport] = { at: now, data: dict as Record<string, SleeperPlayer> }
   return playersCache[sport].data!
 }
 
@@ -280,19 +268,9 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
     const sport: Sport = sportRaw === 'nba' ? 'nba' : 'nfl'
 
     // 1) Fetch league info
-    const leagueUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}`
-    const leagueRes = await fetchJson(leagueUrl)
-    if (!leagueRes.ok || !leagueRes.json) {
+    const leagueInfo = await getLeagueInfo(leagueId)
+    if (!leagueInfo) {
       return NextResponse.json({ error: 'Failed to fetch league info' }, { status: 502 })
-    }
-
-    const leagueInfo = leagueRes.json as {
-      name?: string
-      season?: string
-      scoring_settings?: any
-      settings?: any
-      roster_positions?: string[]
-      total_rosters?: number
     }
 
     const leagueName = leagueInfo.name || 'Dynasty League'
@@ -326,12 +304,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
     }).length
 
     // 2) Fetch all users in the league
-    const usersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`
-    const usersRes = await fetchJson(usersUrl)
-    if (!usersRes.ok || !Array.isArray(usersRes.json)) {
+    const users = await getLeagueUsers(leagueId) as unknown as SleeperUser[]
+    if (!Array.isArray(users) || users.length === 0) {
       return NextResponse.json({ error: 'Failed to load league users' }, { status: 502 })
     }
-    const users = usersRes.json as SleeperUser[]
     const userMap = new Map(users.map((u) => [u.user_id, u]))
 
     // Find the current user
@@ -344,12 +320,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
     }
 
     // 3) Fetch all rosters
-    const rostersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`
-    const rostersRes = await fetchJson(rostersUrl)
-    if (!rostersRes.ok || !Array.isArray(rostersRes.json)) {
+    const rosters = await getLeagueRosters(leagueId) as unknown as SleeperRoster[]
+    if (!Array.isArray(rosters) || rosters.length === 0) {
       return NextResponse.json({ error: 'Failed to load league rosters' }, { status: 502 })
     }
-    const rosters = rostersRes.json as SleeperRoster[]
 
     // 4) Load player dictionary
     const dict = await getSleeperPlayers(sport)

@@ -34,7 +34,7 @@ async function fetchSleeperUserCandidate(candidate: string): Promise<SleeperLook
 
   try {
     const response = await fetch(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(candidate)}`,
+      `https://api.sleeper.app/v1/user/${encodeURIComponent(candidate)}`, // db-first-exception: transitional lookup utility; migrate to shared user resolver
       {
         method: 'GET',
         cache: 'no-store',

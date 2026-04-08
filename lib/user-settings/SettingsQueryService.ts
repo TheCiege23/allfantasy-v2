@@ -30,9 +30,47 @@ const SAFE_USER_PROFILE_SELECT = {
   updatedAt: true,
 } as const
 
+const SAFE_PROFILE_RANK_SELECT = {
+  rankTier: true,
+  xpLevel: true,
+  xpTotal: true,
+  rankCalculatedAt: true,
+  careerWins: true,
+  careerChampionships: true,
+  careerSeasonsPlayed: true,
+  careerLeaguesPlayed: true,
+} as const
+
+type SafeProfileRankSelectResult = {
+  rankTier: string | null
+  xpLevel: number | null
+  xpTotal: bigint | number | null
+  rankCalculatedAt: Date | null
+  careerWins: number | null
+  careerChampionships: number | null
+  careerSeasonsPlayed: number | null
+  careerLeaguesPlayed: number | null
+}
+
+async function queryOptionalProfileRankFields(userId: string): Promise<SafeProfileRankSelectResult | null> {
+  try {
+    return await prisma.userProfile.findUnique({
+      where: { userId },
+      select: SAFE_PROFILE_RANK_SELECT,
+    })
+  } catch (err: unknown) {
+    console.warn(
+      "[getSettingsSnapshot] optional rank fields unavailable (migration lag):",
+      err instanceof Error ? err.message : err
+    )
+    return null
+  }
+}
+
 async function queryBaseProfile(
   userId: string
 ): Promise<Omit<UserProfileForSettings, "settings"> | null> {
+  const optionalRank = await queryOptionalProfileRankFields(userId)
   const user = await prisma.appUser.findUnique({
     where: { id: userId },
     select: {
@@ -72,14 +110,6 @@ async function queryBaseProfile(
           onboardingCompletedAt: true,
           sessionIdleTimeoutMinutes: true,
           updatedAt: true,
-          rankTier: true,
-          xpLevel: true,
-          xpTotal: true,
-          rankCalculatedAt: true,
-          careerWins: true,
-          careerChampionships: true,
-          careerSeasonsPlayed: true,
-          careerLeaguesPlayed: true,
           chimmyTtsVoiceId: true,
         },
       },
@@ -137,14 +167,14 @@ async function queryBaseProfile(
       typeof profile?.sessionIdleTimeoutMinutes === "number"
         ? profile.sessionIdleTimeoutMinutes
         : null,
-    rankTier: profile?.rankTier ?? null,
-    xpLevel: profile?.xpLevel ?? null,
-    xpTotal: profile?.xpTotal != null ? Number(profile.xpTotal) : null,
-    rankCalculatedAt: profile?.rankCalculatedAt ?? null,
-    careerWins: profile?.careerWins ?? null,
-    careerChampionships: profile?.careerChampionships ?? null,
-    careerSeasonsPlayed: profile?.careerSeasonsPlayed ?? null,
-    careerLeaguesPlayed: profile?.careerLeaguesPlayed ?? null,
+      rankTier: optionalRank?.rankTier ?? null,
+      xpLevel: optionalRank?.xpLevel ?? null,
+      xpTotal: optionalRank?.xpTotal != null ? Number(optionalRank.xpTotal) : null,
+      rankCalculatedAt: optionalRank?.rankCalculatedAt ?? null,
+      careerWins: optionalRank?.careerWins ?? null,
+      careerChampionships: optionalRank?.careerChampionships ?? null,
+      careerSeasonsPlayed: optionalRank?.careerSeasonsPlayed ?? null,
+      careerLeaguesPlayed: optionalRank?.careerLeaguesPlayed ?? null,
     chimmyTtsVoiceId:
       typeof profile?.chimmyTtsVoiceId === "string" && profile.chimmyTtsVoiceId.trim()
         ? profile.chimmyTtsVoiceId.trim()

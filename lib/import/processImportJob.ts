@@ -6,6 +6,7 @@ import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { sendImportCompleteNotification } from '@/lib/import/sendImportNotification'
 import { sleeperApiSportToLeagueSport } from '@/lib/import/sleeperApiSportToLeagueSport'
 import { SLEEPER_IMPORT_SPORTS } from '@/lib/league-import/sleeper/import-sports'
+import { getLeagueRosters, getUserLeagues } from '@/lib/sleeper-client'
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -79,11 +80,9 @@ export async function importLegacySeasonAtIndex(
 
     for (const sleeperSport of SLEEPER_IMPORT_SPORTS) {
       const leagueSportEnum = sleeperApiSportToLeagueSport(sleeperSport)
-      const leagueRes = await fetch(
-        `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${sleeperSport}/${season}`,
-        { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } },
+      const sleeperLeagues: unknown = await getUserLeagues(sleeperUserId, sleeperSport, String(season)).catch(
+        () => [] as unknown,
       )
-      const sleeperLeagues: unknown = leagueRes.ok ? await leagueRes.json() : []
       if (!Array.isArray(sleeperLeagues) || sleeperLeagues.length === 0) {
         await sleep(SLEEP_BETWEEN_SPORTS_MS)
         continue
@@ -96,11 +95,7 @@ export async function importLegacySeasonAtIndex(
         settings?: { playoff_teams?: number; num_teams?: number }
       }>) {
         try {
-          const rRes = await fetch(
-            `https://api.sleeper.app/v1/league/${encodeURIComponent(String(league.league_id))}/rosters`,
-            { headers: { 'User-Agent': 'AllFantasy/1.0', Accept: 'application/json' } },
-          )
-          const rosters: unknown = rRes.ok ? await rRes.json() : []
+          const rosters: unknown = await getLeagueRosters(String(league.league_id)).catch(() => [] as unknown)
           const mine = Array.isArray(rosters)
             ? rosters.find((r: { owner_id?: string; co_owners?: string[]; settings?: Record<string, unknown> }) => {
                 const oid = r?.owner_id != null ? String(r.owner_id) : ''

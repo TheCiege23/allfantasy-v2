@@ -10,7 +10,7 @@ import type {
   YahooImportTransaction,
 } from '@/lib/league-import/adapters/yahoo/types'
 
-const YAHOO_API_BASE = 'https://fantasysports.yahooapis.com/fantasy/v2'
+const YAHOO_API_BASE = 'https://fantasysports.yahooapis.com/fantasy/v2' // db-first-exception: ingestion service endpoint
 const YAHOO_LEAGUE_LIST_URL =
   `${YAHOO_API_BASE}/users;use_login=1/games;game_keys=nfl,nba,mlb,nhl/leagues?format=json`
 const YAHOO_RESERVE_POSITIONS = new Set(['BN', 'BE', 'IR', 'IL', 'NA', 'DL'])

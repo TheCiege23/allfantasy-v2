@@ -1,6 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getLeagueInfo, getLeagueMatchups, getLeagueRosters, getLeagueUsers } from '@/lib/sleeper-client'
 
 interface WeeklyRating {
   week: number
@@ -39,11 +40,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/historical-ra
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${league_id}`)
-    if (!leagueRes.ok) {
+    const currentLeagueData: any = await getLeagueInfo(league_id)
+    if (!currentLeagueData) {
       return NextResponse.json({ error: 'Failed to fetch league data' }, { status: 500 })
     }
-    const currentLeagueData = await leagueRes.json()
     const currentSeason = parseInt(currentLeagueData.season) || new Date().getFullYear()
     
     // Build list of available seasons by traversing previous_league_id chain
@@ -54,9 +54,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/historical-ra
     let traverseCount = 0
     while (prevLeagueId && traverseCount < 5) {
       try {
-        const prevRes = await fetch(`https://api.sleeper.app/v1/league/${prevLeagueId}`)
-        if (prevRes.ok) {
-          const prevData = await prevRes.json()
+        const prevData: any = await getLeagueInfo(prevLeagueId)
+        if (prevData) {
           const prevSeason = parseInt(prevData.season)
           availableSeasons.unshift(prevSeason)
           leagueChain.unshift({ id: prevLeagueId, season: prevSeason })
@@ -75,28 +74,20 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/historical-ra
     const targetLeague = leagueChain.find(l => l.season === targetSeason) || leagueChain[leagueChain.length - 1]
     const targetLeagueId = targetLeague.id
     
-    const [rostersRes, usersRes, ...matchupsResults] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${targetLeagueId}/rosters`),
-      fetch(`https://api.sleeper.app/v1/league/${targetLeagueId}/users`),
-      ...Array.from({ length: 18 }, (_, i) => 
-        fetch(`https://api.sleeper.app/v1/league/${targetLeagueId}/matchups/${i + 1}`)
-      ),
+    const [rosters, users, ...matchupsResults] = await Promise.all([
+      getLeagueRosters(targetLeagueId),
+      getLeagueUsers(targetLeagueId),
+      ...Array.from({ length: 18 }, (_, i) => getLeagueMatchups(targetLeagueId, i + 1)),
     ])
 
-    if (!rostersRes.ok || !usersRes.ok) {
+    if (!Array.isArray(rosters) || !Array.isArray(users)) {
       return NextResponse.json({ error: 'Failed to fetch league data' }, { status: 500 })
     }
-
-    const rosters = await rostersRes.json()
-    const users = await usersRes.json()
     
     const weeklyMatchups: any[][] = []
-    for (const res of matchupsResults) {
-      if (res.ok) {
-        const data = await res.json()
-        if (data && Array.isArray(data) && data.length > 0) {
-          weeklyMatchups.push(data)
-        }
+    for (const data of matchupsResults) {
+      if (data && Array.isArray(data) && data.length > 0) {
+        weeklyMatchups.push(data)
       }
     }
 

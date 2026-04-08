@@ -11,14 +11,13 @@ import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
 import {
   processLeague,
-  cachedSleeperFetch,
   getSleeperAvatarUrl,
   getErrorMessage,
   sumCommentaryTelemetry,
   type SleeperLeague,
-  type SleeperUser,
   type MatchupCommentaryTelemetry,
 } from "@/lib/league/sleeper-import-process";
+import { getUserLeagues, getSleeperUser } from "@/lib/sleeper-client";
 import {
   consumeRateLimit,
   getClientIp,
@@ -85,10 +84,7 @@ export async function POST(req: Request) {
     const { sleeperUserId, sport, season, isLegacy } = parsed.data;
     const sportLabel = sportMap[sport];
 
-    const leaguesData = await cachedSleeperFetch<SleeperLeague[]>(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${encodeURIComponent(sport)}/${season}`,
-      `sleeper:user_leagues:${sleeperUserId}:${sport}:${season}`
-    );
+    const leaguesData = await getUserLeagues(sleeperUserId, sport, String(season)).catch(() => null) as unknown as SleeperLeague[] | null;
 
     if (!Array.isArray(leaguesData) || leaguesData.length === 0) {
       return NextResponse.json(
@@ -121,10 +117,7 @@ export async function POST(req: Request) {
 
     try {
       const [sleeperUser, legacyUser] = await Promise.all([
-        cachedSleeperFetch<SleeperUser>(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}`,
-          `sleeper:user_profile:${sleeperUserId}`
-        ),
+        getSleeperUser(sleeperUserId),
         prisma.legacyUser.findUnique({
           where: { sleeperUserId },
           select: { id: true },

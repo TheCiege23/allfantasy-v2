@@ -10,6 +10,13 @@ import { findBestPartners, type MatchmakingGoal } from '@/lib/trade-finder/partn
 import type { PricedAsset } from '@/lib/trade-finder/candidate-generator'
 import type { LeagueIntelligence, ManagerProfile } from '@/lib/trade-engine/types'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
+import {
+  getAllPlayers,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueTransactions,
+  getLeagueUsers,
+} from '@/lib/sleeper-client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -91,21 +98,15 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       return NextResponse.json({ error: 'target_player goal requires targetPlayerName or targetPlayerId' }, { status: 400 })
     }
 
-    const [leagueRes, rostersRes, usersRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
+    const [league, rosters, users] = await Promise.all([
+      getLeagueInfo(leagueId),
+      getLeagueRosters(leagueId),
+      getLeagueUsers(leagueId),
     ])
 
-    if (!leagueRes.ok || !rostersRes.ok || !usersRes.ok) {
+    if (!league || !rosters.length || !users.length) {
       return NextResponse.json({ error: 'Failed to fetch league data from Sleeper' }, { status: 502 })
     }
-
-    const [league, rosters, users] = await Promise.all([
-      leagueRes.json(),
-      rostersRes.json(),
-      usersRes.json(),
-    ])
 
     const userMap = new Map<string, { display_name?: string; username?: string; avatar?: string }>()
     for (const u of users) {
@@ -122,11 +123,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       return NextResponse.json({ error: 'User not found in this league' }, { status: 404 })
     }
 
-    let nflPlayers: Record<string, any> = {}
-    try {
-      const npRes = await fetch('https://api.sleeper.app/v1/players/nfl')
-      if (npRes.ok) nflPlayers = await npRes.json()
-    } catch {}
+    const nflPlayers = await getAllPlayers().catch(() => ({} as Record<string, any>))
 
     const leagueSettings = league.settings || {}
     const rosterPositions: string[] = league.roster_positions || []
@@ -135,11 +132,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
     const tepBonus = league.scoring_settings?.bonus_rec_te ?? 0
     const numTeams = leagueSettings.num_teams || rosters.length
 
-    let transactionsData: any[] = []
-    try {
-      const txRes = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/1`)
-      if (txRes.ok) transactionsData = await txRes.json()
-    } catch {}
+    const transactionsData = await getLeagueTransactions(leagueId, 1).catch(() => [])
     const tradeCountByRosterId: Record<number, number> = {}
     for (const tx of transactionsData) {
       if (tx.type === 'trade' && tx.roster_ids) {

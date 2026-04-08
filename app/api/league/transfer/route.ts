@@ -45,7 +45,7 @@ interface TransferOptions {
 
 // ─── SLEEPER API HELPERS ─────────────────────────────────────────
 
-const SLEEPER_BASE = 'https://api.sleeper.app/v1'
+const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: league transfer is an explicit user-triggered import pipeline
 
 async function sleeperGet<T>(path: string): Promise<T> {
   const res = await fetch(`${SLEEPER_BASE}${path}`, {
