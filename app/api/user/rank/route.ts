@@ -97,27 +97,7 @@ function tierNullResponse() {
 }
 
 /** Full 25-level payload for `/api/user/rank` (STEP 3). */
-function userRankLevelPayloadFromProfile(p: ProfileRankDenormResult): {
-  tier: string | number
-  level: number
-  levelName: string | number
-  tierGroup: string | number
-  color: string | null
-  bgColor: string | null
-  xpTotal: number
-  xpLevel: number
-  xpIntoLevel: number
-  xpForLevel: number
-  progressPct: number
-  nextLevelName: string | number | null
-  careerWins: number
-  careerLosses: number
-  careerChampionships: number
-  careerPlayoffAppearances: number
-  careerSeasonsPlayed: number
-  careerLeaguesPlayed: number
-  rankCalculatedAt: string | null
-} {
+function userRankLevelPayloadFromProfile(p: ProfileRankDenormResult) {
   const xpNum = jsonSafeXp(p.xpTotal ?? p.legacyCareerXp)
   const lv = getLevelFromXp(xpNum)
   return {
