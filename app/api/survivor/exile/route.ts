@@ -85,18 +85,30 @@ export async function POST(req: NextRequest) {
     const island = await prisma.exileIsland.findUnique({ where: { leagueId: body.leagueId } })
     if (!island) return NextResponse.json({ error: 'Exile not initialized' }, { status: 400 })
     const player = body as Record<string, unknown>
+    const playerId = typeof player.playerId === 'string' ? player.playerId.trim() : ''
+    const playerName = typeof player.playerName === 'string' ? player.playerName.trim() : ''
+    const position = typeof player.position === 'string' ? player.position.trim() : ''
+    const team = typeof player.team === 'string' ? player.team.trim() : ''
+    const teamId = typeof player.teamId === 'string' ? player.teamId.trim() : ''
+    if (!playerId || !playerName || !position || !team || !teamId) {
+      return NextResponse.json(
+        { error: 'playerId, playerName, position, team, and teamId are required' },
+        { status: 400 },
+      )
+    }
+    const sport = typeof player.sport === 'string' && player.sport.trim() ? player.sport.trim() : 'NFL'
     const result = await submitExileTeamClaim(
       body.leagueId,
       island.id,
       userId,
       body.week,
       {
-        playerId: String(player.playerId ?? ''),
-        playerName: String(player.playerName ?? ''),
-        position: String(player.position ?? ''),
-        team: String(player.team ?? ''),
-        teamId: String(player.teamId ?? ''),
-        sport: String(player.sport ?? 'NFL'),
+        playerId,
+        playerName,
+        position,
+        team,
+        teamId,
+        sport,
       },
     )
     return NextResponse.json(result)
