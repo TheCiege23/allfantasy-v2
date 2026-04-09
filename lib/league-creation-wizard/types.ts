@@ -20,6 +20,8 @@ export type WizardStepId =
   | 'privacy'
   /** Combined draft + draft AI + automation + privacy (streamlined 5-step flow). */
   | 'draft_privacy'
+  /** Survivor-specific settings (tribes, idols, exile, merge). Only shown for survivor leagues. */
+  | 'format_settings'
   | 'review'
 
 /** Where the user is drawing inspiration from at league setup. */
@@ -202,11 +204,71 @@ export interface LeagueCreationWizardState {
   /** AF Commissioner-tier AI (gated in UI unless subscribed). */
   commissionerPreferences: WizardCommissionerPreferences
   privacySettings: WizardPrivacySettings
+  /** Survivor-specific settings (only used when leagueType === 'survivor'). */
+  survivorSettings: WizardSurvivorSettings
+  /** Guillotine-specific settings (only used when leagueType === 'guillotine'). */
+  guillotineSettings: WizardGuillotineSettings
   /**
    * Optional full settings snapshot from a saved template.
    * These keys are merged into League.settings on create before wizard-level overrides.
    */
   templateSettingsOverrides?: Record<string, unknown>
+}
+
+export interface WizardSurvivorSettings {
+  commissionerPlays: boolean
+  tribeCount: number
+  tribeFormation: 'random' | 'manual' | 'draft_pattern'
+  tribeNaming: 'auto' | 'ai' | 'custom'
+  mergeTrigger: 'player_count' | 'week'
+  mergeWeek: number
+  mergeAtCount: number
+  juryStart: string
+  idolsEnabled: boolean
+  idolCount: number
+  exileEnabled: boolean
+  rocksEnabled: boolean
+  tieRule: string
+  revealMode: string
+  challengeMode: string
+}
+
+export interface WizardGuillotineSettings {
+  eliminationsPerPeriod: number
+  protectedWeek1: boolean
+  endgame: string
+  tiebreaker: string
+  samePeriodPickups: boolean
+  faabBudget: number
+  tradesEnabled: boolean
+}
+
+export const DEFAULT_SURVIVOR_SETTINGS: WizardSurvivorSettings = {
+  commissionerPlays: false,
+  tribeCount: 4,
+  tribeFormation: 'random',
+  tribeNaming: 'auto',
+  mergeTrigger: 'player_count',
+  mergeWeek: 8,
+  mergeAtCount: 10,
+  juryStart: 'after_merge',
+  idolsEnabled: true,
+  idolCount: 9,
+  exileEnabled: true,
+  rocksEnabled: true,
+  tieRule: 'rocks',
+  revealMode: 'dramatic',
+  challengeMode: 'automatic',
+}
+
+export const DEFAULT_GUILLOTINE_SETTINGS: WizardGuillotineSettings = {
+  eliminationsPerPeriod: 1,
+  protectedWeek1: false,
+  endgame: 'last_team_standing',
+  tiebreaker: 'lowest_bench_points',
+  samePeriodPickups: false,
+  faabBudget: 100,
+  tradesEnabled: false,
 }
 
 /** Five-step flow: setup → identity → scoring → draft/privacy/AI → review. */

@@ -13,6 +13,8 @@ import {
   DEFAULT_AUTOMATION_SETTINGS,
   DEFAULT_PRIVACY_SETTINGS,
   DEFAULT_COMMISSIONER_PREFERENCES,
+  DEFAULT_SURVIVOR_SETTINGS,
+  DEFAULT_GUILLOTINE_SETTINGS,
 } from '@/lib/league-creation-wizard/types'
 import type {
   LeagueCreationWizardState,
@@ -43,6 +45,7 @@ import {
   isDynastyLeagueType,
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
+import { SurvivorSettingsPanel, GuillotineSettingsPanel } from './FormatSettingsPanel'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
@@ -103,12 +106,23 @@ function StepPanelSkeleton() {
 
 type ActiveWizardStepId = (typeof WIZARD_STEP_ORDER)[number]
 
-const STEP_LABELS: Record<ActiveWizardStepId, string> = {
+const STEP_LABELS: Record<string, string> = {
   sport: 'Sport & setup',
   team_setup: 'League details',
   scoring: 'Scoring & rosters',
   draft_privacy: 'Draft, AI & privacy',
+  format_settings: 'Format rules',
   review: 'Review & create',
+}
+
+/** Build step order dynamically — insert format_settings before review for specialty leagues. */
+function getEffectiveStepOrder(leagueType: string): readonly string[] {
+  const base = [...WIZARD_STEP_ORDER]
+  if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie') {
+    const reviewIdx = base.indexOf('review')
+    if (reviewIdx >= 0) base.splice(reviewIdx, 0, 'format_settings')
+  }
+  return base
 }
 
 const initialState: LeagueCreationWizardState = {
@@ -134,6 +148,8 @@ const initialState: LeagueCreationWizardState = {
   automationSettings: { ...DEFAULT_AUTOMATION_SETTINGS },
   commissionerPreferences: { ...DEFAULT_COMMISSIONER_PREFERENCES },
   privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
+  survivorSettings: { ...DEFAULT_SURVIVOR_SETTINGS },
+  guillotineSettings: { ...DEFAULT_GUILLOTINE_SETTINGS },
   templateSettingsOverrides: {},
 }
 
@@ -368,9 +384,10 @@ export function LeagueCreationWizard({
     loading: creationPresetLoading,
     error: creationPresetError,
   } = useSportPreset(state.sport as any, effectiveLeagueVariant)
-  const stepIndex = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
+  const stepsForDisplay = getEffectiveStepOrder(state.leagueType)
+  const stepIndex = stepsForDisplay.indexOf(state.step)
   const currentStepNumber = stepIndex + 1
-  const totalSteps = WIZARD_STEP_ORDER.length
+  const totalSteps = stepsForDisplay.length
   const stepLabel =
     state.step in STEP_LABELS
       ? STEP_LABELS[state.step as ActiveWizardStepId]
@@ -433,6 +450,8 @@ export function LeagueCreationWizard({
     setError(null)
   }, [])
 
+  const effectiveSteps = useMemo(() => getEffectiveStepOrder(state.leagueType), [state.leagueType])
+
   const goNext = useCallback(() => {
     if (stepValidationError) {
       emitLeagueCreationPerf('wizard_next_blocked_validation', {
@@ -441,15 +460,15 @@ export function LeagueCreationWizard({
       })
       return
     }
-    const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
-    if (idx < WIZARD_STEP_ORDER.length - 1) go(WIZARD_STEP_ORDER[idx + 1]!)
+    const idx = effectiveSteps.indexOf(state.step)
+    if (idx < effectiveSteps.length - 1) go(effectiveSteps[idx + 1] as WizardStepId)
     else go('review')
-  }, [state.step, go, stepValidationError])
+  }, [state.step, go, stepValidationError, effectiveSteps])
 
   const goBack = useCallback(() => {
-    const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
-    if (idx > 0) go(WIZARD_STEP_ORDER[idx - 1]!)
-  }, [state.step, go])
+    const idx = effectiveSteps.indexOf(state.step)
+    if (idx > 0) go(effectiveSteps[idx - 1] as WizardStepId)
+  }, [state.step, go, effectiveSteps])
 
   const handleSportChange = useCallback((sport: string) => {
     setState((s) => {
@@ -760,6 +779,39 @@ export function LeagueCreationWizard({
           slow_draft_reminders_enabled: state.automationSettings.slowDraftRemindersEnabled,
           visibility: state.privacySettings.visibility,
           allow_invite_link: state.privacySettings.allowInviteLink,
+          // Survivor-specific settings
+          ...(state.leagueType === 'survivor' ? {
+            survivor: {
+              commissionerPlays: state.survivorSettings.commissionerPlays,
+              tribeCount: state.survivorSettings.tribeCount,
+              tribeFormation: state.survivorSettings.tribeFormation,
+              tribeNaming: state.survivorSettings.tribeNaming,
+              mergeTrigger: state.survivorSettings.mergeTrigger,
+              mergeWeek: state.survivorSettings.mergeWeek,
+              mergeAtCount: state.survivorSettings.mergeAtCount,
+              juryStart: state.survivorSettings.juryStart,
+              idolsEnabled: state.survivorSettings.idolsEnabled,
+              idolCount: state.survivorSettings.idolCount,
+              exileEnabled: state.survivorSettings.exileEnabled,
+              rocksEnabled: state.survivorSettings.rocksEnabled,
+              tieRule: state.survivorSettings.tieRule,
+              revealMode: state.survivorSettings.revealMode,
+              challengeMode: state.survivorSettings.challengeMode,
+              playerCount: state.teamCount,
+            },
+          } : {}),
+          // Guillotine-specific settings
+          ...(state.leagueType === 'guillotine' ? {
+            guillotine: {
+              eliminationsPerPeriod: state.guillotineSettings.eliminationsPerPeriod,
+              protectedWeek1: state.guillotineSettings.protectedWeek1,
+              endgame: state.guillotineSettings.endgame,
+              tiebreaker: state.guillotineSettings.tiebreaker,
+              samePeriodPickups: state.guillotineSettings.samePeriodPickups,
+              faabBudget: state.guillotineSettings.faabBudget,
+              tradesEnabled: state.guillotineSettings.tradesEnabled,
+            },
+          } : {}),
         },
       }
       const res = await fetch('/api/league/create', {
@@ -1184,6 +1236,30 @@ export function LeagueCreationWizard({
               />
             </>
           )}
+          {state.step === 'format_settings' && (
+            <>
+              {state.leagueType === 'survivor' && (
+                <SurvivorSettingsPanel
+                  settings={state.survivorSettings}
+                  onChange={(patch) => setState((s) => ({ ...s, survivorSettings: { ...s.survivorSettings, ...patch } }))}
+                  sport={String(state.sport)}
+                />
+              )}
+              {state.leagueType === 'guillotine' && (
+                <GuillotineSettingsPanel
+                  settings={state.guillotineSettings}
+                  onChange={(patch) => setState((s) => ({ ...s, guillotineSettings: { ...s.guillotineSettings, ...patch } }))}
+                  sport={String(state.sport)}
+                />
+              )}
+              <WizardStepNav
+                onBack={goBack}
+                onNext={goNext}
+                disableForward={Boolean(stepValidationError)}
+                error={stepValidationError}
+              />
+            </>
+          )}
           {state.step === 'review' && (
             <>
               <LeagueSummaryPanel state={state} creationPreset={creationPreset} />
@@ -1218,7 +1294,11 @@ export function LeagueCreationWizard({
         onEnterLeague={() => {
           const id = postCreateIntro?.leagueId
           setPostCreateIntro(null)
-          if (id) router.push(`/league/${id}`)
+          if (id) {
+            if (state.leagueType === 'survivor') router.push(`/survivor/${id}`)
+            else if (state.leagueType === 'zombie') router.push(`/zombie/${id}`)
+            else router.push(`/league/${id}`)
+          }
         }}
       />
     </div>
