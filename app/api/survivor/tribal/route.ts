@@ -111,8 +111,17 @@ export async function POST(req: NextRequest) {
     if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
     const gate = await assertLeagueMember(council.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
-    const seq = (council?.revealSequence as unknown[]) ?? []
-    return NextResponse.json({ step: seq[0] ?? null, remaining: seq.length })
+    const seq = Array.isArray(council.revealSequence) ? (council.revealSequence as unknown[]) : []
+    if (seq.length === 0) return NextResponse.json({ step: null, remaining: 0 })
+    const [step, ...remainingSeq] = seq
+    await prisma.survivorTribalCouncil.update({
+      where: { id: councilId },
+      data: {
+        revealSequence: remainingSeq as object,
+        ...(remainingSeq.length === 0 && { isRevealed: true }),
+      },
+    })
+    return NextResponse.json({ step, remaining: remainingSeq.length })
   }
 
   if (action === 'eliminate') {
@@ -153,6 +162,19 @@ export async function POST(req: NextRequest) {
     if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
     if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!council.isTie) return NextResponse.json({ error: 'Council is not in a tie state' }, { status: 400 })
+    const tiedRosterIds = Array.isArray(council.tiePlayerIds)
+      ? council.tiePlayerIds.filter((id): id is string => typeof id === 'string')
+      : []
+    if (!tiedRosterIds.includes(eliminateRosterId)) {
+      return NextResponse.json({ error: 'eliminateRosterId must be one of the tied roster IDs' }, { status: 400 })
+    }
+    const eliminatedRoster = await prisma.roster.findFirst({
+      where: { id: eliminateRosterId, leagueId },
+      select: { platformUserId: true },
+    })
+    if (!eliminatedRoster) {
+      return NextResponse.json({ error: 'Eliminated roster not found' }, { status: 404 })
+    }
     await prisma.survivorTribalCouncil.update({
       where: { id: councilId },
       data: {
@@ -169,8 +191,8 @@ export async function POST(req: NextRequest) {
         category: 'tribal_council',
         action: 'commissioner_tie_resolve',
         actorUserId: userId,
-        targetUserId: eliminateRosterId,
-        data: { councilId, tiedRosterIds: council.tiePlayerIds },
+        targetUserId: eliminatedRoster.platformUserId,
+        data: { councilId, tiedRosterIds },
         isVisibleToCommissioner: true,
         isVisibleToPublic: false,
         isRevealablePostSeason: true,

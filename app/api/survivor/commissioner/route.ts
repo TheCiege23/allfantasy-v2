@@ -288,7 +288,7 @@ export async function POST(req: NextRequest) {
         needsTribalLock: true,
         needsExileScore: true,
         needsPhaseAdvance: true,
-        needsWeeklyRecap: true,
+        needsWeeklyRecap: false,
         lastError: null,
       },
     })
