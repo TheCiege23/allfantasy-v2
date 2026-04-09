@@ -5,7 +5,7 @@ import { useParams } from "next/navigation"
 import BehaviorProfilesPanel from "@/components/app/settings/BehaviorProfilesPanel"
 
 export default function PsychologicalProfilesPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const leagueId = params?.leagueId ?? ""
 
   return (

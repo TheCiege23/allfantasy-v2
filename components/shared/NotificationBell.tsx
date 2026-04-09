@@ -30,7 +30,7 @@ async function fetchUnreadTotal(): Promise<number> {
 }
 
 export default function NotificationBell() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const [open, setOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)

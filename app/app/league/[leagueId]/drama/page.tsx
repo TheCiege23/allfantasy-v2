@@ -21,7 +21,7 @@ type DramaRow = {
 const PAGE_LIMIT = 10
 
 export default function LeagueDramaDashboardPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ''
   const sportFromQuery = searchParams?.get('sport')

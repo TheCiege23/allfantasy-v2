@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { getProductSwitchItems, isPathInProduct } from "@/lib/routing"
 
 export default function ProductSwitcher() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const products = getProductSwitchItems()
   return (
     <nav className="hidden items-center gap-1 md:flex" aria-label="Product switcher">

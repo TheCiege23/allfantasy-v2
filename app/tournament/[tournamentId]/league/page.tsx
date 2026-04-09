@@ -10,8 +10,7 @@ import { BubbleLine } from '@/app/tournament/components/BubbleLine'
 import { StandingsRow } from '@/app/tournament/components/StandingsRow'
 
 export default function TournamentMyLeaguePage() {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
   const state = useTournamentParticipantState(ctx)

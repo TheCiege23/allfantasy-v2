@@ -61,7 +61,7 @@ function ProfileColumn({ title, profile }: { title: string; profile: ProfileView
 }
 
 export default function PsychologicalProfileComparePage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const search = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const managerAFromQuery = search?.get("managerAId") ?? ""

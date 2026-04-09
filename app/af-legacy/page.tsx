@@ -2721,10 +2721,10 @@ function AFLegacyContent() {
   // Handle deep linking from email notifications, shared links, and back navigation
   useEffect(() => {
     if (!searchParams) return
-    const tab = searchParams.get('tab')
-    const tradeId = searchParams.get('trade')
-    const sharedLeague = searchParams.get('league')
-    const deepLinkedLeagueId = searchParams.get('leagueId')
+    const tab = searchParams?.get('tab') ?? null
+    const tradeId = searchParams?.get('trade') ?? null
+    const sharedLeague = searchParams?.get('league') ?? null
+    const deepLinkedLeagueId = searchParams?.get('leagueId') ?? null
 
     if (tab === 'notifications') {
       setShowTradeNotifs(true)
@@ -2740,7 +2740,7 @@ function AFLegacyContent() {
     } else if (tab && ['overview', 'trade', 'finder', 'player-finder', 'waiver', 'compare', 'chat', 'mock-draft', 'share', 'rankings', 'transfer', 'strategy', 'shop', 'ideas', 'pulse'].includes(tab)) {
       handleActiveTabChange(tab as Tab)
       if (tab === 'chat') {
-        const promptParam = searchParams.get('prompt')
+        const promptParam = searchParams?.get('prompt') ?? null
         if (deepLinkedLeagueId) {
           setChatLeagueId(deepLinkedLeagueId)
         }
@@ -18158,4 +18158,3 @@ export default function AFLegacyPage() {
     </>
   )
 }
-

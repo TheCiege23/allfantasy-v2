@@ -15,7 +15,7 @@ type Row = {
 }
 
 export default function ZombieStandingsPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const { leagueId  } = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const [rows, setRows] = useState<Row[]>([])
 
   useEffect(() => {

@@ -21,7 +21,7 @@ const SUPPORTED_PROVIDER_IDS: SocialProvider[] = [
   "tiktok",
 ]
 
-function toProvider(value: string | null): SocialProvider {
+function toProvider(value: string | null | undefined): SocialProvider {
   if (!value) return "google"
   if (SUPPORTED_PROVIDER_IDS.includes(value as SocialProvider)) {
     return value as SocialProvider
@@ -34,7 +34,7 @@ export default function ProviderPendingPage() {
   const defaultDashboardHref = resolveFallbackRoute("dashboard").href
   const callbackUrlRaw = searchParams?.get("callbackUrl") ?? defaultDashboardHref
   const callbackUrl = callbackUrlRaw.startsWith("/") ? callbackUrlRaw : defaultDashboardHref
-  const provider = toProvider(searchParams?.get("provider"))
+  const provider = toProvider(searchParams?.get("provider") ?? null)
   const landingFallback = resolveFallbackRoute("home")
 
   const providerName = useMemo(() => getProviderDisplayName(provider), [provider])

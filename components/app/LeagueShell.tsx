@@ -20,7 +20,7 @@ export default function LeagueShell({
   leagueModeLabel?: string
 }) {
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<LeagueShellTab>(initialTab || "Overview")
 

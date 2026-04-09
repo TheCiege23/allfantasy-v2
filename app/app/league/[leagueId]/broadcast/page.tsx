@@ -22,7 +22,7 @@ const VIEWS = ['matchups', 'standings', 'storylines', 'rivalries'] as const
 type ViewKey = (typeof VIEWS)[number]
 
 export default function LeagueBroadcastPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ''
   const requestedSport =

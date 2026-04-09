@@ -45,6 +45,7 @@ export default function AppShellNav({
 }: AppShellNavProps) {
   const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
   const pathname = usePathname()
+  const currentPath = pathname ?? ""
 
   return (
     <header className="sticky top-0 z-40 border-b backdrop-blur-xl mode-panel" style={{ background: "color-mix(in srgb, var(--panel) 88%, transparent)", borderColor: "var(--border)" }}>
@@ -63,7 +64,7 @@ export default function AppShellNav({
 
           <div className="hidden items-center gap-1 md:flex">
             {PRODUCT_TABS.map((tab) => {
-              const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+              const active = currentPath === tab.href || currentPath.startsWith(`${tab.href}/`)
               return (
                 <Link
                   key={tab.href}
@@ -128,10 +129,10 @@ export default function AppShellNav({
               </>
             ) : (
               <>
-                <Link href={loginUrlWithIntent(pathname || "/app")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>
+                  <Link href={loginUrlWithIntent(currentPath || "/app")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>
                   Login
                 </Link>
-                <Link href={signupUrlWithIntent(pathname || "/app")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>
+                  <Link href={signupUrlWithIntent(currentPath || "/app")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>
                   Sign Up
                 </Link>
               </>
@@ -141,7 +142,7 @@ export default function AppShellNav({
 
         <div className="flex gap-1 overflow-x-auto pb-1">
           {GLOBAL_TABS.map((tab) => {
-            const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+              const active = currentPath === tab.href || currentPath.startsWith(`${tab.href}/`)
             return (
               <Link
                 key={tab.href}
@@ -159,7 +160,7 @@ export default function AppShellNav({
             <Link
               href="/admin"
               className="whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] transition sm:px-3 sm:text-xs"
-              style={pathname.startsWith("/admin")
+                    style={currentPath.startsWith("/admin")
                 ? { background: "var(--text)", color: "var(--bg)" }
                 : { background: "color-mix(in srgb, var(--panel2) 80%, transparent)", color: "var(--muted)" }}
             >
@@ -171,4 +172,3 @@ export default function AppShellNav({
     </header>
   )
 }
-

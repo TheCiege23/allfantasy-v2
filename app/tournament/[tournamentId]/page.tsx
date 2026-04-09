@@ -27,8 +27,7 @@ function useCountdown(target: Date | null) {
 }
 
 export default function TournamentHomePage() {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
   const { shell, conferences, announcements, participant, viewerUserId } = ctx

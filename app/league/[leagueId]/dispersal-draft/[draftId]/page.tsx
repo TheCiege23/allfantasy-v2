@@ -28,7 +28,7 @@ function rosterNameMap(teams: LeagueSettingsBrief['league']['teams']): (rid: str
 }
 
 export default function DispersalDraftLivePage() {
-  const params = useParams<{ leagueId: string; draftId: string }>()
+  const params = useParams<{ leagueId: string; draftId: string }>() ?? ({} as { leagueId: string; draftId: string })
   const leagueId = params.leagueId
   const draftId = params.draftId
 

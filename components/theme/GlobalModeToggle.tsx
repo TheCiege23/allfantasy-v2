@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import { ModeToggle } from "@/components/theme/ModeToggle"
 
 export function GlobalModeToggle() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   if (pathname?.startsWith("/admin")) return null
 
   return (

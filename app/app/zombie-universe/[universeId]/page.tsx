@@ -9,7 +9,7 @@ import { ZombieUniverseForumClient } from '@/components/zombie/ZombieUniverseFor
 import { ZombieUniverseAIPanel } from '@/components/zombie/ZombieUniverseAIPanel'
 
 export default function ZombieUniverseHomePage() {
-  const params = useParams<{ universeId: string }>()
+  const params = useParams<{ universeId: string }>() ?? ({} as { universeId: string })
   const universeId = params?.universeId ?? ''
   const [tab, setTab] = useState<'standings' | 'forum' | 'ai'>('standings')
 

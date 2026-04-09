@@ -19,7 +19,7 @@ type FlagRow = {
 }
 
 export default function CommissionerIntegrityPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const leagueId = params.leagueId
   const { hasAccess, loading: entLoading, upgradePath } = useEntitlement('commissioner_integrity_monitoring')
   const ok = hasAccess('commissioner_integrity_monitoring')

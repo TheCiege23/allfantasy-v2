@@ -77,7 +77,7 @@ export default function LeagueSettingsTab({
   isCommissioner,
 }: LeagueTabProps & { isDynasty?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const [active, setActive] = useState<SettingsSubtab>('General')
   const showDynastySettings = !!(isDynasty || isDevyDynasty || isMergedDevyC2C)

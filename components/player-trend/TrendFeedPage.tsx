@@ -335,8 +335,8 @@ export default function TrendFeedPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const qpSport = searchParams.get('sport')
-    const qpTimeframe = searchParams.get('timeframe')
+    const qpSport = searchParams?.get('sport')
+    const qpTimeframe = searchParams?.get('timeframe')
     if (qpSport && isSupportedSport(qpSport)) {
       setSport(normalizeToSupportedSport(qpSport))
     }

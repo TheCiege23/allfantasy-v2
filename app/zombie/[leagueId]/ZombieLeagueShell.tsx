@@ -25,7 +25,7 @@ export default function ZombieLeagueShell({
   leagueId: string
   children: React.ReactNode
 }) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const [meta, setMeta] = useState<ZMeta | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
 

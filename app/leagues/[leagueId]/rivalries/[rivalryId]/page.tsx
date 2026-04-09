@@ -45,7 +45,7 @@ type HeadToHeadRow = {
 }
 
 export default function RivalryDetailPage() {
-  const params = useParams<{ leagueId: string; rivalryId: string }>()
+  const params = useParams<{ leagueId: string; rivalryId: string }>() ?? ({} as { leagueId: string; rivalryId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const rivalryId = params?.rivalryId ?? ""

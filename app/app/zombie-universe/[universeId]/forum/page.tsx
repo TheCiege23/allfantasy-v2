@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react'
 import { ZombieUniverseForumClient } from '@/components/zombie/ZombieUniverseForumClient'
 
 export default function ZombieUniverseForumPage() {
-  const params = useParams<{ universeId: string }>()
+  const params = useParams<{ universeId: string }>() ?? ({} as { universeId: string })
   const universeId = params?.universeId ?? ''
 
   return (

@@ -177,7 +177,10 @@ export default function LeagueChatPanel({
     return typeof sport === "string" && sport.trim().length > 0 ? sport : undefined
   }, [resolvedLeagueThreadId, threads])
 
-  const aiContextFromUrl = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const aiContextFromUrl = useMemo(
+    () => readAIContextFromSearchParams(searchParams ?? undefined),
+    [searchParams]
+  )
   const aiContext = useMemo<AIChatContext>(
     () => ({
       ...aiContextFromUrl,

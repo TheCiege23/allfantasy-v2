@@ -8,7 +8,7 @@ import { useSearchParams } from 'next/navigation'
  */
 export function LandingInviteCapture() {
   const searchParams = useSearchParams()
-  const invite = searchParams.get('invite')?.trim() ?? ''
+  const invite = searchParams?.get('invite')?.trim() ?? ''
 
   useEffect(() => {
     if (!invite) return

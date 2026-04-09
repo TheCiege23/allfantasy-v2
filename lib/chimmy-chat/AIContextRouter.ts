@@ -21,19 +21,21 @@ export function resolveMessagesTab(tab?: string | null): MessageTab {
   return "dm"
 }
 
-export function readAIContextFromSearchParams(searchParams: SearchParamReader): AIChatContext {
-  const prompt = searchParams.get("prompt")?.trim()
-  const leagueId = searchParams.get("leagueId")?.trim()
-  const leagueName = searchParams.get("leagueName")?.trim()
-  const sleeperUsername = searchParams.get("sleeperUsername")?.trim()
-  const teamId = searchParams.get("teamId")?.trim()
-  const sport = resolveSportForAIChat(searchParams.get("sport"), null)
-  const insightTypeRaw = searchParams.get("insightType")?.trim()
-  const source = searchParams.get("source")?.trim()
-  const conversationId = searchParams.get("conversationId")?.trim()
-  const privateModeRaw = searchParams.get("privateMode")?.trim().toLowerCase()
-  const targetUsername = searchParams.get("targetUsername")?.trim()
-  const strategyMode = searchParams.get("strategyMode")?.trim()
+export function readAIContextFromSearchParams(
+  searchParams: SearchParamReader | null | undefined
+): AIChatContext {
+  const prompt = searchParams?.get("prompt")?.trim()
+  const leagueId = searchParams?.get("leagueId")?.trim()
+  const leagueName = searchParams?.get("leagueName")?.trim()
+  const sleeperUsername = searchParams?.get("sleeperUsername")?.trim()
+  const teamId = searchParams?.get("teamId")?.trim()
+  const sport = resolveSportForAIChat(searchParams?.get("sport") ?? null, null)
+  const insightTypeRaw = searchParams?.get("insightType")?.trim()
+  const source = searchParams?.get("source")?.trim()
+  const conversationId = searchParams?.get("conversationId")?.trim()
+  const privateModeRaw = searchParams?.get("privateMode")?.trim().toLowerCase()
+  const targetUsername = searchParams?.get("targetUsername")?.trim()
+  const strategyMode = searchParams?.get("strategyMode")?.trim()
 
   const insightType =
     insightTypeRaw === "matchup" ||
@@ -53,8 +55,8 @@ export function readAIContextFromSearchParams(searchParams: SearchParamReader): 
     insightType,
     teamId: teamId || undefined,
     sport,
-    season: readNumberParam(searchParams.get("season")),
-    week: readNumberParam(searchParams.get("week")),
+    season: readNumberParam(searchParams?.get("season") ?? null),
+    week: readNumberParam(searchParams?.get("week") ?? null),
     conversationId: conversationId || undefined,
     privateMode: privateModeRaw === "1" || privateModeRaw === "true" ? true : undefined,
     targetUsername: targetUsername || undefined,

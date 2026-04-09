@@ -34,7 +34,7 @@ interface MomentDetail {
 
 export default function HallOfFameMomentDetailPage() {
   const { formatDateInTimezone } = useUserTimezone()
-  const params = useParams<{ leagueId: string; momentId: string }>()
+  const params = useParams<{ leagueId: string; momentId: string }>() ?? ({} as { leagueId: string; momentId: string })
   const leagueId = params?.leagueId ?? ""
   const momentId = params?.momentId ?? ""
   const [moment, setMoment] = useState<MomentDetail | null>(null)

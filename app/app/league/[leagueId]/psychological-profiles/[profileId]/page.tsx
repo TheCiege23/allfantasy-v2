@@ -36,7 +36,7 @@ const SCORE_KEYS: Array<{ key: keyof ProfileRow; label: string }> = [
 ]
 
 export default function PsychologicalProfileDetailPage() {
-  const params = useParams<{ leagueId: string; profileId: string }>()
+  const params = useParams<{ leagueId: string; profileId: string }>() ?? ({} as { leagueId: string; profileId: string })
   const search = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const profileId = params?.profileId ?? ""

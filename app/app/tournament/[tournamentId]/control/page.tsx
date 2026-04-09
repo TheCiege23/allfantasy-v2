@@ -6,7 +6,7 @@ import { ChevronLeft, Trophy } from 'lucide-react'
 import { TournamentControlDashboard } from '@/components/tournament'
 
 export default function TournamentControlPage() {
-  const params = useParams<{ tournamentId: string }>()
+  const params = useParams<{ tournamentId: string }>() ?? ({} as { tournamentId: string })
   const tournamentId = params?.tournamentId ?? ''
 
   return (

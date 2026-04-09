@@ -156,7 +156,7 @@ export default function MonetizationPurchaseSurface({
   const blockPaidCommerce = geo.isPaidBlocked && !geo.loading;
 
   const searchParams = useSearchParams();
-  const highlightParam = searchParams.get("highlight");
+  const highlightParam = searchParams?.get("highlight");
 
   useEffect(() => {
     if (!highlightParam) return;
