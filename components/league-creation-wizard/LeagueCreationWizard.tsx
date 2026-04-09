@@ -15,6 +15,7 @@ import {
   DEFAULT_COMMISSIONER_PREFERENCES,
   DEFAULT_SURVIVOR_SETTINGS,
   DEFAULT_GUILLOTINE_SETTINGS,
+  DEFAULT_TOURNAMENT_SETTINGS,
 } from '@/lib/league-creation-wizard/types'
 import type {
   LeagueCreationWizardState,
@@ -45,7 +46,7 @@ import {
   isDynastyLeagueType,
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
-import { SurvivorSettingsPanel, GuillotineSettingsPanel } from './FormatSettingsPanel'
+import { SurvivorSettingsPanel, GuillotineSettingsPanel, TournamentSettingsPanel } from './FormatSettingsPanel'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
@@ -118,7 +119,7 @@ const STEP_LABELS: Record<string, string> = {
 /** Build step order dynamically — insert format_settings before review for specialty leagues. */
 function getEffectiveStepOrder(leagueType: string): string[] {
   const base: string[] = [...WIZARD_STEP_ORDER]
-  if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie') {
+  if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie' || leagueType === 'tournament') {
     const reviewIdx = base.indexOf('review')
     if (reviewIdx >= 0) base.splice(reviewIdx, 0, 'format_settings')
   }
@@ -150,6 +151,7 @@ const initialState: LeagueCreationWizardState = {
   privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
   survivorSettings: { ...DEFAULT_SURVIVOR_SETTINGS },
   guillotineSettings: { ...DEFAULT_GUILLOTINE_SETTINGS },
+  tournamentSettings: { ...DEFAULT_TOURNAMENT_SETTINGS },
   templateSettingsOverrides: {},
 }
 
@@ -812,6 +814,23 @@ export function LeagueCreationWizard({
               tradesEnabled: state.guillotineSettings.tradesEnabled,
             },
           } : {}),
+          // Tournament-specific settings
+          ...(state.leagueType === 'tournament' ? {
+            tournament: {
+              participantCount: state.tournamentSettings.participantCount,
+              conferenceCount: state.tournamentSettings.conferenceCount,
+              leaguesPerConference: state.tournamentSettings.leaguesPerConference,
+              teamsPerLeague: state.tournamentSettings.teamsPerLeague,
+              namingMode: state.tournamentSettings.namingMode,
+              totalRounds: state.tournamentSettings.totalRounds,
+              qualificationWeeks: state.tournamentSettings.qualificationWeeks,
+              bubbleEnabled: state.tournamentSettings.bubbleEnabled,
+              bubbleSize: state.tournamentSettings.bubbleSize,
+              redraftBetweenRounds: state.tournamentSettings.redraftBetweenRounds,
+              tradesEnabled: state.tournamentSettings.tradesEnabled,
+              advancersPerLeague: state.tournamentSettings.advancersPerLeague,
+            },
+          } : {}),
         },
       }
       const res = await fetch('/api/league/create', {
@@ -1249,6 +1268,13 @@ export function LeagueCreationWizard({
                 <GuillotineSettingsPanel
                   settings={state.guillotineSettings}
                   onChange={(patch) => setState((s) => ({ ...s, guillotineSettings: { ...s.guillotineSettings, ...patch } }))}
+                  sport={String(state.sport)}
+                />
+              )}
+              {state.leagueType === 'tournament' && (
+                <TournamentSettingsPanel
+                  settings={state.tournamentSettings}
+                  onChange={(patch) => setState((s) => ({ ...s, tournamentSettings: { ...s.tournamentSettings, ...patch } }))}
                   sport={String(state.sport)}
                 />
               )}

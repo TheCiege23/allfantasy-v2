@@ -1,7 +1,7 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import type { WizardSurvivorSettings, WizardGuillotineSettings } from '@/lib/league-creation-wizard/types'
+import type { WizardSurvivorSettings, WizardGuillotineSettings, WizardTournamentSettings } from '@/lib/league-creation-wizard/types'
 
 // ===== SURVIVOR SETTINGS PANEL =====
 
@@ -137,6 +137,119 @@ export function GuillotineSettingsPanel({ settings, onChange, sport }: Guillotin
           <input type="checkbox" checked={settings.samePeriodPickups} onChange={(e) => onChange({ samePeriodPickups: e.target.checked })}
             className="rounded border-white/20" />
           Same-period pickups
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.tradesEnabled} onChange={(e) => onChange({ tradesEnabled: e.target.checked })}
+            className="rounded border-white/20" />
+          Enable trades
+        </label>
+      </div>
+    </div>
+  )
+}
+
+// ===== TOURNAMENT SETTINGS PANEL =====
+
+interface TournamentSettingsPanelProps {
+  settings: WizardTournamentSettings
+  onChange: (patch: Partial<WizardTournamentSettings>) => void
+  sport: string
+}
+
+const POOL_SIZES = [60, 120, 180, 240] as const
+const NAMING_MODES = [
+  { value: 'ai_generated' as const, label: 'AI Generated' },
+  { value: 'commissioner_custom' as const, label: 'Manual' },
+  { value: 'hybrid' as const, label: 'AI + Edit' },
+]
+
+export function TournamentSettingsPanel({ settings, onChange, sport }: TournamentSettingsPanelProps) {
+  const totalLeagues = settings.conferenceCount * settings.leaguesPerConference
+  const totalCapacity = totalLeagues * settings.teamsPerLeague
+
+  return (
+    <div className="space-y-5 rounded-2xl border border-purple-500/20 bg-purple-500/[0.03] p-5">
+      <div className="text-sm font-semibold text-white/90">Tournament Settings</div>
+
+      {/* Pool Size */}
+      <div>
+        <label className="mb-1 block text-xs text-white/50">Participant Pool</label>
+        <div className="grid gap-2 grid-cols-4">
+          {POOL_SIZES.map((size) => (
+            <button key={size} type="button" onClick={() => {
+              const conf = size <= 60 ? 2 : size <= 120 ? 2 : size <= 180 ? 3 : 4
+              const lpc = Math.ceil(size / conf / settings.teamsPerLeague)
+              onChange({ participantCount: size, conferenceCount: conf, leaguesPerConference: lpc })
+            }}
+              className={`rounded-xl border px-2 py-2 text-xs transition ${settings.participantCount === size ? 'border-purple-400/50 bg-purple-400/10 text-white' : 'border-white/10 bg-white/[0.02] text-white/60 hover:border-white/20'}`}>
+              {size} players
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Structure summary */}
+      <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
+        <span className="text-white/70">{settings.conferenceCount} conferences</span> · <span className="text-white/70">{settings.leaguesPerConference} leagues each</span> · <span className="text-white/70">{settings.teamsPerLeague} teams/league</span> · Total capacity: <span className="text-white font-medium">{totalCapacity}</span>
+      </div>
+
+      {/* Structure controls */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Conferences</label>
+          <Input type="number" min={1} max={8} value={settings.conferenceCount}
+            onChange={(e) => onChange({ conferenceCount: Number(e.target.value) || 2 })} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Leagues per conf.</label>
+          <Input type="number" min={1} max={10} value={settings.leaguesPerConference}
+            onChange={(e) => onChange({ leaguesPerConference: Number(e.target.value) || 5 })} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Teams per league</label>
+          <Input type="number" min={8} max={16} value={settings.teamsPerLeague}
+            onChange={(e) => onChange({ teamsPerLeague: Number(e.target.value) || 12 })} />
+        </div>
+      </div>
+
+      {/* Naming mode */}
+      <div>
+        <label className="mb-1 block text-xs text-white/50">League naming</label>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {NAMING_MODES.map((mode) => (
+            <button key={mode.value} type="button" onClick={() => onChange({ namingMode: mode.value })}
+              className={`rounded-xl border px-2 py-2 text-xs transition ${settings.namingMode === mode.value ? 'border-purple-400/50 bg-purple-400/10 text-white' : 'border-white/10 bg-white/[0.02] text-white/60 hover:border-white/20'}`}>
+              {mode.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Rounds & advancement */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Total rounds</label>
+          <Input type="number" min={2} max={6} value={settings.totalRounds}
+            onChange={(e) => onChange({ totalRounds: Number(e.target.value) || 4 })} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Advancers per league</label>
+          <Input type="number" min={1} max={8} value={settings.advancersPerLeague}
+            onChange={(e) => onChange({ advancersPerLeague: Number(e.target.value) || 4 })} />
+        </div>
+      </div>
+
+      {/* Toggles */}
+      <div className="flex flex-wrap gap-3">
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.bubbleEnabled} onChange={(e) => onChange({ bubbleEnabled: e.target.checked })}
+            className="rounded border-white/20" />
+          Bubble round
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.redraftBetweenRounds} onChange={(e) => onChange({ redraftBetweenRounds: e.target.checked })}
+            className="rounded border-white/20" />
+          Redraft between rounds
         </label>
         <label className="flex items-center gap-1.5 text-xs text-white/70">
           <input type="checkbox" checked={settings.tradesEnabled} onChange={(e) => onChange({ tradesEnabled: e.target.checked })}

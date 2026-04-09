@@ -208,6 +208,8 @@ export interface LeagueCreationWizardState {
   survivorSettings: WizardSurvivorSettings
   /** Guillotine-specific settings (only used when leagueType === 'guillotine'). */
   guillotineSettings: WizardGuillotineSettings
+  /** Tournament-specific settings (only used when leagueType === 'tournament'). */
+  tournamentSettings: WizardTournamentSettings
   /**
    * Optional full settings snapshot from a saved template.
    * These keys are merged into League.settings on create before wizard-level overrides.
@@ -259,6 +261,36 @@ export const DEFAULT_SURVIVOR_SETTINGS: WizardSurvivorSettings = {
   tieRule: 'rocks',
   revealMode: 'dramatic',
   challengeMode: 'automatic',
+}
+
+export interface WizardTournamentSettings {
+  participantCount: number
+  conferenceCount: number
+  leaguesPerConference: number
+  teamsPerLeague: number
+  namingMode: 'ai_generated' | 'commissioner_custom' | 'hybrid'
+  totalRounds: number
+  qualificationWeeks: number
+  bubbleEnabled: boolean
+  bubbleSize: number
+  redraftBetweenRounds: boolean
+  tradesEnabled: boolean
+  advancersPerLeague: number
+}
+
+export const DEFAULT_TOURNAMENT_SETTINGS: WizardTournamentSettings = {
+  participantCount: 120,
+  conferenceCount: 2,
+  leaguesPerConference: 5,
+  teamsPerLeague: 12,
+  namingMode: 'ai_generated',
+  totalRounds: 4,
+  qualificationWeeks: 9,
+  bubbleEnabled: true,
+  bubbleSize: 4,
+  redraftBetweenRounds: true,
+  tradesEnabled: false,
+  advancersPerLeague: 4,
 }
 
 export const DEFAULT_GUILLOTINE_SETTINGS: WizardGuillotineSettings = {
