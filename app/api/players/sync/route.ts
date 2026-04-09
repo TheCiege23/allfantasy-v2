@@ -9,7 +9,7 @@ export const maxDuration = 60
 const ALLOWED = new Set<string>(SUPPORTED_SPORTS as readonly string[])
 
 export async function POST(req: NextRequest) {
-  const sport = normalizeRIRouteSport(req.nextUrl.searchParams.get('sport') || 'NFL')
+  const sport = normalizeRIRouteSport(req.nextUrl.searchParams?.get('sport') || 'NFL')
   if (!ALLOWED.has(sport)) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
   }
@@ -32,3 +32,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+

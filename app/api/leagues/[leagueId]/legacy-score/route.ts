@@ -18,11 +18,11 @@ export async function GET(
     if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
 
     const url = new URL(req.url)
-    const entityType = url.searchParams.get("entityType") ?? undefined
-    const entityId = url.searchParams.get("entityId") ?? undefined
-    const sport = url.searchParams.get("sport") ?? undefined
-    const limit = url.searchParams.get("limit")
-    const offset = url.searchParams.get("offset")
+    const entityType = url.searchParams?.get("entityType") ?? undefined
+    const entityId = url.searchParams?.get("entityId") ?? undefined
+    const sport = url.searchParams?.get("sport") ?? undefined
+    const limit = url.searchParams?.get("limit")
+    const offset = url.searchParams?.get("offset")
 
     if (entityId && entityType) {
       const sportResolved = sport ? normalizeToSupportedSport(sport) : DEFAULT_SPORT

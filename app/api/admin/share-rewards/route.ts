@@ -10,8 +10,8 @@ export const GET = withApiUsage({ endpoint: "/api/admin/share-rewards", tool: "A
     if (!isAuthorizedRequest(req)) return adminUnauthorized()
 
     const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const page = parseInt(searchParams?.get('page') || '1')
+    const limit = parseInt(searchParams?.get('limit') || '20')
     const skip = (page - 1) * limit
 
     const [rewards, totalShares, totalTokensResult, uniqueUsersResult, todayShares, unredeemed] = await Promise.all([
@@ -60,3 +60,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/share-rewards", tool: "A
     return NextResponse.json({ error: 'Failed to fetch share rewards' }, { status: 500 })
   }
 })
+

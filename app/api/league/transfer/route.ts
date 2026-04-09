@@ -357,8 +357,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const platform  = searchParams.get('platform') as Platform | null
-  const leagueId  = searchParams.get('leagueId')
+  const platform  = searchParams?.get('platform') as Platform | null
+  const leagueId  = searchParams?.get('leagueId')
 
   if (!platform || !leagueId) {
     return NextResponse.json({ error: 'platform and leagueId required' }, { status: 400 })
@@ -405,3 +405,4 @@ export async function GET(req: NextRequest) {
     }, { status: 404 })
   }
 }
+

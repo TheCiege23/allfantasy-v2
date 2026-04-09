@@ -11,7 +11,7 @@ import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/smart-recommendations", tool: "LegacySmartRecommendations" })(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
+  const username = searchParams?.get('username')
 
   if (!username) {
     return NextResponse.json({ error: 'Username required' }, { status: 400 })
@@ -163,3 +163,4 @@ export const PUT = withApiUsage({ endpoint: "/api/legacy/smart-recommendations",
     return NextResponse.json({ error: 'Failed to analyze profile' }, { status: 500 })
   }
 })
+

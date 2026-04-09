@@ -13,7 +13,7 @@ export function ContractCenterClient({ leagueId }: { leagueId: string }) {
   const { data: session } = useSession()
   const userId = session?.user?.id
   const searchParams = useSearchParams()
-  const qp = searchParams.get('rosterId')
+  const qp = searchParams?.get('rosterId')
   const { rosterId: fetched } = useRedraftRosterId(leagueId)
   const rosterId = qp ?? fetched
 

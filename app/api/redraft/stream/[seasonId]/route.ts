@@ -1,174 +1,30 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
-import { subscribeSurvivorRedraftStream } from '@/lib/survivor/survivorRedraftStreamHub'
 
 export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
 
-export async function GET(
-  _req: NextRequest,
-  context: { params: Promise<{ seasonId: string }> },
-) {
+export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
-  if (!userId) {
-    return new Response('Unauthorized', { status: 401 })
-  }
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { seasonId } = await context.params
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  if (!seasonId) return NextResponse.json({ error: 'seasonId required' }, { status: 400 })
+
   const season = await prisma.redraftSeason.findFirst({ where: { id: seasonId } })
-  if (!season) {
-    return new Response('Not found', { status: 404 })
-  }
+  if (!season) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const gate = await assertLeagueMember(season.leagueId, userId)
-  if (!gate.ok) {
-    return new Response('Forbidden', { status: 403 })
-  }
+  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const enc = new TextEncoder()
-      const send = (data: unknown) => {
-        controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
-      }
-      send({ type: 'connected', seasonId })
-      const unsubSurvivor = subscribeSurvivorRedraftStream(seasonId, (payload) => {
-        send(payload)
-      })
-      const iv = setInterval(() => {
-        send({ type: 'heartbeat', t: Date.now() })
-      }, 5000)
-      const ivKeeper = setInterval(() => {
-        send({
-          type: 'keeper_phase_tick',
-          seasonId,
-          note: 'Wire Redis pub/sub for keeper_submitted / keeper_locked events.',
-        })
-      }, 15000)
-      const ivGuillotine = setInterval(() => {
-        send({
-          type: 'guillotine_score_update',
-          seasonId,
-          rosterId: null,
-          teamName: null,
-          currentScore: 0,
-          survivalRank: 0,
-          teamsActive: 0,
-          marginAboveChopLine: 0,
-          isInDangerZone: false,
-          note: 'Wire live scores → survival snapshot.',
-        })
-      }, 12000)
-      const sentZombieAnim = new Set<string>()
-      const ivZombieAnim = setInterval(() => {
-        void (async () => {
-          try {
-            const rows = await prisma.zombieEventAnimation.findMany({
-              where: { leagueId: season.leagueId, isDelivered: false },
-              orderBy: { createdAt: 'asc' },
-              take: 20,
-            })
-            for (const a of rows) {
-              if (sentZombieAnim.has(a.id)) continue
-              sentZombieAnim.add(a.id)
-              send({
-                type: 'zombie_event_animation',
-                leagueId: a.leagueId,
-                week: a.week,
-                animationType: a.animationType,
-                primaryUserId: a.primaryUserId,
-                secondaryUserId: a.secondaryUserId,
-                metadata: a.metadata,
-                durationMs: a.durationMs,
-                reducedMotion: a.reducedMotion,
-                id: a.id,
-              })
-            }
-          } catch {
-            /* ignore */
-          }
-        })()
-      }, 5000)
-
-      const ivSurvivor = setInterval(() => {
-        send({
-          type: 'phase_changed',
-          seasonId,
-          leagueId: season.leagueId,
-          from: 'pre_merge',
-          to: 'merge',
-          week: 1,
-        })
-        send({
-          type: 'week_started',
-          week: 1,
-          leagueId: season.leagueId,
-        })
-        send({
-          type: 'scores_finalized',
-          week: 1,
-          leagueId: season.leagueId,
-        })
-        send({
-          type: 'tribal_council_opened',
-          seasonId,
-          councilId: null,
-          tribeId: null,
-          deadline: null,
-          note: 'Live events also arrive via survivorRedraftStreamHub when API routes publish.',
-        })
-        send({
-          type: 'notification_queued',
-          notificationType: 'vote_reminder',
-          urgency: 'high',
-          leagueId: season.leagueId,
-        })
-        send({
-          type: 'tribal_auto_opened',
-          councilId: null,
-          deadline: null,
-          leagueId: season.leagueId,
-        })
-        send({
-          type: 'exile_scores_updated',
-          week: 1,
-          leagueId: season.leagueId,
-        })
-        send({
-          type: 'host_message',
-          seasonId,
-          channelType: 'league_chat',
-          messageType: 'heartbeat',
-          preview: 'Survivor stream alive',
-        })
-      }, 20000)
-      const close = () => {
-        unsubSurvivor()
-        clearInterval(iv)
-        clearInterval(ivKeeper)
-        clearInterval(ivGuillotine)
-        clearInterval(ivZombieAnim)
-        clearInterval(ivSurvivor)
-        try {
-          controller.close()
-        } catch {
-          /* ignore */
-        }
-      }
-      // Note: no request signal in all runtimes — client disconnect closes EventSource.
-      setTimeout(close, 300_000)
-    },
+  const rosters = await prisma.redraftRoster.findMany({
+    where: { seasonId },
+    orderBy: [{ wins: 'desc' }, { pointsFor: 'desc' }],
   })
 
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-    },
-  })
+  return NextResponse.json({ rosters })
 }
+

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const includeHealth = req.nextUrl.searchParams.get('includeHealth') === '1'
+  const includeHealth = req.nextUrl.searchParams?.get('includeHealth') === '1'
   const availability = checkProviderAvailability()
   const health = includeHealth ? await checkProviderHealth() : null
   const openclaw = isOpenClawConfigured()
@@ -42,3 +42,4 @@ export async function GET(req: NextRequest) {
     },
   })
 }
+

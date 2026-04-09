@@ -46,7 +46,7 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const playerName = searchParams.get('name');
+  const playerName = searchParams?.get('name');
 
   if (!playerName) {
     return NextResponse.json({ error: 'name parameter required' }, { status: 400 });
@@ -162,3 +162,4 @@ Return JSON:
     return NextResponse.json({ error: 'Failed to get player value' }, { status: 500 });
   }
 }
+

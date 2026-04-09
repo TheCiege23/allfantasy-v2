@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const type = req.nextUrl.searchParams.get('type')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const type = req.nextUrl.searchParams?.get('type')?.trim()
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   await requireCommissionerRole(leagueId, userId)
@@ -257,3 +257,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }
+

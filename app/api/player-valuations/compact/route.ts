@@ -101,7 +101,7 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations/compact', to
     try {
       const { searchParams } = new URL(request.url)
 
-      const sportRaw = (searchParams.get('sport') ?? '').toLowerCase().trim()
+      const sportRaw = (searchParams?.get('sport') ?? '').toLowerCase().trim()
       const sport = toApiChainSport(sportRaw)
       if (!sport || !RECOGNIZED_SPORT_INPUTS.has(sportRaw)) {
         return NextResponse.json(
@@ -110,13 +110,13 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations/compact', to
         )
       }
 
-      const position = searchParams.get('position') ?? undefined
-      const tierFilter = searchParams.get('tier')?.toUpperCase()
-      const limit = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') ?? '50')))
-      const sortByRaw = searchParams.get('sortBy') ?? 'value'
+      const position = searchParams?.get('position') ?? undefined
+      const tierFilter = searchParams?.get('tier')?.toUpperCase()
+      const limit = Math.min(500, Math.max(1, parseInt(searchParams?.get('limit') ?? '50')))
+      const sortByRaw = searchParams?.get('sortBy') ?? 'value'
       const sortBy = sortByRaw === 'adp' ? 'adp' : 'value'
 
-      const fields = parseFieldMask(searchParams.get('fields'))
+      const fields = parseFieldMask(searchParams?.get('fields'))
 
       const cached = await readPlayerValuationsFromDb(sport, {
         allowStale: true,
@@ -160,3 +160,4 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations/compact', to
     }
   }
 )
+

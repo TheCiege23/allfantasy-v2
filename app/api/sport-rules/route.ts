@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
   const startedAtMs = Date.now()
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport') ?? 'NFL'
-    const formatParam = searchParams.get('format') ?? searchParams.get('variant') ?? null
+    const sportParam = searchParams?.get('sport') ?? 'NFL'
+    const formatParam = searchParams?.get('format') ?? searchParams?.get('variant') ?? null
 
     if (!isSportSupported(sportParam)) {
       return NextResponse.json(
@@ -51,3 +51,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load sport rules' }, { status: 500 })
   }
 }
+

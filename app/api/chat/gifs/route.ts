@@ -58,11 +58,11 @@ function mapDbRow(r: DbGifRow) {
 }
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
-  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || '24'), 48)
-  const offset = Math.max(Number(req.nextUrl.searchParams.get('offset') || '0'), 0)
+  const q = req.nextUrl.searchParams?.get('q')?.trim() ?? ''
+  const limit = Math.min(Number(req.nextUrl.searchParams?.get('limit') || '24'), 48)
+  const offset = Math.max(Number(req.nextUrl.searchParams?.get('offset') || '0'), 0)
 
-  const categoryFilter = req.nextUrl.searchParams.get('category')?.trim()
+  const categoryFilter = req.nextUrl.searchParams?.get('category')?.trim()
 
   try {
     if (!q) {
@@ -149,3 +149,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ gifs: [], total: 0, error: 'Failed to load GIFs' }, { status: 500 })
   }
 }
+

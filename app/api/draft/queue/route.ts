@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const draftId = req.nextUrl.searchParams.get('draftId')?.trim() ?? ''
-  const uid = req.nextUrl.searchParams.get('userId')?.trim() ?? userId
+  const draftId = req.nextUrl.searchParams?.get('draftId')?.trim() ?? ''
+  const uid = req.nextUrl.searchParams?.get('userId')?.trim() ?? userId
   if (!draftId) {
     return NextResponse.json({ error: 'draftId required' }, { status: 400 })
   }
@@ -94,3 +94,4 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true })
 }
+

@@ -84,7 +84,7 @@ export const POST = withApiUsage({
       return adminUnauthorized()
     }
 
-    const seasonParam = request.nextUrl.searchParams.get("season")
+    const seasonParam = request.nextUrl.searchParams?.get("season")
     const season = body.season ?? (seasonParam ? parseInt(seasonParam, 10) : null)
     const { firstFour: firstFourInput, finalFour: finalFourInput } = body
 
@@ -202,3 +202,4 @@ export const POST = withApiUsage({
     return NextResponse.json({ error: err.message || "Failed to initialize bracket" }, { status: 500 })
   }
 })
+

@@ -9,8 +9,8 @@ export const runtime = "nodejs"
  * Optional: ?userId= for already-member check (e.g. from session on client).
  */
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get("code")
-  const userId = req.nextUrl.searchParams.get("userId") ?? undefined
+  const code = req.nextUrl.searchParams?.get("code")
+  const userId = req.nextUrl.searchParams?.get("userId") ?? undefined
 
   const result = await getLeaguePreviewByCode(code, { userId: userId || null })
 
@@ -35,3 +35,4 @@ export async function GET(req: NextRequest) {
     { status }
   )
 }
+

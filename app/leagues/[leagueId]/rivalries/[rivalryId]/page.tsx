@@ -49,10 +49,10 @@ export default function RivalryDetailPage() {
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const rivalryId = params?.rivalryId ?? ""
-  const sportFromQuery = searchParams.get("sport") ?? ""
-  const seasonFromQuery = searchParams.get("season") ?? ""
+  const sportFromQuery = searchParams?.get("sport") ?? ""
+  const seasonFromQuery = searchParams?.get("season") ?? ""
   const [tab, setTab] = useState<"timeline" | "h2h">(
-    searchParams.get("tab") === "h2h" ? "h2h" : "timeline"
+    searchParams?.get("tab") === "h2h" ? "h2h" : "timeline"
   )
   const [seasonFilter, setSeasonFilter] = useState<string>(seasonFromQuery)
   const [detail, setDetail] = useState<RivalryDetail | null>(null)

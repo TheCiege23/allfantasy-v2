@@ -35,9 +35,9 @@ export async function GET(
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const url = new URL(req.url)
-    const sport = url.searchParams.get('sport') ?? undefined
-    const includeSnapshot = parseBoolean(url.searchParams.get('includeSnapshot'), false)
-    const summaryLimit = Number.parseInt(url.searchParams.get('summaryLimit') ?? '12', 10)
+    const sport = url.searchParams?.get('sport') ?? undefined
+    const includeSnapshot = parseBoolean(url.searchParams?.get('includeSnapshot'), false)
+    const summaryLimit = Number.parseInt(url.searchParams?.get('summaryLimit') ?? '12', 10)
 
     const isComm = await isCommissioner(leagueId, userId)
 

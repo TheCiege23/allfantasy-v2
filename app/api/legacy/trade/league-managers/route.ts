@@ -112,8 +112,8 @@ async function getSleeperPlayers(sport: Sport) {
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trade/league-managers", tool: "LegacyTradeLeagueManagers" })(async (req: NextRequest) => {
   try {
-    const leagueId = String(req.nextUrl.searchParams.get('league_id') || '').trim()
-    const sportRaw = String(req.nextUrl.searchParams.get('sport') || 'nfl').trim().toLowerCase()
+    const leagueId = String(req.nextUrl.searchParams?.get('league_id') || '').trim()
+    const sportRaw = String(req.nextUrl.searchParams?.get('sport') || 'nfl').trim().toLowerCase()
 
     if (!leagueId) {
       return NextResponse.json({ error: 'Missing league_id' }, { status: 400 })
@@ -423,3 +423,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/league-managers",
     return NextResponse.json({ error: 'Failed to load league managers', details: String(e) }, { status: 500 })
   }
 })
+

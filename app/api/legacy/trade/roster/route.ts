@@ -79,10 +79,10 @@ function isIdpPos(pos?: string) {
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trade/roster", tool: "LegacyTradeRoster" })(async (req: NextRequest) => {
   try {
-    const leagueId = String(req.nextUrl.searchParams.get('league_id') || '').trim()
-    const sleeperUsername = String(req.nextUrl.searchParams.get('sleeper_username') || '').trim()
-    const sleeperUserId = String(req.nextUrl.searchParams.get('sleeper_user_id') || '').trim()
-    const sportRaw = String(req.nextUrl.searchParams.get('sport') || 'nfl').trim().toLowerCase()
+    const leagueId = String(req.nextUrl.searchParams?.get('league_id') || '').trim()
+    const sleeperUsername = String(req.nextUrl.searchParams?.get('sleeper_username') || '').trim()
+    const sleeperUserId = String(req.nextUrl.searchParams?.get('sleeper_user_id') || '').trim()
+    const sportRaw = String(req.nextUrl.searchParams?.get('sport') || 'nfl').trim().toLowerCase()
 
     if (!leagueId) return NextResponse.json({ error: 'Missing league_id' }, { status: 400 })
     if (!sleeperUsername && !sleeperUserId) return NextResponse.json({ error: 'Missing sleeper_username or sleeper_user_id' }, { status: 400 })
@@ -197,3 +197,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/roster", tool: "L
     return NextResponse.json({ error: 'Failed to load roster', details: String(e) }, { status: 500 })
   }
 })
+

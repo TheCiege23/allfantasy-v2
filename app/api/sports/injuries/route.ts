@@ -10,10 +10,10 @@ export const dynamic = 'force-dynamic';
 export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "SportsInjuries" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
-    const player = searchParams.get('player');
-    const refresh = searchParams.get('refresh') === 'true';
-    const season = searchParams.get('season');
+    const team = searchParams?.get('team');
+    const player = searchParams?.get('player');
+    const refresh = searchParams?.get('refresh') === 'true';
+    const season = searchParams?.get('season');
 
     if (refresh) {
       const [apiSportsResult, espnResult] = await Promise.allSettled([
@@ -81,3 +81,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "Sport
     );
   }
 })
+

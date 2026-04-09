@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get('q')?.trim() ?? ''
-  const category = req.nextUrl.searchParams.get('category')?.trim()
+  const q = req.nextUrl.searchParams?.get('q')?.trim() ?? ''
+  const category = req.nextUrl.searchParams?.get('category')?.trim()
 
   try {
     const and: Array<Record<string, unknown>> = []
@@ -74,3 +74,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ emojis: [], categories: [], error: 'Failed to load emojis' }, { status: 500 })
   }
 }
+

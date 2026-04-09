@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const matchupId = req.nextUrl.searchParams.get('matchupId')?.trim()
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const week = req.nextUrl.searchParams.get('week')
+  const matchupId = req.nextUrl.searchParams?.get('matchupId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const week = req.nextUrl.searchParams?.get('week')
 
   if (matchupId) {
     const m = await prisma.redraftMatchup.findFirst({
@@ -86,3 +86,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ error: 'matchupId or seasonId+week required' }, { status: 400 })
 }
+

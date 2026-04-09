@@ -15,19 +15,19 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = searchParams.get('sport')?.trim() ?? undefined
-    const position = searchParams.get('position')?.trim() ?? undefined
-    const ageParam = searchParams.get('age')
+    const sport = searchParams?.get('sport')?.trim() ?? undefined
+    const position = searchParams?.get('position')?.trim() ?? undefined
+    const ageParam = searchParams?.get('age')
     const age = ageParam != null ? parseInt(ageParam, 10) : undefined
-    const baseValueParam = searchParams.get('baseValue')
+    const baseValueParam = searchParams?.get('baseValue')
     const baseValue = baseValueParam != null ? parseFloat(baseValueParam) : undefined
-    const playerId = searchParams.get('playerId')?.trim() ?? undefined
+    const playerId = searchParams?.get('playerId')?.trim() ?? undefined
     const isSuperFlex =
-      searchParams.get('isSuperFlex') === '1' || searchParams.get('isSuperFlex') === 'true'
+      searchParams?.get('isSuperFlex') === '1' || searchParams?.get('isSuperFlex') === 'true'
     const isTightEndPremium =
-      searchParams.get('isTightEndPremium') === '1' ||
-      searchParams.get('isTightEndPremium') === 'true'
-    const includeAI = searchParams.get('ai') === '1' || searchParams.get('ai') === 'true'
+      searchParams?.get('isTightEndPremium') === '1' ||
+      searchParams?.get('isTightEndPremium') === 'true'
+    const includeAI = searchParams?.get('ai') === '1' || searchParams?.get('ai') === 'true'
 
     if (!sport || !isSupportedSport(sport)) {
       return NextResponse.json(
@@ -62,3 +62,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

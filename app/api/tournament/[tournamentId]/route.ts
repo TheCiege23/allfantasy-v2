@@ -1,78 +1,99 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
+import { canViewStandings } from '@/lib/tournament/shellAccess'
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ tournamentId: string }> }
-) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+export async function GET(req: NextRequest) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
+  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+
+  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
+  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  if (participantId) {
+    const p = await prisma.tournamentParticipant.findFirst({
+      where: { id: participantId, tournamentId },
+    })
+    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+    if (userId !== p.userId && userId !== shell.commissionerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    const parts = await prisma.tournamentLeagueParticipant.findMany({
+      where: { participantId: p.id },
+      include: { league: true },
+    })
+    return NextResponse.json({ participant: p, leagueParticipations: parts })
   }
 
-  const { tournamentId } = await params
-  const tournament = await prisma.legacyTournament.findUnique({
-    where: { id: tournamentId },
+  if (conferenceId) {
+    const conf = await prisma.tournamentConference.findFirst({
+      where: { id: conferenceId, tournamentId },
+    })
+    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
+    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
+  }
+
+  const rn = roundNumber ? parseInt(roundNumber, 10) : null
+  const round =
+    rn != null && Number.isFinite(rn)
+      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
+      : await prisma.tournamentRound.findFirst({
+          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
+        })
+
+  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
+
+  const leagues = await prisma.tournamentLeague.findMany({
+    where: { tournamentId, roundId: round.id },
     include: {
-      conferences: {
-        orderBy: { orderIndex: 'asc' },
-        include: {
-          leagues: {
-            include: {
-              league: {
-                select: { id: true, name: true, leagueSize: true, leagueVariant: true },
-              },
-            },
-            orderBy: { orderInConference: 'asc' },
-          },
-        },
-      },
-      rounds: { orderBy: { roundIndex: 'asc' } },
+      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
     },
   })
 
-  if (!tournament) {
-    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
-  }
-
-  const hubSettings = (tournament.hubSettings as Record<string, unknown>) ?? {}
-  const visibility = (hubSettings.visibility as string) ?? 'unlisted'
-  const isCreator = tournament.creatorId === userId
-  if (visibility === 'private' && !isCreator) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  const leagueCount = tournament.conferences.reduce((acc, c) => acc + c.leagues.length, 0)
-  return NextResponse.json({
-    id: tournament.id,
-    name: tournament.name,
-    sport: tournament.sport,
-    season: tournament.season,
-    variant: tournament.variant,
-    status: tournament.status,
-    creatorId: tournament.creatorId,
-    isCommissioner: isCreator,
-    settings: tournament.settings,
-    hubSettings: tournament.hubSettings,
-    conferences: tournament.conferences.map((c) => ({
-      id: c.id,
-      name: c.name,
-      theme: c.theme,
-      themePayload: c.themePayload,
-      orderIndex: c.orderIndex,
-      leagues: c.leagues.map((tl) => ({
-        id: tl.id,
-        leagueId: tl.leagueId,
-        league: tl.league,
-        roundIndex: tl.roundIndex,
-        phase: tl.phase,
-        orderInConference: tl.orderInConference,
+  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
+  if (weekRaw != null && weekRaw !== '') {
+    const w = parseInt(weekRaw, 10)
+    if (!Number.isFinite(w)) {
+      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
+    }
+    if (w < round.weekStart || w > round.weekEnd) {
+      return NextResponse.json(
+        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
+        { status: 400 },
+      )
+    }
+    const weekPts = await computeWeeklyPointsByTlpId(
+      leagues.map((l) => ({
+        leagueId: l.leagueId,
+        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
       })),
-    })),
-    rounds: tournament.rounds,
-    _leagueCount: leagueCount,
-  })
+      w,
+    )
+    const leaguesWithWeek = leagues.map((l) => ({
+      ...l,
+      participants: l.participants.map((p) => ({
+        ...p,
+        weekPoints: weekPts.get(p.id) ?? 0,
+      })),
+    }))
+    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
+  }
+
+  return NextResponse.json({ round, leagues })
 }
+

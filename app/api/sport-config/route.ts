@@ -20,8 +20,8 @@ function parseToggles(param: string | null): string[] {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
-  const sport = searchParams.get('sport')?.trim()
-  const toggles = parseToggles(searchParams.get('toggles'))
+  const sport = searchParams?.get('sport')?.trim()
+  const toggles = parseToggles(searchParams?.get('toggles'))
 
   if (!sport) {
     const list = Object.values(SPORT_CONFIGS).map((c) => ({
@@ -56,3 +56,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Not found' }, { status: 404 })
   }
 }
+

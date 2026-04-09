@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const qUser = req.nextUrl.searchParams.get('userId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const qUser = req.nextUrl.searchParams?.get('userId')?.trim()
   if (!leagueId || !qUser) return NextResponse.json({ error: 'leagueId and userId required' }, { status: 400 })
   if (qUser !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
@@ -71,3 +71,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 }
+

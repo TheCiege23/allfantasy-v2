@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const type = req.nextUrl.searchParams.get('type') as InviteType | undefined
+  const type = req.nextUrl.searchParams?.get('type') as InviteType | undefined
   const links = await listMyInviteLinks(userId, type, getBaseUrl(req))
   return NextResponse.json({ ok: true, links })
 }
+

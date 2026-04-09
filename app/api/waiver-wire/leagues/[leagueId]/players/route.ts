@@ -37,7 +37,7 @@ export async function GET(
     ids.forEach((id) => rosteredIds.add(id))
   }
 
-  const sport = req.nextUrl.searchParams.get("sport") ?? (league.sport ?? "NFL")
+  const sport = req.nextUrl.searchParams?.get("sport") ?? (league.sport ?? "NFL")
   const normalizedSport = String(sport || '').toUpperCase()
   const leagueSportUpper = String(league.sport ?? 'NFL').toUpperCase()
   if (normalizedSport !== leagueSportUpper) {
@@ -46,10 +46,10 @@ export async function GET(
       { status: 400 }
     )
   }
-  const limit = Math.min(200, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || "100")))
-  const q = (req.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase()
-  const position = req.nextUrl.searchParams.get("position") ?? undefined
-  const teamId = req.nextUrl.searchParams.get("teamId") ?? undefined
+  const limit = Math.min(200, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || "100")))
+  const q = (req.nextUrl.searchParams?.get("q") ?? "").trim().toLowerCase()
+  const position = req.nextUrl.searchParams?.get("position") ?? undefined
+  const teamId = req.nextUrl.searchParams?.get("teamId") ?? undefined
 
   let players: { id: string; name: string; position: string | null; team: string | null }[] = []
   const pool = await getPlayerPoolForLeague(leagueId, league.sport ?? 'NFL', {

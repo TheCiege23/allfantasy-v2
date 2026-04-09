@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const managerId = url.searchParams.get('managerId')
+    const managerId = url.searchParams?.get('managerId')
     if (!managerId) {
       return NextResponse.json({ error: 'Missing managerId' }, { status: 400 })
     }
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const rawSport = url.searchParams.get('sport')
+    const rawSport = url.searchParams?.get('sport')
     const sport = rawSport
       ? isSupportedGMCareerSport(rawSport)
         ? normalizeSportForGMCareer(rawSport)
@@ -37,13 +37,13 @@ export async function GET(req: Request) {
     if (sport === null) {
       return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
     }
-    const rawEventType = url.searchParams.get('eventType')
+    const rawEventType = url.searchParams?.get('eventType')
     const eventType =
       rawEventType && GM_PROGRESSION_EVENT_TYPES.includes(rawEventType as (typeof GM_PROGRESSION_EVENT_TYPES)[number])
         ? rawEventType
         : undefined
-    const limitParam = url.searchParams.get('limit')
-    const offsetParam = url.searchParams.get('offset')
+    const limitParam = url.searchParams?.get('limit')
+    const offsetParam = url.searchParams?.get('offset')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 50
     const offset = offsetParam != null ? Math.max(0, parseInt(offsetParam, 10)) : 0
 
@@ -64,3 +64,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

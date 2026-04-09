@@ -22,9 +22,9 @@ export async function GET(
     if (!rivalry) return NextResponse.json({ error: 'Rivalry not found' }, { status: 404 })
 
     const url = new URL(req.url)
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : null
-    const limitParam = url.searchParams.get('limit')
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 200, 500) : 200
 
     const timeline = await buildTimelineForRivalry(rivalryId)

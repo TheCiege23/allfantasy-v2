@@ -13,8 +13,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const week = Number(req.nextUrl.searchParams.get('week') ?? 1)
-  const season = Number(req.nextUrl.searchParams.get('season') ?? new Date().getFullYear())
+  const week = Number(req.nextUrl.searchParams?.get('week') ?? 1)
+  const season = Number(req.nextUrl.searchParams?.get('season') ?? new Date().getFullYear())
 
   try {
     const leagues = await prisma.league.findMany({
@@ -35,3 +35,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'C2C live scoring failed' }, { status: 500 })
   }
 }
+

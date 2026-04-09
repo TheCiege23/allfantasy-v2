@@ -11,7 +11,7 @@ function normalizeUsername(u: string) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const raw = searchParams.get("username") || ""
+  const raw = searchParams?.get("username") || ""
   const username = normalizeUsername(raw)
 
   if (!username) {
@@ -57,3 +57,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const GET = withApiUsage({ endpoint: "/api/sports/espn-rosters", tool: "ESPNRosters" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
+    const team = searchParams?.get('team');
 
     const result = await syncESPNRostersToDb(team ? [team.toUpperCase()] : undefined);
 
@@ -24,3 +24,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/espn-rosters", tool: "E
     );
   }
 })
+

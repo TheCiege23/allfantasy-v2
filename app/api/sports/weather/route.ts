@@ -15,23 +15,23 @@ export const dynamic = 'force-dynamic';
 export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "SportsWeather" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
-    const city = searchParams.get('city');
-    const lat = searchParams.get('lat');
-    const lon = searchParams.get('lon');
-    const gameTime = searchParams.get('gameTime');
-    const forecast = searchParams.get('forecast');
+    const team = searchParams?.get('team');
+    const city = searchParams?.get('city');
+    const lat = searchParams?.get('lat');
+    const lon = searchParams?.get('lon');
+    const gameTime = searchParams?.get('gameTime');
+    const forecast = searchParams?.get('forecast');
 
     if (lat && lon && gameTime && (forecast === '1' || forecast === 'true')) {
       const normalized = await getWeatherForEvent({
         lat: parseFloat(lat),
         lng: parseFloat(lon),
         gameTime: new Date(gameTime),
-        sport: searchParams.get('sport') ?? undefined,
-        eventId: searchParams.get('eventId') ?? undefined,
-        isIndoor: searchParams.get('isIndoor') === '1' || searchParams.get('isIndoor') === 'true',
-        isDome: searchParams.get('isDome') === '1' || searchParams.get('isDome') === 'true',
-        roofClosed: searchParams.get('roofClosed') === '1' || searchParams.get('roofClosed') === 'true',
+        sport: searchParams?.get('sport') ?? undefined,
+        eventId: searchParams?.get('eventId') ?? undefined,
+        isIndoor: searchParams?.get('isIndoor') === '1' || searchParams?.get('isIndoor') === 'true',
+        isDome: searchParams?.get('isDome') === '1' || searchParams?.get('isDome') === 'true',
+        roofClosed: searchParams?.get('roofClosed') === '1' || searchParams?.get('roofClosed') === 'true',
       });
       return NextResponse.json({
         normalized,
@@ -120,3 +120,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/weather", tool: "Sports
     );
   }
 })
+

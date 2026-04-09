@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const managerId = url.searchParams.get('managerId')
+    const managerId = url.searchParams?.get('managerId')
     if (!managerId) {
       return NextResponse.json({ error: 'Missing managerId' }, { status: 400 })
     }
@@ -36,3 +36,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

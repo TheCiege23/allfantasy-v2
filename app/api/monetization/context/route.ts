@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const rawFeature = String(url.searchParams.get("feature") ?? "").trim()
+    const rawFeature = String(url.searchParams?.get("feature") ?? "").trim()
     if (rawFeature && !isSubscriptionFeatureId(rawFeature)) {
       return NextResponse.json({ error: "Invalid feature id" }, { status: 400 })
     }
@@ -144,4 +144,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load monetization context" }, { status: 500 })
   }
 }
+
 

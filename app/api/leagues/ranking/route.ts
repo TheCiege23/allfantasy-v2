@@ -10,9 +10,9 @@ export const dynamic = "force-dynamic"
  */
 export async function GET(req: NextRequest) {
   try {
-    const sport = req.nextUrl.searchParams.get("sport") ?? null
-    const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") ?? "50", 10)))
-    const recentDaysParam = req.nextUrl.searchParams.get("recentDays")
+    const sport = req.nextUrl.searchParams?.get("sport") ?? null
+    const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams?.get("limit") ?? "50", 10)))
+    const recentDaysParam = req.nextUrl.searchParams?.get("recentDays")
     const recentDays = recentDaysParam ? parseInt(recentDaysParam, 10) : undefined
     const validRecentDays =
       recentDays != null && !Number.isNaN(recentDays) && recentDays > 0 ? recentDays : undefined
@@ -54,3 +54,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to compute league ranking" }, { status: 500 })
   }
 }
+

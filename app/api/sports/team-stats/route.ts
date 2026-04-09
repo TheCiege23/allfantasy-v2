@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const team = url.searchParams.get('team');
-  const season = url.searchParams.get('season');
-  const seasonType = url.searchParams.get('seasonType') || 'regular';
-  const refresh = url.searchParams.get('refresh') === 'true';
+  const team = url.searchParams?.get('team');
+  const season = url.searchParams?.get('season');
+  const seasonType = url.searchParams?.get('seasonType') || 'regular';
+  const refresh = url.searchParams?.get('refresh') === 'true';
 
   try {
     if (refresh) {
@@ -46,3 +46,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

@@ -167,12 +167,12 @@ export async function GET(req: Request) {
   if (!gate.ok) return gate.res
 
   const url = new URL(req.url)
-  const sport = (url.searchParams.get('sport') || 'NFL').toUpperCase()
-  const dataType = (url.searchParams.get('dataType') || 'players').toLowerCase()
+  const sport = (url.searchParams?.get('sport') || 'NFL').toUpperCase()
+  const dataType = (url.searchParams?.get('dataType') || 'players').toLowerCase()
   const token = process.env.ROLLING_INSIGHTS_RSC_TOKEN?.trim() || ''
 
   const restBases = unique([
-    ...splitList(url.searchParams.get('bases')),
+    ...splitList(url.searchParams?.get('bases')),
     ...splitList(process.env.ROLLING_INSIGHTS_REST_BASE_URL || null),
     'https://rest.datafeeds.rolling-insights.com/api/v1',
     'http://rest.datafeeds.rolling-insights.com/api/v1',
@@ -181,7 +181,7 @@ export async function GET(req: Request) {
   const restPaths = buildRestPaths(sport, dataType)
 
   const graphqlEndpoints = unique([
-    ...(splitList(url.searchParams.get('graphql')) || []),
+    ...(splitList(url.searchParams?.get('graphql')) || []),
     ...(process.env.ROLLING_INSIGHTS_GRAPHQL_URL ? [trimUrl(process.env.ROLLING_INSIGHTS_GRAPHQL_URL)] : []),
     'https://datafeeds.rolling-insights.com/graphql',
     'https://rest.datafeeds.rolling-insights.com/graphql',
@@ -223,3 +223,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to run RI probe' }, { status: 500 })
   }
 }
+

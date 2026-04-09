@@ -355,7 +355,7 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     ]
 
     const streamRequested =
-      request.nextUrl.searchParams.get('stream') === '1' ||
+      request.nextUrl.searchParams?.get('stream') === '1' ||
       (typeof (body as Record<string, unknown>).stream === 'boolean' &&
         (body as Record<string, unknown>).stream === true)
 
@@ -566,3 +566,4 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     return NextResponse.json({ error: 'Failed to process chat', details: String(error) }, { status: 500 })
   }
 })
+

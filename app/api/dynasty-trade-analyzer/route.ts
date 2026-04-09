@@ -54,7 +54,7 @@ function buildDataGapsPrompt(ctx: TradeDecisionContextV1): string {
 function wantsDebugTrace(req: Request): boolean {
   try {
     const url = new URL(req.url);
-    if (url.searchParams.get('debug') === '1' || url.searchParams.get('trace') === '1') return true;
+    if (url.searchParams?.get('debug') === '1' || url.searchParams?.get('trace') === '1') return true;
     if (req.headers.get('x-af-debug') === '1' || req.headers.get('x-af-trace') === '1') return true;
   } catch {
     // ignore
@@ -290,3 +290,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Analysis failed' }, { status: 500 });
   }
 }
+

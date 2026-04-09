@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return jsonError('Unauthorized', 401)
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
   if (!leagueId) return jsonError('leagueId required', 400)
 
   const gate = await assertLeagueMember(leagueId, userId)
@@ -399,3 +399,4 @@ export async function PATCH(req: NextRequest) {
       : null,
   })
 }
+

@@ -13,11 +13,11 @@ import { getActiveWeightsForSegment } from '@/lib/rankings-engine/weekly-weight-
 
 export const GET = withApiUsage({ endpoint: "/api/rankings/adaptive", tool: "RankingsAdaptive" })(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
-  const leagueType = sp.get('leagueType') ?? 'redraft'
-  const isSF = sp.get('isSF') === 'true'
-  const specialty = sp.get('specialty') ?? null
-  const goal = sp.get('goal') ?? 'balanced'
-  const season = sp.get('season') ? Number(sp.get('season')) : new Date().getFullYear()
+  const leagueType = sp?.get('leagueType') ?? 'redraft'
+  const isSF = sp?.get('isSF') === 'true'
+  const specialty = sp?.get('specialty') ?? null
+  const goal = sp?.get('goal') ?? 'balanced'
+  const season = sp?.get('season') ? Number(sp?.get('season')) : new Date().getFullYear()
 
   const leagueClass = resolveLeagueClass({
     leagueType,
@@ -59,3 +59,4 @@ export const GET = withApiUsage({ endpoint: "/api/rankings/adaptive", tool: "Ran
     source: isWeeklyActive ? 'weekly_learning' : 'multi_year_blend',
   })
 })
+

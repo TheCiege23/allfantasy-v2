@@ -9,9 +9,9 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return gate.res
   try {
     const { searchParams } = new URL(req.url)
-    const from = searchParams.get("from") ?? undefined
-    const to = searchParams.get("to") ?? undefined
-    const sport = searchParams.get("sport") ?? undefined
+    const from = searchParams?.get("from") ?? undefined
+    const to = searchParams?.get("to") ?? undefined
+    const sport = searchParams?.get("sport") ?? undefined
     const result = await getPlatformAnalytics({ from, to, sport })
     return NextResponse.json(result)
   } catch (e) {
@@ -22,3 +22,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

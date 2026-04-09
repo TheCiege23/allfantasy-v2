@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const city = searchParams.get('city');
-  const gameDate = searchParams.get('date');
+  const city = searchParams?.get('city');
+  const gameDate = searchParams?.get('date');
 
   if (!city || !gameDate) return NextResponse.json({ error: 'city & date required' }, { status: 400 });
 
@@ -42,3 +42,4 @@ export async function GET(req: Request) {
 
   return NextResponse.json(gameWeather);
 }
+

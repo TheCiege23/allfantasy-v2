@@ -1,83 +1,99 @@
-/**
- * POST /api/tournament/[tournamentId]/resolve-state — Commissioner fixes invalid participant progression state.
- * Body: { userId: string, currentLeagueId?: string, currentRosterId?: string, status?: 'active'|'eliminated', eliminatedAtRoundIndex?: number }
- */
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
+import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
+import { canViewStandings } from '@/lib/tournament/shellAccess'
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ tournamentId: string }> }
-) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-  const { tournamentId } = await params
-  const tournament = await prisma.legacyTournament.findUnique({
-    where: { id: tournamentId },
-    select: { id: true, creatorId: true },
-  })
-  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
-  if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function GET(req: NextRequest) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
 
-  let body: {
-    userId?: string
-    currentLeagueId?: string
-    currentRosterId?: string
-    status?: 'active' | 'eliminated'
-    eliminatedAtRoundIndex?: number
-  }
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
-  }
-  const targetUserId = body.userId
-  if (!targetUserId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const participant = await prisma.legacyTournamentParticipant.findUnique({
-    where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
-  })
-  if (!participant) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
+  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
 
-  const before = {
-    currentLeagueId: participant.currentLeagueId,
-    currentRosterId: participant.currentRosterId,
-    status: participant.status,
-    eliminatedAtRoundIndex: participant.eliminatedAtRoundIndex,
+  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
+  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  if (participantId) {
+    const p = await prisma.tournamentParticipant.findFirst({
+      where: { id: participantId, tournamentId },
+    })
+    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+    if (userId !== p.userId && userId !== shell.commissionerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    const parts = await prisma.tournamentLeagueParticipant.findMany({
+      where: { participantId: p.id },
+      include: { league: true },
+    })
+    return NextResponse.json({ participant: p, leagueParticipations: parts })
   }
 
-  const updateData: Record<string, unknown> = {}
-  if (body.currentLeagueId !== undefined) updateData.currentLeagueId = body.currentLeagueId
-  if (body.currentRosterId !== undefined) updateData.currentRosterId = body.currentRosterId
-  if (body.status !== undefined) updateData.status = body.status
-  if (body.eliminatedAtRoundIndex !== undefined) updateData.eliminatedAtRoundIndex = body.eliminatedAtRoundIndex
-
-  if (Object.keys(updateData).length === 0) {
-    return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
+  if (conferenceId) {
+    const conf = await prisma.tournamentConference.findFirst({
+      where: { id: conferenceId, tournamentId },
+    })
+    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
+    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
   }
 
-  await prisma.legacyTournamentParticipant.update({
-    where: { tournamentId_userId: { tournamentId, userId: targetUserId } },
-    data: updateData as any,
+  const rn = roundNumber ? parseInt(roundNumber, 10) : null
+  const round =
+    rn != null && Number.isFinite(rn)
+      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
+      : await prisma.tournamentRound.findFirst({
+          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
+        })
+
+  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
+
+  const leagues = await prisma.tournamentLeague.findMany({
+    where: { tournamentId, roundId: round.id },
+    include: {
+      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+    },
   })
 
-  await logTournamentAudit(tournamentId, 'resolve_state', {
-    actorId: userId,
-    targetType: 'participant',
-    targetId: targetUserId,
-    metadata: { before, after: { ...before, ...updateData } },
-  })
+  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
+  if (weekRaw != null && weekRaw !== '') {
+    const w = parseInt(weekRaw, 10)
+    if (!Number.isFinite(w)) {
+      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
+    }
+    if (w < round.weekStart || w > round.weekEnd) {
+      return NextResponse.json(
+        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
+        { status: 400 },
+      )
+    }
+    const weekPts = await computeWeeklyPointsByTlpId(
+      leagues.map((l) => ({
+        leagueId: l.leagueId,
+        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
+      })),
+      w,
+    )
+    const leaguesWithWeek = leagues.map((l) => ({
+      ...l,
+      participants: l.participants.map((p) => ({
+        ...p,
+        weekPoints: weekPts.get(p.id) ?? 0,
+      })),
+    }))
+    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
+  }
 
-  return NextResponse.json({
-    ok: true,
-    userId: targetUserId,
-    before,
-    after: { ...before, ...updateData },
-  })
+  return NextResponse.json({ round, leagues })
 }
+

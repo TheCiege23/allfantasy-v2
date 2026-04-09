@@ -31,8 +31,8 @@ export async function GET(req: NextRequest) {
     const identifier = sleeperUserId || sleeperUsername;
 
     const searchParams = req.nextUrl.searchParams;
-    const season = searchParams.get('season') || String(new Date().getFullYear());
-    const sport = searchParams.get('sport') || 'nfl';
+    const season = searchParams?.get('season') || String(new Date().getFullYear());
+    const sport = searchParams?.get('sport') || 'nfl';
 
     const leaguesData = await getUserLeagues(String(identifier), String(sport), String(season));
 
@@ -82,3 +82,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

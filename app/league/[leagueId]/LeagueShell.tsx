@@ -167,7 +167,7 @@ export function LeagueShell({
   }, [tabDefs])
 
   useEffect(() => {
-    const view = searchParams.get('view')
+    const view = searchParams?.get('view')
     if (!view) return
     const map: Record<string, string> = {
       team: 'team',

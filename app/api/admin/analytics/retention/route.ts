@@ -26,9 +26,9 @@ export const GET = withApiUsage({ endpoint: "/api/admin/analytics/retention", to
 
   try {
     const { searchParams } = new URL(request.url)
-    const windowDays = Math.min(90, Math.max(1, Number(searchParams.get("window") || "7")))
-    const cohortsCount = Math.min(12, Math.max(1, Number(searchParams.get("cohorts") || "8")))
-    const cohortSizeDays = Math.min(30, Math.max(1, Number(searchParams.get("cohortSize") || "7")))
+    const windowDays = Math.min(90, Math.max(1, Number(searchParams?.get("window") || "7")))
+    const cohortsCount = Math.min(12, Math.max(1, Number(searchParams?.get("cohorts") || "8")))
+    const cohortSizeDays = Math.min(30, Math.max(1, Number(searchParams?.get("cohortSize") || "7")))
 
     const [cohortRows, valueCohortRows] = await Promise.all([
       prisma.$queryRawUnsafe<{
@@ -533,3 +533,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/analytics/retention", to
     return NextResponse.json({ error: "Failed to compute retention" }, { status: 500 })
   }
 })
+

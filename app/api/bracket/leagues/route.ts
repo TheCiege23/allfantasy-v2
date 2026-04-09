@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 })
   }
 
-  const tournamentId = req.nextUrl.searchParams.get("tournamentId")
+  const tournamentId = req.nextUrl.searchParams?.get("tournamentId")
   if (!tournamentId) {
     return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
   }
@@ -182,3 +182,4 @@ export async function POST(req: Request) {
     maxEntriesPerUser: normalizedMaxEntriesPerUser,
   })
 }
+

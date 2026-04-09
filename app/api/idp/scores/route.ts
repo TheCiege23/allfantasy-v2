@@ -68,10 +68,10 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = req.nextUrl
-  const leagueId = searchParams.get('leagueId')?.trim() ?? ''
+  const leagueId = searchParams?.get('leagueId')?.trim() ?? ''
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
-  const weekRaw = Number(searchParams.get('week') || '1')
+  const weekRaw = Number(searchParams?.get('week') || '1')
   const week = Math.min(18, Math.max(1, Number.isFinite(weekRaw) ? weekRaw : 1))
 
   const allowed = await canAccessLeagueDraft(leagueId, userId)
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   const isIdp = await isIdpLeague(leagueId)
   if (!isIdp) return NextResponse.json({ error: 'Not an IDP league' }, { status: 404 })
 
-  const scope = (searchParams.get('scope') ?? 'explicit').toLowerCase()
+  const scope = (searchParams?.get('scope') ?? 'explicit').toLowerCase()
   let playerIds: string[]
 
   if (scope === 'mine') {
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
       })
     }
   } else {
-    const raw = searchParams.get('playerIds')?.trim() ?? ''
+    const raw = searchParams?.get('playerIds')?.trim() ?? ''
     playerIds = raw
       .split(',')
       .map((s) => s.trim())
@@ -177,3 +177,4 @@ export async function POST(req: NextRequest) {
     entries,
   })
 }
+

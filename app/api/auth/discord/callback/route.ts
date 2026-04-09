@@ -17,9 +17,9 @@ export async function GET(req: NextRequest) {
   }
 
   const searchParams = req.nextUrl.searchParams
-  const code = searchParams.get('code')
-  const state = searchParams.get('state')
-  const err = searchParams.get('error')
+  const code = searchParams?.get('code')
+  const state = searchParams?.get('state')
+  const err = searchParams?.get('error')
 
   const cookieStore = await cookies()
   const stored = cookieStore.get('discord_oauth_state')?.value
@@ -116,3 +116,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(new URL('/settings?discord=connected', SETTINGS_BASE))
 }
+

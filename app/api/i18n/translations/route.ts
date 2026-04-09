@@ -7,7 +7,7 @@ export const runtime = "nodejs"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const lang = resolveLanguage(searchParams.get("lang") ?? DEFAULT_LANG)
+  const lang = resolveLanguage(searchParams?.get("lang") ?? DEFAULT_LANG)
 
   const fallback = translations.en || {}
   const selected = translations[lang] || fallback
@@ -36,3 +36,4 @@ export async function GET(req: Request) {
     },
   })
 }
+

@@ -26,9 +26,9 @@ export default function LeagueBroadcastPage() {
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ''
   const requestedSport =
-    (searchParams.get('sport') ?? '').trim() || undefined
+    (searchParams?.get('sport') ?? '').trim() || undefined
   const requestedWeek = useMemo(() => {
-    const raw = (searchParams.get('week') ?? '').trim()
+    const raw = (searchParams?.get('week') ?? '').trim()
     if (!raw) return undefined
     const parsed = Number(raw)
     return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined

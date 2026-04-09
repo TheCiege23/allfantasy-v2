@@ -31,9 +31,9 @@ export async function POST(req: NextRequest) {
   }
 
   const url = new URL(req.url)
-  const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dryRun') === 'true'
-  const seasonParam = url.searchParams.get('season')
-  const sport = url.searchParams.get('sport') ?? undefined
+  const dryRun = url.searchParams?.get('dryRun') === '1' || url.searchParams?.get('dryRun') === 'true'
+  const seasonParam = url.searchParams?.get('season')
+  const sport = url.searchParams?.get('sport') ?? undefined
   const season =
     seasonParam != null ? parseInt(seasonParam, 10) : undefined
 
@@ -54,3 +54,4 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+

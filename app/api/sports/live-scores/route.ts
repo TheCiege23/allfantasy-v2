@@ -184,8 +184,8 @@ async function syncLiveScoresToDb(scores: LiveScore[]): Promise<number> {
 export const GET = withApiUsage({ endpoint: "/api/sports/live-scores", tool: "SportsLiveScores" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
-    const refresh = searchParams.get('refresh') === 'true';
+    const team = searchParams?.get('team');
+    const refresh = searchParams?.get('refresh') === 'true';
 
     const cachedGames = await prisma.sportsGame.findMany({
       where: {
@@ -267,3 +267,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/live-scores", tool: "Sp
     );
   }
 })
+

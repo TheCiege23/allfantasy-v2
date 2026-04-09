@@ -47,7 +47,7 @@ export async function GET(req: Request) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
+  const leagueId = searchParams?.get('leagueId')
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const z = await prisma.zombieLeague.findUnique({
@@ -73,3 +73,4 @@ export async function GET(req: Request) {
     whisperer: { message: 'Whisperer identity hidden this season.' },
   })
 }
+

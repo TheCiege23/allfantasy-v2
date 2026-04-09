@@ -15,11 +15,11 @@ export async function GET(req: NextRequest) {
     const viewerUserId = session?.user?.id ?? null
     const viewerTier = await resolveUserCareerTier(prisma as any, viewerUserId, 1)
     const { searchParams } = new URL(req.url)
-    const visibility = (searchParams.get('visibility') as 'public' | 'unlisted' | 'all') || 'public'
-    const sport = searchParams.get('sport') || undefined
-    const limit = Math.min(Number(searchParams.get('limit')) || 24, 48)
-    const sort = searchParams.get('sort') as 'members' | 'leagues' | null
-    const cursor = searchParams.get('cursor') || undefined
+    const visibility = (searchParams?.get('visibility') as 'public' | 'unlisted' | 'all') || 'public'
+    const sport = searchParams?.get('sport') || undefined
+    const limit = Math.min(Number(searchParams?.get('limit')) || 24, 48)
+    const sort = searchParams?.get('sort') as 'members' | 'leagues' | null
+    const cursor = searchParams?.get('cursor') || undefined
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000'
     const proto = req.headers.get('x-forwarded-proto') || 'http'
     const baseUrl = `${proto}://${host}`
@@ -46,3 +46,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to list creators' }, { status: 500 })
   }
 }
+

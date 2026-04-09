@@ -32,8 +32,8 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
-  const week = searchParams.get('week')
+  const leagueId = searchParams?.get('leagueId')
+  const week = searchParams?.get('week')
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const z = await prisma.zombieLeague.findUnique({ where: { leagueId } })
@@ -53,3 +53,4 @@ export async function GET(req: Request) {
   })
   return NextResponse.json({ resolutions: all })
 }
+

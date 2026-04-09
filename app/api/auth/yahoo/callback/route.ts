@@ -18,9 +18,9 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
   }
 
   const searchParams = request.nextUrl.searchParams
-  const code = searchParams.get('code')
-  const state = searchParams.get('state')
-  const error = searchParams.get('error')
+  const code = searchParams?.get('code')
+  const state = searchParams?.get('state')
+  const error = searchParams?.get('error')
   
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
     console.error("[Yahoo Callback] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
@@ -28,7 +28,7 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
   }
 
   if (error) {
-    const errorDesc = searchParams.get('error_description') || ''
+    const errorDesc = searchParams?.get('error_description') || ''
     console.error('Yahoo OAuth error:', error, errorDesc)
     return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=${encodeURIComponent(error)}&yahoo_error_desc=${encodeURIComponent(errorDesc)}`)
   }
@@ -131,3 +131,4 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo/callback", tool: "A
     return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=${encodeURIComponent(error.message || 'unknown')}`)
   }
 })
+

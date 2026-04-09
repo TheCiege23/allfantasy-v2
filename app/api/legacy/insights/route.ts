@@ -11,7 +11,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/insights", tool: "Legac
   }
 
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
+  const username = searchParams?.get('username')
 
   if (!username) {
     return NextResponse.json({ error: 'Username required' }, { status: 400 })
@@ -96,3 +96,4 @@ export const PATCH = withApiUsage({ endpoint: "/api/legacy/insights", tool: "Leg
     return NextResponse.json({ error: 'Failed to update insight' }, { status: 500 })
   }
 })
+

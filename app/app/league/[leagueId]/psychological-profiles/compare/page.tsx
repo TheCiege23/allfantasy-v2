@@ -64,9 +64,9 @@ export default function PsychologicalProfileComparePage() {
   const params = useParams<{ leagueId: string }>()
   const search = useSearchParams()
   const leagueId = params?.leagueId ?? ""
-  const managerAFromQuery = search.get("managerAId") ?? ""
-  const managerBFromQuery = search.get("managerBId") ?? ""
-  const sportFromQuery = search.get("sport") ?? "ALL"
+  const managerAFromQuery = search?.get("managerAId") ?? ""
+  const managerBFromQuery = search?.get("managerBId") ?? ""
+  const sportFromQuery = search?.get("sport") ?? "ALL"
   const [sportFilter, setSportFilter] = useState<string>(sportFromQuery)
   const [managerAId, setManagerAId] = useState(managerAFromQuery)
   const [managerBId, setManagerBId] = useState(managerBFromQuery)

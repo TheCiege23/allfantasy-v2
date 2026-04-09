@@ -20,10 +20,10 @@ export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as
     | { user?: { id?: string } }
     | null
-  const code = req.nextUrl.searchParams.get('code') ?? undefined
-  const explicitUserId = req.nextUrl.searchParams.get('userId') ?? undefined
+  const code = req.nextUrl.searchParams?.get('code') ?? undefined
+  const explicitUserId = req.nextUrl.searchParams?.get('userId') ?? undefined
   const userId = explicitUserId || session?.user?.id || undefined
-  const recordView = req.nextUrl.searchParams.get('recordView') !== 'false'
+  const recordView = req.nextUrl.searchParams?.get('recordView') !== 'false'
 
   const preview = await getInvitePreview(code, {
     userId: userId || null,
@@ -47,3 +47,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ ok: true, preview })
 }
+

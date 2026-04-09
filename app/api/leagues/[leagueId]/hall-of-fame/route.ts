@@ -10,7 +10,7 @@ export const GET = withApiUsage({
   try {
     const { leagueId } = ctx.params
     const url = new URL(req.url)
-    const season = url.searchParams.get("season")
+    const season = url.searchParams?.get("season")
 
     if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
 

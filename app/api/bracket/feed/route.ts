@@ -12,11 +12,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const tournamentId = req.nextUrl.searchParams.get("tournamentId")
-  const leagueId = req.nextUrl.searchParams.get("leagueId")
-  const limit = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || 30)))
-  const before = req.nextUrl.searchParams.get("before")
-  const cursor = req.nextUrl.searchParams.get("cursor")
+  const tournamentId = req.nextUrl.searchParams?.get("tournamentId")
+  const leagueId = req.nextUrl.searchParams?.get("leagueId")
+  const limit = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || 30)))
+  const before = req.nextUrl.searchParams?.get("before")
+  const cursor = req.nextUrl.searchParams?.get("cursor")
 
   if (!tournamentId) {
     return NextResponse.json({ error: "tournamentId required" }, { status: 400 })
@@ -70,3 +70,4 @@ export async function GET(req: NextRequest) {
     limit,
   })
 }
+

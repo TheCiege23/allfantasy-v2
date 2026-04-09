@@ -33,7 +33,7 @@ export interface OrphanLeagueCard {
 export async function GET(req: NextRequest) {
   try {
     const baseUrl = getBaseUrl(req)
-    const sport = req.nextUrl.searchParams.get('sport')?.trim() || null
+    const sport = req.nextUrl.searchParams?.get('sport')?.trim() || null
     const { page, limit, skip } = parseOffsetPageParams(req, 24)
 
     const raw = await (prisma as any).league.findMany({
@@ -90,3 +90,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load orphan leagues' }, { status: 500 })
   }
 }
+

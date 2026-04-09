@@ -12,8 +12,8 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const universeId = searchParams.get('universeId')
-  const filterUserId = searchParams.get('userId')
+  const universeId = searchParams?.get('universeId')
+  const filterUserId = searchParams?.get('userId')
   if (!universeId) return NextResponse.json({ error: 'universeId required' }, { status: 400 })
 
   if (filterUserId) {
@@ -56,3 +56,4 @@ export async function POST(req: Request) {
   await executePromotionRelegation(universeId, season)
   return NextResponse.json({ ok: true })
 }
+

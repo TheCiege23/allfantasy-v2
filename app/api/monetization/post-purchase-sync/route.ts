@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const userId = session.user.id
     const url = new URL(req.url)
     const sessionId = normalizeSessionId(
-      url.searchParams.get("session_id") ?? url.searchParams.get("sessionId")
+      url.searchParams?.get("session_id") ?? url.searchParams?.get("sessionId")
     )
 
     const [entitlementResult, tokenBalance, subscriptionHit, tokenLedgerHit] =
@@ -101,3 +101,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

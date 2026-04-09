@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
   try {
-    const limit = Number(req.nextUrl.searchParams.get('limit') || '40')
+    const limit = Number(req.nextUrl.searchParams?.get('limit') || '40')
     const user = await resolvePlatformUser()
 
     if (!user.appUserId) {
@@ -20,3 +20,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ status: 'ok', notifications: [] })
   }
 }
+

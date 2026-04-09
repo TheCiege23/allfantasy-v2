@@ -16,7 +16,7 @@ const cacheFetch = (sport: string) =>
   )
 
 export async function GET(req: NextRequest) {
-  const sport = normalizeRIRouteSport(req.nextUrl.searchParams.get('sport') || 'NFL')
+  const sport = normalizeRIRouteSport(req.nextUrl.searchParams?.get('sport') || 'NFL')
   if (!ALLOWED.has(sport)) {
     return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
   }
@@ -34,3 +34,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ players: [], total: 0, error: message })
   }
 }
+

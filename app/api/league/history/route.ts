@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const leagueId = req.nextUrl.searchParams.get("leagueId")?.trim();
+  const leagueId = req.nextUrl.searchParams?.get("leagueId")?.trim();
   if (!leagueId) {
     return NextResponse.json({ error: "leagueId required" }, { status: 400 });
   }
@@ -49,3 +49,4 @@ export async function GET(req: NextRequest) {
     allTimeStandings,
   });
 }
+

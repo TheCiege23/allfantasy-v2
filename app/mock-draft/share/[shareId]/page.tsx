@@ -1,220 +1,145 @@
-import { prisma } from '@/lib/prisma'
-import { notFound } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
-import { Trophy } from 'lucide-react'
+'use client'
+
+import { useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import type { Metadata } from 'next'
-import { formatInTimezone } from '@/lib/preferences/TimezoneFormattingResolver'
-import { resolveServerRenderPreferences } from '@/lib/preferences/ServerRenderPreferenceResolver'
-import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
-import { buildDraftPlayerDisplayModel } from '@/lib/draft-sports-models/build-display-model'
-import { DraftPlayerCard } from '@/components/app/draft-room/DraftPlayerCard'
+import { Button } from '@/components/ui/button'
+import { Loader2, Users } from 'lucide-react'
 
-const POSITION_COLORS: Record<string, string> = {
-  QB: 'text-red-400 bg-red-500/15 border-red-500/30',
-  RB: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/30',
-  WR: 'text-green-400 bg-green-500/15 border-green-500/30',
-  TE: 'text-purple-400 bg-purple-500/15 border-purple-500/30',
-  K: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
-  DEF: 'text-slate-400 bg-slate-500/15 border-slate-500/30',
-}
+export default function MockDraftJoinPage() {
+  const searchParams = useSearchParams()
+  const token = searchParams?.get('token')
+  const [draft, setDraft] = useState<{
+    id: string
+    status: string
+    settings: { sport: string; numTeams: number; draftType: string }
+    inviteLink: string | null
+  } | null>(null)
+  const [loading, setLoading] = useState(Boolean(token))
+  const [joining, setJoining] = useState(false)
+  const [joined, setJoined] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-interface DraftPick {
-  round: number
-  pick: number
-  overall: number
-  playerName: string
-  position: string
-  team: string
-  manager: string
-  managerAvatar?: string
-  confidence: number
-  isUser: boolean
-  value: number
-  notes: string
-}
+  const fetchDraft = useCallback(async () => {
+    if (!token) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/mock-draft/join?token=${encodeURIComponent(token)}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Invalid invite')
+        setDraft(null)
+        return
+      }
+      setDraft(data.draft)
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
 
-function recordFromUnknown(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as Record<string, unknown>
-}
+  useEffect(() => {
+    fetchDraft()
+  }, [fetchDraft])
 
-function stringFromUnknown(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
-}
-
-function extractDraftPicks(value: unknown): DraftPick[] {
-  if (Array.isArray(value)) return value as DraftPick[]
-
-  const raw = recordFromUnknown(value)
-  if (!raw) return []
-
-  const picks = raw.picks
-  return Array.isArray(picks) ? (picks as DraftPick[]) : []
-}
-
-function extractDraftSport(results: unknown, metadataValue: unknown): string {
-  const metadata = recordFromUnknown(metadataValue)
-  const resultRecord = recordFromUnknown(results)
-  const settings = recordFromUnknown(resultRecord?.settings)
-
-  return (
-    stringFromUnknown(settings?.sport) ??
-    stringFromUnknown(metadata?.sport) ??
-    DEFAULT_SPORT
-  )
-}
-
-export async function generateMetadata({ params }: { params: { shareId: string } }): Promise<Metadata> {
-  const draft = await prisma.mockDraft.findUnique({
-    where: { shareId: params.shareId },
-    include: { league: { select: { name: true } } },
-  })
-  if (!draft) return { title: 'Draft Not Found - AllFantasy' }
-  const picks = extractDraftPicks(draft.results)
-  const userPicks = picks.filter(p => p.isUser)
-  return {
-    title: `${draft.league?.name ?? 'Mock'} Mock Draft - AllFantasy`,
-    description: `${picks.length} picks across ${draft.rounds} rounds. Top picks: ${userPicks.slice(0, 3).map(p => p.playerName).join(', ')}`,
+  const handleJoin = async () => {
+    if (!token) return
+    setJoining(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/mock-draft/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(data.error || 'Could not join')
+        return
+      }
+      setJoined(data.joined)
+      if (data.draft) setDraft(data.draft)
+    } finally {
+      setJoining(false)
+    }
   }
-}
 
-export default async function SharedDraftPage({ params }: { params: { shareId: string } }) {
-  const { timezone, language } = await resolveServerRenderPreferences()
-  const draft = await prisma.mockDraft.findUnique({
-    where: { shareId: params.shareId },
-    include: {
-      league: { select: { name: true, scoring: true, isDynasty: true, leagueSize: true } },
-      user: { select: { displayName: true } },
-    },
-  })
+  if (!token) {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-12 text-center">
+        <p className="text-white/70">No invite token. Use a link shared by the mock draft host.</p>
+        <Link href="/mock-draft" className="mt-4 inline-block text-cyan-400 hover:underline">
+          Go to Mock Drafts
+        </Link>
+      </div>
+    )
+  }
 
-  if (!draft) notFound()
+  if (loading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+      </div>
+    )
+  }
 
-  const picks = extractDraftPicks(draft.results)
-  if (picks.length === 0) notFound()
-  const sport = normalizeToSupportedSport(extractDraftSport(draft.results, draft.metadata))
-  const totalRounds = Math.max(...picks.map(p => p.round), 1)
-  const userPicks = picks.filter(p => p.isUser)
-  const positionCounts = userPicks.reduce((acc, p) => {
-    acc[p.position] = (acc[p.position] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  if (error && !draft) {
+    return (
+      <div className="container mx-auto max-w-md px-4 py-12 text-center">
+        <p className="text-red-400">{error}</p>
+        <Link href="/mock-draft" className="mt-4 inline-block text-cyan-400 hover:underline">
+          Go to Mock Drafts
+        </Link>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-black to-gray-950 text-white">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="text-center mb-10">
-          <p className="text-sm text-cyan-400 font-mono mb-2">SHARED MOCK DRAFT</p>
-          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-            {draft.league?.name ?? 'Mock Draft'}
-          </h1>
-          <p className="text-gray-500 mt-2 text-sm">
-            by {draft.user?.displayName || 'Anonymous'} &middot; {draft.league?.leagueSize ?? 12}-team {draft.league?.isDynasty ? 'Dynasty' : 'Redraft'} &middot; {draft.league?.scoring || 'PPR'} &middot; {formatInTimezone(draft.createdAt, timezone, { dateStyle: 'short' }, language)}
-          </p>
-          <div className="mt-4 flex items-center justify-center gap-2">
+    <div className="container mx-auto max-w-md px-4 py-12">
+      <div className="rounded-2xl border border-white/12 bg-black/25 p-6 text-center">
+        <Users className="mx-auto mb-4 h-12 w-12 text-cyan-400" />
+        <h1 className="mb-2 text-xl font-semibold text-white">
+          {draft?.settings?.sport ?? 'Mock'} Mock Draft
+        </h1>
+        <p className="mb-4 text-sm text-white/60">
+          {draft?.settings?.numTeams ?? 12}-team - {draft?.settings?.draftType ?? 'snake'}
+        </p>
+        {draft?.status !== 'pre_draft' && (
+          <p className="mb-4 text-amber-400">This draft has already started.</p>
+        )}
+        {joined && (
+          <p className="mb-4 text-green-400">You joined successfully.</p>
+        )}
+        {draft?.status === 'pre_draft' && !joined && (
+          <Button
+            onClick={handleJoin}
+            disabled={joining}
+            className="bg-cyan-600 text-white hover:bg-cyan-500"
+          >
+            {joining ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Join mock draft
+          </Button>
+        )}
+        {draft?.id && (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <Link
-              href={`/mock-draft/share/${encodeURIComponent(params.shareId)}/replay`}
-              className="rounded-lg border border-purple-500/40 bg-purple-500/15 px-3 py-1.5 text-xs font-medium text-purple-100 hover:bg-purple-500/25"
-              data-testid="mock-draft-shared-open-replay"
+              href={`/mock-draft?draftId=${draft.id}`}
+              className="inline-block text-sm text-cyan-400 hover:underline"
+            >
+              Open draft room
+            </Link>
+            <span className="text-white/35">·</span>
+            <Link
+              href={`/mock-draft/${encodeURIComponent(draft.id)}/replay`}
+              className="inline-block text-sm text-purple-300 hover:underline"
+              data-testid="mock-draft-join-open-replay"
             >
               Open replay timeline
             </Link>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3 items-center justify-center mb-8">
-          <div className="glass-card rounded-xl px-4 py-2 flex items-center gap-2">
-            <Trophy className="h-4 w-4 text-amber-400" />
-            <span className="text-sm text-gray-400">Picks:</span>
-            <span className="font-bold text-white">{userPicks.length}</span>
-          </div>
-          {Object.entries(positionCounts).sort().map(([pos, count]) => (
-            <Badge key={pos} className={`${POSITION_COLORS[pos] || ''} border px-3 py-1`}>
-              {pos}: {count}
-            </Badge>
-          ))}
-        </div>
-
-        <div className="bg-black/80 border border-cyan-900/50 rounded-3xl p-4 sm:p-8">
-          <div className="space-y-10">
-            {Array.from({ length: totalRounds }).map((_, roundIdx) => {
-              const roundPicks = picks.filter(p => p.round === roundIdx + 1)
-              if (roundPicks.length === 0) return null
-
-              return (
-                <div key={roundIdx}>
-                  <div className="text-cyan-400 text-sm font-mono mb-3 pl-4 flex items-center gap-2">
-                    ROUND {roundIdx + 1}
-                    {roundIdx === 0 && (
-                      <span className="text-xs bg-purple-600/50 px-2 py-1 rounded-full text-purple-200">First Round</span>
-                    )}
-                    <span className="text-xs text-gray-600">({roundPicks.length} picks)</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {roundPicks.map((pick) => (
-                      (() => {
-                        const display = buildDraftPlayerDisplayModel({
-                          playerName: pick.playerName,
-                          position: pick.position,
-                          team: pick.team ?? null,
-                          sport,
-                        })
-                        return (
-                          <div
-                            key={pick.overall}
-                            className={`relative rounded-xl p-3 border transition-all ${
-                              pick.overall === 1
-                                ? 'bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border-amber-500/50 ring-1 ring-amber-400/30'
-                                : pick.isUser
-                                  ? 'bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border-cyan-500/40'
-                                  : 'bg-gray-950/80 border-gray-800/60 hover:border-gray-700'
-                            }`}
-                          >
-                            {pick.overall === 1 && (
-                              <div className="absolute -top-2 -right-2 bg-amber-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg shadow-amber-500/30">
-                                #1 PICK
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-mono text-gray-600">#{pick.overall}</span>
-                              <Badge className={`${POSITION_COLORS[pick.position] || ''} border text-[10px] px-1.5 py-0`}>
-                                {pick.position}
-                              </Badge>
-                            </div>
-                            <DraftPlayerCard
-                              display={display}
-                              name={pick.playerName}
-                              position={pick.position}
-                              team={pick.team ?? null}
-                              variant="row"
-                              testId={`shared-mock-pick-${pick.overall}`}
-                            />
-                            <div className="mt-2 flex items-center gap-1.5 text-xs">
-                              {pick.managerAvatar && (
-                                <div className="w-5 h-5 rounded-full overflow-hidden border border-gray-700 shrink-0">
-                                  <img src={pick.managerAvatar} alt={pick.manager} className="w-full h-full object-cover" />
-                                </div>
-                              )}
-                              <span className={`truncate ${pick.isUser ? 'text-cyan-400 font-semibold' : 'text-gray-600'}`}>
-                                {pick.manager}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })()
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="text-center mt-8 text-sm text-gray-600">
-          Powered by <span className="text-cyan-400 font-semibold">AllFantasy AI</span>
-        </div>
+        )}
       </div>
     </div>
   )
 }
+

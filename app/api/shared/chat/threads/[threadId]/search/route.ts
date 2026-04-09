@@ -88,7 +88,7 @@ export async function GET(
 
     const searchParams = getSearchParams(req)
     const source = searchParams.has("source")
-      ? (searchParams.get("source") || undefined)
+      ? (searchParams?.get("source") || undefined)
       : undefined
 
     const messages = await getLeagueChatMessages(leagueId, {

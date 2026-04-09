@@ -28,11 +28,11 @@ export async function POST(req: NextRequest) {
   }
 
   const url = new URL(req.url)
-  const sportParam = url.searchParams.get('sport')
+  const sportParam = url.searchParams?.get('sport')
   const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-  const season = url.searchParams.get('season') ?? String(new Date().getUTCFullYear())
-  const timeframe = normalizeTimeframe(url.searchParams.get('timeframe'))
-  const weekRaw = url.searchParams.get('week') ?? url.searchParams.get('weekOrPeriod')
+  const season = url.searchParams?.get('season') ?? String(new Date().getUTCFullYear())
+  const timeframe = normalizeTimeframe(url.searchParams?.get('timeframe'))
+  const weekRaw = url.searchParams?.get('week') ?? url.searchParams?.get('weekOrPeriod')
   const parsedWeek = weekRaw ? Number.parseInt(weekRaw, 10) : NaN
   const weekOrPeriod = Number.isFinite(parsedWeek) ? parsedWeek : undefined
 
@@ -57,3 +57,4 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+

@@ -19,9 +19,9 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.res
 
   const url = new URL(request.url)
-  const email = url.searchParams.get("email")?.trim().toLowerCase() || ""
-  const username = url.searchParams.get("username")?.trim() || ""
-  const sleeperUsername = url.searchParams.get("sleeperUsername")?.trim() || username
+  const email = url.searchParams?.get("email")?.trim().toLowerCase() || ""
+  const username = url.searchParams?.get("username")?.trim() || ""
+  const sleeperUsername = url.searchParams?.get("sleeperUsername")?.trim() || username
 
   if (!email && !username && !sleeperUsername) {
     return NextResponse.json(
@@ -164,3 +164,4 @@ export async function GET(request: Request) {
     )
   }
 }
+

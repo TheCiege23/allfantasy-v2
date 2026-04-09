@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
  */
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const username = url.searchParams.get("username")
+  const username = url.searchParams?.get("username")
   if (!username?.trim()) {
     return NextResponse.json({ error: "Missing username" }, { status: 400 })
   }
@@ -21,3 +21,4 @@ export async function GET(req: Request) {
 
   return NextResponse.json(profile)
 }
+

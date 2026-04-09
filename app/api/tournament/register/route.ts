@@ -63,8 +63,8 @@ export async function DELETE(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams.get('tournamentId')?.trim()
-  const participantId = req.nextUrl.searchParams.get('participantId')?.trim()
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
   if (!tournamentId || !participantId) {
     return NextResponse.json({ error: 'tournamentId and participantId required' }, { status: 400 })
   }
@@ -94,3 +94,4 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+

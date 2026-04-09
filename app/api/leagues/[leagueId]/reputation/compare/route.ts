@@ -16,13 +16,13 @@ export async function GET(
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
     const url = new URL(req.url)
-    const managerAId = String(url.searchParams.get('managerAId') ?? '').trim()
-    const managerBId = String(url.searchParams.get('managerBId') ?? '').trim()
+    const managerAId = String(url.searchParams?.get('managerAId') ?? '').trim()
+    const managerBId = String(url.searchParams?.get('managerBId') ?? '').trim()
     if (!managerAId || !managerBId) {
       return NextResponse.json({ error: 'managerAId and managerBId are required' }, { status: 400 })
     }
-    const sport = url.searchParams.get('sport') ?? undefined
-    const seasonRaw = url.searchParams.get('season')
+    const sport = url.searchParams?.get('sport') ?? undefined
+    const seasonRaw = url.searchParams?.get('season')
     const seasonParsed = seasonRaw != null ? parseInt(seasonRaw, 10) : NaN
     const season =
       Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed) ? seasonParsed : undefined

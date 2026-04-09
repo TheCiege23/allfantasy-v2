@@ -15,7 +15,7 @@ function isValidUsername(username: string): boolean {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const base = normalizeUsername(searchParams.get("base") || searchParams.get("username") || "")
+  const base = normalizeUsername(searchParams?.get("base") || searchParams?.get("username") || "")
 
   if (!base || base.length < 2) {
     return NextResponse.json({ ok: true, suggestion: null })
@@ -44,3 +44,4 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ ok: true, suggestion: null })
 }
+

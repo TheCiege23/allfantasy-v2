@@ -12,8 +12,8 @@ export async function GET(
     const userId = await requireDraftRouteUser()
     const { draftId } = await ctx.params
     const { currentUserRosterId } = await requireLiveDraftAccess(draftId, userId)
-    const teamId = String(req.nextUrl.searchParams.get('teamId') ?? currentUserRosterId ?? '').trim()
-    const picksAhead = Math.max(1, Number(req.nextUrl.searchParams.get('picksAhead') ?? 3))
+    const teamId = String(req.nextUrl.searchParams?.get('teamId') ?? currentUserRosterId ?? '').trim()
+    const picksAhead = Math.max(1, Number(req.nextUrl.searchParams?.get('picksAhead') ?? 3))
     if (!teamId) {
       return NextResponse.json({ error: 'teamId is required' }, { status: 400 })
     }

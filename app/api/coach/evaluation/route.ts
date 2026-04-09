@@ -30,11 +30,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const leagueId = req.nextUrl.searchParams.get('leagueId') ?? undefined;
-  const leagueName = req.nextUrl.searchParams.get('leagueName') ?? undefined;
-  const week = req.nextUrl.searchParams.get('week');
-  const teamName = req.nextUrl.searchParams.get('teamName') ?? undefined;
-  const sport = req.nextUrl.searchParams.get('sport') ?? undefined;
+  const leagueId = req.nextUrl.searchParams?.get('leagueId') ?? undefined;
+  const leagueName = req.nextUrl.searchParams?.get('leagueName') ?? undefined;
+  const week = req.nextUrl.searchParams?.get('week');
+  const teamName = req.nextUrl.searchParams?.get('teamName') ?? undefined;
+  const sport = req.nextUrl.searchParams?.get('sport') ?? undefined;
 
   try {
     const result = await getCoachEvaluation({
@@ -53,3 +53,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

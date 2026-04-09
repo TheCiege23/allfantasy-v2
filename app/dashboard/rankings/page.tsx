@@ -1058,9 +1058,9 @@ function MyRankingsPageInner() {
   const [apiImported, setApiImported] = useState(false)
   const [apiTier, setApiTier] = useState<string | null>(null)
   const [levelRank, setLevelRank] = useState<RankLevelApiPayload | null>(null)
-  const justImported = searchParams.get('imported') === 'true'
-  const importDone = searchParams.get('done') === 'true'
-  const jobIdParam = searchParams.get('jobId')
+  const justImported = searchParams?.get('imported') === 'true'
+  const importDone = searchParams?.get('done') === 'true'
+  const jobIdParam = searchParams?.get('jobId')
   const [jobProgress, setJobProgress] = useState<ImportJobProgressResponse | null>(null)
   const [jobProgressError, setJobProgressError] = useState<string | null>(null)
   const [importPhasedSuccess, setImportPhasedSuccess] = useState<{
@@ -1069,7 +1069,7 @@ function MyRankingsPageInner() {
     finalLevel: number | null
   } | null>(null)
   const [importPhasedBannerDismissed, setImportPhasedBannerDismissed] = useState(false)
-  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams.get('jobId')))
+  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams?.get('jobId')))
   const [showLevelUpBurst, setShowLevelUpBurst] = useState(false)
   const [importStuck, setImportStuck] = useState(false)
   const completedJobHandledRef = useRef<string | null>(null)
@@ -1488,3 +1488,4 @@ export default function MyRankingsPage() {
     </Suspense>
   )
 }
+

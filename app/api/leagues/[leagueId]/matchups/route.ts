@@ -37,7 +37,7 @@ export async function GET(
   }
 
   const requestedWeek = (() => {
-    const raw = req.nextUrl.searchParams.get('week')
+    const raw = req.nextUrl.searchParams?.get('week')
     const parsed = raw ? Number(raw) : NaN
     return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null
   })()

@@ -114,7 +114,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/player-enrichment", to
 })
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/player-enrichment", tool: "LegacyPlayerEnrichment" })(async (request: NextRequest) => {
-  const teamAbbrev = request.nextUrl.searchParams.get('team')
+  const teamAbbrev = request.nextUrl.searchParams?.get('team')
 
   if (teamAbbrev) {
     const normalized = normalizeTeamAbbrev(teamAbbrev)
@@ -135,3 +135,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/player-enrichment", too
     teamLogos: allLogos,
   })
 })
+

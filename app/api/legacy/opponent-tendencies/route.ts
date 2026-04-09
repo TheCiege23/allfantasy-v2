@@ -94,8 +94,8 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/opponent-tendencies", t
 
   const url = new URL(req.url)
   const parsed = GetSchema.safeParse({
-    leagueId: url.searchParams.get('leagueId'),
-    rosterId: url.searchParams.get('rosterId'),
+    leagueId: url.searchParams?.get('leagueId'),
+    rosterId: url.searchParams?.get('rosterId'),
   })
   if (!parsed.success) {
     return NextResponse.json(
@@ -127,3 +127,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/opponent-tendencies", t
     )
   }
 })
+

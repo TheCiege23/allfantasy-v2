@@ -6,9 +6,9 @@ export const dynamic = 'force-dynamic';
 
 export const GET = withApiUsage({ endpoint: "/api/admin/ai-issues", tool: "AdminAiIssues" })(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const priority = searchParams.get('priority');
-  const area = searchParams.get('area');
+  const status = searchParams?.get('status');
+  const priority = searchParams?.get('priority');
+  const area = searchParams?.get('area');
 
   const where: any = {};
   if (status && status !== 'all') where.status = status;
@@ -101,3 +101,4 @@ export const POST = withApiUsage({ endpoint: "/api/admin/ai-issues", tool: "Admi
 
   return NextResponse.json({ issue });
 })
+

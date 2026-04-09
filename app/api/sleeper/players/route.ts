@@ -111,7 +111,7 @@ function parseSlimMapFromDb(
 
 /** Slim map of Sleeper players — cached 24h via segment config. Supports `?sport=nfl|nba`. */
 export async function GET(req: NextRequest) {
-  const sport = (req.nextUrl.searchParams.get('sport') || 'nfl').trim().toLowerCase()
+  const sport = (req.nextUrl.searchParams?.get('sport') || 'nfl').trim().toLowerCase()
 
   if (sport !== 'nfl' && sport !== 'nba') {
     return NextResponse.json({})
@@ -143,3 +143,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({})
   }
 }
+

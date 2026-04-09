@@ -271,7 +271,7 @@ export default function LeagueHomeShellPage() {
   }, [loadLeagueData])
 
   useEffect(() => {
-    const tabParam = searchParams.get("tab")
+    const tabParam = searchParams?.get("tab")
     if (isLeagueTab(tabParam)) {
       setActiveTab(tabParam)
     }

@@ -125,7 +125,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const limit = normalizeLimit(new URL(req.url).searchParams.get('limit'))
+  const limit = normalizeLimit(new URL(req.url).searchParams?.get('limit'))
   const rows = await (prisma as any).aiOutput.findMany({
     where: {
       taskType: 'saved_ai_result',
@@ -284,4 +284,5 @@ export async function DELETE(req: Request) {
 
   return NextResponse.json({ ok: true })
 }
+
 

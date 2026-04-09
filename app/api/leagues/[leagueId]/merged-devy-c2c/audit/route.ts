@@ -29,9 +29,9 @@ export async function GET(
   const isC2C = await isC2CLeague(leagueId)
   if (!isC2C) return NextResponse.json({ error: 'Not a C2C league' }, { status: 404 })
 
-  const eventType = req.nextUrl.searchParams.get('eventType') as C2CLifecycleEventType | undefined
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 500)
-  const offset = parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10) || 0
+  const eventType = req.nextUrl.searchParams?.get('eventType') as C2CLifecycleEventType | undefined
+  const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') ?? '100', 10) || 100, 500)
+  const offset = parseInt(req.nextUrl.searchParams?.get('offset') ?? '0', 10) || 0
 
   const events = await getC2CLifecycleEvents({ leagueId, eventType, limit, offset })
   return NextResponse.json({ events })

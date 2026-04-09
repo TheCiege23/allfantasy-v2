@@ -10,7 +10,7 @@ export const GET = withApiUsage({ endpoint: "/api/admin/drift-report", tool: "Ad
   try {
     if (!isAuthorizedRequest(request)) return adminUnauthorized()
 
-    const season = parseInt(request.nextUrl.searchParams.get('season') || '2025')
+    const season = parseInt(request.nextUrl.searchParams?.get('season') || '2025')
 
     const stats = await prisma.tradeLearningStats.findUnique({
       where: { season },
@@ -52,7 +52,7 @@ export const POST = withApiUsage({ endpoint: "/api/admin/drift-report", tool: "A
   try {
     if (!isAuthorizedRequest(request)) return adminUnauthorized()
 
-    const season = parseInt(request.nextUrl.searchParams.get('season') || '2025')
+    const season = parseInt(request.nextUrl.searchParams?.get('season') || '2025')
 
     const report = await runDriftDetection(season)
 
@@ -71,3 +71,4 @@ export const POST = withApiUsage({ endpoint: "/api/admin/drift-report", tool: "A
     return NextResponse.json({ error: 'Failed to run drift detection' }, { status: 500 })
   }
 })
+

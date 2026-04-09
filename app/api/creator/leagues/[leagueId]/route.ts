@@ -1,64 +1,115 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getCreatorLeagueById, updateCreatorLeague } from '@/lib/creator-system'
-import type { UpsertCreatorLeagueInput } from '@/lib/creator-system/types'
-import { prisma } from '@/lib/prisma'
-import { resolveUserCareerTier } from '@/lib/ranking/tier-visibility'
+import { NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { getContentFeed } from "@/lib/content-feed"
+import { isSupportedSport } from "@/lib/sport-scope"
+import type { FeedMode, FeedItemType } from "@/lib/content-feed"
+import { prisma } from "@/lib/prisma"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-function getBaseUrl(req: Request): string {
-  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000'
-  const proto = req.headers.get('x-forwarded-proto') || 'http'
-  return `${proto}://${host}`
-}
+const FEED_TABS: FeedMode[] = ["following", "for_you", "trending"]
+const FEED_ITEM_TYPES: FeedItemType[] = [
+  "creator_post",
+  "ai_story_card",
+  "power_rankings_card",
+  "trend_alert",
+  "blog_preview",
+  "league_recap_card",
+  "bracket_highlight_card",
+  "matchup_card",
+  "player_news",
+  "league_update",
+  "ai_insight",
+  "community_highlight",
+]
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ leagueId: string }> }
-) {
+/**
+ * GET /api/content-feed
+ * Returns personalized platform content feed (creator, AI, blog, trend, recaps, bracket, matchup).
+ * Query: tab (following | for_you | trending), sport, contentType, limit (default 30), refresh, track (event name for analytics).
+ */
+export async function GET(req: NextRequest) {
   try {
-    const { leagueId } = await params
     const session = (await getServerSession(authOptions as any)) as {
-      user?: { id?: string; email?: string | null }
+      user?: { id?: string }
     } | null
-    const viewerUserId = session?.user?.id ?? null
-    const viewerEmail = session?.user?.email ?? null
-    const viewerTier = await resolveUserCareerTier(prisma as any, viewerUserId, 1)
-    const inviteCode = new URL(req.url).searchParams.get('join') || new URL(req.url).searchParams.get('code')
+    const userId = session?.user?.id ?? null
 
-    const league = await getCreatorLeagueById(
-      leagueId,
-      viewerUserId,
-      getBaseUrl(req),
-      viewerEmail,
-      inviteCode,
-      viewerTier
+    const url = new URL(req.url)
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams?.get("limit") || "30", 10)))
+    const tabParam = url.searchParams?.get("tab") ?? "for_you"
+    const tab: FeedMode = FEED_TABS.includes(tabParam as FeedMode) ? (tabParam as FeedMode) : "for_you"
+    const sportParam = url.searchParams?.get("sport") ?? null
+    const sport = sportParam && isSupportedSport(sportParam) ? sportParam : null
+    const contentTypeParam = url.searchParams?.get("contentType") ?? null
+    const contentType = contentTypeParam && FEED_ITEM_TYPES.includes(contentTypeParam as FeedItemType)
+      ? (contentTypeParam as FeedItemType)
+      : null
+    const trackEvent = url.searchParams?.get("track") ?? null
+
+    if (trackEvent === "feed_view" || trackEvent === "feed_refresh") {
+      try {
+        await trackFeedEvent(userId, trackEvent, {
+          tab,
+          sport,
+          contentType,
+          userAgent: req.headers.get("user-agent"),
+          referrer: req.headers.get("referer"),
+        })
+      } catch (_) {
+        /* non-fatal */
+      }
+    }
+
+    const items = await getContentFeed(userId, {
+      tab,
+      sport,
+      contentType,
+      limit,
+    })
+
+    return NextResponse.json(
+      { items, tab, sport: sport ?? undefined, contentType: contentType ?? undefined },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
     )
-    if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
-    return NextResponse.json(league)
-  } catch (error) {
-    console.error('[api/creator/leagues/[leagueId]]', error)
-    return NextResponse.json({ error: 'Failed to load league' }, { status: 500 })
+  } catch (err: any) {
+    console.error("[api/content-feed] Error:", err)
+    return NextResponse.json(
+      { error: err?.message ?? "Failed to load feed" },
+      { status: 500 }
+    )
   }
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ leagueId: string }> }
-) {
-  const session = (await getServerSession(authOptions as any)) as {
-    user?: { id?: string; email?: string | null }
-  } | null
-  const userId = session?.user?.id
-  const viewerEmail = session?.user?.email ?? null
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+async function trackFeedEvent(
+  userId: string | null,
+  event: string,
+  meta: {
+    tab?: string
+    sport?: string | null
+    contentType?: string | null
+    userAgent?: string | null
+    referrer?: string | null
+  }
+): Promise<void> {
+  if (String(process.env.NEXT_PUBLIC_ANALYTICS_ENABLED ?? "").toLowerCase() === "false") return
 
-  const { leagueId } = await params
-  const body = (await req.json().catch(() => ({}))) as Partial<UpsertCreatorLeagueInput>
-  const league = await updateCreatorLeague(leagueId, userId, body, getBaseUrl(req), viewerEmail)
-  if (!league) return NextResponse.json({ error: 'Unable to update creator league' }, { status: 400 })
-
-  return NextResponse.json(league)
+  await prisma.analyticsEvent.create({
+    data: {
+      event: event === "feed_refresh" ? "content_feed_refresh" : "content_feed_view",
+      sessionId: null,
+      path: "/api/content-feed",
+      referrer: meta.referrer?.slice(0, 500) ?? null,
+      userAgent: meta.userAgent?.slice(0, 500) ?? null,
+      toolKey: "content_feed",
+      userId: userId ?? null,
+      meta: {
+        tab: meta.tab ?? null,
+        sport: meta.sport ?? null,
+        contentType: meta.contentType ?? null,
+      },
+    },
+  })
 }
+

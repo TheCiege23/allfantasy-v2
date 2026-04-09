@@ -383,8 +383,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "LegacyTradesCheck" })(async (req: NextRequest) => {
   try {
-    const sleeperUsername = req.nextUrl.searchParams.get('sleeper_username')
-    const unseenOnly = req.nextUrl.searchParams.get('unseen_only') === 'true'
+    const sleeperUsername = req.nextUrl.searchParams?.get('sleeper_username')
+    const unseenOnly = req.nextUrl.searchParams?.get('unseen_only') === 'true'
 
     if (!sleeperUsername) {
       return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
@@ -465,3 +465,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trades/check", tool: "L
     return NextResponse.json({ error: 'Failed to get trades' }, { status: 500 })
   }
 })
+

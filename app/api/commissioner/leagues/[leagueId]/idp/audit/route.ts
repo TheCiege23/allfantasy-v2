@@ -25,8 +25,8 @@ export async function GET(
   if (!isIdp) return NextResponse.json({ error: 'Not an IDP league' }, { status: 404 })
 
   const { searchParams } = new URL(req.url)
-  const limit = Math.min(Number(searchParams.get('limit')) || 50, 100)
-  const sinceParam = searchParams.get('since')
+  const limit = Math.min(Number(searchParams?.get('limit')) || 50, 100)
+  const sinceParam = searchParams?.get('since')
   const since = sinceParam ? new Date(sinceParam) : undefined
 
   const entries = await getIdpSettingsAuditLog(leagueId, { limit, since })

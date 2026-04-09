@@ -28,9 +28,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const status = req.nextUrl.searchParams.get('status')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const status = req.nextUrl.searchParams?.get('status')?.trim()
   if (!leagueId || !seasonId) {
     return NextResponse.json({ error: 'leagueId and seasonId required' }, { status: 400 })
   }

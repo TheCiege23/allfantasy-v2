@@ -86,7 +86,7 @@ export async function GET(
   await runAutomationTicksThrottled(leagueId)
 
   const url = new URL(req.url)
-  const since = url.searchParams.get('since')
+  const since = url.searchParams?.get('since')
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
     select: { updatedAt: true },

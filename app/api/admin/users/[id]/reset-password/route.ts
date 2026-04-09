@@ -1,93 +1,167 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+
+import { requireAdminOrBearer } from "@/lib/adminAuth"
 import { prisma } from "@/lib/prisma"
-import { requireAdmin } from "@/lib/adminAuth"
-import { sha256Hex, makeToken } from "@/lib/tokens"
+import { logAdminAudit } from "@/lib/admin-audit"
 
-export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const gate = await requireAdmin()
+function pickAdminActor(user: { id?: string; email?: string; role?: string } | undefined) {
+  return user?.id || user?.email || user?.role || "admin"
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+export async function GET(request: Request) {
+  const gate = await requireAdminOrBearer(request)
   if (!gate.ok) return gate.res
 
-  const userId = params.id
-  if (!userId) {
-    return NextResponse.json({ error: "Missing user id" }, { status: 400 })
+  const url = new URL(request.url)
+  const email = url.searchParams?.get("email")?.trim().toLowerCase() || ""
+  const username = url.searchParams?.get("username")?.trim() || ""
+  const sleeperUsername = url.searchParams?.get("sleeperUsername")?.trim() || username
+
+  if (!email && !username && !sleeperUsername) {
+    return NextResponse.json(
+      { error: "Provide email, username, or sleeperUsername" },
+      { status: 400 }
+    )
   }
 
   try {
-    const user = await (prisma as any).appUser.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, username: true },
+    const users = await (prisma as any).appUser.findMany({
+      where: {
+        OR: [
+          ...(email ? [{ email: { equals: email, mode: "insensitive" } }] : []),
+          ...(username ? [{ username: { equals: username, mode: "insensitive" } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        displayName: true,
+        emailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      take: 10,
     })
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    const userIds = users.map((user: { id: string }) => user.id)
+    const profiles = userIds.length
+      ? await (prisma as any).userProfile.findMany({
+          where: {
+            OR: [
+              { userId: { in: userIds } },
+              ...(sleeperUsername
+                ? [{ sleeperUsername: { equals: sleeperUsername, mode: "insensitive" } }]
+                : []),
+            ],
+          },
+          select: {
+            userId: true,
+            sleeperUsername: true,
+            emailVerifiedAt: true,
+            phoneVerifiedAt: true,
+            verificationMethod: true,
+            profileComplete: true,
+          },
+        })
+      : await (prisma as any).userProfile.findMany({
+          where: sleeperUsername
+            ? { sleeperUsername: { equals: sleeperUsername, mode: "insensitive" } }
+            : undefined,
+          select: {
+            userId: true,
+            sleeperUsername: true,
+            emailVerifiedAt: true,
+            phoneVerifiedAt: true,
+            verificationMethod: true,
+            profileComplete: true,
+          },
+          take: 10,
+        })
+
+    const profileMap = new Map<string, any>()
+    for (const profile of profiles) {
+      if (profile?.userId) profileMap.set(profile.userId, profile)
     }
 
-    if (!user.email) {
-      return NextResponse.json({ error: "User has no email" }, { status: 400 })
-    }
-
-    const rawToken = makeToken(32)
-    const tokenHash = sha256Hex(rawToken)
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60)
-
-    await (prisma as any).passwordResetToken.deleteMany({
-      where: { userId: user.id },
-    }).catch(() => {})
-
-    await (prisma as any).passwordResetToken.create({
-      data: { userId: user.id, tokenHash, expiresAt },
+    const latestAudit = await prisma.adminAuditLog.findMany({
+      where: {
+        action: {
+          startsWith: "password_reset_request_",
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
     })
 
-    const { getBaseUrl } = await import("@/lib/get-base-url")
-    const baseUrl = getBaseUrl()
-    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`
-
-    const { getResendClient } = await import("@/lib/resend-client")
-    const { client, fromEmail } = await getResendClient()
-
-    await client.emails.send({
-      from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
-      to: user.email,
-      subject: "Reset your AllFantasy.ai password",
-      html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
-    .container { max-width: 520px; margin: 0 auto; background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 16px; padding: 32px; border: 1px solid #334155; }
-    .logo { font-size: 24px; font-weight: 700; background: linear-gradient(90deg, #22d3ee, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .btn { display: inline-block; background: linear-gradient(90deg, #22d3ee, #a855f7); color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 600; margin-top: 20px; }
-    .muted { color:#94a3b8; }
-    .footer { text-align:center; margin-top: 24px; font-size: 12px; color:#64748b; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div style="text-align:center;">
-      <div class="logo">AllFantasy.ai</div>
-      <h2 style="margin:16px 0 8px;color:#f1f5f9;">Reset your password</h2>
-      <p class="muted">An admin has sent you a password reset link. Click the button below to set a new password.</p>
-      <a href="${resetUrl}" class="btn">Reset Password</a>
-      <p class="muted" style="font-size:13px;margin-top:16px;">This link expires in 1 hour.</p>
-    </div>
-    <div class="footer">
-      <p>If you didn't expect this, you can safely ignore this email.</p>
-    </div>
-  </div>
-</body>
-</html>`,
+    const matchingAudit = latestAudit.filter((entry) => {
+      const details = entry.details && typeof entry.details === "object"
+        ? (entry.details as Record<string, unknown>)
+        : null
+      const auditEmail = asString(details?.emailLower) ?? asString(details?.email)
+      const auditUserId = asString(details?.userId)
+      return (
+        (email && auditEmail?.toLowerCase() === email) ||
+        (userIds.length > 0 && auditUserId != null && userIds.includes(auditUserId))
+      )
     })
 
-    return NextResponse.json({ ok: true, message: `Reset link sent to ${user.email}` })
-  } catch (err: any) {
-    console.error("[admin/users/reset-password] Error:", err)
-    return NextResponse.json({ error: err.message || "Failed to send reset link" }, { status: 500 })
+    await logAdminAudit({
+      adminUserId: pickAdminActor(gate.user),
+      action: "admin_user_lookup",
+      targetType: "app_user_lookup",
+      targetId: email || username || sleeperUsername || undefined,
+      details: {
+        email: email || null,
+        username: username || null,
+        sleeperUsername: sleeperUsername || null,
+        resultCount: users.length,
+        auditMatches: matchingAudit.length,
+      },
+    })
+
+    return NextResponse.json({
+      ok: true,
+      users: users.map((user: any) => {
+        const profile = profileMap.get(user.id)
+        return {
+          ...user,
+          sleeperUsername: profile?.sleeperUsername ?? null,
+          phoneVerified: Boolean(profile?.phoneVerifiedAt),
+          verificationMethod: profile?.verificationMethod ?? null,
+          profileComplete: Boolean(profile?.profileComplete),
+        }
+      }),
+      profilesWithoutUser: profiles
+        .filter((profile: any) => !userIds.includes(profile.userId))
+        .map((profile: any) => ({
+          userId: profile.userId,
+          sleeperUsername: profile.sleeperUsername ?? null,
+          phoneVerified: Boolean(profile.phoneVerifiedAt),
+          verificationMethod: profile.verificationMethod ?? null,
+          profileComplete: Boolean(profile.profileComplete),
+        })),
+      passwordResetAudit: matchingAudit.map((entry) => ({
+        id: entry.id,
+        action: entry.action,
+        targetType: entry.targetType,
+        targetId: entry.targetId,
+        details: entry.details,
+        createdAt: entry.createdAt,
+      })),
+    })
+  } catch (error) {
+    console.error("[admin/users/lookup] GET error:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Lookup failed" },
+      { status: 500 }
+    )
   }
 }
+

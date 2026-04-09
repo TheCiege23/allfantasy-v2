@@ -19,10 +19,10 @@ function toSport(s: string): (typeof SPORTS)[number] {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = toSport(searchParams.get('sport') ?? 'NFL')
-    const variant = searchParams.get('variant') ?? searchParams.get('leagueVariant') ?? null
-    const superflex = searchParams.get('superflex') === 'true'
-    const dynasty = searchParams.get('dynasty') === 'true'
+    const sport = toSport(searchParams?.get('sport') ?? 'NFL')
+    const variant = searchParams?.get('variant') ?? searchParams?.get('leagueVariant') ?? null
+    const superflex = searchParams?.get('superflex') === 'true'
+    const dynasty = searchParams?.get('dynasty') === 'true'
 
     const overrides = {
       superflex,
@@ -43,3 +43,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to build settings preview' }, { status: 500 })
   }
 }
+

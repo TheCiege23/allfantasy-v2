@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
   }
 
-  const q = req.nextUrl.searchParams.get('q')?.toLowerCase().trim()
+  const q = req.nextUrl.searchParams?.get('q')?.toLowerCase().trim()
   if (!q || q.length < 2) return NextResponse.json([])
 
   try {
@@ -65,3 +65,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([])
   }
 }
+

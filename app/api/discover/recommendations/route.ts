@@ -35,9 +35,9 @@ export async function GET(req: NextRequest) {
       .map((v) => v.trim().toLowerCase())
       .filter(Boolean)
     const viewerIsAdmin = !!session?.user?.email && adminAllow.includes(session.user.email.toLowerCase())
-    const sport = req.nextUrl.searchParams.get("sport") ?? null
-    const limit = Math.min(24, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") ?? "6", 10)))
-    const aiExplain = req.nextUrl.searchParams.get("aiExplain") === "1"
+    const sport = req.nextUrl.searchParams?.get("sport") ?? null
+    const limit = Math.min(24, Math.max(1, parseInt(req.nextUrl.searchParams?.get("limit") ?? "6", 10)))
+    const aiExplain = req.nextUrl.searchParams?.get("aiExplain") === "1"
     const baseUrl = getBaseUrl(req)
 
     if (userId) {
@@ -93,3 +93,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load recommendations" }, { status: 500 })
   }
 }
+

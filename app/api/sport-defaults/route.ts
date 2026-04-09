@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
   const startedAtMs = Date.now()
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport') ?? 'NFL'
-    const variantParam = searchParams.get('variant') ?? searchParams.get('leagueVariant') ?? null
-    const load = searchParams.get('load') ?? ''
+    const sportParam = searchParams?.get('sport') ?? 'NFL'
+    const variantParam = searchParams?.get('variant') ?? searchParams?.get('leagueVariant') ?? null
+    const load = searchParams?.get('load') ?? ''
 
     const sport = normalizeToSupportedSport(sportParam)
 
@@ -73,3 +73,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load sport defaults' }, { status: 500 })
   }
 }
+

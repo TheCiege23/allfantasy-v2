@@ -89,10 +89,10 @@ export async function GET(
       const sport = (league?.sport as LeagueSport) ?? DEFAULT_SPORT
       const isIdp = await isIdpLeague(leagueId)
       const limit = Math.min(
-        parseInt(req.nextUrl.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
+        parseInt(req.nextUrl.searchParams?.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
         500
       )
-      let poolType = req.nextUrl.searchParams.get('poolType') as PoolType | null
+      let poolType = req.nextUrl.searchParams?.get('poolType') as PoolType | null
       const isDevyDynasty = await isDevyLeague(leagueId)
       const isC2C = await isC2CLeague(leagueId)
       const rawDevyConfig = draftSession?.devyConfig as { enabled?: boolean; devyRounds?: number[] } | null

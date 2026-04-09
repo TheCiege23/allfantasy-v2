@@ -40,7 +40,7 @@ function requireCron(req: Request): boolean {
 
 export async function POST(req: Request) {
   const url = new URL(req.url)
-  const seasonParam = url.searchParams.get("season")
+  const seasonParam = url.searchParams?.get("season")
   let season: number
 
   if (seasonParam) {
@@ -101,3 +101,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

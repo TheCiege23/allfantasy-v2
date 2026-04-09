@@ -24,13 +24,13 @@ export async function GET(
   }
 
   const url = new URL(req.url)
-  const seasonRaw = url.searchParams.get('season')
+  const seasonRaw = url.searchParams?.get('season')
   const parsedSeason = Number.parseInt(String(seasonRaw ?? ''), 10)
   const season = Number.isFinite(parsedSeason) ? parsedSeason : null
 
   const insights = await getAICommissionerInsights({
     leagueId,
-    sport: url.searchParams.get('sport'),
+    sport: url.searchParams?.get('sport'),
     season,
   })
   return NextResponse.json(insights)

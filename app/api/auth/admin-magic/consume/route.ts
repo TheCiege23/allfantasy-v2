@@ -21,7 +21,7 @@ function sanitizeNext(next?: string) {
 
 export const GET = withApiUsage({ endpoint: "/api/auth/admin-magic/consume", tool: "AuthAdminMagicConsume" })(async (req: Request) => {
   const url = new URL(req.url);
-  const token = url.searchParams.get("token") || "";
+  const token = url.searchParams?.get("token") || "";
   const payload = verifyAdminMagicToken(token);
 
   if (!payload?.email || !isAdminAllowed(payload.email)) {
@@ -49,3 +49,4 @@ export const GET = withApiUsage({ endpoint: "/api/auth/admin-magic/consume", too
 
   return res;
 })
+

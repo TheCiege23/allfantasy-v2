@@ -13,8 +13,8 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const category = url.searchParams.get("category")?.trim() || null
-    const includeInactive = url.searchParams.get("includeInactive") === "true"
+    const category = url.searchParams?.get("category")?.trim() || null
+    const includeInactive = url.searchParams?.get("includeInactive") === "true"
 
     const service = new TokenSpendService()
     const rules = await service.getSpendRules({
@@ -32,3 +32,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load spend rules" }, { status: 500 })
   }
 }
+

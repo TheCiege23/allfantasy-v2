@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const seasonParam = req.nextUrl.searchParams.get('season')
-  const draftType = (req.nextUrl.searchParams.get('draftType')?.trim() ?? 'combined') as
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const seasonParam = req.nextUrl.searchParams?.get('season')
+  const draftType = (req.nextUrl.searchParams?.get('draftType')?.trim() ?? 'combined') as
     | 'rookie'
     | 'devy'
     | 'combined'
@@ -52,3 +52,4 @@ export async function POST(req: NextRequest) {
   const pool = await buildAnnualDraftPool(leagueId, season, draftType)
   return NextResponse.json({ ok: true, initialized: true, pool })
 }
+

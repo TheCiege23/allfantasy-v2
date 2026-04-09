@@ -40,12 +40,12 @@ export async function GET(
   const url = new URL(req.url)
   const overview = await getAICommissionerOverview({
     leagueId,
-    sport: url.searchParams.get('sport'),
-    includeResolved: parseBoolean(url.searchParams.get('includeResolved'), false),
-    includeDismissed: parseBoolean(url.searchParams.get('includeDismissed'), false),
-    includeSnoozed: parseBoolean(url.searchParams.get('includeSnoozed'), true),
-    alertLimit: parseIntSafe(url.searchParams.get('alertLimit'), 80),
-    actionLimit: parseIntSafe(url.searchParams.get('actionLimit'), 30),
+    sport: url.searchParams?.get('sport'),
+    includeResolved: parseBoolean(url.searchParams?.get('includeResolved'), false),
+    includeDismissed: parseBoolean(url.searchParams?.get('includeDismissed'), false),
+    includeSnoozed: parseBoolean(url.searchParams?.get('includeSnoozed'), true),
+    alertLimit: parseIntSafe(url.searchParams?.get('alertLimit'), 80),
+    actionLimit: parseIntSafe(url.searchParams?.get('actionLimit'), 30),
   })
 
   return NextResponse.json(overview)

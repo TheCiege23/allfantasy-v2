@@ -4,8 +4,8 @@ export const dynamic = 'force-dynamic'
 
 /** Proxies Sleeper public trending endpoint (no auth). */
 export async function GET(req: NextRequest) {
-  const type = req.nextUrl.searchParams.get('type')?.trim() || 'add'
-  const sport = req.nextUrl.searchParams.get('sport')?.trim().toLowerCase() || 'nfl'
+  const type = req.nextUrl.searchParams?.get('type')?.trim() || 'add'
+  const sport = req.nextUrl.searchParams?.get('sport')?.trim().toLowerCase() || 'nfl'
   if (type !== 'add' && type !== 'drop') {
     return NextResponse.json({ error: 'type must be add or drop' }, { status: 400 })
   }
@@ -22,3 +22,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Trending fetch failed' }, { status: 502 })
   }
 }
+

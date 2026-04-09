@@ -60,8 +60,8 @@ export default function NewBracketLeaguePage() {
   const router = useRouter()
 
   useEffect(() => {
-    const requestedSport = searchParams.get("sport")
-    const requestedType = searchParams.get("challengeType")
+    const requestedSport = searchParams?.get("sport")
+    const requestedType = searchParams?.get("challengeType")
 
     if (requestedSport) {
       const normalized = normalizeToSupportedSport(requestedSport)
@@ -439,3 +439,4 @@ export default function NewBracketLeaguePage() {
     </div>
   )
 }
+

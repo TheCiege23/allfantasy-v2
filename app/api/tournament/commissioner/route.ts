@@ -139,8 +139,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams.get('tournamentId')?.trim()
-  const type = req.nextUrl.searchParams.get('type')
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  const type = req.nextUrl.searchParams?.get('type')
   if (!tournamentId || type !== 'audit') {
     return NextResponse.json({ error: 'tournamentId and type=audit required' }, { status: 400 })
   }
@@ -158,3 +158,4 @@ export async function GET(req: NextRequest) {
   })
   return NextResponse.json({ logs })
 }
+

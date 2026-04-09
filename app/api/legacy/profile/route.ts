@@ -18,7 +18,7 @@ function round2(n: number): number {
 }
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/profile", tool: "LegacyProfile" })(async (request: NextRequest) => {
-  const raw = request.nextUrl.searchParams.get('sleeper_username')?.trim()
+  const raw = request.nextUrl.searchParams?.get('sleeper_username')?.trim()
   if (!raw) return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
 
   const uname = raw.toLowerCase()
@@ -495,3 +495,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/profile", tool: "Legacy
       : null,
   })
 })
+

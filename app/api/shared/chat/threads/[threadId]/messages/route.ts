@@ -123,7 +123,7 @@ export async function GET(
   const limit = query.limit ?? 50
   const beforeDate = parseCursor(query.before ?? null)
   const source = normalizeLeagueChatSource(
-    req.nextUrl.searchParams.has('source') ? req.nextUrl.searchParams.get('source') : undefined
+    req.nextUrl.searchParams.has('source') ? req.nextUrl.searchParams?.get('source') : undefined
   )
   const blockedIds = await getBlockedUserIds(user.appUserId)
   const blockSet = blockedIds.length > 0 ? new Set(blockedIds) : new Set<string>()

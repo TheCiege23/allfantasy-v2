@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const sessionId = req.nextUrl.searchParams.get('sessionId')?.trim()
+  const sessionId = req.nextUrl.searchParams?.get('sessionId')?.trim()
   if (!sessionId) {
     return NextResponse.json({ error: 'sessionId required' }, { status: 400 })
   }
@@ -39,3 +39,4 @@ export async function GET(req: NextRequest) {
     playerIds: (row?.playerIds as string[]) ?? [],
   })
 }
+

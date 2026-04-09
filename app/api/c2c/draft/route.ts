@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const draftType = req.nextUrl.searchParams.get('draftType')?.trim() ?? 'startup'
-  const season = Number(req.nextUrl.searchParams.get('season') ?? new Date().getFullYear())
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const draftType = req.nextUrl.searchParams?.get('draftType')?.trim() ?? 'startup'
+  const season = Number(req.nextUrl.searchParams?.get('season') ?? new Date().getFullYear())
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, userId)
@@ -40,3 +40,4 @@ export async function POST(req: NextRequest) {
   const room = await buildC2CDraftRoom(leagueId, format, season)
   return NextResponse.json({ initialized: true, draft: room })
 }
+

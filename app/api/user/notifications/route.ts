@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = req.nextUrl
-    const unreadOnly = searchParams.get("unread") === "true"
-    const limitRaw = Number(searchParams.get("limit") ?? 20)
+    const unreadOnly = searchParams?.get("unread") === "true"
+    const limitRaw = Number(searchParams?.get("limit") ?? 20)
     const limit = Math.min(50, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : 20))
 
     const userId = session.user.id
@@ -166,3 +166,4 @@ export async function PUT(req: Request) {
 
   return NextResponse.json({ ok: true, dashboardToggles: nextToggles })
 }
+

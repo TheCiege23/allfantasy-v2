@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Queue not available" }, { status: 503 });
     }
 
-    const jobId = req.nextUrl.searchParams.get("jobId");
+    const jobId = req.nextUrl.searchParams?.get("jobId");
     if (!jobId) {
       return NextResponse.json({ error: "jobId is required" }, { status: 400 });
     }
@@ -126,3 +126,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

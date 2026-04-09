@@ -37,7 +37,7 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations', tool: 'Pla
     try {
       const { searchParams } = new URL(request.url)
 
-      const sportRaw = (searchParams.get('sport') ?? '').toLowerCase().trim()
+      const sportRaw = (searchParams?.get('sport') ?? '').toLowerCase().trim()
       const sport = toApiChainSport(sportRaw)
 
       // toApiChainSport has a fallback to 'nfl' for unknown sports; validate the raw
@@ -51,13 +51,13 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations', tool: 'Pla
         )
       }
 
-      const position = searchParams.get('position') ?? undefined
-      const limit = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') ?? '50')))
-      const sortByRaw = searchParams.get('sortBy') ?? 'value'
+      const position = searchParams?.get('position') ?? undefined
+      const limit = Math.min(500, Math.max(1, parseInt(searchParams?.get('limit') ?? '50')))
+      const sortByRaw = searchParams?.get('sortBy') ?? 'value'
       const sortBy = sortByRaw === 'adp' ? 'adp' : 'value'
-      const tierFilter = searchParams.get('tier')?.toUpperCase()
-      const action = searchParams.get('action') ?? 'values'
-      const compactToggle = ['1', 'true', 'yes'].includes((searchParams.get('compact') ?? '').toLowerCase())
+      const tierFilter = searchParams?.get('tier')?.toUpperCase()
+      const action = searchParams?.get('action') ?? 'values'
+      const compactToggle = ['1', 'true', 'yes'].includes((searchParams?.get('compact') ?? '').toLowerCase())
 
       const cached = await readPlayerValuationsFromDb(sport, {
         allowStale: true,
@@ -161,3 +161,4 @@ export const GET = withApiUsage({ endpoint: '/api/player-valuations', tool: 'Pla
     }
   }
 )
+

@@ -32,7 +32,7 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport') ?? undefined
+    const sportRaw = url.searchParams?.get('sport') ?? undefined
     const sport =
       sportRaw == null || sportRaw.trim().length === 0
         ? undefined
@@ -46,7 +46,7 @@ export async function GET(
       return NextResponse.json({ error: 'Sport does not match league sport' }, { status: 400 })
     }
 
-    const weekParam = url.searchParams.get('week')
+    const weekParam = url.searchParams?.get('week')
     const week =
       weekParam == null || weekParam.trim().length === 0
         ? undefined

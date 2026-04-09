@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
 
   const sessionUserId = sessionUser.id
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
-  const requestedUserId = searchParams.get('userId')
+  const leagueId = searchParams?.get('leagueId')
+  const requestedUserId = searchParams?.get('userId')
 
   if (!leagueId) {
     return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
@@ -296,3 +296,4 @@ export async function GET(req: NextRequest) {
     rosterPositions,
   })
 }
+

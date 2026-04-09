@@ -41,7 +41,7 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport') ?? undefined
+    const sportRaw = url.searchParams?.get('sport') ?? undefined
     const sport =
       sportRaw == null
         ? undefined
@@ -55,14 +55,14 @@ export async function GET(
       return NextResponse.json({ error: 'Sport must match league sport' }, { status: 400 })
     }
 
-    const tagsParam = url.searchParams.get('tags')
+    const tagsParam = url.searchParams?.get('tags')
     const tags = tagsParam ? tagsParam.split(',').map((t) => t.trim()).filter(Boolean) : undefined
     const invalidTag = tags?.find((tag) => !VALID_TYPES.includes(tag as ArticleGenerationType))
     if (invalidTag) {
       return NextResponse.json({ error: `Invalid tag: ${invalidTag}` }, { status: 400 })
     }
-    const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '20', 10) || 20, 50)
-    const cursor = url.searchParams.get('cursor') ?? undefined
+    const limit = Math.min(parseInt(url.searchParams?.get('limit') ?? '20', 10) || 20, 50)
+    const cursor = url.searchParams?.get('cursor') ?? undefined
 
     const result = await listArticles({
       leagueId,

@@ -9,8 +9,8 @@ export const GET = withApiUsage({
 })(async (req: Request, ctx: { params: { leagueId: string } }) => {
   const { leagueId } = ctx.params
   const url = new URL(req.url)
-  const rosterId = String(url.searchParams.get("rosterId") ?? "")
-  const limit = Number(url.searchParams.get("limit") ?? 12)
+  const rosterId = String(url.searchParams?.get("rosterId") ?? "")
+  const limit = Number(url.searchParams?.get("limit") ?? 12)
 
   if (!leagueId || !rosterId) {
     return NextResponse.json({ error: "Missing leagueId or rosterId" }, { status: 400 })

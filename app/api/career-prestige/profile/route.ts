@@ -18,12 +18,12 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const managerId = url.searchParams.get("managerId")
+    const managerId = url.searchParams?.get("managerId")
     if (!managerId) return NextResponse.json({ error: "Missing managerId" }, { status: 400 })
     if (managerId !== session.user.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-    const leagueId = url.searchParams.get("leagueId") ?? undefined
+    const leagueId = url.searchParams?.get("leagueId") ?? undefined
     if (leagueId) {
       try {
         await assertLeagueMember(leagueId, session.user.id)
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 })
       }
     }
-    const sportRaw = url.searchParams.get("sport")
+    const sportRaw = url.searchParams?.get("sport")
     const sport =
       sportRaw == null
         ? undefined
@@ -52,3 +52,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

@@ -40,8 +40,8 @@ export default function PsychologicalProfileDetailPage() {
   const search = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const profileId = params?.profileId ?? ""
-  const tabParam = search.get("tab") ?? ""
-  const defaultSeason = search.get("season") ?? ""
+  const tabParam = search?.get("tab") ?? ""
+  const defaultSeason = search?.get("season") ?? ""
   const [seasonFilter, setSeasonFilter] = useState(defaultSeason)
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [evidence, setEvidence] = useState<EvidenceRow[]>([])

@@ -19,8 +19,8 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const tier = url.searchParams.get('tier') ?? undefined
-    const rawSport = url.searchParams.get('sport')
+    const tier = url.searchParams?.get('tier') ?? undefined
+    const rawSport = url.searchParams?.get('sport')
     const sport =
       rawSport == null
         ? undefined
@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     if (sport === null) {
       return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
     }
-    const limitParam = url.searchParams.get('limit')
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 50
 
     const list = await getLeaderboard({ tier, sport, limit })
@@ -43,3 +43,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

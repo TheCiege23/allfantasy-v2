@@ -6,8 +6,8 @@ import { getCompositeWeightConfig } from '@/lib/rankings-engine/composite-weight
 
 export const GET = withApiUsage({ endpoint: "/api/rankings/league-v2", tool: "RankingsLeagueV2" })(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
-  const leagueId = searchParams.get('leagueId')
-  const weekParam = searchParams.get('week')
+  const leagueId = searchParams?.get('leagueId')
+  const weekParam = searchParams?.get('week')
 
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
@@ -213,3 +213,4 @@ Format your response as JSON with this exact structure:
     )
   }
 })
+

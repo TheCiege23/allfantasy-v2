@@ -57,7 +57,7 @@ export async function GET(
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 500 })
 
-  const weekParam = typeof _req.url === 'string' ? new URL(_req.url).searchParams.get('week') : null
+  const weekParam = typeof _req.url === 'string' ? new URL(_req.url).searchParams?.get('week') : null
   const week = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : 1
   const universeId = league?.zombieLeague?.universeId ?? null
   const board = await getWeeklyBoardData(leagueId, week, universeId)

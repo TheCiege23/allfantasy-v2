@@ -28,7 +28,7 @@ export async function GET(
   const isBB = await isBigBrotherLeague(leagueId)
   if (!isBB) return NextResponse.json({ error: 'Not a Big Brother league' }, { status: 404 })
 
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50', 10) || 50, 100)
+  const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') ?? '50', 10) || 50, 100)
   const rows = await getBigBrotherAuditLog(leagueId, { limit })
 
   const log = rows.map((r) => ({

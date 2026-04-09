@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || '50'), 100)
+  const limit = Math.min(Number(req.nextUrl.searchParams?.get('limit') || '50'), 100)
   const messages = await getLeagueChatMessages(leagueId, { limit, requestingUserId: userId })
 
   return NextResponse.json({
@@ -383,3 +383,4 @@ export async function POST(req: NextRequest) {
     ...(extraMessages.length > 0 ? { extraMessages } : {}),
   })
 }
+

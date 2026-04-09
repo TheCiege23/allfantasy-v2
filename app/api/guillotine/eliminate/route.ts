@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const sp = Number(req.nextUrl.searchParams.get('scoringPeriod'))
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const sp = Number(req.nextUrl.searchParams?.get('scoringPeriod'))
   if (seasonId && Number.isFinite(sp)) {
     const out = await runEliminationCheck(seasonId, sp, { skipIfAlreadyProcessed: true })
     return NextResponse.json({ ok: true, seasonId, scoringPeriod: sp, ...out })
@@ -96,3 +96,4 @@ export async function POST(req: NextRequest) {
   })
   return NextResponse.json(out)
 }
+

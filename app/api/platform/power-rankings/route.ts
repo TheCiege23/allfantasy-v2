@@ -11,13 +11,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport')?.trim()
+    const sportRaw = url.searchParams?.get('sport')?.trim()
     const sport = sportRaw && sportRaw.length > 0 ? sportRaw : undefined
     if (sport && !isSupportedSport(sport)) {
       return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
     }
-    const limitRaw = Number.parseInt(url.searchParams.get('limit') ?? '', 10)
-    const offsetRaw = Number.parseInt(url.searchParams.get('offset') ?? '', 10)
+    const limitRaw = Number.parseInt(url.searchParams?.get('limit') ?? '', 10)
+    const offsetRaw = Number.parseInt(url.searchParams?.get('offset') ?? '', 10)
 
     const result = await getPlatformPowerLeaderboard({
       sport: sport || null,
@@ -34,3 +34,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

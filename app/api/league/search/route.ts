@@ -11,13 +11,13 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams
-    const query = sp.get("q") ?? null
-    const leagueName = sp.get("leagueName") ?? null
-    const commissioner = sp.get("commissioner") ?? null
-    const sport = sp.get("sport") ?? null
-    const leagueType = sp.get("leagueType") ?? null
-    const limit = sp.get("limit")
-    const offset = sp.get("offset")
+    const query = sp?.get("q") ?? null
+    const leagueName = sp?.get("leagueName") ?? null
+    const commissioner = sp?.get("commissioner") ?? null
+    const sport = sp?.get("sport") ?? null
+    const leagueType = sp?.get("leagueType") ?? null
+    const limit = sp?.get("limit")
+    const offset = sp?.get("offset")
 
     const result = await searchLeagues({
       query: query || undefined,
@@ -40,3 +40,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

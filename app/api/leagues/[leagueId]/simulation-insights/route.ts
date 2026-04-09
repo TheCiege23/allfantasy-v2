@@ -38,11 +38,11 @@ export async function GET(
       return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
     }
 
-    const seasonRaw = req.nextUrl.searchParams.get('season')
-    const weekRaw = req.nextUrl.searchParams.get('week')
-    const teamId = req.nextUrl.searchParams.get('teamId') ?? undefined
-    const sport = req.nextUrl.searchParams.get('sport') ?? undefined
-    const insightTypeRaw = req.nextUrl.searchParams.get('insightType') ?? undefined
+    const seasonRaw = req.nextUrl.searchParams?.get('season')
+    const weekRaw = req.nextUrl.searchParams?.get('week')
+    const teamId = req.nextUrl.searchParams?.get('teamId') ?? undefined
+    const sport = req.nextUrl.searchParams?.get('sport') ?? undefined
+    const insightTypeRaw = req.nextUrl.searchParams?.get('insightType') ?? undefined
 
     const season = seasonRaw != null ? Number.parseInt(seasonRaw, 10) : undefined
     const week = weekRaw != null ? Number.parseInt(weekRaw, 10) : undefined

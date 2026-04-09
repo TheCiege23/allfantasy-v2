@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const week = Number(req.nextUrl.searchParams.get('week'))
+  const week = Number(req.nextUrl.searchParams?.get('week'))
   const w = Number.isFinite(week) ? week : 1
   const out = await runBestBallOptimizerCronSweep(w)
   return NextResponse.json(out)
@@ -39,3 +39,4 @@ export async function POST(req: NextRequest) {
   })
   return NextResponse.json(out)
 }
+

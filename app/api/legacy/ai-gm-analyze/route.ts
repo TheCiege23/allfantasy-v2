@@ -18,8 +18,8 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/ai-gm-analyze", tool: "
   }
 
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
-  const leagueId = searchParams.get('leagueId')
+  const username = searchParams?.get('username')
+  const leagueId = searchParams?.get('leagueId')
 
   if (!username) {
     return NextResponse.json({ error: 'Username required' }, { status: 400 })
@@ -184,3 +184,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/ai-gm-analyze", tool: 
     }, { status: 500 })
   }
 })
+

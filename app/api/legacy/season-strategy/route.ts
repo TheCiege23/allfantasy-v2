@@ -85,8 +85,8 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/season-strategy", tool:
 
   const url = new URL(req.url)
   const parsed = GetSchema.safeParse({
-    league_id: url.searchParams.get('league_id'),
-    roster_id: url.searchParams.get('roster_id'),
+    league_id: url.searchParams?.get('league_id'),
+    roster_id: url.searchParams?.get('roster_id'),
   })
   if (!parsed.success) {
     return NextResponse.json(
@@ -115,3 +115,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/season-strategy", tool:
     return NextResponse.json({ error: 'Failed to retrieve strategy history' }, { status: 500 })
   }
 })
+

@@ -289,7 +289,7 @@ export async function GET(request: Request) {
 
   try {
     const url = new URL(request.url)
-    const forceRecalculate = url.searchParams.get('recalculate') === 'true'
+    const forceRecalculate = url.searchParams?.get('recalculate') === 'true'
 
     let rankCalculatedAtProbe: Date | null = null
     let rankCalculatedProbeOk = false
@@ -762,3 +762,4 @@ export async function GET(request: Request) {
     return tierNullResponse()
   }
 }
+

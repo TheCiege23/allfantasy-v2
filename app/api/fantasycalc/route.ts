@@ -13,15 +13,15 @@ export const GET = withApiUsage({ endpoint: "/api/fantasycalc", tool: "Fantasyca
   try {
     const { searchParams } = new URL(request.url);
     
-    const isDynasty = searchParams.get('isDynasty') !== 'false';
-    const numQbs = searchParams.get('numQbs') === '2' ? 2 : 1;
-    const numTeams = parseInt(searchParams.get('numTeams') || '12');
-    const ppr = parseFloat(searchParams.get('ppr') || '1') as 0 | 0.5 | 1;
+    const isDynasty = searchParams?.get('isDynasty') !== 'false';
+    const numQbs = searchParams?.get('numQbs') === '2' ? 2 : 1;
+    const numTeams = parseInt(searchParams?.get('numTeams') || '12');
+    const ppr = parseFloat(searchParams?.get('ppr') || '1') as 0 | 0.5 | 1;
     
-    const action = searchParams.get('action') || 'values';
-    const playerName = searchParams.get('player');
-    const position = searchParams.get('position');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const action = searchParams?.get('action') || 'values';
+    const playerName = searchParams?.get('player');
+    const position = searchParams?.get('position');
+    const limit = parseInt(searchParams?.get('limit') || '50');
     
     const settings: FantasyCalcSettings = { isDynasty, numQbs, numTeams, ppr };
     
@@ -85,7 +85,7 @@ export const GET = withApiUsage({ endpoint: "/api/fantasycalc", tool: "Fantasyca
     }
     
     if (action === 'trending') {
-      const direction = searchParams.get('direction') === 'down' ? 'down' : 'up';
+      const direction = searchParams?.get('direction') === 'down' ? 'down' : 'up';
       const trending = getTrendingPlayers(players, direction, limit);
       return NextResponse.json({
         players: trending,
@@ -173,3 +173,4 @@ export const POST = withApiUsage({ endpoint: "/api/fantasycalc", tool: "Fantasyc
     return NextResponse.json({ error: 'Failed to compare trade values' }, { status: 500 });
   }
 })
+

@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url)
-    const rawFeatureId = searchParams.get("feature")
+    const rawFeatureId = searchParams?.get("feature")
     if (rawFeatureId && !isSubscriptionFeatureId(rawFeatureId)) {
       return NextResponse.json(
         { error: "Invalid feature id" },
@@ -61,3 +61,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

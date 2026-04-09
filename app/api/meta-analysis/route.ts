@@ -12,13 +12,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport')?.trim() ?? undefined
+    const sportParam = searchParams?.get('sport')?.trim() ?? undefined
     const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-    const leagueFormat = searchParams.get('leagueFormat')?.trim() ?? undefined
-    const timeframe = normalizeTimeframe(searchParams.get('timeframe'))
+    const leagueFormat = searchParams?.get('leagueFormat')?.trim() ?? undefined
+    const timeframe = normalizeTimeframe(searchParams?.get('timeframe'))
     const windowFromTimeframe = timeframe === '24h' ? 1 : timeframe === '7d' ? 7 : timeframe === '30d' ? 30 : undefined
-    const windowDays = searchParams.get('windowDays') != null
-      ? Math.min(90, Math.max(1, parseInt(searchParams.get('windowDays')!, 10) || 30))
+    const windowDays = searchParams?.get('windowDays') != null
+      ? Math.min(90, Math.max(1, parseInt(searchParams?.get('windowDays')!, 10) || 30))
       : (windowFromTimeframe ?? 30)
 
     if (sportParam && !isSupportedSport(sportParam)) {
@@ -44,3 +44,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

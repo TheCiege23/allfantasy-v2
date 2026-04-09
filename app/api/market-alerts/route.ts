@@ -270,9 +270,9 @@ Only return the JSON array, no other text.`
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const filter = url.searchParams.get('filter') || 'all'
-  const position = url.searchParams.get('position') || 'all'
-  const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50'))
+  const filter = url.searchParams?.get('filter') || 'all'
+  const position = url.searchParams?.get('position') || 'all'
+  const limit = Math.min(100, parseInt(url.searchParams?.get('limit') || '50'))
 
   try {
     const alerts: MarketAlert[] = []
@@ -482,3 +482,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to generate market alerts', details: error?.message }, { status: 500 })
   }
 }
+

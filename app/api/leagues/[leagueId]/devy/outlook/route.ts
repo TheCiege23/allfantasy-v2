@@ -19,7 +19,7 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { leagueId } = await ctx.params
-  const rosterId = req.nextUrl.searchParams.get('rosterId')
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
   const allowed = await canAccessLeagueDraft(leagueId, userId)
