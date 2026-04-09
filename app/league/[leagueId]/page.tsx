@@ -46,14 +46,6 @@ export default async function LeaguePage({
     redirect('/dashboard')
   }
 
-  // Redirect specialty leagues to their dedicated app shells
-  if (league.survivorMode) {
-    redirect(`/survivor/${leagueId}`)
-  }
-  if (league.leagueVariant === 'zombie') {
-    redirect(`/zombie/${leagueId}`)
-  }
-
   const isOwner = league.userId === userId
   const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
   const role = await getLeagueRole(leagueId, userId)
@@ -61,6 +53,14 @@ export default async function LeaguePage({
   const isHeadCommissioner = role === 'commissioner'
   if (!isOwner && !userTeam) {
     redirect('/dashboard')
+  }
+
+  // Redirect specialty leagues to their dedicated app shells
+  if (league.survivorMode) {
+    redirect(`/survivor/${leagueId}`)
+  }
+  if (league.leagueVariant === 'zombie') {
+    redirect(`/zombie/${leagueId}`)
   }
 
   const allLeagues = await prisma.league.findMany({

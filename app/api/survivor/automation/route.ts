@@ -95,7 +95,11 @@ async function runAutomation(req: NextRequest) {
         const returnWeek = L.survivorExileReturnWeek
         if (returnWeek && week >= returnWeek) {
           const exileReturnAlreadyProcessed = await prisma.survivorCommissionerAction.findFirst({
-            where: { leagueId, actionType: 'auto_exile_return_processed' },
+            where: {
+              leagueId,
+              actionType: 'auto_exile_return_processed',
+              ...(season?.createdAt ? { executedAt: { gte: season.createdAt } } : {}),
+            },
             select: { id: true },
           })
           if (!exileReturnAlreadyProcessed) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 interface FinalistProfile {
   userId: string
@@ -24,7 +24,7 @@ export function WinnerReveal({ finalists, winnerId, totalJurors, onComplete }: W
   const [revealedVotes, setRevealedVotes] = useState(0)
   const onCompleteRef = useRef(onComplete)
   const winner = finalists.find((f) => f.userId === winnerId)
-  const votesNeeded = Math.floor(totalJurors / 2) + 1
+  const votesNeeded = totalJurors > 0 ? Math.floor(totalJurors / 2) + 1 : 0
 
   useEffect(() => {
     onCompleteRef.current = onComplete
@@ -48,20 +48,21 @@ export function WinnerReveal({ finalists, winnerId, totalJurors, onComplete }: W
   }, [finalists])
 
   // Build vote sequence for counting phase
-  const voteSequence: string[] = []
-  const counts: Record<string, number> = {}
-  finalists.forEach((f) => { counts[f.userId] = 0 })
+  const voteSequence = useMemo(() => {
+    const sequence: string[] = []
+    const maxVotes = finalists.reduce((max, finalist) => Math.max(max, finalist.voteCount), 0)
 
-  // Interleave votes for drama
-  let remaining = finalists.map((f) => ({ ...f, left: f.voteCount }))
-  while (remaining.some((r) => r.left > 0)) {
-    for (const r of remaining) {
-      if (r.left > 0) {
-        voteSequence.push(r.userId)
-        r.left--
+    // Interleave votes for drama without mutating source objects
+    for (let round = 0; round < maxVotes; round++) {
+      for (const finalist of finalists) {
+        if (finalist.voteCount > round) {
+          sequence.push(finalist.userId)
+        }
       }
     }
-  }
+
+    return sequence
+  }, [finalists])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md">
