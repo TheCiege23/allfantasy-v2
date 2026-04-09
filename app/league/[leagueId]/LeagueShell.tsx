@@ -12,7 +12,7 @@ import AppShell from '@/app/components/AppShell'
 import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
 import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
 import { LeagueSettingsShell } from '@/components/league/LeagueSettingsShell'
-import { LeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
+import { LeagueSettingsTab as SharedLeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
 import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
 import { GuillotineFormatTab } from '@/components/league/GuillotineFormatTab'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
@@ -462,7 +462,7 @@ export function LeagueShell({
           formatLabel="Guillotine"
           hasAfCommissionerSub={false}
           leagueTabContent={
-            <LeagueSettingsTab leagueId={league.id} canEdit={isCommissioner} />
+            <SharedLeagueSettingsTab leagueId={league.id} canEdit={isCommissioner} />
           }
           commissionerTabContent={
             <CommissionerToolsTab leagueId={league.id} hasAfCommissionerSub={false} />
