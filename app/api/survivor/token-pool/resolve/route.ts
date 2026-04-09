@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { requireCronAuth } from '@/app/api/cron/_auth'
+import { assertLeagueCommissioner } from '@/lib/league/league-access'
 import { resolveTokenPoolPicks } from '@/lib/survivor/tokenPoolEngine'
 
 export const dynamic = 'force-dynamic'
@@ -11,9 +14,7 @@ export const maxDuration = 60
  * Called by cron or commissioner manually.
  */
 export async function POST(req: NextRequest) {
-  if (!requireCronAuth(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const cronOk = requireCronAuth(req)
 
   let body: Record<string, unknown>
   try {
@@ -30,6 +31,18 @@ export async function POST(req: NextRequest) {
 
   if (!leagueId || !week) {
     return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+  }
+
+  if (!cronOk) {
+    const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+    const userId = session?.user?.id
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const gate = await assertLeagueCommissioner(leagueId, userId)
+    if (!gate.ok) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+    }
   }
 
   const outcomes = await resolveTokenPoolPicks(leagueId, week, results)
