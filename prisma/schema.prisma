@@ -3744,10 +3744,22 @@ model UserProfile {
   timezone                  String?
   themePreference           String?
   bio                       String?
+  dashboardOnboarding       Json?
   preferredSports           Json?
   notificationPreferences   Json?
   onboardingStep            String?
   onboardingCompletedAt     DateTime?
+  rankTier                  String?             @map("rank_tier")
+  xpTotal                   BigInt?             @map("xp_total")
+  xpLevel                   Int?                @map("xp_level")
+  rankCalculatedAt          DateTime?           @map("rank_calculated_at")
+  careerWins                Int?                @map("career_wins")
+  careerLosses              Int?                @map("career_losses")
+  careerChampionships       Int?                @map("career_championships")
+  careerPlayoffAppearances  Int?                @map("career_playoff_appearances")
+  careerSeasonsPlayed       Int?                @map("career_seasons_played")
+  careerLeaguesPlayed       Int?                @map("career_leagues_played")
+  leagueImportDetailPending Boolean?            @default(false) @map("league_import_detail_pending")
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
   retentionNudgeDismissedAt Json?
   /// Aggregated scoring/league context after imports — feeds rankings / AI personalization.
@@ -3771,6 +3783,7 @@ model UserProfile {
   autoCoachGlobalEnabled    Boolean             @default(true)
   /// Auto sign-out after this many minutes of inactivity (null/0 = off). Allowed: 30, 60, 240, 720, 1440.
   sessionIdleTimeoutMinutes Int?
+  chimmyTtsVoiceId          String?             @map("chimmy_tts_voice_id")
   user                      AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([sleeperUsername])
@@ -3889,6 +3902,14 @@ model League {
   leagueVariant                   String?                      @db.VarChar(32)
   importBatchId                   String?                      @db.VarChar(64)
   importedAt                      DateTime?
+  importWins                      Int?                         @map("import_wins")
+  importLosses                    Int?                         @map("import_losses")
+  importTies                      Int?                         @map("import_ties")
+  importMadePlayoffs              Boolean?                     @map("import_made_playoffs")
+  importWonChampionship           Boolean?                     @map("import_won_championship")
+  importFinalStanding             Int?                         @map("import_final_standing")
+  importPointsFor                 Float?                       @map("import_points_for")
+  importPointsAgainst             Float?                       @map("import_points_against")
   /// League logo (AllFantasy commissioner upload; separate from imported avatarUrl when set).
   logoUrl                         String?
   /// Official league timezone for waivers, trades, and scheduled events (synced to draft LeagueSettings when updated).
@@ -4077,6 +4098,10 @@ model League {
   promotionRules                  PromotionRule[]
   redraftLeagueTrades             RedraftLeagueTrade[]
   redraftLeagueTransactions       RedraftLeagueTransaction[]
+  redraftDrafts                   RedraftDraft[]
+  redraftDraftPicks               RedraftDraftPick[]
+  redraftDraftEvents              RedraftDraftEvent[]
+  redraftTradeProposals           RedraftTradeProposal[]
   redraftMatchups                 RedraftMatchup[]
   redraftSeasons                  RedraftSeason[]
   redraftWaiverClaims             RedraftWaiverClaim[]
@@ -5048,6 +5073,7 @@ model Roster {
   platformUserId     String
   playerData         Json
   faabRemaining      Int?
+  dispersalDraftPasses Boolean          @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   waiverPriority     Int?
@@ -5056,6 +5082,8 @@ model Roster {
   devyRights         DevyRights[]
   keeperDeclarations KeeperDeclaration[]
   league             League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  redraftDraftPicks  RedraftDraftPick[]
+  redraftDraftQueue  RedraftDraftQueue[]
   waiverClaims       WaiverClaim[]
   waiverTransactions WaiverTransaction[]
 
@@ -10269,7 +10297,11 @@ model RedraftSeason {
   keeperRecords            KeeperRecord[]
   keeperSelectionSession   KeeperSelectionSession?
   aiLeagueInsights         RedraftAILeagueInsight[]
+  playoffMatchups          RedraftPlayoffMatchup[]
+  playoffRounds            RedraftPlayoffRound[]
+  playoffSeeds             RedraftPlayoffSeed[]
   redraftLeagueTrades      RedraftLeagueTrade[]
+  redraftTradeProposals    RedraftTradeProposal[]
   redraftTransactions      RedraftLeagueTransaction[]
   schedule                 RedraftMatchup[]
   playoffBracket           RedraftPlayoffBracket?
@@ -10311,8 +10343,17 @@ model RedraftRoster {
   idpSalaryRecords         IDPSalaryRecord[]
   keeperRecords            KeeperRecord[]
   aiRosterInsights         RedraftAIRosterInsight[]
+  playoffAwayMatchups      RedraftPlayoffMatchup[]  @relation("RedraftPlayoffAwayRoster")
+  playoffHomeMatchups      RedraftPlayoffMatchup[]  @relation("RedraftPlayoffHomeRoster")
+  playoffWinningMatchups   RedraftPlayoffMatchup[]  @relation("RedraftPlayoffWinnerRoster")
+  playoffSeeds             RedraftPlayoffSeed[]
+  tradeAssetsFrom          RedraftTradeAsset[]      @relation("RedraftTradeAssetFrom")
+  tradeAssetsTo            RedraftTradeAsset[]      @relation("RedraftTradeAssetTo")
   tradesProposed           RedraftLeagueTrade[]       @relation("RedraftTradeProposer")
   tradesReceived           RedraftLeagueTrade[]       @relation("RedraftTradeReceiver")
+  tradeProposalVotes       RedraftTradeVote[]
+  tradeProposalsMade       RedraftTradeProposal[]   @relation("RedraftTradeProposalProposer")
+  tradeProposalsReceived   RedraftTradeProposal[]   @relation("RedraftTradeProposalReceiver")
   transactions             RedraftLeagueTransaction[]
   awayMatchups             RedraftMatchup[]           @relation("RedraftAwayRoster")
   homeMatchups             RedraftMatchup[]           @relation("RedraftHomeRoster")
@@ -10452,6 +10493,254 @@ model RedraftLeagueTransaction {
   @@map("redraft_league_transactions")
 }
 
+model RedraftDraft {
+  id                String              @id
+  leagueId          String
+  season            Int
+  sport             LeagueSport
+  draftType         String
+  status            String              @default("scheduled")
+  scheduledAt       DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  timerSeconds      Int                 @default(60)
+  pickTimeoutPolicy String              @default("autopick")
+  totalRounds       Int
+  totalPicks        Int
+  orderStrategy     String              @default("random")
+  randomSeed        String?
+  settings          Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  events            RedraftDraftEvent[]
+  picks             RedraftDraftPick[]
+  queueItems        RedraftDraftQueue[]
+  league            League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season])
+  @@index([leagueId, status])
+  @@index([status, scheduledAt])
+  @@map("redraft_drafts")
+}
+
+model RedraftDraftPick {
+  id               String       @id
+  draftId          String
+  leagueId         String
+  round            Int
+  pickNumber       Int
+  slotNumber       Int
+  rosterId         String?
+  selectedPlayerId String?
+  selectedPlayerName String?
+  selectedPosition String?
+  selectedTeam     String?
+  selectionSource  String?
+  status           String       @default("pending")
+  pickDeadlineAt   DateTime?
+  pickedAt         DateTime?
+  metadata         Json         @default("{}")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  draft            RedraftDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  league           League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster           Roster?      @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+
+  @@unique([draftId, pickNumber])
+  @@unique([draftId, round, slotNumber])
+  @@index([draftId, pickNumber])
+  @@index([leagueId, status])
+  @@index([rosterId])
+  @@map("redraft_draft_picks")
+}
+
+model RedraftDraftQueue {
+  id         String       @id
+  draftId    String
+  rosterId   String
+  rank       Int
+  playerId   String
+  playerName String?
+  position   String?
+  team       String?
+  isConsumed Boolean      @default(false)
+  consumedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  draft      RedraftDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  roster     Roster       @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, rosterId, playerId])
+  @@unique([draftId, rosterId, rank])
+  @@index([draftId, rosterId, rank])
+  @@index([draftId, isConsumed, rank])
+  @@map("redraft_draft_queue")
+}
+
+model RedraftDraftEvent {
+  id             String       @id
+  draftId        String
+  leagueId       String
+  eventType      String
+  actorUserId    String?
+  idempotencyKey String?
+  payload        Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  draft          RedraftDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  league         League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([draftId, idempotencyKey])
+  @@index([draftId, createdAt])
+  @@index([leagueId, createdAt])
+  @@map("redraft_draft_events")
+}
+
+model RedraftTradeProposal {
+  id               String               @id
+  leagueId         String
+  seasonId         String
+  proposerRosterId String
+  receiverRosterId String
+  status           String               @default("pending")
+  vetoMode         String               @default("commissioner")
+  vetoThreshold    Int?
+  reason           String?
+  expiresAt        DateTime?
+  acceptedAt       DateTime?
+  rejectedAt       DateTime?
+  cancelledAt      DateTime?
+  processedAt      DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  assets           RedraftTradeAsset[]
+  decision         RedraftTradeDecision?
+  votes            RedraftTradeVote[]
+  league           League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  proposerRoster   RedraftRoster        @relation("RedraftTradeProposalProposer", fields: [proposerRosterId], references: [id], onDelete: Cascade)
+  receiverRoster   RedraftRoster        @relation("RedraftTradeProposalReceiver", fields: [receiverRosterId], references: [id], onDelete: Cascade)
+  season           RedraftSeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, status])
+  @@index([seasonId, createdAt])
+  @@map("redraft_trade_proposals")
+}
+
+model RedraftTradeAsset {
+  id           String               @id
+  proposalId   String
+  fromRosterId String
+  toRosterId   String
+  assetType    String
+  playerId     String?
+  playerName   String?
+  pickSeason   Int?
+  pickRound    Int?
+  pickNumber   Int?
+  metadata     Json                 @default("{}")
+  createdAt    DateTime             @default(now())
+  fromRoster   RedraftRoster        @relation("RedraftTradeAssetFrom", fields: [fromRosterId], references: [id], onDelete: Cascade)
+  proposal     RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  toRoster     RedraftRoster        @relation("RedraftTradeAssetTo", fields: [toRosterId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([fromRosterId, toRosterId])
+  @@map("redraft_trade_assets")
+}
+
+model RedraftTradeVote {
+  id         String               @id
+  proposalId String
+  rosterId   String
+  vote       String
+  reason     String?
+  createdAt  DateTime             @default(now())
+  proposal   RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  roster     RedraftRoster        @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, rosterId])
+  @@index([proposalId, vote])
+  @@map("redraft_trade_votes")
+}
+
+model RedraftTradeDecision {
+  id            String               @id
+  proposalId    String               @unique
+  decision      String
+  decidedByUserId String?
+  decisionReason String?
+  snapshot      Json                 @default("{}")
+  createdAt     DateTime             @default(now())
+  proposal      RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_trade_decisions")
+}
+
+model RedraftPlayoffRound {
+  id          String                @id
+  seasonId    String
+  bracketId   String?
+  roundNumber Int
+  roundName   String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      String                @default("pending")
+  createdAt   DateTime              @default(now())
+  bracket     RedraftPlayoffBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
+  matchups    RedraftPlayoffMatchup[]
+  season      RedraftSeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, roundNumber])
+  @@index([seasonId, status])
+  @@map("redraft_playoff_rounds")
+}
+
+model RedraftPlayoffSeed {
+  id          String        @id
+  seasonId    String
+  rosterId    String
+  seed        Int
+  qualifiedBy String?
+  pointsFor   Float?
+  createdAt   DateTime      @default(now())
+  roster      RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  season      RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, seed])
+  @@unique([seasonId, rosterId])
+  @@map("redraft_playoff_seeds")
+}
+
+model RedraftPlayoffMatchup {
+  id            String               @id
+  seasonId      String
+  roundId       String
+  matchupNumber Int
+  homeRosterId  String?
+  awayRosterId  String?
+  homeSeed      Int?
+  awaySeed      Int?
+  homeScore     Float?
+  awayScore     Float?
+  winnerRosterId String?
+  nextMatchupId String?
+  status        String               @default("scheduled")
+  metadata      Json                 @default("{}")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  awayRoster    RedraftRoster?       @relation("RedraftPlayoffAwayRoster", fields: [awayRosterId], references: [id], onDelete: SetNull)
+  homeRoster    RedraftRoster?       @relation("RedraftPlayoffHomeRoster", fields: [homeRosterId], references: [id], onDelete: SetNull)
+  nextMatchup   RedraftPlayoffMatchup? @relation("RedraftPlayoffNext", fields: [nextMatchupId], references: [id], onDelete: SetNull)
+  prevMatchups  RedraftPlayoffMatchup[] @relation("RedraftPlayoffNext")
+  round         RedraftPlayoffRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  season        RedraftSeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  winnerRoster  RedraftRoster?       @relation("RedraftPlayoffWinnerRoster", fields: [winnerRosterId], references: [id], onDelete: SetNull)
+
+  @@unique([roundId, matchupNumber])
+  @@index([roundId, status])
+  @@index([seasonId])
+  @@map("redraft_playoff_matchups")
+}
+
 model PlayerWeeklyScore {
   id          String   @id @default(cuid())
   playerId    String
@@ -10474,6 +10763,7 @@ model RedraftPlayoffBracket {
   structure Json
   status    String        @default("pending")
   createdAt DateTime      @default(now())
+  rounds    RedraftPlayoffRound[]
   season    RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@map("redraft_playoff_brackets")

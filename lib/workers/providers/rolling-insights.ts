@@ -79,7 +79,9 @@ interface RollingInsightsAccessToken {
 }
 
 let cachedAccessToken: RollingInsightsAccessToken | null = null
-const RI_REQUEST_TIMEOUT_MS = 20_000
+const RI_REQUEST_TIMEOUT_MS = 10_000
+const RI_REST_PROBE_BUDGET_MS = 30_000
+const RI_SOCCER_REST_PROBE_BUDGET_MS = 12_000
 
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '')
@@ -110,6 +112,30 @@ function buildRestPathCandidates(dataSeg: string, chainSport: ApiChainSport): st
   const sportLower = SPORT_PATH[chainSport]
   const year = String(new Date().getUTCFullYear())
   const today = new Date().toISOString().slice(0, 10)
+
+  // Soccer endpoints are significantly less consistent; keep probes intentionally narrow
+  // to avoid long tail timeouts from broad host/path permutations.
+  if (chainSport === 'soccer_euro') {
+    const soccerCode = 'SOCCER'
+    const byDataSeg: Record<string, string[]> = {
+      players: [`player-info/${soccerCode}`],
+      teams: [`team-info/${soccerCode}`],
+      injuries: [`injuries/${soccerCode}`],
+      schedule: [`schedule-season/${year}/${soccerCode}`, `schedule/${today}/${soccerCode}`],
+      scores: [`live/${today}/${soccerCode}`],
+      standings: [`standings/${year}/${soccerCode}`],
+      projections: [`player-stats/${year}/${soccerCode}`],
+      adp: [`adp/${soccerCode}`],
+      rosters: [`depth-charts/${soccerCode}`],
+    }
+
+    return dedupe([
+      ...(byDataSeg[dataSeg] ?? []),
+      `${dataSeg}/${soccerCode}`,
+      `${soccerCode}/${dataSeg}`,
+    ])
+  }
+
   const pathBySportCode = (sportCode: string): Record<string, string[]> => ({
     players: [`player-info/${sportCode}`],
     injuries: [`injuries/${sportCode}`],
@@ -436,6 +462,18 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     return { data: null, error: 'Unsupported sport', fromCache: false }
   }
 
+  // Soccer player-info endpoints are inconsistent in RI REST and can induce long probe delays.
+  // Fail fast so DB/api-sports fallback can respond quickly in the chain.
+  if (chainSport === 'soccer_euro' && String(params.dataType) === 'players') {
+    return {
+      data: null,
+      error: 'RI soccer players unavailable',
+      fromCache: false,
+      source: 'rolling_insights',
+      latency: 0,
+    }
+  }
+
   const base = config.baseUrl
   const dataSeg = pathSegmentForDataType(String(params.dataType))
   const merged = { ...(params.query ?? {}), ...(params.options ?? {}) }
@@ -485,15 +523,30 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     }
 
     const accessToken = await getClientCredentialsAccessToken(base)
-    const rscTokenCandidates = collectRscTokenCandidates(accessToken)
+    let rscTokenCandidates = collectRscTokenCandidates(accessToken)
 
-    const restBases = buildRestBaseCandidates(base)
+    let restBases = buildRestBaseCandidates(base)
     const restPaths = buildRestPathCandidates(dataSeg, chainSport)
-    let lastHttpError: string | null = null
 
-    for (const restBase of restBases) {
+    if (chainSport === 'soccer_euro') {
+      // Keep soccer probing intentionally tight to reduce worst-case latency.
+      restBases = restBases.slice(0, 1)
+      rscTokenCandidates = rscTokenCandidates.slice(0, 2)
+    }
+
+    let lastHttpError: string | null = null
+    const probeBudgetMs =
+      chainSport === 'soccer_euro' ? RI_SOCCER_REST_PROBE_BUDGET_MS : RI_REST_PROBE_BUDGET_MS
+    const probeDeadlineAt = Date.now() + probeBudgetMs
+
+    restProbe: for (const restBase of restBases) {
       for (const restPath of restPaths) {
         for (const rscToken of rscTokenCandidates) {
+          if (Date.now() >= probeDeadlineAt) {
+            lastHttpError = `Probe timeout after ${probeBudgetMs}ms`
+            break restProbe
+          }
+
           const url = new URL(`${restBase}/${restPath}`)
           Object.entries(merged).forEach(([k, v]) => {
             if (v == null) return

@@ -2,17 +2,18 @@
 	import clsx from 'clsx';
 	import { MessageCircle, Pin, MoreHorizontal, Megaphone } from 'lucide-react';
 	import { toast } from 'sonner';
+	import Link from 'next/link';
 
 	// Dummy helpers for test context (replace with real ones as needed)
-	const getPresenceStatus = () => '';
-	const isLeagueSystemNotice = () => false;
-	const getLeagueSystemNoticeLabel = () => '';
-	const parseLeaguePollPayload = () => null;
+	const getPresenceStatus = (_lastSeen?: string) => '';
+	const isLeagueSystemNotice = (_messageType?: string) => false;
+	const getLeagueSystemNoticeLabel = (_messageType?: string) => '';
+	const parseLeaguePollPayload = (_payload?: any): any => null;
 	const getBroadcastBody = (body: string) => body;
-	const getStatsBotPayload = () => null;
+	const getStatsBotPayload = (_body?: string): any => null;
 	const getSystemNoticeBody = (body: string) => body;
-	const getLeagueMentionRanges = () => [];
-	const RichMessageRenderer = () => null;
+	const getLeagueMentionRanges = (_body?: string) => [] as Array<{ start: number; end: number; username: string }>;
+	const RichMessageRenderer = (_props?: any) => null;
 	const QUICK_EMOJIS: string[] = [];
 
 	export default function LeagueMessageRow({
@@ -32,10 +33,11 @@
 		onPollClose,
 		onMediaOpen,
 		allMessages, // Optional: pass all messages for test environments
-	}) {
+	}: any) {
 		let messagesSource: any[] = [];
-		if (typeof window !== "undefined" && Array.isArray(window.__leagueChatMessages)) {
-			messagesSource = window.__leagueChatMessages;
+		const chatWindow = typeof window !== "undefined" ? (window as any) : null;
+		if (chatWindow && Array.isArray(chatWindow.__leagueChatMessages)) {
+				messagesSource = chatWindow.__leagueChatMessages;
 		} else if (Array.isArray(allMessages)) {
 			messagesSource = allMessages;
 		}
@@ -107,9 +109,9 @@
 				? msg.metadata
 				: null,
 	});
-	const pollVotes = poll?.votes ?? {};
+	const pollVotes: Record<string, unknown[]> = poll?.votes ?? {};
 	const totalVotes = Object.values(pollVotes).reduce(
-		(sum, ids) => sum + (Array.isArray(ids) ? ids.length : 0),
+		(sum: number, ids: unknown[]) => sum + (Array.isArray(ids) ? ids.length : 0),
 		0
 	);
 	let displayBody = msg.body;

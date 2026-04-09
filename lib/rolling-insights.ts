@@ -3,6 +3,7 @@ import { normalizeTeamAbbrev } from './team-abbrev';
 import { recordProviderSync } from './provider-sync-logger';
 import { getRollingInsightsConfigFromEnv } from './provider-config';
 import { ROLLING_INSIGHTS_SPORTS } from './workers/api-config';
+import { rollingInsightsProvider } from './workers/providers/rolling-insights';
 
 interface RollingInsightsToken {
   accessToken: string;
@@ -17,6 +18,191 @@ const ROLLING_INSIGHTS_BASE_URL =
   'https://datafeeds.rolling-insights.com'
 const AUTH_URL = `${ROLLING_INSIGHTS_BASE_URL}/auth/token`;
 const GRAPHQL_URL = `${ROLLING_INSIGHTS_BASE_URL}/graphql`;
+
+function asObj(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  return value as Record<string, unknown>;
+}
+
+function asString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+}
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function normalizeRITeam(raw: unknown): RITeam | null {
+  const obj = asObj(raw);
+  if (!obj) return null;
+
+  const id = asString(obj.id ?? obj.team_id ?? obj.teamId ?? obj.externalId);
+  const teamName = asString(obj.team ?? obj.name ?? obj.full_name ?? obj.city_name);
+  const abbrv = asString(obj.abbrv ?? obj.abbreviation ?? obj.team_abbr ?? obj.shortName);
+  if (!id || !teamName || !abbrv) return null;
+
+  return {
+    id,
+    team: teamName,
+    abbrv,
+    mascot: asString(obj.mascot) ?? '',
+    img: asString(obj.img ?? obj.logo ?? obj.logo_url),
+  };
+}
+
+function normalizeRIPlayer(raw: unknown): RIPlayer | null {
+  const obj = asObj(raw);
+  if (!obj) return null;
+
+  const id = asString(obj.id ?? obj.player_id ?? obj.playerId ?? obj.externalId);
+  const player = asString(obj.player ?? obj.full_name ?? obj.name);
+  if (!id || !player) return null;
+
+  const teamObj = asObj(obj.team);
+  const teamAbbrv =
+    asString(obj.team_abbr ?? obj.teamAbbr ?? obj.team_abbreviation) ??
+    asString(teamObj?.abbrv ?? teamObj?.abbreviation);
+  const teamId = asString(obj.team_id ?? obj.teamId) ?? asString(teamObj?.id);
+  const teamName = asString(teamObj?.team ?? teamObj?.name ?? obj.team_name);
+  const teamMascot = asString(teamObj?.mascot ?? obj.team_mascot);
+
+  const seasonStatsObj = asObj(obj.season_stats) ?? asObj(obj.stats);
+  const fantasyPoints = asNumber(
+    seasonStatsObj?.DK_fantasy_points ?? seasonStatsObj?.fantasy_points
+  );
+  const fantasyPointsPerGame = asNumber(
+    seasonStatsObj?.DK_fantasy_points_per_game ?? seasonStatsObj?.fantasy_points_per_game
+  );
+  const gamesPlayed = asNumber(seasonStatsObj?.games_played ?? seasonStatsObj?.gamesPlayed);
+  const period = asString(seasonStatsObj?.period) ?? getCurrentNFLSeason();
+
+  const regularSeason: RISeasonStats[] = seasonStatsObj
+    ? [
+        {
+          period,
+          passing_yards: asNumber(seasonStatsObj.passing_yards),
+          passing_touchdowns: asNumber(seasonStatsObj.passing_touchdowns),
+          passing_attempts: asNumber(seasonStatsObj.passing_attempts),
+          completions: asNumber(seasonStatsObj.completions),
+          interceptions: asNumber(seasonStatsObj.interceptions),
+          passerRating: asNumber(seasonStatsObj.passerRating),
+          rushing_yards: asNumber(seasonStatsObj.rushing_yards),
+          rushing_touchdowns: asNumber(seasonStatsObj.rushing_touchdowns),
+          rushing_attempts: asNumber(seasonStatsObj.rushing_attempts),
+          receptions: asNumber(seasonStatsObj.receptions),
+          receiving_yards: asNumber(seasonStatsObj.receiving_yards),
+          receiving_touchdowns: asNumber(seasonStatsObj.receiving_touchdowns),
+          targets: asNumber(seasonStatsObj.targets),
+          sacks: asNumber(seasonStatsObj.sacks),
+          tackles: asNumber(seasonStatsObj.tackles),
+          fumbles: asNumber(seasonStatsObj.fumbles),
+          fumbles_lost: asNumber(seasonStatsObj.fumbles_lost),
+          DK_fantasy_points: fantasyPoints,
+          DK_fantasy_points_per_game: fantasyPointsPerGame,
+          games_played: gamesPlayed,
+          snap_count_offense: asNumber(seasonStatsObj.snap_count_offense),
+          snap_count_defense: asNumber(seasonStatsObj.snap_count_defense),
+          field_goals_made: asNumber(seasonStatsObj.field_goals_made),
+          field_goals_attempted: asNumber(seasonStatsObj.field_goals_attempted),
+          extra_points_made: asNumber(seasonStatsObj.extra_points_made),
+          extra_points_attempted: asNumber(seasonStatsObj.extra_points_attempted),
+        },
+      ]
+    : [];
+
+  return {
+    id,
+    player,
+    team:
+      teamAbbrv || teamId || teamName
+        ? {
+            id: teamId ?? teamAbbrv ?? 'UNK',
+            team: teamName ?? teamAbbrv ?? 'Unknown Team',
+            abbrv: teamAbbrv ?? teamName ?? 'UNK',
+            mascot: teamMascot ?? '',
+          }
+        : null,
+    number: asNumber(obj.number),
+    position: asString(obj.position),
+    height: asString(obj.height),
+    weight: asNumber(obj.weight),
+    college: asString(obj.college),
+    dob: asString(obj.dob),
+    img: asString(obj.img ?? obj.image ?? obj.headshot_url),
+    positionCategory: asString(obj.positionCategory ?? obj.position_category),
+    status: asString(obj.status),
+    DK_salary: asNumber(obj.DK_salary ?? obj.dk_salary),
+    regularSeason,
+    postSeason: [],
+  };
+}
+
+function normalizeRISchedule(raw: unknown): RIScheduleGame | null {
+  const obj = asObj(raw);
+  if (!obj) return null;
+
+  const gameId = asString(obj.gameId ?? obj.id ?? obj.game_id ?? obj.externalId);
+  const awayTeam = asString(obj.awayTeam ?? obj.away_team ?? obj.away ?? obj.away_name);
+  const homeTeam = asString(obj.homeTeam ?? obj.home_team ?? obj.home ?? obj.home_name);
+  if (!gameId || !awayTeam || !homeTeam) return null;
+
+  const venueObj = asObj(obj.venue);
+  const venueArena = asString(venueObj?.arena ?? obj.venue_name ?? obj.venue);
+  const venueCity = asString(venueObj?.city ?? obj.city);
+  const venueState = asString(venueObj?.state ?? obj.state);
+  const venueDomeRaw = venueObj?.dome;
+  const venueDome = typeof venueDomeRaw === 'boolean' ? venueDomeRaw : null;
+
+  return {
+    gameId,
+    awayTeam,
+    homeTeam,
+    date: asString(obj.date ?? obj.start_time ?? obj.startTime) ?? new Date().toISOString(),
+    status: asString(obj.status ?? obj.game_status) ?? 'scheduled',
+    season: asString(obj.season) ?? getCurrentNFLSeason(),
+    venue:
+      venueArena || venueCity || venueState || venueDome !== null
+        ? {
+            arena: venueArena,
+            city: venueCity,
+            state: venueState,
+            dome: venueDome,
+          }
+        : null,
+  };
+}
+
+async function fetchRollingInsightsRest<T>(
+  dataType: 'players' | 'teams' | 'schedule',
+  options: Record<string, unknown>,
+  mapFn: (value: unknown) => T | null
+): Promise<T[] | null> {
+  const result = await rollingInsightsProvider({
+    sport: 'NFL',
+    dataType,
+    query: options,
+  });
+
+  if (!Array.isArray(result.data)) return null;
+  const normalized: T[] = [];
+  for (const row of result.data) {
+    const mapped = mapFn(row);
+    if (mapped) normalized.push(mapped);
+  }
+  return normalized;
+}
 
 function getEnabledRollingInsightsSports() {
   return {
@@ -226,6 +412,11 @@ export async function fetchNFLRoster(options: {
   teamId?: string;
   limit?: number;
 }): Promise<RIPlayer[]> {
+  const restRoster = await fetchRollingInsightsRest('players', options, normalizeRIPlayer);
+  if (Array.isArray(restRoster) && restRoster.length > 0) {
+    return restRoster;
+  }
+
   const args: string[] = [];
   if (options.season) args.push(`season: "${options.season}"`);
   if (options.playerName) args.push(`playerName: "${options.playerName}"`);
@@ -240,6 +431,11 @@ export async function fetchNFLRoster(options: {
 }
 
 export async function fetchNFLTeams(): Promise<RITeam[]> {
+  const restTeams = await fetchRollingInsightsRest('teams', {}, normalizeRITeam);
+  if (Array.isArray(restTeams) && restTeams.length > 0) {
+    return restTeams;
+  }
+
   const query = `{ nflTeams { id team abbrv mascot img } }`;
   const data = await graphqlQuery<{ nflTeams: RITeam[] }>(query);
   return data.nflTeams || [];
@@ -249,6 +445,11 @@ export async function fetchNFLSchedule(options: {
   season?: string;
   limit?: number;
 }): Promise<RIScheduleGame[]> {
+  const restSchedule = await fetchRollingInsightsRest('schedule', options, normalizeRISchedule);
+  if (Array.isArray(restSchedule) && restSchedule.length > 0) {
+    return restSchedule;
+  }
+
   const args: string[] = [];
   if (options.season) args.push(`season: "${options.season}"`);
   if (options.limit) args.push(`limit: ${options.limit}`);

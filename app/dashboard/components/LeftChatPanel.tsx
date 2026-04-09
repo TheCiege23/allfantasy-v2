@@ -268,21 +268,9 @@ export function LeftChatPanel({
             const notif = new Notification(`New message from ${t.title}`, {
               body,
               icon,
-              actions: [
-                { action: 'reply', title: 'Reply' },
-                { action: 'mark-read', title: 'Mark as Read' },
-              ],
               silent: false,
             });
             notif.onclick = () => window.focus();
-            notif.onaction = (e: any) => {
-              if (e.action === 'reply') {
-                setActiveTab('dms');
-                setActiveDm(t.id);
-              } else if (e.action === 'mark-read') {
-                // Optionally mark as read via API
-              }
-            };
           }
           // In-app toast
           toast(`New message from ${t.title}`, {
@@ -415,7 +403,7 @@ export function LeftChatPanel({
         id: `temp-${Date.now()}`,
         threadId: activeDm,
         senderUserId: userId,
-        senderName: userDisplayName,
+        senderName: userDisplayName ?? 'You',
         senderUsername: null,
         senderAvatarUrl: userImage ?? null,
         senderAvatarPreset: null,
@@ -693,7 +681,9 @@ export function LeftChatPanel({
                           </div>
                           <div className="min-w-0 flex-1 text-left">
                             <p className={`truncate text-[13px] font-semibold ${isActive ? 'text-cyan-300' : 'text-white/90'}`}>{thread.title}</p>
-                            <p className="truncate text-[11px] text-white/40">{thread.context?.lastMessagePreview ?? ''}</p>
+                            <p className="truncate text-[11px] text-white/40">
+                              {typeof thread.context?.lastMessagePreview === 'string' ? thread.context.lastMessagePreview : ''}
+                            </p>
                           </div>
                           <span className="shrink-0 text-[11px] text-white/30">{thread.lastMessageAt ? new Date(thread.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                         </div>
@@ -748,11 +738,11 @@ export function LeftChatPanel({
                         const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(activeDm)}/messages?limit=50`, { cache: 'no-store' });
                         const json = await res.json();
                         setDmMessages(Array.isArray(json?.messages) ? json.messages : []);
-                        const reactions: Record<string, any[]> = {};
+                        const nextReactions: Record<string, any[]> = {};
                         (json?.messages || []).forEach((msg: any) => {
-                          reactions[msg.id] = getReactionsFromMetadata(msg.metadata);
+                          nextReactions[msg.id] = getReactionsFromMetadata(msg.metadata);
                         });
-                        setDmMsgReactions(reactions);
+                        setDmMsgReactions(nextReactions);
                       };
                       const getReactionTooltip = (r: any) => {
                         if (!Array.isArray(r.userIds) || !r.userIds.length) return '';
@@ -920,7 +910,9 @@ export function LeftChatPanel({
                           </div>
                           <div className="min-w-0 flex-1 text-left">
                             <p className={`truncate text-[13px] font-semibold ${isActive ? 'text-cyan-300' : 'text-white/90'}`}>{thread.title}</p>
-                            <p className="truncate text-[11px] text-white/40">{thread.context?.lastMessagePreview ?? ''}</p>
+                            <p className="truncate text-[11px] text-white/40">
+                              {typeof thread.context?.lastMessagePreview === 'string' ? thread.context.lastMessagePreview : ''}
+                            </p>
                           </div>
                           <span className="shrink-0 text-[11px] text-white/30">{thread.lastMessageAt ? new Date(thread.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
                         </div>
@@ -976,11 +968,11 @@ export function LeftChatPanel({
                         const res = await fetch(`/api/shared/chat/threads/${encodeURIComponent(activeDm)}/messages?limit=50`, { cache: 'no-store' });
                         const json = await res.json();
                         setDmMessages(Array.isArray(json?.messages) ? json.messages : []);
-                        const reactions: Record<string, any[]> = {};
+                        const nextReactions: Record<string, any[]> = {};
                         (json?.messages || []).forEach((msg: any) => {
-                          reactions[msg.id] = getReactionsFromMetadata(msg.metadata);
+                          nextReactions[msg.id] = getReactionsFromMetadata(msg.metadata);
                         });
-                        setDmMsgReactions(reactions);
+                        setDmMsgReactions(nextReactions);
                       };
                       // Show who reacted (tooltip)
                       const getReactionTooltip = (r: any) => {

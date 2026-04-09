@@ -12,6 +12,8 @@ import {
 } from '@/lib/sport-defaults/SportDefaultsRegistry'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 const CREATION_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300'
 const DEFAULTS_CACHE_CONTROL = 'public, max-age=300, s-maxage=300, stale-while-revalidate=900'
 const FEATURE_FLAGS_CACHE_CONTROL = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120'

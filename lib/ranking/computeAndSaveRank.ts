@@ -163,11 +163,6 @@ export async function computeAndSaveRank(
   await prisma.userProfile.upsert({
     where: { userId: afUserId },
     update: {
-      legacyCareerTier: rankPreview.career.tier,
-      legacyCareerTierName: rankPreview.career.tier_name,
-      legacyCareerLevel: rankPreview.career.level,
-      legacyCareerXp: xpBig,
-      legacyRankUpdatedAt: now,
       rankTier: tierLabel,
       xpTotal: xpBig,
       xpLevel: rankPreview.career.level,
@@ -181,11 +176,6 @@ export async function computeAndSaveRank(
     },
     create: {
       userId: afUserId,
-      legacyCareerTier: rankPreview.career.tier,
-      legacyCareerTierName: rankPreview.career.tier_name,
-      legacyCareerLevel: rankPreview.career.level,
-      legacyCareerXp: xpBig,
-      legacyRankUpdatedAt: now,
       rankTier: tierLabel,
       xpTotal: xpBig,
       xpLevel: rankPreview.career.level,

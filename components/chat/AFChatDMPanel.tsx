@@ -162,8 +162,17 @@ function DMChatPanel({ userId, messages: testMessages }: { userId: string, messa
                     threadId={dmThreadId}
                     previousMsg={index > 0 ? visibleMessages[index - 1] : null}
                     onPin={() => handlePin(m.id)}
+                    onReaction={() => {}}
                     showPin={true}
                     currentUserId={userId}
+                    highlighted={false}
+                    onReply={() => {}}
+                    onStartDm={() => {}}
+                    onPollVote={() => {}}
+                    pollVotingEnabled={false}
+                    canClosePoll={false}
+                    onPollClose={() => {}}
+                    onMediaOpen={() => {}}
                     allMessages={baseMessages} // Always pass full messages array
                   />
                   {/* Threaded chat: visual indicator and thread view button */}
@@ -275,8 +284,17 @@ function HuddleChatPanel({ userId, messages: testMessages }: { userId: string, m
                   threadId={huddleThreadId}
                   previousMsg={index > 0 ? visibleMessages[index - 1] : null}
                   onPin={() => handlePin(m.id)}
+                  onReaction={() => {}}
                   showPin={true}
                   currentUserId={userId}
+                  highlighted={false}
+                  onReply={() => {}}
+                  onStartDm={() => {}}
+                  onPollVote={() => {}}
+                  pollVotingEnabled={false}
+                  canClosePoll={false}
+                  onPollClose={() => {}}
+                  onMediaOpen={() => {}}
                   allMessages={messages}
                 />
                 {/* Threaded chat: visual indicator and thread view button */}

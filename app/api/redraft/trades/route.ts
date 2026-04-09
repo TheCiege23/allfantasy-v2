@@ -8,6 +8,15 @@ import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
 
 export const dynamic = 'force-dynamic'
 
+const legacyMeta = {
+  legacy: true,
+  replacement: {
+    listCreate: '/api/redraft/trade-proposals',
+    voteResolve: '/api/redraft/trade-votes',
+  },
+  migrationPhase: 'coexist',
+}
+
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
@@ -26,7 +35,7 @@ export async function GET(req: NextRequest) {
     take: 100,
   })
 
-  return NextResponse.json({ trades })
+  return NextResponse.json({ trades, meta: legacyMeta })
 }
 
 export async function POST(req: NextRequest) {
@@ -80,7 +89,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json({ trade })
+  return NextResponse.json({ trade, meta: legacyMeta })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -153,5 +162,5 @@ export async function PATCH(req: NextRequest) {
     ]).catch((e) => console.error('[redraft/trades] enqueueCollusionScan failed', e))
   }
 
-  return NextResponse.json({ trade: updated })
+  return NextResponse.json({ trade: updated, meta: legacyMeta })
 }

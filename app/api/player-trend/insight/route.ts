@@ -7,6 +7,8 @@ import { getTrendFeedItemForPlayer } from '@/lib/player-trend/TrendDetectionServ
 import { getTrendAIInsight } from '@/lib/player-trend/TrendDetectionAI'
 import { isSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

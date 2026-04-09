@@ -35,7 +35,7 @@ export async function checkDynastyLotteryEligibility(leagueId: string): Promise<
       settings: true,
       _count: {
         select: {
-          draftSessions: { where: { status: 'completed' } },
+          redraftDrafts: { where: { status: 'completed' } },
         },
       },
     },
@@ -63,7 +63,7 @@ export async function checkDynastyLotteryEligibility(leagueId: string): Promise<
   const currentSeason = typeof league.season === 'number' ? league.season : null
   const startupSeason =
     typeof settings.startup_season === 'number' ? settings.startup_season : undefined
-  const completedDrafts = league._count.draftSessions
+  const completedDrafts = league._count.redraftDrafts
   const createdYear = new Date(league.createdAt).getFullYear()
 
   let isStartupLeague = false

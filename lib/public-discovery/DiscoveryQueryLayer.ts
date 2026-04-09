@@ -204,8 +204,6 @@ export async function queryPublicFantasyLeagueCards(options: {
       createdAt: true,
       updatedAt: true,
       draftSessions: {
-        orderBy: [{ updatedAt: "desc" }],
-        take: 1,
         select: {
           draftType: true,
           status: true,
@@ -259,7 +257,7 @@ export async function queryPublicFantasyLeagueCards(options: {
         settings,
       })
       const leagueTier = extractLeagueCareerTier(settings, 1)
-      const latestDraftSession = league.draftSessions[0]
+      const latestDraftSession = league.draftSessions
       const draftType =
         normalizeDraftType(latestDraftSession?.draftType ?? null) ??
         normalizeDraftType(readString(settings, "draft_type")) ??

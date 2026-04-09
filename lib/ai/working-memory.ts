@@ -50,11 +50,8 @@ const SUMMARY_MODEL =
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
 const isServerRuntime = typeof window === 'undefined'
 
-type AnthropicSummaryClient = {
-  messages: {
-    create: (args: Record<string, unknown>) => Promise<any>
-  }
-}
+type AnthropicSdkModule = typeof import('@anthropic-ai/sdk')
+type AnthropicSummaryClient = InstanceType<AnthropicSdkModule['default']>
 
 let anthropicSummaryClientPromise: Promise<AnthropicSummaryClient | null> | null = null
 
@@ -67,7 +64,7 @@ async function getAnthropicSummaryClient(): Promise<AnthropicSummaryClient | nul
     anthropicSummaryClientPromise = import('@anthropic-ai/sdk')
       .then((mod) => {
         const Anthropic = mod.default
-        return new Anthropic({ apiKey: anthropicApiKey }) as AnthropicSummaryClient
+        return new Anthropic({ apiKey: anthropicApiKey })
       })
       .catch(() => null)
   }

@@ -963,7 +963,7 @@ export default function LeagueChatPanel({
                             threadId={resolvedLeagueThreadId}
                             previousMsg={index > 0 ? arr[index - 1] : null}
                             onPin={() => handlePin(m.id)}
-                            onReaction={async (emoji, remove) => {
+                            onReaction={async (emoji: string, remove: boolean) => {
                               try {
                                 await fetch(
                                   `/api/shared/chat/threads/${encodeURIComponent(resolvedLeagueThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
@@ -979,7 +979,7 @@ export default function LeagueChatPanel({
                               }
                             }}
                             onStartDm={handleStartDmFromMessage}
-                            onPollVote={async (optionIndex) => {
+                            onPollVote={async (optionIndex: number) => {
                               try {
                                 if (isLeagueVirtualChat(resolvedLeagueThreadId)) return
                                 await fetch(
@@ -1009,8 +1009,9 @@ export default function LeagueChatPanel({
                             showPin={!isLeagueVirtualChat(resolvedLeagueThreadId)}
                             currentUserId={currentUserId}
                             highlighted={focusedMessageId === m.id}
-                            onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
+                            onMediaOpen={(url: string) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
                             onReply={() => setReplyToMessage(m)}
+                            allMessages={messages}
                           />
                           {m.senderUserId && currentUserId && m.senderUserId === currentUserId && (
                             <div className="mb-1 ml-8 flex gap-1 text-[10px]" style={{ color: "var(--muted)" }}>
@@ -1455,7 +1456,7 @@ export default function LeagueChatPanel({
                             threadId={dmThreadId ?? undefined}
                             previousMsg={index > 0 ? dmMessages[index - 1] : null}
                             onPin={() => handleDmPin(m.id)}
-                            onReaction={dmThreadId ? async (emoji, remove) => {
+                            onReaction={dmThreadId ? async (emoji: string, remove: boolean) => {
                               try {
                                 await fetch(
                                   `/api/shared/chat/threads/${encodeURIComponent(dmThreadId)}/messages/${encodeURIComponent(m.id)}/reactions`,
@@ -1471,7 +1472,7 @@ export default function LeagueChatPanel({
                               }
                             } : undefined}
                             onStartDm={handleStartDmFromMessage}
-                            onPollVote={dmThreadId ? async (optionIndex) => {
+                            onPollVote={dmThreadId ? async (optionIndex: number) => {
                               try {
                                 await fetch(getLeaguePollVoteUrl(dmThreadId, m.id), {
                                   method: "POST",
@@ -1496,7 +1497,9 @@ export default function LeagueChatPanel({
                             showPin={true}
                             currentUserId={currentUserId}
                             highlighted={focusedMessageId === m.id}
-                            onMediaOpen={(url) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
+                            onMediaOpen={(url: string) => setMediaViewerUrl(resolveMediaViewerUrl(url))}
+                            onReply={() => setReplyToMessage(m)}
+                            allMessages={dmMessages}
                           />
                           {dmThreadId && m.senderUserId && currentUserId && m.senderUserId === currentUserId && (
                             <div className="mb-1 ml-8 flex gap-1 text-[10px]" style={{ color: "var(--muted)" }}>

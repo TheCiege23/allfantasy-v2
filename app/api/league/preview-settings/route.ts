@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getInitialSettingsForCreation, getSettingsPreviewSummary } from '@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator'
 
+export const dynamic = 'force-dynamic'
+
 const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 
 function toSport(s: string): (typeof SPORTS)[number] {

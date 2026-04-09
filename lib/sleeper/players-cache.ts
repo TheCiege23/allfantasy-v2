@@ -1,13 +1,9 @@
-import { getAllPlayers } from '@/lib/sleeper-client'
+import { getAllPlayers, type SleeperPlayer } from '@/lib/sleeper-client'
 
-type SleeperPlayerEntry = {
-  full_name?: string
-  first_name?: string
-  last_name?: string
-  position?: string
-  team?: string
-  age?: number
-}
+type SleeperPlayerEntry = Pick<
+  SleeperPlayer,
+  'full_name' | 'first_name' | 'last_name' | 'position' | 'team' | 'age'
+>
 
 type PlayerIdMap = Map<string, string>
 

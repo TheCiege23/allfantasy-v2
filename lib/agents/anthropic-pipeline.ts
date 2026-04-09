@@ -27,16 +27,8 @@ import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
 
-type AnthropicClient = {
-  messages: {
-    create: (args: Record<string, unknown>) => Promise<any>
-    stream: (args: Record<string, unknown>) => {
-      on: (event: 'text', cb: (delta: string, snapshot: string) => void) => void
-      finalText: () => Promise<string>
-      finalMessage: () => Promise<any>
-    }
-  }
-}
+type AnthropicSdkModule = typeof import('@anthropic-ai/sdk')
+type AnthropicClient = InstanceType<AnthropicSdkModule['default']>
 
 let anthropicClientPromise: Promise<AnthropicClient | null> | null = null
 
@@ -49,7 +41,7 @@ async function getAnthropicClient(): Promise<AnthropicClient | null> {
     anthropicClientPromise = import('@anthropic-ai/sdk')
       .then((mod) => {
         const Anthropic = mod.default
-        return new Anthropic({ apiKey: anthropicApiKey }) as AnthropicClient
+        return new Anthropic({ apiKey: anthropicApiKey })
       })
       .catch(() => null)
   }

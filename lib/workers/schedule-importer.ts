@@ -79,7 +79,7 @@ export async function runScheduleImporter(options?: {
         batch.map((row) =>
           prisma.gameSchedule.upsert({
             where: {
-              uniq_game_schedule_sport_season_week_external: {
+              sportType_season_weekOrRound_externalId: {
                 sportType: row.sportType,
                 season: row.season,
                 weekOrRound: row.weekOrRound,

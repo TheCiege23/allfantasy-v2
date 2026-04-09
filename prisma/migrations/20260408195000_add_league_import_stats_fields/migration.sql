@@ -1,0 +1,9 @@
+ALTER TABLE "leagues"
+ADD COLUMN IF NOT EXISTS "import_wins" INTEGER,
+ADD COLUMN IF NOT EXISTS "import_losses" INTEGER,
+ADD COLUMN IF NOT EXISTS "import_ties" INTEGER,
+ADD COLUMN IF NOT EXISTS "import_made_playoffs" BOOLEAN,
+ADD COLUMN IF NOT EXISTS "import_won_championship" BOOLEAN,
+ADD COLUMN IF NOT EXISTS "import_final_standing" INTEGER,
+ADD COLUMN IF NOT EXISTS "import_points_for" DOUBLE PRECISION,
+ADD COLUMN IF NOT EXISTS "import_points_against" DOUBLE PRECISION;

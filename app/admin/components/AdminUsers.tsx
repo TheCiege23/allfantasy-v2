@@ -51,7 +51,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<AppUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchQ, setSearchQ] = useState(searchParams.get("q") || "")
+  const [searchQ, setSearchQ] = useState(searchParams?.get("q") || "")
   const [emailStatusFilter, setEmailStatusFilter] = useState<"all" | "verified" | "unverified">("all")
   const [sortBy, setSortBy] = useState<"created_desc" | "created_asc" | "email_asc" | "username_asc">("created_desc")
   const [page, setPage] = useState(1)
@@ -87,7 +87,7 @@ export default function AdminUsers() {
   }, [])
 
   useEffect(() => {
-    const nextQ = searchParams.get("q") || ""
+    const nextQ = searchParams?.get("q") || ""
     setSearchQ((prev) => (prev === nextQ ? prev : nextQ))
   }, [searchParams])
 

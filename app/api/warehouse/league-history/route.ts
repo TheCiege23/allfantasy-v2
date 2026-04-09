@@ -16,6 +16,8 @@ import {
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 type WarehouseView =
   | 'summary'
   | 'matchups'

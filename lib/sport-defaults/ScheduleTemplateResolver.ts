@@ -153,7 +153,7 @@ export async function getScheduleTemplate(
 ): Promise<ScheduleTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType) as SportType
   const row = await prisma.scheduleTemplate.findUnique({
-    where: { uniq_schedule_template_sport_format: { sportType: sport, formatType } },
+    where: { sportType_formatType: { sportType: sport, formatType } },
   })
   if (row) {
     return {

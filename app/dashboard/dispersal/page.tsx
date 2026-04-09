@@ -12,8 +12,15 @@ export default async function DashboardDispersalPage() {
     redirect(`/login?callbackUrl=${encodeURIComponent('/dashboard/dispersal')}`)
   }
   const userId = session.user.id
+  const dispersalDraftClient = (prisma as any).dispersalDraft
 
-  const drafts = await prisma.dispersalDraft.findMany({
+  const drafts: Array<{
+    id: string
+    leagueId: string
+    status: string
+    updatedAt: Date
+    league: { id: string; name: string | null }
+  }> = await dispersalDraftClient.findMany({
     where: {
       status: { in: ['pending', 'configuring', 'in_progress'] },
       league: {

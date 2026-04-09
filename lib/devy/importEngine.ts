@@ -1,5 +1,6 @@
 import type { DevyImportSession, DevyImportSource } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import type { SleeperPlayer } from '@/lib/sleeper-client'
 import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
 function abortAfter(ms: number): AbortSignal {
@@ -30,7 +31,7 @@ type ConnectionData = Record<string, unknown> & {
 async function fetchSleeperPlayerNames(playerIds: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {}
   const unique = [...new Set(playerIds)].slice(0, 120)
-  const playersById = await getPlayersBySport('nfl').catch(() => ({}))
+  const playersById = await getPlayersBySport('nfl').catch((): Record<string, SleeperPlayer> => ({}))
   for (const id of unique) {
     const p = playersById[id]
     const name = p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(' ').trim() || `Player ${id}`

@@ -10,6 +10,8 @@ import {
 import { getDynastyAIInsight } from '@/lib/dynasty-intelligence/DynastyIntelligenceAI'
 import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

@@ -14,6 +14,8 @@ import {
   getOrphanAdoptionRequests,
 } from "@/lib/orphan-marketplace"
 
+export const dynamic = "force-dynamic"
+
 type SessionWithUser = { user?: { id?: string } } | null
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -290,4 +292,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load orphan teams" }, { status: 500 })
   }
 }
-

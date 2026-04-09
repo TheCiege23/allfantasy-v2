@@ -1,0 +1,2 @@
+ALTER TABLE "rosters"
+ADD COLUMN IF NOT EXISTS "dispersalDraftPasses" BOOLEAN NOT NULL DEFAULT false;

@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
+const dispersalDraftClient = (prisma as typeof prisma & { dispersalDraft: any }).dispersalDraft
+
 /** Resolves Sleeper-style roster id (`LeagueTeam.externalId`) for the logged-in user. */
 export async function getRosterIdForLeagueUser(leagueId: string, userId: string): Promise<string | null> {
   const team = await prisma.leagueTeam.findFirst({
@@ -10,7 +12,7 @@ export async function getRosterIdForLeagueUser(leagueId: string, userId: string)
 }
 
 export async function requireDispersalDraftForLeague(draftId: string, leagueId: string) {
-  const draft = await prisma.dispersalDraft.findFirst({
+  const draft = await dispersalDraftClient.findFirst({
     where: { id: draftId, leagueId },
     select: { id: true },
   })

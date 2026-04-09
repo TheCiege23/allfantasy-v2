@@ -28,7 +28,7 @@ export default async function DraftResultsPage({
     where: {
       userId,
       draftSessions: {
-        some: { status: 'completed' },
+        is: { status: 'completed' },
       },
     },
     select: {

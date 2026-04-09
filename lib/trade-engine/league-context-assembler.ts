@@ -18,6 +18,8 @@ import {
   getLeagueRosters,
   getLeagueTransactions,
   getLeagueUsers,
+  type SleeperUser,
+  type SleeperPlayer,
 } from '../sleeper-client'
 import {
   type LeagueDecisionContext,
@@ -36,13 +38,6 @@ import {
   computeSourceFreshness,
 } from './trade-decision-context'
 
-type SleeperUser = {
-  user_id: string
-  display_name?: string
-  username?: string
-  avatar?: string
-}
-
 type SleeperRoster = {
   roster_id: number
   owner_id: string | null
@@ -60,15 +55,6 @@ type SleeperRoster = {
     fpts_against?: number
     fpts_against_decimal?: number
   }
-}
-
-type SleeperPlayer = {
-  full_name?: string
-  first_name?: string
-  last_name?: string
-  position?: string
-  team?: string
-  age?: number
 }
 
 type RosterSlot = 'Starter' | 'Bench' | 'IR' | 'Taxi'
@@ -263,7 +249,12 @@ export async function buildLeagueDecisionContext(
     const up = String(p || '').toUpperCase()
     return up === 'SUPER_FLEX' || up === 'SF'
   })
-  const numTeams = leagueData.total_rosters || leagueSettings2.num_teams || 12
+  const totalRosters = Number(leagueData.total_rosters)
+  const configuredTeams = Number((leagueSettings2 as { num_teams?: unknown }).num_teams)
+  const numTeams =
+    (Number.isFinite(totalRosters) && totalRosters > 0 ? totalRosters : null) ??
+    (Number.isFinite(configuredTeams) && configuredTeams > 0 ? configuredTeams : null) ??
+    12
   const taxiSlots = Number(leagueSettings2.taxi_slots || 0)
   const benchSlots = rosterPositions.filter((p: string) => String(p).toUpperCase() === 'BN').length
   const starterSlots = rosterPositions.filter((p: string) => {

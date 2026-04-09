@@ -129,7 +129,11 @@ export async function getLeagueChatMessages(
     const meta = Object.keys(withPresence).length > 0 ? withPresence : undefined
     return meta ? { ...base, metadata: meta } : base
   }).map((message) => {
-    const deleted = Boolean((message.metadata as Record<string, unknown> | undefined)?.deletedAt)
+    const metadata =
+      'metadata' in message
+        ? (message.metadata as Record<string, unknown> | undefined)
+        : undefined
+    const deleted = Boolean(metadata?.deletedAt)
     return deleted ? { ...message, body: '[message deleted]' } : message
   })
 }

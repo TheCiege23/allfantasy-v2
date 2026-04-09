@@ -7,6 +7,8 @@ import { runMetaAnalysis, getMetaAnalysisSupportedSports } from '@/lib/strategy-
 import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

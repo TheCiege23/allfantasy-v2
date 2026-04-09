@@ -62,57 +62,34 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
     const rankTier = levelResult.tier
     const xpLevel = levelResult.level
 
-    try {
-      await prisma.userProfile.upsert({
-        where: { userId },
-        update: {
-          rankTier,
-          xpTotal,
-          xpLevel,
-          careerWins,
-          careerLosses,
-          careerChampionships,
-          careerPlayoffAppearances,
-          careerSeasonsPlayed,
-          careerLeaguesPlayed,
-          rankCalculatedAt: new Date(),
-        },
-        create: {
-          userId,
-          rankTier,
-          xpTotal,
-          xpLevel,
-          careerWins,
-          careerLosses,
-          careerChampionships,
-          careerPlayoffAppearances,
-          careerSeasonsPlayed,
-          careerLeaguesPlayed,
-          rankCalculatedAt: new Date(),
-        },
-      })
-    } catch (inner: unknown) {
-      console.error('[calculateAndSaveRank] upsert failed (missing rank columns?):', inner)
-      try {
-        await prisma.userProfile.upsert({
-          where: { userId },
-          update: {
-            legacyCareerLevel: xpLevel,
-            legacyCareerXp: xpTotal,
-            legacyRankUpdatedAt: new Date(),
-          },
-          create: {
-            userId,
-            legacyCareerLevel: xpLevel,
-            legacyCareerXp: xpTotal,
-            legacyRankUpdatedAt: new Date(),
-          },
-        })
-      } catch (fallbackErr: unknown) {
-        console.error('[calculateAndSaveRank] legacy fallback upsert failed:', fallbackErr)
-        return null
-      }
-    }
+    await prisma.userProfile.upsert({
+      where: { userId },
+      update: {
+        rankTier,
+        xpTotal,
+        xpLevel,
+        careerWins,
+        careerLosses,
+        careerChampionships,
+        careerPlayoffAppearances,
+        careerSeasonsPlayed,
+        careerLeaguesPlayed,
+        rankCalculatedAt: new Date(),
+      },
+      create: {
+        userId,
+        rankTier,
+        xpTotal,
+        xpLevel,
+        careerWins,
+        careerLosses,
+        careerChampionships,
+        careerPlayoffAppearances,
+        careerSeasonsPlayed,
+        careerLeaguesPlayed,
+        rankCalculatedAt: new Date(),
+      },
+    })
 
     return {
       rankTier,
