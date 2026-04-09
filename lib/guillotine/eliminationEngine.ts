@@ -4,7 +4,14 @@ import { transitionToFinalStage } from './endgameEngine'
 import { computeChopLine } from './survivalStandings'
 
 export type EliminationResult = {
-  eliminated: { rosterId: string; score: number }[]
+  eliminated: {
+    rosterId: string
+    score: number
+    teamName: string | null
+    marginBelowSafe: number
+    wasTiebreaker: boolean
+    playersReleased: number
+  }[]
   survived: { rosterId: string; score: number }[]
   finalStageReached: boolean
   /** Set when cron skipped re-chop for an already-processed scoring period. */
@@ -271,7 +278,14 @@ export async function runEliminationCheck(
         data: { isEliminated: true },
       })
 
-      eliminated.push({ rosterId: elim.rosterId, score: elim.score })
+      eliminated.push({
+        rosterId: elim.rosterId,
+        score: elim.score,
+        teamName: elim.teamName,
+        marginBelowSafe,
+        wasTiebreaker: false,
+        playersReleased: 0,
+      })
     }
 
     const chopSet = new Set(toChop.map((c) => c.rosterId))
@@ -323,7 +337,8 @@ export async function runEliminationCheck(
 
   const delay = league.guillotineWaiverDelay ?? 0
   for (const e of eliminated) {
-    await releaseRoster(e.rosterId, seasonId, scoringPeriod, league.id, delay)
+    const { releasesCreated } = await releaseRoster(e.rosterId, seasonId, scoringPeriod, league.id, delay)
+    e.playersReleased = releasesCreated
   }
 
   let finalStageReached = false
