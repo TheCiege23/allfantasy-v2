@@ -51,6 +51,7 @@ async function runAutomation(req: NextRequest) {
       const gs = await getOrCreateSurvivorGameState(leagueId)
       const phase = gs.phase
       if (phase === 'pre_draft' || phase === 'complete') continue
+      if (typeof gs.lastError === 'string' && gs.lastError.startsWith('PAUSED:')) continue
 
       const season = await prisma.redraftSeason.findFirst({
         where: { leagueId },
