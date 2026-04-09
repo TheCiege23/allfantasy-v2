@@ -22,44 +22,42 @@ import { GuillotineSetupStep } from './steps/GuillotineSetupStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
 
+/**
+ * Streamlined 4-5 step wizard:
+ * 1. League — sport + format + name (what are we playing?)
+ * 2. Setup — draft + teams + roster + modifiers (how is it configured?)
+ * 3. Rules — scoring + trades + playoffs (what are the rules?)
+ * 4. [Format] — survivor/guillotine specific (only for specialty formats)
+ * 5. Launch — visibility + invite (go live!)
+ */
 const BASE_STEP_ORDER: LeagueCreateStepId[] = [
-  'sport',
-  'format',
-  'modifiers',
-  'draft',
-  'roster',
-  'scoring',
-  'rules',
-  'invite',
+  'sport',    // Step 1: League (sport + format combined)
+  'draft',    // Step 2: Setup (draft + roster + modifiers combined)
+  'rules',    // Step 3: Rules (scoring + rules combined)
+  'invite',   // Step 4: Launch
 ]
 
 function getStepOrder(formatId: string): LeagueCreateStepId[] {
   if (formatId === 'survivor') {
-    return [
-      'sport', 'format', 'modifiers', 'draft', 'roster', 'scoring',
-      'rules', 'survivor_setup', 'invite',
-    ]
+    return ['sport', 'draft', 'rules', 'survivor_setup', 'invite']
   }
   if (formatId === 'guillotine') {
-    return [
-      'sport', 'format', 'modifiers', 'draft', 'roster', 'scoring',
-      'rules', 'guillotine_setup', 'invite',
-    ]
+    return ['sport', 'draft', 'rules', 'guillotine_setup', 'invite']
   }
   return BASE_STEP_ORDER
 }
 
 const STEP_LABELS: Record<LeagueCreateStepId, string> = {
-  sport: 'Sport',
-  format: 'Format',
-  modifiers: 'Modifiers',
-  draft: 'Draft',
-  roster: 'Roster',
-  scoring: 'Scoring',
+  sport: 'League',
+  format: 'League',
+  modifiers: 'Setup',
+  draft: 'Setup',
+  roster: 'Setup',
+  scoring: 'Rules',
   rules: 'Rules',
   survivor_setup: 'Survivor',
   guillotine_setup: 'Guillotine',
-  invite: 'Invite',
+  invite: 'Launch',
 }
 
 function deriveVariant(state: LeagueCreateFormState): string | null {
@@ -212,16 +210,68 @@ export function CreateLeaguePageClient() {
     requestedModifiers: state.modifiers,
   })
 
+  // Combined step content — fewer steps, more per screen
   const stepContent = {
-    sport: <SportStep state={state} setState={setState} />,
+    // Step 1: League — sport + format + league name
+    sport: (
+      <div className="space-y-6">
+        <div>
+          <div className="mb-2 text-sm font-medium text-white/80">What sport?</div>
+          <SportStep state={state} setState={setState} />
+        </div>
+        <div>
+          <div className="mb-2 text-sm font-medium text-white/80">What format?</div>
+          <FormatStep state={state} setState={setState} />
+        </div>
+        <div>
+          <label className="mb-2 block text-xs font-medium text-white/60">League Name</label>
+          <input
+            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder-white/30 focus:border-cyan-400/40 focus:outline-none"
+            placeholder={`${state.sport} ${resolution.format.label} League`}
+            value={state.leagueName}
+            onChange={(e) => setState((c) => ({ ...c, leagueName: e.target.value }))}
+          />
+        </div>
+      </div>
+    ),
+
+    // Step 2: Setup — draft type + teams + roster + modifiers (conditional)
+    draft: (
+      <div className="space-y-6">
+        <DraftStep state={state} setState={setState} />
+        <div className="border-t border-white/10 pt-4">
+          <RosterStep state={state} setState={setState} />
+        </div>
+        {resolution.format.supportedModifiers.length > 0 && (
+          <div className="border-t border-white/10 pt-4">
+            <div className="mb-2 text-sm font-medium text-white/80">Optional Modifiers</div>
+            <ModifiersStep state={state} setState={setState} />
+          </div>
+        )}
+      </div>
+    ),
+
+    // Step 3: Rules — scoring + league policies (conditional fields hidden when irrelevant)
+    rules: (
+      <div className="space-y-6">
+        <ScoringStep state={state} setState={setState} />
+        <div className="border-t border-white/10 pt-4">
+          <RulesStep state={state} setState={setState} />
+        </div>
+      </div>
+    ),
+
+    // These still exist for backward compat but aren't in step order
     format: <FormatStep state={state} setState={setState} />,
     modifiers: <ModifiersStep state={state} setState={setState} />,
-    draft: <DraftStep state={state} setState={setState} />,
     roster: <RosterStep state={state} setState={setState} />,
     scoring: <ScoringStep state={state} setState={setState} />,
-    rules: <RulesStep state={state} setState={setState} />,
+
+    // Step 4 (specialty): format-specific setup
     survivor_setup: <SurvivorSetupStep state={state} setState={setState} />,
     guillotine_setup: <GuillotineSetupStep state={state} setState={setState} />,
+
+    // Step 5: Launch — visibility + invite
     invite: <InviteStep state={state} setState={setState} />,
   }[step]
 

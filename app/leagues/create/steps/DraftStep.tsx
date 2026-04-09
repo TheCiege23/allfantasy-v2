@@ -28,7 +28,7 @@ export function DraftStep({ state, setState }: LeagueCreateStepProps) {
           )
         })}
       </div>
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={`grid gap-3 ${state.draftType.includes('auction') ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
         <div>
           <label className="mb-2 block text-xs font-medium text-white/60">Rounds</label>
           <Input
@@ -44,7 +44,7 @@ export function DraftStep({ state, setState }: LeagueCreateStepProps) {
           />
         </div>
         <div>
-          <label className="mb-2 block text-xs font-medium text-white/60">Timer Seconds</label>
+          <label className="mb-2 block text-xs font-medium text-white/60">Timer (seconds)</label>
           <Input
             type="number"
             min={0}
@@ -57,20 +57,22 @@ export function DraftStep({ state, setState }: LeagueCreateStepProps) {
             }
           />
         </div>
-        <div>
-          <label className="mb-2 block text-xs font-medium text-white/60">Auction Budget</label>
-          <Input
-            type="number"
-            min={1}
-            value={state.auctionBudget}
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                auctionBudget: Number(event.target.value || current.auctionBudget),
-              }))
-            }
-          />
-        </div>
+        {state.draftType.includes('auction') && (
+          <div>
+            <label className="mb-2 block text-xs font-medium text-white/60">Auction Budget</label>
+            <Input
+              type="number"
+              min={1}
+              value={state.auctionBudget}
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  auctionBudget: Number(event.target.value || current.auctionBudget),
+                }))
+              }
+            />
+          </div>
+        )}
       </div>
     </div>
   )
