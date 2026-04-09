@@ -72,6 +72,7 @@ function SurvivorAppShellInner({
     dot: boolean
     home?: boolean
     onClick?: () => void
+    actionOnly?: boolean
   }
 
   const desktopItems: NavItem[] = [
@@ -98,6 +99,7 @@ function SurvivorAppShellInner({
       show: ctx.isCommissioner,
       dot: ctx.isCommissioner && ctx.canEditLeagueSettings,
       onClick: () => setSettingsOpen(true),
+      actionOnly: true,
       home: false,
     },
   ].filter((x) => x.show)
@@ -160,35 +162,58 @@ function SurvivorAppShellInner({
           </button>
           <nav className="mt-4 flex flex-1 flex-col gap-0.5 px-2 pb-24">
             {desktopItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={(e) => {
-                  if (!item.onClick) return
-                  e.preventDefault()
-                  item.onClick()
-                }}
-                className={clsx(
-                  'relative flex items-center gap-3 rounded-lg px-2 py-2.5 text-[13px] transition-colors',
-                  pathActive(pathname, item.href, Boolean(item.home))
-                    ? 'bg-sky-500/15 text-sky-100'
-                    : 'text-white/55 hover:bg-white/[0.05] hover:text-white/90',
-                )}
-              >
-                <span className="flex w-8 justify-center text-lg">{item.icon}</span>
-                {expanded ? <span className="truncate">{item.label}</span> : null}
-                {item.dot ? (
-                  <span
-                    className={clsx(
-                      'absolute right-2 top-2 h-2 w-2 rounded-full',
-                      item.label === 'Tribal' && 'bg-red-500 tribal-dot-pulse',
-                      item.label === 'Exile' && 'bg-violet-400',
-                      item.label === 'Challenges' && 'bg-[var(--survivor-torch)]',
-                      item.label === 'Commissioner' && 'bg-amber-400',
-                    )}
-                  />
-                ) : null}
-              </Link>
+              item.actionOnly ? (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => item.onClick?.()}
+                  className={clsx(
+                    'relative flex items-center gap-3 rounded-lg px-2 py-2.5 text-[13px] transition-colors',
+                    settingsOpen
+                      ? 'bg-sky-500/15 text-sky-100'
+                      : 'text-white/55 hover:bg-white/[0.05] hover:text-white/90',
+                  )}
+                >
+                  <span className="flex w-8 justify-center text-lg">{item.icon}</span>
+                  {expanded ? <span className="truncate">{item.label}</span> : null}
+                  {item.dot ? (
+                    <span
+                      className={clsx(
+                        'absolute right-2 top-2 h-2 w-2 rounded-full',
+                        item.label === 'Tribal' && 'bg-red-500 tribal-dot-pulse',
+                        item.label === 'Exile' && 'bg-violet-400',
+                        item.label === 'Challenges' && 'bg-[var(--survivor-torch)]',
+                        item.label === 'Commissioner' && 'bg-amber-400',
+                      )}
+                    />
+                  ) : null}
+                </button>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={clsx(
+                    'relative flex items-center gap-3 rounded-lg px-2 py-2.5 text-[13px] transition-colors',
+                    pathActive(pathname, item.href, Boolean(item.home))
+                      ? 'bg-sky-500/15 text-sky-100'
+                      : 'text-white/55 hover:bg-white/[0.05] hover:text-white/90',
+                  )}
+                >
+                  <span className="flex w-8 justify-center text-lg">{item.icon}</span>
+                  {expanded ? <span className="truncate">{item.label}</span> : null}
+                  {item.dot ? (
+                    <span
+                      className={clsx(
+                        'absolute right-2 top-2 h-2 w-2 rounded-full',
+                        item.label === 'Tribal' && 'bg-red-500 tribal-dot-pulse',
+                        item.label === 'Exile' && 'bg-violet-400',
+                        item.label === 'Challenges' && 'bg-[var(--survivor-torch)]',
+                        item.label === 'Commissioner' && 'bg-amber-400',
+                      )}
+                    />
+                  ) : null}
+                </Link>
+              )
             ))}
           </nav>
         </aside>

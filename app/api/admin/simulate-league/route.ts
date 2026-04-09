@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveAdminEmail } from '@/lib/auth/admin'
+import { assertLeagueMember } from '@/lib/league/league-access'
 import { simulateLeague } from '@/lib/simulation/leagueSimulator'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +33,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
 
+  const leagueAccess = await assertLeagueMember(leagueId, userId)
+  if (!leagueAccess.ok) {
+    const status = leagueAccess.status === 404 ? 404 : 403
+    const error = leagueAccess.status === 404 ? 'League not found' : 'Forbidden'
+    return NextResponse.json({ error }, { status })
+  }
+
   if (
     commissionerModeInput != null &&
     commissionerModeInput !== 'spectator' &&
@@ -47,9 +55,11 @@ export async function POST(req: NextRequest) {
     const report = await simulateLeague(leagueId, userId, commissionerMode)
     return NextResponse.json({ ok: true, report })
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Simulation failed'
+    const status = message === 'League not found' ? 404 : 500
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Simulation failed' },
-      { status: 500 },
+      { error: message },
+      { status },
     )
   }
 }
