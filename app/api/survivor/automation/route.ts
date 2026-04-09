@@ -190,12 +190,13 @@ async function runAutomation(req: NextRequest) {
         if (!gsFinal) return
         const needsExileScore = didClearNeedsExileScore ? false : gsFinal.needsExileScore
         const needsWeeklyRecap = didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap
+        const needsWaiverProcess = false
 
         const shouldAdvanceWeek =
           Boolean(gsFinal.weekScoringFinalAt) &&
           Boolean(gsFinal.tribalCompleteAt) &&
           !gsFinal.needsChallengeLock &&
-          !gsFinal.needsWaiverProcess &&
+          !needsWaiverProcess &&
           !gsFinal.needsTribalLock &&
           !needsExileScore &&
           !needsWeeklyRecap
@@ -208,6 +209,7 @@ async function runAutomation(req: NextRequest) {
           data: {
             needsExileScore: nextNeedsExileScore,
             needsWeeklyRecap: nextNeedsWeeklyRecap,
+            needsWaiverProcess,
             ...(shouldAdvanceWeek
               ? {
                   currentWeek: Math.max(1, gsFinal.currentWeek || week) + 1,
@@ -225,7 +227,6 @@ async function runAutomation(req: NextRequest) {
                   immuneTribeId: null,
                   immunePlayerId: null,
                   needsChallengeLock: true,
-                  needsWaiverProcess: false,
                   needsTribalLock: true,
                   needsPhaseAdvance: true,
                 }
