@@ -405,7 +405,13 @@ export function LeagueShell({
             c2cLeagueActive={c2cConfig !== null}
             c2cConfig={c2cConfig}
             isCommissioner={isCommissioner}
-            onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+            onOpenCommissionerSettings={() => {
+              if (league.guillotineMode) {
+                setGuillotineSettingsOpen(true)
+                return
+              }
+              setCommissionerSettingsOpen(true)
+            }}
             idpCapEnabled={idpCapEnabled}
             capSummary={capSummary}
             capRosterId={capRosterId}
@@ -490,6 +496,7 @@ export function LeagueShell({
 
       {portalMounted &&
       isCommissioner &&
+      !league.guillotineMode &&
       ((devyConfig !== null && devyConfig !== 'none') || (c2cChecked && c2cConfig !== null))
         ? createPortal(
             <CommissionerSettingsModal
