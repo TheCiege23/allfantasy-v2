@@ -45,7 +45,7 @@ async function sweepActiveGuillotineSeasons() {
     const scoringPeriod = Math.max(1, rs.currentWeek || g.currentScoringPeriod || 1)
     try {
       const out = await runEliminationCheck(g.id, scoringPeriod, { skipIfAlreadyProcessed: true })
-      const eliminated = out.eliminated ?? []
+      const eliminated = out.eliminated
 
       // Post elimination to league chat
       if (eliminated.length > 0) {
