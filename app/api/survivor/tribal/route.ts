@@ -12,6 +12,9 @@ import {
 } from '@/lib/survivor/votingEngine'
 import { playIdol } from '@/lib/survivor/idolEngine'
 import { executeRocksDraw } from '@/lib/survivor/rocksEngine'
+import { removeRosterFromTribeChat } from '@/lib/survivor/SurvivorChatMembershipService'
+import { enrollInExile } from '@/lib/survivor/SurvivorExileEngine'
+import { enrollJuryMember, shouldJoinJury } from '@/lib/survivor/SurvivorJuryEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -184,29 +187,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Eliminated roster not found' }, { status: 404 })
     }
     const resolvedEliminatedRosterId = eliminatedSurvivorPlayer?.redraftRosterId ?? eliminateRosterId
-    await prisma.survivorTribalCouncil.update({
-      where: { id: councilId },
-      data: {
-        tiePhase: 'commissioner_resolved',
-        eliminatedRosterId: resolvedEliminatedRosterId,
-        closedAt: new Date(),
-        status: 'completed',
-      },
+    const eliminatedUserId = eliminatedRoster?.platformUserId ?? eliminatedSurvivorPlayer?.userId ?? null
+    const resolvedAt = new Date()
+    await prisma.$transaction(async (tx) => {
+      await tx.survivorTribalCouncil.update({
+        where: { id: councilId },
+        data: {
+          tiePhase: 'commissioner_resolved',
+          eliminatedRosterId: resolvedEliminatedRosterId,
+          closedAt: resolvedAt,
+          status: 'completed',
+        },
+      })
+      await tx.survivorTribeMember.deleteMany({
+        where: { rosterId: resolvedEliminatedRosterId },
+      })
+      await tx.survivorGameState.updateMany({
+        where: { leagueId },
+        data: { tribalCompleteAt: resolvedAt, lastError: null },
+      })
+      await tx.survivorAuditEntry.create({
+        data: {
+          leagueId,
+          week: council.week,
+          category: 'tribal_council',
+          action: 'commissioner_tie_resolve',
+          actorUserId: userId,
+          targetUserId: eliminatedUserId ?? undefined,
+          data: { councilId, tiedRosterIds },
+          isVisibleToCommissioner: true,
+          isVisibleToPublic: false,
+          isRevealablePostSeason: true,
+        },
+      })
     })
-    await prisma.survivorAuditEntry.create({
-      data: {
-        leagueId,
-        week: council.week,
-        category: 'tribal_council',
-        action: 'commissioner_tie_resolve',
-        actorUserId: userId,
-        targetUserId: eliminatedRoster?.platformUserId ?? eliminatedSurvivorPlayer?.userId ?? null,
-        data: { councilId, tiedRosterIds },
-        isVisibleToCommissioner: true,
-        isVisibleToPublic: false,
-        isRevealablePostSeason: true,
-      },
-    })
+    await removeRosterFromTribeChat(leagueId, resolvedEliminatedRosterId).catch(() => {})
+    if (eliminatedUserId) {
+      await enrollInExile(leagueId, resolvedEliminatedRosterId, eliminatedUserId).catch(() => {})
+    }
+    const joinJury = await shouldJoinJury(leagueId, council.week).catch(() => false)
+    if (joinJury) {
+      await enrollJuryMember(leagueId, resolvedEliminatedRosterId, council.week).catch(() => {})
+    }
     return NextResponse.json({ ok: true, eliminatedRosterId: resolvedEliminatedRosterId })
   }
 

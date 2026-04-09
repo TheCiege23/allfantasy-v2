@@ -95,7 +95,7 @@ function SurvivorAppShellInner({
       href: '#settings',
       label: 'Settings',
       icon: '⚙️',
-      show: true,
+      show: ctx.isCommissioner,
       dot: ctx.isCommissioner && ctx.canEditLeagueSettings,
       onClick: () => setSettingsOpen(true),
       home: false,

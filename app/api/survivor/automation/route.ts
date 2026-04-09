@@ -228,7 +228,10 @@ async function runAutomation(req: NextRequest) {
           },
         })
       })
-      if (recapError) throw recapError
+      if (recapError) {
+        const recapMsg = recapError instanceof Error ? recapError.message : String(recapError)
+        console.warn(`[Survivor automation] non-critical weekly recap failure (${leagueId}): ${recapMsg}`)
+      }
       processed++
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
