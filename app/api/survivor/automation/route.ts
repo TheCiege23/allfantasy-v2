@@ -189,6 +189,7 @@ async function runAutomation(req: NextRequest) {
           Boolean(gsFinal.weekScoringFinalAt) &&
           Boolean(gsFinal.tribalCompleteAt) &&
           !gsFinal.needsChallengeLock &&
+          !gsFinal.needsWaiverProcess &&
           !gsFinal.needsTribalLock &&
           !needsExileScore &&
           !needsWeeklyRecap

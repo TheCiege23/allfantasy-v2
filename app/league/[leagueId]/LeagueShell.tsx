@@ -501,7 +501,7 @@ export function LeagueShell({
           )
         : null}
 
-      {portalMounted
+      {!league.guillotineMode && portalMounted
         ? createPortal(
             <LeagueSettingsModal
               open={settingsOpen}

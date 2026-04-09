@@ -25,12 +25,16 @@ export async function POST(req: NextRequest) {
 
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
   const week = typeof body.week === 'number' ? body.week : 0
-  const results = typeof body.results === 'object' && body.results != null
-    ? body.results as Record<string, { winner?: string; totalScore?: number; correct?: boolean }>
-    : {}
+  const results =
+    typeof body.results === 'object' && body.results != null
+      ? (body.results as Record<string, { winner?: string; totalScore?: number; correct?: boolean }>)
+      : null
 
   if (!leagueId || !week) {
     return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+  }
+  if (!results || Object.keys(results).length === 0) {
+    return NextResponse.json({ error: 'results required' }, { status: 400 })
   }
 
   if (!cronOk) {

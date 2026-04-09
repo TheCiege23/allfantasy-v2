@@ -45,10 +45,11 @@ async function sweepActiveGuillotineSeasons() {
     const scoringPeriod = Math.max(1, rs.currentWeek || g.currentScoringPeriod || 1)
     try {
       const out = await runEliminationCheck(g.id, scoringPeriod, { skipIfAlreadyProcessed: true })
+      const eliminated = out.eliminated ?? []
 
       // Post elimination to league chat
-      if (out.eliminated?.length > 0) {
-        for (const elim of out.eliminated) {
+      if (eliminated.length > 0) {
+        for (const elim of eliminated) {
           await postGuillotineEliminationToChat(
             g.leagueId,
             elim.teamName ?? 'Unknown',
@@ -65,7 +66,7 @@ async function sweepActiveGuillotineSeasons() {
         seasonId: g.id,
         scoringPeriod,
         skipped: out.skipped,
-        eliminated: out.eliminated.length,
+        eliminated: eliminated.length,
       })
     } catch (e) {
       results.push({
