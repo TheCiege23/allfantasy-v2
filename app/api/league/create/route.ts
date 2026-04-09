@@ -689,7 +689,7 @@ export async function POST(req: Request) {
             ...(gc?.protectedWeek1 != null && { guillotineProtectedWeek1: Boolean(gc.protectedWeek1) }),
             ...(gc?.tiebreaker != null && { guillotineTiebreaker: String(gc.tiebreaker) }),
             ...(gc?.samePeriodPickups != null && { guillotineSamePeriodPickups: Boolean(gc.samePeriodPickups) }),
-            ...(gc?.tradesEnabled === false && { draftPickTrading: false }),
+            ...(typeof gc?.tradesEnabled === 'boolean' && { draftPickTrading: gc.tradesEnabled }),
           },
         });
         const linkedRedraftSeason = await (prisma as any).redraftSeason.findFirst({

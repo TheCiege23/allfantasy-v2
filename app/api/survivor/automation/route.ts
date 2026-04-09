@@ -42,7 +42,13 @@ async function runAutomation(req: NextRequest) {
       survivorMode: true,
       survivorPhase: { notIn: ['pre_draft', 'drafting', 'complete'] },
     },
-    select: { id: true, survivorPhase: true, survivorExileReturnWeek: true, sport: true },
+    select: {
+      id: true,
+      survivorPhase: true,
+      survivorExileEnabled: true,
+      survivorExileReturnWeek: true,
+      sport: true,
+    },
   })
 
   for (const L of leagues) {
@@ -194,7 +200,7 @@ async function runAutomation(req: NextRequest) {
           !needsExileScore &&
           !needsWeeklyRecap
 
-        const nextNeedsExileScore = shouldAdvanceWeek ? true : needsExileScore
+        const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : needsExileScore
         const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : needsWeeklyRecap
 
         await tx.survivorGameState.update({
