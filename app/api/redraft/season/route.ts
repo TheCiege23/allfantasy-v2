@@ -90,6 +90,18 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    const pendingGuillotine = await tx.guillotineSeason.findFirst({
+      where: { leagueId, redraftSeasonId: null, season: seasonYear },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    if (pendingGuillotine?.id) {
+      await tx.guillotineSeason.update({
+        where: { id: pendingGuillotine.id },
+        data: { redraftSeasonId: rs.id },
+      })
+    }
+
     const rosters: { id: string }[] = []
     for (const t of league.teams) {
       const ownerId = t.claimedByUserId ?? league.userId

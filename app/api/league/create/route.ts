@@ -694,10 +694,16 @@ export async function POST(req: Request) {
             ...(gc?.tradesEnabled === false && { draftPickTrading: false }),
           },
         });
+        const linkedRedraftSeason = await (prisma as any).redraftSeason.findFirst({
+          where: { leagueId: league.id },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        }).catch(() => null);
         // Auto-create GuillotineSeason
         await (prisma as any).guillotineSeason.create({
           data: {
             leagueId: league.id,
+            ...(linkedRedraftSeason?.id ? { redraftSeasonId: linkedRedraftSeason.id } : {}),
             sport: league.sport ?? 'NFL',
             season: league.season ?? new Date().getFullYear(),
             status: 'active',

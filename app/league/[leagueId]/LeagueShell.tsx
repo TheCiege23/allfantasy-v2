@@ -389,7 +389,13 @@ export function LeagueShell({
             tabs={tabDefs}
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenSettings={() => {
+              if (league.guillotineMode) {
+                setGuillotineSettingsOpen(true)
+                return
+              }
+              setSettingsOpen(true)
+            }}
             onGoHome={() => router.push('/dashboard')}
             idpLeagueActive={idpUi?.active ?? false}
             idpViewMode={idpViewMode}
