@@ -12,6 +12,49 @@ import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTrad
 
 export const dynamic = 'force-dynamic'
 
+const PAUSE_ERROR_PREFIX = 'PAUSED:'
+
+type PausedNeedsSnapshot = {
+  needsChallengeLock: boolean
+  needsTribalLock: boolean
+  needsExileScore: boolean
+  needsPhaseAdvance: boolean
+  needsWeeklyRecap: boolean
+}
+
+function createPauseError(notes: string, snapshot: PausedNeedsSnapshot): string {
+  return `${PAUSE_ERROR_PREFIX}${JSON.stringify({ notes, snapshot })}`
+}
+
+function parsePauseSnapshot(lastError: string | null | undefined): PausedNeedsSnapshot | null {
+  if (!lastError?.startsWith(PAUSE_ERROR_PREFIX)) return null
+  const rawValue = lastError.slice(PAUSE_ERROR_PREFIX.length).trim()
+  if (!rawValue.startsWith('{')) return null
+  try {
+    const parsed = JSON.parse(rawValue) as { snapshot?: Partial<PausedNeedsSnapshot> } | null
+    const snapshot = parsed?.snapshot
+    if (!snapshot) return null
+    if (
+      typeof snapshot.needsChallengeLock !== 'boolean' ||
+      typeof snapshot.needsTribalLock !== 'boolean' ||
+      typeof snapshot.needsExileScore !== 'boolean' ||
+      typeof snapshot.needsPhaseAdvance !== 'boolean' ||
+      typeof snapshot.needsWeeklyRecap !== 'boolean'
+    ) {
+      return null
+    }
+    return {
+      needsChallengeLock: snapshot.needsChallengeLock,
+      needsTribalLock: snapshot.needsTribalLock,
+      needsExileScore: snapshot.needsExileScore,
+      needsPhaseAdvance: snapshot.needsPhaseAdvance,
+      needsWeeklyRecap: snapshot.needsWeeklyRecap,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
@@ -257,6 +300,23 @@ export async function POST(req: NextRequest) {
 
   if (action === 'pause_season') {
     const notes = typeof body.notes === 'string' ? body.notes : 'Season paused by commissioner'
+    const currentState = await prisma.survivorGameState.findUnique({
+      where: { leagueId },
+      select: {
+        needsChallengeLock: true,
+        needsTribalLock: true,
+        needsExileScore: true,
+        needsPhaseAdvance: true,
+        needsWeeklyRecap: true,
+      },
+    })
+    const pausedSnapshot: PausedNeedsSnapshot = {
+      needsChallengeLock: currentState?.needsChallengeLock ?? false,
+      needsTribalLock: currentState?.needsTribalLock ?? false,
+      needsExileScore: currentState?.needsExileScore ?? false,
+      needsPhaseAdvance: currentState?.needsPhaseAdvance ?? false,
+      needsWeeklyRecap: currentState?.needsWeeklyRecap ?? false,
+    }
     await prisma.survivorGameState.update({
       where: { leagueId },
       data: {
@@ -265,7 +325,7 @@ export async function POST(req: NextRequest) {
         needsExileScore: false,
         needsPhaseAdvance: false,
         needsWeeklyRecap: false,
-        lastError: `PAUSED: ${notes}`,
+        lastError: createPauseError(notes, pausedSnapshot),
       },
     })
     await log('pause_season', notes)
@@ -281,14 +341,32 @@ export async function POST(req: NextRequest) {
 
   if (action === 'resume_season') {
     const notes = typeof body.notes === 'string' ? body.notes : 'Season resumed'
-    await prisma.survivorGameState.update({
+    const currentState = await prisma.survivorGameState.findUnique({
       where: { leagueId },
-      data: {
+      select: {
+        lastError: true,
         needsChallengeLock: true,
         needsTribalLock: true,
         needsExileScore: true,
         needsPhaseAdvance: true,
-        needsWeeklyRecap: false,
+        needsWeeklyRecap: true,
+      },
+    })
+    const pausedSnapshot = parsePauseSnapshot(currentState?.lastError)
+    const isLegacyPausedState = Boolean(currentState?.lastError?.startsWith(PAUSE_ERROR_PREFIX) && !pausedSnapshot)
+    await prisma.survivorGameState.update({
+      where: { leagueId },
+      data: {
+        needsChallengeLock:
+          pausedSnapshot?.needsChallengeLock ?? (isLegacyPausedState ? true : currentState?.needsChallengeLock ?? false),
+        needsTribalLock:
+          pausedSnapshot?.needsTribalLock ?? (isLegacyPausedState ? true : currentState?.needsTribalLock ?? false),
+        needsExileScore:
+          pausedSnapshot?.needsExileScore ?? (isLegacyPausedState ? true : currentState?.needsExileScore ?? false),
+        needsPhaseAdvance:
+          pausedSnapshot?.needsPhaseAdvance ?? (isLegacyPausedState ? true : currentState?.needsPhaseAdvance ?? false),
+        needsWeeklyRecap:
+          pausedSnapshot?.needsWeeklyRecap ?? (isLegacyPausedState ? false : currentState?.needsWeeklyRecap ?? false),
         lastError: null,
       },
     })
