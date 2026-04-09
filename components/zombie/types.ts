@@ -36,6 +36,8 @@ export interface ZombieUniverseStandingsRow {
   levelId: string
   levelName: string
   status: string
+  displayName?: string
+  leagueName?: string
   totalPoints: number
   pointsPerWeek: number[]
   winnings: number
@@ -50,5 +52,6 @@ export interface ZombieMovementProjection {
   leagueId: string
   currentLevelId: string
   projectedLevelId: string
+  projectedLevelName?: string | null
   reason: string
 }
