@@ -77,6 +77,9 @@ export async function POST(req: NextRequest) {
 
   if (body.intent === 'claim_team') {
     if (!body.leagueId || body.week == null) return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+    if (!Number.isInteger(body.week) || body.week < 1) {
+      return NextResponse.json({ error: 'Valid week required' }, { status: 400 })
+    }
     const gate = await assertLeagueMember(body.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const island = await prisma.exileIsland.findUnique({ where: { leagueId: body.leagueId } })

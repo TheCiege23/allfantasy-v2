@@ -695,8 +695,7 @@ export async function POST(req: Request) {
           },
         });
         // Auto-create GuillotineSeason
-        const { prisma: p } = await import('@/lib/prisma');
-        await (p as any).guillotineSeason.create({
+        await (prisma as any).guillotineSeason.create({
           data: {
             leagueId: league.id,
             sport: league.sport ?? 'NFL',

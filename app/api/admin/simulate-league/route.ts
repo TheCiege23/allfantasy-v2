@@ -26,13 +26,22 @@ export async function POST(req: NextRequest) {
   }
 
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
-  const commissionerMode = typeof body.commissionerMode === 'string'
-    ? (body.commissionerMode as 'spectator' | 'participating')
-    : 'spectator'
+  const commissionerModeInput = body.commissionerMode
 
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
+
+  if (
+    commissionerModeInput != null &&
+    commissionerModeInput !== 'spectator' &&
+    commissionerModeInput !== 'participating'
+  ) {
+    return NextResponse.json({ error: 'Invalid commissionerMode' }, { status: 400 })
+  }
+
+  const commissionerMode: 'spectator' | 'participating' =
+    commissionerModeInput === 'participating' ? 'participating' : 'spectator'
 
   try {
     const report = await simulateLeague(leagueId, userId, commissionerMode)
