@@ -782,9 +782,22 @@ export async function POST(req: Request) {
         });
         // Store commissionerPlays in settings JSON (not a Prisma column)
         if (sv?.commissionerPlays != null) {
+          const latestLeague = await (prisma as any).league.findUnique({
+            where: { id: league.id },
+            select: { settings: true },
+          });
+          const latestSettings =
+            latestLeague?.settings && typeof latestLeague.settings === 'object'
+              ? (latestLeague.settings as Record<string, unknown>)
+              : {};
           await (prisma as any).league.update({
             where: { id: league.id },
-            data: { settings: { ...(league.settings as object ?? {}), survivorCommissionerPlays: Boolean(sv.commissionerPlays) } },
+            data: {
+              settings: {
+                ...latestSettings,
+                survivorCommissionerPlays: Boolean(sv.commissionerPlays),
+              },
+            },
           }).catch(() => {});
         }
         if (sv?.exileEnabled !== false) {

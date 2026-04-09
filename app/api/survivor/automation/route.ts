@@ -94,7 +94,31 @@ async function runAutomation(req: NextRequest) {
         // Check if it's return week
         const returnWeek = L.survivorExileReturnWeek
         if (returnWeek && week >= returnWeek) {
-          await processExileReturn(leagueId).catch(() => {})
+          const exileReturnAlreadyProcessed = await prisma.survivorCommissionerAction.findFirst({
+            where: { leagueId, actionType: 'auto_exile_return_processed' },
+            select: { id: true },
+          })
+          if (!exileReturnAlreadyProcessed) {
+            const exileReturnResult = await processExileReturn(leagueId).catch(() => null)
+            if (exileReturnResult?.returneeId) {
+              await prisma.survivorCommissionerAction
+                .create({
+                  data: {
+                    leagueId,
+                    commissionerId: 'system',
+                    week,
+                    actionType: 'auto_exile_return_processed',
+                    description: 'Automated exile return processed',
+                    targetUserId: exileReturnResult.returneeId,
+                    newState: {
+                      returnWeek,
+                      tiebreakUsed: exileReturnResult.tiebreakUsed,
+                    },
+                  },
+                })
+                .catch(() => {})
+            }
+          }
         }
       }
 
@@ -149,50 +173,50 @@ async function runAutomation(req: NextRequest) {
         })
       }
 
-      // Advance week if all tasks for current week are complete
-      const gsFinal = await prisma.survivorGameState.findUnique({ where: { leagueId } })
-      if (
-        gsFinal &&
-        gsFinal.weekScoringFinalAt &&
-        gsFinal.tribalCompleteAt &&
-        !gsFinal.needsChallengeLock &&
-        !gsFinal.needsTribalLock &&
-        !gsFinal.needsExileScore &&
-        !gsFinal.needsWeeklyRecap
-      ) {
-        await prisma.survivorGameState.update({
+      await prisma.$transaction(async (tx) => {
+        // Apply week advancement and automation metadata in one atomic write.
+        const gsFinal = await tx.survivorGameState.findUnique({ where: { leagueId } })
+        if (!gsFinal) return
+
+        const shouldAdvanceWeek =
+          Boolean(gsFinal.weekScoringFinalAt) &&
+          Boolean(gsFinal.tribalCompleteAt) &&
+          !gsFinal.needsChallengeLock &&
+          !gsFinal.needsTribalLock &&
+          !gsFinal.needsExileScore &&
+          !gsFinal.needsWeeklyRecap
+
+        await tx.survivorGameState.update({
           where: { leagueId },
           data: {
-            currentWeek: week + 1,
-            weekStartedAt: null,
-            weekScoringLockedAt: null,
-            weekScoringFinalAt: null,
-            activeChallengeId: null,
-            challengeLockedAt: null,
-            challengeResultAt: null,
-            activeCouncilId: null,
-            tribalOpenedAt: null,
-            tribalDeadline: null,
-            tribalRevealAt: null,
-            tribalCompleteAt: null,
-            immuneTribeId: null,
-            immunePlayerId: null,
-            needsChallengeLock: true,
-            needsWaiverProcess: false,
-            needsExileScore: true,
-            needsTribalLock: true,
-            needsPhaseAdvance: true,
-            needsWeeklyRecap: false,
+            ...(shouldAdvanceWeek
+              ? {
+                  currentWeek: Math.max(1, gsFinal.currentWeek || week) + 1,
+                  weekStartedAt: null,
+                  weekScoringLockedAt: null,
+                  weekScoringFinalAt: null,
+                  activeChallengeId: null,
+                  challengeLockedAt: null,
+                  challengeResultAt: null,
+                  activeCouncilId: null,
+                  tribalOpenedAt: null,
+                  tribalDeadline: null,
+                  tribalRevealAt: null,
+                  tribalCompleteAt: null,
+                  immuneTribeId: null,
+                  immunePlayerId: null,
+                  needsChallengeLock: true,
+                  needsWaiverProcess: false,
+                  needsExileScore: true,
+                  needsTribalLock: true,
+                  needsPhaseAdvance: true,
+                  needsWeeklyRecap: false,
+                }
+              : {}),
+            lastAutomationRun: new Date(),
+            lastError: null,
           },
         })
-      }
-
-      await prisma.survivorGameState.update({
-        where: { leagueId },
-        data: {
-          lastAutomationRun: new Date(),
-          lastError: null,
-        },
       })
       processed++
     } catch (e) {

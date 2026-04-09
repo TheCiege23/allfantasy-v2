@@ -237,8 +237,17 @@ export async function processExileWeeklyScoring(
 export async function processExileReturn(
   leagueId: string,
 ): Promise<{ returneeId: string | null; returneeeName: string | null; tiebreakUsed: string | null }> {
+  const exiledPlayers = await (prisma as any).survivorPlayer?.findMany?.({
+    where: { leagueId, playerState: 'exile' },
+    select: { userId: true },
+  }) ?? []
+  const exiledUserIds = exiledPlayers.map((p: any) => p.userId).filter(Boolean)
+  if (exiledUserIds.length === 0) {
+    return { returneeId: null, returneeeName: null, tiebreakUsed: null }
+  }
+
   const exileTokens = await (prisma as any).survivorExileToken?.findMany?.({
-    where: { leagueId },
+    where: { leagueId, rosterId: { in: exiledUserIds } },
     orderBy: { tokens: 'desc' },
   }) ?? []
 
@@ -247,6 +256,9 @@ export async function processExileReturn(
   }
 
   const maxTokens = exileTokens[0]?.tokens ?? 0
+  if (maxTokens <= 0) {
+    return { returneeId: null, returneeeName: null, tiebreakUsed: null }
+  }
   const candidates = exileTokens.filter((t: any) => t.tokens === maxTokens)
 
   let winnerId: string
