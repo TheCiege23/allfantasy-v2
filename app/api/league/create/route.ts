@@ -701,10 +701,18 @@ export async function POST(req: Request) {
         const { getOrCreateExileLeague } = await import('@/lib/survivor/SurvivorExileEngine');
         const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'redraft').toLowerCase();
         const sv = (settingsWizard as Record<string, unknown>)?.survivor as Record<string, unknown> | undefined;
+        const survivorPlayerCount = sv?.playerCount != null ? Number(sv.playerCount) : 20;
+        const survivorTribeCount = sv?.tribeCount != null ? Number(sv.tribeCount) : 4;
+        const survivorTribeSize =
+          sv?.tribeSize != null
+            ? Number(sv.tribeSize)
+            : survivorTribeCount > 0
+              ? Math.floor(survivorPlayerCount / survivorTribeCount)
+              : 5;
         await upsertSurvivorConfig(league.id, {
           mode: mode === 'bestball' ? 'bestball' : 'redraft',
-          ...(sv?.tribeCount != null && { tribeCount: Number(sv.tribeCount) }),
-          ...(sv?.tribeSize != null && { tribeSize: Number(sv.tribeSize) }),
+          tribeCount: survivorTribeCount,
+          tribeSize: survivorTribeSize,
           ...(sv?.tribeFormation != null && { tribeFormation: String(sv.tribeFormation) }),
           ...(sv?.mergeTrigger != null && { mergeTrigger: String(sv.mergeTrigger) }),
           ...(sv?.mergeWeek != null && { mergeWeek: Number(sv.mergeWeek) }),
@@ -720,9 +728,9 @@ export async function POST(req: Request) {
           where: { id: league.id },
           data: {
             survivorMode: true,
-            survivorPlayerCount: sv?.playerCount != null ? Number(sv.playerCount) : 20,
-            survivorTribeCount: sv?.tribeCount != null ? Number(sv.tribeCount) : 4,
-            survivorTribeSize: sv?.tribeSize != null ? Number(sv.tribeSize) : 5,
+            survivorPlayerCount,
+            survivorTribeCount,
+            survivorTribeSize,
             survivorTribeNaming: sv?.tribeNaming != null ? String(sv.tribeNaming) : 'auto',
             survivorMergeTrigger: sv?.mergeTrigger != null ? String(sv.mergeTrigger) : 'player_count',
             survivorMergeWeek: sv?.mergeWeek != null ? Number(sv.mergeWeek) : 8,

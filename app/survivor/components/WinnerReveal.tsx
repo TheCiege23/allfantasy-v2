@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface FinalistProfile {
   userId: string
@@ -22,8 +22,13 @@ interface WinnerRevealProps {
 export function WinnerReveal({ finalists, winnerId, totalJurors, onComplete }: WinnerRevealProps) {
   const [phase, setPhase] = useState<'buildup' | 'counting' | 'reveal' | 'celebration'>('buildup')
   const [revealedVotes, setRevealedVotes] = useState(0)
+  const onCompleteRef = useRef(onComplete)
   const winner = finalists.find((f) => f.userId === winnerId)
   const votesNeeded = Math.floor(totalJurors / 2) + 1
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
@@ -37,10 +42,10 @@ export function WinnerReveal({ finalists, winnerId, totalJurors, onComplete }: W
 
     timers.push(setTimeout(() => setPhase('reveal'), 3000 + totalVotes * 2500 + 1500))
     timers.push(setTimeout(() => setPhase('celebration'), 3000 + totalVotes * 2500 + 4000))
-    timers.push(setTimeout(() => onComplete?.(), 3000 + totalVotes * 2500 + 8000))
+    timers.push(setTimeout(() => onCompleteRef.current?.(), 3000 + totalVotes * 2500 + 8000))
 
     return () => timers.forEach(clearTimeout)
-  }, [finalists, onComplete])
+  }, [finalists])
 
   // Build vote sequence for counting phase
   const voteSequence: string[] = []

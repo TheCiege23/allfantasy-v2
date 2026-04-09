@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Swords, Vote, Shield, Skull, Trophy, Coins, AlertTriangle,
   Bell, MessageCircle, Flame, Crown
@@ -73,15 +73,20 @@ export function SurvivorNotificationToast({ notification, onDismiss, onAction }:
   const config = NOTIF_CONFIG[notification.type]
   const Icon = config.icon
   const [visible, setVisible] = useState(false)
+  const onDismissRef = useRef(onDismiss)
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss
+  }, [onDismiss])
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
     const timer = setTimeout(() => {
       setVisible(false)
-      setTimeout(onDismiss, 300)
+      setTimeout(() => onDismissRef.current(), 300)
     }, notification.urgency === 'critical' ? 8000 : 5000)
     return () => clearTimeout(timer)
-  }, [notification.urgency, onDismiss])
+  }, [notification.id, notification.urgency])
 
   return (
     <div

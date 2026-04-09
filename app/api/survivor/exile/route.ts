@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
 
   if (body.intent === 'available_teams') {
     if (!body.leagueId || body.week == null) return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+    const gate = await assertLeagueMember(body.leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const league = await prisma.league.findUnique({ where: { id: body.leagueId }, select: { sport: true } })
     const teams = await getAvailableTeamsForExile(body.leagueId, body.week, league?.sport ?? 'NFL')
     return NextResponse.json({ teams })

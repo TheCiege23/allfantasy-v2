@@ -132,6 +132,14 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
     setTimeout(() => setSavedKey(null), 1500)
   }
 
+  const updateNumberSetting = (key: string, value: number) => {
+    setSettings((s) => (s ? { ...s, [key]: value } : s))
+  }
+
+  const saveNumberSetting = (key: string, value: number) => {
+    void save(key, value)
+  }
+
   if (!open) return null
 
   return (
@@ -194,12 +202,14 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
                     <SettingRow label="Player Count">
                       <Input type="number" min={16} max={20} className="w-20 text-right"
                         value={settings.survivorPlayerCount ?? 20}
-                        onChange={(e) => save('survivorPlayerCount', Number(e.target.value))} />
+                        onChange={(e) => updateNumberSetting('survivorPlayerCount', Number(e.target.value))}
+                        onBlur={(e) => saveNumberSetting('survivorPlayerCount', Number(e.target.value))} />
                     </SettingRow>
                     <SettingRow label="Tribe Count">
                       <Input type="number" min={2} max={5} className="w-20 text-right"
                         value={settings.survivorTribeCount ?? 4}
-                        onChange={(e) => save('survivorTribeCount', Number(e.target.value))} />
+                        onChange={(e) => updateNumberSetting('survivorTribeCount', Number(e.target.value))}
+                        onBlur={(e) => saveNumberSetting('survivorTribeCount', Number(e.target.value))} />
                     </SettingRow>
                     <SettingRow label="Tribe Naming" tooltip="auto, ai, or custom">
                       <select className="rounded bg-white/5 border border-white/10 px-2 py-1 text-sm text-white"
@@ -218,7 +228,8 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
                     <SettingRow label="Rebalance Trigger (min tribe size)">
                       <Input type="number" min={2} max={6} className="w-20 text-right"
                         value={settings.survivorRebalanceTrigger ?? 3}
-                        onChange={(e) => save('survivorRebalanceTrigger', Number(e.target.value))} />
+                        onChange={(e) => updateNumberSetting('survivorRebalanceTrigger', Number(e.target.value))}
+                        onBlur={(e) => saveNumberSetting('survivorRebalanceTrigger', Number(e.target.value))} />
                     </SettingRow>
                     <SettingRow label="Tribe Swap">
                       <ConfirmButton label="Execute Swap Now" onConfirm={() => {
@@ -288,7 +299,8 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
                     <SettingRow label="Total Idol Count">
                       <Input type="number" min={0} max={20} className="w-20 text-right"
                         value={settings.survivorIdolCount ?? 9}
-                        onChange={(e) => save('survivorIdolCount', Number(e.target.value))} />
+                        onChange={(e) => updateNumberSetting('survivorIdolCount', Number(e.target.value))}
+                        onBlur={(e) => saveNumberSetting('survivorIdolCount', Number(e.target.value))} />
                     </SettingRow>
                     <SettingRow label="Idols Tradable">
                       <Switch checked={settings.survivorIdolsTradable ?? false}
@@ -318,7 +330,8 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
                     <SettingRow label="Token Cap">
                       <Input type="number" min={0} max={20} className="w-20 text-right"
                         value={settings.survivorTokenCap ?? 10}
-                        onChange={(e) => save('survivorTokenCap', Number(e.target.value))} />
+                        onChange={(e) => updateNumberSetting('survivorTokenCap', Number(e.target.value))}
+                        onBlur={(e) => saveNumberSetting('survivorTokenCap', Number(e.target.value))} />
                     </SettingRow>
                     <SettingRow label="Harsh Token Loss (wrong pick = wipe)">
                       <Switch checked={settings.survivorExileHarshTokenLoss ?? false}
@@ -342,7 +355,11 @@ export function CommissionerSettingsModal({ leagueId, open, onClose }: Commissio
                         value={settings.survivorMergeTrigger === 'week'
                           ? (settings.survivorMergeWeek ?? 8)
                           : (settings.survivorMergeAtCount ?? 10)}
-                        onChange={(e) => save(
+                        onChange={(e) => updateNumberSetting(
+                          settings.survivorMergeTrigger === 'week' ? 'survivorMergeWeek' : 'survivorMergeAtCount',
+                          Number(e.target.value)
+                        )}
+                        onBlur={(e) => saveNumberSetting(
                           settings.survivorMergeTrigger === 'week' ? 'survivorMergeWeek' : 'survivorMergeAtCount',
                           Number(e.target.value)
                         )} />
