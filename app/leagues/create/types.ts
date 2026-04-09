@@ -15,6 +15,7 @@ export type LeagueCreateStepId =
   | 'scoring'
   | 'rules'
   | 'survivor_setup'
+  | 'guillotine_setup'
   | 'invite'
 
 export type LeagueCreateFormState = {
@@ -61,6 +62,15 @@ export type LeagueCreateFormState = {
   survivorTokenEnabled: boolean
   survivorBossResetEnabled: boolean
   survivorCommissionerPlays: boolean
+  // Guillotine-specific fields
+  guillotineEndgame: string
+  guillotineEliminationsPerPeriod: number
+  guillotineProtectedWeek1: boolean
+  guillotineTiebreaker: string
+  guillotineSamePeriodPickups: boolean
+  guillotineWaiverMode: string
+  guillotineFaabBudget: number
+  guillotineTradesEnabled: boolean
 }
 
 export type LeagueCreateStepProps = {

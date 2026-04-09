@@ -18,6 +18,7 @@ import { RosterStep } from './steps/RosterStep'
 import { ScoringStep } from './steps/ScoringStep'
 import { RulesStep } from './steps/RulesStep'
 import { SurvivorSetupStep } from './steps/SurvivorSetupStep'
+import { GuillotineSetupStep } from './steps/GuillotineSetupStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
 
@@ -39,6 +40,12 @@ function getStepOrder(formatId: string): LeagueCreateStepId[] {
       'rules', 'survivor_setup', 'invite',
     ]
   }
+  if (formatId === 'guillotine') {
+    return [
+      'sport', 'format', 'modifiers', 'draft', 'roster', 'scoring',
+      'rules', 'guillotine_setup', 'invite',
+    ]
+  }
   return BASE_STEP_ORDER
 }
 
@@ -51,6 +58,7 @@ const STEP_LABELS: Record<LeagueCreateStepId, string> = {
   scoring: 'Scoring',
   rules: 'Rules',
   survivor_setup: 'Survivor',
+  guillotine_setup: 'Guillotine',
   invite: 'Invite',
 }
 
@@ -120,6 +128,15 @@ function buildInitialState(): LeagueCreateFormState {
     survivorTokenEnabled: true,
     survivorBossResetEnabled: true,
     survivorCommissionerPlays: false,
+    // Guillotine defaults
+    guillotineEndgame: 'last_team_standing',
+    guillotineEliminationsPerPeriod: 1,
+    guillotineProtectedWeek1: false,
+    guillotineTiebreaker: 'lowest_bench_points',
+    guillotineSamePeriodPickups: false,
+    guillotineWaiverMode: 'faab',
+    guillotineFaabBudget: 100,
+    guillotineTradesEnabled: false,
   }
 }
 
@@ -204,6 +221,7 @@ export function CreateLeaguePageClient() {
     scoring: <ScoringStep state={state} setState={setState} />,
     rules: <RulesStep state={state} setState={setState} />,
     survivor_setup: <SurvivorSetupStep state={state} setState={setState} />,
+    guillotine_setup: <GuillotineSetupStep state={state} setState={setState} />,
     invite: <InviteStep state={state} setState={setState} />,
   }[step]
 
@@ -307,6 +325,18 @@ export function CreateLeaguePageClient() {
             tokenEnabled: state.survivorTokenEnabled,
             bossResetEnabled: state.survivorBossResetEnabled,
             commissionerPlays: state.survivorCommissionerPlays,
+          },
+        }),
+        ...(state.formatId === 'guillotine' && {
+          guillotine: {
+            endgame: state.guillotineEndgame,
+            eliminationsPerPeriod: state.guillotineEliminationsPerPeriod,
+            protectedWeek1: state.guillotineProtectedWeek1,
+            tiebreaker: state.guillotineTiebreaker,
+            samePeriodPickups: state.guillotineSamePeriodPickups,
+            waiverMode: state.guillotineWaiverMode,
+            faabBudget: state.guillotineFaabBudget,
+            tradesEnabled: state.guillotineTradesEnabled,
           },
         }),
       },
