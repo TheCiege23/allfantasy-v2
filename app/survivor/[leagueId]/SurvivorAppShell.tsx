@@ -163,6 +163,11 @@ function SurvivorAppShellInner({
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(e) => {
+                  if (!item.onClick) return
+                  e.preventDefault()
+                  item.onClick()
+                }}
                 className={clsx(
                   'relative flex items-center gap-3 rounded-lg px-2 py-2.5 text-[13px] transition-colors',
                   pathActive(pathname, item.href, Boolean(item.home))

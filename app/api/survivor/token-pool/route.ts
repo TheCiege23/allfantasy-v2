@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { assertLeagueMember } from '@/lib/league/league-access'
 import {
   submitTokenPoolPick,
   getTokenPoolPicks,
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
   const leagueId = searchParams.get('leagueId')
   const week = searchParams.get('week')
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
+  const gate = await assertLeagueMember(leagueId, userId)
+  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
   const [picks, balance] = await Promise.all([
     getTokenPoolPicks(leagueId, userId, week ? Number(week) : undefined),
@@ -49,6 +52,8 @@ export async function POST(req: NextRequest) {
   if (!leagueId || !week || !sport || !pickType) {
     return NextResponse.json({ error: 'leagueId, week, sport, pickType required' }, { status: 400 })
   }
+  const gate = await assertLeagueMember(leagueId, userId)
+  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
   const validTypes = ['win_pick', 'over_under', 'prop_bet', 'exact_score']
   if (!validTypes.includes(pickType)) {

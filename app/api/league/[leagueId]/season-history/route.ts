@@ -23,23 +23,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ leag
 
   if (!season) {
     // Return all seasons summary
-    const seasons = await (prisma as any).leagueSeason.findMany({
+    const seasons = await (prisma as any).leagueSeason?.findMany?.({
       where: { leagueId },
       orderBy: { season: 'desc' },
       select: {
-        season: true, platformLeagueId: true, championTeamId: true,
-        runnerUpName: true, regularSeasonWinnerName: true,
-        teamRecords: true, teamCount: true, scoringFormat: true,
-        isDynasty: true, status: true,
+        season: true,
+        platformLeagueId: true,
+        championTeamId: true,
+        runnerUpName: true,
+        regularSeasonWinnerName: true,
+        teamRecords: true,
+        teamCount: true,
+        scoringFormat: true,
+        isDynasty: true,
+        status: true,
       },
-    })
+    }).catch(() => []) ?? []
     return NextResponse.json({ seasons })
   }
 
   // Full season detail
-  const leagueSeason = await (prisma as any).leagueSeason.findFirst({
-    where: { leagueId, season },
-  })
+  const leagueSeason =
+    (await (prisma as any).leagueSeason?.findFirst?.({
+      where: { leagueId, season },
+    }).catch(() => null)) ?? null
 
   const matchups = await (prisma as any).matchupFact?.findMany?.({
     where: { leagueId, season },

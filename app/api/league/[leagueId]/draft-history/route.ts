@@ -45,10 +45,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ leag
   }).catch(() => []) ?? []
 
   // Get managers for that season
-  const leagueSeason = await (prisma as any).leagueSeason.findFirst({
-    where: { leagueId, season },
-    select: { teamRecords: true, teamCount: true },
-  })
+  const leagueSeason =
+    (await (prisma as any).leagueSeason?.findFirst?.({
+      where: { leagueId, season },
+      select: { teamRecords: true, teamCount: true },
+    }).catch(() => null)) ?? null
 
   const managers = ((leagueSeason?.teamRecords ?? []) as Array<{
     rosterId?: string; ownerId?: string; managerName?: string; managerAvatar?: string
