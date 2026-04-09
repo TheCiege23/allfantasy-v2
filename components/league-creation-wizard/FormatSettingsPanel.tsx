@@ -1,7 +1,7 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import type { WizardSurvivorSettings, WizardGuillotineSettings, WizardTournamentSettings } from '@/lib/league-creation-wizard/types'
+import type { WizardSurvivorSettings, WizardGuillotineSettings, WizardZombieSettings, WizardTournamentSettings } from '@/lib/league-creation-wizard/types'
 
 // ===== SURVIVOR SETTINGS PANEL =====
 
@@ -66,6 +66,65 @@ export function SurvivorSettingsPanel({ settings, onChange, sport }: SurvivorSet
             onChange={(e) => onChange({ idolCount: Number(e.target.value) || 9 })} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ===== ZOMBIE SETTINGS PANEL =====
+
+interface ZombieSettingsPanelProps {
+  settings: WizardZombieSettings
+  onChange: (patch: Partial<WizardZombieSettings>) => void
+  sport: string
+}
+
+export function ZombieSettingsPanel({ settings, onChange }: ZombieSettingsPanelProps) {
+  return (
+    <div className="space-y-5 rounded-2xl border border-green-500/20 bg-green-500/[0.03] p-5">
+      <div className="text-sm font-semibold text-white/90">Zombie Settings</div>
+
+      {/* Whisperer */}
+      <div>
+        <label className="mb-1 block text-xs text-white/50">Whisperer Selection</label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(['random', 'veteran_priority'] as const).map((mode) => (
+            <button key={mode} type="button" onClick={() => onChange({ whispererSelection: mode })}
+              className={`rounded-xl border px-3 py-2 text-xs transition ${settings.whispererSelection === mode ? 'border-green-400/50 bg-green-400/10 text-white' : 'border-white/10 bg-white/[0.02] text-white/60 hover:border-white/20'}`}>
+              {mode === 'random' ? 'Random' : 'Veteran Priority'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Infection rules */}
+      <div className="flex flex-wrap gap-3">
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.infectionLossToWhisperer} onChange={(e) => onChange({ infectionLossToWhisperer: e.target.checked })} className="rounded border-white/20" />
+          Infection on loss to Whisperer
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.infectionLossToZombie} onChange={(e) => onChange({ infectionLossToZombie: e.target.checked })} className="rounded border-white/20" />
+          Infection on loss to Zombie
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-white/70">
+          <input type="checkbox" checked={settings.zombieTradeBlocked} onChange={(e) => onChange({ zombieTradeBlocked: e.target.checked })} className="rounded border-white/20" />
+          Block zombie trades
+        </label>
+      </div>
+
+      {/* Numbers */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Serum revive count</label>
+          <Input type="number" min={0} max={5} value={settings.serumReviveCount}
+            onChange={(e) => onChange({ serumReviveCount: Number(e.target.value) || 2 })} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-white/50">Ambush per week</label>
+          <Input type="number" min={0} max={3} value={settings.ambushCountPerWeek}
+            onChange={(e) => onChange({ ambushCountPerWeek: Number(e.target.value) || 1 })} />
+        </div>
+      </div>
     </div>
   )
 }

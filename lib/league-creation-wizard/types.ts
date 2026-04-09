@@ -208,6 +208,8 @@ export interface LeagueCreationWizardState {
   survivorSettings: WizardSurvivorSettings
   /** Guillotine-specific settings (only used when leagueType === 'guillotine'). */
   guillotineSettings: WizardGuillotineSettings
+  /** Zombie-specific settings (only used when leagueType === 'zombie'). */
+  zombieSettings: WizardZombieSettings
   /** Tournament-specific settings (only used when leagueType === 'tournament'). */
   tournamentSettings: WizardTournamentSettings
   /**
@@ -261,6 +263,28 @@ export const DEFAULT_SURVIVOR_SETTINGS: WizardSurvivorSettings = {
   tieRule: 'rocks',
   revealMode: 'dramatic',
   challengeMode: 'automatic',
+}
+
+export interface WizardZombieSettings {
+  whispererSelection: 'random' | 'veteran_priority'
+  infectionLossToWhisperer: boolean
+  infectionLossToZombie: boolean
+  serumReviveCount: number
+  ambushCountPerWeek: number
+  zombieTradeBlocked: boolean
+  isPaid: boolean
+  buyInAmount: number
+}
+
+export const DEFAULT_ZOMBIE_SETTINGS: WizardZombieSettings = {
+  whispererSelection: 'random',
+  infectionLossToWhisperer: true,
+  infectionLossToZombie: true,
+  serumReviveCount: 2,
+  ambushCountPerWeek: 1,
+  zombieTradeBlocked: true,
+  isPaid: false,
+  buyInAmount: 0,
 }
 
 export interface WizardTournamentSettings {

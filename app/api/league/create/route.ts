@@ -558,8 +558,12 @@ export async function POST(req: Request) {
     const isZombie =
       String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
-    const effectiveDynasty = isGuillotine ? false : (isDevy || isC2C ? true : isDynasty);
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
+    const isTournament =
+      String(leagueVariantInput ?? '').toLowerCase() === 'tournament' ||
+      String(leagueVariantInput ?? '').toLowerCase() === 'tournament_mode' ||
+      String(requestedLeagueType ?? '').toLowerCase() === 'tournament';
+    const effectiveDynasty = isGuillotine || isTournament ? false : (isDevy || isC2C ? true : isDynasty);
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isTournament ? 'tournament_mode' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
     // Canonical cross-module keys used by multi-sport services and downstream UIs.
     initialSettings.sport_type = sport;
     initialSettings.league_variant = resolvedVariant ?? null;
@@ -829,6 +833,36 @@ export async function POST(req: Request) {
         await upsertZombieLeagueConfig(league.id, {});
       } catch (err) {
         console.warn('[league/create] Zombie config bootstrap non-fatal:', err);
+      }
+    }
+
+    if (isTournament) {
+      try {
+        const ts = (settingsWizard as Record<string, unknown>)?.tournament as Record<string, unknown> | undefined;
+        // Create tournament shell with config
+        await (prisma as any).tournamentShell?.create?.({
+          data: {
+            name: league.name ?? 'Tournament',
+            sport: league.sport ?? 'NFL',
+            maxParticipants: ts?.participantCount != null ? Number(ts.participantCount) : 120,
+            conferenceCount: ts?.conferenceCount != null ? Number(ts.conferenceCount) : 2,
+            leaguesPerConference: ts?.leaguesPerConference != null ? Number(ts.leaguesPerConference) : 5,
+            teamsPerLeague: ts?.teamsPerLeague != null ? Number(ts.teamsPerLeague) : 12,
+            namingMode: ts?.namingMode != null ? String(ts.namingMode) : 'ai_generated',
+            totalRounds: ts?.totalRounds != null ? Number(ts.totalRounds) : 4,
+            creatorId: session.user.id,
+            settings: {
+              bubbleEnabled: ts?.bubbleEnabled !== false,
+              bubbleSize: ts?.bubbleSize ?? 4,
+              redraftBetweenRounds: ts?.redraftBetweenRounds !== false,
+              tradesEnabled: ts?.tradesEnabled ?? false,
+              advancersPerLeague: ts?.advancersPerLeague ?? 4,
+              qualificationWeeks: ts?.qualificationWeeks ?? 9,
+            },
+          },
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[league/create] Tournament bootstrap non-fatal:', err);
       }
     }
 

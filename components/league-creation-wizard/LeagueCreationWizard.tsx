@@ -15,6 +15,7 @@ import {
   DEFAULT_COMMISSIONER_PREFERENCES,
   DEFAULT_SURVIVOR_SETTINGS,
   DEFAULT_GUILLOTINE_SETTINGS,
+  DEFAULT_ZOMBIE_SETTINGS,
   DEFAULT_TOURNAMENT_SETTINGS,
 } from '@/lib/league-creation-wizard/types'
 import type {
@@ -46,7 +47,7 @@ import {
   isDynastyLeagueType,
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
-import { SurvivorSettingsPanel, GuillotineSettingsPanel, TournamentSettingsPanel } from './FormatSettingsPanel'
+import { SurvivorSettingsPanel, ZombieSettingsPanel, GuillotineSettingsPanel, TournamentSettingsPanel } from './FormatSettingsPanel'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
@@ -151,6 +152,7 @@ const initialState: LeagueCreationWizardState = {
   privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
   survivorSettings: { ...DEFAULT_SURVIVOR_SETTINGS },
   guillotineSettings: { ...DEFAULT_GUILLOTINE_SETTINGS },
+  zombieSettings: { ...DEFAULT_ZOMBIE_SETTINGS },
   tournamentSettings: { ...DEFAULT_TOURNAMENT_SETTINGS },
   templateSettingsOverrides: {},
 }
@@ -802,6 +804,19 @@ export function LeagueCreationWizard({
               playerCount: state.teamCount,
             },
           } : {}),
+          // Zombie-specific settings
+          ...(state.leagueType === 'zombie' ? {
+            zombie: {
+              whispererSelection: state.zombieSettings.whispererSelection,
+              infectionLossToWhisperer: state.zombieSettings.infectionLossToWhisperer,
+              infectionLossToZombie: state.zombieSettings.infectionLossToZombie,
+              serumReviveCount: state.zombieSettings.serumReviveCount,
+              ambushCountPerWeek: state.zombieSettings.ambushCountPerWeek,
+              zombieTradeBlocked: state.zombieSettings.zombieTradeBlocked,
+              isPaid: state.zombieSettings.isPaid,
+              buyInAmount: state.zombieSettings.buyInAmount,
+            },
+          } : {}),
           // Guillotine-specific settings
           ...(state.leagueType === 'guillotine' ? {
             guillotine: {
@@ -1261,6 +1276,13 @@ export function LeagueCreationWizard({
                 <SurvivorSettingsPanel
                   settings={state.survivorSettings}
                   onChange={(patch) => setState((s) => ({ ...s, survivorSettings: { ...s.survivorSettings, ...patch } }))}
+                  sport={String(state.sport)}
+                />
+              )}
+              {state.leagueType === 'zombie' && (
+                <ZombieSettingsPanel
+                  settings={state.zombieSettings}
+                  onChange={(patch) => setState((s) => ({ ...s, zombieSettings: { ...s.zombieSettings, ...patch } }))}
                   sport={String(state.sport)}
                 />
               )}
