@@ -304,8 +304,10 @@ export function CreateLeaguePageClient() {
         ...(state.formatId === 'survivor' && {
           survivor: {
             playerCount: state.survivorPlayerCount,
-            tribeCount: state.survivorTribeCount,
-            tribeSize: Math.floor(state.survivorPlayerCount / state.survivorTribeCount),
+            tribeCount: state.survivorTribeCount > 0 ? state.survivorTribeCount : 4,
+            tribeSize: Math.floor(
+              state.survivorPlayerCount / (state.survivorTribeCount > 0 ? state.survivorTribeCount : 4)
+            ),
             tribeFormation: state.survivorTribeFormation,
             tribeNaming: state.survivorTribeNaming,
             mergeTrigger: state.survivorMergeTrigger,

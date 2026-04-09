@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       select: { leagueId: true, revealSequence: true },
     })
     if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
-    const gate = await assertLeagueMember(council.leagueId, userId)
+    const gate = await assertLeagueCommissioner(council.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const seq = Array.isArray(council.revealSequence) ? (council.revealSequence as unknown[]) : []
     if (seq.length === 0) return NextResponse.json({ step: null, remaining: 0 })
