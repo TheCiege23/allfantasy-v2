@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Trophy } from 'lucide-react'
 import { TournamentHubClient } from '@/components/tournament'
+import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
 
 export default function TournamentHubPage() {
   const params = useParams<{ tournamentId: string }>()
@@ -31,6 +32,7 @@ export default function TournamentHubPage() {
       </header>
 
       {tournamentId && <TournamentHubClient tournamentId={tournamentId} />}
+      {tournamentId && <SimulateLeagueButton leagueId={tournamentId} />}
     </main>
   )
 }

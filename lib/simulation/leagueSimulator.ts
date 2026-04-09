@@ -10,6 +10,7 @@ import { simulateSurvivor } from './simulators/survivorSimulator'
 import { simulateZombie } from './simulators/zombieSimulator'
 import { simulateGuillotine } from './simulators/guillotineSimulator'
 import { simulateBestBall } from './simulators/bestBallSimulator'
+import { simulateTournament } from './simulators/tournamentSimulator'
 
 /**
  * Run a full simulation of a league and return the report.
@@ -90,8 +91,10 @@ export async function simulateLeague(
       report = await simulateGuillotine(config, teams)
     } else if (config.leagueType === 'best_ball') {
       report = await simulateBestBall(config, teams)
+    } else if (variant === 'tournament' || variant === 'tournament_mode') {
+      report = await simulateTournament(config, teams)
     } else {
-      // redraft, dynasty, keeper, salary_cap, devy, c2c, tournament
+      // redraft, dynasty, keeper, salary_cap, devy, c2c
       report = await simulateStandard(config, teams)
     }
 
