@@ -356,7 +356,15 @@ export function CreateLeaguePageClient() {
         throw new Error(data.error || 'Failed to create league')
       }
 
-      router.push(`/league/${data.league.id}`)
+      // Route to format-specific app shell for specialty leagues
+      const leagueId = data.league.id
+      if (state.formatId === 'survivor') {
+        router.push(`/survivor/${leagueId}`)
+      } else if (state.formatId === 'zombie') {
+        router.push(`/zombie/${leagueId}`)
+      } else {
+        router.push(`/league/${leagueId}`)
+      }
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create league')
     } finally {
