@@ -151,12 +151,10 @@ async function runAutomation(req: NextRequest) {
       }
 
       const gsExile = await prisma.survivorGameState.findUnique({ where: { leagueId } })
+      let didClearNeedsExileScore = false
       if (gsExile?.needsExileScore) {
         await scoreExileWeek(leagueId, week)
-        await prisma.survivorGameState.update({
-          where: { leagueId },
-          data: { needsExileScore: false },
-        })
+        didClearNeedsExileScore = true
       }
 
       // Random exile mini-game trigger
@@ -169,30 +167,37 @@ async function runAutomation(req: NextRequest) {
 
       // Post weekly recap if tribal completed this cycle and recap not yet posted
       const gsRecap = await prisma.survivorGameState.findUnique({ where: { leagueId } })
+      let didClearNeedsWeeklyRecap = false
+      let recapError: unknown = null
       if (gsRecap?.needsWeeklyRecap) {
-        await generateAndPostWeeklyRecap(leagueId, week).catch(() => {})
-        await prisma.survivorGameState.update({
-          where: { leagueId },
-          data: { needsWeeklyRecap: false },
-        })
+        try {
+          await generateAndPostWeeklyRecap(leagueId, week)
+          didClearNeedsWeeklyRecap = true
+        } catch (error) {
+          recapError = error
+        }
       }
 
       await prisma.$transaction(async (tx) => {
         // Apply week advancement and automation metadata in one atomic write.
         const gsFinal = await tx.survivorGameState.findUnique({ where: { leagueId } })
         if (!gsFinal) return
+        const needsExileScore = didClearNeedsExileScore ? false : gsFinal.needsExileScore
+        const needsWeeklyRecap = didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap
 
         const shouldAdvanceWeek =
           Boolean(gsFinal.weekScoringFinalAt) &&
           Boolean(gsFinal.tribalCompleteAt) &&
           !gsFinal.needsChallengeLock &&
           !gsFinal.needsTribalLock &&
-          !gsFinal.needsExileScore &&
-          !gsFinal.needsWeeklyRecap
+          !needsExileScore &&
+          !needsWeeklyRecap
 
         await tx.survivorGameState.update({
           where: { leagueId },
           data: {
+            ...(didClearNeedsExileScore ? { needsExileScore: false } : {}),
+            ...(didClearNeedsWeeklyRecap ? { needsWeeklyRecap: false } : {}),
             ...(shouldAdvanceWeek
               ? {
                   currentWeek: Math.max(1, gsFinal.currentWeek || week) + 1,
@@ -222,6 +227,7 @@ async function runAutomation(req: NextRequest) {
           },
         })
       })
+      if (recapError) throw recapError
       processed++
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
