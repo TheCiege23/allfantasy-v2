@@ -104,7 +104,13 @@ export async function POST(req: NextRequest) {
   if (action === 'reveal_next') {
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
-    const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId },
+      select: { leagueId: true, revealSequence: true },
+    })
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    const gate = await assertLeagueMember(council.leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const seq = (council?.revealSequence as unknown[]) ?? []
     return NextResponse.json({ step: seq[0] ?? null, remaining: seq.length })
   }
@@ -123,6 +129,12 @@ export async function POST(req: NextRequest) {
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId },
+      select: { leagueId: true },
+    })
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const seed = typeof body.seed === 'string' ? body.seed : undefined
     const result = await executeRocksDraw(councilId, seed)
     if (!result) return NextResponse.json({ error: 'Council is not in a tie state or no eligible drawers' }, { status: 400 })
@@ -138,7 +150,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'councilId and eliminateRosterId required' }, { status: 400 })
     }
     const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
-    if (!council?.isTie) return NextResponse.json({ error: 'Council is not in a tie state' }, { status: 400 })
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!council.isTie) return NextResponse.json({ error: 'Council is not in a tie state' }, { status: 400 })
     await prisma.survivorTribalCouncil.update({
       where: { id: councilId },
       data: {

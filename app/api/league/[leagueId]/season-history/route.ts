@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { assertLeagueMember } from '@/lib/league/league-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,9 +12,12 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ leagueId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { leagueId } = await params
+  const gate = await assertLeagueMember(leagueId, userId)
+  if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
   const { searchParams } = new URL(req.url)
   const season = Number(searchParams.get('season') ?? 0)
 

@@ -86,7 +86,7 @@ async function runAutomation(req: NextRequest) {
       await expireIdolsByWeek(leagueId, week).catch(() => {})
 
       // Process exile team scoring + boss challenge
-      const exileLeague = await prisma.survivorExileLeague?.findFirst?.({ where: { mainLeagueId: leagueId } })
+      const exileLeague = await prisma.survivorExileLeague.findFirst({ where: { mainLeagueId: leagueId } })
       if (exileLeague) {
         await processExileWeeklyScoring(leagueId, exileLeague.id, week).catch(() => {})
 
@@ -181,7 +181,7 @@ async function runAutomation(req: NextRequest) {
             needsExileScore: true,
             needsTribalLock: true,
             needsPhaseAdvance: true,
-            needsWeeklyRecap: true,
+            needsWeeklyRecap: false,
           },
         })
       }
