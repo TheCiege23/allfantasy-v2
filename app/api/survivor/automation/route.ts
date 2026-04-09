@@ -190,7 +190,7 @@ async function runAutomation(req: NextRequest) {
         if (!gsFinal) return
         const needsExileScore = didClearNeedsExileScore ? false : gsFinal.needsExileScore
         const needsWeeklyRecap = didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap
-        const needsWaiverProcess = false
+        const needsWaiverProcess = gsFinal.needsWaiverProcess
 
         const shouldAdvanceWeek =
           Boolean(gsFinal.weekScoringFinalAt) &&
