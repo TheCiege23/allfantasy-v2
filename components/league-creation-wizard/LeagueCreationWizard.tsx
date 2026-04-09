@@ -116,8 +116,8 @@ const STEP_LABELS: Record<string, string> = {
 }
 
 /** Build step order dynamically — insert format_settings before review for specialty leagues. */
-function getEffectiveStepOrder(leagueType: string): readonly string[] {
-  const base = [...WIZARD_STEP_ORDER]
+function getEffectiveStepOrder(leagueType: string): string[] {
+  const base: string[] = [...WIZARD_STEP_ORDER]
   if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie') {
     const reviewIdx = base.indexOf('review')
     if (reviewIdx >= 0) base.splice(reviewIdx, 0, 'format_settings')
