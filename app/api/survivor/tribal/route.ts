@@ -109,6 +109,7 @@ export async function POST(req: NextRequest) {
       select: { leagueId: true, revealSequence: true },
     })
     if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const gate = await assertLeagueCommissioner(council.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const seq = Array.isArray(council.revealSequence) ? (council.revealSequence as unknown[]) : []
@@ -172,14 +173,22 @@ export async function POST(req: NextRequest) {
       where: { id: eliminateRosterId, leagueId },
       select: { platformUserId: true },
     })
-    if (!eliminatedRoster) {
+    const eliminatedSurvivorPlayer = await prisma.survivorPlayer.findFirst({
+      where: {
+        leagueId,
+        OR: [{ redraftRosterId: eliminateRosterId }, { id: eliminateRosterId }],
+      },
+      select: { userId: true, redraftRosterId: true },
+    })
+    if (!eliminatedRoster && !eliminatedSurvivorPlayer) {
       return NextResponse.json({ error: 'Eliminated roster not found' }, { status: 404 })
     }
+    const resolvedEliminatedRosterId = eliminatedSurvivorPlayer?.redraftRosterId ?? eliminateRosterId
     await prisma.survivorTribalCouncil.update({
       where: { id: councilId },
       data: {
         tiePhase: 'commissioner_resolved',
-        eliminatedRosterId: eliminateRosterId,
+        eliminatedRosterId: resolvedEliminatedRosterId,
         closedAt: new Date(),
         status: 'completed',
       },
@@ -191,14 +200,14 @@ export async function POST(req: NextRequest) {
         category: 'tribal_council',
         action: 'commissioner_tie_resolve',
         actorUserId: userId,
-        targetUserId: eliminatedRoster.platformUserId,
+        targetUserId: eliminatedRoster?.platformUserId ?? eliminatedSurvivorPlayer?.userId ?? null,
         data: { councilId, tiedRosterIds },
         isVisibleToCommissioner: true,
         isVisibleToPublic: false,
         isRevealablePostSeason: true,
       },
     })
-    return NextResponse.json({ ok: true, eliminatedRosterId: eliminateRosterId })
+    return NextResponse.json({ ok: true, eliminatedRosterId: resolvedEliminatedRosterId })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
