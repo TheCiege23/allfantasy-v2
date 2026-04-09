@@ -709,7 +709,9 @@ export async function POST(req: Request) {
             currentTeamsActive: league.leagueSize ?? 12,
             currentScoringPeriod: 0,
           },
-        }).catch(() => {});
+        }).catch((err: unknown) => {
+          console.warn('[league/create] GuillotineSeason bootstrap non-fatal:', err);
+        });
       } catch (err) {
         console.warn('[league/create] Guillotine config bootstrap non-fatal:', err);
       }

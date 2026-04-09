@@ -194,11 +194,14 @@ async function runAutomation(req: NextRequest) {
           !needsExileScore &&
           !needsWeeklyRecap
 
+        const nextNeedsExileScore = shouldAdvanceWeek ? true : needsExileScore
+        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : needsWeeklyRecap
+
         await tx.survivorGameState.update({
           where: { leagueId },
           data: {
-            ...(didClearNeedsExileScore ? { needsExileScore: false } : {}),
-            ...(didClearNeedsWeeklyRecap ? { needsWeeklyRecap: false } : {}),
+            needsExileScore: nextNeedsExileScore,
+            needsWeeklyRecap: nextNeedsWeeklyRecap,
             ...(shouldAdvanceWeek
               ? {
                   currentWeek: Math.max(1, gsFinal.currentWeek || week) + 1,
@@ -217,10 +220,8 @@ async function runAutomation(req: NextRequest) {
                   immunePlayerId: null,
                   needsChallengeLock: true,
                   needsWaiverProcess: false,
-                  needsExileScore: true,
                   needsTribalLock: true,
                   needsPhaseAdvance: true,
-                  needsWeeklyRecap: false,
                 }
               : {}),
             lastAutomationRun: new Date(),
