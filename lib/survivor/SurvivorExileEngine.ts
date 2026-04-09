@@ -34,6 +34,7 @@ export async function getOrCreateExileLeague(
       platformLeagueId: `exile-${mainLeagueId}-${Date.now()}`,
       name: options?.name ?? `Exile Island: ${main.name ?? 'Survivor'}`,
       sport: (options?.sport ?? main.sport) as any,
+      season: new Date().getFullYear(),
       leagueVariant: 'survivor_exile',
       leagueSize: 20,
       scoring: main.scoring ?? undefined,

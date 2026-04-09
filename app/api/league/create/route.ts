@@ -753,7 +753,7 @@ export async function POST(req: Request) {
           ...(sv?.challengeMode != null && { minigameFrequency: String(sv.challengeMode) }),
           ...(sv?.selfVoteAllowed != null && { selfVoteDisallowed: !Boolean(sv.selfVoteAllowed) }),
         });
-        // Update league-level survivor fields
+        // Update league-level survivor fields (non-fatal — league already created)
         await prisma.league.update({
           where: { id: league.id },
           data: {
@@ -779,6 +779,8 @@ export async function POST(req: Request) {
             survivorTokenEnabled: sv?.tokenEnabled != null ? Boolean(sv.tokenEnabled) : true,
             survivorBossResetEnabled: sv?.bossResetEnabled != null ? Boolean(sv.bossResetEnabled) : true,
           },
+        }).catch((updateErr) => {
+          console.warn('[league/create] Survivor league field update non-fatal:', updateErr);
         });
         // Store commissionerPlays in settings JSON (not a Prisma column)
         if (sv?.commissionerPlays != null) {
