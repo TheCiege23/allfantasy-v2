@@ -66,6 +66,25 @@ export function GuillotineFormatTab({ leagueId, hasAfCommissionerSub }: Guilloti
     <div>
       {savedKey && <div className="mb-3 text-xs text-emerald-400">Saved</div>}
 
+      {/* Schedule Info (read-only, derived from sport) */}
+      <Section label="Schedule">
+        <Row label="Chop Day" tooltip="Same day every week — lowest scorer is eliminated">
+          <span className="text-sm text-red-300/80">{String(settings.chopLabel ?? settings.chopDay ?? 'Tuesday')}</span>
+        </Row>
+        <Row label="Waiver Day" tooltip="Day after chop — eliminated roster enters the player pool">
+          <span className="text-sm text-emerald-300/80">{String(settings.waiverLabel ?? settings.waiverDay ?? 'Wednesday')}</span>
+        </Row>
+        <Row label="Default Team Count" tooltip="Regular season weeks - 1">
+          <span className="text-sm text-white">{String(settings.defaultTeamCount ?? settings.teamCount ?? '—')}</span>
+        </Row>
+        <Row label="Stat Correction Window">
+          <Input type="number" min={0} max={72} className="w-20 text-right"
+            value={String(settings.statCorrectionHours ?? 48)}
+            onChange={(e) => save('statCorrectionHours', Number(e.target.value))} />
+          <span className="ml-1 text-xs text-white/40">hours</span>
+        </Row>
+      </Section>
+
       {/* Elimination */}
       <Section label="Elimination">
         <Row label="Eliminations Per Period">
@@ -143,6 +162,34 @@ export function GuillotineFormatTab({ leagueId, hasAfCommissionerSub }: Guilloti
             <option value="none">No Expansion</option>
             <option value="enabled">Auto-Expand</option>
           </select>
+        </Row>
+      </Section>
+
+      {/* Notifications & Visibility */}
+      <Section label="Notifications & Visibility">
+        <Row label="Danger Zone Alerts" tooltip="Notify managers when they're in the chop zone">
+          <Switch checked={settings.dangerAlerts !== false} onCheckedChange={(v) => save('dangerAlerts', v)} />
+        </Row>
+        <Row label="FAAB Balances Visible to All" tooltip="If OFF, FAAB balances are hidden until spent">
+          <Switch checked={settings.faabVisible !== false} onCheckedChange={(v) => save('faabVisible', v)} />
+        </Row>
+        <Row label="Chop Clock Countdown" tooltip="Show countdown timer to chop day on the survival board">
+          <Switch checked={settings.chopClockEnabled !== false} onCheckedChange={(v) => save('chopClockEnabled', v)} />
+        </Row>
+        <Row label="Danger Margin (points)" tooltip="Teams within this margin of last place are in the danger zone">
+          <Input type="number" min={0} max={50} className="w-20 text-right"
+            value={String(settings.dangerMarginPoints ?? 10)}
+            onChange={(e) => save('dangerMarginPoints', Number(e.target.value))} />
+        </Row>
+      </Section>
+
+      {/* Trades */}
+      <Section label="Trades">
+        <Row label="Trades Allowed" tooltip="Trades are OFF by default in guillotine leagues">
+          <Switch checked={Boolean(settings.tradesAllowed)} onCheckedChange={(v) => save('tradesAllowed', v)} />
+        </Row>
+        <Row label="FAAB Tradeable" tooltip="Allow managers to trade FAAB budget">
+          <Switch checked={Boolean(settings.faabTradeable)} onCheckedChange={(v) => save('faabTradeable', v)} />
         </Row>
       </Section>
 

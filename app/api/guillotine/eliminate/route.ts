@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { runEliminationCheck } from '@/lib/guillotine/eliminationEngine'
 import { requireCommissionerRole } from '@/lib/league/permissions'
+import { isChopDay } from '@/lib/guillotine/sportConfig'
+import { postGuillotineEliminationToChat } from '@/lib/guillotine/guillotineChatPoster'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -32,9 +34,33 @@ async function sweepActiveGuillotineSeasons() {
   for (const g of seasons) {
     const rs = g.redraftSeason
     if (!rs) continue
+
+    // Only run elimination on the sport's chop day
+    const sport = g.sport ?? 'NFL'
+    if (!isChopDay(sport)) {
+      results.push({ seasonId: g.id, scoringPeriod: 0, skipped: true })
+      continue
+    }
+
     const scoringPeriod = Math.max(1, rs.currentWeek || g.currentScoringPeriod || 1)
     try {
       const out = await runEliminationCheck(g.id, scoringPeriod, { skipIfAlreadyProcessed: true })
+
+      // Post elimination to league chat
+      if (out.eliminated?.length > 0) {
+        for (const elim of out.eliminated) {
+          await postGuillotineEliminationToChat(
+            g.leagueId,
+            elim.teamName ?? 'Unknown',
+            elim.score ?? 0,
+            scoringPeriod,
+            elim.marginBelowSafe ?? 0,
+            elim.wasTiebreaker ?? false,
+            elim.playersReleased ?? 0,
+          ).catch(() => {})
+        }
+      }
+
       results.push({
         seasonId: g.id,
         scoringPeriod,
