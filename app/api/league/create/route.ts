@@ -678,8 +678,6 @@ export async function POST(req: Request) {
         const gc = (settingsWizard as Record<string, unknown>)?.guillotine as Record<string, unknown> | undefined;
         await upsertGuillotineConfig(league.id, {
           ...(gc?.eliminationsPerPeriod != null && { teamsPerChop: Number(gc.eliminationsPerPeriod) }),
-          ...(gc?.tiebreaker != null && { tiebreakerOrder: String(gc.tiebreaker) }),
-          ...(gc?.samePeriodPickups != null && { samePeriodPickups: Boolean(gc.samePeriodPickups) }),
         });
         // Set guillotineMode + all guillotine fields from wizard
         await (prisma as any).league.update({
