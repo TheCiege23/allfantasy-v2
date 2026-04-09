@@ -11,6 +11,10 @@ import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
 import AppShell from '@/app/components/AppShell'
 import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
 import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
+import { LeagueSettingsShell } from '@/components/league/LeagueSettingsShell'
+import { LeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
+import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
+import { GuillotineFormatTab } from '@/components/league/GuillotineFormatTab'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
@@ -188,6 +192,7 @@ export function LeagueShell({
   }, [searchParams, tabDefs])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [guillotineSettingsOpen, setGuillotineSettingsOpen] = useState(false)
   const [portalMounted, setPortalMounted] = useState(false)
   const [idpUi, setIdpUi] = useState<{ active: boolean; positionMode: string } | null>(null)
   const [idpViewMode, setIdpViewMode] = useState<'offense' | 'defense' | 'full'>('full')
@@ -446,6 +451,27 @@ export function LeagueShell({
         posterSrc={getLeagueTypeMedia(league.leagueVariant ?? league.leagueType).thumbnail}
         onDismiss={() => {}}
       />
+
+      {/* Guillotine 3-tab settings modal */}
+      {league.guillotineMode && (
+        <LeagueSettingsShell
+          open={guillotineSettingsOpen}
+          onClose={() => setGuillotineSettingsOpen(false)}
+          isCommissioner={isCommissioner}
+          isCoCommissioner={isHeadCommissioner === false && isCommissioner}
+          formatLabel="Guillotine"
+          hasAfCommissionerSub={false}
+          leagueTabContent={
+            <LeagueSettingsTab leagueId={league.id} canEdit={isCommissioner} />
+          }
+          commissionerTabContent={
+            <CommissionerToolsTab leagueId={league.id} hasAfCommissionerSub={false} />
+          }
+          formatTabContent={
+            <GuillotineFormatTab leagueId={league.id} hasAfCommissionerSub={false} />
+          }
+        />
+      )}
 
       {selectedPlayer ? (
         <PlayerStatCard

@@ -675,7 +675,38 @@ export async function POST(req: Request) {
     if (isGuillotine) {
       try {
         const { upsertGuillotineConfig } = await import('@/lib/guillotine/GuillotineLeagueConfig');
-        await upsertGuillotineConfig(league.id, {});
+        const gc = (settingsWizard as Record<string, unknown>)?.guillotine as Record<string, unknown> | undefined;
+        await upsertGuillotineConfig(league.id, {
+          ...(gc?.eliminationsPerPeriod != null && { teamsPerChop: Number(gc.eliminationsPerPeriod) }),
+          ...(gc?.tiebreaker != null && { tiebreakerOrder: String(gc.tiebreaker) }),
+          ...(gc?.samePeriodPickups != null && { samePeriodPickups: Boolean(gc.samePeriodPickups) }),
+        });
+        // Set guillotineMode + all guillotine fields from wizard
+        await (prisma as any).league.update({
+          where: { id: league.id },
+          data: {
+            guillotineMode: true,
+            ...(gc?.endgame != null && { guillotineEndgame: String(gc.endgame) }),
+            ...(gc?.eliminationsPerPeriod != null && { guillotineEliminationsPerPeriod: Number(gc.eliminationsPerPeriod) }),
+            ...(gc?.protectedWeek1 != null && { guillotineProtectedWeek1: Boolean(gc.protectedWeek1) }),
+            ...(gc?.tiebreaker != null && { guillotineTiebreaker: String(gc.tiebreaker) }),
+            ...(gc?.samePeriodPickups != null && { guillotineSamePeriodPickups: Boolean(gc.samePeriodPickups) }),
+            ...(gc?.tradesEnabled === false && { draftPickTrading: false }),
+          },
+        });
+        // Auto-create GuillotineSeason
+        const { prisma: p } = await import('@/lib/prisma');
+        await (p as any).guillotineSeason.create({
+          data: {
+            leagueId: league.id,
+            sport: league.sport ?? 'NFL',
+            season: league.season ?? new Date().getFullYear(),
+            status: 'active',
+            totalTeamsStarted: league.leagueSize ?? 12,
+            currentTeamsActive: league.leagueSize ?? 12,
+            currentScoringPeriod: 0,
+          },
+        }).catch(() => {});
       } catch (err) {
         console.warn('[league/create] Guillotine config bootstrap non-fatal:', err);
       }
