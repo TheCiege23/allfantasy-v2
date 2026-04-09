@@ -25,15 +25,18 @@ const LEAGUE_TYPE_TOOLTIPS: Partial<Record<LeagueTypeId, string>> = {
   best_ball: 'No lineup setting; best scoring lineup counts each week.',
   devy: 'Draft and hold college players with dedicated devy rosters; supports football and basketball ecosystems.',
   c2c: 'Campus to Canton: college + pro assets in one league with live college scoring; supports football and basketball ecosystems.',
-  guillotine: 'Lowest scorer each week is eliminated.',
-  survivor: 'Similar to guillotine; elimination-style.',
+  guillotine: 'Lowest scorer each week is eliminated. Roster released to waivers. Last team standing wins.',
+  survivor: 'Tribes compete weekly. Losing tribe votes someone out. Idols, exile island, merge, jury — full Survivor experience.',
   tournament: 'Bracket or tournament format.',
-  zombie: 'Eliminated teams can return under certain rules.',
+  zombie: 'Infection mechanics, whisperer role, serums & weapons. Eliminated teams can spread the virus.',
   salary_cap: 'Salary cap and contracts.',
 }
 
-const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW'>> = {
+const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW' | 'FLAGSHIP'>> = {
   redraft: 'POPULAR',
+  survivor: 'FLAGSHIP',
+  guillotine: 'NEW',
+  zombie: 'NEW',
   salary_cap: 'NEW',
 }
 
@@ -77,14 +80,20 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
                 title={LEAGUE_TYPE_TOOLTIPS[id]}
               >
                 {LEAGUE_TYPE_BADGES[id] && (
-                  <span className="absolute left-2 top-2 z-10 rounded-md bg-[#00ffd4] px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] text-[#021827]">
+                  <span className={`absolute left-2 top-2 z-10 rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] ${
+                    LEAGUE_TYPE_BADGES[id] === 'FLAGSHIP'
+                      ? 'bg-amber-400 text-[#1a0800]'
+                      : LEAGUE_TYPE_BADGES[id] === 'NEW'
+                        ? 'bg-purple-400 text-[#0f001a]'
+                        : 'bg-[#00ffd4] text-[#021827]'
+                  }`}>
                     {LEAGUE_TYPE_BADGES[id]}
                   </span>
                 )}
                 <img
                   src={media.thumbnail}
                   alt={`${LEAGUE_TYPE_LABELS[id]} thumbnail`}
-                  className="h-28 w-full object-cover opacity-75"
+                  className="h-32 w-full object-cover opacity-75"
                   onError={(event) => {
                     event.currentTarget.src = media.thumbnailFallback
                   }}
@@ -92,6 +101,9 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-3">
                   <p className="text-sm font-semibold text-white">{LEAGUE_TYPE_LABELS[id]}</p>
+                  {LEAGUE_TYPE_TOOLTIPS[id] && (
+                    <p className="mt-0.5 text-[10px] leading-tight text-white/50 line-clamp-2">{LEAGUE_TYPE_TOOLTIPS[id]}</p>
+                  )}
                 </div>
               </button>
             )
