@@ -9,6 +9,9 @@ import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
 import AppShell from '@/app/components/AppShell'
+import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
+import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
+import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
@@ -433,6 +436,16 @@ export function LeagueShell({
           </div>
         </main>
       </AppShell>
+
+      <SimulateLeagueButton leagueId={league.id} />
+      <LeagueIntroVideoModal
+        leagueId={league.id}
+        leagueType={league.leagueType ?? 'redraft'}
+        leagueName={league.name ?? 'League'}
+        videoSrc={getLeagueTypeMedia(league.leagueVariant ?? league.leagueType).introVideo}
+        posterSrc={getLeagueTypeMedia(league.leagueVariant ?? league.leagueType).thumbnail}
+        onDismiss={() => {}}
+      />
 
       {selectedPlayer ? (
         <PlayerStatCard

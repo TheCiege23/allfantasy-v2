@@ -16,16 +16,21 @@ supabase-postgres-best-practices/
 2. Browse `references/` for detailed documentation on specific topics
 3. Reference files are loaded on-demand - read only what you need
 
-Comprehensive performance optimization guide for Postgres, maintained by Supabase. Contains rules across 8 categories, prioritized by impact to guide automated query optimization and schema design.
+Comprehensive guide for creating, modifying, and optimizing Postgres schemas on Supabase. Covers DDL patterns, migration workflows, query optimization, auth integration, and the Prisma-to-Supabase export pipeline.
 
 ## When to Apply
 
 Reference these guidelines when:
+- **Creating** new tables, enums, indexes, or constraints
+- **Writing migrations** for Supabase (naming, idempotency, rollback)
+- **Adding columns** to existing tables (ensure scripts)
 - Writing SQL queries or designing schemas
 - Implementing indexes or query optimization
 - Reviewing database performance issues
 - Configuring connection pooling or scaling
-- Optimizing for Postgres-specific features
+- **Setting up RLS policies** with Supabase Auth (`auth.uid()`)
+- **Integrating** with Supabase Realtime, Storage, or Edge Functions
+- **Exporting** Prisma schema changes to Supabase-compatible DDL
 - Working with Row-Level Security (RLS)
 
 ## Rule Categories by Priority
@@ -40,6 +45,11 @@ Reference these guidelines when:
 | 6 | Data Access Patterns | MEDIUM | `data-` |
 | 7 | Monitoring & Diagnostics | LOW-MEDIUM | `monitor-` |
 | 8 | Advanced Features | LOW | `advanced-` |
+| 9 | DDL & Table Creation | HIGH | `ddl-` |
+| 10 | Migration Patterns | HIGH | `migrate-` |
+| 11 | Supabase Auth Integration | CRITICAL | `auth-` |
+| 12 | Supabase Platform Features | MEDIUM | `supa-` |
+| 13 | Prisma-to-Supabase Workflow | HIGH | `prisma-` |
 
 ## How to Use
 

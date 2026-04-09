@@ -176,9 +176,13 @@ export async function syncSleeperHistoricalSeasonStateAfterImport(args: {
       ])
 
       const ownerNameById = new Map<string, string>()
+      const ownerAvatarById = new Map<string, string>()
       for (const user of users) {
         if (user.user_id) {
           ownerNameById.set(user.user_id, user.display_name || user.username || user.user_id)
+          if (user.avatar) {
+            ownerAvatarById.set(user.user_id, `https://sleepercdn.com/avatars/thumbs/${user.avatar}`)
+          }
         }
       }
 

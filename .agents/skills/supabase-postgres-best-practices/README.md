@@ -27,6 +27,11 @@ npm run build
    - `data-` Data Access Patterns (MEDIUM)
    - `monitor-` Monitoring & Diagnostics (LOW-MEDIUM)
    - `advanced-` Advanced Features (LOW)
+   - `ddl-` DDL & Table Creation (HIGH)
+   - `migrate-` Migration Patterns (HIGH)
+   - `auth-` Supabase Auth Integration (CRITICAL)
+   - `supa-` Supabase Platform Features (MEDIUM)
+   - `prisma-` Prisma-to-Supabase Workflow (HIGH)
 
 2. **Copy the template**:
    ```bash

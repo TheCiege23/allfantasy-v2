@@ -48,6 +48,21 @@ export async function bootstrapTribeChatMembers(leagueId: string): Promise<{ ok:
     })
   }
 
+  // Sync memberUserIds on SurvivorChatChannel so permission guard works
+  for (const tribe of tribes) {
+    const memberUserIds = tribe.members.map((m: { rosterId: string }) => m.rosterId)
+    memberUserIds.push(AI_HOST_USER_ID)
+    const channel = await prisma.survivorChatChannel.findFirst({
+      where: { leagueId, channelType: 'tribe', tribeId: tribe.id },
+    })
+    if (channel) {
+      await prisma.survivorChatChannel.update({
+        where: { id: channel.id },
+        data: { memberUserIds },
+      })
+    }
+  }
+
   await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', {
     action: 'bootstrap',
     tribeCount: tribes.length,

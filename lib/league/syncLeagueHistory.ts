@@ -137,7 +137,7 @@ export async function syncLeagueHistory(
         rosterId: r.roster_id,
         ownerId: r.owner_id,
         managerName: u?.display_name ?? "Unknown",
-        managerAvatar: u?.avatar ?? null,
+        managerAvatar: u?.avatar ? `https://sleepercdn.com/avatars/thumbs/${u.avatar}` : null,
         teamName: u?.metadata?.team_name ?? null,
         wins: r.settings?.wins ?? 0,
         losses: r.settings?.losses ?? 0,

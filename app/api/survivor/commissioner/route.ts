@@ -255,5 +255,53 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  if (action === 'pause_season') {
+    const notes = typeof body.notes === 'string' ? body.notes : 'Season paused by commissioner'
+    await prisma.survivorGameState.update({
+      where: { leagueId },
+      data: {
+        needsChallengeLock: false,
+        needsTribalLock: false,
+        needsExileScore: false,
+        needsPhaseAdvance: false,
+        needsWeeklyRecap: false,
+        lastError: `PAUSED: ${notes}`,
+      },
+    })
+    await log('pause_season', notes)
+    await enqueueNotification(leagueId, 'phase_change', {
+      recipientRole: 'all',
+      title: 'Season Paused',
+      body: notes,
+      isSpoilerSafe: true,
+      urgency: 'high',
+    })
+    return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'resume_season') {
+    const notes = typeof body.notes === 'string' ? body.notes : 'Season resumed'
+    await prisma.survivorGameState.update({
+      where: { leagueId },
+      data: {
+        needsChallengeLock: true,
+        needsTribalLock: true,
+        needsExileScore: true,
+        needsPhaseAdvance: true,
+        needsWeeklyRecap: true,
+        lastError: null,
+      },
+    })
+    await log('resume_season', notes)
+    await enqueueNotification(leagueId, 'phase_change', {
+      recipientRole: 'all',
+      title: 'Season Resumed',
+      body: notes,
+      isSpoilerSafe: true,
+      urgency: 'medium',
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }

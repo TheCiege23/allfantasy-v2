@@ -4,6 +4,7 @@ import { getOrCreateExileLeague } from './SurvivorExileEngine'
 import { assignIdolsAfterDraft } from './SurvivorIdolRegistry'
 import { getSurvivorConfig, isSurvivorLeague } from './SurvivorLeagueConfig'
 import { createTribes } from './SurvivorTribeService'
+import { notifyIdolAssigned } from './notificationEngine'
 
 function hashSeed(value: string): number {
   let hash = 0
@@ -105,6 +106,36 @@ export async function runSurvivorPostDraftBootstrap(
       })
       if (idolResult.ok) {
         idolsAssigned = idolResult.assigned
+        // Send private DM notifications to each idol holder
+        const assignedIdols = await (prisma as any).survivorIdol.findMany({
+          where: { leagueId, status: 'hidden', isUsed: false, currentOwnerUserId: { not: null } },
+          select: { currentOwnerUserId: true, powerLabel: true, powerType: true, powerDesc: true },
+        })
+        for (const idol of assignedIdols) {
+          if (idol.currentOwnerUserId) {
+            await notifyIdolAssigned(leagueId, idol.currentOwnerUserId).catch(() => {})
+            // Also send a private Chimmy chat message with idol details
+            await (prisma as any).survivorChatMessage.create({
+              data: {
+                leagueId,
+                channelId: `chimmy:${idol.currentOwnerUserId}`,
+                channelType: 'private_ai',
+                senderUserId: 'system',
+                senderName: '@Chimmy',
+                senderIsHost: true,
+                isSystemMessage: true,
+                content: `You have been secretly assigned: **${idol.powerLabel ?? idol.powerType}**\n\n${idol.powerDesc ?? 'Use it wisely.'}\n\nThis power is hidden from other players. To play it, message me during Tribal Council.`,
+                contentType: 'card',
+                cardData: {
+                  type: 'idol_assigned',
+                  powerType: idol.powerType,
+                  powerLabel: idol.powerLabel,
+                  powerDesc: idol.powerDesc,
+                },
+              },
+            }).catch(() => {})
+          }
+        }
       } else if (idolResult.error !== 'Idols already assigned') {
         warnings.push(idolResult.error ?? 'Failed to assign idols')
       }

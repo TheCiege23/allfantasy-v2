@@ -168,8 +168,26 @@ export async function lockVoting(councilId: string): Promise<void> {
   await closeCouncil(councilId, { getSeasonPointsForRoster: getSeasonPointsFromRosterPerformance })
 }
 
-export async function processIdolPlays(_councilId: string): Promise<void> {
-  /* Idol plays extend SurvivorIdolRegistry + council JSON; ledger remains source of truth for game logic. */
+export async function processIdolPlays(councilId: string): Promise<void> {
+  const playedIdols = await prisma.survivorIdol.findMany({
+    where: { usedAtCouncilId: councilId, isUsed: true, powerCategory: 'immunity' },
+    select: { id: true, currentOwnerUserId: true, powerType: true },
+  })
+  if (!playedIdols.length) return
+
+  for (const idol of playedIdols) {
+    if (!idol.currentOwnerUserId) continue
+    // Void all votes targeting the idol holder
+    const votes = await prisma.survivorVote.findMany({
+      where: { councilId, targetUserId: idol.currentOwnerUserId, doesNotCount: false },
+    })
+    for (const vote of votes) {
+      await prisma.survivorVote.update({
+        where: { id: vote.id },
+        data: { doesNotCount: true, nullifiedBy: idol.id },
+      })
+    }
+  }
 }
 
 export async function tallyVotesForCouncil(councilId: string): Promise<TallyResult> {

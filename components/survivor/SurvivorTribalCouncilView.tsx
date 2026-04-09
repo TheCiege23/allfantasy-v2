@@ -3,6 +3,8 @@
 import { Clock, Vote, Shield, Skull } from 'lucide-react'
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
+import { SurvivorScrollReveal, type RevealStep } from './SurvivorScrollReveal'
+import { SurvivorRocksReveal } from './SurvivorRocksReveal'
 
 export interface SurvivorTribalCouncilViewProps {
   leagueId: string
@@ -69,7 +71,29 @@ export function SurvivorTribalCouncilView({ summary, names }: SurvivorTribalCoun
         <p className="text-sm text-white/50">Individual immunity (from challenges) and tribe immunity are shown on the Tribe Board when active.</p>
       </section>
 
-      {/* Voted-out history (scroll reveal) */}
+      {/* Active scroll reveal (when council has reveal sequence) */}
+      {council?.revealSequence && isClosed && !council.isRevealed && (
+        <section className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-4 sm:p-6">
+          <SurvivorScrollReveal
+            sequence={council.revealSequence as RevealStep[]}
+            eliminatedName={eliminated ? (names[eliminated] ?? eliminated) : undefined}
+            mode={(council as Record<string, unknown>).revealMode as 'dramatic' | undefined}
+            autoPlay
+          />
+        </section>
+      )}
+
+      {/* Rocks reveal (when council is in rocks state) */}
+      {council?.isTie && council.tiePhase === 'rocks_resolved' && (council as Record<string, unknown>).rockDrawOrder && (
+        <section className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-4 sm:p-6">
+          <SurvivorRocksReveal
+            drawOrder={(council as Record<string, unknown>).rockDrawOrder as Array<{ rosterId: string; displayName: string; drewPurpleRock: boolean }>}
+            eliminatedName={eliminated ? (names[eliminated] ?? eliminated) : 'Unknown'}
+          />
+        </section>
+      )}
+
+      {/* Voted-out history */}
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Skull className="h-5 w-5 text-rose-400" />

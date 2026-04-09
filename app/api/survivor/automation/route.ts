@@ -13,6 +13,11 @@ import {
 import { lockChallengeSubmissions, tallyChallengeResults } from '@/lib/survivor/challengeEngine'
 import { processNotificationQueue } from '@/lib/survivor/notificationEngine'
 import { scoreExileWeek } from '@/lib/survivor/exileEngine'
+import { generateAndPostWeeklyRecap } from '@/lib/survivor/weeklyRecapGenerator'
+import { expireIdolsByWeek } from '@/lib/survivor/SurvivorIdolRegistry'
+import { processExileWeeklyScoring, processExileReturn } from '@/lib/survivor/exileTeamDraft'
+import { shouldTriggerExileMiniGame, createExileMiniGame } from '@/lib/survivor/exileMiniGames'
+import { getSportSchedule } from '@/lib/survivor/sportScheduleEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -77,6 +82,21 @@ async function runAutomation(req: NextRequest) {
 
       await tryAutomaticPhaseAdvance(leagueId)
 
+      // Expire idols past their configured cutoff week
+      await expireIdolsByWeek(leagueId, week).catch(() => {})
+
+      // Process exile team scoring + boss challenge
+      const exileLeague = await prisma.survivorExileLeague?.findFirst?.({ where: { mainLeagueId: leagueId } })
+      if (exileLeague) {
+        await processExileWeeklyScoring(leagueId, exileLeague.id, week).catch(() => {})
+
+        // Check if it's return week
+        const returnWeek = L.survivorExileReturnWeek
+        if (returnWeek && week >= returnWeek) {
+          await processExileReturn(leagueId).catch(() => {})
+        }
+      }
+
       let gsMid = await prisma.survivorGameState.findUnique({ where: { leagueId } })
       if (
         gsMid &&
@@ -110,7 +130,61 @@ async function runAutomation(req: NextRequest) {
         })
       }
 
+      // Random exile mini-game trigger
+      const sportSched = getSportSchedule(L.sport ?? 'NFL')
+      if (shouldTriggerExileMiniGame(sportSched.weekStructure)) {
+        await createExileMiniGame(leagueId, week, L.sport ?? 'NFL').catch(() => {})
+      }
+
       await processNotificationQueue(leagueId)
+
+      // Post weekly recap if tribal completed this cycle and recap not yet posted
+      const gsRecap = await prisma.survivorGameState.findUnique({ where: { leagueId } })
+      if (gsRecap?.needsWeeklyRecap) {
+        await generateAndPostWeeklyRecap(leagueId, week).catch(() => {})
+        await prisma.survivorGameState.update({
+          where: { leagueId },
+          data: { needsWeeklyRecap: false },
+        })
+      }
+
+      // Advance week if all tasks for current week are complete
+      const gsFinal = await prisma.survivorGameState.findUnique({ where: { leagueId } })
+      if (
+        gsFinal &&
+        gsFinal.weekScoringFinalAt &&
+        gsFinal.tribalCompleteAt &&
+        !gsFinal.needsChallengeLock &&
+        !gsFinal.needsTribalLock &&
+        !gsFinal.needsExileScore &&
+        !gsFinal.needsWeeklyRecap
+      ) {
+        await prisma.survivorGameState.update({
+          where: { leagueId },
+          data: {
+            currentWeek: week + 1,
+            weekStartedAt: null,
+            weekScoringLockedAt: null,
+            weekScoringFinalAt: null,
+            activeChallengeId: null,
+            challengeLockedAt: null,
+            challengeResultAt: null,
+            activeCouncilId: null,
+            tribalOpenedAt: null,
+            tribalDeadline: null,
+            tribalRevealAt: null,
+            tribalCompleteAt: null,
+            immuneTribeId: null,
+            immunePlayerId: null,
+            needsChallengeLock: true,
+            needsWaiverProcess: false,
+            needsExileScore: true,
+            needsTribalLock: true,
+            needsPhaseAdvance: true,
+            needsWeeklyRecap: true,
+          },
+        })
+      }
 
       await prisma.survivorGameState.update({
         where: { leagueId },

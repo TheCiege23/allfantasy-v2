@@ -700,13 +700,58 @@ export async function POST(req: Request) {
         const { upsertSurvivorConfig } = await import('@/lib/survivor/SurvivorLeagueConfig');
         const { getOrCreateExileLeague } = await import('@/lib/survivor/SurvivorExileEngine');
         const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'redraft').toLowerCase();
+        const sv = (settingsWizard as Record<string, unknown>)?.survivor as Record<string, unknown> | undefined;
         await upsertSurvivorConfig(league.id, {
           mode: mode === 'bestball' ? 'bestball' : 'redraft',
-          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.tribeCount != null && { tribeCount: Number((settingsWizard as Record<string, unknown>).tribeCount) }),
-          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.tribeSize != null && { tribeSize: Number((settingsWizard as Record<string, unknown>).tribeSize) }),
+          ...(sv?.tribeCount != null && { tribeCount: Number(sv.tribeCount) }),
+          ...(sv?.tribeSize != null && { tribeSize: Number(sv.tribeSize) }),
+          ...(sv?.tribeFormation != null && { tribeFormation: String(sv.tribeFormation) }),
+          ...(sv?.mergeTrigger != null && { mergeTrigger: String(sv.mergeTrigger) }),
+          ...(sv?.mergeWeek != null && { mergeWeek: Number(sv.mergeWeek) }),
+          ...(sv?.mergeAtCount != null && { mergePlayerCount: Number(sv.mergeAtCount) }),
+          ...(sv?.juryStart != null && { juryStartAfterMerge: sv.juryStart === 'after_merge' }),
+          ...(sv?.exileEnabled != null && { exileReturnEnabled: Boolean(sv.exileEnabled) }),
+          ...(sv?.idolsEnabled != null && { idolCount: sv.idolsEnabled ? Number(sv.idolCount ?? 9) : 0 }),
+          ...(sv?.challengeMode != null && { minigameFrequency: String(sv.challengeMode) }),
+          ...(sv?.selfVoteAllowed != null && { selfVoteDisallowed: !Boolean(sv.selfVoteAllowed) }),
         });
-        await getOrCreateExileLeague(league.id).catch((err) => {
-          console.warn('[league/create] Survivor exile bootstrap non-fatal:', err);
+        // Update league-level survivor fields
+        await prisma.league.update({
+          where: { id: league.id },
+          data: {
+            survivorMode: true,
+            survivorPlayerCount: sv?.playerCount != null ? Number(sv.playerCount) : 20,
+            survivorTribeCount: sv?.tribeCount != null ? Number(sv.tribeCount) : 4,
+            survivorTribeSize: sv?.tribeSize != null ? Number(sv.tribeSize) : 5,
+            survivorTribeNaming: sv?.tribeNaming != null ? String(sv.tribeNaming) : 'auto',
+            survivorMergeTrigger: sv?.mergeTrigger != null ? String(sv.mergeTrigger) : 'player_count',
+            survivorMergeWeek: sv?.mergeWeek != null ? Number(sv.mergeWeek) : 8,
+            survivorMergeAtCount: sv?.mergeAtCount != null ? Number(sv.mergeAtCount) : 10,
+            survivorJuryStart: sv?.juryStart != null ? String(sv.juryStart) : 'after_merge',
+            survivorExileEnabled: sv?.exileEnabled != null ? Boolean(sv.exileEnabled) : true,
+            survivorIdolsEnabled: sv?.idolsEnabled != null ? Boolean(sv.idolsEnabled) : true,
+            survivorIdolCount: sv?.idolCount != null ? Number(sv.idolCount) : 9,
+            survivorIdolsTradable: sv?.idolsTradable != null ? Boolean(sv.idolsTradable) : false,
+            survivorIdolsExpireAtMerge: sv?.idolsExpireAtMerge != null ? Boolean(sv.idolsExpireAtMerge) : true,
+            survivorSelfVoteAllowed: sv?.selfVoteAllowed != null ? Boolean(sv.selfVoteAllowed) : false,
+            survivorRocksEnabled: sv?.rocksEnabled != null ? Boolean(sv.rocksEnabled) : true,
+            survivorTieRule: sv?.tieRule != null ? String(sv.tieRule) : 'rocks',
+            survivorRevealMode: sv?.revealMode != null ? String(sv.revealMode) : 'dramatic',
+            survivorChallengeMode: sv?.challengeMode != null ? String(sv.challengeMode) : 'automatic',
+            survivorTokenEnabled: sv?.tokenEnabled != null ? Boolean(sv.tokenEnabled) : true,
+            survivorBossResetEnabled: sv?.bossResetEnabled != null ? Boolean(sv.bossResetEnabled) : true,
+            survivorCommissionerPlays: sv?.commissionerPlays != null ? Boolean(sv.commissionerPlays) : false,
+          },
+        });
+        if (sv?.exileEnabled !== false) {
+          await getOrCreateExileLeague(league.id).catch((err) => {
+            console.warn('[league/create] Survivor exile bootstrap non-fatal:', err);
+          });
+        }
+        // Full bootstrap: GameState, chat channels, player records, sport schedule
+        const { runSurvivorLeagueBootstrap } = await import('@/lib/survivor/survivorLeagueBootstrap');
+        await runSurvivorLeagueBootstrap(league.id).catch((err) => {
+          console.warn('[league/create] Survivor full bootstrap non-fatal:', err);
         });
       } catch (err) {
         console.warn('[league/create] Survivor config bootstrap non-fatal:', err);

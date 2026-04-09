@@ -14,6 +14,7 @@ export type LeagueCreateStepId =
   | 'roster'
   | 'scoring'
   | 'rules'
+  | 'survivor_setup'
   | 'invite'
 
 export type LeagueCreateFormState = {
@@ -38,6 +39,28 @@ export type LeagueCreateFormState = {
   visibility: 'private' | 'unlisted' | 'public'
   allowInviteLink: boolean
   inviteEmails: string
+  // Survivor-specific fields
+  survivorPlayerCount: number
+  survivorTribeCount: number
+  survivorTribeFormation: 'random' | 'manual' | 'draft_pattern'
+  survivorTribeNaming: 'custom' | 'auto' | 'ai'
+  survivorMergeTrigger: 'week' | 'player_count'
+  survivorMergeWeek: number
+  survivorMergeAtCount: number
+  survivorJuryStart: 'after_merge' | 'first_post_merge_vote' | 'at_player_count'
+  survivorExileEnabled: boolean
+  survivorIdolsEnabled: boolean
+  survivorIdolCount: number
+  survivorIdolsTradable: boolean
+  survivorIdolsExpireAtMerge: boolean
+  survivorChallengeMode: 'automatic' | 'semi_automatic' | 'manual'
+  survivorSelfVoteAllowed: boolean
+  survivorRocksEnabled: boolean
+  survivorTieRule: 'rocks' | 'fire_making' | 'score' | 'commissioner'
+  survivorRevealMode: 'dramatic' | 'full_public' | 'anonymized' | 'delayed'
+  survivorTokenEnabled: boolean
+  survivorBossResetEnabled: boolean
+  survivorCommissionerPlays: boolean
 }
 
 export type LeagueCreateStepProps = {

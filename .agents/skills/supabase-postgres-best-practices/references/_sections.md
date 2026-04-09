@@ -37,3 +37,23 @@ Take the examples below as pure demonstrative. Replace each section with the act
 ## 8. Advanced Features (advanced)
 **Impact:** LOW
 **Description:** Full-text search, JSONB optimization, PostGIS, extensions, and advanced Postgres features.
+
+## 9. DDL & Table Creation (ddl)
+**Impact:** HIGH
+**Description:** Idempotent CREATE TABLE, ALTER TABLE, enum creation, index creation, and safe DROP patterns for Supabase-compatible schema changes.
+
+## 10. Migration Patterns (migrate)
+**Impact:** HIGH
+**Description:** Supabase migration file conventions, idempotent DDL patterns, incremental patch scripts, and rollback strategies.
+
+## 11. Supabase Auth Integration (auth)
+**Impact:** CRITICAL
+**Description:** RLS policies using auth.uid(), service role bypass for admin operations, and linking Supabase Auth users to application tables.
+
+## 12. Supabase Platform Features (supa)
+**Impact:** MEDIUM
+**Description:** Realtime subscriptions, Storage bucket management, and Edge Function database access patterns.
+
+## 13. Prisma-to-Supabase Workflow (prisma)
+**Impact:** HIGH
+**Description:** Prisma schema export pipeline, type mapping, ensure scripts for column additions, and the no-foreign-key philosophy.

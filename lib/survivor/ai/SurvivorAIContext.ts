@@ -3,6 +3,7 @@
  * PROMPT 348: Elimination, vote count, idol validity, immunity, exile return are rules-driven only.
  */
 
+import { buildHistoricalContextForPrompt } from '@/lib/ai/historicalContextBuilder'
 import { getSurvivorConfig } from '../SurvivorLeagueConfig'
 import { getActiveEffectsForRoster } from '../SurvivorEffectEngine'
 import { getTribesWithMembers } from '../SurvivorTribeService'
@@ -81,6 +82,8 @@ export interface SurvivorAIDeterministicContext {
     juryVotesRequired: number
     winnerRosterId: string | null
   } | null
+  /** Historical league context for AI rankings and narrative (past seasons, manager profiles, rivalries) */
+  historicalContext: string | null
 }
 
 /**
@@ -264,5 +267,6 @@ export async function buildSurvivorAIContext(args: {
             winnerRosterId: finaleState.winnerRosterId,
           }
         : null,
+    historicalContext: await buildHistoricalContextForPrompt(leagueId).catch(() => null),
   }
 }

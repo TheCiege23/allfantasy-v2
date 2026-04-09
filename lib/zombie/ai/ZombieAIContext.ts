@@ -4,6 +4,7 @@
  * Only data for narration and strategy advice.
  */
 
+import { buildHistoricalContextForPrompt } from '@/lib/ai/historicalContextBuilder'
 import { getZombieLeagueConfig } from '../ZombieLeagueConfig'
 import { getWhispererRosterId, getAllStatuses } from '../ZombieOwnerStatusService'
 import { getWeeklyBoardData } from '../ZombieWeeklyBoardService'
@@ -170,6 +171,7 @@ export async function buildZombieAIContext(args: {
       estimatedValue: f.estimatedValue,
       threshold: f.threshold,
     })),
+    historicalContext: await buildHistoricalContextForPrompt(leagueId).catch(() => null),
   }
 }
 

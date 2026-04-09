@@ -17,10 +17,11 @@ import { DraftStep } from './steps/DraftStep'
 import { RosterStep } from './steps/RosterStep'
 import { ScoringStep } from './steps/ScoringStep'
 import { RulesStep } from './steps/RulesStep'
+import { SurvivorSetupStep } from './steps/SurvivorSetupStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
 
-const STEP_ORDER: LeagueCreateStepId[] = [
+const BASE_STEP_ORDER: LeagueCreateStepId[] = [
   'sport',
   'format',
   'modifiers',
@@ -31,6 +32,16 @@ const STEP_ORDER: LeagueCreateStepId[] = [
   'invite',
 ]
 
+function getStepOrder(formatId: string): LeagueCreateStepId[] {
+  if (formatId === 'survivor') {
+    return [
+      'sport', 'format', 'modifiers', 'draft', 'roster', 'scoring',
+      'rules', 'survivor_setup', 'invite',
+    ]
+  }
+  return BASE_STEP_ORDER
+}
+
 const STEP_LABELS: Record<LeagueCreateStepId, string> = {
   sport: 'Sport',
   format: 'Format',
@@ -39,6 +50,7 @@ const STEP_LABELS: Record<LeagueCreateStepId, string> = {
   roster: 'Roster',
   scoring: 'Scoring',
   rules: 'Rules',
+  survivor_setup: 'Survivor',
   invite: 'Invite',
 }
 
@@ -86,6 +98,28 @@ function buildInitialState(): LeagueCreateFormState {
     visibility: 'private',
     allowInviteLink: true,
     inviteEmails: '',
+    // Survivor defaults
+    survivorPlayerCount: 20,
+    survivorTribeCount: 4,
+    survivorTribeFormation: 'random',
+    survivorTribeNaming: 'auto',
+    survivorMergeTrigger: 'player_count',
+    survivorMergeWeek: 8,
+    survivorMergeAtCount: 10,
+    survivorJuryStart: 'after_merge',
+    survivorExileEnabled: true,
+    survivorIdolsEnabled: true,
+    survivorIdolCount: 9,
+    survivorIdolsTradable: false,
+    survivorIdolsExpireAtMerge: true,
+    survivorChallengeMode: 'automatic',
+    survivorSelfVoteAllowed: false,
+    survivorRocksEnabled: true,
+    survivorTieRule: 'rocks',
+    survivorRevealMode: 'dramatic',
+    survivorTokenEnabled: true,
+    survivorBossResetEnabled: true,
+    survivorCommissionerPlays: false,
   }
 }
 
@@ -144,6 +178,15 @@ export function CreateLeaguePageClient() {
     })
   }, [resolution, state.draftType, state.formatId, state.modifiers, state.sport])
 
+  const STEP_ORDER = useMemo(() => getStepOrder(state.formatId), [state.formatId])
+
+  // Reset step if current step is no longer in the order (e.g., leaving survivor format)
+  useEffect(() => {
+    if (!STEP_ORDER.includes(step)) {
+      setStep('rules')
+    }
+  }, [STEP_ORDER, step])
+
   const currentStepIndex = STEP_ORDER.indexOf(step)
   const intro = getFormatIntroMetadata({
     sport: state.sport,
@@ -160,6 +203,7 @@ export function CreateLeaguePageClient() {
     roster: <RosterStep state={state} setState={setState} />,
     scoring: <ScoringStep state={state} setState={setState} />,
     rules: <RulesStep state={state} setState={setState} />,
+    survivor_setup: <SurvivorSetupStep state={state} setState={setState} />,
     invite: <InviteStep state={state} setState={setState} />,
   }[step]
 
@@ -239,6 +283,32 @@ export function CreateLeaguePageClient() {
           notes: state.constitutionNotes,
           requestedAt: new Date().toISOString(),
         },
+        ...(state.formatId === 'survivor' && {
+          survivor: {
+            playerCount: state.survivorPlayerCount,
+            tribeCount: state.survivorTribeCount,
+            tribeSize: Math.floor(state.survivorPlayerCount / state.survivorTribeCount),
+            tribeFormation: state.survivorTribeFormation,
+            tribeNaming: state.survivorTribeNaming,
+            mergeTrigger: state.survivorMergeTrigger,
+            mergeWeek: state.survivorMergeWeek,
+            mergeAtCount: state.survivorMergeAtCount,
+            juryStart: state.survivorJuryStart,
+            exileEnabled: state.survivorExileEnabled,
+            idolsEnabled: state.survivorIdolsEnabled,
+            idolCount: state.survivorIdolCount,
+            idolsTradable: state.survivorIdolsTradable,
+            idolsExpireAtMerge: state.survivorIdolsExpireAtMerge,
+            challengeMode: state.survivorChallengeMode,
+            selfVoteAllowed: state.survivorSelfVoteAllowed,
+            rocksEnabled: state.survivorRocksEnabled,
+            tieRule: state.survivorTieRule,
+            revealMode: state.survivorRevealMode,
+            tokenEnabled: state.survivorTokenEnabled,
+            bossResetEnabled: state.survivorBossResetEnabled,
+            commissionerPlays: state.survivorCommissionerPlays,
+          },
+        }),
       },
     }
 

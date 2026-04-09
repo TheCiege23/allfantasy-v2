@@ -6,7 +6,7 @@
 import { prisma } from '@/lib/prisma'
 import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
-import { DEFAULT_IDOL_POWER_POOL } from './constants'
+import { DEFAULT_IDOL_POWER_POOL, IDOL_DISTRIBUTION_PERCENT, IDOL_POWER_DESCRIPTIONS } from './constants'
 import { getEligibleRosterIdsForCouncil } from './SurvivorCouncilEligibility'
 import { applyIdolPowerEffect } from './SurvivorEffectEngine'
 import { getFinaleState } from './SurvivorFinaleEngine'
@@ -41,12 +41,30 @@ export async function assignIdolsAfterDraft(
   })
   if (existing.length > 0) return { ok: false, assigned: 0, error: 'Idols already assigned' }
 
-  const count = Math.min(config.idolCount, playerRosterPairs.length)
+  // Calculate idol count: 30-35% of league (configurable, capped by pool size)
+  const autoCount = Math.max(1, Math.round(playerRosterPairs.length * IDOL_DISTRIBUTION_PERCENT))
+  const count = Math.min(config.idolCount || autoCount, playerRosterPairs.length)
+
+  // Calculate expiry week from commissioner config or default (Final 5 = playerCount - 5 + 2)
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { survivorIdolExpiryWeek: true, survivorPlayerCount: true },
+  })
+  const playerCount = league?.survivorPlayerCount ?? playerRosterPairs.length
+  const expiryWeek = league?.survivorIdolExpiryWeek ?? Math.max(8, playerCount - 5 + 2)
   if (count <= 0) return { ok: true, assigned: 0 }
 
-  const pool = config.idolPowerPool?.length ? config.idolPowerPool : [...DEFAULT_IDOL_POWER_POOL]
+  // Build power pool — each idol gets a UNIQUE type (no duplicates)
+  const pool = config.idolPowerPool?.length ? [...config.idolPowerPool] : [...DEFAULT_IDOL_POWER_POOL]
   const rng = seededRandom(options?.seed ?? Date.now())
 
+  // Shuffle pool so idol types are randomized
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+
+  // Shuffle player-roster pairs to randomize who gets idols
   const usedRosterIds = new Set<string>()
   const shuffled = [...playerRosterPairs]
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -55,19 +73,30 @@ export async function assignIdolsAfterDraft(
   }
 
   let assigned = 0
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count && i < pool.length; i++) {
     const pair = shuffled[i]
-    if (usedRosterIds.has(pair.rosterId)) continue
+    if (!pair || usedRosterIds.has(pair.rosterId)) continue
     usedRosterIds.add(pair.rosterId)
-    const powerType = pool[i % pool.length] ?? 'protect_self'
+    const powerType = pool[i] ?? 'protect_self'
+    const powerLabel = powerType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    const powerDesc = IDOL_POWER_DESCRIPTIONS[powerType] ?? ''
     const idol = await prisma.survivorIdol.create({
       data: {
         leagueId,
         configId: config.configId,
         rosterId: pair.rosterId,
-        playerId: pair.playerId,
+        playerId: pair.playerId,   // Idol is BOUND to this player, not the manager
         powerType,
+        powerLabel,
+        powerDesc,
+        powerCategory: getIdolCategory(powerType),
+        currentOwnerUserId: null,  // Will be set when bootstrap DMs the holder
+        originalOwnerUserId: null,
+        isSecret: true,
+        isTradable: true,          // Idol transfers with player on trade/waiver
+        expiresAtWeek: expiryWeek,
         status: 'hidden',
+        assignedAt: new Date(),
       },
     })
     await prisma.survivorIdolLedgerEntry.create({
@@ -76,7 +105,7 @@ export async function assignIdolsAfterDraft(
         idolId: idol.id,
         eventType: 'assigned',
         toRosterId: pair.rosterId,
-        metadata: { playerId: pair.playerId, powerType },
+        metadata: { playerId: pair.playerId, powerType, powerLabel, boundToPlayer: true },
       },
     })
     assigned++
@@ -283,6 +312,27 @@ export async function expireIdol(leagueId: string, idolId: string): Promise<{ ok
 }
 
 /**
+ * Expire all idols past their expiry week. Called by automation cron each cycle.
+ */
+export async function expireIdolsByWeek(leagueId: string, currentWeek: number): Promise<number> {
+  const idolsDue = await prisma.survivorIdol.findMany({
+    where: {
+      leagueId,
+      status: { in: ['hidden', 'revealed'] },
+      isUsed: false,
+      expiresAtWeek: { lte: currentWeek },
+    },
+    select: { id: true },
+  })
+  let expired = 0
+  for (const idol of idolsDue) {
+    const result = await expireIdol(leagueId, idol.id)
+    if (result.ok) expired++
+  }
+  return expired
+}
+
+/**
  * Get all active idols for a roster.
  */
 export async function getActiveIdolsForRoster(leagueId: string, rosterId: string): Promise<{ id: string; playerId: string; powerType: string }[]> {
@@ -305,4 +355,144 @@ export async function getIdolLedger(idolId: string): Promise<{ eventType: string
     select: { eventType: true, fromRosterId: true, toRosterId: true, metadata: true, createdAt: true },
   })
   return rows
+}
+
+/** Categorize an idol power type for balance tracking. */
+function getIdolCategory(powerType: string): string {
+  if (powerType.startsWith('protect_')) return 'immunity'
+  if (['extra_vote', 'double_vote', 'vote_nullifier', 'vote_steal'].includes(powerType)) return 'vote_control'
+  if (powerType.startsWith('score_') || powerType.startsWith('rival_')) return 'score'
+  if (powerType.startsWith('steal_') || powerType === 'swap_starter') return 'roster_movement'
+  if (powerType.startsWith('waiver_') || powerType === 'faab_bonus') return 'waiver_faab'
+  if (['tribe_immunity_modifier', 'secret_tribe_power', 'force_tribe_shuffle'].includes(powerType)) return 'tribe_control'
+  if (['idol_sniffer', 'reveal_tribe_powers'].includes(powerType)) return 'information'
+  if (['jury_influence', 'finale_advantage'].includes(powerType)) return 'endgame'
+  return 'other'
+}
+
+/**
+ * Handle @Chimmy idol play request. Validates ownership, status, and timing.
+ * Returns a response message for Chimmy to send back to the user.
+ */
+export async function handleChimmyIdolPlayRequest(
+  leagueId: string,
+  userId: string,
+  idolIdOrAuto?: string,
+): Promise<{ ok: boolean; message: string; idolUsed?: boolean; announcement?: string }> {
+  const config = await getSurvivorConfig(leagueId)
+  if (!config) return { ok: false, message: 'This is not a Survivor league.' }
+
+  // Find user's roster
+  const roster = await prisma.roster.findFirst({
+    where: { leagueId, platformUserId: userId },
+    select: { id: true },
+  })
+  if (!roster) return { ok: false, message: 'You are not in this league.' }
+
+  // Find user's active idols
+  const idols = await prisma.survivorIdol.findMany({
+    where: {
+      leagueId,
+      rosterId: roster.id,
+      status: { in: ['hidden', 'revealed'] },
+      isUsed: false,
+    },
+    select: { id: true, powerType: true, powerLabel: true, powerDesc: true },
+  })
+
+  if (idols.length === 0) {
+    return { ok: false, message: 'You have no idol to play. You either never received one, or it has already been used.' }
+  }
+
+  // Pick which idol (auto = first, or by ID if specified)
+  const idol = idolIdOrAuto
+    ? idols.find((i) => i.id === idolIdOrAuto) ?? idols[0]!
+    : idols[0]!
+
+  // Check if there's an active council that hasn't been counted yet
+  const council = await prisma.survivorTribalCouncil.findFirst({
+    where: {
+      leagueId,
+      status: { in: ['pending', 'voting_open', 'voting_in_progress', 'votes_locked'] },
+      closedAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true, week: true },
+  })
+
+  if (!council) {
+    return { ok: false, message: 'There is no active Tribal Council right now. Idols can only be played before votes are counted.' }
+  }
+
+  if (council.status === 'reveal_in_progress' || council.status === 'completed') {
+    return { ok: false, message: 'Votes have already been counted. It is too late to play your idol.' }
+  }
+
+  // Use the idol
+  const result = await useIdol(leagueId, idol.id, roster.id, { councilId: council.id, week: council.week })
+  if (!result.ok) {
+    return { ok: false, message: result.error ?? 'Could not play idol.' }
+  }
+
+  const powerName = idol.powerLabel ?? idol.powerType.replace(/_/g, ' ')
+  const announcement = `An idol has been played! ${powerName} — ${idol.powerDesc ?? 'Power activated.'}`
+
+  return {
+    ok: true,
+    idolUsed: true,
+    message: `Your idol has been played: **${powerName}**. ${idol.powerDesc ?? ''} The tribe will be notified.`,
+    announcement,
+  }
+}
+
+/**
+ * Auto-transfer idols when a player moves between rosters (trade or waiver pickup).
+ * Idols are bound to PLAYERS, not managers. When a player changes teams,
+ * the idol goes with them.
+ */
+export async function transferIdolOnPlayerMovement(
+  leagueId: string,
+  playerId: string,
+  fromRosterId: string,
+  toRosterId: string,
+  reason: 'trade' | 'waiver_claim',
+): Promise<{ transferred: boolean; idolId?: string; powerType?: string }> {
+  const idol = await getIdolByPlayer(leagueId, playerId)
+  if (!idol) return { transferred: false }
+
+  await transferIdol(leagueId, idol.id, toRosterId, reason)
+
+  // Notify the new owner privately via @Chimmy
+  const newOwnerRoster = await prisma.roster.findUnique({
+    where: { id: toRosterId },
+    select: { platformUserId: true },
+  })
+  const idolDetails = await prisma.survivorIdol.findUnique({
+    where: { id: idol.id },
+    select: { powerType: true, powerLabel: true, powerDesc: true },
+  })
+
+  if (newOwnerRoster?.platformUserId && idolDetails) {
+    await prisma.survivorChatMessage.create({
+      data: {
+        leagueId,
+        channelId: `chimmy:${newOwnerRoster.platformUserId}`,
+        channelType: 'private_ai',
+        senderUserId: 'system',
+        senderName: '@Chimmy',
+        senderIsHost: true,
+        isSystemMessage: true,
+        content: `You picked up a player carrying a hidden power! You now hold: **${idolDetails.powerLabel ?? idolDetails.powerType}**\n\n${idolDetails.powerDesc ?? 'Use it wisely.'}\n\nMessage me to play it before tribal votes are counted.`,
+        contentType: 'card',
+        cardData: {
+          type: 'idol_transferred',
+          powerType: idolDetails.powerType,
+          powerLabel: idolDetails.powerLabel,
+          reason,
+        },
+      },
+    }).catch(() => {})
+  }
+
+  return { transferred: true, idolId: idol.id, powerType: idolDetails?.powerType }
 }

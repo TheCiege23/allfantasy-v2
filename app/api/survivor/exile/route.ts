@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
 import { processReturnFromExile, scoreExileWeek } from '@/lib/survivor/exileEngine'
+import { submitExileTeamClaim, getAvailableTeamsForExile } from '@/lib/survivor/exileTeamDraft'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -72,6 +73,37 @@ export async function POST(req: NextRequest) {
       update: { submittedLineup: (body.lineup ?? {}) as object },
     })
     return NextResponse.json({ ok: true })
+  }
+
+  if (body.intent === 'claim_team') {
+    if (!body.leagueId || body.week == null) return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+    const gate = await assertLeagueMember(body.leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+    const island = await prisma.exileIsland.findUnique({ where: { leagueId: body.leagueId } })
+    if (!island) return NextResponse.json({ error: 'Exile not initialized' }, { status: 400 })
+    const player = body as Record<string, unknown>
+    const result = await submitExileTeamClaim(
+      body.leagueId,
+      island.id,
+      userId,
+      body.week,
+      {
+        playerId: String(player.playerId ?? ''),
+        playerName: String(player.playerName ?? ''),
+        position: String(player.position ?? ''),
+        team: String(player.team ?? ''),
+        teamId: String(player.teamId ?? ''),
+        sport: String(player.sport ?? 'NFL'),
+      },
+    )
+    return NextResponse.json(result)
+  }
+
+  if (body.intent === 'available_teams') {
+    if (!body.leagueId || body.week == null) return NextResponse.json({ error: 'leagueId and week required' }, { status: 400 })
+    const league = await prisma.league.findUnique({ where: { id: body.leagueId }, select: { sport: true } })
+    const teams = await getAvailableTeamsForExile(body.leagueId, body.week, league?.sport ?? 'NFL')
+    return NextResponse.json({ teams })
   }
 
   return NextResponse.json({ error: 'Invalid intent' }, { status: 400 })

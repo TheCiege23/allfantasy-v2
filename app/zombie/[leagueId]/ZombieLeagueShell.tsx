@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
+import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
+import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
+import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 
 type ZMeta = {
   league?: { name?: string | null; universeId?: string | null; currentWeek?: number }
@@ -173,6 +176,15 @@ export default function ZombieLeagueShell({
 
         <main className="min-h-0 flex-1 overflow-y-auto p-4">{children}</main>
       </div>
+      <SimulateLeagueButton leagueId={leagueId} />
+      <LeagueIntroVideoModal
+        leagueId={leagueId}
+        leagueType="zombie"
+        leagueName="Zombie League"
+        videoSrc={getLeagueTypeMedia('zombie').introVideo}
+        posterSrc={getLeagueTypeMedia('zombie').thumbnail}
+        onDismiss={() => {}}
+      />
     </div>
   )
 }

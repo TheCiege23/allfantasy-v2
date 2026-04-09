@@ -153,6 +153,37 @@ Reference:
 
 ---
 
+## DDL & Creation Reference Format
+
+For references about creating or modifying database objects (categories 9-13), use a three-tier format instead of Incorrect/Correct:
+
+```markdown
+**Minimal (missing safety guards):**
+
+```sql
+-- Will fail if object already exists
+CREATE TABLE orders ( ... );
+```
+
+**Production-ready (idempotent, Supabase-compatible):**
+
+```sql
+CREATE TABLE IF NOT EXISTS orders ( ... );
+```
+
+**AllFantasy convention:**
+
+```sql
+-- TEXT PKs with app-generated cuid()
+-- No foreign key constraints (managed externally)
+-- TIMESTAMPTZ for all date columns
+```
+```
+
+This three-tier format shows progression from naive to safe to project-specific, making it useful for both greenfield and existing projects.
+
+---
+
 ## Review Checklist
 
 Before submitting a reference:

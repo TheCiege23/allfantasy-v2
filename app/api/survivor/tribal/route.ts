@@ -11,6 +11,7 @@ import {
   submitVote,
 } from '@/lib/survivor/votingEngine'
 import { playIdol } from '@/lib/survivor/idolEngine'
+import { executeRocksDraw } from '@/lib/survivor/rocksEngine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -115,6 +116,53 @@ export async function POST(req: NextRequest) {
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
     await buildScrollRevealSequence(councilId)
     return NextResponse.json({ ok: true })
+  }
+
+  if (action === 'rocks_draw') {
+    const gate = await assertLeagueCommissioner(leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const councilId = typeof body.councilId === 'string' ? body.councilId : ''
+    if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
+    const seed = typeof body.seed === 'string' ? body.seed : undefined
+    const result = await executeRocksDraw(councilId, seed)
+    if (!result) return NextResponse.json({ error: 'Council is not in a tie state or no eligible drawers' }, { status: 400 })
+    return NextResponse.json(result)
+  }
+
+  if (action === 'commissioner_resolve_tie') {
+    const gate = await assertLeagueCommissioner(leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const councilId = typeof body.councilId === 'string' ? body.councilId : ''
+    const eliminateRosterId = typeof body.eliminateRosterId === 'string' ? body.eliminateRosterId : ''
+    if (!councilId || !eliminateRosterId) {
+      return NextResponse.json({ error: 'councilId and eliminateRosterId required' }, { status: 400 })
+    }
+    const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+    if (!council?.isTie) return NextResponse.json({ error: 'Council is not in a tie state' }, { status: 400 })
+    await prisma.survivorTribalCouncil.update({
+      where: { id: councilId },
+      data: {
+        tiePhase: 'commissioner_resolved',
+        eliminatedRosterId: eliminateRosterId,
+        closedAt: new Date(),
+        status: 'completed',
+      },
+    })
+    await prisma.survivorAuditEntry.create({
+      data: {
+        leagueId,
+        week: council.week,
+        category: 'tribal_council',
+        action: 'commissioner_tie_resolve',
+        actorUserId: userId,
+        targetUserId: eliminateRosterId,
+        data: { councilId, tiedRosterIds: council.tiePlayerIds },
+        isVisibleToCommissioner: true,
+        isVisibleToPublic: false,
+        isRevealablePostSeason: true,
+      },
+    })
+    return NextResponse.json({ ok: true, eliminatedRosterId: eliminateRosterId })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

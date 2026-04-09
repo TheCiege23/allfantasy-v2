@@ -8,6 +8,13 @@ import type { SurvivorUiPlayerState } from '@/lib/survivor/survivorUiTypes'
 import { SurvivorUiProvider, useSurvivorUi } from '@/lib/survivor/SurvivorUiContext'
 import { NotificationBell } from '@/app/survivor/components/NotificationBell'
 import { SurvivorStatusBadge, type SurvivorStatusBadgeVariant } from '@/app/survivor/components/SurvivorStatusBadge'
+import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
+import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
+import { LeagueSettingsShell } from '@/components/league/LeagueSettingsShell'
+import { LeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
+import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
+import { SurvivorFormatTab } from '@/components/league/SurvivorFormatTab'
+import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 
 function pathActive(pathname: string, href: string, isHome?: boolean) {
   if (isHome) return pathname === href
@@ -42,6 +49,7 @@ function SurvivorAppShellInner({
   const ctx = useSurvivorUi()
   const [expanded, setExpanded] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const base = `/survivor/${leagueId}`
   const tribalHot = ctx.season?.activeCouncil?.status === 'voting_open'
@@ -63,6 +71,7 @@ function SurvivorAppShellInner({
     show: boolean
     dot: boolean
     home?: boolean
+    onClick?: () => void
   }
 
   const desktopItems: NavItem[] = [
@@ -83,11 +92,12 @@ function SurvivorAppShellInner({
     { href: `${base}/jury`, label: 'Jury', icon: '⚖️', show: showJuryTab, dot: false, home: false },
     { href: `${base}/episodes`, label: 'Episodes', icon: '📜', show: true, dot: false, home: false },
     {
-      href: `/league/${leagueId}`,
-      label: 'Commissioner',
+      href: '#settings',
+      label: 'Settings',
       icon: '⚙️',
-      show: ctx.isCommissioner,
-      dot: ctx.canEditLeagueSettings,
+      show: true,
+      dot: ctx.isCommissioner && ctx.canEditLeagueSettings,
+      onClick: () => setSettingsOpen(true),
       home: false,
     },
   ].filter((x) => x.show)
@@ -308,6 +318,25 @@ function SurvivorAppShellInner({
       {ctx.error ? (
         <div className="mx-auto max-w-lg px-4 py-3 text-center text-[12px] text-amber-200/90">{ctx.error}</div>
       ) : null}
+
+      {/* 3-Tab Settings Modal */}
+      <LeagueSettingsShell
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        isCommissioner={ctx.isCommissioner}
+        isCoCommissioner={false}
+        formatLabel="Survivor"
+        hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false}
+        leagueTabContent={
+          <LeagueSettingsTab leagueId={leagueId} canEdit={ctx.isCommissioner} />
+        }
+        commissionerTabContent={
+          <CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false} />
+        }
+        formatTabContent={
+          <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false} />
+        }
+      />
     </div>
   )
 }
@@ -319,9 +348,20 @@ export function SurvivorAppShell({
   leagueId: string
   children: React.ReactNode
 }) {
+  const media = getLeagueTypeMedia('survivor')
+
   return (
     <SurvivorUiProvider leagueId={leagueId}>
       <SurvivorAppShellInner leagueId={leagueId}>{children}</SurvivorAppShellInner>
+      <SimulateLeagueButton leagueId={leagueId} />
+      <LeagueIntroVideoModal
+        leagueId={leagueId}
+        leagueType="survivor"
+        leagueName="Survivor League"
+        videoSrc={media.introVideo}
+        posterSrc={media.thumbnail}
+        onDismiss={() => {}}
+      />
     </SurvivorUiProvider>
   )
 }

@@ -162,21 +162,92 @@ export async function tallyVotes(
 
   if (tiedTargets.length === 1) {
     eliminatedRosterId = tiedTargets[0]
-  } else if (tiedTargets.length > 1 && seasonPointsSource) {
-    const points: Record<string, number> = {}
-    for (const rosterId of tiedTargets) {
-      points[rosterId] = await seasonPointsSource.getSeasonPointsForRoster(
-        council.leagueId,
-        rosterId,
-        council.week
-      )
-    }
-    tieBreakSeasonPoints = points
-    const minPoints = Math.min(...Object.values(points))
-    const lowest = tiedTargets.find((t) => points[t] === minPoints)
-    eliminatedRosterId = lowest ?? tiedTargets[0]
   } else if (tiedTargets.length > 1) {
-    eliminatedRosterId = tiedTargets[0]
+    // Check league tie rule to determine resolution method
+    const league = await (prisma as any).league.findUnique({
+      where: { id: council.leagueId },
+      select: { survivorTieRule: true, survivorRocksEnabled: true },
+    })
+    const tieRule = league?.survivorTieRule ?? 'score'
+
+    if (tieRule === 'rocks' || (tieRule === 'revote_then_rocks' && league?.survivorRocksEnabled)) {
+      // Mark as tied — rocks draw will happen separately via rocksEngine
+      // Do NOT eliminate anyone yet; council enters rocks_pending state
+      await (prisma as any).survivorTribalCouncil.update({
+        where: { id: councilId },
+        data: {
+          isTie: true,
+          tiePhase: 'rocks_pending',
+          tiePlayerIds: tiedTargets,
+          status: 'tie_pending',
+        },
+      })
+      return {
+        councilId,
+        votesByTarget,
+        tied: true,
+        eliminatedRosterId: null,
+        tieBreakSeasonPoints: null,
+        tiePhase: 'rocks_pending' as const,
+        tiedRosterIds: tiedTargets,
+      }
+    } else if (tieRule === 'fire_making') {
+      // Mark as tied — fire-making challenge will resolve separately
+      await (prisma as any).survivorTribalCouncil.update({
+        where: { id: councilId },
+        data: {
+          isTie: true,
+          tiePhase: 'fire_making_pending',
+          tiePlayerIds: tiedTargets,
+          status: 'tie_pending',
+        },
+      })
+      return {
+        councilId,
+        votesByTarget,
+        tied: true,
+        eliminatedRosterId: null,
+        tieBreakSeasonPoints: null,
+        tiePhase: 'fire_making_pending' as const,
+        tiedRosterIds: tiedTargets,
+      }
+    } else if (tieRule === 'commissioner') {
+      // Mark as tied — commissioner will manually resolve
+      await (prisma as any).survivorTribalCouncil.update({
+        where: { id: councilId },
+        data: {
+          isTie: true,
+          tiePhase: 'commissioner_pending',
+          tiePlayerIds: tiedTargets,
+          status: 'tie_pending',
+        },
+      })
+      return {
+        councilId,
+        votesByTarget,
+        tied: true,
+        eliminatedRosterId: null,
+        tieBreakSeasonPoints: null,
+        tiePhase: 'commissioner_pending' as const,
+        tiedRosterIds: tiedTargets,
+      }
+    } else if (seasonPointsSource) {
+      // Default: season points tiebreak (existing behavior)
+      const points: Record<string, number> = {}
+      for (const rosterId of tiedTargets) {
+        points[rosterId] = await seasonPointsSource.getSeasonPointsForRoster(
+          council.leagueId,
+          rosterId,
+          council.week
+        )
+      }
+      tieBreakSeasonPoints = points
+      const minPoints = Math.min(...Object.values(points))
+      const lowest = tiedTargets.find((t) => points[t] === minPoints)
+      eliminatedRosterId = lowest ?? tiedTargets[0]
+    } else {
+      eliminatedRosterId = tiedTargets[0]
+    }
   }
 
   return {

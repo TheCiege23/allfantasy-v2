@@ -16,6 +16,7 @@ import type { SurvivorCouncilResult } from './types'
 import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTradesForElimination'
 import { notifyElimination } from '@/lib/survivor/notificationEngine'
 import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
+import { postEliminationAnnouncement } from '@/lib/survivor/leagueChatPoster'
 
 /**
  * Create a Tribal Council for the week. Pre-merge: pass attendingTribeId. Merge: no tribe.
@@ -126,6 +127,13 @@ export async function closeCouncil(
       : null
   const elimLabel = leagueTeam?.teamName?.trim() || 'Eliminated player'
   await notifyElimination(council.leagueId, elimLabel, council.week).catch(() => {})
+  await postEliminationAnnouncement(
+    council.leagueId,
+    elimLabel,
+    council.week,
+    Boolean(council.idolsPlayed && (council.idolsPlayed as unknown[]).length > 0),
+    Boolean(council.isTie),
+  ).catch(() => {})
   const rss = await prisma.redraftSeason.findFirst({
     where: { leagueId: council.leagueId },
     orderBy: { createdAt: 'desc' },
