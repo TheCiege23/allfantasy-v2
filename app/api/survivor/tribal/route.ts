@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
+  const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
   const action = typeof body.action === 'string' ? body.action : ''
   if (!leagueId || !action) return NextResponse.json({ error: 'leagueId and action required' }, { status: 400 })
 
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
           category: 'tribal_council',
           action: 'commissioner_tie_resolve',
           actorUserId: userId,
-          targetUserId: eliminatedUserId ?? undefined,
+          targetUserId: eliminatedUserId ?? null,
           data: { councilId, tiedRosterIds },
           isVisibleToCommissioner: true,
           isVisibleToPublic: false,
