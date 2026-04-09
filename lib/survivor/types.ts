@@ -80,6 +80,8 @@ export interface SurvivorVoteTally {
   tied: boolean
   eliminatedRosterId: string | null
   tieBreakSeasonPoints: Record<string, number> | null
+  tiePhase?: string
+  tiedRosterIds?: string[]
 }
 
 /** Council result after close. */

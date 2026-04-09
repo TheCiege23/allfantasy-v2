@@ -326,15 +326,15 @@ function SurvivorAppShellInner({
         isCommissioner={ctx.isCommissioner}
         isCoCommissioner={false}
         formatLabel="Survivor"
-        hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false}
+        hasAfCommissionerSub={(ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub as boolean ?? false}
         leagueTabContent={
           <LeagueSettingsTab leagueId={leagueId} canEdit={ctx.isCommissioner} />
         }
         commissionerTabContent={
-          <CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false} />
+          <CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={(ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub as boolean ?? false} />
         }
         formatTabContent={
-          <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={ctx.season?.hasAfCommissionerSub ?? false} />
+          <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={(ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub as boolean ?? false} />
         }
       />
     </div>

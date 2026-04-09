@@ -95,7 +95,7 @@ export async function executeRocksDraw(
     where: { id: { in: eligibleIds }, leagueId: council.leagueId },
     select: { id: true, displayName: true },
   })
-  const nameMap = new Map(players.map((p: any) => [p.id, p.displayName ?? 'Unknown']))
+  const nameMap = new Map<string, string>(players.map((p: any) => [p.id, p.displayName ?? 'Unknown']))
 
   // Generate seed if not provided
   const drawSeed = seed ?? `rocks-${councilId}-${Date.now()}`

@@ -46,12 +46,15 @@ export async function assignIdolsAfterDraft(
   const count = Math.min(config.idolCount || autoCount, playerRosterPairs.length)
 
   // Calculate expiry week from commissioner config or default (Final 5 = playerCount - 5 + 2)
-  const league = await prisma.league.findUnique({
+  const leagueForExpiry = await (prisma as any).league.findUnique({
     where: { id: leagueId },
-    select: { survivorIdolExpiryWeek: true, survivorPlayerCount: true },
+    select: { survivorPlayerCount: true, settings: true },
   })
-  const playerCount = league?.survivorPlayerCount ?? playerRosterPairs.length
-  const expiryWeek = league?.survivorIdolExpiryWeek ?? Math.max(8, playerCount - 5 + 2)
+  const playerCount = leagueForExpiry?.survivorPlayerCount ?? playerRosterPairs.length
+  const settingsJson = (leagueForExpiry?.settings ?? {}) as Record<string, unknown>
+  const expiryWeek = typeof settingsJson.survivorIdolExpiryWeek === 'number'
+    ? settingsJson.survivorIdolExpiryWeek
+    : Math.max(8, playerCount - 5 + 2)
   if (count <= 0) return { ok: true, assigned: 0 }
 
   // Build power pool — each idol gets a UNIQUE type (no duplicates)

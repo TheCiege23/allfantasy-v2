@@ -52,24 +52,24 @@ export async function isUserInBlindMode(leagueId: string, userId: string): Promi
  * Filter API response data for a blind-mode commissioner.
  * Removes idol holder info, vote details, and hidden game state.
  */
-export function filterForBlindMode<T extends Record<string, unknown>>(data: T): T {
+export function filterForBlindMode(data: Record<string, unknown>): Record<string, unknown> {
   const filtered = { ...data }
 
   // Remove idol holder information
-  if ('idols' in filtered) {
-    filtered.idols = (filtered.idols as unknown[])?.map((idol: any) => ({
-      ...idol,
+  if ('idols' in filtered && Array.isArray(filtered.idols)) {
+    filtered.idols = filtered.idols.map((idol: unknown) => ({
+      ...(idol as Record<string, unknown>),
       currentOwnerUserId: '[HIDDEN]',
       originalOwnerUserId: '[HIDDEN]',
       rosterId: '[HIDDEN]',
       playerId: '[HIDDEN]',
-    })) ?? []
+    }))
   }
 
   // Remove vote details before reveal
   if ('votes' in filtered && Array.isArray(filtered.votes)) {
-    filtered.votes = (filtered.votes as unknown[]).map((v: any) => ({
-      ...v,
+    filtered.votes = filtered.votes.map((v: unknown) => ({
+      ...(v as Record<string, unknown>),
       voterRosterId: '[HIDDEN]',
       voterUserId: '[HIDDEN]',
       voterName: '[HIDDEN]',

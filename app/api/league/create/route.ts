@@ -709,7 +709,7 @@ export async function POST(req: Request) {
           ...(sv?.mergeTrigger != null && { mergeTrigger: String(sv.mergeTrigger) }),
           ...(sv?.mergeWeek != null && { mergeWeek: Number(sv.mergeWeek) }),
           ...(sv?.mergeAtCount != null && { mergePlayerCount: Number(sv.mergeAtCount) }),
-          ...(sv?.juryStart != null && { juryStartAfterMerge: sv.juryStart === 'after_merge' }),
+          ...(sv?.juryStart != null && { juryStartAfterMerge: sv.juryStart === 'after_merge' ? 1 : 0 }),
           ...(sv?.exileEnabled != null && { exileReturnEnabled: Boolean(sv.exileEnabled) }),
           ...(sv?.idolsEnabled != null && { idolCount: sv.idolsEnabled ? Number(sv.idolCount ?? 9) : 0 }),
           ...(sv?.challengeMode != null && { minigameFrequency: String(sv.challengeMode) }),
@@ -740,9 +740,15 @@ export async function POST(req: Request) {
             survivorChallengeMode: sv?.challengeMode != null ? String(sv.challengeMode) : 'automatic',
             survivorTokenEnabled: sv?.tokenEnabled != null ? Boolean(sv.tokenEnabled) : true,
             survivorBossResetEnabled: sv?.bossResetEnabled != null ? Boolean(sv.bossResetEnabled) : true,
-            survivorCommissionerPlays: sv?.commissionerPlays != null ? Boolean(sv.commissionerPlays) : false,
           },
         });
+        // Store commissionerPlays in settings JSON (not a Prisma column)
+        if (sv?.commissionerPlays != null) {
+          await (prisma as any).league.update({
+            where: { id: league.id },
+            data: { settings: { ...(league.settings as object ?? {}), survivorCommissionerPlays: Boolean(sv.commissionerPlays) } },
+          }).catch(() => {});
+        }
         if (sv?.exileEnabled !== false) {
           await getOrCreateExileLeague(league.id).catch((err) => {
             console.warn('[league/create] Survivor exile bootstrap non-fatal:', err);

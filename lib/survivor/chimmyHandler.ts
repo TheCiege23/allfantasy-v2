@@ -22,7 +22,7 @@ export async function handleChimmyPrivateMessage(leagueId: string, userId: strin
   const player = await prisma.survivorPlayer.findFirst({ where: { leagueId, userId } })
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { survivorPhase: true },
+    select: { survivorPhase: true, sport: true },
   })
 
   // Block probing for others' idols

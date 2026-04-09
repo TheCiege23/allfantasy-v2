@@ -64,6 +64,7 @@ export interface ZombieAIDeterministicContext {
   chompinBlockCandidates: string[]
   collusionFlags: { rosterIdA: string; rosterIdB: string; flagType: string }[]
   dangerousDropFlags: { rosterId: string; playerId: string; estimatedValue: number; threshold: number }[]
+  historicalContext: string | null
 }
 
 /**

@@ -77,7 +77,7 @@ export function WinnerReveal({ finalists, winnerId, totalJurors, onComplete }: W
             <div className="flex justify-center gap-4">
               {finalists.map((f) => {
                 const currentVotes = voteSequence.slice(0, revealedVotes).filter((id) => id === f.userId).length
-                const isWinner = phase !== 'buildup' && phase !== 'counting' && f.userId === winnerId
+                const isWinner = (phase === 'reveal' || phase === 'celebration') && f.userId === winnerId
 
                 return (
                   <div

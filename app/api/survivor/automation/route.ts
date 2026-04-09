@@ -42,7 +42,7 @@ async function runAutomation(req: NextRequest) {
       survivorMode: true,
       survivorPhase: { notIn: ['pre_draft', 'drafting', 'complete'] },
     },
-    select: { id: true, survivorPhase: true },
+    select: { id: true, survivorPhase: true, survivorExileReturnWeek: true, sport: true },
   })
 
   for (const L of leagues) {
