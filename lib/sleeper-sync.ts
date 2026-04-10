@@ -303,6 +303,7 @@ export async function syncSleeperLeague(
     },
     select: {
       id: true,
+      leagueVariant: true,
     },
   });
 
@@ -332,7 +333,8 @@ export async function syncSleeperLeague(
     lastSyncedAt: syncedAt,
     syncStatus: 'success',
     syncError: null,
-    leagueVariant,
+    // Preserve ranking-import marker — never let a sync overwrite legacy_summary with null
+    leagueVariant: existingUnifiedLeague?.leagueVariant === 'legacy_summary' ? 'legacy_summary' : leagueVariant,
   };
 
   const unifiedLeague = existingUnifiedLeague
