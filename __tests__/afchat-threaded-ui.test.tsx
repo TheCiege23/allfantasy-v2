@@ -31,19 +31,10 @@ describe("AFChatDMPanel threaded chat UI (DM/Huddle)", () => {
     expect(screen.getByTestId("dm-thread-view-active")).toBeInTheDocument()
     // Early return if marker is missing (thread view not entered)
     if (!screen.queryByTestId("dm-thread-view-active")) {
-      // eslint-disable-next-line no-console
-      console.log('DEBUG: Thread view marker not found after click! DOM:', document.body.innerHTML)
       return;
     }
     // In thread view, parent previews should be rendered for each reply
     const threadPreviews = screen.queryAllByTestId("parent-preview")
-    // Debug output
-    // eslint-disable-next-line no-console
-    if (threadPreviews.length !== 2) {
-      // eslint-disable-next-line no-console
-      console.log('DEBUG: DM thread view DOM:', document.body.innerHTML)
-    }
-    console.log('Thread view parent previews:', threadPreviews.length)
     expect(threadPreviews.length).toBe(2)
     expect(threadPreviews[0].textContent).toContain("Replying to: Hello DM")
     expect(threadPreviews[1].textContent).toContain("Replying to: Hello DM")

@@ -69,10 +69,7 @@ describe("LeagueChatMessageService threaded chat backend", () => {
     const m1 = await createMessage({ threadId, body: "Root", senderId: userId, isPrivate: false, source: undefined })
     const m2 = await createMessage({ threadId, body: "Reply", senderId: userId, parentMessageId: m1.id, isPrivate: false, source: undefined })
     await new Promise(res => setTimeout(res, 100)); // Wait for DB consistency
-    const dbMessages = await prisma.leagueChatMessage.findMany({ where: { leagueId } })
-    console.log('DB messages:', dbMessages)
     const all = await getMessagesByThread(threadId, userId, null)
-    console.log('All messages returned:', all)
     expect(all.find(m => m.id === m1.id)).toBeTruthy()
     expect(all.find(m => m.id === m2.id)).toBeTruthy()
   })
