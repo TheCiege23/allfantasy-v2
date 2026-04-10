@@ -8,6 +8,17 @@ export const dynamic = 'force-dynamic'
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? ''
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? ''
 
+type SpotifyData = {
+  userId?: string | null
+  displayName?: string | null
+  email?: string | null
+  accessToken?: string | null
+  refreshToken?: string | null
+  tokenExpiresAt?: string | null
+  isPremium?: boolean
+  connectedAt?: string | null
+}
+
 /**
  * GET /api/spotify/token — Get a valid Spotify access token for the current user.
  * Auto-refreshes if expired. Used by the Web Playback SDK on the client.
@@ -20,26 +31,21 @@ export async function GET() {
 
   const profile = await prisma.userProfile.findUnique({
     where: { userId: session.user.id },
-    select: {
-      spotifyAccessToken: true,
-      spotifyRefreshToken: true,
-      spotifyTokenExpiresAt: true,
-      spotifyIsPremium: true,
-      spotifyDisplayName: true,
-    },
+    select: { notificationPreferences: true },
   })
 
-  if (!profile?.spotifyAccessToken) {
+  const prefs = (profile?.notificationPreferences ?? {}) as Record<string, unknown>
+  const spotify = (prefs.spotify ?? {}) as SpotifyData
+
+  if (!spotify.accessToken) {
     return NextResponse.json({ error: 'Spotify not connected', connected: false }, { status: 404 })
   }
 
   // Check if token is expired (with 5-minute buffer)
-  const isExpired = profile.spotifyTokenExpiresAt
-    ? Date.now() > profile.spotifyTokenExpiresAt.getTime() - 5 * 60 * 1000
-    : true
+  const expiresAt = spotify.tokenExpiresAt ? new Date(spotify.tokenExpiresAt).getTime() : 0
+  const isExpired = Date.now() > expiresAt - 5 * 60 * 1000
 
-  if (isExpired && profile.spotifyRefreshToken) {
-    // Refresh the token
+  if (isExpired && spotify.refreshToken) {
     const refreshRes = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
@@ -48,7 +54,7 @@ export async function GET() {
       },
       body: new URLSearchParams({
         grant_type: 'refresh_token',
-        refresh_token: profile.spotifyRefreshToken,
+        refresh_token: spotify.refreshToken,
       }),
     })
 
@@ -62,32 +68,35 @@ export async function GET() {
       refresh_token?: string
     }
 
-    // Update stored tokens
+    // Update stored tokens in JSON
+    const updatedSpotify: SpotifyData = {
+      ...spotify,
+      accessToken: tokens.access_token,
+      tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+    }
+
     await prisma.userProfile.update({
       where: { userId: session.user.id },
       data: {
-        spotifyAccessToken: tokens.access_token,
-        spotifyTokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        ...(tokens.refresh_token ? { spotifyRefreshToken: tokens.refresh_token } : {}),
+        notificationPreferences: { ...prefs, spotify: updatedSpotify },
       },
     })
 
     return NextResponse.json({
       token: tokens.access_token,
       expiresIn: tokens.expires_in,
-      isPremium: profile.spotifyIsPremium,
-      displayName: profile.spotifyDisplayName,
+      isPremium: spotify.isPremium ?? false,
+      displayName: spotify.displayName ?? null,
       connected: true,
     })
   }
 
   return NextResponse.json({
-    token: profile.spotifyAccessToken,
-    expiresIn: profile.spotifyTokenExpiresAt
-      ? Math.max(0, Math.floor((profile.spotifyTokenExpiresAt.getTime() - Date.now()) / 1000))
-      : 3600,
-    isPremium: profile.spotifyIsPremium,
-    displayName: profile.spotifyDisplayName,
+    token: spotify.accessToken,
+    expiresIn: expiresAt > 0 ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : 3600,
+    isPremium: spotify.isPremium ?? false,
+    displayName: spotify.displayName ?? null,
     connected: true,
   })
 }

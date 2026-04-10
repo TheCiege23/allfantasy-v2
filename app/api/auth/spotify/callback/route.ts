@@ -89,30 +89,34 @@ export async function GET(req: NextRequest) {
 
   const isPremium = spotifyUser?.product === 'premium'
 
-  // Store tokens in UserProfile
+  // Store Spotify data in UserProfile.notificationPreferences JSON (spotify sub-key)
+  // Spotify fields aren't in Prisma schema — use JSON storage pattern
   try {
+    const existing = await prisma.userProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { notificationPreferences: true },
+    })
+
+    const prefs = (existing?.notificationPreferences ?? {}) as Record<string, unknown>
+    const spotifyData = {
+      userId: spotifyUser?.id ?? null,
+      displayName: spotifyUser?.display_name ?? null,
+      email: spotifyUser?.email ?? null,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      isPremium,
+      connectedAt: new Date().toISOString(),
+    }
+
     await prisma.userProfile.upsert({
       where: { userId: session.user.id },
       create: {
         userId: session.user.id,
-        spotifyUserId: spotifyUser?.id ?? null,
-        spotifyDisplayName: spotifyUser?.display_name ?? null,
-        spotifyEmail: spotifyUser?.email ?? null,
-        spotifyAccessToken: tokens.access_token,
-        spotifyRefreshToken: tokens.refresh_token,
-        spotifyTokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        spotifyIsPremium: isPremium,
-        spotifyConnectedAt: new Date(),
+        notificationPreferences: { ...prefs, spotify: spotifyData },
       },
       update: {
-        spotifyUserId: spotifyUser?.id ?? null,
-        spotifyDisplayName: spotifyUser?.display_name ?? null,
-        spotifyEmail: spotifyUser?.email ?? null,
-        spotifyAccessToken: tokens.access_token,
-        spotifyRefreshToken: tokens.refresh_token,
-        spotifyTokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-        spotifyIsPremium: isPremium,
-        spotifyConnectedAt: new Date(),
+        notificationPreferences: { ...prefs, spotify: spotifyData },
       },
     })
   } catch (e) {
