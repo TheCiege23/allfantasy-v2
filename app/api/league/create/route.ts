@@ -799,7 +799,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });
   } catch (err) {
-    console.error('[league/create] Error:', err);
-    return NextResponse.json({ error: 'Failed to create league' }, { status: 500 });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : undefined;
+    console.error('[league/create] Error:', errMsg, errStack);
+    return NextResponse.json({ error: `Failed to create league: ${errMsg}` }, { status: 500 });
   }
 }
