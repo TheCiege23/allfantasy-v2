@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error&reason=no_code', SETTINGS_BASE))
   }
 
-  // State validation — warn but proceed if cookie was lost (cross-site)
-  if (state && stored && stored !== state) {
+  // State validation must reject missing or mismatched values.
+  if (!state || !stored || stored !== state) {
     console.warn('[spotify/callback] State mismatch')
     return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error&reason=state_mismatch', SETTINGS_BASE))
   }
@@ -89,8 +89,8 @@ export async function GET(req: NextRequest) {
 
   const isPremium = spotifyUser?.product === 'premium'
 
-  // Store Spotify data in UserProfile.notificationPreferences JSON (spotify sub-key)
-  // Spotify fields aren't in Prisma schema — use JSON storage pattern
+  // Store non-sensitive Spotify profile metadata in notificationPreferences,
+  // and keep OAuth tokens in auth_accounts.
   try {
     const existing = await prisma.userProfile.findUnique({
       where: { userId: session.user.id },
@@ -98,13 +98,12 @@ export async function GET(req: NextRequest) {
     })
 
     const prefs = (existing?.notificationPreferences ?? {}) as Record<string, unknown>
+    const spotifyAccountKey = `user:${session.user.id}`
+    const expiresAtSeconds = Math.floor(Date.now() / 1000) + tokens.expires_in
     const spotifyData = {
       userId: spotifyUser?.id ?? null,
       displayName: spotifyUser?.display_name ?? null,
       email: spotifyUser?.email ?? null,
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-      tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
       isPremium,
       connectedAt: new Date().toISOString(),
     }
@@ -119,6 +118,41 @@ export async function GET(req: NextRequest) {
         notificationPreferences: { ...prefs, spotify: spotifyData },
       },
     })
+
+    const existingSpotifyAccount = await prisma.authAccount.findFirst({
+      where: {
+        userId: session.user.id,
+        provider: 'spotify',
+      },
+      select: { id: true },
+    })
+
+    if (existingSpotifyAccount) {
+      await prisma.authAccount.update({
+        where: { id: existingSpotifyAccount.id },
+        data: {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token ?? null,
+          expires_at: expiresAtSeconds,
+          token_type: tokens.token_type ?? null,
+          scope: tokens.scope ?? null,
+        },
+      })
+    } else {
+      await prisma.authAccount.create({
+        data: {
+          userId: session.user.id,
+          type: 'oauth',
+          provider: 'spotify',
+          providerAccountId: spotifyAccountKey,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token ?? null,
+          expires_at: expiresAtSeconds,
+          token_type: tokens.token_type ?? null,
+          scope: tokens.scope ?? null,
+        },
+      })
+    }
   } catch (e) {
     console.error('[spotify/callback] Profile upsert failed:', e)
     return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error&reason=db_error', SETTINGS_BASE))

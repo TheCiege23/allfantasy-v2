@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_SPORT, SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
+const VALID_SPORTS: readonly string[] = SUPPORTED_SPORTS
 const VALID_LEAGUE_TYPES = ['redraft', 'dynasty', 'keeper', 'best_ball', 'guillotine', 'survivor', 'tournament', 'zombie', 'salary_cap', 'devy', 'c2c']
 const VALID_DRAFT_TYPES = ['snake', 'linear', 'auction', 'slow_draft']
 
@@ -85,6 +86,11 @@ function parseLeaguePrompt(prompt: string): {
   if (lower.includes('auction')) draftType = 'auction'
   else if (lower.includes('linear')) draftType = 'linear'
   else if (lower.includes('slow draft') || lower.includes('slow-draft')) draftType = 'slow_draft'
+
+  // Validate parsed values against allowed sets before returning.
+  if (!VALID_SPORTS.includes(sport)) sport = DEFAULT_SPORT
+  if (!VALID_LEAGUE_TYPES.includes(leagueType)) leagueType = 'redraft'
+  if (!VALID_DRAFT_TYPES.includes(draftType)) draftType = 'snake'
 
   // Detect team count
   let teamCount = 12
