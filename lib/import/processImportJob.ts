@@ -158,6 +158,8 @@ export async function importLegacySeasonAtIndex(
               importWonChampionship: wonChampionship,
               importFinalStanding: finalStanding,
               importPointsFor: fpts,
+              // Only tag as legacy_summary if this league has no real-import status
+              // (real active-league imports always set status from the Sleeper API)
             },
             create: {
               userId,
@@ -167,6 +169,8 @@ export async function importLegacySeasonAtIndex(
               season,
               leagueSize: totalTeams,
               sport: leagueSportEnum,
+              // Tag new ranking-import leagues so they are excluded from My Leagues
+              leagueVariant: 'legacy_summary',
               importWins: wins,
               importLosses: losses,
               importTies: ties,
@@ -281,6 +285,20 @@ export async function finalizeLegacyImportJob(
       seasonsCompleted: totalSeasonCount,
     },
   })
+
+  // Retroactively tag any existing ranking-import leagues that predate this fix.
+  // Real active-league imports always write `status` from the Sleeper API (e.g. "complete",
+  // "in_season"). Leagues with status=null were created only by ranking imports and should
+  // never appear in My Leagues.
+  await prisma.league.updateMany({
+    where: {
+      userId,
+      platform: 'sleeper',
+      leagueVariant: null,
+      status: null,
+    },
+    data: { leagueVariant: 'legacy_summary' },
+  }).catch((e: unknown) => console.error('[import] retroactive variant tag failed:', e))
 
   await sendImportCompleteNotification(userId, jobId).catch((e: unknown) =>
     console.error('[import] notification failed:', e),
