@@ -189,9 +189,13 @@ async function runAutomation(req: NextRequest) {
         const gsFinal = await tx.survivorGameState.findUnique({ where: { leagueId } })
         if (!gsFinal) return
         const needsExileScore = didClearNeedsExileScore ? false : gsFinal.needsExileScore
-        // If tribal is complete but recap wasn't generated yet, keep recap pending and block week advance.
+        // Only infer recap pending when tribal completion is newer than the last automation cycle.
+        const hasUnprocessedTribalCompletion =
+          Boolean(gsFinal.tribalCompleteAt) &&
+          (!gsFinal.lastAutomationRun ||
+            (gsFinal.tribalCompleteAt && gsFinal.tribalCompleteAt > gsFinal.lastAutomationRun))
         const needsWeeklyRecap =
-          didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap || Boolean(gsFinal.tribalCompleteAt)
+          didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap || hasUnprocessedTribalCompletion
         const needsWaiverProcess = gsFinal.needsWaiverProcess
 
         const shouldAdvanceWeek =
