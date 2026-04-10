@@ -10,7 +10,7 @@ import { validateFantasyInviteCode } from '@/lib/league-invite'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const code = req.nextUrl.searchParams.get('code')?.trim()
+  const code = req.nextUrl.searchParams?.get('code')?.trim()
   if (!code) return NextResponse.json({ error: 'Missing code' }, { status: 400 })
 
   const result = await validateFantasyInviteCode(code)
@@ -73,3 +73,4 @@ export async function GET(req: NextRequest) {
     { status: statusByError[result.error] ?? 400 }
   )
 }
+

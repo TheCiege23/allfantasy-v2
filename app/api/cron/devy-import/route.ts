@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const sport = req.nextUrl.searchParams.get('sport')
+    const sport = req.nextUrl.searchParams?.get('sport')
     if (sport) {
       const result = await importCollegePlayers(sport)
       return NextResponse.json({ ...result, ok: result.ok ?? true })
@@ -25,3 +25,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Devy import failed' }, { status: 500 })
   }
 }
+

@@ -12,8 +12,8 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
-  const format = searchParams.get('format') ?? 'html'
+  const leagueId = searchParams?.get('leagueId')
+  const format = searchParams?.get('format') ?? 'html'
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   await requireCommissionerOnly(leagueId, session.user.id)
@@ -51,3 +51,4 @@ export async function POST(req: Request) {
   const doc = await generateRulesDocument(z.id)
   return NextResponse.json({ ok: true, id: doc.id, version: doc.version })
 }
+

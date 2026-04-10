@@ -18,14 +18,14 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const leagueId = url.searchParams.get("leagueId")
+    const leagueId = url.searchParams?.get("leagueId")
     if (!leagueId) return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
     try {
       await assertLeagueMember(leagueId, session.user.id)
     } catch {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-    const sportRaw = url.searchParams.get("sport")
+    const sportRaw = url.searchParams?.get("sport")
     const sport =
       sportRaw == null
         ? undefined
@@ -46,3 +46,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

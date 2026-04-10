@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
 
   if (seasonId) {
     const g = await prisma.guillotineSeason.findFirst({ where: { id: seasonId } })
@@ -40,3 +40,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ error: 'seasonId or leagueId required' }, { status: 400 })
 }
+

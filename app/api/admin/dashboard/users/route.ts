@@ -13,8 +13,8 @@ type UserListKind = "newest" | "active" | "reported"
 export async function GET(req: NextRequest) {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
-  const kind = (req.nextUrl.searchParams.get("kind") || "newest") as UserListKind
-  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "50", 10) || 50))
+  const kind = (req.nextUrl.searchParams?.get("kind") || "newest") as UserListKind
+  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams?.get("limit") || "50", 10) || 50))
   try {
     if (kind === "active") {
       const list = await getMostActiveUsers(limit)
@@ -31,3 +31,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load users" }, { status: 500 })
   }
 }
+

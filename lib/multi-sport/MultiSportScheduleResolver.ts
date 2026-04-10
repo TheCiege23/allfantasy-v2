@@ -64,7 +64,7 @@ export async function resolveScheduleContextForLeague(
     const { prisma } = await import('@/lib/prisma')
     const template = await prisma.scheduleTemplate.findUnique({
       where: {
-        uniq_schedule_template_sport_format: {
+        sportType_formatType: {
           sportType,
           formatType: resolvedFormat,
         },

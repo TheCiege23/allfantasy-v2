@@ -19,6 +19,7 @@ import { ScoringStep } from './steps/ScoringStep'
 import { RulesStep } from './steps/RulesStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
+import { readFetchJson } from '@/lib/http/readFetchJson'
 
 const STEP_ORDER: LeagueCreateStepId[] = [
   'sport',
@@ -247,11 +248,15 @@ export function CreateLeaguePageClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        credentials: 'same-origin',
       })
 
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create league')
+      const { ok, data, errorMessage } = await readFetchJson<{ league?: { id: string } }>(response)
+      if (!ok) {
+        throw new Error(errorMessage || 'Failed to create league')
+      }
+      if (!data?.league?.id) {
+        throw new Error('League created but no ID returned')
       }
 
       router.push(`/league/${data.league.id}`)

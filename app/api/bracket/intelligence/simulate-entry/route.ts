@@ -220,9 +220,9 @@ export async function POST(req: Request) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const entryId = searchParams.get("entryId") || ""
-    const leagueIdParam = searchParams.get("leagueId")
-    const tournamentIdParam = searchParams.get("tournamentId")
+    const entryId = searchParams?.get("entryId") || ""
+    const leagueIdParam = searchParams?.get("leagueId")
+    const tournamentIdParam = searchParams?.get("tournamentId")
 
     if (!entryId) {
       return NextResponse.json({ error: "Missing entryId" }, { status: 400 })
@@ -287,5 +287,6 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
 
 

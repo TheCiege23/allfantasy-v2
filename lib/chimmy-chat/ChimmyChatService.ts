@@ -8,6 +8,7 @@ import {
   resolveChimmyUpgradePath,
 } from "@/lib/chimmy-chat/response-copy"
 import { confirmTokenSpend } from "@/lib/tokens/client-confirm"
+import { prepareImageForChimmyUpload } from "@/lib/chimmy-chat/prepareImageForChimmyUpload"
 
 type SendChimmyMessageInput = {
   message: string
@@ -132,8 +133,16 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
   }
 
   const conversation = toConversationPayload(input.conversation)
+  let fileForUpload = input.imageFile
+  if (fileForUpload && fileForUpload.size > 0 && typeof window !== "undefined") {
+    try {
+      fileForUpload = await prepareImageForChimmyUpload(fileForUpload)
+    } catch {
+      /* use original */
+    }
+  }
   const imageDataUrl =
-    input.imageFile && input.imageFile.size > 0 ? await fileToDataUrl(input.imageFile) : undefined
+    fileForUpload && fileForUpload.size > 0 ? await fileToDataUrl(fileForUpload) : undefined
   const payload = {
     message: input.message,
     stream: typeof input.onChunk === "function",
@@ -142,8 +151,8 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
     image: imageDataUrl
       ? {
           dataUrl: imageDataUrl,
-          name: input.imageFile?.name || undefined,
-          type: input.imageFile?.type || undefined,
+          name: fileForUpload?.name || input.imageFile?.name || undefined,
+          type: fileForUpload?.type || input.imageFile?.type || undefined,
         }
       : undefined,
     userContext: {
@@ -169,6 +178,7 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
   const res = await fetch("/api/chimmy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(payload),
   })
   const contentType = res.headers.get("content-type") || ""

@@ -242,9 +242,9 @@ export default function MetaInsightsPage() {
   const [detailShift, setDetailShift] = useState<DraftStrategyShift | null>(null)
 
   useEffect(() => {
-    const sportParam = searchParams.get('sport')
-    const timeframeParam = searchParams.get('timeframe')
-    const leagueFormatParam = searchParams.get('leagueFormat')
+    const sportParam = searchParams?.get('sport')
+    const timeframeParam = searchParams?.get('timeframe')
+    const leagueFormatParam = searchParams?.get('leagueFormat')
 
     if (sportParam) setSport(normalizeToSupportedSport(sportParam))
     if (timeframeParam === '24h' || timeframeParam === '7d' || timeframeParam === '30d') {

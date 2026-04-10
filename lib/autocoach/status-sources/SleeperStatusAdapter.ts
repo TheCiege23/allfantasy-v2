@@ -40,7 +40,7 @@ export async function fetchSleeperStatuses(sport: SleeperSport): Promise<Map<str
   }
 
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/players/${key}`, {
+    const res = await fetch(`https://api.sleeper.app/v1/players/${key}`, { // db-first-exception: injury status ingestion adapter
       cache: 'no-store',
       next: { revalidate: 0 },
     })

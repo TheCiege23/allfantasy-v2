@@ -6,19 +6,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireCommissionerRole } from "@/lib/league/permissions";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
+import { getLeagueInfo, getLeagueRosters, getLeagueUsers } from "@/lib/sleeper-client";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function abortAfter(ms: number): AbortSignal {
-  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal && typeof AbortSignal.timeout === "function") {
-    return AbortSignal.timeout(ms);
-  }
-  const c = new AbortController();
-  setTimeout(() => c.abort(), ms);
-  return c.signal;
-}
 
 export async function POST(req: Request) {
   try {
@@ -60,24 +52,9 @@ export async function POST(req: Request) {
     const sleeperLeagueId = league.platformLeagueId;
 
     const [leagueRes, usersRes, rostersRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(sleeperLeagueId)}`, {
-        signal: abortAfter(8000),
-        headers: { Accept: "application/json" },
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(sleeperLeagueId)}/users`, {
-        signal: abortAfter(8000),
-        headers: { Accept: "application/json" },
-      })
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(sleeperLeagueId)}/rosters`, {
-        signal: abortAfter(8000),
-        headers: { Accept: "application/json" },
-      })
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []),
+      getLeagueInfo(sleeperLeagueId),
+      getLeagueUsers(sleeperLeagueId),
+      getLeagueRosters(sleeperLeagueId),
     ]);
 
     if (!leagueRes || typeof leagueRes !== "object") {

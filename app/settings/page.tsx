@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
-import SettingsFullPage from "./SettingsFullPage"
+import SettingsApp from "./components/SettingsApp"
 
 export default async function SettingsPage() {
   const session = (await getServerSession(authOptions as never)) as {
@@ -16,5 +16,5 @@ export default async function SettingsPage() {
     redirect("/login?callbackUrl=/settings")
   }
 
-  return <SettingsFullPage />
+  return <SettingsApp uploadLeagueId={null} accountCreatedAt={null} planLabel={null} />
 }

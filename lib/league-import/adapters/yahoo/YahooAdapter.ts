@@ -154,6 +154,7 @@ export const YahooAdapter: ILeagueImportAdapter<YahooImportPayload> = {
 
     const result: NormalizedImportResult = {
       source,
+      viewer_source_team_id: raw.viewerTeamKey ?? null,
       league: {
         name: raw.league.name,
         sport: raw.league.sport,

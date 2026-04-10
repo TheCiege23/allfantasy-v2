@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/waiver/leagues", tool: "LegacyWaiverLeagues" })(async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams
-  const sleeperUsername = searchParams.get('sleeper_username')
+  const sleeperUsername = searchParams?.get('sleeper_username')
 
   if (!sleeperUsername) {
     return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
@@ -52,3 +52,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/waiver/leagues", tool: 
     )
   }
 })
+

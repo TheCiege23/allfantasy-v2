@@ -18,7 +18,7 @@ interface RecordDetail {
 }
 
 export default function RecordBookDetailPage() {
-  const params = useParams<{ leagueId: string; recordId: string }>()
+  const params = useParams<{ leagueId: string; recordId: string }>() ?? ({} as { leagueId: string; recordId: string })
   const leagueId = params?.leagueId ?? ""
   const recordId = params?.recordId ?? ""
   const [record, setRecord] = useState<RecordDetail | null>(null)

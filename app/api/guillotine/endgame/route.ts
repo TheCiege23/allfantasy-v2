@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
   if (!seasonId) return NextResponse.json({ error: 'seasonId required' }, { status: 400 })
 
   const g = await prisma.guillotineSeason.findFirst({
@@ -63,3 +63,4 @@ export async function POST(req: NextRequest) {
   })
   return NextResponse.json({ championRosterId })
 }
+

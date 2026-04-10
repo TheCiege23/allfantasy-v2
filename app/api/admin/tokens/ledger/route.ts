@@ -10,9 +10,9 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url)
-    const userId = url.searchParams.get("userId")?.trim() || null
-    const limit = Number.parseInt(url.searchParams.get("limit") ?? "50", 10)
-    const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10)
+    const userId = url.searchParams?.get("userId")?.trim() || null
+    const limit = Number.parseInt(url.searchParams?.get("limit") ?? "50", 10)
+    const offset = Number.parseInt(url.searchParams?.get("offset") ?? "0", 10)
 
     const service = new TokenSpendService()
     const entries = await service.listLedgerForAdmin({ userId, limit, offset })
@@ -27,3 +27,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load token ledger" }, { status: 500 })
   }
 }
+

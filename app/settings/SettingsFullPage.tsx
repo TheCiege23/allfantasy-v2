@@ -536,7 +536,12 @@ export default function SettingsFullPage() {
 
         {/* 2. Connected accounts — sign-in, Discord, fantasy/import platforms */}
         <section className={CARD}>
-          <ConnectedAccountsSettingsSection profile={profile} onRefetchProfile={fetchProfile} />
+          <ConnectedAccountsSettingsSection
+            profile={profile}
+            onRefetchProfile={() => {
+              void fetchProfile()
+            }}
+          />
         </section>
 
         {/* 3. Notifications */}

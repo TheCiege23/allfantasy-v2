@@ -46,3 +46,10 @@ export {
 
 export { getPresenceStatus } from "./ChatPresenceResolver"
 export type { ChatPresence, PresenceStatus } from "./ChatPresenceResolver"
+
+export {
+  setThreadTypingState,
+  getThreadTypingState,
+  markVirtualThreadRead,
+  getVirtualThreadReadReceipts,
+} from "./ThreadRealtimeState"

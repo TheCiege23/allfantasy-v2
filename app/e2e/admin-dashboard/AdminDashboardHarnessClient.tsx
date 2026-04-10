@@ -26,7 +26,7 @@ export function AdminDashboardHarnessClient() {
   const [open, setOpen] = useState(false)
 
   const activeTab = useMemo<AdminTab>(() => {
-    const raw = searchParams.get("tab") as AdminTab | null
+    const raw = searchParams?.get("tab") as AdminTab | null
     if (raw && ALLOWED_TABS.includes(raw)) return raw
     return "overview"
   }, [searchParams])
@@ -65,3 +65,4 @@ export function AdminDashboardHarnessClient() {
     </AdminLayout>
   )
 }
+

@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react'
 import { ZombieUniverseStandingsClient } from '@/components/zombie/ZombieUniverseStandingsClient'
 
 export default function ZombieUniverseStandingsPage() {
-  const params = useParams<{ universeId: string }>()
+  const params = useParams<{ universeId: string }>() ?? ({} as { universeId: string })
   const universeId = params?.universeId ?? ''
 
   return (

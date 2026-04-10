@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) return NextResponse.json({ options: [] }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const draft = req.nextUrl.searchParams.get('draft') ?? ''
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const draft = req.nextUrl.searchParams?.get('draft') ?? ''
   if (!leagueId) return NextResponse.json({ options: [] }, { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, session.user.id)
@@ -67,3 +67,4 @@ export async function GET(req: NextRequest) {
     ],
   })
 }
+

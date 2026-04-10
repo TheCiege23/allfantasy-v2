@@ -125,7 +125,7 @@ export async function ingestSportStats(
 
       await prisma.playerGameStat.upsert({
         where: {
-          uniq_player_game_stat_player_sport_game: {
+          playerId_sportType_gameId: {
             playerId: row.playerId,
             sportType: sport,
             gameId: row.gameId,
@@ -155,7 +155,7 @@ export async function ingestSportStats(
     for (const row of teamStats) {
       await prisma.teamGameStat.upsert({
         where: {
-          uniq_team_game_stat_sport_game_team: {
+          sportType_gameId_teamId: {
             sportType: sport,
             gameId: row.gameId,
             teamId: row.teamId,

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { SessionProvider } from 'next-auth/react'
 
 export default function SessionAppProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   // E2E harness routes should not require auth/session fetches.
   if (pathname?.startsWith('/e2e')) {
     return (

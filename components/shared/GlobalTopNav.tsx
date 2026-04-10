@@ -39,6 +39,7 @@ export default function GlobalTopNav({
   mobileMenuOpen = false,
 }: Props) {
   const pathname = usePathname()
+  const currentPath = pathname ?? ""
   const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
   const primaryItems = getPrimaryNavItems(isAdmin)
   const shortcutLabel = getCommandPaletteShortcut()
@@ -155,8 +156,8 @@ export default function GlobalTopNav({
               utilitySpecs.map((spec) => renderUtility(spec))
             ) : (
               <>
-                <Link href={loginUrlWithIntent(pathname || "/dashboard")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>Login</Link>
-                <Link href={signupUrlWithIntent(pathname || "/dashboard")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>Sign Up</Link>
+                <Link href={loginUrlWithIntent(currentPath || "/dashboard")} className="rounded-lg border px-3 py-1.5 text-sm transition" style={{ borderColor: "var(--border)", color: "var(--text)", background: "color-mix(in srgb, var(--panel2) 82%, transparent)" }}>Login</Link>
+                <Link href={signupUrlWithIntent(currentPath || "/dashboard")} className="rounded-lg px-3 py-1.5 text-sm font-semibold transition" style={{ background: "var(--accent-cyan-strong)", color: "var(--on-accent-bg)" }}>Sign Up</Link>
               </>
             )}
           </div>
@@ -165,7 +166,7 @@ export default function GlobalTopNav({
         {isAuthenticated && (
         <div className="flex gap-1 overflow-x-auto pb-1">
           {primaryItems.map((item) => {
-            const active = item.href === "/admin" ? pathname.startsWith("/admin") : isNavItemActive(pathname, item.href)
+            const active = item.href === "/admin" ? currentPath.startsWith("/admin") : isNavItemActive(currentPath, item.href)
             return (
               <Link
                 key={item.href}
@@ -186,4 +187,3 @@ export default function GlobalTopNav({
     </header>
   )
 }
-

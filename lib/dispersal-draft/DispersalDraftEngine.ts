@@ -14,8 +14,22 @@ import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterReso
 import { buildAssetPoolFromRosters } from './assetPoolBuilder'
 import type { DispersalAsset, DispersalDraftConfig, DispersalDraftState } from './types'
 
+type DispersalModelClient = {
+  dispersalAssetPool: any
+  dispersalDraft: any
+  dispersalDraftParticipant: any
+  dispersalDraftPick: any
+  dispersalDraftRoster: any
+}
+
 /** Transaction client for nested writes in dispersal draft seeding. */
-type DispersalTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+type DispersalTx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0] & DispersalModelClient
+
+const dispersalPrisma = prisma as typeof prisma & DispersalModelClient
+
+function withDispersalModels<T extends object>(client: T): T & DispersalModelClient {
+  return client as T & DispersalModelClient
+}
 
 function assetDisplayNameForPool(a: DispersalAsset): string {
   if (a.assetType === 'player') return a.playerName ?? a.playerId ?? 'Player'
@@ -92,24 +106,26 @@ async function syncParticipantOnClockFlags(
   leagueId: string,
   pickIndex: number
 ): Promise<void> {
-  await tx.dispersalDraftParticipant.updateMany({
+  const dispersalClient = withDispersalModels(tx)
+
+  await dispersalClient.dispersalDraftParticipant.updateMany({
     where: { draftId },
     data: { isOnTheClock: false },
   })
-  const row = await tx.dispersalDraft.findUnique({
+  const row = await dispersalClient.dispersalDraft.findUnique({
     where: { id: draftId },
     select: { draftOrder: true, passedRosterIds: true, currentPickIndex: true },
   })
   if (!row) return
   const rosterId = getCurrentRosterId(row.draftOrder, pickIndex, row.passedRosterIds)
   if (!rosterId) return
-  const team = await tx.leagueTeam.findFirst({
+  const team = await dispersalClient.leagueTeam.findFirst({
     where: { leagueId, externalId: rosterId },
     select: { claimedByUserId: true },
   })
   const uid = team?.claimedByUserId?.trim()
   if (!uid) return
-  await tx.dispersalDraftParticipant.updateMany({
+  await dispersalClient.dispersalDraftParticipant.updateMany({
     where: { draftId, userId: uid },
     data: { isOnTheClock: true },
   })
@@ -340,7 +356,8 @@ export class DispersalDraftEngine {
         ? config.draftType.trim().slice(0, 16)
         : 'linear'
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (rawTx) => {
+      const tx = withDispersalModels(rawTx)
       const draft = await tx.dispersalDraft.create({
         data: {
           leagueId: config.leagueId,
@@ -370,7 +387,7 @@ export class DispersalDraftEngine {
   }
 
   static async startDraft(draftId: string, commissionerUserId: string): Promise<DispersalDraftState> {
-    const row = await prisma.dispersalDraft.findFirst({
+    const row = await dispersalPrisma.dispersalDraft.findFirst({
       where: { id: draftId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
@@ -404,7 +421,7 @@ export class DispersalDraftEngine {
       nextIndex++
     }
 
-    const updated = await prisma.dispersalDraft.update({
+    const updated = await dispersalPrisma.dispersalDraft.update({
       where: { id: draftId },
       data: {
         status: 'in_progress',
@@ -426,7 +443,8 @@ export class DispersalDraftEngine {
     opts?: { isAutoPick?: boolean }
   ): Promise<DispersalDraftState> {
     const after = await prisma.$transaction(
-      async (tx) => {
+      async (rawTx) => {
+        const tx = withDispersalModels(rawTx)
         const row = await tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
@@ -444,7 +462,10 @@ export class DispersalDraftEngine {
           throw new Error('Not your pick')
         }
 
-        const pickNo = row.picks.length > 0 ? Math.max(...row.picks.map((p) => p.pickNumber)) + 1 : 1
+        const pickNo =
+          row.picks.length > 0
+            ? Math.max(...row.picks.map((p: { pickNumber: number }) => p.pickNumber)) + 1
+            : 1
         const round = Math.ceil(pickNo / Math.max(1, row.picksPerRound))
         const pickInRound = ((pickNo - 1) % Math.max(1, row.picksPerRound)) + 1
 
@@ -574,7 +595,7 @@ export class DispersalDraftEngine {
    * Auto-pick when the pick timer expires: claims the best available asset (player first), else advances.
    */
   static async advancePickOnTimeout(draftId: string, rosterId: string): Promise<DispersalDraftState> {
-    const row = await prisma.dispersalDraft.findUnique({
+    const row = await dispersalPrisma.dispersalDraft.findUnique({
       where: { id: draftId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
@@ -596,14 +617,18 @@ export class DispersalDraftEngine {
     }
 
     const after = await prisma.$transaction(
-      async (tx) => {
+      async (rawTx) => {
+        const tx = withDispersalModels(rawTx)
         const r = await tx.dispersalDraft.findUnique({
           where: { id: draftId },
           include: { picks: { orderBy: { pickNumber: 'asc' } } },
         })
         if (!r) throw new Error('Draft not found')
         const pool = parseAssetPool(r.assetPool)
-        const pickNo = r.picks.length > 0 ? Math.max(...r.picks.map((p) => p.pickNumber)) + 1 : 1
+        const pickNo =
+          r.picks.length > 0
+            ? Math.max(...r.picks.map((p: { pickNumber: number }) => p.pickNumber)) + 1
+            : 1
         const round = Math.ceil(pickNo / Math.max(1, r.picksPerRound))
         const pickInRound = ((pickNo - 1) % Math.max(1, r.picksPerRound)) + 1
         const nextIndex = advanceToNextSlot(r.draftOrder, r.currentPickIndex, r.passedRosterIds)
@@ -663,14 +688,15 @@ export class DispersalDraftEngine {
    * (not the current round). May advance `currentPickIndex` if the clock would otherwise land on them too soon.
    */
   static async removePassByCommissioner(draftId: string, rosterId: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (rawTx) => {
+      const tx = withDispersalModels(rawTx)
       const row = await tx.dispersalDraft.findUnique({ where: { id: draftId } })
       if (!row) throw new Error('Draft not found')
       if (row.status !== 'in_progress' && row.status !== 'configuring') {
         throw new Error('Draft is not active')
       }
 
-      const passed = row.passedRosterIds.filter((id) => id !== rosterId)
+      const passed = row.passedRosterIds.filter((id: string) => id !== rosterId)
 
       if (row.status !== 'in_progress') {
         await tx.dispersalDraft.update({
@@ -727,7 +753,7 @@ export class DispersalDraftEngine {
       await DispersalDraftEngine.removePassByCommissioner(draftId, rosterId)
       return
     }
-    const row = await prisma.dispersalDraft.findUnique({ where: { id: draftId } })
+    const row = await dispersalPrisma.dispersalDraft.findUnique({ where: { id: draftId } })
     if (!row) throw new Error('Draft not found')
 
     const passed = row.passedRosterIds.includes(rosterId)
@@ -735,7 +761,7 @@ export class DispersalDraftEngine {
       : [...row.passedRosterIds, rosterId]
 
     await prisma.$transaction([
-      prisma.dispersalDraft.update({
+      dispersalPrisma.dispersalDraft.update({
         where: { id: draftId },
         data: { passedRosterIds: passed },
       }),
@@ -747,13 +773,14 @@ export class DispersalDraftEngine {
   }
 
   static async completeDraft(draftId: string): Promise<void> {
-    const row = await prisma.dispersalDraft.findUnique({ where: { id: draftId } })
+    const row = await dispersalPrisma.dispersalDraft.findUnique({ where: { id: draftId } })
     if (!row || row.status !== 'completed') return
 
     const assets = parseAssetPool(row.assetPool)
     const participantSet = new Set(row.participantRosterIds)
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (rawTx) => {
+      const tx = withDispersalModels(rawTx)
       const unclaimedPlayerIds: string[] = []
       const unclaimedPickAuction: {
         assetId: string
@@ -965,8 +992,8 @@ export class DispersalDraftEngine {
         where: { leagueId: row.leagueId },
         select: { id: true },
       }))
-        .map((r) => r.id)
-        .filter((id) => !participantSet.has(id))
+        .map((r: { id: string }) => r.id)
+        .filter((id: string) => !participantSet.has(id))
 
       await tx.league.update({
         where: { id: row.leagueId },
@@ -977,7 +1004,15 @@ export class DispersalDraftEngine {
               draftId,
               completedAt: new Date().toISOString(),
               waiverWirePlayerIds: unclaimedPlayerIds,
-              faabAuctionForNonParticipants: unclaimedPickAuction.map((p) => ({
+              faabAuctionForNonParticipants: unclaimedPickAuction.map((p: {
+                assetId: string
+                pickId?: string
+                round?: number
+                year?: number
+                originalOwnerRosterId?: string
+                tradedToRosterId?: string
+                isTradedPick?: boolean
+              }) => ({
                 ...p,
                 eligibleBidderRosterIds: eligibleBidders,
               })),
@@ -994,7 +1029,7 @@ export class DispersalDraftEngine {
   }
 
   static async getDraftState(draftId: string): Promise<DispersalDraftState | null> {
-    const row = await prisma.dispersalDraft.findUnique({
+    const row = await dispersalPrisma.dispersalDraft.findUnique({
       where: { id: draftId },
       include: { picks: { orderBy: { pickNumber: 'asc' } } },
     })
@@ -1003,7 +1038,7 @@ export class DispersalDraftEngine {
   }
 
   static async getActiveDraftForLeague(leagueId: string): Promise<DispersalDraftState | null> {
-    const row = await prisma.dispersalDraft.findFirst({
+    const row = await dispersalPrisma.dispersalDraft.findFirst({
       where: {
         leagueId,
         status: { in: ['pending', 'configuring', 'in_progress'] },

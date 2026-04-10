@@ -1,20 +1,29 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from "next/server";
+import { getNflState } from "@/lib/sleeper-client";
 
 export const dynamic = 'force-dynamic';
 
 async function checkApiHealth(key: string): Promise<{ status: string; latency?: number }> {
   const endpoints: Record<string, string> = {
-    sleeper: "https://api.sleeper.app/v1/state/nfl",
-    yahoo: "https://fantasysports.yahooapis.com",
     mfl: "https://api.myfantasyleague.com/2024/export",
     fantrax: "https://www.fantrax.com",
     fantasycalc: "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&numTeams=12&ppr=1",
     thesportsdb: "https://www.thesportsdb.com/api/v1/json/3/all_leagues.php",
-    espn: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
     openai: "https://api.openai.com/v1/models",
     grok: "https://api.x.ai/v1/models",
   };
+
+  if (key === "sleeper") {
+    const start = Date.now();
+    const state = await getNflState();
+    if (!state) return { status: "unreachable" };
+    return { status: "active", latency: Date.now() - start };
+  }
+
+  if (key === "yahoo" || key === "espn") {
+    return { status: "ingestion-managed" };
+  }
 
   const url = endpoints[key];
   if (!url) return { status: "unknown" };

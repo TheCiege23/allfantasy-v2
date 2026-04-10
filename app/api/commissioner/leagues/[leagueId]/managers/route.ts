@@ -76,7 +76,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const rosterId = req.nextUrl.searchParams.get('rosterId') ?? (await req.json().catch(() => ({}))).rosterId
+  const rosterId = req.nextUrl.searchParams?.get('rosterId') ?? (await req.json().catch(() => ({}))).rosterId
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
   const roster = await (prisma as any).roster.findFirst({

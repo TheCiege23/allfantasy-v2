@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: s
   const isIdp = await isIdpLeague(leagueId)
   if (!isIdp) return NextResponse.json({ error: 'Not an IDP league' }, { status: 404 })
 
-  const draft = req.nextUrl.searchParams.get('draft') ?? ''
+  const draft = req.nextUrl.searchParams?.get('draft') ?? ''
   const low = draft.toLowerCase()
   if (!low.includes('@chimmy')) {
     return NextResponse.json({ type: 'command', options: [] as string[] })

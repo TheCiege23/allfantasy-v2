@@ -101,4 +101,6 @@ export interface EspnImportPayload {
     season: string
     sourceLeagueId: string
   }>
+  /** Logged-in user's team id when ESPN cookies identify the member in `raw` members/teams. */
+  viewerTeamId?: string | null
 }

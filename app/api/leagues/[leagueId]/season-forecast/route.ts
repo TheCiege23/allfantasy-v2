@@ -13,8 +13,8 @@ export async function GET(
 ) {
   const { leagueId } = await ctx.params
   const { searchParams } = new URL(req.url)
-  const season = parseInt(searchParams.get('season') ?? '', 10)
-  const week = parseInt(searchParams.get('week') ?? '', 10)
+  const season = parseInt(searchParams?.get('season') ?? '', 10)
+  const week = parseInt(searchParams?.get('week') ?? '', 10)
 
   if (!leagueId || !Number.isFinite(season) || !Number.isFinite(week)) {
     return NextResponse.json(

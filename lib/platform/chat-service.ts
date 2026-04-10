@@ -407,6 +407,7 @@ export async function getPlatformThreadMessages(
         msg.metadata && typeof msg.metadata === 'object' && !Array.isArray(msg.metadata)
           ? { ...(msg.metadata as Record<string, unknown>) }
           : {}
+      const isDeleted = Boolean(baseMeta.deletedAt)
       if (msg.isPrivate) baseMeta.isPrivate = true
       if (msg.visibleToUserId) baseMeta.visibleToUserId = msg.visibleToUserId
       if (msg.messageSubtype) baseMeta.messageSubtype = msg.messageSubtype
@@ -423,13 +424,237 @@ export async function getPlatformThreadMessages(
         senderAvatarUrl: msg.sender?.avatarUrl ?? null,
         senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
         messageType: msg.messageType || 'text',
-        body: msg.body || '',
+        body: isDeleted ? '[message deleted]' : msg.body || '',
         createdAt: toIso(msg.createdAt),
         metadata: Object.keys(baseMeta).length ? baseMeta : undefined,
       }
     })
   } catch {
     return []
+  }
+}
+
+export async function searchPlatformThreadMessages(
+  appUserId: string,
+  threadId: string,
+  query: string,
+  limit = 25,
+): Promise<PlatformChatMessage[]> {
+  const q = String(query || '').trim()
+  if (!q) return []
+  const take = Math.max(1, Math.min(limit, 50))
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return []
+
+    const rows = await (prisma as any).platformChatMessage.findMany({
+      where: {
+        threadId,
+        body: { contains: q, mode: 'insensitive' },
+        OR: [{ isPrivate: false }, { isPrivate: true, visibleToUserId: appUserId }],
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            profile: { select: { avatarPreset: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    })
+
+    return rows.reverse().map((msg: any) => {
+      const baseMeta =
+        msg.metadata && typeof msg.metadata === 'object' && !Array.isArray(msg.metadata)
+          ? { ...(msg.metadata as Record<string, unknown>) }
+          : {}
+      const isDeleted = Boolean(baseMeta.deletedAt)
+      if (msg.isPrivate) baseMeta.isPrivate = true
+      if (msg.visibleToUserId) baseMeta.visibleToUserId = msg.visibleToUserId
+      if (msg.messageSubtype) baseMeta.messageSubtype = msg.messageSubtype
+      return {
+        id: msg.id,
+        threadId,
+        senderUserId: msg.senderUserId || null,
+        senderName:
+          msg.sender?.displayName ||
+          msg.sender?.username ||
+          msg.sender?.email ||
+          resolveSystemSenderName(msg.messageType, msg.metadata),
+        senderUsername: msg.sender?.username || null,
+        senderAvatarUrl: msg.sender?.avatarUrl ?? null,
+        senderAvatarPreset: msg.sender?.profile?.avatarPreset ?? null,
+        messageType: msg.messageType || 'text',
+        body: isDeleted ? '[message deleted]' : msg.body || '',
+        createdAt: toIso(msg.createdAt),
+        metadata: Object.keys(baseMeta).length ? baseMeta : undefined,
+      }
+    })
+  } catch {
+    return []
+  }
+}
+
+export async function getThreadReadReceipts(
+  appUserId: string,
+  threadId: string,
+): Promise<Array<{ userId: string; username: string | null; displayName: string | null; lastReadAt: string | null }>> {
+  try {
+    const member = await (prisma as any).platformChatThreadMember.findFirst({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      select: { id: true },
+    })
+    if (!member) return []
+
+    const rows = await (prisma as any).platformChatThreadMember.findMany({
+      where: { threadId, isBlocked: false },
+      include: {
+        user: { select: { id: true, username: true, displayName: true } },
+      },
+      orderBy: { joinedAt: 'asc' },
+      take: 100,
+    })
+
+    return rows
+      .filter((row: any) => Boolean(row?.user?.id))
+      .map((row: any) => ({
+        userId: row.user.id,
+        username: row.user.username ?? null,
+        displayName: row.user.displayName ?? null,
+        lastReadAt: row.lastReadAt ? toIso(row.lastReadAt) : null,
+      }))
+  } catch {
+    return []
+  }
+}
+
+export async function markPlatformThreadRead(appUserId: string, threadId: string): Promise<boolean> {
+  try {
+    const result = await (prisma as any).platformChatThreadMember.updateMany({
+      where: { threadId, userId: appUserId, isBlocked: false },
+      data: { lastReadAt: new Date() },
+    })
+    return Number(result?.count ?? 0) > 0
+  } catch {
+    return false
+  }
+}
+
+export async function editPlatformThreadMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+  body: string,
+): Promise<PlatformChatMessage | null> {
+  const content = String(body || '').trim()
+  if (!content) return null
+  try {
+    const existing = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId, senderUserId: appUserId },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            profile: { select: { avatarPreset: true } },
+          },
+        },
+      },
+    })
+    if (!existing) return null
+    const meta =
+      existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {}
+    if (meta.deletedAt) return null
+
+    const updated = await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: {
+        body: content,
+        metadata: {
+          ...meta,
+          editedAt: new Date().toISOString(),
+          editedByUserId: appUserId,
+        },
+        updatedAt: new Date(),
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            profile: { select: { avatarPreset: true } },
+          },
+        },
+      },
+    })
+
+    return {
+      id: updated.id,
+      threadId,
+      senderUserId: updated.senderUserId || null,
+      senderName: updated.sender?.displayName || updated.sender?.username || updated.sender?.email || 'User',
+      senderUsername: updated.sender?.username || null,
+      senderAvatarUrl: updated.sender?.avatarUrl ?? null,
+      senderAvatarPreset: updated.sender?.profile?.avatarPreset ?? null,
+      messageType: updated.messageType || 'text',
+      body: updated.body || '',
+      createdAt: toIso(updated.createdAt),
+      metadata: updated.metadata || undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function deletePlatformThreadMessage(
+  appUserId: string,
+  threadId: string,
+  messageId: string,
+): Promise<boolean> {
+  try {
+    const existing = await (prisma as any).platformChatMessage.findFirst({
+      where: { id: messageId, threadId, senderUserId: appUserId },
+      select: { id: true, metadata: true },
+    })
+    if (!existing) return false
+    const meta =
+      existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {}
+    if (meta.deletedAt) return true
+
+    await (prisma as any).platformChatMessage.update({
+      where: { id: messageId },
+      data: {
+        body: '[message deleted]',
+        metadata: {
+          ...meta,
+          deletedAt: new Date().toISOString(),
+          deletedByUserId: appUserId,
+        },
+        updatedAt: new Date(),
+      },
+    })
+    return true
+  } catch {
+    return false
   }
 }
 

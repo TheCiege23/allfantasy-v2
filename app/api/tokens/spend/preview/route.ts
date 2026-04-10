@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const ruleCode = String(url.searchParams.get("ruleCode") ?? "").trim()
+    const ruleCode = String(url.searchParams?.get("ruleCode") ?? "").trim()
     if (!ruleCode) {
       return NextResponse.json({ error: "Missing ruleCode" }, { status: 400 })
     }
@@ -37,3 +37,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to preview token spend" }, { status: 500 })
   }
 }
+

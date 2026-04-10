@@ -108,8 +108,8 @@ export async function GET(
     getDraftUISettingsForLeague(leagueId),
   ])
   const syncOn = Boolean(uiSettings.liveDraftChatSyncEnabled) && isActiveLiveDraftStatus(draftSession?.status)
-  const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || '80'), 100)
-  const before = req.nextUrl.searchParams.get('before')
+  const limit = Math.min(Number(req.nextUrl.searchParams?.get('limit') || '80'), 100)
+  const before = req.nextUrl.searchParams?.get('before')
 
   const messages = await getLeagueChatMessages(leagueId, {
     limit,

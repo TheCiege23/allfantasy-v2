@@ -36,7 +36,7 @@ export interface MockDraftLobbyPageProps {
 export default function MockDraftLobbyPage({ leagues, savedDrafts }: MockDraftLobbyPageProps) {
   const { formatDateInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
-  const urlDraftId = searchParams.get('draftId')
+  const urlDraftId = searchParams?.get('draftId')
   const [selectedDraftId, setSelectedDraftId] = useState<string | 'new'>('new')
   const [urlSessionDraft, setUrlSessionDraft] = useState<{
     id: string

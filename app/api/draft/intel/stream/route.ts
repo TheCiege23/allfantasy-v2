@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId') ?? ''
+  const leagueId = req.nextUrl.searchParams?.get('leagueId') ?? ''
   if (!leagueId) {
     return new Response(JSON.stringify({ error: 'leagueId is required' }), {
       status: 400,
@@ -84,3 +84,4 @@ export async function GET(req: NextRequest) {
     },
   })
 }
+

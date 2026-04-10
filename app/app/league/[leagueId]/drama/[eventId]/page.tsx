@@ -20,7 +20,7 @@ interface DramaEventDetail {
 
 export default function DramaEventDetailPage() {
   const router = useRouter()
-  const params = useParams<{ leagueId: string; eventId: string }>()
+  const params = useParams<{ leagueId: string; eventId: string }>() ?? ({} as { leagueId: string; eventId: string })
   const leagueId = params?.leagueId ?? ''
   const eventId = params?.eventId ?? ''
   const [event, setEvent] = useState<DramaEventDetail | null>(null)

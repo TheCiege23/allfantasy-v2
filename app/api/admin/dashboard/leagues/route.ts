@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
-  const kind = (req.nextUrl.searchParams.get("kind") || "recent") as LeagueOverviewKind
-  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams.get("limit") || "25", 10) || 25))
+  const kind = (req.nextUrl.searchParams?.get("kind") || "recent") as LeagueOverviewKind
+  const limit = Math.min(100, Math.max(1, parseInt(req.nextUrl.searchParams?.get("limit") || "25", 10) || 25))
   try {
     if (kind === "by_sport") {
       const bySport = await getActiveLeaguesBySport()
@@ -35,3 +35,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load leagues" }, { status: 500 })
   }
 }
+

@@ -32,7 +32,7 @@ interface EntryDetail {
 
 export default function HallOfFameEntryDetailPage() {
   const { formatDateInTimezone } = useUserTimezone()
-  const params = useParams<{ leagueId: string; entryId: string }>()
+  const params = useParams<{ leagueId: string; entryId: string }>() ?? ({} as { leagueId: string; entryId: string })
   const leagueId = params?.leagueId ?? ""
   const entryId = params?.entryId ?? ""
   const [entry, setEntry] = useState<EntryDetail | null>(null)

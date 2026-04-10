@@ -19,7 +19,7 @@ type M = {
 }
 
 export default function ZombieMatchupsPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const { leagueId  } = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const [list, setList] = useState<M[]>([])
   const [week, setWeek] = useState<number>(1)
   const [rules, setRules] = useState<{ bashingThreshold: number; maulingThreshold: number } | null>(null)

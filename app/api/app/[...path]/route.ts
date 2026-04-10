@@ -68,7 +68,7 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'matchups') {
-    const week = req.nextUrl.searchParams.get('week')
+    const week = req.nextUrl.searchParams?.get('week')
     return proxyToExisting(req, {
       targetPath: `/api/leagues/${leagueId}/matchups`,
       query: week ? { week } : undefined,
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'players') {
-    const q = req.nextUrl.searchParams.get('q')
+    const q = req.nextUrl.searchParams?.get('q')
     if (!q) return NextResponse.json([])
     try {
       const { prisma } = await import('@/lib/prisma')
@@ -180,8 +180,8 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && section === 'draft') {
-    const limit = req.nextUrl.searchParams.get('limit')
-    const poolType = req.nextUrl.searchParams.get('poolType')
+    const limit = req.nextUrl.searchParams?.get('limit')
+    const poolType = req.nextUrl.searchParams?.get('poolType')
     return proxyToExisting(req, {
       targetPath: `/api/leagues/${leagueId}/draft/pool`,
       query: {

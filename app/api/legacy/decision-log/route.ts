@@ -74,10 +74,10 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/decision-log", tool: "L
   if (!authResult.authenticated) return forbiddenResponse(authResult.error || 'Unauthorized')
 
   const { searchParams } = new URL(req.url)
-  const userId = searchParams.get('userId')
-  const leagueId = searchParams.get('leagueId') || undefined
-  const view = searchParams.get('view') || 'list'
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
+  const userId = searchParams?.get('userId')
+  const leagueId = searchParams?.get('leagueId') || undefined
+  const view = searchParams?.get('view') || 'list'
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams?.get('limit') || '20', 10)))
 
   if (!userId) {
     return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
@@ -115,3 +115,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/decision-log", tool: "L
     return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 })
   }
 })
+

@@ -29,9 +29,9 @@ export async function GET(
   const isDevy = await isDevyLeague(leagueId)
   if (!isDevy) return NextResponse.json({ error: 'Not a devy dynasty league' }, { status: 404 })
 
-  const eventType = req.nextUrl.searchParams.get('eventType') as DevyLifecycleEventType | undefined
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '100', 10) || 100, 500)
-  const offset = parseInt(req.nextUrl.searchParams.get('offset') ?? '0', 10) || 0
+  const eventType = req.nextUrl.searchParams?.get('eventType') as DevyLifecycleEventType | undefined
+  const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') ?? '100', 10) || 100, 500)
+  const offset = parseInt(req.nextUrl.searchParams?.get('offset') ?? '0', 10) || 0
 
   const events = await getDevyLifecycleEvents({ leagueId, eventType, limit, offset })
   return NextResponse.json({ events })

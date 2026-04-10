@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   if (!auth.ok) return auth.response
 
   const url = new URL(req.url)
-  const leagueId = url.searchParams.get("leagueId") || ""
+  const leagueId = url.searchParams?.get("leagueId") || ""
 
   if (!leagueId) {
     return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
@@ -32,4 +32,5 @@ export async function GET(req: Request) {
     })),
   })
 }
+
 

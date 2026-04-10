@@ -8,6 +8,7 @@ import { StandingsView } from './redraft/StandingsView'
 import { TradeCenter } from './redraft/TradeCenter'
 import { WaiverCenter } from './redraft/WaiverCenter'
 import { IDPWaiverSection } from '@/app/idp/components/IDPWaiverSection'
+import { fetchRedraftSeason, fetchRedraftStandings } from '@/lib/redraft/client'
 
 export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string; idpLeagueUi?: boolean }) {
   const [seasonId, setSeasonId] = useState<string | null>(null)
@@ -20,12 +21,12 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const res = await fetch(`/api/redraft/season?leagueId=${encodeURIComponent(leagueId)}`, {
-        credentials: 'include',
-      })
-      if (!res.ok || cancelled) return
-      const j = (await res.json()) as { season?: { id: string } }
-      if (j.season?.id) setSeasonId(j.season.id)
+      try {
+        const season = await fetchRedraftSeason(leagueId)
+        if (!cancelled && season?.id) setSeasonId(season.id)
+      } catch {
+        if (!cancelled) setSeasonId(null)
+      }
     })()
     return () => {
       cancelled = true
@@ -36,14 +37,12 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
     if (!seasonId) return
     let cancelled = false
     ;(async () => {
-      const res = await fetch(`/api/redraft/standings?seasonId=${encodeURIComponent(seasonId)}`, {
-        credentials: 'include',
-      })
-      if (!res.ok || cancelled) return
-      const j = (await res.json()) as {
-        rosters: { id: string; teamName: string | null; wins: number; losses: number; pointsFor: number }[]
+      try {
+        const rows = await fetchRedraftStandings(seasonId)
+        if (!cancelled) setStandings(rows)
+      } catch {
+        if (!cancelled) setStandings([])
       }
-      setStandings(j.rosters ?? [])
     })()
     return () => {
       cancelled = true
@@ -76,9 +75,9 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
         </div>
       </div>
 
-      <TradeCenter leagueId={leagueId} />
+      <TradeCenter leagueId={leagueId} seasonId={seasonId} standings={standings} />
 
-      <StandingsView rows={standings} />
+      <StandingsView rows={standings} seasonId={seasonId} />
     </div>
   )
 }

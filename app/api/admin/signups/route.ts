@@ -17,7 +17,7 @@ export const DELETE = withApiUsage({ endpoint: "/api/admin/signups", tool: "Admi
 
   try {
     const { searchParams } = new URL(request.url);
-    const email = (searchParams.get("email") || "").trim().toLowerCase();
+    const email = (searchParams?.get("email") || "").trim().toLowerCase();
 
     if (!email) {
       return NextResponse.json({ error: "Email parameter required" }, { status: 400 });
@@ -64,9 +64,9 @@ export const GET = withApiUsage({ endpoint: "/api/admin/signups", tool: "AdminSi
   try {
     const { searchParams } = new URL(request.url);
 
-    const limit = Math.min(5000, Math.max(1, asInt(searchParams.get("limit"), 250)));
-    const status = (searchParams.get("status") || "all").trim();
-    const source = (searchParams.get("source") || "all").trim();
+    const limit = Math.min(5000, Math.max(1, asInt(searchParams?.get("limit"), 250)));
+    const status = (searchParams?.get("status") || "all").trim();
+    const source = (searchParams?.get("source") || "all").trim();
 
     const where: any = {};
     if (status === "confirmed") where.confirmedAt = { not: null };
@@ -114,3 +114,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/signups", tool: "AdminSi
     return NextResponse.json({ error: "Failed to load signups" }, { status: 500 });
   }
 })
+

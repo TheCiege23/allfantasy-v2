@@ -20,8 +20,8 @@ function redirectTo(req: Request, path: string, returnTo?: string | null) {
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const token = url.searchParams.get("token")
-  const returnTo = safeReturnTo(url.searchParams.get("returnTo"))
+  const token = url.searchParams?.get("token")
+  const returnTo = safeReturnTo(url.searchParams?.get("returnTo"))
 
   if (!token) return redirectTo(req, "/verify?error=INVALID_LINK", returnTo)
 
@@ -63,3 +63,4 @@ export async function GET(req: Request) {
 
   return redirectTo(req, "/verify?verified=email", returnTo)
 }
+

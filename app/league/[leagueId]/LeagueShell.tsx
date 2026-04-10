@@ -33,7 +33,7 @@ import { PlayerStatCard } from './components/PlayerStatCard'
 import { LeagueSettingsModal } from './components/LeagueSettingsModal'
 import { CommissionerSettingsModal } from './components/CommissionerSettingsModal'
 import { useIdpCapSummary, useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
-import { LeagueSettingsTab } from './tabs/LeagueSettingsTab'
+import { LeagueSettingsTab as LeagueSettingsContentTab } from './tabs/LeagueSettingsTab'
 import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
@@ -167,7 +167,7 @@ export function LeagueShell({
   }, [tabDefs])
 
   useEffect(() => {
-    const view = searchParams.get('view')
+    const view = searchParams?.get('view')
     if (!view) return
     const map: Record<string, string> = {
       team: 'team',
@@ -562,7 +562,7 @@ function LeagueTabRouter({
     case 'history':
       return <HistoryTab league={selectedLeague} />
     case 'settings':
-      return <LeagueSettingsTab leagueId={leagueId} />
+      return <LeagueSettingsContentTab leagueId={leagueId} />
     case 'standings':
       return (
         <StandingsTab league={selectedLeague} tabLabel={tabLabel} idpLeagueUi={idpLeagueActive} />

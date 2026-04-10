@@ -3,7 +3,7 @@ import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const username = searchParams.get("username")
+  const username = searchParams?.get("username")
 
   if (!username || username.trim().length < 2) {
     return NextResponse.json({ error: "Please enter a valid Sleeper username." }, { status: 400 })
@@ -36,3 +36,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to look up Sleeper user." }, { status: 500 })
   }
 }
+

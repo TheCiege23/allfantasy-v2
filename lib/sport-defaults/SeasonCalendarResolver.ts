@@ -103,7 +103,7 @@ export async function getSeasonCalendar(
 ): Promise<SeasonCalendarDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType) as SportType
   const row = await prisma.seasonCalendar.findUnique({
-    where: { uniq_season_calendar_sport_format: { sportType: sport, formatType } },
+    where: { sportType_formatType: { sportType: sport, formatType } },
   })
   if (row) {
     return {

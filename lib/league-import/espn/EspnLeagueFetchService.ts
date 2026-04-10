@@ -646,6 +646,46 @@ function parseEspnTeams(raw: any, settings: EspnImportSettings | null): EspnImpo
   return teams
 }
 
+function normalizeEspnSwidSegment(id: string): string {
+  return id.replace(/[{}]/g, '').trim().toLowerCase()
+}
+
+/**
+ * Resolve the logged-in ESPN member's fantasy team id from raw league JSON using SWID cookie.
+ */
+export function resolveEspnViewerTeamId(raw: unknown, swid: string | null | undefined): string | null {
+  if (!swid || !isRecord(raw)) return null
+  const target = normalizeEspnSwidSegment(swid)
+  if (!target) return null
+
+  const teamsRaw = Array.isArray(raw.teams) ? raw.teams : []
+  for (const team of teamsRaw) {
+    if (!isRecord(team)) continue
+    const teamId = String(team.id ?? '').trim()
+    if (!teamId) continue
+
+    const ownerRefs = Array.isArray(team.owners) ? team.owners : []
+    for (const ownerRef of ownerRefs) {
+      const oid =
+        isRecord(ownerRef) && ownerRef
+          ? String(ownerRef.id ?? ownerRef.memberId ?? ownerRef.guid ?? '').trim()
+          : String(ownerRef ?? '').trim()
+      if (oid && normalizeEspnSwidSegment(oid) === target) {
+        return teamId
+      }
+    }
+
+    if (team.primaryOwner != null) {
+      const ps = String(team.primaryOwner).trim()
+      if (ps && normalizeEspnSwidSegment(ps) === target) {
+        return teamId
+      }
+    }
+  }
+
+  return null
+}
+
 function upsertEspnMatchup(
   weeks: Map<number, EspnImportScheduleWeek['matchups']>,
   week: number,
@@ -1080,6 +1120,8 @@ export async function fetchEspnLeagueForImport(
       })
     : []
 
+  const viewerTeamId = resolveEspnViewerTeamId(raw, auth.swid)
+
   return {
     sourceInput,
     league,
@@ -1091,5 +1133,6 @@ export async function fetchEspnLeagueForImport(
     transactionsFetched: transactionsRaw != null,
     draftFetched: draftRaw != null,
     previousSeasons,
+    viewerTeamId,
   }
 }

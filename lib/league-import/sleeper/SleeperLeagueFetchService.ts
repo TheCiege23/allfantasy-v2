@@ -16,7 +16,7 @@ async function fetchSleeperJson<T>(url: string): Promise<T | null> {
   }
 }
 
-const SLEEPER_BASE = 'https://api.sleeper.app/v1'
+const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: ingestion service endpoint
 
 interface SleeperDraftSummaryRaw {
   draft_id: string

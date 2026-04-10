@@ -121,11 +121,14 @@ function buildDmAISeedPrompt(messages: PlatformChatMessage[]): string {
 export default function MessagesContent() {
   const { formatInTimezone } = useUserTimezone()
   const searchParams = useSearchParams()
-  const tabFromUrl = searchParams.get("tab")
-  const threadIdFromUrl = searchParams.get("thread")
-  const messageIdFromUrl = searchParams.get("message")
-  const startUsernameFromUrl = searchParams.get("start")
-  const aiContextFromUrl = useMemo(() => readAIContextFromSearchParams(searchParams), [searchParams])
+  const tabFromUrl = searchParams?.get("tab") ?? null
+  const threadIdFromUrl = searchParams?.get("thread") ?? null
+  const messageIdFromUrl = searchParams?.get("message") ?? null
+  const startUsernameFromUrl = searchParams?.get("start") ?? null
+  const aiContextFromUrl = useMemo(
+    () => readAIContextFromSearchParams(searchParams ?? undefined),
+    [searchParams]
+  )
 
   const [threads, setThreads] = useState<PlatformChatThread[]>([])
   const [loadingThreads, setLoadingThreads] = useState(true)
@@ -2087,3 +2090,4 @@ export default function MessagesContent() {
     </div>
   )
 }
+

@@ -104,17 +104,6 @@ export default async function LeaguePage({
     }
   }
 
-  const activeDraft =
-    (await prisma.dispersalDraft
-      .findFirst({
-        where: {
-          leagueId,
-          status: { in: ['pending', 'configuring', 'in_progress'] },
-        },
-        select: { id: true, status: true },
-      })
-      .catch(() => null)) ?? null
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LeagueShell
@@ -133,7 +122,7 @@ export default async function LeaguePage({
         currentSleeperUserId={currentSleeperUserId}
         discordConnected={Boolean(userProfile?.discordUserId)}
         zombieChimmyPrefill={zombieChimmyPrefill}
-        dispersalDraftInProgress={activeDraft ? { draftId: activeDraft.id, status: activeDraft.status } : null}
+        dispersalDraftInProgress={null}
       />
     </div>
   )

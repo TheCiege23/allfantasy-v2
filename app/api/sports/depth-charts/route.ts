@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const team = url.searchParams.get('team');
-  const position = url.searchParams.get('position');
-  const refresh = url.searchParams.get('refresh') === 'true';
+  const team = url.searchParams?.get('team');
+  const position = url.searchParams?.get('position');
+  const refresh = url.searchParams?.get('refresh') === 'true';
 
   try {
     if (refresh) {
@@ -42,3 +42,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

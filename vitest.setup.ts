@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 /**
  * Default env for Vitest so route handlers that read process.env do not 500
  * when keys are unset locally/CI. Uses `??=` so real env wins.

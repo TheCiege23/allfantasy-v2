@@ -32,7 +32,7 @@ export default function SettingsApp({
 }: SettingsAppProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const tabFromQuery = searchParams?.get("tab")
   const initialTab = isSettingsTabId(tabFromQuery) ? tabFromQuery : "profile"
   const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab)

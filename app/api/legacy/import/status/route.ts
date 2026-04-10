@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/import/status", tool: "LegacyImportStatus" })(async (request: NextRequest) => {
-  const jobId = request.nextUrl.searchParams.get('job_id');
-  const sleeperUsername = request.nextUrl.searchParams.get('sleeper_username')?.trim().toLowerCase();
+  const jobId = request.nextUrl.searchParams?.get('job_id');
+  const sleeperUsername = request.nextUrl.searchParams?.get('sleeper_username')?.trim().toLowerCase();
 
   let job;
 
@@ -53,3 +53,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/import/status", tool: "
     completed_at: job.completedAt,
   });
 })
+

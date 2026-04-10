@@ -27,16 +27,16 @@ export async function POST(req: NextRequest) {
   }
 
   const url = new URL(req.url)
-  const sportParam = url.searchParams.get('sport') ?? undefined
+  const sportParam = url.searchParams?.get('sport') ?? undefined
   if (sportParam && !isSupportedSport(sportParam)) {
     return NextResponse.json({ error: 'Invalid sport', supported: SUPPORTED_SPORTS }, { status: 400 })
   }
   const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-  const leagueFormat = url.searchParams.get('leagueFormat') ?? undefined
-  const dryRun = url.searchParams.get('dryRun') === '1' || url.searchParams.get('dryRun') === 'true'
+  const leagueFormat = url.searchParams?.get('leagueFormat') ?? undefined
+  const dryRun = url.searchParams?.get('dryRun') === '1' || url.searchParams?.get('dryRun') === 'true'
   const includeDiagnostics =
-    url.searchParams.get('includeDiagnostics') === '1' ||
-    url.searchParams.get('includeDiagnostics') === 'true'
+    url.searchParams?.get('includeDiagnostics') === '1' ||
+    url.searchParams?.get('includeDiagnostics') === 'true'
 
   try {
     const result = await generateStrategyMetaReports({
@@ -58,3 +58,4 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+

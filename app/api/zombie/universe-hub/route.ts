@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const universeId = searchParams.get('universeId')
+  const universeId = searchParams?.get('universeId')
   if (!universeId) return NextResponse.json({ error: 'universeId required' }, { status: 400 })
 
   const u = await prisma.zombieUniverse.findUnique({
@@ -67,3 +67,4 @@ export async function GET(req: Request) {
     topByPpw: stats.slice(0, 10),
   })
 }
+

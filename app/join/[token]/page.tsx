@@ -46,7 +46,7 @@ function Spinner() {
 }
 
 export default function JoinLeagueInvitePage() {
-  const params = useParams<{ token: string }>()
+  const params = useParams<{ token: string }>() ?? ({} as { token: string })
   const router = useRouter()
   const { status } = useSession()
   const token = typeof params?.token === 'string' ? params.token : ''

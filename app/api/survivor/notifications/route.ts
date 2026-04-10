@@ -11,11 +11,11 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const filterUserId = req.nextUrl.searchParams.get('userId')?.trim() ?? userId
-  const type = req.nextUrl.searchParams.get('type')?.trim()
-  const status = req.nextUrl.searchParams.get('status')?.trim()
-  const urgency = req.nextUrl.searchParams.get('urgency')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const filterUserId = req.nextUrl.searchParams?.get('userId')?.trim() ?? userId
+  const type = req.nextUrl.searchParams?.get('type')?.trim()
+  const status = req.nextUrl.searchParams?.get('status')?.trim()
+  const urgency = req.nextUrl.searchParams?.get('urgency')?.trim()
 
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
@@ -36,3 +36,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ notifications: rows })
 }
+

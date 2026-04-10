@@ -135,6 +135,7 @@ type PostBody = {
  */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string; draftId: string }> }) {
   try {
+    const dispersalDraftClient = (prisma as any).dispersalDraft
     const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
     const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -201,7 +202,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
       if (role !== 'commissioner' && role !== 'co_commissioner') {
         return NextResponse.json({ error: 'Only the commissioner or co-commissioner can force complete.' }, { status: 403 })
       }
-      await prisma.dispersalDraft.update({
+      await dispersalDraftClient.update({
         where: { id: draftId, leagueId },
         data: {
           status: 'completed',

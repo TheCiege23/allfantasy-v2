@@ -12,9 +12,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const matchupId = req.nextUrl.searchParams.get('matchupId')?.trim()
-  const rosterId = req.nextUrl.searchParams.get('rosterId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const matchupId = req.nextUrl.searchParams?.get('matchupId')?.trim()
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
   if (!leagueId || !matchupId || !rosterId) {
     return NextResponse.json({ error: 'leagueId, matchupId, rosterId required' }, { status: 400 })
   }
@@ -55,3 +55,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
+

@@ -1,4 +1,4 @@
-const SLEEPER_API_BASE = 'https://api.sleeper.app/v1';
+const SLEEPER_API_BASE = 'https://api.sleeper.app/v1'; // db-first-exception: centralized provider client used by ingestion and controlled wrappers
 
 export interface SleeperUser {
   user_id: string;
@@ -81,6 +81,7 @@ export async function getLeagueHistory(leagueId: string, userIdentifier?: string
 export interface SleeperRoster {
   roster_id: number;
   owner_id: string;
+  co_owners?: string[];
   players: string[];
   starters: string[];
   reserve: string[];
@@ -315,6 +316,36 @@ export async function getAllPlayers(): Promise<Record<string, SleeperPlayer>> {
     return data;
   } catch {
     return cachedPlayers || {};
+  }
+}
+
+export async function getPlayersBySport(sport: string = 'nfl'): Promise<Record<string, SleeperPlayer>> {
+  if (sport === 'nfl') {
+    return getAllPlayers();
+  }
+
+  try {
+    const response = await fetch(`${SLEEPER_API_BASE}/players/${sport}`);
+    if (!response.ok) return {};
+    return await response.json();
+  } catch {
+    return {};
+  }
+}
+
+export interface SleeperNflState {
+  week?: number;
+  season?: string;
+  [key: string]: unknown;
+}
+
+export async function getNflState(): Promise<SleeperNflState | null> {
+  try {
+    const response = await fetch(`${SLEEPER_API_BASE}/state/nfl`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
   }
 }
 

@@ -35,8 +35,8 @@ export async function GET(
   const isDevy = await isDevyLeague(leagueId)
   if (!isDevy) return NextResponse.json({ error: 'Not a devy dynasty league' }, { status: 404 })
 
-  const rosterId = req.nextUrl.searchParams.get('rosterId') ?? undefined
-  const seasonYear = parseInt(req.nextUrl.searchParams.get('seasonYear') ?? String(getSeasonYear()), 10)
+  const rosterId = req.nextUrl.searchParams?.get('rosterId') ?? undefined
+  const seasonYear = parseInt(req.nextUrl.searchParams?.get('seasonYear') ?? String(getSeasonYear()), 10)
 
   const where: { leagueId: string; state: string; rosterId?: string } = {
     leagueId,

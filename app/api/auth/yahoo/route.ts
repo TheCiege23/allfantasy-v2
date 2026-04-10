@@ -1,13 +1,20 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
-const APP_URL = process.env.APP_URL || 'https://allfantasy.ai'
+const APP_URL = process.env.NEXTAUTH_URL || process.env.APP_URL || 'https://www.allfantasy.ai'
 // Use the exact redirect URI as configured in Yahoo Developer Console
-const YAHOO_REDIRECT_URI = 'https://allfantasy.ai/api/auth/yahoo/callback'
+const YAHOO_REDIRECT_URI = `${APP_URL}/api/auth/yahoo/callback`
 
 export const GET = withApiUsage({ endpoint: "/api/auth/yahoo", tool: "AuthYahoo" })(async () => {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) {
+    return NextResponse.redirect(`${APP_URL}/login?callbackUrl=/af-legacy`)
+  }
+
   if (!YAHOO_CLIENT_ID) {
     console.error('YAHOO_CLIENT_ID is not configured')
     return NextResponse.redirect(`${APP_URL}/af-legacy?yahoo_error=not_configured`)
@@ -32,7 +39,15 @@ export const GET = withApiUsage({ endpoint: "/api/auth/yahoo", tool: "AuthYahoo"
   
   response.cookies.set('yahoo_oauth_state', state, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 600,
+    path: '/',
+  })
+
+  response.cookies.set('yahoo_oauth_user_id', session.user.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 600,
     path: '/',

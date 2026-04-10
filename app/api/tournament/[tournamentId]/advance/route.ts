@@ -1,130 +1,99 @@
-/**
- * PROMPT 3: Commissioner-only — run qualification advancement (create elimination leagues, assign users).
- */
-
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { runQualificationAdvancement } from '@/lib/tournament-mode/TournamentProgressionService'
-import { scheduleRedraftForRound, applyFaabResetForRound, applyBenchSpotsForRound } from '@/lib/tournament-mode/TournamentRedraftService'
-import { buildTournamentAIContext } from '@/lib/tournament-mode/ai/TournamentAIContext'
-import { generateTournamentAI } from '@/lib/tournament-mode/ai/TournamentAIService'
-import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
-import { onPlayoffDrama } from '@/lib/commentary-engine'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
+import { canViewStandings } from '@/lib/tournament/shellAccess'
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ tournamentId: string }> }
-) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-  const { tournamentId } = await params
-  const tournament = await prisma.legacyTournament.findUnique({
-    where: { id: tournamentId },
-    select: { creatorId: true, settings: true, name: true, sport: true },
-  })
-  if (!tournament || tournament.creatorId !== userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+export async function GET(req: NextRequest) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
 
-  try {
-    const result = await runQualificationAdvancement(tournamentId)
-    await logTournamentAudit(tournamentId, 'advancement_run', {
-      actorId: userId,
-      targetType: 'tournament',
-      targetId: tournamentId,
-      metadata: { advanced: result.advanced, eliminated: result.eliminated, bubbleAdvanced: result.bubbleAdvanced, newLeagueIds: result.newLeagueIds },
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
+  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+
+  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
+  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  if (participantId) {
+    const p = await prisma.tournamentParticipant.findFirst({
+      where: { id: participantId, tournamentId },
     })
-    const settings = (tournament.settings as Record<string, unknown>) ?? {}
-    const faabBudget = Number(settings.faabBudgetDefault) ?? 100
-    const benchSpots = Number(settings.benchSpotsElimination) ?? 2
-    await applyFaabResetForRound(tournamentId, 1, faabBudget)
-    await applyBenchSpotsForRound(tournamentId, 1, benchSpots)
-    const { scheduled, leagueIds } = await scheduleRedraftForRound(tournamentId, 1)
-
-    const staticBody = `Advancement complete. ${result.advanced} teams advanced (${result.bubbleAdvanced} via bubble). ${result.eliminated} eliminated. Redraft scheduled for ${scheduled} new leagues. Draft rooms are now available for each elimination league.`
-    let announcementBody = staticBody
-    try {
-      const ctx = await buildTournamentAIContext(tournamentId, 'announcement')
-      const aiResult = await generateTournamentAI('round_announcement', ctx, { announcementType: 'qualification_closes' })
-      if (aiResult.ok && aiResult.text) announcementBody = aiResult.text
-    } catch {
-      // keep static body
+    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+    if (userId !== p.userId && userId !== shell.commissionerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    await prisma.legacyTournamentAnnouncement.create({
-      data: {
-        tournamentId,
-        authorId: userId,
-        title: 'Qualification complete — Elimination round',
-        body: announcementBody,
-        type: 'round_start',
-        metadata: { roundIndex: 1, newLeagueIds: result.newLeagueIds },
-        pinned: true,
-      },
+    const parts = await prisma.tournamentLeagueParticipant.findMany({
+      where: { participantId: p.id },
+      include: { league: true },
     })
-    void emitTournamentPlayoffDramaCommentary({
-      tournamentName: tournament.name,
-      fallbackSport: tournament.sport,
-      newLeagueIds: result.newLeagueIds,
-      advanced: result.advanced,
-      eliminated: result.eliminated,
-      bubbleAdvanced: result.bubbleAdvanced,
-    })
-
-    return NextResponse.json({
-      ok: true,
-      advanced: result.advanced,
-      eliminated: result.eliminated,
-      bubbleAdvanced: result.bubbleAdvanced,
-      newLeagueIds: result.newLeagueIds,
-      draftSessionsScheduled: scheduled,
-      leagueIds,
-    })
-  } catch (err) {
-    console.error('[tournament/advance] Error:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to run advancement' },
-      { status: 500 }
-    )
+    return NextResponse.json({ participant: p, leagueParticipations: parts })
   }
-}
 
-async function emitTournamentPlayoffDramaCommentary(input: {
-  tournamentName: string
-  fallbackSport: string
-  newLeagueIds: string[]
-  advanced: number
-  eliminated: number
-  bubbleAdvanced: number
-}) {
-  try {
-    if (!input.newLeagueIds.length) return
-    const leagues = await prisma.league.findMany({
-      where: { id: { in: input.newLeagueIds.slice(0, 3) } },
-      select: { id: true, name: true, sport: true },
+  if (conferenceId) {
+    const conf = await prisma.tournamentConference.findFirst({
+      where: { id: conferenceId, tournamentId },
     })
-    const summary = `${input.advanced} teams advanced (${input.bubbleAdvanced} via bubble) and ${input.eliminated} were eliminated as the elimination phase began.`
-    for (const league of leagues) {
-      await onPlayoffDrama(
-        {
-          eventType: 'playoff_drama',
-          leagueId: league.id,
-          sport: normalizeToSupportedSport(league.sport ?? input.fallbackSport),
-          leagueName: league.name ?? undefined,
-          headline: `${input.tournamentName}: elimination round begins`,
-          summary,
-          dramaType: 'elimination',
-        },
-        { skipStats: true, persist: true }
+    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
+    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
+  }
+
+  const rn = roundNumber ? parseInt(roundNumber, 10) : null
+  const round =
+    rn != null && Number.isFinite(rn)
+      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
+      : await prisma.tournamentRound.findFirst({
+          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
+        })
+
+  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
+
+  const leagues = await prisma.tournamentLeague.findMany({
+    where: { tournamentId, roundId: round.id },
+    include: {
+      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+    },
+  })
+
+  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
+  if (weekRaw != null && weekRaw !== '') {
+    const w = parseInt(weekRaw, 10)
+    if (!Number.isFinite(w)) {
+      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
+    }
+    if (w < round.weekStart || w > round.weekEnd) {
+      return NextResponse.json(
+        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
+        { status: 400 },
       )
     }
-  } catch {
-    // non-fatal
+    const weekPts = await computeWeeklyPointsByTlpId(
+      leagues.map((l) => ({
+        leagueId: l.leagueId,
+        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
+      })),
+      w,
+    )
+    const leaguesWithWeek = leagues.map((l) => ({
+      ...l,
+      participants: l.participants.map((p) => ({
+        ...p,
+        weekPoints: weekPts.get(p.id) ?? 0,
+      })),
+    }))
+    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
   }
+
+  return NextResponse.json({ round, leagues })
 }
+

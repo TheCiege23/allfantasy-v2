@@ -7,8 +7,8 @@ export const maxDuration = 60
 
 function parseTickInput(req: NextRequest) {
   const dryRun =
-    req.nextUrl.searchParams.get('dryRun') === '1' || req.nextUrl.searchParams.get('dryRun') === 'true'
-  const forceLeagueId = req.nextUrl.searchParams.get('leagueId')?.trim() || undefined
+    req.nextUrl.searchParams?.get('dryRun') === '1' || req.nextUrl.searchParams?.get('dryRun') === 'true'
+  const forceLeagueId = req.nextUrl.searchParams?.get('leagueId')?.trim() || undefined
   return { dryRun, forceLeagueId }
 }
 
@@ -32,3 +32,4 @@ export async function POST(req: NextRequest) {
   }
   return run(req)
 }
+

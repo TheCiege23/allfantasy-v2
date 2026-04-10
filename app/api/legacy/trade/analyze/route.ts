@@ -15,6 +15,7 @@ import { autoLogDecision } from '@/lib/decision-log'
 import { computeNewsValueAdjustments, applyNewsAdjustmentsToValueMap, formatNewsAdjustmentsForPrompt, type PlayerNewsData, type NewsValueAdjustment } from '@/lib/news-value-adjustment'
 import { computeConfidenceRisk, getHistoricalHitRate, type AssetContext } from '@/lib/analytics/confidence-risk-engine'
 import { getCachedDNA, formatDNAForPrompt } from '@/lib/manager-dna'
+import { getAllPlayers, getLeagueInfo, getLeagueRosters, getLeagueUsers } from '@/lib/sleeper-client'
 import { lookupByNames, buildPlayerContextForAI, enrichWithValuation, type UnifiedPlayer } from '@/lib/unified-player-service'
 import { computeTradeDrivers, type TradeDriverData } from '@/lib/trade-engine/trade-engine'
 import type { Asset } from '@/lib/trade-engine/types'
@@ -335,10 +336,14 @@ async function getSleeperPlayers(sport: Sport) {
   const cached = playersCache[sport]
   if (cached.data && now - cached.at < CACHE_TTL_MS) return cached.data
 
-  const url = `https://api.sleeper.app/v1/players/${sport}`
-  const r = await fetchJson(url)
-  if (!r.ok || !r.json) throw new Error(`Failed to fetch Sleeper players (${sport}). status=${r.status}`)
-  playersCache[sport] = { at: now, data: r.json as Record<string, SleeperPlayer> }
+  // This route currently supports NFL-only analysis; reuse shared player loader.
+  if (sport !== 'nfl') {
+    playersCache[sport] = { at: now, data: {} }
+    return playersCache[sport].data!
+  }
+
+  const players = await getAllPlayers()
+  playersCache[sport] = { at: now, data: players as Record<string, SleeperPlayer> }
   return playersCache[sport].data!
 }
 
@@ -448,7 +453,7 @@ async function lookupEspnPlayerStats(args: { sport: Sport; names: string[] }) {
   const fetchPlayer = async (name: string) => {
     try {
       // Search for athlete
-      const searchUrl = `https://site.web.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(name)}&limit=5&type=player`
+      const searchUrl = `https://site.web.api.espn.com/apis/common/v3/search?query=${encodeURIComponent(name)}&limit=5&type=player` // db-first-exception: ad-hoc player enrichment for on-demand trade analysis
       const searchRes = await fetchJson(searchUrl)
       
       if (!searchRes.ok || !searchRes.json?.items?.length) {
@@ -469,7 +474,7 @@ async function lookupEspnPlayerStats(args: { sport: Sport; names: string[] }) {
       }
       
       // Fetch athlete details with stats
-      const athleteUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${sportPath}/athletes/${athlete.id}`
+      const athleteUrl = `https://site.web.api.espn.com/apis/common/v3/sports/${sportPath}/athletes/${athlete.id}` // db-first-exception: ad-hoc player enrichment for on-demand trade analysis
       const athleteRes = await fetchJson(athleteUrl)
       
       if (!athleteRes.ok || !athleteRes.json) {
@@ -1566,13 +1571,11 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
 
     if (leagueMode && (!resolvedUserRosterId || !resolvedPartnerRosterId) && (sleeperA || sleeperB)) {
       try {
-        const [rostersRes, usersRes] = await Promise.all([
-          fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-          fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`),
+        const [rosters, users] = await Promise.all([
+          getLeagueRosters(leagueId),
+          getLeagueUsers(leagueId),
         ])
-        if (rostersRes.ok && usersRes.ok) {
-          const rosters = await rostersRes.json()
-          const users = await usersRes.json()
+        if (Array.isArray(rosters) && Array.isArray(users) && rosters.length > 0 && users.length > 0) {
           const resolved = resolveRosterIdsFromLeague({
             userRosterId: resolvedUserRosterId,
             partnerRosterId: resolvedPartnerRosterId,
@@ -1711,15 +1714,15 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
     let otherManagers: Array<{ username: string; summary: any }> | null = null
 
     if (leagueId) {
-      const [leagueRes, usersRes, rostersRes] = await Promise.all([
-        fetchJson(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}`),
-        fetchJson(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`),
-        fetchJson(`https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`),
+      const [leagueData, usersData, rostersData] = await Promise.all([
+        getLeagueInfo(leagueId),
+        getLeagueUsers(leagueId),
+        getLeagueRosters(leagueId),
       ])
 
-      if (leagueRes.ok) league = leagueRes.json as SleeperLeague
-      if (usersRes.ok && Array.isArray(usersRes.json)) users = usersRes.json as SleeperUser[]
-      if (rostersRes.ok && Array.isArray(rostersRes.json)) rosters = rostersRes.json as SleeperRoster[]
+      if (leagueData) league = leagueData as SleeperLeague
+      if (Array.isArray(usersData)) users = usersData as SleeperUser[]
+      if (Array.isArray(rostersData)) rosters = rostersData as SleeperRoster[]
 
       if (!users || !rosters) {
         users = null

@@ -39,7 +39,7 @@ function touchActivity(): void {
  */
 export default function SessionIdleMonitor() {
   const { status } = useSession()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const [idleMs, setIdleMs] = useState<number | null>(null)
   const throttleRef = useRef<number | null>(null)
 

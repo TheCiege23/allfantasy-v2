@@ -7,6 +7,8 @@ import { prisma } from '@/lib/prisma'
 import { DispersalDraftEngine } from './DispersalDraftEngine'
 import type { DispersalDraftState } from './types'
 
+const dispersalDraftClient = (prisma as typeof prisma & { dispersalDraft: any }).dispersalDraft
+
 export type DispersalDraftDetailApi = {
   draft: Record<string, unknown>
   picks: unknown[]
@@ -69,7 +71,7 @@ export async function getDispersalDraftDetail(
   leagueId: string,
   draftId: string
 ): Promise<DispersalDraftDetailApi | null> {
-  const row = await prisma.dispersalDraft.findFirst({
+  const row = await dispersalDraftClient.findFirst({
     where: { id: draftId, leagueId },
     include: {
       picks: { orderBy: { pickNumber: 'asc' } },
@@ -102,7 +104,7 @@ export async function getDispersalDraftDetail(
     }
   }
 
-  const availablePool = row.assetPoolRows.filter((r) => r.isAvailable)
+  const availablePool = row.assetPoolRows.filter((r: { isAvailable?: boolean }) => r.isAvailable)
 
   const { picks, participants, assetPoolRows, ...draftBase } = row
 

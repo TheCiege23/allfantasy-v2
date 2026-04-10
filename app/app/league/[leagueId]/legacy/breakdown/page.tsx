@@ -27,7 +27,7 @@ interface BreakdownData {
 
 export default function LegacyBreakdownPage() {
   const { formatDateInTimezone } = useUserTimezone()
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ""
   const entityType = searchParams?.get("entityType") ?? "MANAGER"

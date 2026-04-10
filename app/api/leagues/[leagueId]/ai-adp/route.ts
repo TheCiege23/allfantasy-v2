@@ -66,7 +66,7 @@ export async function GET(
     })
   }
 
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '300', 10), 500)
+  const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') ?? '300', 10), 500)
   return NextResponse.json({
     enabled,
     entries: result.entries.slice(0, limit),

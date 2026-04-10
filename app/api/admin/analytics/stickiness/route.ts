@@ -11,8 +11,8 @@ export const GET = withApiUsage({ endpoint: "/api/admin/analytics/stickiness", t
 
   try {
     const { searchParams } = new URL(request.url)
-    const days = Math.min(90, Math.max(1, Number(searchParams.get("days") || "7")))
-    const eventFilter = (searchParams.get("event") || "").trim()
+    const days = Math.min(90, Math.max(1, Number(searchParams?.get("days") || "7")))
+    const eventFilter = (searchParams?.get("event") || "").trim()
 
     const eventCondition = eventFilter
       ? `AND "eventType" = $2`
@@ -203,3 +203,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/analytics/stickiness", t
     return NextResponse.json({ error: "Failed to compute stickiness" }, { status: 500 })
   }
 })
+

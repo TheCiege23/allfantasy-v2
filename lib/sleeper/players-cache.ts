@@ -1,11 +1,9 @@
-type SleeperPlayerEntry = {
-  full_name?: string
-  first_name?: string
-  last_name?: string
-  position?: string
-  team?: string
-  age?: number
-}
+import { getAllPlayers, type SleeperPlayer } from '@/lib/sleeper-client'
+
+type SleeperPlayerEntry = Pick<
+  SleeperPlayer,
+  'full_name' | 'first_name' | 'last_name' | 'position' | 'team' | 'age'
+>
 
 type PlayerIdMap = Map<string, string>
 
@@ -27,12 +25,7 @@ export async function getSleeperPlayersDict(): Promise<Record<string, SleeperPla
   const now = Date.now()
   if (playersDict && now - cacheTs < CACHE_TTL) return playersDict
   try {
-    const res = await fetch('https://api.sleeper.app/v1/players/nfl', {
-      next: { revalidate: 0 },
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!res.ok) return playersDict || {}
-    const data = await res.json()
+    const data = await getAllPlayers()
     playersDict = data
     cacheTs = now
     nameToIdMap = null

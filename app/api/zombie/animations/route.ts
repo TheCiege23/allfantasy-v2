@@ -12,13 +12,13 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return new Response('Unauthorized', { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')
   if (!leagueId) return new Response('leagueId required', { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return new Response('Forbidden', { status: 403 })
 
-  const onlyOpen = req.nextUrl.searchParams.get('isDelivered') === 'false'
+  const onlyOpen = req.nextUrl.searchParams?.get('isDelivered') === 'false'
 
   const stream = new ReadableStream({
     start(controller) {
@@ -79,3 +79,4 @@ export async function GET(req: NextRequest) {
     },
   })
 }
+

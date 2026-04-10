@@ -19,6 +19,7 @@ import {
   stopCurrentVoice,
   type VoiceConfig,
 } from '@/lib/chimmy-voice';
+import { triggerChimmyVoiceListenNudge } from '@/lib/chimmy-chat/voiceEngagementNudge';
 import { formatChatMessageTimestamp, isChimmyMessageThreaded } from '@/app/dashboard/components/chat/chat-timestamps';
 import { ChimmyAssistantAvatar } from '@/app/dashboard/components/chat/ChimmyAssistantAvatar';
 import {
@@ -140,6 +141,7 @@ export default function ChimmyChat({
   const voicePlayLabel = getChimmyVoiceLabel(effectiveVoiceId);
 
   const recognitionRef = useRef<any>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
@@ -148,6 +150,22 @@ export default function ChimmyChat({
     const name = chipContextLeagueName?.trim()
     return getDefaultChimmyChips({ leagueName: name ?? undefined, hasLeagues: !!name })
   }, [chipContextLeagueName])
+
+  const hasUserMessage = useMemo(() => messages.some((m) => m.role === 'user'), [messages])
+  const lastAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]!
+      if (m.role === 'assistant') return m
+    }
+    return null
+  }, [messages])
+
+  const showPlayLastReplyBar =
+    hasUserMessage &&
+    !!lastAssistantMessage &&
+    lastAssistantMessage.content.trim().length > 40 &&
+    !voiceConfig.enabled &&
+    ttsServerReady === true
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -278,6 +296,7 @@ export default function ChimmyChat({
         toast.error(message);
       },
       effectiveVoiceId,
+      true,
     );
   }, [effectiveVoiceId, handleStopVoice, isVoicePlaying, ttsServerReady, voiceConfig, voiceMessageId]);
 
@@ -342,30 +361,11 @@ export default function ChimmyChat({
     const outgoingText = (overrideText !== undefined ? overrideText : input).trim();
     if (!outgoingText && !imageFile) return;
 
-    try {
-      const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
-      if (!preview.canSpend) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: createMessageId(),
-            role: 'assistant',
-            content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
-            upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
-            createdAt: Date.now(),
-          },
-        ]);
-        return;
-      }
-      if (!confirmed) return;
-    } catch (error) {
-      console.error(
-        '[ChimmyChat] Token preview failed, continuing without preflight:',
-        error instanceof Error ? error.message : error
-      );
-    }
-
     const fromShortcut = overrideText !== undefined;
+    const capturedInput = input;
+    const capturedImageFile = imageFile;
+    const capturedImagePreview = fromShortcut ? null : imagePreview;
+
     const userMessage: ChatMessage = {
       id: createMessageId(),
       role: 'user',
@@ -376,9 +376,46 @@ export default function ChimmyChat({
 
     const nextMessages = [...messagesRef.current, userMessage];
     setMessages(nextMessages);
-
     setInput('');
+    setImagePreview(null);
+    setImageFile(null);
+    if (imageFileInputRef.current) {
+      imageFileInputRef.current.value = '';
+    }
     setIsTyping(true);
+
+    try {
+      const { confirmed, preview } = await confirmTokenSpend('ai_chimmy_chat_message');
+      if (!preview.canSpend) {
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          {
+            id: createMessageId(),
+            role: 'assistant',
+            content: CHIMMY_PREMIUM_FEATURE_MESSAGE,
+            upgradePath: CHIMMY_DEFAULT_UPGRADE_PATH,
+            createdAt: Date.now(),
+          },
+        ]);
+        setIsTyping(false);
+        return;
+      }
+      if (!confirmed) {
+        setMessages((prev) => prev.slice(0, -1));
+        setInput(capturedInput);
+        if (capturedImageFile) {
+          setImageFile(capturedImageFile);
+          setImagePreview(capturedImagePreview);
+        }
+        setIsTyping(false);
+        return;
+      }
+    } catch (error) {
+      console.error(
+        '[ChimmyChat] Token preview failed, continuing without preflight:',
+        error instanceof Error ? error.message : error
+      );
+    }
 
     try {
       let streamedAssistantHandled = false;
@@ -386,7 +423,7 @@ export default function ChimmyChat({
       const assistantCreatedAt = Date.now();
       const result = await sendChimmyMessage({
         message: outgoingText || '',
-        imageFile: fromShortcut ? null : imageFile,
+        imageFile: fromShortcut ? null : capturedImageFile,
         conversation: nextMessages.slice(-10).map((m) => ({
           role: m.role,
           content: m.content,
@@ -441,6 +478,12 @@ export default function ChimmyChat({
       if (voiceConfig.enabled && voiceConfig.autoPlay) {
         void handlePlayVoice(reply, assistantMessage.id);
       }
+      triggerChimmyVoiceListenNudge({
+        ttsAvailable: ttsServerReady === true,
+        voiceEnabled: voiceConfig.enabled,
+        replyText: reply,
+        skipForContent: Boolean(assistantMessage.upgradePath) || !result.ok,
+      })
       if (!result.ok && result.error) {
         toast.error(result.error);
       }
@@ -458,8 +501,6 @@ export default function ChimmyChat({
       ]);
     } finally {
       setIsTyping(false);
-      setImagePreview(null);
-      setImageFile(null);
     }
   };
 
@@ -647,7 +688,7 @@ export default function ChimmyChat({
                     <button
                       type="button"
                       onClick={() => void handlePlayVoice(msg.content, msg.id)}
-                      disabled={voiceLoading || (!voiceConfig.enabled && voiceMessageId !== msg.id)}
+                      disabled={voiceLoading}
                       className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
                         isVoicePlaying && voiceMessageId === msg.id
                           ? 'border-cyan-500/30 bg-cyan-500/15 text-cyan-100'
@@ -709,6 +750,30 @@ export default function ChimmyChat({
       ) : null}
 
       <div className={`flex-shrink-0 border-t border-slate-800 bg-slate-900 ${embedded ? 'p-2' : 'p-5'}`}>
+        {showPlayLastReplyBar && lastAssistantMessage ? (
+          <div
+            className={`mb-2 flex items-center justify-between gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 ${
+              embedded ? 'px-2.5 py-2' : 'px-3 py-2.5'
+            }`}
+          >
+            <span className={`text-white/55 ${embedded ? 'text-[11px]' : 'text-xs'}`}>
+              Voice off — listen without turning voice on
+            </span>
+            <button
+              type="button"
+              onClick={() => void handlePlayVoice(lastAssistantMessage.content, lastAssistantMessage.id)}
+              disabled={voiceLoading}
+              data-testid="chimmy-play-last-reply"
+              aria-label="Play last Chimmy reply"
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-1.5 font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:opacity-50 ${
+                embedded ? 'text-[11px]' : 'text-xs'
+              }`}
+            >
+              <Volume2 className={embedded ? 'h-3.5 w-3.5' : 'h-4 w-4'} aria-hidden />
+              Play last reply
+            </button>
+          </div>
+        ) : null}
         <div className={`flex ${embedded ? 'gap-1.5' : 'gap-3'}`}>
           <label
             className={`flex cursor-pointer items-center justify-center rounded-2xl bg-slate-800 transition hover:bg-slate-700 ${
@@ -716,7 +781,13 @@ export default function ChimmyChat({
             }`}
           >
             <ImageIcon className={`text-cyan-400 ${embedded ? 'h-4 w-4' : 'h-6 w-6'}`} />
-            <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <input
+              ref={imageFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
           </label>
 
           <button

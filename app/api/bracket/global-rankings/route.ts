@@ -29,11 +29,11 @@ function normalizeRoundPoints(input: unknown): Record<number, number> | undefine
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const tournamentId = searchParams.get("tournamentId")
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
-    const limit = Math.min(100, Math.max(10, parseInt(searchParams.get("limit") || "50", 10)))
-    const filterMode = searchParams.get("scoringMode")
-    const filterConfig = searchParams.get("scoringConfig")
+    const tournamentId = searchParams?.get("tournamentId")
+    const page = Math.max(1, parseInt(searchParams?.get("page") || "1", 10))
+    const limit = Math.min(100, Math.max(10, parseInt(searchParams?.get("limit") || "50", 10)))
+    const filterMode = searchParams?.get("scoringMode")
+    const filterConfig = searchParams?.get("scoringConfig")
 
     if (!tournamentId) {
       return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
@@ -298,3 +298,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

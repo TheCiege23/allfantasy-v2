@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const channelId = req.nextUrl.searchParams.get('channelId')?.trim()
-  const before = req.nextUrl.searchParams.get('before')
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get('limit')) || 50))
+  const channelId = req.nextUrl.searchParams?.get('channelId')?.trim()
+  const before = req.nextUrl.searchParams?.get('before')
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get('limit')) || 50))
   if (!channelId) return NextResponse.json({ error: 'channelId required' }, { status: 400 })
 
   const channel = await prisma.survivorChatChannel.findFirst({ where: { id: channelId } })
@@ -245,3 +245,4 @@ export async function DELETE(req: NextRequest) {
   })
   return NextResponse.json({ message: updated })
 }
+

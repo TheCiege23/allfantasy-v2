@@ -29,13 +29,13 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const season = url.searchParams.get("season") ?? undefined
-    const awardTypeRaw = url.searchParams.get("awardType")
+    const season = url.searchParams?.get("season") ?? undefined
+    const awardTypeRaw = url.searchParams?.get("awardType")
     const isAwardType =
       awardTypeRaw != null && (AWARD_TYPES as readonly string[]).includes(awardTypeRaw)
     const awardType =
       awardTypeRaw == null ? undefined : isAwardType ? awardTypeRaw : null
-    const limitParam = url.searchParams.get("limit")
+    const limitParam = url.searchParams?.get("limit")
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 100
     if (awardType === null) {
       return NextResponse.json({ error: "Invalid awardType" }, { status: 400 })

@@ -48,8 +48,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams.get('tournamentId')?.trim()
-  const roundNumber = req.nextUrl.searchParams.get('roundNumber')
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
   if (!tournamentId || !roundNumber) {
     return NextResponse.json({ error: 'tournamentId and roundNumber required' }, { status: 400 })
   }
@@ -77,3 +77,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ roundNumber: rn, leagues })
 }
+

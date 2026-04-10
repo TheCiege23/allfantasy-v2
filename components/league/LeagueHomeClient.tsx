@@ -27,7 +27,7 @@ export default function LeagueHomeClient({
   data: LeagueHomeData
 }) {
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<LeagueTopTab>(data.activeTab)
   const [showIntroVideo, setShowIntroVideo] = useState(Boolean(data.introVideo?.shouldAutoOpen))

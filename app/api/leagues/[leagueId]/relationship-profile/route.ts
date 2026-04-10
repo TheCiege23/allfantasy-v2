@@ -23,11 +23,11 @@ export async function GET(
       return NextResponse.json({ error: "Missing leagueId" }, { status: 400 });
     }
     const url = new URL(_req.url);
-    const seasonParam = url.searchParams.get("season");
+    const seasonParam = url.searchParams?.get("season");
     const season = seasonParam != null ? parseInt(seasonParam, 10) : null;
-    const sportParam = normalizeSportForGraph(url.searchParams.get("sport"));
-    const rebuild = url.searchParams.get("rebuild") === "1";
-    const syncRivalryEdges = url.searchParams.get("syncRivalryEdges") !== "0";
+    const sportParam = normalizeSportForGraph(url.searchParams?.get("sport"));
+    const rebuild = url.searchParams?.get("rebuild") === "1";
+    const syncRivalryEdges = url.searchParams?.get("syncRivalryEdges") !== "0";
 
     const buildInput = {
       leagueId,

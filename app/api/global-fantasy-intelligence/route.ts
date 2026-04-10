@@ -9,20 +9,22 @@ import {
 } from '@/lib/global-fantasy-intelligence'
 import { isSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = searchParams.get('sport')?.trim() ?? undefined
-    const leagueId = searchParams.get('leagueId')?.trim() ?? undefined
-    const seasonParam = searchParams.get('season')
+    const sport = searchParams?.get('sport')?.trim() ?? undefined
+    const leagueId = searchParams?.get('leagueId')?.trim() ?? undefined
+    const seasonParam = searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : undefined
-    const weekParam = searchParams.get('weekOrPeriod')
+    const weekParam = searchParams?.get('weekOrPeriod')
     const weekOrPeriod = weekParam != null ? parseInt(weekParam, 10) : undefined
-    const trendLimitParam = searchParams.get('trendLimit')
+    const trendLimitParam = searchParams?.get('trendLimit')
     const trendLimit = trendLimitParam != null ? parseInt(trendLimitParam, 10) : undefined
-    const metaWindowDaysParam = searchParams.get('metaWindowDays')
+    const metaWindowDaysParam = searchParams?.get('metaWindowDays')
     const metaWindowDays = metaWindowDaysParam != null ? parseInt(metaWindowDaysParam, 10) : undefined
-    const leagueFormat = searchParams.get('leagueFormat')?.trim() ?? undefined
+    const leagueFormat = searchParams?.get('leagueFormat')?.trim() ?? undefined
 
     if (sport && !isSupportedSport(sport)) {
       return NextResponse.json(
@@ -52,3 +54,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

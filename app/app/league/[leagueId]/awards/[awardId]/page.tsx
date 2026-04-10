@@ -18,7 +18,7 @@ interface AwardDetail {
 }
 
 export default function AwardDetailPage() {
-  const params = useParams<{ leagueId: string; awardId: string }>()
+  const params = useParams<{ leagueId: string; awardId: string }>() ?? ({} as { leagueId: string; awardId: string })
   const leagueId = params?.leagueId ?? ""
   const awardId = params?.awardId ?? ""
   const [award, setAward] = useState<AwardDetail | null>(null)

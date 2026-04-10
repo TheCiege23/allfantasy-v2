@@ -9,19 +9,21 @@ import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 import type { MetaType } from '@/lib/global-meta-engine'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport')
+    const sportParam = searchParams?.get('sport')
     const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-    const season = searchParams.get('season') ?? undefined
-    const week = searchParams.get('week') ?? searchParams.get('weekOrPeriod')
+    const season = searchParams?.get('season') ?? undefined
+    const week = searchParams?.get('week') ?? searchParams?.get('weekOrPeriod')
     const parsedWeek = week != null ? Number.parseInt(week, 10) : NaN
     const weekOrPeriod = Number.isFinite(parsedWeek) ? parsedWeek : undefined
-    const report = searchParams.get('report') // weekly
-    const summary = searchParams.get('summary') // ai
-    const timeframe = normalizeTimeframe(searchParams.get('timeframe'))
-    const metaType = (searchParams.get('metaType') ?? undefined) as MetaType | undefined
+    const report = searchParams?.get('report') // weekly
+    const summary = searchParams?.get('summary') // ai
+    const timeframe = normalizeTimeframe(searchParams?.get('timeframe'))
+    const metaType = (searchParams?.get('metaType') ?? undefined) as MetaType | undefined
 
     if (report === 'weekly') {
       const s = sport ?? DEFAULT_SPORT
@@ -58,3 +60,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch global meta' }, { status: 500 })
   }
 }
+

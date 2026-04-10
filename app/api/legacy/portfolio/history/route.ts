@@ -119,10 +119,10 @@ async function fetchUserTrades(leagueId: string, sleeperUserId: string): Promise
 export const GET = withApiUsage({ endpoint: "/api/legacy/portfolio/history", tool: "LegacyPortfolioHistory" })(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url);
-    const leagueId = searchParams.get('leagueId');
-    const userId = searchParams.get('userId');
-    const mode = (searchParams.get('mode') || 'atTime') as 'atTime' | 'hindsight';
-    const isSF = searchParams.get('sf') === 'true';
+    const leagueId = searchParams?.get('leagueId');
+    const userId = searchParams?.get('userId');
+    const mode = (searchParams?.get('mode') || 'atTime') as 'atTime' | 'hindsight';
+    const isSF = searchParams?.get('sf') === 'true';
 
     if (!leagueId || !userId) {
       return NextResponse.json({ error: 'Missing leagueId or userId' }, { status: 400 });
@@ -206,3 +206,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/portfolio/history", too
     return NextResponse.json({ error: error.message || 'Failed to compute portfolio history' }, { status: 500 });
   }
 })
+

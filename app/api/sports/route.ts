@@ -56,9 +56,9 @@ async function handleSports(req: {
 const getSportsHandler = async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
-    const forceRefresh = searchParams.get('refresh') === 'true'
-    const identifier = searchParams.get('id') || undefined
-    const optionsRaw = searchParams.get('options')
+    const forceRefresh = searchParams?.get('refresh') === 'true'
+    const identifier = searchParams?.get('id') || undefined
+    const optionsRaw = searchParams?.get('options')
     let options: Record<string, unknown> | undefined
     if (optionsRaw) {
       try {
@@ -76,8 +76,8 @@ const getSportsHandler = async (req: NextRequest) => {
     }
 
     return await handleSports({
-      sport: searchParams.get('sport') ?? 'nfl',
-      dataType: searchParams.get('type') ?? 'players',
+      sport: searchParams?.get('sport') ?? 'nfl',
+      dataType: searchParams?.get('type') ?? 'players',
       options: Object.keys(mergedOptions).length > 0 ? mergedOptions : undefined,
       forceRefresh,
     })
@@ -113,3 +113,4 @@ const postSportsHandler = async (req: NextRequest) => {
 
 export const GET = withApiUsage({ endpoint: '/api/sports', tool: 'Sports' })(getSportsHandler)
 export const POST = withApiUsage({ endpoint: '/api/sports', tool: 'Sports' })(postSportsHandler)
+

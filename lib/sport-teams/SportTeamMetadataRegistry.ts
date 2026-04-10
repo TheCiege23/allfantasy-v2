@@ -222,9 +222,6 @@ export async function getTeamMetadataForSportDbAware(
   options?: { limit?: number }
 ): Promise<TeamMetadata[]> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  if (typeof window !== 'undefined') {
-    return getTeamMetadataForSport(sport)
-  }
 
   let rows: Array<{
     externalId: string | null

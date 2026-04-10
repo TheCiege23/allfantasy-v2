@@ -115,7 +115,7 @@ async function getSleeperPlayersMap(): Promise<Map<string, SleeperPlayerInfo>> {
   }
 
   try {
-    const res = await fetch('https://api.sleeper.app/v1/players/nfl')
+    const res = await fetch('https://api.sleeper.app/v1/players/nfl') // db-first-exception: valuation fallback source pending DB cache wiring
     if (!res.ok) throw new Error(`Sleeper players API: ${res.status}`)
     const data = await res.json()
     const map = new Map<string, SleeperPlayerInfo>()

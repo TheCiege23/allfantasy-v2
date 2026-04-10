@@ -7,13 +7,13 @@ type BucketType = "hour" | "day" | "week" | "month"
 export const GET = withApiUsage({ endpoint: "/api/admin/usage/summary", tool: "AdminUsageSummary" })(async (req: Request) => {
   const url = new URL(req.url)
 
-  const bucketType = String(url.searchParams.get("bucketType") ?? "day") as BucketType
-  const days = Number(url.searchParams.get("days") ?? 30)
-  const scope = url.searchParams.get("scope") ? String(url.searchParams.get("scope")) : undefined
-  const endpoint = url.searchParams.get("endpoint") ? String(url.searchParams.get("endpoint")) : undefined
-  const tool = url.searchParams.get("tool") ? String(url.searchParams.get("tool")) : undefined
-  const leagueId = url.searchParams.get("leagueId") ? String(url.searchParams.get("leagueId")) : undefined
-  const topN = Number(url.searchParams.get("topN") ?? 8)
+  const bucketType = String(url.searchParams?.get("bucketType") ?? "day") as BucketType
+  const days = Number(url.searchParams?.get("days") ?? 30)
+  const scope = url.searchParams?.get("scope") ? String(url.searchParams?.get("scope")) : undefined
+  const endpoint = url.searchParams?.get("endpoint") ? String(url.searchParams?.get("endpoint")) : undefined
+  const tool = url.searchParams?.get("tool") ? String(url.searchParams?.get("tool")) : undefined
+  const leagueId = url.searchParams?.get("leagueId") ? String(url.searchParams?.get("leagueId")) : undefined
+  const topN = Number(url.searchParams?.get("topN") ?? 8)
 
   const since = new Date(Date.now() - days * 24 * 3600 * 1000)
 
@@ -97,3 +97,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/usage/summary", tool: "A
     mostExpensiveEndpoints
   })
 })
+

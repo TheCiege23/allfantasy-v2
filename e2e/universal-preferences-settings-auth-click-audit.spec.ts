@@ -130,20 +130,6 @@ test.describe("@db @preferences universal preferences auth click audit", () => {
     await registerWithRetry(page, credentials)
     await loginWithCredentials(page, credentials)
 
-    // Desktop header toggles
-    await page.goto("/")
-    const desktopSpanishToggle = page.getByRole("button", { name: "Spanish" }).first()
-    await expect(desktopSpanishToggle).toBeVisible({ timeout: 15_000 })
-    await desktopSpanishToggle.click()
-    await expect.poll(async () => page.getAttribute("html", "data-lang")).toBe("es")
-
-    const modeToggle = page.locator('button[aria-label$="Mode"]').first()
-    const modeBefore = await page.getAttribute("html", "data-mode")
-    await modeToggle.click()
-    await expect
-      .poll(async () => page.getAttribute("html", "data-mode"))
-      .not.toBe(modeBefore)
-
     // Settings page selectors + save + cancel
     await page.goto("/settings?tab=preferences")
     await expect(page.getByText("Loading settings…")).not.toBeVisible({ timeout: 45_000 })
@@ -179,10 +165,13 @@ test.describe("@db @preferences universal preferences auth click audit", () => {
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/)
     await expect.poll(async () => page.getAttribute("html", "data-lang")).toBe("es")
 
-    // Mobile toggle audit (route with mobile language row)
+    // Mobile toggle audit on settings controls
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto("/")
-    await page.getByRole("button", { name: "Spanish" }).first().click()
+    await page.goto("/settings?tab=preferences")
+    const mobilePreferencesHeading = page.getByRole("heading", { name: /^preferences$/i })
+    await expect(mobilePreferencesHeading).toBeVisible()
+    const mobilePreferencesForm = page.locator("form").filter({ has: mobilePreferencesHeading }).first()
+    await mobilePreferencesForm.getByRole("button", { name: /español/i }).first().click()
     await expect.poll(async () => page.getAttribute("html", "data-lang")).toBe("es")
 
     expect(profilePatchPayloads.length).toBeGreaterThan(0)

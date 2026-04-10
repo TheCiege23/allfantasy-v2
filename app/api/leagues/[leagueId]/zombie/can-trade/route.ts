@@ -29,7 +29,7 @@ export async function GET(
     return NextResponse.json({ canTrade: true, reason: 'not_zombie_league' })
   }
 
-  const rosterId = new URL(req.url).searchParams.get('rosterId')
+  const rosterId = new URL(req.url).searchParams?.get('rosterId')
   if (!rosterId) return NextResponse.json({ error: 'Missing rosterId' }, { status: 400 })
 
   const [config, status] = await Promise.all([

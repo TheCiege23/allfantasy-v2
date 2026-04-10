@@ -30,7 +30,7 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const eventTypeRaw = url.searchParams.get('eventType')
+    const eventTypeRaw = url.searchParams?.get('eventType')
     const eventType =
       eventTypeRaw == null
         ? undefined
@@ -40,9 +40,9 @@ export async function GET(
     if (eventType === null) {
       return NextResponse.json({ error: 'Invalid eventType' }, { status: 400 })
     }
-    const parsedLimit = parseInt(url.searchParams.get('limit') ?? '20', 10)
+    const parsedLimit = parseInt(url.searchParams?.get('limit') ?? '20', 10)
     const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 50) : 20
-    const cursor = url.searchParams.get('cursor') ?? undefined
+    const cursor = url.searchParams?.get('cursor') ?? undefined
 
     const result = await listCommentary({ leagueId, eventType, limit, cursor })
     return NextResponse.json(result)

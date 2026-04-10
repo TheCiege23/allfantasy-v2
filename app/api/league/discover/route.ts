@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireVerifiedUser } from '@/lib/auth-guard';
+import { getUserLeagues } from '@/lib/sleeper-client';
 
 const CURRENT_IMPORT_SEASON = new Date().getFullYear();
 
@@ -32,14 +33,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(credentials.username)}/leagues/nfl/${CURRENT_IMPORT_SEASON}`
+    const discovered = await getUserLeagues(
+      String(credentials.username),
+      'nfl',
+      String(CURRENT_IMPORT_SEASON),
     );
-    if (!res.ok) {
-      return NextResponse.json({ error: 'Failed to discover Sleeper leagues' }, { status: 502 });
-    }
-
-    const discovered = await res.json();
     return NextResponse.json({ success: true, discovered });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Discovery failed' }, { status: 500 });

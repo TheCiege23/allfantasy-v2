@@ -419,6 +419,39 @@ function classifyPecrIntent(message: string): string {
   return 'general'
 }
 
+function requiresLeagueGrounding(args: {
+  message: string
+  intent: string
+  source?: string
+  teamId?: string
+  leagueId?: string
+  insightType?: InsightType
+}): boolean {
+  const message = args.message.toLowerCase()
+  const source = String(args.source ?? '').toLowerCase()
+
+  if (args.teamId) return true
+  if (args.insightType === 'trade' || args.insightType === 'waiver' || args.insightType === 'dynasty') {
+    return true
+  }
+  if (source.includes('trade') || source.includes('waiver') || source.includes('lineup')) {
+    return true
+  }
+  if (['trade', 'waiver', 'roster'].includes(args.intent)) return true
+  if (/\b(my team|my roster|my lineup|our team|future|next season|for my team)\b/.test(message)) {
+    return true
+  }
+
+  return false
+}
+
+function buildLeagueGroundingErrorPayload() {
+  return {
+    error:
+      'League context is required for trade, waiver, and team-specific planning requests. Open Chimmy from a league context or include leagueId.',
+  }
+}
+
 function resolveRecommendedToolLinks(recommendedTool: ToolKey): string[] {
   switch (recommendedTool) {
     case 'trade_analyzer':
@@ -774,6 +807,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const sport = normalizeToSupportedSport(sportRaw || undefined)
   const effectiveStrategyMode = strategyMode ?? riskMode
   const initialIntent = classifyPecrIntent(message)
+  const leagueGroundingRequired = requiresLeagueGrounding({
+    message,
+    intent: initialIntent,
+    source,
+    teamId: teamId ?? undefined,
+    leagueId: leagueId ?? undefined,
+    insightType,
+  })
   const conversationId = buildChimmyConversationId({
     userId,
     leagueId: leagueId ?? null,
@@ -795,6 +836,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       response: 'Ask me a fantasy sports question, share roster context, or upload a screenshot for analysis.',
       sessionId,
     })
+  }
+
+  if (leagueGroundingRequired && !leagueId) {
+    return NextResponse.json(buildLeagueGroundingErrorPayload(), { status: 412 })
   }
 
   const domainInput = [message, ...conversation.map((turn) => turn.content)].join(' ')
@@ -1129,6 +1174,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             legacyEnrichment.status === 'fulfilled' &&
             (legacyEnrichmentContext.trim().length > 0 ||
               legacyEnrichment.value.audit.sourcesUsed.length > 0)
+
+          if (leagueGroundingRequired && !enrichmentLoaded) {
+            throw new ChimmyPECRExecutionError(
+              'League-specific request blocked due to missing live league context.',
+              503,
+              'Unable to load current league data for a league-specific request. Refresh league data and retry.',
+            )
+          }
 
           const legacyMemorySection =
             legacyMemory.status === 'fulfilled'

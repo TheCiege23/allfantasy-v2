@@ -5,29 +5,17 @@ import { prisma } from "@/lib/prisma";
 import { resolveOrCreateLegacyUser } from "@/lib/legacy-user-resolver";
 import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy";
 import { processImportJob } from "@/lib/import/processImportJob";
+import { canChainImportSteps, scheduleImportSeasonStep } from "@/lib/import/triggerImportChain";
 import { SLEEPER_IMPORT_SPORTS } from "@/lib/league-import/sleeper/import-sports";
 import { isMissingDatabaseObjectError } from "@/lib/prisma/schema-drift";
+import { waitUntil } from "@vercel/functions";
+import { getSleeperUser, getUserLeagues } from "@/lib/sleeper-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const LAUNCH_YEAR = 2017;
-
-type SleeperUserApi = {
-  user_id?: string;
-  display_name?: string;
-  username?: string;
-};
-
-function abortAfter(ms: number): AbortSignal {
-  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal && typeof AbortSignal.timeout === "function") {
-    return AbortSignal.timeout(ms);
-  }
-  const c = new AbortController();
-  setTimeout(() => c.abort(), ms);
-  return c.signal;
-}
 
 /**
  * Fast response: resolve Sleeper user, discover NFL seasons (2017→current), create job, background import.
@@ -72,18 +60,11 @@ export async function POST(req: Request) {
     }
     const userId = session.user.id;
 
-    const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUsername)}`, {
-      signal: abortAfter(5000),
-      headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" },
-    });
-    if (!userRes.ok) {
+    const sleeperUser = await getSleeperUser(sleeperUsername).catch(() => null);
+    if (!sleeperUser?.user_id) {
       return NextResponse.json({ error: "Sleeper user not found" }, { status: 404 });
     }
-    const sleeperUser = (await userRes.json()) as SleeperUserApi;
     const sleeperUserId = sleeperUser.user_id;
-    if (!sleeperUserId) {
-      return NextResponse.json({ error: "Sleeper user not found" }, { status: 404 });
-    }
 
     await prisma.userProfile
       .upsert({
@@ -118,11 +99,7 @@ export async function POST(req: Request) {
       for (const sport of SLEEPER_IMPORT_SPORTS) {
         if (hasLeagues) break;
         try {
-          const r = await fetch(
-            `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${sport}/${year}`,
-            { signal: abortAfter(4000), headers: { "User-Agent": "AllFantasy/1.0", Accept: "application/json" } },
-          );
-          const data = r.ok ? await r.json() : [];
+          const data = await getUserLeagues(sleeperUserId, sport, String(year));
           if (Array.isArray(data) && data.length > 0) {
             hasLeagues = true;
           }
@@ -181,22 +158,40 @@ export async function POST(req: Request) {
       throw e;
     }
 
-    void processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      const stack = e instanceof Error ? e.stack : undefined;
-      console.error("[import] background worker crashed:", msg);
-      console.error("[import] stack:", stack);
-      return prisma.legacyImportJob
-        .update({
-          where: { id: job.id },
-          data: {
-            status: "error",
-            error: e instanceof Error ? e.message : String(e),
-            completedAt: new Date(),
-          },
-        })
-        .catch(() => null);
-    });
+    const runFullImport = () =>
+      processImportJob(job.id, userId, sleeperUserId, seasons).catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : String(e);
+        const stack = e instanceof Error ? e.stack : undefined;
+        console.error("[import] background worker crashed:", msg);
+        console.error("[import] stack:", stack);
+        return prisma.legacyImportJob
+          .update({
+            where: { id: job.id },
+            data: {
+              status: "error",
+              error: e instanceof Error ? e.message : String(e),
+              completedAt: new Date(),
+            },
+          })
+          .catch(() => null);
+      });
+
+    /** Vercel serverless drops fire-and-forget work after the response — chain one season per request when secrets + URL exist. */
+    if (canChainImportSteps()) {
+      scheduleImportSeasonStep({
+        jobId: job.id,
+        userId,
+        sleeperUserId,
+        seasons,
+        seasonIndex: 0,
+      });
+    } else {
+      try {
+        waitUntil(runFullImport());
+      } catch {
+        void runFullImport();
+      }
+    }
 
     return NextResponse.json({
       success: true,

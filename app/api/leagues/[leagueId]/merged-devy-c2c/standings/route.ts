@@ -28,7 +28,7 @@ export async function GET(
   const isC2C = await isC2CLeague(leagueId)
   if (!isC2C) return NextResponse.json({ error: 'Not a C2C league' }, { status: 404 })
 
-  const model = req.nextUrl.searchParams.get('model') as 'unified' | 'separate' | 'hybrid' | null
+  const model = req.nextUrl.searchParams?.get('model') as 'unified' | 'separate' | 'hybrid' | null
   const result = await getC2CStandings(leagueId)
   if (model && result.model !== model) {
     const { getC2CUnifiedStandings, getC2CSeparateStandings, getC2CHybridStandings } = await import('@/lib/merged-devy-c2c/standings/C2CStandingsService')

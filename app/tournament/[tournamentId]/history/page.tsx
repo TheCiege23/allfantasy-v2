@@ -6,8 +6,7 @@ import { useMemo } from 'react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 
 export default function TournamentHistoryPage() {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
   const { shell, rounds, participant } = ctx

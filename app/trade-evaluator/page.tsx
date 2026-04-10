@@ -767,8 +767,8 @@ function AssetPanel({
 
 function TradeHubInner() {
   const searchParams = useSearchParams()
-  const previewSender = searchParams.get("previewSender") ?? ""
-  const previewReceiver = searchParams.get("previewReceiver") ?? ""
+  const previewSender = searchParams?.get("previewSender") ?? ""
+  const previewReceiver = searchParams?.get("previewReceiver") ?? ""
 
   const [sender, setSender] = useState<TradeSide>(() => emptySide("Sender Team", previewSender))
   const [receiver, setReceiver] = useState<TradeSide>(() => emptySide("Receiver Team", previewReceiver))
@@ -1287,3 +1287,4 @@ export default function TradeEvaluatorPage() {
     </Suspense>
   )
 }
+

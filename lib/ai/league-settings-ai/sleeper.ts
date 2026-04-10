@@ -1,4 +1,4 @@
-const SLEEPER = 'https://api.sleeper.app/v1'
+const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: temporary provider wrapper; migrate consumers to DB-backed settings snapshots
 
 export type SleeperUserRow = {
   user_id: string

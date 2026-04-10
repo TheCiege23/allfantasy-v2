@@ -61,7 +61,7 @@ interface LogEntry {
 
 export default function SocialClipDetailPage() {
   const { formatInTimezone } = useUserTimezone();
-  const params = useParams<{ assetId: string }>();
+  const params = useParams<{ assetId: string }>() ?? ({} as { assetId: string });
   const assetId = params?.assetId ?? '';
   const [asset, setAsset] = useState<Asset | null>(null);
   const [targets, setTargets] = useState<Target[]>([]);

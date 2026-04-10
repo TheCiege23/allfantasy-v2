@@ -10,10 +10,10 @@ const DEFAULT_LIMIT = 50
 export async function GET(req: NextRequest) {
   try {
     const u = new URL(req.url)
-    const status = u.searchParams.get("status") ?? undefined
-    const sport = u.searchParams.get("sport") ?? undefined
-    const category = u.searchParams.get("category") ?? undefined
-    const limit = Math.min(Number(u.searchParams.get("limit")) || DEFAULT_LIMIT, 100)
+    const status = u.searchParams?.get("status") ?? undefined
+    const sport = u.searchParams?.get("sport") ?? undefined
+    const category = u.searchParams?.get("category") ?? undefined
+    const limit = Math.min(Number(u.searchParams?.get("limit")) || DEFAULT_LIMIT, 100)
 
     const where: Record<string, unknown> = {}
     if (status) where.publishStatus = status
@@ -93,3 +93,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to create draft" }, { status: 500 })
   }
 }
+

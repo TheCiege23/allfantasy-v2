@@ -1,7 +1,8 @@
 import { FanCredDisclosure } from "@/components/legal/FanCredDisclosure";
+import { getFanCredPublicUrl } from "@/lib/legal/fancredPublicUrl";
 
 export function MonetizationComplianceNotice({ fancredCopy }: { fancredCopy?: { short?: string; long?: string } }) {
-  const fanCredHref = process.env.NEXT_PUBLIC_FANCRED_URL || "https://fancred.com";
+  const fanCredHref = getFanCredPublicUrl();
 
   return (
     <FanCredDisclosure

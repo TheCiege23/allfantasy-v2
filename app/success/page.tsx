@@ -40,8 +40,8 @@ type QuestionnaireForm = z.infer<typeof questionnaireSchema>
 
 function SuccessContent() {
   const searchParams = useSearchParams()
-  const email = searchParams.get('email') || ''
-  const isExisting = searchParams.get('existing') === 'true'
+  const email = searchParams?.get('email') || ''
+  const isExisting = searchParams?.get('existing') === 'true'
 
   const {
     register,
@@ -342,3 +342,4 @@ export default function SuccessPage() {
     </Suspense>
   )
 }
+

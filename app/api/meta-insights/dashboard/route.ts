@@ -7,12 +7,14 @@ import { loadMetaInsightsDashboard } from '@/lib/meta-insights'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sport = normalizeToSupportedSport(searchParams.get('sport') ?? DEFAULT_SPORT)
-    const leagueFormat = searchParams.get('leagueFormat') ?? undefined
-    const timeframe = normalizeTimeframe(searchParams.get('timeframe'))
+    const sport = normalizeToSupportedSport(searchParams?.get('sport') ?? DEFAULT_SPORT)
+    const leagueFormat = searchParams?.get('leagueFormat') ?? undefined
+    const timeframe = normalizeTimeframe(searchParams?.get('timeframe'))
     const data = await loadMetaInsightsDashboard({ sport, leagueFormat, timeframe })
     return NextResponse.json(
       { data },
@@ -23,3 +25,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load dashboard' }, { status: 500 })
   }
 }
+

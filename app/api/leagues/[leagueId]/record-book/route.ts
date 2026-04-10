@@ -31,19 +31,19 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const recordTypeRaw = url.searchParams.get("recordType")
+    const recordTypeRaw = url.searchParams?.get("recordType")
     const isRecordType =
       recordTypeRaw != null && (RECORD_TYPES as readonly string[]).includes(recordTypeRaw)
     const recordType = recordTypeRaw == null ? undefined : isRecordType ? recordTypeRaw : null
-    const season = url.searchParams.get("season") ?? undefined
-    const sportRaw = url.searchParams.get("sport")
+    const season = url.searchParams?.get("season") ?? undefined
+    const sportRaw = url.searchParams?.get("sport")
     const sport =
       sportRaw == null
         ? undefined
         : isSupportedSport(sportRaw)
           ? normalizeToSupportedSport(sportRaw)
           : null
-    const limitParam = url.searchParams.get("limit")
+    const limitParam = url.searchParams?.get("limit")
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 50
     if (recordType === null) {
       return NextResponse.json({ error: "Invalid recordType" }, { status: 400 })

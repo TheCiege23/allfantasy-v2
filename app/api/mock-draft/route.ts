@@ -265,8 +265,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const leagueId = stringFromUnknown(searchParams.get('leagueId'))
-  const platformLeagueId = stringFromUnknown(searchParams.get('platformLeagueId'))
+  const leagueId = stringFromUnknown(searchParams?.get('leagueId'))
+  const platformLeagueId = stringFromUnknown(searchParams?.get('platformLeagueId'))
 
   if (!leagueId && !platformLeagueId) {
     return NextResponse.json({ error: 'leagueId or platformLeagueId is required' }, { status: 400 })
@@ -370,7 +370,7 @@ export async function GET(req: NextRequest) {
   const normalizedSport = normalizeToSupportedSport(
     stringFromUnknown(league?.sport) ??
       stringFromUnknown(leagueInfo.sport) ??
-      stringFromUnknown(searchParams.get('sport')) ??
+      stringFromUnknown(searchParams?.get('sport')) ??
       DEFAULT_SPORT,
   )
 
@@ -558,3 +558,4 @@ export async function POST(req: NextRequest) {
     shareId: created.shareId,
   })
 }
+

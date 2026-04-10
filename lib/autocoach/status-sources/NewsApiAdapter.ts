@@ -42,7 +42,7 @@ export async function fetchInjuryNewsArticles(sport: string, gameDate: string): 
     })
     params.set('domains', 'bleacherreport.com,espn.com,cbssports.com,nfl.com,nba.com,mlb.com,nhl.com')
 
-    const res = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, {
+    const res = await fetch(`https://newsapi.org/v2/everything?${params.toString()}`, { // db-first-exception: injury status ingestion adapter
       cache: 'no-store',
     })
     if (!res.ok) {

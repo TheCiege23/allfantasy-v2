@@ -65,6 +65,17 @@ function parseDevAdminUserIds(rawValue: string | undefined): Set<string> {
   )
 }
 
+/** App user ids (same as Supabase `auth.users.id` when accounts are linked) that skip AI token / monetization notifications. */
+function parseTokenNotificationBypassUserIds(rawValue: string | undefined): Set<string> {
+  if (!rawValue) return new Set()
+  return new Set(
+    rawValue
+      .split(/[\n\r,;]+/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )
+}
+
 function getRuleMeta(ruleCode: string): {
   featureLabel: string
   baseTokenCost: number
@@ -84,6 +95,20 @@ export function isDevAdminUserId(userId: string | null | undefined): boolean {
   const normalizedUserId = String(userId ?? "").trim()
   if (!normalizedUserId) return false
   return parseDevAdminUserIds(process.env.DEV_ADMIN_USER_IDS).has(normalizedUserId)
+}
+
+/**
+ * When true, `dispatchNotification` can skip channels for notifications that look like
+ * AI token balance, purchases, or monetization nudges (see `shouldSuppressTokenMonetizationNotification`).
+ * Includes `TOKEN_NOTIFICATION_BYPASS_USER_IDS` and `DEV_ADMIN_USER_IDS` (admin token bypass).
+ */
+export function isTokenNotificationBypassUserId(userId: string | null | undefined): boolean {
+  const normalizedUserId = String(userId ?? "").trim()
+  if (!normalizedUserId) return false
+  if (parseTokenNotificationBypassUserIds(process.env.TOKEN_NOTIFICATION_BYPASS_USER_IDS).has(normalizedUserId)) {
+    return true
+  }
+  return isDevAdminUserId(userId)
 }
 
 export function buildDevAdminEntitlementSnapshot(): DevAdminEntitlementSnapshot {

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { ZombieEventFeed } from '@/app/zombie/components/ZombieEventFeed'
 
 export default function ZombieUniverseHubPage() {
-  const { universeId } = useParams<{ universeId: string }>()
+  const { universeId  } = useParams<{ universeId: string }>() ?? ({} as { universeId: string })
   const [data, setData] = useState<{
     universe: { name: string; sport: string; leagues: { leagueId: string; name: string | null }[] }
     counts: { survivorCount: number; zombieCount: number; whispererCount: number; leagueCount: number }

@@ -6,7 +6,8 @@ import { Heart } from "lucide-react"
 
 export function BracketsNavLinks() {
   const pathname = usePathname()
-  const active = (p: string) => pathname.startsWith(p)
+  const currentPath = pathname ?? ""
+  const active = (p: string) => currentPath.startsWith(p)
 
   const isMarch = (() => {
     const m = new Date().getMonth()

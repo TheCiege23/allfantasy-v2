@@ -18,8 +18,8 @@ const BOARDS = ['draft_grades', 'championships', 'win_pct', 'active'] as const
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url)
-    const board = url.searchParams.get('board') ?? 'draft_grades'
-    const limitParam = url.searchParams.get('limit')
+    const board = url.searchParams?.get('board') ?? 'draft_grades'
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 25, 100) : 25
 
     if (!BOARDS.includes(board as (typeof BOARDS)[number])) {
@@ -56,3 +56,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

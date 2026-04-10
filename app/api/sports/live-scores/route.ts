@@ -82,7 +82,7 @@ interface LiveScore {
 async function fetchESPNLiveScores(): Promise<LiveScore[]> {
   try {
     const response = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard',
+      'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard', // db-first-exception: live game scores require real-time ESPN data feed
       { cache: 'no-store' }
     );
     if (!response.ok) return [];
@@ -184,8 +184,8 @@ async function syncLiveScoresToDb(scores: LiveScore[]): Promise<number> {
 export const GET = withApiUsage({ endpoint: "/api/sports/live-scores", tool: "SportsLiveScores" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
-    const refresh = searchParams.get('refresh') === 'true';
+    const team = searchParams?.get('team');
+    const refresh = searchParams?.get('refresh') === 'true';
 
     const cachedGames = await prisma.sportsGame.findMany({
       where: {
@@ -267,3 +267,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/live-scores", tool: "Sp
     );
   }
 })
+

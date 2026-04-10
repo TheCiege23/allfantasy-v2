@@ -15,8 +15,8 @@ export async function GET(req: Request) {
   }
 
   const { searchParams } = new URL(req.url);
-  const leagueId = searchParams.get('leagueId');
-  const strategy = searchParams.get('strategy') || 'balanced';
+  const leagueId = searchParams?.get('leagueId');
+  const strategy = searchParams?.get('strategy') || 'balanced';
 
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 });
@@ -253,3 +253,4 @@ Return ONLY a JSON array of partner objects. No markdown, no commentary.`;
     return NextResponse.json({ error: 'Failed to find trade partners' }, { status: 500 });
   }
 }
+

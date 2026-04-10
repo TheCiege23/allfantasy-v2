@@ -12,7 +12,7 @@ import { getMockDraftRuntimeSnapshot } from '@/lib/mock-draft-engine/MockDraftRu
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get('token')
+  const token = req.nextUrl.searchParams?.get('token')
   if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 })
 
   const snapshot = await getMockDraftByInviteToken(token)
@@ -39,3 +39,4 @@ export async function POST(req: NextRequest) {
     draft: snapshot,
   })
 }
+

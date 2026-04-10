@@ -12,6 +12,8 @@ import {
 } from '@/lib/sport-defaults/SportDefaultsRegistry'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 const CREATION_CACHE_CONTROL = 'public, max-age=60, s-maxage=60, stale-while-revalidate=300'
 const DEFAULTS_CACHE_CONTROL = 'public, max-age=300, s-maxage=300, stale-while-revalidate=900'
 const FEATURE_FLAGS_CACHE_CONTROL = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120'
@@ -29,9 +31,9 @@ export async function GET(request: NextRequest) {
   const startedAtMs = Date.now()
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport') ?? 'NFL'
-    const variantParam = searchParams.get('variant') ?? searchParams.get('leagueVariant') ?? null
-    const load = searchParams.get('load') ?? ''
+    const sportParam = searchParams?.get('sport') ?? 'NFL'
+    const variantParam = searchParams?.get('variant') ?? searchParams?.get('leagueVariant') ?? null
+    const load = searchParams?.get('load') ?? ''
 
     const sport = normalizeToSupportedSport(sportParam)
 
@@ -71,3 +73,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load sport defaults' }, { status: 500 })
   }
 }
+

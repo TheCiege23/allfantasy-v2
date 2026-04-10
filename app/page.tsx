@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import dynamic from 'next/dynamic'
+import { Suspense } from 'react'
 import type { Session } from 'next-auth'
 import { getServerSession } from 'next-auth'
 import { PageJsonLd } from '@/components/seo/JsonLd'
@@ -17,6 +18,10 @@ import {
  */
 const LandingPageClient = dynamic(() => import('@/components/landing/LandingPageClient'), {
   ssr: true,
+})
+
+const LandingInviteCapture = dynamic(() => import('@/components/landing/LandingInviteCapture').then((m) => m.LandingInviteCapture), {
+  ssr: false,
 })
 
 export const metadata: Metadata = buildSeoMeta({
@@ -64,6 +69,9 @@ export default async function HomePage() {
   return (
     <>
       <PageJsonLd schemas={[HOME_WEBPAGE_SCHEMA, HOME_SOFTWARE_APP_SCHEMA]} />
+      <Suspense fallback={null}>
+        <LandingInviteCapture />
+      </Suspense>
       <LandingPageClient initialSession={initialSession} />
     </>
   )

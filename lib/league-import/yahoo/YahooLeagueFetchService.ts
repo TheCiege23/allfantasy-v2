@@ -10,7 +10,7 @@ import type {
   YahooImportTransaction,
 } from '@/lib/league-import/adapters/yahoo/types'
 
-const YAHOO_API_BASE = 'https://fantasysports.yahooapis.com/fantasy/v2'
+const YAHOO_API_BASE = 'https://fantasysports.yahooapis.com/fantasy/v2' // db-first-exception: ingestion service endpoint
 const YAHOO_LEAGUE_LIST_URL =
   `${YAHOO_API_BASE}/users;use_login=1/games;game_keys=nfl,nba,mlb,nhl/leagues?format=json`
 const YAHOO_RESERVE_POSITIONS = new Set(['BN', 'BE', 'IR', 'IL', 'NA', 'DL'])
@@ -285,6 +285,24 @@ async function refreshYahooAccessToken(context: YahooApiFetchContext): Promise<s
   context.accessToken = accessToken
   context.refreshToken = refreshToken
   return accessToken
+}
+
+async function fetchYahooLoggedInUserGuid(context: YahooApiFetchContext): Promise<string | null> {
+  const data = await yahooApiFetchJson(`${YAHOO_API_BASE}/users;use_login=1?format=json`, context)
+  const usersWrapper = data?.fantasy_content?.users
+  if (!isRecord(usersWrapper)) return null
+  for (const key of Object.keys(usersWrapper)) {
+    if (key === 'count') continue
+    const block = usersWrapper[key]
+    if (!isRecord(block)) continue
+    const userArr = block.user
+    if (Array.isArray(userArr) && userArr[0]) {
+      const merged = mergeYahooEntityFragments({ user: userArr[0] }, 'user')
+      const guid = typeof merged.guid === 'string' ? merged.guid.trim() : ''
+      if (guid) return guid
+    }
+  }
+  return null
 }
 
 async function yahooApiFetchJson(url: string, context: YahooApiFetchContext): Promise<any> {
@@ -749,6 +767,7 @@ export async function fetchYahooLeagueForImport(
   sourceInput: string
 ): Promise<YahooImportPayload> {
   const context = await getYahooAuthForUser(userId)
+  const loggedInGuid = await fetchYahooLoggedInUserGuid(context).catch(() => null)
   const resolvedLeague = await resolveYahooLeagueLookup(sourceInput, context)
   const leagueKey = resolvedLeague.leagueKey
 
@@ -921,6 +940,11 @@ export async function fetchYahooLeagueForImport(
     }
   }
 
+  const viewerTeamKey =
+    loggedInGuid && teams.length > 0
+      ? teams.find((t) => t.managerGuid === loggedInGuid || t.managerId === loggedInGuid)?.teamKey ?? null
+      : null
+
   const transactions =
     transactionsResult.status === 'fulfilled' ? parseYahooTransactions(transactionsResult.value) : []
   const draftPicks =
@@ -939,5 +963,6 @@ export async function fetchYahooLeagueForImport(
     transactions,
     draftPicks,
     previousSeasons,
+    viewerTeamKey,
   }
 }

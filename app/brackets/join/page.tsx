@@ -27,12 +27,12 @@ function JoinLeagueForm() {
   const sp = useSearchParams()
 
   useEffect(() => {
-    const c = sp.get("code")
+    const c = sp?.get("code")
     if (c) setCode(c.trim().toUpperCase())
   }, [sp])
 
   useEffect(() => {
-    const c = sp.get("code")?.trim()
+    const c = sp?.get("code")?.trim()
     if (!c) {
       setPreviewLoading(false)
       return
@@ -212,3 +212,4 @@ export default function JoinLeaguePage() {
     </div>
   )
 }
+

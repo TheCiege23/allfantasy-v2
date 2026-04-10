@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const season = readNumber(req.nextUrl.searchParams.get('season'))
-    const weekOrRound = readNumber(req.nextUrl.searchParams.get('week'))
+    const season = readNumber(req.nextUrl.searchParams?.get('season'))
+    const weekOrRound = readNumber(req.nextUrl.searchParams?.get('week'))
     const result = await runScoringWorker({ season, weekOrRound, lockScores: true })
     return NextResponse.json({ ok: true, result })
   } catch (error) {
@@ -27,3 +27,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Score lock failed' }, { status: 500 })
   }
 }
+

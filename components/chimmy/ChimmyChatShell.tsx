@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
-import { Send, Image as ImageIcon, Loader2, X, RefreshCw } from 'lucide-react'
+import { Send, Image as ImageIcon, Loader2, X, RefreshCw, Volume2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { getDefaultChimmyChips, type ChimmyVoicePreset } from '@/lib/chimmy-interface'
 import {
@@ -32,6 +32,7 @@ import {
   type VoiceConfig,
 } from '@/lib/chimmy-voice'
 import { DEFAULT_VOICE_ID, getChimmyVoiceLabel, readStoredChimmyVoiceId } from '@/lib/tts/voices'
+import { triggerChimmyVoiceListenNudge } from '@/lib/chimmy-chat/voiceEngagementNudge'
 
 export type ChimmyChatMessage = {
   id: string
@@ -178,6 +179,7 @@ export default function ChimmyChatShell({
 
   const transcriptRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
+  const imageFileInputRef = useRef<HTMLInputElement>(null)
   const initialPromptApplied = useRef(false)
   const sendingRef = useRef(false)
 
@@ -185,6 +187,21 @@ export default function ChimmyChatShell({
     () => getDefaultChimmyChips({ leagueName: leagueName ?? undefined, hasLeagues: !!leagueName }),
     [leagueName]
   )
+
+  const hasUserMessage = useMemo(() => messages.some((m) => m.role === 'user'), [messages])
+  const lastAssistantMessage = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]!
+      if (m.role === 'assistant') return m
+    }
+    return null
+  }, [messages])
+  const showPlayLastReplyBar =
+    hasUserMessage &&
+    !!lastAssistantMessage &&
+    lastAssistantMessage.content.trim().length > 40 &&
+    !voiceConfig.enabled &&
+    !ttsUnavailable
   const resolvedSport = useMemo(() => resolveSportForAIChat(sport, null), [sport])
   const requestContext = useMemo(
     () => ({
@@ -408,6 +425,7 @@ export default function ChimmyChatShell({
           toast.error(message)
         },
         elevenLabsVoiceId,
+        true,
       )
     },
     [elevenLabsVoiceId, handleStopVoice, isVoicePlaying, ttsUnavailable, voiceConfig, voiceMessageId]
@@ -535,8 +553,17 @@ export default function ChimmyChatShell({
       ) {
         void handlePlayVoice(assistantMsg.content, assistantMsg.id)
       }
+      triggerChimmyVoiceListenNudge({
+        ttsAvailable: !ttsUnavailable,
+        voiceEnabled: voiceConfig.enabled,
+        replyText: reply,
+        skipForContent:
+          assistantMsg.meta?.variant === 'premium_gate' ||
+          assistantMsg.meta?.variant === 'error' ||
+          !result.ok,
+      })
     },
-    [handlePlayVoice, requestContext, voiceConfig.autoPlay, voiceConfig.enabled]
+    [handlePlayVoice, requestContext, ttsUnavailable, voiceConfig]
   )
 
   const sendMessage = useCallback(async () => {
@@ -544,24 +571,29 @@ export default function ChimmyChatShell({
     if (sendingRef.current) return
     sendingRef.current = true
 
+    const priorThread = messages
+    const outgoingText = input.trim() || 'Analyze this screenshot.'
+    const outImage = imageFile
+
     const userMsg: ChimmyChatMessage = {
       id: createMessageId(),
       role: 'user',
-      content: input.trim() || 'Analyze this screenshot.',
+      content: outgoingText,
       imageUrl: imagePreview || null,
     }
     setMessages((prev) => [...prev, userMsg])
-    const outgoingText = input
-    const outImage = imageFile
     setInput('')
     setImagePreview(null)
     setImageFile(null)
+    if (imageFileInputRef.current) {
+      imageFileInputRef.current.value = ''
+    }
     setIsTyping(true)
     setLastMeta(null)
     setInlineError(null)
 
     try {
-      await runSend(outgoingText, outImage, messages)
+      await runSend(outgoingText, outImage, priorThread)
     } catch {
       setInlineError(CHIMMY_GENERIC_ERROR_MESSAGE)
       toast.error(CHIMMY_GENERIC_ERROR_MESSAGE)
@@ -773,10 +805,28 @@ export default function ChimmyChatShell({
           </div>
         )}
 
+        {showPlayLastReplyBar && lastAssistantMessage ? (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2">
+            <span className="text-[11px] text-white/55">Voice off — tap to hear the latest reply</span>
+            <button
+              type="button"
+              onClick={() => void handlePlayVoice(lastAssistantMessage.content, lastAssistantMessage.id)}
+              disabled={ttsLoading}
+              data-testid="chimmy-play-last-reply"
+              aria-label="Play last Chimmy reply"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-1.5 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/25 disabled:opacity-50 min-h-[36px]"
+            >
+              <Volume2 className="h-4 w-4" aria-hidden />
+              Play last reply
+            </button>
+          </div>
+        ) : null}
+
         <div className="flex gap-2">
           <label className="flex-shrink-0 w-11 h-11 rounded-xl border border-white/20 bg-white/5 flex items-center justify-center cursor-pointer hover:bg-white/10 min-h-[44px]">
             <ImageIcon className="h-5 w-5 text-cyan-400/80" />
             <input
+              ref={imageFileInputRef}
               type="file"
               accept="image/*"
               onChange={handleImageUpload}

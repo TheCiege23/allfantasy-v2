@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const lookbackDays = searchParams.get('days') ? parseInt(searchParams.get('days')!, 10) : undefined
-  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined
+  const lookbackDays = searchParams?.get('days') ? parseInt(searchParams?.get('days')!, 10) : undefined
+  const limit = searchParams?.get('limit') ? parseInt(searchParams?.get('limit')!, 10) : undefined
 
   const items = await getTrendingLeagues({
     lookbackDays: lookbackDays && lookbackDays > 0 ? lookbackDays : 7,
@@ -18,3 +18,4 @@ export async function GET(req: Request) {
     period: '7d',
   })
 }
+

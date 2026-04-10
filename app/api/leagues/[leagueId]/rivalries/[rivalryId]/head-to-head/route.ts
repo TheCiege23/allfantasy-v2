@@ -25,7 +25,7 @@ export async function GET(
     if (!rivalry) return NextResponse.json({ error: 'Rivalry not found' }, { status: 404 })
 
     const url = new URL(req.url)
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : null
 
     const teams = await prisma.leagueTeam.findMany({

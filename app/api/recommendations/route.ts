@@ -20,14 +20,14 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
-  const leagueLimit = searchParams.get("leagueLimit")
-    ? parseInt(searchParams.get("leagueLimit")!, 10)
+  const leagueLimit = searchParams?.get("leagueLimit")
+    ? parseInt(searchParams?.get("leagueLimit")!, 10)
     : undefined
-  const playerLimit = searchParams.get("playerLimit")
-    ? parseInt(searchParams.get("playerLimit")!, 10)
+  const playerLimit = searchParams?.get("playerLimit")
+    ? parseInt(searchParams?.get("playerLimit")!, 10)
     : undefined
-  const sport = searchParams.get("sport") ?? null
-  const includeProfile = searchParams.get("profile") === "1"
+  const sport = searchParams?.get("sport") ?? null
+  const includeProfile = searchParams?.get("profile") === "1"
 
   try {
     const data = await getRecommendations(userId, {
@@ -46,3 +46,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

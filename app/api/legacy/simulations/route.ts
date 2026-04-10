@@ -13,7 +13,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/simulations", tool: "Le
   }
 
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
+  const username = searchParams?.get('username')
 
   if (!username) {
     return NextResponse.json({ error: 'Username required' }, { status: 400 })
@@ -101,3 +101,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/simulations", tool: "L
     return NextResponse.json({ error: 'Simulation failed' }, { status: 500 })
   }
 })
+

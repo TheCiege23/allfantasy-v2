@@ -13,9 +13,11 @@ interface RankSummary {
 type RankingsCardProps = {
   /** Opens Chimmy with rankings context (dashboard wiring). */
   onAskChimmy?: () => void
+  /** Bump after legacy import completes to refetch rank snapshot. */
+  rankRefreshKey?: number
 }
 
-export function RankingsCard({ onAskChimmy }: RankingsCardProps) {
+export function RankingsCard({ onAskChimmy, rankRefreshKey = 0 }: RankingsCardProps) {
   const [rank, setRank] = useState<RankSummary | null>(null)
   const [faqOpen, setFaqOpen] = useState(false)
 
@@ -26,7 +28,7 @@ export function RankingsCard({ onAskChimmy }: RankingsCardProps) {
         if (data?.rank) setRank(data.rank)
       })
       .catch(() => null)
-  }, [])
+  }, [rankRefreshKey])
 
   return (
     <section className="space-y-3" data-testid="dashboard-rankings-card">

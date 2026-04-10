@@ -36,7 +36,7 @@ type PublishLog = {
 };
 
 export default function BlogDraftEditorPage() {
-  const params = useParams<{ articleId: string }>();
+  const params = useParams<{ articleId: string }>() ?? ({} as { articleId: string });
   const router = useRouter();
   const articleId = params?.articleId ?? "";
   const [article, setArticle] = useState<Article | null>(null);

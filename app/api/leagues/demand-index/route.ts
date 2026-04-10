@@ -11,10 +11,10 @@ import { hardenPartnerTendenciesResponse } from "@/lib/partner/harden-partner-te
 
 export const GET = withApiUsage({ endpoint: "/api/leagues/demand-index", tool: "LeaguesDemandIndex" })(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
-  const leagueId = sp.get('leagueId')
-  const range = Number(sp.get('range') ?? 90)
-  const mode = sp.get('mode') ?? 'live'
-  const includeManagers = sp.get('includeManagers') === 'true'
+  const leagueId = sp?.get('leagueId')
+  const range = Number(sp?.get('range') ?? 90)
+  const mode = sp?.get('mode') ?? 'live'
+  const includeManagers = sp?.get('includeManagers') === 'true'
 
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
@@ -99,3 +99,4 @@ export const GET = withApiUsage({ endpoint: "/api/leagues/demand-index", tool: "
     return NextResponse.json({ error: 'Failed to compute demand index' }, { status: 500 })
   }
 })
+

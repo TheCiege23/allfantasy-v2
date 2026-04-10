@@ -199,7 +199,7 @@ export default function ChimmyMessageBubble({
             <button
               type="button"
               onClick={onVoiceToggle}
-              disabled={voiceLoading || (!voiceEnabled && !voicePlaying)}
+              disabled={voiceLoading}
               data-testid="chimmy-play-voice-button"
               className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition ${
                 voicePlaying

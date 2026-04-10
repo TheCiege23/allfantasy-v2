@@ -8,7 +8,7 @@ import { Loader2, Users } from 'lucide-react'
 
 export default function MockDraftJoinPage() {
   const searchParams = useSearchParams()
-  const token = searchParams.get('token')
+  const token = searchParams?.get('token')
   const [draft, setDraft] = useState<{
     id: string
     status: string
@@ -142,3 +142,4 @@ export default function MockDraftJoinPage() {
     </div>
   )
 }
+

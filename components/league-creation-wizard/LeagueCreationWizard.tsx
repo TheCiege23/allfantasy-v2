@@ -34,6 +34,7 @@ import { LeagueCreatedIntroModal } from './LeagueCreatedIntroModal'
 import { LeagueSourceSection, type LeagueListRow } from './LeagueSourceSection'
 import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
+import { readFetchJson } from '@/lib/http/readFetchJson'
 import { useSportPreset } from '@/hooks/useSportPreset'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
@@ -766,6 +767,7 @@ export function LeagueCreationWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        credentials: 'same-origin',
       })
       emitLeagueCreationPerf('wizard_create_response', {
         ok: res.ok,
@@ -774,12 +776,12 @@ export function LeagueCreationWizard({
           ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - createRequestStart).toFixed(1)
         ),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setError(data.error ?? 'Failed to create league')
+      const { ok, data, errorMessage } = await readFetchJson<{ league?: { id: string } }>(res)
+      if (!ok) {
+        setError(errorMessage ?? 'Failed to create league')
         return
       }
-      const leagueId = data.league?.id
+      const leagueId = data?.league?.id
       if (leagueId) {
         onSuccess?.(leagueId)
         setPostCreateIntro({ leagueId, name, videoUrl: introUrl })

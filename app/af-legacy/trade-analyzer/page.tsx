@@ -688,11 +688,11 @@ export default function LegacyTradeAnalyzerPage() {
     setLoadingLeagues(true)
     try {
       const sportLower = sport.toLowerCase()
-      const res = await fetch(`https://api.sleeper.app/v1/user/${username}`)
+      const res = await fetch(`https://api.sleeper.app/v1/user/${username}`) // db-first-exception: legacy trade analyzer bootstrap
       if (!res.ok) throw new Error('User not found')
       const userData = await res.json()
       
-      const leaguesRes = await fetch(`https://api.sleeper.app/v1/user/${userData.user_id}/leagues/${sportLower}/2025`)
+      const leaguesRes = await fetch(`https://api.sleeper.app/v1/user/${userData.user_id}/leagues/${sportLower}/2025`) // db-first-exception: legacy trade analyzer bootstrap
       if (!leaguesRes.ok) throw new Error('Failed to fetch leagues')
       const leagues = await leaguesRes.json()
       
@@ -791,15 +791,15 @@ export default function LegacyTradeAnalyzerPage() {
     if (!leagueIdToFetch || !rosters.length) return
     try {
       const [tradedRes, draftsRes] = await Promise.all([
-        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/traded_picks`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/drafts`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/traded_picks`), // db-first-exception: legacy trade analyzer league bootstrap
+        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/drafts`), // db-first-exception: legacy trade analyzer league bootstrap
       ])
       const traded: SleeperTradedPick[] = tradedRes.ok ? await tradedRes.json() : []
       const drafts: any[] = draftsRes.ok ? await draftsRes.json() : []
 
       // Build roster_id -> draft slot mapping from the most recent draft
       let slotMap: Map<number, number> | null = null
-      const rosterUsers = await fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`)
+      const rosterUsers = await fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`) // db-first-exception: legacy trade analyzer league bootstrap
       const rosterData: any[] = rosterUsers.ok ? await rosterUsers.json() : []
       const userToRoster = new Map<string, number>()
       for (const r of rosterData) {
@@ -841,8 +841,8 @@ export default function LegacyTradeAnalyzerPage() {
     setLoadingManagers(true)
     try {
       const [usersRes, rostersRes] = await Promise.all([
-        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/users`),
-        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`),
+        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/users`), // db-first-exception: legacy trade analyzer league bootstrap
+        fetch(`https://api.sleeper.app/v1/league/${leagueIdToFetch}/rosters`), // db-first-exception: legacy trade analyzer league bootstrap
       ])
 
       const users = await usersRes.json()
@@ -1186,8 +1186,8 @@ export default function LegacyTradeAnalyzerPage() {
           sleeper_username: sleeperB.trim(),
           sport: apiSport,
         }).toString()}`),
-        safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}`).catch(() => null),
-        safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}/users`).catch(() => null),
+        safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}`).catch(() => null), // db-first-exception: legacy trade analyzer context hydration
+        safeFetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(lid)}/users`).catch(() => null), // db-first-exception: legacy trade analyzer context hydration
       ])
 
       if (!aRes?.success) throw new Error(aRes?.error || 'Failed to load roster A')

@@ -11,14 +11,13 @@ import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
 import {
   processLeague,
-  cachedSleeperFetch,
   getSleeperAvatarUrl,
   getErrorMessage,
   sumCommentaryTelemetry,
   type SleeperLeague,
-  type SleeperUser,
   type MatchupCommentaryTelemetry,
 } from "@/lib/league/sleeper-import-process";
+import { getUserLeagues, getSleeperUser } from "@/lib/sleeper-client";
 import {
   consumeRateLimit,
   getClientIp,
@@ -85,10 +84,7 @@ export async function POST(req: Request) {
     const { sleeperUserId, sport, season, isLegacy } = parsed.data;
     const sportLabel = sportMap[sport];
 
-    const leaguesData = await cachedSleeperFetch<SleeperLeague[]>(
-      `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}/leagues/${encodeURIComponent(sport)}/${season}`,
-      `sleeper:user_leagues:${sleeperUserId}:${sport}:${season}`
-    );
+    const leaguesData = await getUserLeagues(sleeperUserId, sport, String(season)).catch(() => null) as unknown as SleeperLeague[] | null;
 
     if (!Array.isArray(leaguesData) || leaguesData.length === 0) {
       return NextResponse.json(
@@ -119,52 +115,53 @@ export async function POST(req: Request) {
     const failed = results.length - imported;
     const commentaryTelemetry = sumCommentaryTelemetry(successfulImports);
 
-    try {
-      const [sleeperUser, legacyUser] = await Promise.all([
-        cachedSleeperFetch<SleeperUser>(
-          `https://api.sleeper.app/v1/user/${encodeURIComponent(sleeperUserId)}`,
-          `sleeper:user_profile:${sleeperUserId}`
-        ),
-        prisma.legacyUser.findUnique({
-          where: { sleeperUserId },
-          select: { id: true },
-        }),
-      ]);
+    // Fire-and-forget: rank computation, rankings context refresh, and history sync
+    // These are non-critical for the import response and can run in the background.
+    void (async () => {
+      try {
+        const [sleeperUser, legacyUser] = await Promise.all([
+          getSleeperUser(sleeperUserId),
+          prisma.legacyUser.findUnique({
+            where: { sleeperUserId },
+            select: { id: true },
+          }),
+        ]);
 
-      await upsertPlatformIdentity({
-        afUserId: userId,
-        platform: "sleeper",
-        platformUserId: sleeperUser?.user_id ?? sleeperUserId,
-        platformUsername: sleeperUser?.username ?? sleeperUserId,
-        displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
-        avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
-        sport,
-      });
+        await upsertPlatformIdentity({
+          afUserId: userId,
+          platform: "sleeper",
+          platformUserId: sleeperUser?.user_id ?? sleeperUserId,
+          platformUsername: sleeperUser?.username ?? sleeperUserId,
+          displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
+          avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
+          sport,
+        });
 
-      const isLocked = await isPlatformRankLocked(userId, "sleeper");
-      if (!isLocked && legacyUser) {
-        await computeAndSaveRank(userId, legacyUser);
-        await lockPlatformRank(userId, "sleeper");
+        const isLocked = await isPlatformRankLocked(userId, "sleeper");
+        if (!isLocked && legacyUser) {
+          await computeAndSaveRank(userId, legacyUser);
+          await lockPlatformRank(userId, "sleeper");
+        }
+      } catch (err) {
+        console.error("[import-sleeper] rank lock error:", err);
       }
-    } catch (err) {
-      console.error("[import-sleeper] rank lock error:", err);
-    }
 
-    try {
-      await refreshUserRankingsContext(userId);
-    } catch (err) {
-      console.error("[import-sleeper] rankings context error:", err);
-    }
+      try {
+        await refreshUserRankingsContext(userId);
+      } catch (err) {
+        console.error("[import-sleeper] rankings context error:", err);
+      }
 
-    for (let i = 0; i < leaguesData.length; i++) {
-      const row = results[i];
-      if (!row) continue;
-      const platformLeagueId = leaguesData[i]?.league_id?.toString();
-      if (!platformLeagueId) continue;
-      void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
-        console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
-      );
-    }
+      for (let i = 0; i < leaguesData.length; i++) {
+        const row = results[i];
+        if (!row) continue;
+        const platformLeagueId = leaguesData[i]?.league_id?.toString();
+        if (!platformLeagueId) continue;
+        void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
+          console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
+        );
+      }
+    })();
 
     return NextResponse.json({
       success: true,

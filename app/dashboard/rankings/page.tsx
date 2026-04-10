@@ -1,26 +1,40 @@
 'use client'
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  refreshLegacyImportStatus,
-  LEGACY_PROVIDER_IDS,
-  getLegacyProviderName,
-  getImportStatusLabel,
-  getProviderStatus,
-  LegacyProviderImportHelp,
-  type LegacyImportStatusResponse,
-  type LegacyProviderId,
-} from '@/lib/legacy-import-settings'
-import { StepHelp } from '@/components/league-creation-wizard/StepHelp'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import OverviewInsights from '@/app/af-legacy/components/OverviewInsights'
-import OverviewLanes from '@/app/af-legacy/components/OverviewLanes'
-import OverviewReportCard from '@/app/af-legacy/components/OverviewReportCard'
-import { SLEEPER_IMPORT_SPORTS } from '@/lib/league-import/sleeper/import-sports'
 import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
+import { RankingFaqPanel } from '@/components/rankings/RankingFaqPanel'
+import { LegacyRankingsImportPanel } from '@/components/rankings/LegacyRankingsImportPanel'
+
+/** Split AF Legacy overview chunks so the rankings route initial bundle stays smaller. */
+const OverviewReportCard = dynamic(() => import('@/app/af-legacy/components/OverviewReportCard'), {
+  loading: () => (
+    <div
+      className="h-64 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]"
+      aria-hidden
+    />
+  ),
+})
+const OverviewInsights = dynamic(() => import('@/app/af-legacy/components/OverviewInsights'), {
+  loading: () => (
+    <div
+      className="h-44 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]"
+      aria-hidden
+    />
+  ),
+})
+const OverviewLanes = dynamic(() => import('@/app/af-legacy/components/OverviewLanes'), {
+  loading: () => (
+    <div
+      className="h-52 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]"
+      aria-hidden
+    />
+  ),
+})
 
 interface PlayerRank {
   careerTier: number
@@ -102,10 +116,12 @@ type RankLevelApiPayload = {
 }
 
 function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload | null {
-  const xp = data.xpTotal ?? 0
+  const xp = data.xpTotal ?? (data.rank != null ? Number(data.rank.careerXp) : 0) ?? 0
   const lv = getLevelFromXp(xp)
-  if (!data.tier?.trim() && typeof data.level !== 'number') return null
-  const level = typeof data.level === 'number' ? data.level : lv.level
+  const hasRankSignal =
+    Boolean(data.tier?.trim()) || typeof data.level === 'number' || data.rank != null
+  if (!hasRankSignal) return null
+  const level = lv.level
   const row = RANK_LEVELS.find((r) => r.level === level) ?? lv
   return {
     tier: data.tier?.trim() || row.tier,
@@ -131,17 +147,25 @@ function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload |
 
 /** When API returns tier + stats but omits nested `rank` (older clients), build a display rank. */
 function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
-  if (data.rank) return data.rank
+  if (data.rank) {
+    const xpNum = Number(data.rank.careerXp) || data.xpTotal || 0
+    const lv = getLevelFromXp(xpNum)
+    return {
+      ...data.rank,
+      careerLevel: lv.level,
+      careerTier: lv.tierGroup,
+      careerTierName: lv.name,
+    }
+  }
   const cs = data.careerStats ?? data.stats ?? null
   const xpNum = data.xpTotal ?? 0
   const lv = getLevelFromXp(xpNum)
   if (data.tier?.trim() || typeof data.level === 'number') {
-    const level = typeof data.level === 'number' ? data.level : lv.level
-    const row = RANK_LEVELS.find((r) => r.level === level) ?? lv
+    const row = RANK_LEVELS.find((r) => r.level === lv.level) ?? lv
     return {
       careerTier: data.tierGroup ?? row.tierGroup,
       careerTierName: data.levelName?.trim() || data.tierName?.trim() || row.name,
-      careerLevel: level,
+      careerLevel: lv.level,
       careerXp: String(xpNum),
       aiReportGrade: 'B',
       aiScore: 70,
@@ -349,7 +373,8 @@ type TierVisual = {
 }
 
 function getTierConfigByLevel(level: number): TierVisual {
-  const row = RANK_LEVELS.find((e) => e.level === level) ?? RANK_LEVELS[0]
+  const clamped = Math.max(1, Math.min(25, level))
+  const row = RANK_LEVELS.find((e) => e.level === clamped) ?? RANK_LEVELS[0]
   const glow = `${row.color}55`
   return {
     tier: row.level,
@@ -361,8 +386,10 @@ function getTierConfigByLevel(level: number): TierVisual {
   }
 }
 
-function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 'careerLevel'>) {
-  return getTierConfigByLevel(rank.careerLevel)
+function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 'careerLevel' | 'careerXp'>) {
+  if (rank.careerLevel >= 1 && rank.careerLevel <= 25) return getTierConfigByLevel(rank.careerLevel)
+  const xp = Number(rank.careerXp) || 0
+  return getTierConfigByLevel(getLevelFromXp(xp).level)
 }
 
 function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md' | 'lg' }) {
@@ -389,152 +416,9 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
       >
         <span className={sizes.emoji}>{cfg.badge}</span>
         <span className={`${sizes.tier} font-bold mt-0.5`} style={{ color: cfg.color }}>
-          LV {rank.careerLevel}
+          LV {getLevelFromXp(Number(rank.careerXp) || 0).level}
         </span>
       </div>
-    </div>
-  )
-}
-
-function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
-  const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [importInputs, setImportInputs] = useState<Record<string, string>>({})
-  const [importing, setImporting] = useState<Record<string, boolean>>({})
-  const [importError, setImportError] = useState<Record<string, string | null>>({})
-
-  useEffect(() => {
-    void (async () => {
-      setLoading(true)
-      setLegacyStatus(await refreshLegacyImportStatus())
-      setLoading(false)
-    })()
-  }, [])
-
-  const handleLegacyProviderImport = async (providerId: LegacyProviderId) => {
-    setImporting((prev) => ({ ...prev, [providerId]: true }))
-    setImportError((prev) => ({ ...prev, [providerId]: null }))
-    try {
-      if (providerId === 'sleeper') {
-        const username = importInputs[providerId]?.trim()
-        if (!username) throw new Error('Sleeper username required')
-        const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`)
-        if (!userRes.ok) throw new Error('Sleeper username not found')
-        const userData = await userRes.json()
-        let importedAnySport = false
-        let sawNoLeagues = false
-        for (const sport of SLEEPER_IMPORT_SPORTS) {
-          const importRes = await fetch('/api/import-sleeper', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sleeperUserId: userData.user_id, sport, isLegacy: true }),
-          })
-          if (importRes.ok) {
-            importedAnySport = true
-            continue
-          }
-          const importData = (await importRes.json().catch(() => ({}))) as { error?: string }
-          const errorMessage = importData.error?.trim() || 'Import failed'
-          if (importRes.status === 404) {
-            sawNoLeagues = true
-            continue
-          }
-          throw new Error(errorMessage)
-        }
-        if (!importedAnySport) {
-          throw new Error(sawNoLeagues ? 'No Sleeper leagues found for this account' : 'Import failed')
-        }
-      } else {
-        throw new Error('Use the Import page for this provider — link below.')
-      }
-      setLegacyStatus(await refreshLegacyImportStatus())
-      onImportSuccess()
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Import failed'
-      setImportError((prev) => ({ ...prev, [providerId]: msg }))
-    } finally {
-      setImporting((prev) => ({ ...prev, [providerId]: false }))
-    }
-  }
-
-  return (
-    <div className="rounded-2xl border border-white/8 bg-gradient-to-br from-[#12082a] to-[#0a0a1e] p-6 shadow-2xl">
-      <div className="mb-5">
-        <h3 className="text-lg font-bold text-white">Build Your Legacy Profile</h3>
-        <p className="text-sm text-white/50 mt-0.5">
-          Import your fantasy history to calculate your AllFantasy rank, XP progress, and AI grade.
-        </p>
-      </div>
-      {loading ? (
-        <p className="text-sm text-white/40">Loading import status…</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-          {LEGACY_PROVIDER_IDS.map((providerId) => {
-            const status = legacyStatus ? getProviderStatus(legacyStatus, providerId) : null
-            const name = getLegacyProviderName(providerId)
-            const importStatusLabel = status?.importStatus ? getImportStatusLabel(status.importStatus) : '—'
-            const imported = status?.importStatus === 'completed'
-            const isDisabled = imported || importing[providerId]
-            return (
-              <div key={providerId} className="rounded-xl border border-white/10 bg-white/5 p-4 flex flex-col gap-2 relative">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-white text-base">{name}</span>
-                  <StepHelp title={`How to import from ${name}`}>
-                    <LegacyProviderImportHelp providerId={providerId} />
-                  </StepHelp>
-                </div>
-                <div className="text-xs text-white/50 mb-1">Status: {importStatusLabel}</div>
-                {imported ? (
-                  <div className="text-green-400 text-xs font-semibold">Imported</div>
-                ) : providerId === 'sleeper' ? (
-                  <>
-                    <input
-                      type="text"
-                      value={importInputs[providerId] || ''}
-                      onChange={(e) =>
-                        setImportInputs((inputs) => ({ ...inputs, [providerId]: e.target.value }))
-                      }
-                      placeholder="Sleeper username"
-                      className="w-full rounded border border-white/10 bg-white/10 px-2 py-1 text-sm text-white placeholder:text-white/30 focus:border-cyan-500/50 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
-                      disabled={isDisabled}
-                    />
-                    {importError[providerId] && (
-                      <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void handleLegacyProviderImport(providerId)}
-                      disabled={isDisabled || !importInputs[providerId]?.trim()}
-                      className="mt-2 w-full rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white disabled:opacity-40"
-                    >
-                      {importing[providerId] ? 'Importing…' : `Import from ${name}`}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-[11px] text-white/45 leading-snug">
-                      ESPN, Yahoo, MFL, Fantrax, and Fleaflicker use the same secure import flow as the main Import page
-                      (league id / key and account access).
-                    </p>
-                    {importError[providerId] ? (
-                      <div className="text-xs text-red-400 mt-1">{importError[providerId]}</div>
-                    ) : null}
-                    <Link
-                      href="/import"
-                      className="mt-2 flex w-full items-center justify-center rounded py-2 text-xs font-bold bg-gradient-to-r from-cyan-600 to-purple-600 text-white hover:opacity-95"
-                    >
-                      Open import tool →
-                    </Link>
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <p className="text-center text-[11px] text-white/25 mt-3">
-        Career rank cache, AI report, and overview cards all refresh from this import.
-      </p>
     </div>
   )
 }
@@ -546,29 +430,38 @@ function CareerStats({ rank }: { rank: PlayerRank }) {
   const ties = rank.totalTies ?? 0
   const recordLabel = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`
   const stats = [
-    { label: 'Record', value: wins + losses + ties > 0 ? recordLabel : '—', sub: 'imported Sleeper leagues' },
+    { label: 'Record', value: wins + losses + ties > 0 ? recordLabel : '—', sub: 'imported leagues (all connected providers)' },
     { label: 'Win Rate', value: `${rank.winRate.toFixed(1)}%`, sub: 'career average' },
     {
-      label: 'Playoff appearances',
+      label: 'Playoffs',
       value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
-      sub: 'seasons qualified',
+      sub: 'appearances (qualified seasons)',
     },
-    { label: 'Playoff Rate', value: `${rank.playoffRate.toFixed(0)}%`, sub: 'of league seasons' },
-    { label: 'Championships', value: String(rank.championshipCount), sub: 'total titles' },
-    { label: 'Seasons played', value: String(rank.seasonsPlayed), sub: 'distinct seasons' },
+    { label: 'Playoff rate', value: `${rank.playoffRate.toFixed(0)}%`, sub: 'of league seasons' },
+    { label: 'Titles', value: String(rank.championshipCount), sub: 'championships' },
+    { label: 'Seasons', value: String(rank.seasonsPlayed), sub: 'distinct seasons played' },
   ]
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5">
-      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Career Stats</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5 sm:p-6">
+      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Career Stats</p>
+      {/* 1 col → 2 from sm → 3 only xl+ so cards stay wide; avoids cramped 3-up on tablets */}
+      <div className="grid grid-cols-1 min-[400px]:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
         {stats.map((item) => (
-          <div key={item.label} className="rounded-xl border border-white/6 bg-white/[0.03] p-3">
-            <div className="text-xl font-bold text-white" style={{ color: cfg.color }}>
+          <div
+            key={item.label}
+            className="flex min-w-0 flex-col rounded-xl border border-white/6 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5"
+          >
+            <div
+              className="text-[clamp(1.25rem,3.2vw,2rem)] font-extrabold tabular-nums leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-[clamp(1.35rem,2.8vw,2.25rem)]"
+              style={{ color: cfg.color }}
+            >
               {item.value}
             </div>
-            <div className="text-[11px] font-semibold text-white/70 mt-0.5">{item.label}</div>
-            <div className="text-[10px] text-white/30">{item.sub}</div>
+            <div className="mt-3 space-y-1">
+              <div className="text-xs font-semibold leading-snug text-white/80">{item.label}</div>
+              <div className="text-[11px] leading-relaxed text-white/45">{item.sub}</div>
+            </div>
           </div>
         ))}
       </div>
@@ -634,8 +527,9 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
   const cfg = getTierConfig(rank)
   const xp = Number(rank.careerXp)
   const lv = getLevelFromXp(xp)
+  const effectiveLevel = lv.level
   const xpProgress = lv.progressPct
-  const nextRow = RANK_LEVELS.find((r) => r.level === rank.careerLevel + 1)
+  const nextRow = RANK_LEVELS.find((r) => r.level === effectiveLevel + 1)
   const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xp) : 0
 
   return (
@@ -658,7 +552,7 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
 
           <div className="max-w-xs sm:max-w-sm mx-auto sm:mx-0">
             <div className="flex justify-between text-[11px] text-white/40 mb-1.5">
-              <span>Level {rank.careerLevel}</span>
+              <span>Level {effectiveLevel}</span>
               <span>{xp.toLocaleString()} XP</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -674,7 +568,7 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
             <div className="text-[10px] text-white/30 mt-1 text-right">
               {nextRow
                 ? `${xpToNext.toLocaleString()} XP to ${nextRow.name}`
-                : rank.careerLevel >= 25
+                : effectiveLevel >= 25
                   ? 'Max level reached'
                   : '—'}
             </div>
@@ -762,27 +656,58 @@ function RankImportTimeoutState() {
   )
 }
 
-function LevelJourneyStrip({ currentLevel }: { currentLevel: number }) {
+function LevelJourneyStrip({
+  currentLevel,
+  cardBgColor,
+}: {
+  currentLevel: number
+  /** Matches rank card background so ring-offset reads as part of the card (e.g. lavender tier tints). */
+  cardBgColor?: string
+}) {
+  const lv = Math.min(25, Math.max(1, Math.round(Number(currentLevel)) || 1))
+  const offsetBg = (cardBgColor && cardBgColor.trim()) || '#f1efe8'
   return (
-    <div className="mt-5">
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/35">Level journey</p>
-      <div className="flex gap-1 overflow-x-auto pb-2 pt-0.5 [scrollbar-width:thin]">
+    <div className="mt-6 w-full min-w-0 overflow-visible pb-1">
+      <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0a0a12]/45">Level journey</p>
+        <p className="text-[11px] font-bold tabular-nums text-[#0a0a12]/80">
+          You are <span className="text-[#0a0a12]">Level {lv}</span>
+        </p>
+      </div>
+
+      {/* flex + flex-1 distributes space so all 25 segments span the full card width */}
+      <div
+        className="flex w-full min-w-0 gap-0.5 sm:gap-1"
+        role="list"
+        aria-label={`Levels 1 through 25, current level ${lv}`}
+      >
         {RANK_LEVELS.map((row) => {
-          const done = row.level < currentLevel
-          const active = row.level === currentLevel
+          const done = row.level < lv
+          const active = row.level === lv
           return (
             <div
               key={row.level}
+              role="listitem"
               title={`${row.level}. ${row.name}`}
-              className="flex h-9 min-w-[2.25rem] shrink-0 flex-col items-center justify-center rounded-lg border text-[9px] font-bold"
+              aria-current={active ? 'step' : undefined}
+              className={`relative flex min-h-[2.35rem] min-w-0 flex-1 flex-col items-center justify-center rounded-md border text-[9px] font-extrabold leading-none transition-all duration-200 sm:min-h-[2.75rem] sm:rounded-lg sm:text-[11px] ${
+                active ? 'z-[1] border-[#0a0a12]/30 shadow-lg' : 'border-black/10'
+              }`}
               style={{
-                borderColor: active ? row.color : 'rgba(255,255,255,0.08)',
-                background: done ? `${row.color}35` : active ? `${row.color}22` : 'rgba(255,255,255,0.03)',
-                color: active ? row.color : done ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)',
-                boxShadow: active ? `0 0 0 1px ${row.color}55` : undefined,
+                background: done
+                  ? `${row.color}55`
+                  : active
+                    ? `${row.color}dd`
+                    : 'rgba(255,255,255,0.4)',
+                color: active ? '#0a0a12' : done ? 'rgba(10,10,18,0.88)' : 'rgba(10,10,18,0.3)',
+                // Stacked rings: inner accent, gap filled with card bg (replaces generic ring-offset-white)
+                boxShadow: active
+                  ? `0 0 0 1px ${row.color}, 0 0 0 3px ${offsetBg}, 0 0 0 4px rgba(10,10,18,0.22), 0 8px 18px -4px ${row.color}99`
+                  : undefined,
+                transform: active ? 'translateY(-2px) scale(1.07)' : undefined,
               }}
             >
-              <span className="leading-none">{row.level}</span>
+              <span className="tabular-nums">{row.level}</span>
             </div>
           )
         })}
@@ -868,7 +793,7 @@ function TwentyFiveLevelRankCard({ payload }: { payload: RankLevelApiPayload }) 
         ))}
       </div>
 
-      <LevelJourneyStrip currentLevel={payload.level} />
+      <LevelJourneyStrip currentLevel={payload.level} cardBgColor={payload.bgColor} />
     </div>
   )
 }
@@ -940,7 +865,7 @@ function EmptyRankState({ onImported }: { onImported: () => void }) {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        <ImportPanel onImportSuccess={onImported} />
+        <LegacyRankingsImportPanel onImportSuccess={onImported} />
 
         <div className="space-y-4">
           <RankingSystemOverview />
@@ -988,6 +913,7 @@ function FullRankView({
         <div className="space-y-4">
           <CareerStats rank={rank} />
           <LeagueAccessRules rank={rank} />
+          <RankingFaqPanel currentLevel={rank.careerLevel} />
         </div>
 
         <div className="space-y-4">
@@ -1042,6 +968,57 @@ function FullRankView({
   )
 }
 
+/** Immediate chrome + skeletons so the tab feels fast while `/api/user/rank` runs. */
+function RankingsLoadingShell() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <Link
+            href="/dashboard"
+            className="group mb-5 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-white/35 transition-colors hover:text-cyan-300"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-3 w-3 transition-transform group-hover:-translate-x-0.5"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Dashboard
+          </Link>
+          <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">My Rankings</h1>
+          <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
+            Your AllFantasy rank, AI grade, import flow, and league access rules in one place.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center gap-3 pb-6 sm:flex-row sm:justify-center sm:pb-8">
+          <div className="h-10 w-10 shrink-0 animate-spin rounded-full border-2 border-violet-500/40 border-t-violet-500" />
+          <p className="text-sm text-white/45">Loading your rank…</p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <div className="h-36 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+            <div className="h-44 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          </div>
+          <div className="space-y-4">
+            <div className="h-56 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+            <div className="h-36 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+            <div className="h-32 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function MyRankingsPageInner() {
   const { data: session } = useSession()
   const router = useRouter()
@@ -1058,9 +1035,9 @@ function MyRankingsPageInner() {
   const [apiImported, setApiImported] = useState(false)
   const [apiTier, setApiTier] = useState<string | null>(null)
   const [levelRank, setLevelRank] = useState<RankLevelApiPayload | null>(null)
-  const justImported = searchParams.get('imported') === 'true'
-  const importDone = searchParams.get('done') === 'true'
-  const jobIdParam = searchParams.get('jobId')
+  const justImported = searchParams?.get('imported') === 'true'
+  const importDone = searchParams?.get('done') === 'true'
+  const jobIdParam = searchParams?.get('jobId')
   const [jobProgress, setJobProgress] = useState<ImportJobProgressResponse | null>(null)
   const [jobProgressError, setJobProgressError] = useState<string | null>(null)
   const [importPhasedSuccess, setImportPhasedSuccess] = useState<{
@@ -1069,7 +1046,7 @@ function MyRankingsPageInner() {
     finalLevel: number | null
   } | null>(null)
   const [importPhasedBannerDismissed, setImportPhasedBannerDismissed] = useState(false)
-  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams.get('jobId')))
+  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams?.get('jobId')))
   const [showLevelUpBurst, setShowLevelUpBurst] = useState(false)
   const [importStuck, setImportStuck] = useState(false)
   const completedJobHandledRef = useRef<string | null>(null)
@@ -1080,7 +1057,10 @@ function MyRankingsPageInner() {
     const silent = opts?.silent === true
     if (!silent) setLoading(true)
     try {
-      const response = await fetch('/api/user/rank', { cache: 'no-store' })
+      const response = await fetch('/api/user/rank', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
       const data = (await response.json().catch(() => ({}))) as RankResponse
       if (response.ok) {
         setRankFetchError(false)
@@ -1286,18 +1266,7 @@ function MyRankingsPageInner() {
   const hideRankForPhasedImport = importRankHidden
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f]">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center min-h-[420px]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 rounded-full border-2 border-violet-500/40 border-t-violet-500 animate-spin" />
-              <p className="text-sm text-white/40">Loading your rank...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return <RankingsLoadingShell />
   }
 
   return (
@@ -1472,19 +1441,9 @@ function MyRankingsPageInner() {
 
 export default function MyRankingsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f]">
-          <div className="mx-auto flex min-h-[420px] max-w-7xl items-center justify-center px-4 py-10">
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-10 w-10 animate-spin rounded-full border-2 border-violet-500/40 border-t-violet-500" />
-              <p className="text-sm text-white/40">Loading…</p>
-            </div>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<RankingsLoadingShell />}>
       <MyRankingsPageInner />
     </Suspense>
   )
 }
+

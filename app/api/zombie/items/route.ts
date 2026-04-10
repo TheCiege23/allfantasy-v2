@@ -10,8 +10,8 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
-  const userId = searchParams.get('userId')
+  const leagueId = searchParams?.get('leagueId')
+  const userId = searchParams?.get('userId')
   if (!leagueId || !userId) return NextResponse.json({ error: 'leagueId and userId required' }, { status: 400 })
 
   const roster = await prisma.roster.findFirst({
@@ -69,3 +69,4 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true })
 }
+

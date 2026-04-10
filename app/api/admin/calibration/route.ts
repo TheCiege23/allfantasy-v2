@@ -16,12 +16,12 @@ export const GET = withApiUsage({ endpoint: "/api/admin/calibration", tool: "Adm
   try {
     if (!isAuthorizedRequest(request)) return adminUnauthorized()
 
-    const daysBack = parseInt(request.nextUrl.searchParams.get('days') || '30')
+    const daysBack = parseInt(request.nextUrl.searchParams?.get('days') || '30')
     const clampedDays = Math.min(Math.max(daysBack, 1), 365)
-    const mode = request.nextUrl.searchParams.get('mode') || undefined
-    const segment = request.nextUrl.searchParams.get('segment') || undefined
-    const drilldownKey = request.nextUrl.searchParams.get('drilldownKey') || undefined
-    const drilldownValue = request.nextUrl.searchParams.get('drilldownValue') || undefined
+    const mode = request.nextUrl.searchParams?.get('mode') || undefined
+    const segment = request.nextUrl.searchParams?.get('segment') || undefined
+    const drilldownKey = request.nextUrl.searchParams?.get('drilldownKey') || undefined
+    const drilldownValue = request.nextUrl.searchParams?.get('drilldownValue') || undefined
 
     if (drilldownKey && drilldownValue) {
       const drilldown = await computeDrilldown(clampedDays, drilldownKey, drilldownValue)
@@ -63,3 +63,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/calibration", tool: "Adm
     return NextResponse.json({ error: 'Failed to compute calibration dashboard' }, { status: 500 })
   }
 })
+

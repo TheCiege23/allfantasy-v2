@@ -7,11 +7,13 @@ import { getTrendFeedItemForPlayer } from '@/lib/player-trend/TrendDetectionServ
 import { getTrendAIInsight } from '@/lib/player-trend/TrendDetectionAI'
 import { isSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const playerId = searchParams.get('playerId')?.trim()
-    const sport = searchParams.get('sport')?.trim()
+    const playerId = searchParams?.get('playerId')?.trim()
+    const sport = searchParams?.get('sport')?.trim()
 
     if (!playerId || !sport) {
       return NextResponse.json(
@@ -47,3 +49,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

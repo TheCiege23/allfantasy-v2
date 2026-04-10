@@ -30,7 +30,7 @@ export async function getScoringTemplate(
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
   const template = await prisma.scoringTemplate.findUnique({
     where: {
-      uniq_scoring_template_sport_format: { sportType: sport, formatType },
+      sportType_formatType: { sportType: sport, formatType },
     },
     include: { rules: true },
   })

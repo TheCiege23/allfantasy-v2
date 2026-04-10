@@ -16,6 +16,8 @@ import {
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 type WarehouseView =
   | 'summary'
   | 'matchups'
@@ -35,19 +37,19 @@ function parseOptionalInt(value: string | null): number | undefined {
 
 export async function GET(request: NextRequest) {
   try {
-    const leagueId = request.nextUrl.searchParams.get('leagueId')
+    const leagueId = request.nextUrl.searchParams?.get('leagueId')
     if (!leagueId) {
       return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
     }
 
-    const view = (request.nextUrl.searchParams.get('view') ?? 'summary') as WarehouseView
-    const sportParam = request.nextUrl.searchParams.get('sport')
-    const season = parseOptionalInt(request.nextUrl.searchParams.get('season'))
-    const fromWeek = parseOptionalInt(request.nextUrl.searchParams.get('fromWeek'))
-    const toWeek = parseOptionalInt(request.nextUrl.searchParams.get('toWeek'))
-    const teamId = request.nextUrl.searchParams.get('teamId') ?? undefined
-    const playerId = request.nextUrl.searchParams.get('playerId') ?? undefined
-    const limit = parseOptionalInt(request.nextUrl.searchParams.get('limit')) ?? 100
+    const view = (request.nextUrl.searchParams?.get('view') ?? 'summary') as WarehouseView
+    const sportParam = request.nextUrl.searchParams?.get('sport')
+    const season = parseOptionalInt(request.nextUrl.searchParams?.get('season'))
+    const fromWeek = parseOptionalInt(request.nextUrl.searchParams?.get('fromWeek'))
+    const toWeek = parseOptionalInt(request.nextUrl.searchParams?.get('toWeek'))
+    const teamId = request.nextUrl.searchParams?.get('teamId') ?? undefined
+    const playerId = request.nextUrl.searchParams?.get('playerId') ?? undefined
+    const limit = parseOptionalInt(request.nextUrl.searchParams?.get('limit')) ?? 100
 
     const summary = await getLeagueHistorySummary(leagueId, {
       season,
@@ -208,3 +210,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

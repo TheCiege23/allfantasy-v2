@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    const username = req.nextUrl.searchParams.get('sleeper_username')
+    const username = req.nextUrl.searchParams?.get('sleeper_username')
     if (!username) {
       return NextResponse.json({ error: 'Missing username' }, { status: 400 })
     }
@@ -67,3 +67,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, preferred_style: null, preferred_platform: null })
   }
 }
+

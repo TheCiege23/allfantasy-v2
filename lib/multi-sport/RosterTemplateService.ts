@@ -421,7 +421,7 @@ export async function getRosterTemplate(
   }
   const template = await prisma.rosterTemplate.findUnique({
     where: {
-      uniq_roster_template_sport_format: { sportType: sport, formatType: normalizedFormat },
+      sportType_formatType: { sportType: sport, formatType: normalizedFormat },
     },
     include: { slots: { orderBy: { slotOrder: 'asc' } } },
   })

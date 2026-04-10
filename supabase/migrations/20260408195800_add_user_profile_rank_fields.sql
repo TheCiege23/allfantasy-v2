@@ -1,0 +1,11 @@
+ALTER TABLE "user_profiles"
+ADD COLUMN IF NOT EXISTS "rank_tier" TEXT,
+ADD COLUMN IF NOT EXISTS "xp_total" BIGINT,
+ADD COLUMN IF NOT EXISTS "xp_level" INTEGER,
+ADD COLUMN IF NOT EXISTS "rank_calculated_at" TIMESTAMP(3),
+ADD COLUMN IF NOT EXISTS "career_wins" INTEGER,
+ADD COLUMN IF NOT EXISTS "career_losses" INTEGER,
+ADD COLUMN IF NOT EXISTS "career_championships" INTEGER,
+ADD COLUMN IF NOT EXISTS "career_playoff_appearances" INTEGER,
+ADD COLUMN IF NOT EXISTS "career_seasons_played" INTEGER,
+ADD COLUMN IF NOT EXISTS "career_leagues_played" INTEGER;

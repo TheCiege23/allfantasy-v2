@@ -41,6 +41,11 @@ const clientSecret =
   process.env.ROLLING_INSIGHTS_OAUTH_CLIENT_SECRET ??
   ''
 
+const existingRscToken =
+  process.env.ROLLING_INSIGHTS_RSC_TOKEN ??
+  process.env.RSC_TOKEN ??
+  ''
+
 if (!clientId || !clientSecret) {
   console.error('❌ Could not find Rolling Insights client_id or client_secret in env')
   console.error('   Checked: ROLLING_INSIGHTS_CLIENT_ID, RI_CLIENT_ID, ROLLING_INSIGHTS_OAUTH_CLIENT_ID')
@@ -87,6 +92,117 @@ async function tryDiscovery(): Promise<string | null> {
 
 function maskToken(t: string): string {
   return `${String(t).slice(0, 20)}...`
+}
+
+function extractArrayPayload(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data
+  if (!data || typeof data !== 'object') return []
+  const record = data as Record<string, unknown>
+  const candidates = [record.players, record.data, record.results, record.items]
+  for (const c of candidates) {
+    if (Array.isArray(c)) return c
+  }
+  return []
+}
+
+interface RestProbeResult {
+  url: string
+  queryTokenKey: 'RSC_token' | 'rsc_token'
+  status: number
+  ok: boolean
+  count: number
+  sample?: string
+}
+
+async function probeRestPlayers(token: string): Promise<RestProbeResult[]> {
+  const endpoints = [
+    'https://rest.datafeeds.rolling-insights.com/api/v1/players/NFL',
+    'http://rest.datafeeds.rolling-insights.com/api/v1/players/NFL',
+    'https://rest.datafeeds.rolling-insights.com/api/v1/NFL/players',
+    'http://rest.datafeeds.rolling-insights.com/api/v1/NFL/players',
+  ]
+
+  const tokenKeys: Array<'RSC_token' | 'rsc_token'> = ['RSC_token', 'rsc_token']
+  const out: RestProbeResult[] = []
+
+  for (const endpoint of endpoints) {
+    for (const key of tokenKeys) {
+      try {
+        const url = new URL(endpoint)
+        url.searchParams.set(key, token)
+        const res = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(FETCH_MS),
+        })
+        const text = await res.text()
+        let count = 0
+        let sample: string | undefined
+        if (res.ok) {
+          try {
+            const json = JSON.parse(text) as unknown
+            const arr = extractArrayPayload(json)
+            count = arr.length
+            if (arr[0]) sample = JSON.stringify(arr[0]).slice(0, 140)
+          } catch {
+            // non-JSON success body
+          }
+        }
+
+        out.push({
+          url: endpoint,
+          queryTokenKey: key,
+          status: res.status,
+          ok: res.ok,
+          count,
+          sample,
+        })
+      } catch {
+        out.push({
+          url: endpoint,
+          queryTokenKey: key,
+          status: 0,
+          ok: false,
+          count: 0,
+        })
+      }
+    }
+  }
+
+  return out
+}
+
+async function probeGraphqlNflRoster(token: string): Promise<{ status: number; ok: boolean; count: number }> {
+  const urls = [
+    'https://datafeeds.rolling-insights.com/graphql',
+    'https://rest.datafeeds.rolling-insights.com/graphql',
+  ]
+  const query = '{ nflRoster { id player } }'
+
+  for (const endpoint of urls) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ query }),
+        signal: AbortSignal.timeout(FETCH_MS),
+      })
+      if (!res.ok) continue
+      const json = (await res.json()) as { data?: { nflRoster?: unknown[] } }
+      return {
+        status: res.status,
+        ok: true,
+        count: Array.isArray(json.data?.nflRoster) ? json.data!.nflRoster!.length : 0,
+      }
+    } catch {
+      // try next endpoint
+    }
+  }
+
+  return { status: 0, ok: false, count: 0 }
 }
 
 async function tryTokenEndpoint(endpoint: string): Promise<string | null> {
@@ -152,27 +268,40 @@ async function tryTokenEndpoint(endpoint: string): Promise<string | null> {
 }
 
 async function testRscToken(token: string) {
-  console.log('\n🏈 Testing RSC token against Rolling Insights NFL player endpoint...')
-  const url = `http://rest.datafeeds.rolling-insights.com/api/v1/players/NFL?RSC_token=${encodeURIComponent(token)}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_MS) })
-  const text = await res.text()
-  if (res.ok) {
-    const data = JSON.parse(text) as unknown
-    const players = Array.isArray(data)
-      ? data
-      : data && typeof data === 'object' && 'players' in (data as object)
-        ? (data as { players: unknown }).players
-        : Object.values(data as Record<string, unknown>)
-    const arr = Array.isArray(players) ? players : []
-    const first = arr[0]
-    console.log(`✅ NFL Player API SUCCESS! Total players: ${arr.length}`)
-    if (first) console.log(`   Sample player: ${JSON.stringify(first).slice(0, 150)}`)
+  console.log('\n🏈 Probing REST player endpoints with RSC token...')
+  const rest = await probeRestPlayers(token)
+  let anyRestSuccess = false
+  for (const row of rest) {
+    if (row.ok) {
+      anyRestSuccess = true
+      console.log(`✅ REST ${row.status} ${row.url} (${row.queryTokenKey}) count=${row.count}`)
+      if (row.sample) console.log(`   Sample: ${row.sample}`)
+    } else {
+      console.log(`❌ REST ${row.status} ${row.url} (${row.queryTokenKey})`)
+    }
+  }
+
+  console.log('\n🏈 Probing GraphQL nflRoster fallback...')
+  const gql = await probeGraphqlNflRoster(token)
+  if (gql.ok) {
+    console.log(`✅ GraphQL nflRoster SUCCESS (${gql.status}) count=${gql.count}`)
   } else {
-    console.log(`❌ Player API failed (${res.status}): ${text.slice(0, 300)}`)
+    console.log('❌ GraphQL nflRoster failed')
+  }
+
+  if (!anyRestSuccess && !gql.ok) {
+    console.log('\n⚠️ Token accepted by auth flow but data probes did not return usable payloads.')
+    console.log('   This typically indicates endpoint mismatch or token scope/entitlement limits.')
   }
 }
 
 async function main() {
+  if (existingRscToken) {
+    console.log(`\n✅ Using existing RSC token from env: ${maskToken(existingRscToken)}`)
+    await testRscToken(existingRscToken)
+    return
+  }
+
   const discoveredEndpoint = await tryDiscovery()
   const allEndpoints = discoveredEndpoint
     ? [discoveredEndpoint, ...TOKEN_ENDPOINTS]

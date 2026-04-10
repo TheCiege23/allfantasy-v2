@@ -11,7 +11,15 @@ import {
 } from './dynasty-tiers';
 import { getComprehensiveLearningContext } from './comprehensive-trade-learning';
 import { fetchPlayerNewsFromGrok } from './ai-gm-intelligence';
-import { getTradedDraftPicks, SleeperDraftPick } from './sleeper-client';
+import {
+  getAllPlayers,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueTransactions,
+  getLeagueUsers,
+  getTradedDraftPicks,
+  SleeperDraftPick,
+} from './sleeper-client';
 import { computeManagerTendencies, type ManagerTendencyProfile } from './trade-engine/manager-tendency-engine';
 
 const CACHE_FRESHNESS_HOURS = 4;
@@ -127,9 +135,7 @@ function extractManagerDataFromCache(raw: unknown): { profiles: ManagerProfile[]
 
 async function fetchSleeperLeagueInfo(leagueId: string) {
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}`);
-    if (!res.ok) return null;
-    return await res.json();
+    return await getLeagueInfo(leagueId);
   } catch {
     return null;
   }
@@ -137,9 +143,7 @@ async function fetchSleeperLeagueInfo(leagueId: string) {
 
 async function fetchSleeperRosters(leagueId: string) {
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
-    if (!res.ok) return [];
-    return await res.json();
+    return await getLeagueRosters(leagueId);
   } catch {
     return [];
   }
@@ -147,9 +151,7 @@ async function fetchSleeperRosters(leagueId: string) {
 
 async function fetchSleeperUsers(leagueId: string): Promise<Map<string, { displayName: string; username: string }>> {
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-    if (!res.ok) return new Map();
-    const users = await res.json();
+    const users = await getLeagueUsers(leagueId);
     
     const userMap = new Map<string, { displayName: string; username: string }>();
     for (const u of users) {
@@ -185,11 +187,8 @@ async function fetchSleeperTransactions(leagueId: string, season: string): Promi
   
   for (let week = 1; week <= 18; week++) {
     try {
-      const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${week}`);
-      if (res.ok) {
-        const transactions = await res.json();
-        allTransactions.push(...transactions.filter((t: { type: string }) => t.type === 'trade'));
-      }
+      const transactions = await getLeagueTransactions(leagueId, week);
+      allTransactions.push(...transactions.filter((t: { type: string }) => t.type === 'trade'));
     } catch {
       continue;
     }
@@ -867,7 +866,7 @@ export async function runPreAnalysis(
       fetchSleeperLeagueInfo(sleeperLeagueId),
       fetchSleeperRosters(sleeperLeagueId),
       fetchSleeperUsers(sleeperLeagueId),
-      fetch('https://api.sleeper.app/v1/players/nfl').then(r => r.ok ? r.json() : {}),
+      getAllPlayers(),
     ]);
     
     if (!leagueInfo) {

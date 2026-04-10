@@ -30,7 +30,7 @@ export async function GET(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const { leagueId } = await params;
-  const weekParam = req.nextUrl.searchParams.get('week');
+  const weekParam = req.nextUrl.searchParams?.get('week');
   const week = weekParam ? parseInt(weekParam, 10) : undefined;
 
   if (!leagueId) {
@@ -70,7 +70,7 @@ export async function POST(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const { leagueId } = await params;
-  const weekParam = req.nextUrl.searchParams.get('week');
+  const weekParam = req.nextUrl.searchParams?.get('week');
   const week = weekParam ? parseInt(weekParam, 10) : undefined;
 
   if (!leagueId) {

@@ -21,9 +21,9 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : undefined
-    const limitParam = url.searchParams.get('limit')
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 100, 300) : 100
 
     const evidence = await listProfileEvidence(profileId, {

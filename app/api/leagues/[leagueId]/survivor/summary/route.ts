@@ -45,7 +45,7 @@ export async function GET(
   const isSurvivor = await isSurvivorLeague(leagueId)
   if (!isSurvivor) return NextResponse.json({ error: 'Not a survivor league' }, { status: 404 })
 
-  const weekParam = req.nextUrl.searchParams.get('week')
+  const weekParam = req.nextUrl.searchParams?.get('week')
   const requestedWeek = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : null
   const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
 

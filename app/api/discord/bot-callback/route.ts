@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/login?callbackUrl=/settings', BASE))
   }
 
-  const guildId = req.nextUrl.searchParams.get('guild_id')?.trim()
+  const guildId = req.nextUrl.searchParams?.get('guild_id')?.trim()
   if (!guildId) {
     return NextResponse.redirect(new URL('/settings?discord=bot-error', BASE))
   }
@@ -29,3 +29,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(new URL('/settings?discord=bot-linked', BASE))
 }
+

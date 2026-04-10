@@ -34,7 +34,7 @@ export async function GET(
   if (!isIdp) return NextResponse.json({ error: 'Not an IDP league' }, { status: 404 })
 
   const { searchParams } = new URL(req.url)
-  const limit = Math.min(Number(searchParams.get('limit')) || 50, 100)
+  const limit = Math.min(Number(searchParams?.get('limit')) || 50, 100)
 
   const [claims, transactions] = await Promise.all([
     prisma.waiverClaim.findMany({

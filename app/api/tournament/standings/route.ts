@@ -12,12 +12,12 @@ export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
-  const tournamentId = req.nextUrl.searchParams.get('tournamentId')?.trim()
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const roundNumber = req.nextUrl.searchParams.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams.get('participantId')?.trim()
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
+  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
 
   const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
   if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     },
   })
 
-  const weekRaw = req.nextUrl.searchParams.get('week')?.trim()
+  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
   if (weekRaw != null && weekRaw !== '') {
     const w = parseInt(weekRaw, 10)
     if (!Number.isFinite(w)) {
@@ -96,3 +96,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ round, leagues })
 }
+

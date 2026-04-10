@@ -19,7 +19,7 @@ const TABS = [
 ] as const
 
 export default function BracketTopNav() {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
 
   return (
     <div className="flex gap-2 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">

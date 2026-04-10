@@ -9,6 +9,8 @@ interface BracketMessageRow {
   id: string
   message: string
   type?: string
+  imageUrl?: string | null
+  replyToId?: string | null
   createdAt: Date | string
   metadata?: Record<string, unknown> | null
   reactions?: Array<{ emoji?: string | null; userId?: string | null; user?: { id?: string | null } | null }>
@@ -51,22 +53,26 @@ export function bracketMessagesToPlatform(
       m.metadata && typeof m.metadata === "object" && !Array.isArray(m.metadata)
         ? m.metadata
         : undefined
-    const metadata =
-      reactionEntries.length > 0
-        ? { ...(baseMetadata ?? {}), reactions: reactionEntries }
-        : baseMetadata
+    const metadata = {
+      ...(baseMetadata ?? {}),
+      ...(m.imageUrl ? { imageUrl: m.imageUrl } : {}),
+      ...(reactionEntries.length > 0 ? { reactions: reactionEntries } : {}),
+    }
+    const normalizedMetadata = Object.keys(metadata).length > 0 ? metadata : undefined
+    const isDeleted = Boolean((normalizedMetadata as Record<string, unknown> | undefined)?.deletedAt)
     return {
       id: m.id,
       threadId,
+      parentMessageId: m.replyToId ?? null,
       senderUserId: m.user?.id ?? null,
       senderName: m.user?.displayName || m.user?.email || "User",
       senderUsername: m.user?.username ?? null,
       senderAvatarUrl: m.user?.avatarUrl ?? null,
       senderAvatarPreset: m.user?.profile?.avatarPreset ?? null,
       messageType: m.type || "text",
-      body: m.message || "",
+      body: isDeleted ? "[message deleted]" : m.message || "",
       createdAt: typeof m.createdAt === "string" ? m.createdAt : new Date(m.createdAt).toISOString(),
-      metadata,
+      metadata: normalizedMetadata,
     }
   })
 }

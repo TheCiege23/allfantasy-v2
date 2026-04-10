@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic"
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url)
-    const sportParam = url.searchParams.get("sport")
+    const sportParam = url.searchParams?.get("sport")
     const sport =
       sportParam == null
         ? undefined
@@ -22,14 +22,14 @@ export async function GET(req: Request) {
     if (sport === null) {
       return NextResponse.json({ error: "Invalid sport" }, { status: 400 })
     }
-    const cosmeticCategory = url.searchParams.get("cosmeticCategory") ?? undefined
+    const cosmeticCategory = url.searchParams?.get("cosmeticCategory") ?? undefined
     if (
       cosmeticCategory &&
       !(COSMETIC_CATEGORIES as readonly string[]).includes(cosmeticCategory)
     ) {
       return NextResponse.json({ error: "Invalid cosmeticCategory" }, { status: 400 })
     }
-    const limitParam = url.searchParams.get("limit")
+    const limitParam = url.searchParams?.get("limit")
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 200) : 100
 
     const items = sport
@@ -44,3 +44,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

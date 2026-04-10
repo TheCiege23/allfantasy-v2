@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DISCORD_CLIENT_ID } from '@/lib/discord/constants'
+import { decrypt } from '@/lib/league-auth-crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,16 @@ export async function POST() {
     select: { discordAccessToken: true },
   })
 
-  const token = profile?.discordAccessToken
+  const token = (() => {
+    const raw = profile?.discordAccessToken
+    if (!raw) return null
+    try {
+      return decrypt(raw)
+    } catch {
+      // Backward compatibility for previously stored plain tokens.
+      return raw
+    }
+  })()
   const secret = process.env.DISCORD_CLIENT_SECRET
 
   if (token && secret) {

@@ -25,14 +25,14 @@ export interface GameScheduleInput {
  */
 export async function upsertGameSchedule(input: GameScheduleInput): Promise<string> {
   const sport = (input.sportType as string).toUpperCase()
-  const row = await prisma.gameSchedule.upsert({
-    where: {
-      uniq_game_schedule_sport_season_week_external: {
-        sportType: sport,
-        season: input.season,
-        weekOrRound: input.weekOrRound,
-        externalId: input.externalId,
-      },
+    const row = await prisma.gameSchedule.upsert({
+      where: {
+      sportType_season_weekOrRound_externalId: {
+          sportType: sport,
+          season: input.season,
+          weekOrRound: input.weekOrRound,
+          externalId: input.externalId,
+        },
     },
     update: {
       homeTeamId: input.homeTeamId ?? undefined,

@@ -84,7 +84,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/manager-dna", tool: "Le
   }
 
   const url = new URL(req.url)
-  const parsed = GetSchema.safeParse({ username: url.searchParams.get('username') })
+  const parsed = GetSchema.safeParse({ username: url.searchParams?.get('username') })
   if (!parsed.success) {
     return NextResponse.json({ error: 'Missing username parameter' }, { status: 400 })
   }
@@ -112,3 +112,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/manager-dna", tool: "Le
     )
   }
 })
+

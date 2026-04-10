@@ -341,7 +341,7 @@ export async function classifyDraftStatus(rosterYear: number): Promise<Classific
   console.log('[ClassifyStatus] Building NFL player index from Sleeper...')
   let nflNameMap = new Map<string, { id: string; team: string; position: string; status: string; yearsExp: number }>()
   try {
-    const sleeperRes = await fetch('https://api.sleeper.app/v1/players/nfl')
+    const sleeperRes = await fetch('https://api.sleeper.app/v1/players/nfl') // db-first-exception: devy backfill utility path pending DB mirror
     if (sleeperRes.ok) {
       const nflPlayers: Record<string, any> = await sleeperRes.json()
       for (const [id, p] of Object.entries(nflPlayers)) {

@@ -31,6 +31,7 @@ const SPORTS_ACTIVE_PREFIXES = [
 
 export default function MobileBottomTabs() {
   const pathname = usePathname()
+  const currentPath = pathname ?? ""
 
   return (
     <nav
@@ -42,10 +43,10 @@ export default function MobileBottomTabs() {
     >
       <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
         {MOBILE_BOTTOM_TABS.map((item) => {
-          const active =
-            item.label === "Sports"
-              ? isNavItemActive(pathname, item.href) || SPORTS_ACTIVE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-              : isNavItemActive(pathname, item.href)
+            const active =
+              item.label === "Sports"
+                ? isNavItemActive(currentPath, item.href) || SPORTS_ACTIVE_PREFIXES.some((prefix) => currentPath.startsWith(prefix))
+                : isNavItemActive(currentPath, item.href)
           const Icon = item.icon
           return (
             <Link

@@ -15,10 +15,10 @@ export async function GET(
     const { leagueId, profileId } = await ctx.params
     if (!profileId) return NextResponse.json({ error: 'Missing profileId' }, { status: 400 })
     const url = new URL(req.url)
-    const includeEvidence = url.searchParams.get('includeEvidence') === '1'
-    const limitParam = url.searchParams.get('limit')
+    const includeEvidence = url.searchParams?.get('includeEvidence') === '1'
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 100, 300) : 100
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : undefined
 
     const profile = await getProfileById(profileId)

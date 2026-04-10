@@ -5,11 +5,11 @@ import { prisma } from '@/lib/prisma'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/cfb-players", tool: "LegacyCfbPlayers" })(async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams
-  const action = searchParams.get('action') || 'search'
-  const query = searchParams.get('q') || searchParams.get('query')
-  const team = searchParams.get('team')
-  const username = searchParams.get('username')
-  const year = searchParams.get('year') ? parseInt(searchParams.get('year')!) : undefined
+  const action = searchParams?.get('action') || 'search'
+  const query = searchParams?.get('q') || searchParams?.get('query')
+  const team = searchParams?.get('team')
+  const username = searchParams?.get('username')
+  const year = searchParams?.get('year') ? parseInt(searchParams?.get('year')!) : undefined
 
   try {
     // Action: search - Search for CFB players by name
@@ -26,7 +26,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/cfb-players", tool: "Le
 
     // Action: values - Get devy values for specific players
     if (action === 'values') {
-      const playerNames = searchParams.get('players')?.split(',') || []
+      const playerNames = searchParams?.get('players')?.split(',') || []
       
       if (playerNames.length === 0) {
         return NextResponse.json({ error: 'No players specified' }, { status: 400 })
@@ -156,3 +156,4 @@ function calculateQuickDevyValue(position: string, classYear: number | null): nu
 
   return Math.round(value)
 }
+

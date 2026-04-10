@@ -11,6 +11,7 @@ import {
   normalizePosition,
   normalizeTeamAbbrev,
 } from '@/lib/team-abbrev'
+import { getPlayersBySport } from '@/lib/sleeper-client'
 
 const UPSERT_BATCH_SIZE = 100
 const SLEEPER_SOURCE = 'sleeper'
@@ -138,19 +139,7 @@ async function fetchSleeperPlayers(sport: SupportedSport): Promise<SeededPlayer[
     )
   }
 
-  const response = await fetch(`https://api.sleeper.app/v1/players/${endpointSport}`, {
-    method: 'GET',
-    cache: 'no-store',
-    headers: {
-      Accept: 'application/json',
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(`Sleeper players fetch failed for ${sport} (${response.status})`)
-  }
-
-  const payload = (await response.json()) as Record<string, SleeperPlayerRecord>
+  const payload = (await getPlayersBySport(endpointSport)) as unknown as Record<string, SleeperPlayerRecord>
   return Object.entries(payload)
     .map(([key, value]) => normalizeSleeperPlayer(sport, key, value))
     .filter((player): player is SeededPlayer => Boolean(player))

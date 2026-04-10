@@ -16,7 +16,7 @@ import type { ClipPayload } from '@/lib/social-clips/types';
 import { toast } from 'sonner';
 
 export default function ClipDetailPage() {
-  const params = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>() ?? ({} as { id: string });
   const id = params?.id ?? '';
   const [clip, setClip] = useState<{
     id: string;

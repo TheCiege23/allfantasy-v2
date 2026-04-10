@@ -364,8 +364,8 @@ test.describe('@monetization checkout click audit', () => {
     await expect(page.getByRole('heading', { name: 'AF Commissioner' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'AF War Room' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'AF All-Access' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Checkout monthly' })).toHaveCount(4)
-    await expect(page.getByRole('button', { name: 'Checkout yearly' })).toHaveCount(4)
+    await expect(page.getByRole('button', { name: 'Continue with Stripe — Monthly' })).toHaveCount(4)
+    await expect(page.getByRole('button', { name: 'Continue with Stripe — Yearly' })).toHaveCount(4)
     await expect(page.getByText('AllFantasy AI Tokens (5)')).toBeVisible()
     await expect(page.getByText('AllFantasy AI Tokens (10)')).toBeVisible()
     await expect(page.getByText('AllFantasy AI Tokens (25)')).toBeVisible()
@@ -444,7 +444,7 @@ test.describe('@monetization checkout click audit', () => {
       await expect(page.getByTestId('monetization-fancred-link')).toBeVisible()
       await expect(page.getByTestId('monetization-fancred-link')).toHaveAttribute(
         'href',
-        /fancred\.com/
+        /fancred\.app/
       )
       await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeVisible()
       await expect(page.getByTestId('pricing-subscription-cta-af_pro_monthly')).toBeEnabled()

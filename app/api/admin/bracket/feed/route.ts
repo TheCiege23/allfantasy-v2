@@ -22,11 +22,11 @@ export const GET = withApiUsage({
 
     const url = new URL(request.url)
     const params: QueryParams = {
-      tournamentId: url.searchParams.get("tournamentId") || undefined,
-      leagueId: url.searchParams.get("leagueId") || undefined,
-      eventType: url.searchParams.get("eventType") || undefined,
-      before: url.searchParams.get("before") || undefined,
-      limit: Number(url.searchParams.get("limit") || "50"),
+      tournamentId: url.searchParams?.get("tournamentId") || undefined,
+      leagueId: url.searchParams?.get("leagueId") || undefined,
+      eventType: url.searchParams?.get("eventType") || undefined,
+      before: url.searchParams?.get("before") || undefined,
+      limit: Number(url.searchParams?.get("limit") || "50"),
     }
 
     const limit = Math.max(1, Math.min(params.limit || 50, 200))
@@ -65,4 +65,5 @@ export const GET = withApiUsage({
     )
   }
 })
+
 

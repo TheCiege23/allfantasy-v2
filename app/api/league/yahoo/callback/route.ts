@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/leagues?error=yahoo_not_configured', req.url));
   }
 
-  const code = req.nextUrl.searchParams.get('code');
-  const state = req.nextUrl.searchParams.get('state');
-  const error = req.nextUrl.searchParams.get('error');
+  const code = req.nextUrl.searchParams?.get('code');
+  const state = req.nextUrl.searchParams?.get('state');
+  const error = req.nextUrl.searchParams?.get('error');
 
   if (error) {
     console.error('[Yahoo Callback] OAuth error:', error);
@@ -86,3 +86,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/leagues?error=auth_failed', req.url));
   }
 }
+

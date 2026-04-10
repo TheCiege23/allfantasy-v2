@@ -35,12 +35,12 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
   const { t } = useLanguage()
   const validSports = useMemo(() => new Set(sports.map((sport) => sport.slug)), [sports])
   const [sportFilter, setSportFilter] = useState<SportSlug | ''>(() => {
-    const sport = searchParams.get('sport')
+    const sport = searchParams?.get('sport')
     if (sport && validSports.has(sport as SportSlug)) return sport as SportSlug
     return ''
   })
   const [categoryFilter, setCategoryFilter] = useState<ToolCategoryId | 'all'>(() => {
-    const category = searchParams.get('category')
+    const category = searchParams?.get('category')
     if (category && CATEGORY_ORDER.includes(category as ToolCategoryId)) return category as ToolCategoryId
     return 'all'
   })
@@ -123,8 +123,8 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
       category: categoryFilter,
     })
 
-    const currentSport = searchParams.get('sport') || ''
-    const currentCategory = searchParams.get('category') || 'all'
+    const currentSport = searchParams?.get('sport') || ''
+    const currentCategory = searchParams?.get('category') || 'all'
     if (currentSport === (sportFilter || '') && currentCategory === categoryFilter) return
 
     if (typeof window !== 'undefined') {
@@ -510,3 +510,4 @@ export default function ToolsHubClient({ sports, tools }: ToolsHubClientProps) {
     </main>
   )
 }
+

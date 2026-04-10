@@ -30,7 +30,7 @@ export async function GET(
   }
 
   const { searchParams } = new URL(req.url)
-  const periodDays = Math.min(Math.max(Number(searchParams.get('period')) || 30, 1), 365)
+  const periodDays = Math.min(Math.max(Number(searchParams?.get('period')) || 30, 1), 365)
   const summary = await getCreatorAnalyticsSummary(creator.id, userId, periodDays, viewerEmail)
   if (!summary) return NextResponse.json({ error: 'Creator not found or access denied' }, { status: 404 })
 

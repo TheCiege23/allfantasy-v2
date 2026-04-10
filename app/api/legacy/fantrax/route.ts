@@ -154,7 +154,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "Legac
 export const GET = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "LegacyFantrax" })(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url)
-    const username = searchParams.get('username')
+    const username = searchParams?.get('username')
     
     if (!username) {
       return NextResponse.json({ error: 'Username is required' }, { status: 400 })
@@ -204,3 +204,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "Legacy
     }, { status: 500 })
   }
 })
+

@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { attributeSignup } from "@/lib/referral"
+import { attributeSignupFromLandingInviteToken } from "@/lib/dashboard/attributeSignupFromLandingInvite"
 import { recordAttribution } from "@/lib/viral-loop"
 import { validateLeagueJoin } from "@/lib/league-privacy"
 import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard"
@@ -392,6 +393,19 @@ export async function POST(req: Request) {
           if (attribution?.referrerId) {
             await recordAttribution(user.id, "referral", { sourceId: attribution.referrerId })
             growthAttributionRecorded = true
+          }
+        }
+        if (!growthAttributionRecorded) {
+          const landingInviteToken = cookieStore.get("af_landing_invite")?.value?.trim()
+          if (landingInviteToken) {
+            const landing = await attributeSignupFromLandingInviteToken(user.id, landingInviteToken).catch(() => null)
+            if (landing?.referrerId) {
+              await recordAttribution(user.id, "referral", {
+                sourceId: landing.referrerId,
+                metadata: { landingInvite: true },
+              })
+              growthAttributionRecorded = true
+            }
           }
         }
         if (!growthAttributionRecorded) {

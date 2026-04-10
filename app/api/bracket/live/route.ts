@@ -34,8 +34,8 @@ function getNodeWinner(node: any, game: any): string | null {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const tournamentId = searchParams.get("tournamentId")
-    const leagueId = searchParams.get("leagueId")
+    const tournamentId = searchParams?.get("tournamentId")
+    const leagueId = searchParams?.get("leagueId")
 
     if (!tournamentId) {
       return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
@@ -337,3 +337,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

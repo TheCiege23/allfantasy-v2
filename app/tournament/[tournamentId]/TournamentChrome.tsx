@@ -23,9 +23,9 @@ import { TournamentSettingsModal } from '@/app/tournament/[tournamentId]/compone
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
 
 export function TournamentChrome({ children }: { children: React.ReactNode }) {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const pathname = usePathname()
+  const currentPath = pathname ?? ''
   const ctx = useTournamentUi()
   const { shell, conferences, participant, isCommissioner, viewerUserId } = ctx
   const state = useTournamentParticipantState(ctx)
@@ -162,7 +162,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           <nav className="flex flex-1 flex-col gap-0.5 p-2">
             {desktopNav.map((item) => {
               if (hideDrafts && item.href.endsWith('/drafts')) return null
-              const active = pathname === item.href || (item.href !== base && pathname.startsWith(item.href))
+              const active = currentPath === item.href || (item.href !== base && currentPath.startsWith(item.href))
               return (
                 <Link
                   key={item.href + item.label}
@@ -289,7 +289,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--tournament-border)] bg-[var(--tournament-panel)]/98 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {primaryMobile.map((item) => {
-          const active = pathname === item.href || (item.href !== base && pathname.startsWith(item.href))
+                    const active = currentPath === item.href || (item.href !== base && currentPath.startsWith(item.href))
           return (
             <Link
               key={item.href}

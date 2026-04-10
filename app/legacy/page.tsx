@@ -26,7 +26,7 @@ type TabId = (typeof TAB_IDS)[number];
 
 export default function LegacyOverview() {
   const searchParams = useSearchParams();
-  const tabFromUrl = searchParams.get('tab');
+  const tabFromUrl = searchParams?.get('tab');
   const initialTab: TabId = tabFromUrl && TAB_IDS.includes(tabFromUrl as TabId) ? (tabFromUrl as TabId) : 'overview';
 
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -37,7 +37,7 @@ export default function LegacyOverview() {
   const protectedTabs: Array<'trade' | 'waiver' | 'chat' | 'mock-draft' | 'ideas' | 'transfer'> = ['trade', 'waiver', 'chat', 'mock-draft', 'ideas', 'transfer'];
 
   useEffect(() => {
-    const t = searchParams.get('tab');
+    const t = searchParams?.get('tab');
     if (t && TAB_IDS.includes(t as TabId)) setActiveTab(t as TabId);
   }, [searchParams]);
 
@@ -348,6 +348,7 @@ function LegacyAuthGate() {
     </div>
   );
 }
+
 
 
 
