@@ -35,7 +35,7 @@ export async function GET() {
   cookieStore.set('spotify_oauth_state', state, {
     httpOnly: true,
     secure: true,
-    sameSite: 'none',
+    sameSite: 'lax',
     maxAge: 600,
     path: '/',
   })

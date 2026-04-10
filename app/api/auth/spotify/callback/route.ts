@@ -87,6 +87,11 @@ export async function GET(req: NextRequest) {
     spotifyUser = await profileRes.json()
   }
 
+  if (!spotifyUser?.id) {
+    console.error('[spotify/callback] Failed to fetch Spotify user profile id')
+    return NextResponse.redirect(new URL('/settings?tab=connected&spotify=error&reason=profile_fetch', SETTINGS_BASE))
+  }
+
   const isPremium = spotifyUser?.product === 'premium'
 
   // Store non-sensitive Spotify profile metadata in notificationPreferences,
@@ -98,10 +103,9 @@ export async function GET(req: NextRequest) {
     })
 
     const prefs = (existing?.notificationPreferences ?? {}) as Record<string, unknown>
-    const spotifyAccountKey = `user:${session.user.id}`
     const expiresAtSeconds = Math.floor(Date.now() / 1000) + tokens.expires_in
     const spotifyData = {
-      userId: spotifyUser?.id ?? null,
+      userId: spotifyUser.id,
       displayName: spotifyUser?.display_name ?? null,
       email: spotifyUser?.email ?? null,
       isPremium,
@@ -131,6 +135,7 @@ export async function GET(req: NextRequest) {
       await prisma.authAccount.update({
         where: { id: existingSpotifyAccount.id },
         data: {
+          providerAccountId: spotifyUser.id,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token ?? null,
           expires_at: expiresAtSeconds,
@@ -144,7 +149,7 @@ export async function GET(req: NextRequest) {
           userId: session.user.id,
           type: 'oauth',
           provider: 'spotify',
-          providerAccountId: spotifyAccountKey,
+          providerAccountId: spotifyUser.id,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token ?? null,
           expires_at: expiresAtSeconds,
