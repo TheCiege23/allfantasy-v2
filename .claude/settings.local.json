@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(find /c/Users/Guap_/allfantasy-v2-main -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"'use server'\" {} \\\\;)",
+      "Bash(grep \"import_wins\\\\|importWins\\\\|import_losses\\\\|importLosses\\\\|import_made_playoffs\\\\|import_won_championship\\\\|import_final_standing\\\\|import_points_for\" prisma/migrations/*/migration.sql)",
+      "Bash(npx prisma:*)",
+      "Bash(find prisma/migrations -name \"migration.sql\" -exec echo {} \\\\;)",
+      "Bash(ls migrations/2026041*)"
+    ]
+  }
+}
