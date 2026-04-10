@@ -212,6 +212,10 @@ export interface LeagueCreationWizardState {
   zombieSettings: WizardZombieSettings
   /** Tournament-specific settings (only used when leagueType === 'tournament'). */
   tournamentSettings: WizardTournamentSettings
+  /** Salary cap settings (only used when leagueType === 'salary_cap'). */
+  salaryCapSettings: WizardSalaryCapSettings
+  /** IDP settings (only used when sport === 'NFL' and IDP variant is selected). */
+  idpSettings: WizardIdpSettings
   /**
    * Optional full settings snapshot from a saved template.
    * These keys are merged into League.settings on create before wizard-level overrides.
@@ -315,6 +319,54 @@ export const DEFAULT_TOURNAMENT_SETTINGS: WizardTournamentSettings = {
   redraftBetweenRounds: true,
   tradesEnabled: false,
   advancersPerLeague: 4,
+}
+
+export interface WizardSalaryCapSettings {
+  totalCap: number
+  draftMode: 'auction' | 'snake_salary' | 'hybrid'
+  salaryCurve: 'linear' | 'steep' | 'exponential' | 'flat'
+  minSalary: number
+  maxSalary: number
+  defaultContractYears: number
+  maxContractYears: number
+  franchiseTagEnabled: boolean
+  capRolloverEnabled: boolean
+  capFloorEnabled: boolean
+  deadMoneyEnabled: boolean
+}
+
+export const DEFAULT_SALARY_CAP_SETTINGS: WizardSalaryCapSettings = {
+  totalCap: 250,
+  draftMode: 'auction',
+  salaryCurve: 'steep',
+  minSalary: 1,
+  maxSalary: 45,
+  defaultContractYears: 2,
+  maxContractYears: 5,
+  franchiseTagEnabled: true,
+  capRolloverEnabled: false,
+  capFloorEnabled: false,
+  deadMoneyEnabled: true,
+}
+
+export interface WizardIdpSettings {
+  positionMode: 'standard' | 'advanced' | 'hybrid'
+  rosterPreset: 'beginner' | 'standard' | 'advanced' | 'custom'
+  scoringPreset: 'balanced' | 'tackle_heavy' | 'big_play_heavy'
+  dlSlots: number
+  lbSlots: number
+  dbSlots: number
+  idpFlexSlots: number
+}
+
+export const DEFAULT_IDP_SETTINGS: WizardIdpSettings = {
+  positionMode: 'standard',
+  rosterPreset: 'standard',
+  scoringPreset: 'balanced',
+  dlSlots: 2,
+  lbSlots: 2,
+  dbSlots: 2,
+  idpFlexSlots: 1,
 }
 
 export const DEFAULT_GUILLOTINE_SETTINGS: WizardGuillotineSettings = {

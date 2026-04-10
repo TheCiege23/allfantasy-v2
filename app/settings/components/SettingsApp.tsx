@@ -18,6 +18,7 @@ import {
   AccountSettingsSection,
   BillingSettingsSection,
 } from "./sections"
+import { AISettingsSection } from "./sections/AISettingsSection"
 
 export type SettingsAppProps = {
   uploadLeagueId: string | null
@@ -114,6 +115,7 @@ export default function SettingsApp({
       {activeTab === "referral" && <ReferralSection />}
       {activeTab === "legacy" && <LegacyImportSettingsSection />}
       {activeTab === "legal" && <LegalSettingsSection profile={profile} />}
+      {activeTab === "ai" && <AISettingsSection />}
       {activeTab === "account" && (
         <AccountSettingsSection accountCreatedAt={accountCreatedAt} planLabel={planLabel} />
       )}

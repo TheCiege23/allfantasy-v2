@@ -20,7 +20,7 @@ export type SocialAssetType = (typeof SOCIAL_ASSET_TYPES)[number];
 
 export type Sport = SupportedSport;
 
-export const SUPPORTED_PLATFORMS = ['x', 'instagram', 'tiktok', 'facebook'] as const;
+export const SUPPORTED_PLATFORMS = ['x', 'instagram', 'tiktok', 'facebook', 'reddit'] as const;
 export type SocialPlatform = (typeof SUPPORTED_PLATFORMS)[number];
 
 export interface GrokSocialOutput {

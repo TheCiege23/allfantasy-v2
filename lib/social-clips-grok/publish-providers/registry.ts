@@ -4,6 +4,7 @@ import { XSocialPublishProvider } from "./XSocialPublishProvider"
 import { InstagramSocialPublishProvider } from "./InstagramSocialPublishProvider"
 import { FacebookSocialPublishProvider } from "./FacebookSocialPublishProvider"
 import { TikTokQueuedPublishProvider } from "./TikTokQueuedPublishProvider"
+import { RedditSocialPublishProvider } from "./RedditSocialPublishProvider"
 
 let cache: SocialPublishProvider[] | null = null
 
@@ -14,6 +15,7 @@ export function getSocialPublishProviders(): SocialPublishProvider[] {
     new InstagramSocialPublishProvider(),
     new FacebookSocialPublishProvider(),
     new TikTokQueuedPublishProvider(),
+    new RedditSocialPublishProvider(),
   ]
   return cache
 }

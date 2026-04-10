@@ -17,6 +17,8 @@ import {
   DEFAULT_GUILLOTINE_SETTINGS,
   DEFAULT_ZOMBIE_SETTINGS,
   DEFAULT_TOURNAMENT_SETTINGS,
+  DEFAULT_SALARY_CAP_SETTINGS,
+  DEFAULT_IDP_SETTINGS,
 } from '@/lib/league-creation-wizard/types'
 import type {
   LeagueCreationWizardState,
@@ -48,6 +50,8 @@ import {
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
 import { SurvivorSettingsPanel, ZombieSettingsPanel, GuillotineSettingsPanel, TournamentSettingsPanel } from './FormatSettingsPanel'
+import { SalaryCapSettingsPanel } from './SalaryCapIdpPanels'
+import { QuickCreatePanel } from './QuickCreatePanel'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
@@ -120,7 +124,7 @@ const STEP_LABELS: Record<string, string> = {
 /** Build step order dynamically — insert format_settings before review for specialty leagues. */
 function getEffectiveStepOrder(leagueType: string): string[] {
   const base: string[] = [...WIZARD_STEP_ORDER]
-  if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie' || leagueType === 'tournament') {
+  if (leagueType === 'survivor' || leagueType === 'guillotine' || leagueType === 'zombie' || leagueType === 'tournament' || leagueType === 'salary_cap') {
     const reviewIdx = base.indexOf('review')
     if (reviewIdx >= 0) base.splice(reviewIdx, 0, 'format_settings')
   }
@@ -154,6 +158,8 @@ const initialState: LeagueCreationWizardState = {
   guillotineSettings: { ...DEFAULT_GUILLOTINE_SETTINGS },
   zombieSettings: { ...DEFAULT_ZOMBIE_SETTINGS },
   tournamentSettings: { ...DEFAULT_TOURNAMENT_SETTINGS },
+  salaryCapSettings: { ...DEFAULT_SALARY_CAP_SETTINGS },
+  idpSettings: { ...DEFAULT_IDP_SETTINGS },
   templateSettingsOverrides: {},
 }
 
@@ -413,8 +419,14 @@ export function LeagueCreationWizard({
       if (!state.name.trim()) {
         return 'Enter a league name.'
       }
+      if (state.name.trim().length > 100) {
+        return 'League name must be 100 characters or less.'
+      }
       if (!state.leagueTimezone?.trim()) {
         return 'Select a league timezone.'
+      }
+      if (state.teamCount < 4 || state.teamCount > 32) {
+        return 'Team count must be between 4 and 32.'
       }
       return null
     }
@@ -1074,6 +1086,30 @@ export function LeagueCreationWizard({
         >
           {state.step === 'sport' && (
             <>
+              <QuickCreatePanel
+                hasAIAccess={Boolean(commissionerPlanUnlocked)}
+                onApplyPreset={(preset) => {
+                  setState((s) => ({
+                    ...s,
+                    sport: preset.sport as typeof s.sport,
+                    leagueType: preset.leagueType,
+                    draftType: preset.draftType,
+                    teamCount: preset.teamCount,
+                    step: 'team_setup',
+                  }))
+                }}
+                onApplyAIResult={(result) => {
+                  setState((s) => ({
+                    ...s,
+                    sport: result.sport as typeof s.sport,
+                    leagueType: result.leagueType as typeof s.leagueType,
+                    draftType: result.draftType as typeof s.draftType,
+                    teamCount: result.teamCount,
+                    name: result.leagueName,
+                    step: 'team_setup',
+                  }))
+                }}
+              />
               <LeagueSourceSection
                 setupSource={state.setupSource}
                 copyFromLeagueId={state.copyFromLeagueId}
@@ -1297,6 +1333,15 @@ export function LeagueCreationWizard({
                 <TournamentSettingsPanel
                   settings={state.tournamentSettings}
                   onChange={(patch) => setState((s) => ({ ...s, tournamentSettings: { ...s.tournamentSettings, ...patch } }))}
+                  sport={String(state.sport)}
+                />
+              )}
+              {state.leagueType === 'salary_cap' && (
+                <SalaryCapSettingsPanel
+                  settings={state.salaryCapSettings}
+                  onChange={(patch) => setState((s) => ({ ...s, salaryCapSettings: { ...s.salaryCapSettings, ...patch } }))}
+                  idpSettings={state.idpSettings}
+                  onIdpChange={(patch) => setState((s) => ({ ...s, idpSettings: { ...s.idpSettings, ...patch } }))}
                   sport={String(state.sport)}
                 />
               )}

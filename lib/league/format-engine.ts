@@ -74,7 +74,7 @@ export type LeagueFormatResolution = {
 
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
 const FOOTBALL_BASKETBALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
-const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
+const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 const DRAFT_TYPES_STANDARD: LeagueDraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
 
 const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {

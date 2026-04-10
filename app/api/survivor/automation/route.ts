@@ -175,7 +175,7 @@ async function runAutomation(req: NextRequest) {
       const gsRecap = await prisma.survivorGameState.findUnique({ where: { leagueId } })
       let didClearNeedsWeeklyRecap = false
       let recapError: unknown = null
-      if (gsRecap?.needsWeeklyRecap) {
+      if (gsRecap?.needsWeeklyRecap && gsRecap.tribalCompleteAt) {
         try {
           await generateAndPostWeeklyRecap(leagueId, week)
           didClearNeedsWeeklyRecap = true
@@ -189,9 +189,13 @@ async function runAutomation(req: NextRequest) {
         const gsFinal = await tx.survivorGameState.findUnique({ where: { leagueId } })
         if (!gsFinal) return
         const needsExileScore = didClearNeedsExileScore ? false : (gsFinal.needsExileScore ?? false)
-        // If tribal is complete but recap wasn't generated yet, keep recap pending and block week advance.
+        // Only infer recap pending when tribal completion is newer than the last automation cycle.
+        const hasUnprocessedTribalCompletion =
+          Boolean(gsFinal.tribalCompleteAt) &&
+          (!gsFinal.lastAutomationRun ||
+            (gsFinal.tribalCompleteAt && gsFinal.tribalCompleteAt > gsFinal.lastAutomationRun))
         const needsWeeklyRecap =
-          didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap || Boolean(gsFinal.tribalCompleteAt)
+          didClearNeedsWeeklyRecap ? false : (gsFinal.needsWeeklyRecap ?? false) || hasUnprocessedTribalCompletion
         const needsWaiverProcess = gsFinal.needsWaiverProcess ?? false
 
         const shouldAdvanceWeek =
@@ -203,8 +207,8 @@ async function runAutomation(req: NextRequest) {
           !needsExileScore &&
           !needsWeeklyRecap
 
-        const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : (needsExileScore ?? false)
-        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : (needsWeeklyRecap ?? false)
+        const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : needsExileScore
+        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? true : needsWeeklyRecap
 
         await tx.survivorGameState.update({
           where: { leagueId },

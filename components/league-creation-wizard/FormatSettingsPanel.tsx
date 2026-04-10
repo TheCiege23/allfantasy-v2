@@ -1,7 +1,7 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import type { WizardSurvivorSettings, WizardGuillotineSettings, WizardZombieSettings, WizardTournamentSettings } from '@/lib/league-creation-wizard/types'
+import type { WizardSurvivorSettings, WizardGuillotineSettings, WizardZombieSettings, WizardTournamentSettings, WizardSalaryCapSettings, WizardIdpSettings } from '@/lib/league-creation-wizard/types'
 
 // ===== SURVIVOR SETTINGS PANEL =====
 

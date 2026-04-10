@@ -104,14 +104,16 @@ export function RightControlPanel({
         <button
           type="button"
           data-testid="dashboard-right-settings"
-          className="flex shrink-0 rounded-lg p-1 transition-colors hover:bg-white/[0.06]"
+          className="flex shrink-0 items-center justify-center rounded-lg p-2 min-h-[36px] min-w-[36px] transition-colors hover:bg-white/[0.08] active:bg-white/[0.12]"
           aria-label="Settings"
-          onClick={() => {
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
             onSettingsNavigate?.()
             router.push('/settings')
           }}
         >
-          <Settings className="h-3.5 w-3.5 text-white/40 transition-colors hover:text-white/80" />
+          <Settings className="h-4 w-4 text-white/50 transition-colors hover:text-white/90" />
         </button>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import SleeperImportForm from "@/components/SleeperImportForm";
 import { UnifiedImportPanel } from "@/components/UnifiedImportPanel";
 import { fetchImportPreview } from "@/lib/league-import/LeagueCreationImportSubmissionService";
+import { ImportProgressTracker } from "@/components/import/ImportProgressTracker";
 import type { ImportProvider } from '@/lib/league-import/types';
 
 
@@ -80,8 +81,13 @@ export default function ImportPage() {
           .
         </p>
 
-        <div className="mb-14">
+        <div className="mb-8">
           <SleeperImportForm />
+        </div>
+
+        {/* Import Progress Tracker — shows active/recent imports with status bars */}
+        <div className="mb-8">
+          <ImportProgressTracker />
         </div>
 
         <h2 className="mb-2 text-center text-lg font-semibold text-white">Other platforms</h2>

@@ -14,6 +14,7 @@ import {
   Shield,
   Sliders,
   User,
+  Sparkles,
 } from 'lucide-react'
 
 export type SettingsTabId =
@@ -27,6 +28,7 @@ export type SettingsTabId =
   | 'legacy'
   | 'legal'
   | 'account'
+  | 'ai'
 
 type NavItem = {
   id: SettingsTabId
@@ -44,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'referral', label: 'Referrals', icon: Gift },
   { id: 'legacy', label: 'Legacy Import', icon: Archive },
   { id: 'legal', label: 'Legal & Agreements', icon: FileText },
+  { id: 'ai', label: 'AI Features', icon: Sparkles },
   { id: 'account', label: 'Account', icon: AlertTriangle },
 ]
 

@@ -19,6 +19,7 @@ import {
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry';
 import { z } from 'zod';
+import { checkCreateLeagueRateLimit } from '@/lib/league/rate-limit';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -64,6 +65,16 @@ export async function POST(req: Request) {
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = session.user.id;
+
+  // Rate limit: 5 leagues per hour per user
+  const rateLimit = checkCreateLeagueRateLimit(userId);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: `Rate limit exceeded. Try again in ${rateLimit.retryAfterSeconds ?? 60} seconds.` },
+      { status: 429 }
+    );
   }
 
   let body: any;
@@ -241,7 +252,10 @@ export async function POST(req: Request) {
       );
     }
   }
-  let name = nameInput;
+  // Sanitize league name — strip HTML/script tags, trim whitespace
+  let name = nameInput
+    ? nameInput.replace(/<[^>]*>/g, '').replace(/[<>"'`]/g, '').trim().slice(0, 100)
+    : nameInput;
   let leagueSize = leagueSizeInput;
   let rosterSize = rosterSizeInput;
   let scoring = scoringInput;
@@ -684,7 +698,7 @@ export async function POST(req: Request) {
           ...(gc?.eliminationsPerPeriod != null && { teamsPerChop: Number(gc.eliminationsPerPeriod) }),
         });
         // Set guillotineMode + all guillotine fields from wizard
-        await (prisma as any).league.update({
+        const updatedLeague = await (prisma as any).league.update({
           where: { id: league.id },
           data: {
             guillotineMode: true,
@@ -694,6 +708,11 @@ export async function POST(req: Request) {
             ...(gc?.tiebreaker != null && { guillotineTiebreaker: String(gc.tiebreaker) }),
             ...(gc?.samePeriodPickups != null && { guillotineSamePeriodPickups: Boolean(gc.samePeriodPickups) }),
             ...(typeof gc?.tradesEnabled === 'boolean' && { draftPickTrading: gc.tradesEnabled }),
+          },
+          select: {
+            sport: true,
+            season: true,
+            leagueSize: true,
           },
         });
         const linkedRedraftSeason = await (prisma as any).redraftSeason.findFirst({
@@ -706,11 +725,11 @@ export async function POST(req: Request) {
           data: {
             leagueId: league.id,
             ...(linkedRedraftSeason?.id ? { redraftSeasonId: linkedRedraftSeason.id } : {}),
-            sport: league.sport ?? 'NFL',
-            season: league.season ?? new Date().getFullYear(),
+            sport: updatedLeague.sport ?? 'NFL',
+            season: updatedLeague.season ?? new Date().getFullYear(),
             status: 'active',
-            totalTeamsStarted: league.leagueSize ?? 12,
-            currentTeamsActive: league.leagueSize ?? 12,
+            totalTeamsStarted: updatedLeague.leagueSize ?? 12,
+            currentTeamsActive: updatedLeague.leagueSize ?? 12,
             currentScoringPeriod: 0,
           },
         }).catch((err: unknown) => {
@@ -848,7 +867,7 @@ export async function POST(req: Request) {
       try {
         const ts = (settingsWizard as Record<string, unknown>)?.tournament as Record<string, unknown> | undefined;
         // Create tournament shell with config
-        await (prisma as any).tournamentShell?.create?.({
+        const tournamentShell = await (prisma as any).tournamentShell?.create?.({
           data: {
             name: league.name ?? 'Tournament',
             sport: league.sport ?? 'NFL',
@@ -858,7 +877,7 @@ export async function POST(req: Request) {
             teamsPerLeague: ts?.teamsPerLeague != null ? Number(ts.teamsPerLeague) : 12,
             namingMode: ts?.namingMode != null ? String(ts.namingMode) : 'ai_generated',
             totalRounds: ts?.totalRounds != null ? Number(ts.totalRounds) : 4,
-            creatorId: session.user.id,
+            creatorId: userId,
             settings: {
               bubbleEnabled: ts?.bubbleEnabled !== false,
               bubbleSize: ts?.bubbleSize ?? 4,
@@ -868,7 +887,26 @@ export async function POST(req: Request) {
               qualificationWeeks: ts?.qualificationWeeks ?? 9,
             },
           },
-        }).catch(() => {});
+        }).catch(() => null);
+        if (tournamentShell?.id) {
+          const latestLeague = await (prisma as any).league.findUnique({
+            where: { id: league.id },
+            select: { settings: true },
+          }).catch(() => null);
+          const latestSettings =
+            latestLeague?.settings && typeof latestLeague.settings === 'object'
+              ? (latestLeague.settings as Record<string, unknown>)
+              : {};
+          await (prisma as any).league.update({
+            where: { id: league.id },
+            data: {
+              settings: {
+                ...latestSettings,
+                tournamentShellId: tournamentShell.id,
+              },
+            },
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('[league/create] Tournament bootstrap non-fatal:', err);
       }
@@ -947,6 +985,152 @@ export async function POST(req: Request) {
       } catch (err) {
         console.warn('[league/create] IDP config bootstrap non-fatal:', err);
       }
+    }
+
+    // Bootstrap RedraftSeason for standard redraft/best_ball leagues
+    // Dynasty, Guillotine, Survivor, Zombie, Tournament, Devy, C2C, SalaryCap each have their own bootstrap above.
+    const isStandardRedraft =
+      !effectiveDynasty &&
+      !isGuillotine &&
+      !isSurvivor &&
+      !isZombie &&
+      !isTournament &&
+      !isDevyRequested &&
+      !isC2CRequested &&
+      !isSalaryCap &&
+      !isBigBrother;
+    if (isStandardRedraft) {
+      try {
+        const { leagueSportToConfigSport } = await import('@/lib/redraft/sportKey');
+        const { tryGetSportConfig } = await import('@/lib/sportConfig');
+        const { generateSchedule } = await import('@/lib/redraft/scheduleEngine');
+        const sportKeyForRedraft = leagueSportToConfigSport(String(league.sport));
+        const sportCfg = tryGetSportConfig(sportKeyForRedraft);
+        const seasonYear = league.season ?? new Date().getFullYear();
+        const totalWeeks = sportCfg?.defaultSeasonWeeks ?? 17;
+        const playoffStartWeek = sportCfg?.defaultPlayoffStartWeek ?? 15;
+
+        await prisma.$transaction(async (tx) => {
+          const rs = await tx.redraftSeason.create({
+            data: {
+              leagueId: league.id,
+              sport: sportKeyForRedraft,
+              season: seasonYear,
+              status: 'setup',
+              totalWeeks,
+              playoffStartWeek,
+              currentWeek: 0,
+              medianGame: false,
+            },
+          });
+
+          const teams = await tx.leagueTeam.findMany({ where: { leagueId: league.id } });
+          const rosters: { id: string }[] = [];
+          for (const t of teams) {
+            const ownerId = t.claimedByUserId ?? league.userId;
+            const r = await tx.redraftRoster.create({
+              data: {
+                seasonId: rs.id,
+                leagueId: league.id,
+                ownerId,
+                ownerName: t.ownerName,
+                teamName: t.teamName,
+                avatarUrl: t.avatarUrl,
+              },
+            });
+            rosters.push({ id: r.id });
+          }
+
+          if (rosters.length >= 2) {
+            const slots = generateSchedule(rosters, totalWeeks, playoffStartWeek, sportKeyForRedraft, { medianGame: false });
+            for (const s of slots) {
+              if (s.type === 'median') continue;
+              await tx.redraftMatchup.create({
+                data: {
+                  seasonId: rs.id,
+                  leagueId: league.id,
+                  week: s.week,
+                  type: 'regular',
+                  homeRosterId: s.home,
+                  awayRosterId: s.away,
+                  isMedianMatchup: false,
+                },
+              });
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('[league/create] RedraftSeason bootstrap non-fatal:', err);
+      }
+    }
+
+    // Pin FAQ document in league chat based on league type
+    try {
+      const {
+        generateAndPinRedraftFAQ,
+        generateAndPinDynastyFAQ,
+        generateAndPinGuillotineFAQ,
+        generateAndPinTournamentFAQ,
+        generateAndPinBestBallFAQ,
+        generateAndPinKeeperFAQ,
+        generateAndPinSalaryCapFAQ,
+        generateAndPinIdpFAQ,
+        generateAndPinDevyFAQ,
+        generateAndPinC2CFAQ,
+        generateAndPinBigBrotherFAQ,
+      } = await import('@/lib/league/faqGenerator');
+
+      const lt = String(requestedLeagueType ?? '').toLowerCase();
+      // Big Brother, C2C, and Devy get their own FAQs (before dynasty check)
+      if (isBigBrother) {
+        await generateAndPinBigBrotherFAQ(league.id);
+      } else if (isC2CRequested || lt === 'c2c') {
+        await generateAndPinC2CFAQ(league.id);
+      } else if (isDevyRequested || lt === 'devy') {
+        await generateAndPinDevyFAQ(league.id);
+      } else if (isIdpRequested && isSalaryCap) {
+        await generateAndPinIdpFAQ(league.id);
+        await generateAndPinSalaryCapFAQ(league.id);
+      } else if (isIdpRequested) {
+        await generateAndPinIdpFAQ(league.id);
+      } else if (lt === 'salary_cap') {
+        await generateAndPinSalaryCapFAQ(league.id);
+      } else if (lt === 'best_ball') {
+        await generateAndPinBestBallFAQ(league.id);
+      } else if (lt === 'keeper') {
+        await generateAndPinKeeperFAQ(league.id);
+      } else if (isGuillotine) {
+        await generateAndPinGuillotineFAQ(league.id);
+      } else if (isTournament) {
+        await generateAndPinTournamentFAQ(league.id);
+      } else if (effectiveDynasty) {
+        await generateAndPinDynastyFAQ(league.id);
+      } else if (isStandardRedraft) {
+        await generateAndPinRedraftFAQ(league.id);
+      }
+      // Survivor and Zombie FAQs are handled by their own bootstrap functions above.
+    } catch (err) {
+      console.warn('[league/create] FAQ pin non-fatal:', err);
+    }
+
+    // Sync to Klipy CRM (non-fatal)
+    try {
+      const { logLeagueCreation, syncLeagueToKlipy, isKlipyConfigured } = await import('@/lib/klipy');
+      if (isKlipyConfigured()) {
+        const user = await prisma.appUser.findUnique({ where: { id: userId }, select: { email: true } });
+        if (user?.email) {
+          await logLeagueCreation(user.email, league.name ?? 'League', league.sport ?? 'NFL', requestedLeagueType ?? 'redraft');
+        }
+        await syncLeagueToKlipy({
+          id: league.id,
+          name: league.name ?? 'League',
+          sport: league.sport ?? 'NFL',
+          teamCount: league.teamCount ?? 12,
+          leagueType: requestedLeagueType ?? 'redraft',
+        });
+      }
+    } catch (err) {
+      console.warn('[league/create] Klipy sync non-fatal:', err);
     }
 
     return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });
