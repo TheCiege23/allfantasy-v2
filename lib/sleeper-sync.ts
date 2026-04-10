@@ -194,7 +194,8 @@ async function resolveSleeperManagerUserIds(ownerIds: string[]): Promise<Map<str
 
 export async function syncSleeperLeague(
   sleeperLeagueId: string,
-  userId: string
+  userId: string,
+  opts?: { forceActivate?: boolean }
 ): Promise<SleeperSyncResult> {
   const [leagueRes, rostersRes, usersRes] = await Promise.all([
     fetch(`https://api.sleeper.app/v1/league/${sleeperLeagueId}`),
@@ -333,8 +334,13 @@ export async function syncSleeperLeague(
     lastSyncedAt: syncedAt,
     syncStatus: 'success',
     syncError: null,
-    // Preserve ranking-import marker — never let a sync overwrite legacy_summary with null
-    leagueVariant: existingUnifiedLeague?.leagueVariant === 'legacy_summary' ? 'legacy_summary' : leagueVariant,
+    // Preserve ranking-import marker unless the caller explicitly force-activates the league
+    // (e.g. user-triggered sync from the league management UI). Force-activate clears the
+    // legacy_summary tag so the league appears in My Leagues going forward.
+    leagueVariant:
+      !opts?.forceActivate && existingUnifiedLeague?.leagueVariant === 'legacy_summary'
+        ? 'legacy_summary'
+        : leagueVariant,
   };
 
   const unifiedLeague = existingUnifiedLeague

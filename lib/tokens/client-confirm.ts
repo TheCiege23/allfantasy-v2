@@ -34,6 +34,11 @@ export async function confirmTokenSpend(ruleCode: string): Promise<{
     }
   }
 
+  // Skip confirmation dialog when the server says it's not required (e.g. admin bypass, free action)
+  if (!preview.requiresConfirmation) {
+    return { confirmed: true, preview }
+  }
+
   const confirmed = window.confirm(
     `Use ${preview.tokenCost} token${preview.tokenCost === 1 ? '' : 's'} for ${preview.featureLabel}?` +
       `\n\nCurrent balance: ${preview.currentBalance}`

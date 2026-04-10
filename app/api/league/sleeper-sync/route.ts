@@ -19,7 +19,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await syncSleeperLeague(sleeperLeagueId, userId);
+    // User explicitly triggered this sync — allow it to activate a league
+    // that was previously tagged as a ranking-import-only record.
+    const result = await syncSleeperLeague(sleeperLeagueId, userId, { forceActivate: true });
 
     return NextResponse.json({
       ...result,
