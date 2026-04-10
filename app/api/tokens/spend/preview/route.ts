@@ -5,6 +5,7 @@ import {
   TokenSpendService,
   TokenSpendRuleNotFoundError,
 } from "@/lib/tokens/TokenSpendService"
+import { isDevAdminUserId, buildDevAdminTokenSpendPreview } from "@/lib/dev-admin/access"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,14 @@ export async function GET(req: Request) {
     const ruleCode = String(url.searchParams?.get("ruleCode") ?? "").trim()
     if (!ruleCode) {
       return NextResponse.json({ error: "Missing ruleCode" }, { status: 400 })
+    }
+
+    if (isDevAdminUserId(session.user.id)) {
+      const preview = buildDevAdminTokenSpendPreview(ruleCode)
+      return NextResponse.json({
+        preview,
+        message: `This action costs ${preview.tokenCost} token${preview.tokenCost === 1 ? "" : "s"}.`,
+      })
     }
 
     const service = new TokenSpendService()

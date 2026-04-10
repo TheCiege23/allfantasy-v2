@@ -66,10 +66,24 @@ export async function GET() {
               OR: [{ leagueVariant: null }, { leagueVariant: { notIn: VARIANT_NOT_IN } }],
             },
             // Exclude ranking-import-only Sleeper leagues.
-            // Real active imports always write `status` from the Sleeper API; ranking imports
-            // never set it, so null status + null leagueVariant = career-data-only row.
+            // These have leagueVariant=null (never tagged or tag was overwritten by a sync).
+            // Unsynced: status=null. Synced: status is set but importWins/Losses/FinalStanding
+            // are populated — real active-league imports never touch those fields.
             {
-              NOT: { platform: 'sleeper', leagueVariant: null, status: null },
+              NOT: {
+                AND: [
+                  { platform: 'sleeper' },
+                  { leagueVariant: null },
+                  {
+                    OR: [
+                      { status: null },
+                      { importWins: { not: null } },
+                      { importLosses: { not: null } },
+                      { importFinalStanding: { not: null } },
+                    ],
+                  },
+                ],
+              },
             },
           ],
         },

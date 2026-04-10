@@ -57,7 +57,7 @@ function ChimmyVoicePicker({
       </button>
       {open && (
         <div
-          className="absolute bottom-full left-0 mb-1 max-h-64 w-[220px] overflow-y-auto overflow-x-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl z-[10000]"
+          className="absolute top-full left-0 mt-1 max-h-64 w-[220px] overflow-y-auto overflow-x-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl z-[10000]"
           role="listbox"
           aria-label="Chimmy voice"
         >
