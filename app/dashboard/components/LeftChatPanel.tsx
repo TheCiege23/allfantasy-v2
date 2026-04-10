@@ -25,59 +25,79 @@ function ChimmyVoicePicker({
   selectedVoiceId: string
   onVoiceChange: (voiceId: string) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const selectedVoice = CHIMMY_VOICES.find((v) => v.id === selectedVoiceId) ?? CHIMMY_VOICES[0]!
 
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
   return (
-    <div className="relative z-[100]">
+    <div ref={wrapRef} className="relative z-[100]">
       <button
         type="button"
+        onClick={() => setOpen((o) => !o)}
         className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.10] px-2.5 py-1.5 text-xs text-white/60 transition-colors hover:border-white/[0.20] hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
         aria-haspopup="listbox"
+        aria-expanded={open}
         tabIndex={0}
         style={{ marginBottom: 4 }}
       >
         {selectedVoice.name}
-        <span className="ml-1 text-[9px] text-white/30" aria-hidden>
+        <span className={`ml-1 text-[9px] text-white/30 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden>
           ▾
         </span>
       </button>
-      <div
-        className="absolute left-0 mt-1 w-full max-w-xs rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl z-[10000]"
-        role="listbox"
-        aria-label="Chimmy voice"
-      >
-        <p className="sticky top-0 z-[1] border-b border-white/[0.06] bg-[#0f1521] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
-          Chimmy Voice
-        </p>
-        {CHIMMY_VOICES.map((voice) => (
-          <button
-            key={voice.id}
-            type="button"
-            role="option"
-            aria-selected={voice.id === selectedVoiceId}
-            onClick={() => onVoiceChange(voice.id)}
-            className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
-              voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
-            }`}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-semibold text-white">{voice.name}</span>
-                <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
+      {open && (
+        <div
+          className="absolute bottom-full left-0 mb-1 max-h-64 w-[220px] overflow-y-auto overflow-x-hidden rounded-xl border border-white/[0.10] bg-[#0f1521] shadow-2xl z-[10000]"
+          role="listbox"
+          aria-label="Chimmy voice"
+        >
+          <p className="sticky top-0 z-[1] border-b border-white/[0.06] bg-[#0f1521] px-3 py-2 text-[10px] uppercase tracking-wider text-white/30">
+            Chimmy Voice
+          </p>
+          {CHIMMY_VOICES.map((voice) => (
+            <button
+              key={voice.id}
+              type="button"
+              role="option"
+              aria-selected={voice.id === selectedVoiceId}
+              onClick={(e) => {
+                e.stopPropagation()
+                onVoiceChange(voice.id)
+                setOpen(false)
+              }}
+              className={`flex w-full items-start gap-2 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06] ${
+                voice.id === selectedVoiceId ? 'bg-cyan-500/10' : ''
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[12px] font-semibold text-white">{voice.name}</span>
+                  <span className="text-[9px] capitalize text-white/30">{voice.gender}</span>
+                </div>
+                <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
               </div>
-              <p className="mt-0.5 text-[10px] text-white/40">{voice.description}</p>
-            </div>
-            {voice.id === selectedVoiceId ? (
-              <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
-                ✓
-              </span>
-            ) : null}
-          </button>
-        ))}
-        <div className="border-t border-white/[0.06] px-3 py-2">
-          <p className="text-[9px] text-white/20">Powered by ElevenLabs</p>
+              {voice.id === selectedVoiceId ? (
+                <span className="mt-0.5 text-[12px] text-cyan-400" aria-hidden>
+                  ✓
+                </span>
+              ) : null}
+            </button>
+          ))}
+          <div className="border-t border-white/[0.06] px-3 py-2">
+            <p className="text-[9px] text-white/20">Powered by ElevenLabs</p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
