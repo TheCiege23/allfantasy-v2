@@ -685,7 +685,7 @@ export async function POST(req: Request) {
           ...(gc?.eliminationsPerPeriod != null && { teamsPerChop: Number(gc.eliminationsPerPeriod) }),
         });
         // Set guillotineMode + all guillotine fields from wizard
-        await (prisma as any).league.update({
+        const updatedLeague = await (prisma as any).league.update({
           where: { id: league.id },
           data: {
             guillotineMode: true,
@@ -695,6 +695,11 @@ export async function POST(req: Request) {
             ...(gc?.tiebreaker != null && { guillotineTiebreaker: String(gc.tiebreaker) }),
             ...(gc?.samePeriodPickups != null && { guillotineSamePeriodPickups: Boolean(gc.samePeriodPickups) }),
             ...(typeof gc?.tradesEnabled === 'boolean' && { draftPickTrading: gc.tradesEnabled }),
+          },
+          select: {
+            sport: true,
+            season: true,
+            leagueSize: true,
           },
         });
         const linkedRedraftSeason = await (prisma as any).redraftSeason.findFirst({
@@ -707,11 +712,11 @@ export async function POST(req: Request) {
           data: {
             leagueId: league.id,
             ...(linkedRedraftSeason?.id ? { redraftSeasonId: linkedRedraftSeason.id } : {}),
-            sport: league.sport ?? 'NFL',
-            season: league.season ?? new Date().getFullYear(),
+            sport: updatedLeague.sport ?? 'NFL',
+            season: updatedLeague.season ?? new Date().getFullYear(),
             status: 'active',
-            totalTeamsStarted: league.leagueSize ?? 12,
-            currentTeamsActive: league.leagueSize ?? 12,
+            totalTeamsStarted: updatedLeague.leagueSize ?? 12,
+            currentTeamsActive: updatedLeague.leagueSize ?? 12,
             currentScoringPeriod: 0,
           },
         }).catch((err: unknown) => {
