@@ -55,6 +55,14 @@ type DevAdminTokenLedgerEntryView = {
   createdAt: string
 }
 
+/**
+ * Permanent app-owner / developer accounts that always get admin access
+ * regardless of the DEV_ADMIN_USER_IDS environment variable.
+ */
+const STATIC_ADMIN_USER_IDS = new Set<string>([
+  '944bb9f1-7a25-455b-8ef2-66146dbf3553', // theciege24 — app owner
+])
+
 function parseDevAdminUserIds(rawValue: string | undefined): Set<string> {
   if (!rawValue) return new Set()
   return new Set(
@@ -94,6 +102,7 @@ function getRuleMeta(ruleCode: string): {
 export function isDevAdminUserId(userId: string | null | undefined): boolean {
   const normalizedUserId = String(userId ?? "").trim()
   if (!normalizedUserId) return false
+  if (STATIC_ADMIN_USER_IDS.has(normalizedUserId)) return true
   return parseDevAdminUserIds(process.env.DEV_ADMIN_USER_IDS).has(normalizedUserId)
 }
 
