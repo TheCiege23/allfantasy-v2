@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { useEntitlements } from '@/hooks/useEntitlements'
@@ -11,9 +10,7 @@ import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
-import { LegacyRankingsImportPanel } from '@/components/rankings/LegacyRankingsImportPanel'
 import { TodayStrip } from './TodayStrip'
-import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
 import { ConnectPlatformsModal } from './ConnectPlatformsModal'
@@ -34,35 +31,6 @@ type OnboardingState = {
   step3: boolean
   step4: boolean
   step5: boolean
-}
-
-type RankPayload = {
-  imported: boolean
-  rank: {
-    careerTier: number
-    careerTierName: string
-    careerLevel: number
-    careerXp: string
-    aiReportGrade: string
-    aiScore: number
-    aiInsight: string
-    winRate: number
-    playoffRate: number
-    championshipCount: number
-    seasonsPlayed: number
-    totalWins?: number
-    totalLosses?: number
-    totalTies?: number
-    playoffAppearances?: number
-    importedAt: string | null
-  } | null
-  overviewProfile?: {
-    lanes?: Array<{
-      wins: number
-      losses: number
-      ties: number
-    }>
-  } | null
 }
 
 type DashboardOverviewProps = {
@@ -108,185 +76,6 @@ function writeOnboardingState(value: OnboardingState) {
   try {
     window.localStorage.setItem(ONBOARDING_KEY, JSON.stringify(value))
   } catch {}
-}
-
-function getPlatformBadge(platform: string) {
-  switch (platform.toLowerCase()) {
-    case 'sleeper':
-      return '🌙'
-    case 'yahoo':
-      return '🏈'
-    case 'mfl':
-      return '🏆'
-    case 'fantrax':
-      return '📊'
-    case 'espn':
-      return '🔴'
-    default:
-      return '🏈'
-  }
-}
-
-function RankingWidget({
-  leagues,
-  onTriggerImport,
-  rankRefreshKey = 0,
-}: {
-  leagues: UserLeague[]
-  onTriggerImport: () => void
-  rankRefreshKey?: number
-}) {
-  const [loading, setLoading] = useState(true)
-  const [payload, setPayload] = useState<RankPayload | null>(null)
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-
-    fetch('/api/user/rank', { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load ranking'))))
-      .then((data: RankPayload) => {
-        if (!active) return
-        setPayload(data)
-      })
-      .catch(() => {
-        if (!active) return
-        setPayload({ imported: false, rank: null, overviewProfile: null })
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [rankRefreshKey])
-
-  const connectedPlatforms = useMemo(() => {
-    return Array.from(new Set(leagues.map((league) => league.platform.toLowerCase()))).slice(0, 5)
-  }, [leagues])
-
-  if (loading) {
-    return <div className="h-[188px] rounded-2xl border-l-2 border-cyan-500 bg-white/5 animate-pulse" />
-  }
-
-  if (!payload?.imported || !payload.rank) {
-    return (
-      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-        <div className="text-2xl">🏆</div>
-        <p className="mt-3 text-sm font-semibold text-white">Complete your import to unlock your ranking</p>
-        <button
-          type="button"
-          onClick={onTriggerImport}
-          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-        >
-          Import Now
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    )
-  }
-
-  const xp = Number(payload.rank.careerXp)
-  const currentTierIndex = Math.max(0, Math.min(9, payload.rank.careerTier - 1))
-  const currentThreshold = currentTierIndex * 1500
-  const nextThreshold = Math.min(15000, currentThreshold + 1500)
-  const progress =
-    nextThreshold > currentThreshold
-      ? Math.min(100, Math.max(0, ((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100))
-      : 100
-
-  const totals =
-    payload.overviewProfile?.lanes?.reduce(
-      (acc, lane) => ({
-        wins: acc.wins + Number(lane.wins || 0),
-        losses: acc.losses + Number(lane.losses || 0),
-        ties: acc.ties + Number(lane.ties || 0),
-      }),
-      { wins: 0, losses: 0, ties: 0 }
-    ) ?? { wins: 0, losses: 0, ties: 0 }
-
-  const record = `${totals.wins}-${totals.losses}${totals.ties ? `-${totals.ties}` : ''}`
-  const careerRecord =
-    payload.rank.totalWins != null && payload.rank.totalLosses != null
-      ? `${payload.rank.totalWins}-${payload.rank.totalLosses}${
-          (payload.rank.totalTies ?? 0) > 0 ? `-${payload.rank.totalTies}` : ''
-        }`
-      : record
-
-  return (
-    <>
-      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400 bg-clip-text text-5xl font-black text-transparent">
-              {payload.rank.careerTier}
-            </div>
-            <p className="mt-2 text-sm font-semibold text-white/80">{payload.rank.careerTierName}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {connectedPlatforms.map((platform) => (
-                <span
-                  key={platform}
-                  className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
-                >
-                  {getPlatformBadge(platform)}
-                </span>
-              ))}
-            </div>
-          </div>
-          {/* AI GRADE BADGE */}
-          <div className="flex shrink-0 flex-col items-center gap-0.5">
-            <div className="min-w-[56px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-              <div className="text-2xl font-black leading-none text-violet-300">{payload.rank.aiReportGrade}</div>
-              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
-            </div>
-            <div className="text-center">
-              <span className="text-sm font-bold text-white/80">{payload.rank.aiScore}</span>
-              <span className="text-[10px] text-white/30">/100</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-1 flex items-center justify-between text-[11px] text-white/45">
-            <span>{xp.toLocaleString()} / {nextThreshold.toLocaleString()} XP</span>
-            <span>Level {payload.rank.careerLevel}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/60">
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Record</span>
-            {careerRecord}
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Titles</span>
-            {payload.rank.championshipCount}
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Seasons</span>
-            {payload.rank.seasonsPlayed}
-          </div>
-        </div>
-
-        <Link
-          href="/dashboard/rankings"
-          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-        >
-          View full rankings
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-      <LegacyImportProgressWidget />
-    </>
-  )
 }
 
 export function DashboardOverview({
@@ -462,10 +251,6 @@ export function DashboardOverview({
     updateOnboardingStep('step2')
     onTriggerImport()
   }
-
-  const handleLegacyRankingsImportSuccess = useCallback(() => {
-    setRankRefreshKey((k) => k + 1)
-  }, [])
 
   const handleCopyReferral = async () => {
     let inviteUrl = ''
@@ -787,11 +572,8 @@ export function DashboardOverview({
 
         <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
 
-        <section className="space-y-4">
-          <LegacyRankingsImportPanel variant="dashboard" onImportSuccess={handleLegacyRankingsImportSuccess} />
-        </section>
-
         <RankingsCard
+          onImportNow={handleImport}
           rankRefreshKey={rankRefreshKey}
           onAskChimmy={() => {
             handleAiShortcut('Show me how player rankings work for my leagues.')
@@ -802,10 +584,6 @@ export function DashboardOverview({
             )
           }}
         />
-
-        <section>
-          <RankingWidget leagues={leagues} onTriggerImport={handleImport} rankRefreshKey={rankRefreshKey} />
-        </section>
       </div>
 
       <LineupIssuesModal
