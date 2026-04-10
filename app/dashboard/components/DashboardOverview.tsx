@@ -11,6 +11,7 @@ import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
+import { LegacyRankingsImportPanel } from '@/components/rankings/LegacyRankingsImportPanel'
 import { TodayStrip } from './TodayStrip'
 import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
@@ -129,15 +130,18 @@ function getPlatformBadge(platform: string) {
 function RankingWidget({
   leagues,
   onTriggerImport,
+  rankRefreshKey = 0,
 }: {
   leagues: UserLeague[]
   onTriggerImport: () => void
+  rankRefreshKey?: number
 }) {
   const [loading, setLoading] = useState(true)
   const [payload, setPayload] = useState<RankPayload | null>(null)
 
   useEffect(() => {
     let active = true
+    setLoading(true)
 
     fetch('/api/user/rank', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load ranking'))))
@@ -157,7 +161,7 @@ function RankingWidget({
     return () => {
       active = false
     }
-  }, [])
+  }, [rankRefreshKey])
 
   const connectedPlatforms = useMemo(() => {
     return Array.from(new Set(leagues.map((league) => league.platform.toLowerCase()))).slice(0, 5)
@@ -310,6 +314,9 @@ export function DashboardOverview({
   const [tradeData, setTradeData] = useState<TradesDashboardResponse | null>(null)
   const [tradeLoading, setTradeLoading] = useState(false)
 
+  /** Increment after legacy rankings import so rank widgets refetch `/api/user/rank`. */
+  const [rankRefreshKey, setRankRefreshKey] = useState(0)
+
   const lineupFetchedAt = useRef<number | null>(null)
   const waiverFetchedAt = useRef<number | null>(null)
   const tradeFetchedAt = useRef<number | null>(null)
@@ -455,6 +462,10 @@ export function DashboardOverview({
     updateOnboardingStep('step2')
     onTriggerImport()
   }
+
+  const handleLegacyRankingsImportSuccess = useCallback(() => {
+    setRankRefreshKey((k) => k + 1)
+  }, [])
 
   const handleCopyReferral = async () => {
     let inviteUrl = ''
@@ -776,7 +787,12 @@ export function DashboardOverview({
 
         <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
 
+        <section className="space-y-4">
+          <LegacyRankingsImportPanel variant="dashboard" onImportSuccess={handleLegacyRankingsImportSuccess} />
+        </section>
+
         <RankingsCard
+          rankRefreshKey={rankRefreshKey}
           onAskChimmy={() => {
             handleAiShortcut('Show me how player rankings work for my leagues.')
             window.dispatchEvent(
@@ -788,7 +804,7 @@ export function DashboardOverview({
         />
 
         <section>
-          <RankingWidget leagues={leagues} onTriggerImport={handleImport} />
+          <RankingWidget leagues={leagues} onTriggerImport={handleImport} rankRefreshKey={rankRefreshKey} />
         </section>
       </div>
 

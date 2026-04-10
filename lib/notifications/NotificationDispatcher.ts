@@ -8,6 +8,7 @@ import { sendNotificationEmail } from "@/lib/resend-client"
 import { sendSms } from "@/lib/twilio-client"
 import { sendPushToUser, isPushCategory } from "@/lib/push-notifications"
 import { retryWithBackoff } from "@/lib/error-handling"
+import { shouldSuppressTokenMonetizationNotification } from "@/lib/notifications/tokenMonetizationNotificationBypass"
 
 export type DispatchNotificationParams = {
   userIds: string[]
@@ -42,6 +43,17 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
 
   for (const userId of userIds) {
     try {
+      if (
+        shouldSuppressTokenMonetizationNotification(userId, {
+          type,
+          title,
+          body,
+          category,
+        })
+      ) {
+        continue
+      }
+
       const profile = await getSettingsProfile(userId)
       if (!profile) continue
 

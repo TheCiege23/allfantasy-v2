@@ -108,7 +108,8 @@ function userRankLevelPayloadFromProfile(p: ProfileRankDenormResult) {
     color: lv.color,
     bgColor: lv.bgColor,
     xpTotal: xpNum,
-    xpLevel: p.xpLevel ?? lv.level,
+    /** Always align with 25-rung ladder from XP; DB `xp_level` can drift (e.g. account tier). */
+    xpLevel: lv.level,
     xpIntoLevel: lv.xpIntoLevel,
     xpForLevel: lv.xpForLevel,
     progressPct: lv.progressPct,
@@ -291,37 +292,26 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const forceRecalculate = url.searchParams?.get('recalculate') === 'true'
 
-    let rankCalculatedAtProbe: Date | null = null
-    let rankCalculatedProbeOk = false
-    try {
-      const probeRows = await prisma.$queryRaw<Array<{ rank_calculated_at: Date | null }>>`
-        SELECT rank_calculated_at FROM user_profiles WHERE user_id = ${userId} LIMIT 1
-      `
-      rankCalculatedAtProbe = probeRows[0]?.rank_calculated_at ?? null
-      rankCalculatedProbeOk = true
-    } catch (probeErr: unknown) {
-      logFullError('[api/user/rank] rankCalculatedAt probe (missing columns?)', probeErr)
-    }
-
-    const shouldRunCalculate =
-      forceRecalculate || (rankCalculatedProbeOk && rankCalculatedAtProbe === null)
-    if (shouldRunCalculate) {
-      try {
-        await calculateAndSaveRank(userId)
-      } catch (recalcErr: unknown) {
-        logFullError('[api/user/rank] calculateAndSaveRank (recalculate or rankCalculatedAt null)', recalcErr)
-      }
-    }
-
+    /** Single denorm read first (includes rank_calculated_at) — avoids a duplicate probe-only query. */
     let denormCatchup = await loadProfileRankDenorm(userId)
-    if (!denormCatchup?.rankTier?.trim()) {
+
+    const recalculateThenReload = async (context: string) => {
       try {
         await calculateAndSaveRank(userId)
       } catch (recalcErr: unknown) {
-        logFullError('[api/user/rank] calculateAndSaveRank (catch-up when rank_tier still empty)', recalcErr)
+        logFullError(`[api/user/rank] calculateAndSaveRank (${context})`, recalcErr)
       }
       denormCatchup = await loadProfileRankDenorm(userId)
     }
+
+    if (forceRecalculate || denormCatchup?.rankCalculatedAt == null) {
+      await recalculateThenReload('force or missing rank_calculated_at')
+    }
+    if (!denormCatchup?.rankTier?.trim()) {
+      await recalculateThenReload('catch-up when rank_tier still empty')
+    }
+
+    const profileFlagsPromise = loadProfileRankFlags(userId)
 
     let appUser:
       | {
@@ -363,7 +353,7 @@ export async function GET(request: Request) {
         .catch(() => null)
     }
 
-    const [profileFlags] = await Promise.all([loadProfileRankFlags(userId)])
+    const profileFlags = await profileFlagsPromise
 
     const { rankProcessing, rankCalculatedAtIso } = profileFlags
 
@@ -388,7 +378,7 @@ export async function GET(request: Request) {
         const rank = {
           careerTier: lv.tierGroup,
           careerTierName: lv.name,
-          careerLevel: denormEarly?.xpLevel ?? lv.level,
+          careerLevel: lv.level,
           careerXp: String(
             jsonSafeXp(denormEarly?.legacyCareerXp ?? denormEarly?.xpTotal),
           ),
@@ -481,7 +471,7 @@ export async function GET(request: Request) {
         const rank = {
           careerTier: lv.tierGroup,
           careerTierName: lv.name,
-          careerLevel: denorm?.xpLevel ?? lv.level,
+          careerLevel: lv.level,
           careerXp: String(jsonSafeXp(denorm?.legacyCareerXp ?? denorm?.xpTotal)),
           aiReportGrade: 'B',
           aiScore: 70,
@@ -693,7 +683,7 @@ export async function GET(request: Request) {
     const rank = {
       careerTier: lv.tierGroup,
       careerTierName: lv.name,
-      careerLevel: rankCache.careerLevel ?? lv.level,
+      careerLevel: lv.level,
       careerXp: String(jsonSafeXp(careerXpBig)),
       aiReportGrade: scoreToLetterGrade(aiScore),
       aiScore,
@@ -721,7 +711,7 @@ export async function GET(request: Request) {
 
     const levelPayload = {
       tier,
-      level: rankCache.careerLevel ?? lv.level,
+      level: lv.level,
       levelName: lv.name,
       tierGroup: lv.tierGroup,
       color: lv.color,

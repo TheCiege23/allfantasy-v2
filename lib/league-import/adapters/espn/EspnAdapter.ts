@@ -145,6 +145,7 @@ export const EspnAdapter: ILeagueImportAdapter<EspnImportPayload> = {
 
     return {
       source,
+      viewer_source_team_id: raw.viewerTeamId ?? null,
       league: {
         name: raw.league.name,
         sport: raw.league.sport,
