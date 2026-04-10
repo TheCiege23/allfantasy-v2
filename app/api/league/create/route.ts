@@ -849,7 +849,7 @@ export async function POST(req: Request) {
       try {
         const ts = (settingsWizard as Record<string, unknown>)?.tournament as Record<string, unknown> | undefined;
         // Create tournament shell with config
-        await (prisma as any).tournamentShell?.create?.({
+        const tournamentShell = await (prisma as any).tournamentShell?.create?.({
           data: {
             name: league.name ?? 'Tournament',
             sport: league.sport ?? 'NFL',
@@ -869,7 +869,26 @@ export async function POST(req: Request) {
               qualificationWeeks: ts?.qualificationWeeks ?? 9,
             },
           },
-        }).catch(() => {});
+        }).catch(() => null);
+        if (tournamentShell?.id) {
+          const latestLeague = await (prisma as any).league.findUnique({
+            where: { id: league.id },
+            select: { settings: true },
+          }).catch(() => null);
+          const latestSettings =
+            latestLeague?.settings && typeof latestLeague.settings === 'object'
+              ? (latestLeague.settings as Record<string, unknown>)
+              : {};
+          await (prisma as any).league.update({
+            where: { id: league.id },
+            data: {
+              settings: {
+                ...latestSettings,
+                tournamentShellId: tournamentShell.id,
+              },
+            },
+          }).catch(() => {});
+        }
       } catch (err) {
         console.warn('[league/create] Tournament bootstrap non-fatal:', err);
       }
