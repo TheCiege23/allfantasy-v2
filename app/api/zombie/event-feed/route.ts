@@ -12,6 +12,7 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const leagueId = searchParams.get('leagueId')
+  const typeFilter = searchParams.get('type')
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, session.user.id)
@@ -20,8 +21,42 @@ export async function GET(req: Request) {
   const animations = await prisma.zombieEventAnimation.findMany({
     where: { leagueId },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 30,
   })
 
-  return NextResponse.json({ animations })
+  const z = await prisma.zombieLeague.findUnique({
+    where: { leagueId },
+    select: { id: true },
+  })
+
+  let announcements: Array<{
+    id: string
+    type: string
+    title: string
+    content: string
+    week: number | null
+    isPosted: boolean
+    createdAt: Date
+  }> = []
+
+  if (z) {
+    const where: Record<string, unknown> = { zombieLeagueId: z.id }
+    if (typeFilter) where.type = typeFilter
+    announcements = await prisma.zombieAnnouncement.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        content: true,
+        week: true,
+        isPosted: true,
+        createdAt: true,
+      },
+    })
+  }
+
+  return NextResponse.json({ animations, announcements })
 }

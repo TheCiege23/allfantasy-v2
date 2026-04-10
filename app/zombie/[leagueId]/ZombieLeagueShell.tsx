@@ -11,6 +11,7 @@ import { LeagueSettingsTab as SharedLeagueSettingsTab } from '@/components/leagu
 import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
 import { ZombieFormatTab } from '@/components/league/ZombieFormatTab'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
+import { ZombieCommissionerModal } from '@/app/zombie/components/ZombieCommissionerModal'
 
 type ZMeta = {
   league?: { name?: string | null; universeId?: string | null; currentWeek?: number }
@@ -36,6 +37,7 @@ export default function ZombieLeagueShell({
   const [meta, setMeta] = useState<ZMeta | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [commModalOpen, setCommModalOpen] = useState(false)
 
   useEffect(() => {
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
@@ -59,7 +61,9 @@ export default function ZombieLeagueShell({
     { href: `/zombie/${leagueId}/rules`, label: 'Rules', emoji: '📜' },
     { href: `/zombie/${leagueId}/history`, label: 'History', emoji: '📖' },
     ...(showComm
-      ? [{ href: `/league/${leagueId}`, label: 'Commissioner', emoji: '⚙️' }]
+      ? [
+          { href: `/zombie/${leagueId}/settings`, label: 'Settings', emoji: '⚙️' },
+        ]
       : []),
   ]
 
@@ -76,7 +80,9 @@ export default function ZombieLeagueShell({
     { href: `/zombie/${leagueId}/rules`, label: 'Rules', emoji: '📜' },
     { href: `/zombie/${leagueId}/history`, label: 'History', emoji: '📖' },
     ...(showComm
-      ? [{ href: `/league/${leagueId}`, label: 'Commissioner', emoji: '⚙️' }]
+      ? [
+          { href: `/zombie/${leagueId}/settings`, label: 'Settings', emoji: '⚙️' },
+        ]
       : []),
   ]
 
@@ -113,6 +119,16 @@ export default function ZombieLeagueShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-[var(--zombie-border)] bg-[#07080c]/95 px-4 py-3 md:hidden">
           <span className="text-[14px] font-semibold text-white">{title}</span>
+          {showComm && (
+            <button
+              type="button"
+              onClick={() => setCommModalOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--zombie-text-dim)] transition hover:bg-white/[0.06]"
+              aria-label="Commissioner settings"
+            >
+              ⚙️
+            </button>
+          )}
         </header>
 
         <nav className="grid grid-cols-5 border-b border-[var(--zombie-border)] bg-[var(--zombie-panel)] md:hidden">
@@ -200,6 +216,11 @@ export default function ZombieLeagueShell({
         leagueTabContent={<SharedLeagueSettingsTab leagueId={leagueId} canEdit={showComm} />}
         commissionerTabContent={<CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={false} />}
         formatTabContent={<ZombieFormatTab leagueId={leagueId} hasAfCommissionerSub={false} />}
+      />
+      <ZombieCommissionerModal
+        open={commModalOpen}
+        onClose={() => setCommModalOpen(false)}
+        leagueId={leagueId}
       />
     </div>
   )

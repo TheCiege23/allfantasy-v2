@@ -1,4 +1,5 @@
 import ZombieLeagueShell from './ZombieLeagueShell'
+import { ZombieToastContainer } from '@/app/zombie/components/ZombieNotificationToast'
 
 export default async function ZombieLeagueLayout({
   children,
@@ -11,6 +12,7 @@ export default async function ZombieLeagueLayout({
   return (
     <div className="min-h-screen bg-[var(--zombie-bg)] text-[var(--zombie-text-mid)] antialiased">
       <ZombieLeagueShell leagueId={leagueId}>{children}</ZombieLeagueShell>
+      <ZombieToastContainer />
     </div>
   )
 }

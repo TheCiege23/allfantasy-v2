@@ -2,6 +2,7 @@ import type { ZombieLeague, ZombieRulesDocument, ZombieRulesTemplate } from '@pr
 import { prisma } from '@/lib/prisma'
 import { getLeagueMode } from '@/lib/zombie/zombieLeagueMode'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getZombieSportConfig } from '@/lib/zombie/sportRulesConfig'
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -22,19 +23,30 @@ function buildSections(
 > {
   const mode = getLeagueMode(z)
   const sport = normalizeToSupportedSport(z.sport)
+  const cfg = getZombieSportConfig(sport)
   const leagueName = z.name ?? 'Zombie League'
   const year = z.season
 
-  const pos = (tpl?.positionList?.length ? tpl.positionList : ['—']).join(' | ')
-  const scoring = tpl?.scoringWindowDesc ?? 'See commissioner settings and platform scoring week.'
-  const lock = tpl?.lineupLockDesc ?? 'Per platform lock rules.'
-  const edge = tpl?.edgeCaseNotes ?? ''
+  // Use DB template if available, else fallback to sport config
+  const pos = (tpl?.positionList?.length ? tpl.positionList : cfg.positions).join(' | ')
+  const scoring = tpl?.scoringWindowDesc ?? cfg.scoringWindow
+  const lock = tpl?.lineupLockDesc ?? cfg.lockRule
+  const edge = tpl?.edgeCaseNotes ?? cfg.edgeCases
+  const bashThresh = tpl?.bashingThreshold ?? cfg.bashingThreshold
+  const maulThresh = tpl?.maulingThreshold ?? cfg.maulingThreshold
+  const rosterSize = tpl?.rosterSize ?? cfg.rosterSize
+  const starterCount = tpl?.starterCount ?? cfg.starterCount
+  const benchCount = tpl?.benchCount ?? cfg.benchCount
+  const irSlots = tpl?.irSlotsDefault ?? cfg.irSlots
+  const lineupFreq = tpl?.lineupFrequency ?? cfg.lineupFrequency
 
   const sectionOverview = [
     `AllFantasy Zombie League — ${leagueName}`,
-    `Sport: ${sport} | Season: ${year} | Mode: ${mode === 'paid' ? 'PAID' : 'FREE'}`,
+    `Sport: ${cfg.label} | Season: ${year} | Mode: ${mode === 'paid' ? 'PAID' : 'FREE'}`,
     `${leagueName} is an asymmetrical fantasy league where one team begins as the Whisperer and everyone else begins as a Survivor.`,
     'As the season progresses, infection spreads, the Horde grows, and Survivors fight to stay alive.',
+    '',
+    `This league plays ${cfg.label} fantasy with ${cfg.lineupFrequency} lineup management.`,
   ].join('\n')
 
   const sectionInfection = [
@@ -42,29 +54,29 @@ function buildSections(
     '- A Survivor who loses their weekly matchup to the Whisperer becomes a Zombie.',
     '- A Survivor who loses their weekly matchup to any Zombie becomes a Zombie.',
     '- Infection is permanent unless a Serum Antidote is used.',
-    '- Status changes take effect after official scores finalize.',
+    `- ${cfg.infectionTiming}`,
+    '',
     mode === 'paid'
       ? 'PAID: Infection transfers weekly winnings from victim to infector where configured.'
       : `FREE: Infection transfers ${freeCurrency} from victim to infector (symbolic).`,
   ].join('\n')
 
   const sectionScoring = [
-    `SCORING — ${sport}`,
+    `SCORING — ${cfg.label}`,
     `Scoring window: ${scoring}`,
-    tpl
-      ? `Roster size: ${tpl.rosterSize} players (${tpl.starterCount} starters, ${tpl.benchCount} bench).`
-      : 'Roster size: see league platform.',
+    `Roster size: ${rosterSize} players (${starterCount} starters, ${benchCount} bench).`,
     `Lineup lock: ${lock}`,
+    `Lineup frequency: ${lineupFreq}`,
     `Positions: ${pos}`,
+    '',
     `Sport notes: ${edge}`,
   ].join('\n')
 
   const sectionBashing = [
     'BASHINGS',
-    tpl
-      ? `A Bashing occurs when the winning team wins by ${tpl.bashingThreshold}+ points.`
-      : 'A Bashing occurs when the winning margin meets the league bashing threshold.',
-    'Bashing result: The loser receives a public “Bashed” marker for the week.',
+    `A Bashing occurs when the winning team wins by ${bashThresh}+ points.`,
+    'Bashing result: The loser receives a public "Bashed" marker for the week.',
+    '',
     mode === 'paid'
       ? 'PAID: The loser may forfeit an additional slice of their weekly pot (commissioner settings).'
       : `FREE: The loser may lose additional ${freeCurrency} (symbolic).`,
@@ -72,10 +84,9 @@ function buildSections(
 
   const sectionMauling = [
     'MAULINGS',
-    tpl
-      ? `A Mauling occurs when the winning team wins by ${tpl.maulingThreshold}+ points.`
-      : 'A Mauling occurs when the winning margin meets the league mauling threshold.',
-    'Mauling result: Double loot transfer where enabled; mauling animation may trigger.',
+    `A Mauling occurs when the winning team wins by ${maulThresh}+ points.`,
+    'Mauling result: Double loot transfer where enabled; mauling animation triggers.',
+    '',
     mode === 'paid'
       ? 'PAID: Double winnings transferred when the pot engine applies it.'
       : `FREE: Double ${freeCurrency} transferred (symbolic); badges may be awarded.`,
@@ -118,38 +129,72 @@ function buildSections(
     '@CHIMMY ACTIONS',
     'You can interact with @Chimmy for timed actions, status checks, inventory, and rules questions.',
     '@Chimmy will not reveal another player\'s private information.',
+    '@Chimmy can help with: status check, item use, ambush targets, serum timing, and rules lookups.',
   ].join('\n')
 
   const sectionWeeklyTiming = [
-    `WEEKLY SCHEDULE — ${sport}`,
-    scoring,
+    `WEEKLY SCHEDULE — ${cfg.label}`,
+    cfg.weeklySchedule,
+    `Scoring window: ${scoring}`,
     `Whisperer ambushes must respect lock rules: ${lock}`,
+    `Challenge frequency: ${cfg.challengeFrequency}`,
+    '',
     'Status changes finalize after scores are official; stat corrections may re-open a window.',
   ].join('\n')
 
-  const sectionRoster = tpl
-    ? [
-        'ROSTER',
-        `Starters: ${tpl.starterCount}, Bench: ${tpl.benchCount}, IR slots (default): ${tpl.irSlotsDefault}`,
-        `Lineup frequency: ${tpl.lineupFrequency}`,
-      ].join('\n')
-    : 'ROSTER\nSee platform roster settings.'
+  const sectionRoster = [
+    'ROSTER',
+    `Starters: ${starterCount}, Bench: ${benchCount}, IR slots: ${irSlots}`,
+    `Lineup frequency: ${lineupFreq}`,
+    `Positions: ${pos}`,
+  ].join('\n')
 
-  const filler = 'See commissioner tools and league chat for live settings.'
+  const sectionWhisperer = [
+    'THE WHISPERER',
+    'One team is secretly (or publicly) designated as the Whisperer at the start of the season.',
+    'The Whisperer commands the Horde and can deploy ambushes to remap matchups.',
+    'If the Whisperer is voted out or eliminated, a new Whisperer rises from the Horde.',
+    `Ambush count per week: ${z.whispererAmbushCount ?? 1}`,
+    `Selection mode: ${z.whispererSelectionMode ?? 'random'}`,
+  ].join('\n')
+
+  const sectionSurvivor = [
+    'SURVIVORS',
+    'Survivors begin the season as the majority. Their goal: survive.',
+    'Winning matchups keeps you alive. Losing to a Zombie or Whisperer turns you.',
+    'Serums can reverse infection. Weapons provide score advantages.',
+    'The last Survivor(s) standing earn the Ultimate Survivor bonus (if enabled).',
+  ].join('\n')
+
+  const sectionZombie = [
+    'THE HORDE (ZOMBIES)',
+    'Once turned, you join the Horde permanently (unless a Serum is used).',
+    'Zombies can infect Survivors by beating them in matchups.',
+    'The Horde grows each week as more Survivors fall.',
+    'Zombies earn rewards for successful infections and may earn winnings based on commissioner settings.',
+  ].join('\n')
+
+  const sectionAmbush = [
+    'AMBUSHES',
+    'The Whisperer can deploy ambushes to remap matchups strategically.',
+    `Ambush count per week: ${z.whispererAmbushCount ?? 1}`,
+    'Ambush types: remap (swap matchup pairings), boost (bonus to Horde team), sabotage (debuff to Survivor).',
+    'Ambushes must be set before lineup lock for the affected players.',
+  ].join('\n')
 
   return {
     sectionOverview,
     sectionInfection,
-    sectionWhisperer: filler,
-    sectionSurvivor: filler,
-    sectionZombie: filler,
+    sectionWhisperer,
+    sectionSurvivor,
+    sectionZombie,
     sectionScoring,
     sectionRoster,
-    sectionAmbush: filler,
+    sectionAmbush,
     sectionBashing,
     sectionMauling,
-    sectionSerums: tpl?.serumAwardDesc ?? 'Serum awards follow league template and commissioner settings.',
-    sectionWeapons: 'Weapons follow score thresholds and commissioner toggles.',
+    sectionSerums: tpl?.serumAwardDesc ?? `Serum awards: ${cfg.serumAward}. Commissioner can configure additional award triggers.`,
+    sectionWeapons: 'Weapons follow score thresholds and commissioner toggles. Top 2 scorers each week may earn weapons.',
     sectionWinnings,
     sectionUniverseMovement: 'Universe promotion/relegation follows universe commissioner settings when enabled.',
     sectionWeeklyTiming,
@@ -217,21 +262,25 @@ export async function generateRulesDocument(zombieLeagueId: string): Promise<Zom
 
 export function getRulesDocAsHtml(doc: ZombieRulesDocument): string {
   const sec = (title: string, body: string) =>
-    `<section class="zombie-rules-section"><h2 class="zombie-rules-heading">${esc(title)}</h2><pre class="whitespace-pre-wrap text-sm opacity-90">${esc(body)}</pre></section>`
+    `<section class="zombie-rules-section mb-6"><h2 class="zombie-rules-heading text-[14px] font-bold text-[var(--zombie-text-full)] mb-2">${esc(title)}</h2><pre class="whitespace-pre-wrap text-[12px] leading-relaxed opacity-90">${esc(body)}</pre></section>`
 
   return `<article class="zombie-rules-doc max-w-3xl">
-  ${doc.isPaid ? '<p class="zombie-rules-paid-badge mb-2 text-amber-200/90">PAID LEAGUE</p>' : '<p class="zombie-rules-threshold-badge mb-2 text-sky-200/80">FREE LEAGUE</p>'}
+  ${doc.isPaid ? '<p class="zombie-rules-paid-badge mb-4 inline-block rounded-lg bg-amber-500/15 px-3 py-1 text-[12px] font-bold text-amber-200/90">PAID LEAGUE</p>' : '<p class="zombie-rules-threshold-badge mb-4 inline-block rounded-lg bg-sky-500/15 px-3 py-1 text-[12px] font-bold text-sky-200/80">FREE LEAGUE</p>'}
   ${sec('Overview', doc.sectionOverview)}
   ${sec('Infection', doc.sectionInfection)}
+  ${sec('The Whisperer', doc.sectionWhisperer)}
+  ${sec('Survivors', doc.sectionSurvivor)}
+  ${sec('The Horde', doc.sectionZombie)}
   ${sec('Scoring', doc.sectionScoring)}
   ${sec('Roster', doc.sectionRoster)}
+  ${sec('Ambushes', doc.sectionAmbush)}
   ${sec('Bashing', doc.sectionBashing)}
   ${sec('Mauling', doc.sectionMauling)}
   ${sec('Serums', doc.sectionSerums)}
   ${sec('Weapons', doc.sectionWeapons)}
   ${sec('Winnings / Rewards', doc.sectionWinnings)}
   ${sec('Universe', doc.sectionUniverseMovement)}
-  ${sec('Weekly timing', doc.sectionWeeklyTiming)}
+  ${sec('Weekly Schedule', doc.sectionWeeklyTiming)}
   ${sec('@Chimmy', doc.sectionChimmy)}
   ${sec('Paid vs Free', doc.sectionPaidVsFree)}
 </article>`
@@ -241,8 +290,12 @@ export function getRulesDocAsText(doc: ZombieRulesDocument): string {
   const parts = [
     doc.sectionOverview,
     doc.sectionInfection,
+    doc.sectionWhisperer,
+    doc.sectionSurvivor,
+    doc.sectionZombie,
     doc.sectionScoring,
     doc.sectionRoster,
+    doc.sectionAmbush,
     doc.sectionBashing,
     doc.sectionMauling,
     doc.sectionSerums,

@@ -188,11 +188,11 @@ async function runAutomation(req: NextRequest) {
         // Apply week advancement and automation metadata in one atomic write.
         const gsFinal = await tx.survivorGameState.findUnique({ where: { leagueId } })
         if (!gsFinal) return
-        const needsExileScore = didClearNeedsExileScore ? false : gsFinal.needsExileScore
+        const needsExileScore = didClearNeedsExileScore ? false : (gsFinal.needsExileScore ?? false)
         // If tribal is complete but recap wasn't generated yet, keep recap pending and block week advance.
         const needsWeeklyRecap =
           didClearNeedsWeeklyRecap ? false : gsFinal.needsWeeklyRecap || Boolean(gsFinal.tribalCompleteAt)
-        const needsWaiverProcess = gsFinal.needsWaiverProcess
+        const needsWaiverProcess = gsFinal.needsWaiverProcess ?? false
 
         const shouldAdvanceWeek =
           Boolean(gsFinal.weekScoringFinalAt) &&
@@ -203,8 +203,8 @@ async function runAutomation(req: NextRequest) {
           !needsExileScore &&
           !needsWeeklyRecap
 
-        const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : needsExileScore
-        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : needsWeeklyRecap
+        const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : (needsExileScore ?? false)
+        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : (needsWeeklyRecap ?? false)
 
         await tx.survivorGameState.update({
           where: { leagueId },
