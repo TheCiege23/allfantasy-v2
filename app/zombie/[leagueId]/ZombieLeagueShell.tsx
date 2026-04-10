@@ -6,6 +6,10 @@ import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { SimulateLeagueButton } from '@/components/admin/SimulateLeagueButton'
 import { LeagueIntroVideoModal } from '@/components/league/LeagueIntroVideoModal'
+import { LeagueSettingsShell } from '@/components/league/LeagueSettingsShell'
+import { LeagueSettingsTab as SharedLeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
+import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
+import { ZombieFormatTab } from '@/components/league/ZombieFormatTab'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 
 type ZMeta = {
@@ -31,6 +35,7 @@ export default function ZombieLeagueShell({
   const pathname = usePathname()
   const [meta, setMeta] = useState<ZMeta | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
@@ -184,6 +189,17 @@ export default function ZombieLeagueShell({
         videoSrc={getLeagueTypeMedia('zombie').introVideo}
         posterSrc={getLeagueTypeMedia('zombie').thumbnail}
         onDismiss={() => {}}
+      />
+      <LeagueSettingsShell
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        isCommissioner={showComm}
+        isCoCommissioner={false}
+        formatLabel="Zombie"
+        hasAfCommissionerSub={false}
+        leagueTabContent={<SharedLeagueSettingsTab leagueId={leagueId} canEdit={showComm} />}
+        commissionerTabContent={<CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={false} />}
+        formatTabContent={<ZombieFormatTab leagueId={leagueId} hasAfCommissionerSub={false} />}
       />
     </div>
   )

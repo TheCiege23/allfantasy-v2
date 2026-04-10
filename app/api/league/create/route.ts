@@ -830,7 +830,15 @@ export async function POST(req: Request) {
     if (isZombie) {
       try {
         const { upsertZombieLeagueConfig } = await import('@/lib/zombie/ZombieLeagueConfig');
-        await upsertZombieLeagueConfig(league.id, {});
+        const zc = (settingsWizard as Record<string, unknown>)?.zombie as Record<string, unknown> | undefined;
+        await upsertZombieLeagueConfig(league.id, {
+          ...(zc?.whispererSelection != null && { whispererSelection: String(zc.whispererSelection) }),
+          ...(zc?.infectionLossToWhisperer != null && { infectionLossToWhisperer: Boolean(zc.infectionLossToWhisperer) }),
+          ...(zc?.infectionLossToZombie != null && { infectionLossToZombie: Boolean(zc.infectionLossToZombie) }),
+          ...(zc?.serumReviveCount != null && { serumReviveCount: Number(zc.serumReviveCount) }),
+          ...(zc?.ambushCountPerWeek != null && { ambushCountDefault: Number(zc.ambushCountPerWeek) }),
+          ...(zc?.zombieTradeBlocked != null && { zombieTradeBlocked: Boolean(zc.zombieTradeBlocked) }),
+        });
       } catch (err) {
         console.warn('[league/create] Zombie config bootstrap non-fatal:', err);
       }
