@@ -336,6 +336,7 @@ export function LeagueShell({
   )
 
   const inviteToken = league.invites[0]?.token
+  const leagueTypeMedia = getLeagueTypeMedia(league.leagueVariant ?? league.leagueType)
 
   const handleLeagueSelect = (l: UserLeague | null) => {
     if (l && l.id !== league.id) {
@@ -455,14 +456,16 @@ export function LeagueShell({
       </AppShell>
 
       <SimulateLeagueButton leagueId={league.id} />
-      <LeagueIntroVideoModal
-        leagueId={league.id}
-        leagueType={league.leagueType ?? 'redraft'}
-        leagueName={league.name ?? 'League'}
-        videoSrc={getLeagueTypeMedia(league.leagueVariant ?? league.leagueType).introVideo}
-        posterSrc={getLeagueTypeMedia(league.leagueVariant ?? league.leagueType).thumbnail}
-        onDismiss={() => {}}
-      />
+      {leagueTypeMedia.introVideo ? (
+        <LeagueIntroVideoModal
+          leagueId={league.id}
+          leagueType={league.leagueType ?? 'redraft'}
+          leagueName={league.name ?? 'League'}
+          videoSrc={leagueTypeMedia.introVideo}
+          posterSrc={leagueTypeMedia.thumbnail}
+          onDismiss={() => {}}
+        />
+      ) : null}
 
       {/* Guillotine 3-tab settings modal */}
       {league.guillotineMode && (
