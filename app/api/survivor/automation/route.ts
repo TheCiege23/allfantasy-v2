@@ -175,7 +175,7 @@ async function runAutomation(req: NextRequest) {
       const gsRecap = await prisma.survivorGameState.findUnique({ where: { leagueId } })
       let didClearNeedsWeeklyRecap = false
       let recapError: unknown = null
-      if (gsRecap?.needsWeeklyRecap) {
+      if (gsRecap?.needsWeeklyRecap && gsRecap.tribalCompleteAt) {
         try {
           await generateAndPostWeeklyRecap(leagueId, week)
           didClearNeedsWeeklyRecap = true
@@ -208,7 +208,7 @@ async function runAutomation(req: NextRequest) {
           !needsWeeklyRecap
 
         const nextNeedsExileScore = shouldAdvanceWeek && L.survivorExileEnabled !== false ? true : needsExileScore
-        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? false : needsWeeklyRecap
+        const nextNeedsWeeklyRecap = shouldAdvanceWeek ? true : needsWeeklyRecap
 
         await tx.survivorGameState.update({
           where: { leagueId },

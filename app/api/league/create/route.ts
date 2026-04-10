@@ -65,6 +65,7 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const userId = session.user.id;
 
   let body: any;
   try {
@@ -858,7 +859,7 @@ export async function POST(req: Request) {
             teamsPerLeague: ts?.teamsPerLeague != null ? Number(ts.teamsPerLeague) : 12,
             namingMode: ts?.namingMode != null ? String(ts.namingMode) : 'ai_generated',
             totalRounds: ts?.totalRounds != null ? Number(ts.totalRounds) : 4,
-            creatorId: session.user.id,
+            creatorId: userId,
             settings: {
               bubbleEnabled: ts?.bubbleEnabled !== false,
               bubbleSize: ts?.bubbleSize ?? 4,
