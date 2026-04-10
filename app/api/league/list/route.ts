@@ -65,6 +65,12 @@ export async function GET() {
             {
               OR: [{ leagueVariant: null }, { leagueVariant: { notIn: VARIANT_NOT_IN } }],
             },
+            // Exclude ranking-import-only Sleeper leagues.
+            // Real active imports always write `status` from the Sleeper API; ranking imports
+            // never set it, so null status + null leagueVariant = career-data-only row.
+            {
+              NOT: { platform: 'sleeper', leagueVariant: null, status: null },
+            },
           ],
         },
         orderBy: [{ season: 'desc' }, { name: 'asc' }],
