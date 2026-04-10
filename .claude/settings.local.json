@@ -24,7 +24,9 @@
       "Bash(DATABASE_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" DIRECT_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push --accept-data-loss)",
       "Bash(DATABASE_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" DIRECT_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db pull --print)",
       "Bash(DATABASE_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" psql -c \"SELECT column_name FROM information_schema.columns WHERE table_name='leagues' AND table_schema='public' ORDER BY ordinal_position;\")",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(DIRECT_URL=\"postgresql://postgres:Knicks2030!2345@db.iyobqczaobkyxvgrrcgq.supabase.co:5432/postgres\" DATABASE_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push --accept-data-loss)",
+      "Bash(DIRECT_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" DATABASE_URL=\"postgresql://postgres.iyobqczaobkyxvgrrcgq:Knicks2030!2345@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push --accept-data-loss)"
     ]
   }
 }
