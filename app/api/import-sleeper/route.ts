@@ -115,49 +115,53 @@ export async function POST(req: Request) {
     const failed = results.length - imported;
     const commentaryTelemetry = sumCommentaryTelemetry(successfulImports);
 
-    try {
-      const [sleeperUser, legacyUser] = await Promise.all([
-        getSleeperUser(sleeperUserId),
-        prisma.legacyUser.findUnique({
-          where: { sleeperUserId },
-          select: { id: true },
-        }),
-      ]);
+    // Fire-and-forget: rank computation, rankings context refresh, and history sync
+    // These are non-critical for the import response and can run in the background.
+    void (async () => {
+      try {
+        const [sleeperUser, legacyUser] = await Promise.all([
+          getSleeperUser(sleeperUserId),
+          prisma.legacyUser.findUnique({
+            where: { sleeperUserId },
+            select: { id: true },
+          }),
+        ]);
 
-      await upsertPlatformIdentity({
-        afUserId: userId,
-        platform: "sleeper",
-        platformUserId: sleeperUser?.user_id ?? sleeperUserId,
-        platformUsername: sleeperUser?.username ?? sleeperUserId,
-        displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
-        avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
-        sport,
-      });
+        await upsertPlatformIdentity({
+          afUserId: userId,
+          platform: "sleeper",
+          platformUserId: sleeperUser?.user_id ?? sleeperUserId,
+          platformUsername: sleeperUser?.username ?? sleeperUserId,
+          displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
+          avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
+          sport,
+        });
 
-      const isLocked = await isPlatformRankLocked(userId, "sleeper");
-      if (!isLocked && legacyUser) {
-        await computeAndSaveRank(userId, legacyUser);
-        await lockPlatformRank(userId, "sleeper");
+        const isLocked = await isPlatformRankLocked(userId, "sleeper");
+        if (!isLocked && legacyUser) {
+          await computeAndSaveRank(userId, legacyUser);
+          await lockPlatformRank(userId, "sleeper");
+        }
+      } catch (err) {
+        console.error("[import-sleeper] rank lock error:", err);
       }
-    } catch (err) {
-      console.error("[import-sleeper] rank lock error:", err);
-    }
 
-    try {
-      await refreshUserRankingsContext(userId);
-    } catch (err) {
-      console.error("[import-sleeper] rankings context error:", err);
-    }
+      try {
+        await refreshUserRankingsContext(userId);
+      } catch (err) {
+        console.error("[import-sleeper] rankings context error:", err);
+      }
 
-    for (let i = 0; i < leaguesData.length; i++) {
-      const row = results[i];
-      if (!row) continue;
-      const platformLeagueId = leaguesData[i]?.league_id?.toString();
-      if (!platformLeagueId) continue;
-      void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
-        console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
-      );
-    }
+      for (let i = 0; i < leaguesData.length; i++) {
+        const row = results[i];
+        if (!row) continue;
+        const platformLeagueId = leaguesData[i]?.league_id?.toString();
+        if (!platformLeagueId) continue;
+        void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
+          console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
+        );
+      }
+    })();
 
     return NextResponse.json({
       success: true,

@@ -349,7 +349,8 @@ type TierVisual = {
 }
 
 function getTierConfigByLevel(level: number): TierVisual {
-  const row = RANK_LEVELS.find((e) => e.level === level) ?? RANK_LEVELS[0]
+  const clamped = Math.max(1, Math.min(25, level))
+  const row = RANK_LEVELS.find((e) => e.level === clamped) ?? RANK_LEVELS[0]
   const glow = `${row.color}55`
   return {
     tier: row.level,
@@ -361,8 +362,10 @@ function getTierConfigByLevel(level: number): TierVisual {
   }
 }
 
-function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 'careerLevel'>) {
-  return getTierConfigByLevel(rank.careerLevel)
+function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 'careerLevel' | 'careerXp'>) {
+  if (rank.careerLevel >= 1 && rank.careerLevel <= 25) return getTierConfigByLevel(rank.careerLevel)
+  const xp = Number(rank.careerXp) || 0
+  return getTierConfigByLevel(getLevelFromXp(xp).level)
 }
 
 function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md' | 'lg' }) {
@@ -389,7 +392,7 @@ function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md'
       >
         <span className={sizes.emoji}>{cfg.badge}</span>
         <span className={`${sizes.tier} font-bold mt-0.5`} style={{ color: cfg.color }}>
-          LV {rank.careerLevel}
+          LV {getLevelFromXp(Number(rank.careerXp) || 0).level}
         </span>
       </div>
     </div>
@@ -421,25 +424,27 @@ function ImportPanel({ onImportSuccess }: { onImportSuccess: () => void }) {
         const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`) // db-first-exception: legacy rankings import bootstrap
         if (!userRes.ok) throw new Error('Sleeper username not found')
         const userData = await userRes.json()
+        const sportResults = await Promise.allSettled(
+          SLEEPER_IMPORT_SPORTS.map((sport) =>
+            fetch('/api/import-sleeper', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sleeperUserId: userData.user_id, sport, isLegacy: true }),
+            }).then(async (res) => {
+              if (res.ok) return { ok: true as const }
+              if (res.status === 404) return { ok: false as const, notFound: true }
+              const data = (await res.json().catch(() => ({}))) as { error?: string }
+              return { ok: false as const, notFound: false, error: data.error?.trim() || 'Import failed' }
+            })
+          )
+        )
         let importedAnySport = false
         let sawNoLeagues = false
-        for (const sport of SLEEPER_IMPORT_SPORTS) {
-          const importRes = await fetch('/api/import-sleeper', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sleeperUserId: userData.user_id, sport, isLegacy: true }),
-          })
-          if (importRes.ok) {
-            importedAnySport = true
-            continue
-          }
-          const importData = (await importRes.json().catch(() => ({}))) as { error?: string }
-          const errorMessage = importData.error?.trim() || 'Import failed'
-          if (importRes.status === 404) {
-            sawNoLeagues = true
-            continue
-          }
-          throw new Error(errorMessage)
+        for (const r of sportResults) {
+          if (r.status === 'rejected') continue
+          if (r.value.ok) { importedAnySport = true; continue }
+          if (r.value.notFound) { sawNoLeagues = true; continue }
+          throw new Error(r.value.error)
         }
         if (!importedAnySport) {
           throw new Error(sawNoLeagues ? 'No Sleeper leagues found for this account' : 'Import failed')
@@ -559,16 +564,16 @@ function CareerStats({ rank }: { rank: PlayerRank }) {
   ]
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5">
-      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-4">Career Stats</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5 sm:p-6">
+      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Career Stats</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
         {stats.map((item) => (
-          <div key={item.label} className="rounded-xl border border-white/6 bg-white/[0.03] p-3">
-            <div className="text-xl font-bold text-white" style={{ color: cfg.color }}>
+          <div key={item.label} className="rounded-xl border border-white/6 bg-white/[0.03] px-4 py-4 min-w-0">
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight truncate" style={{ color: cfg.color }}>
               {item.value}
             </div>
-            <div className="text-[11px] font-semibold text-white/70 mt-0.5">{item.label}</div>
-            <div className="text-[10px] text-white/30">{item.sub}</div>
+            <div className="text-xs font-semibold text-white/70 mt-1.5">{item.label}</div>
+            <div className="text-[11px] text-white/35 mt-0.5">{item.sub}</div>
           </div>
         ))}
       </div>
@@ -634,8 +639,9 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
   const cfg = getTierConfig(rank)
   const xp = Number(rank.careerXp)
   const lv = getLevelFromXp(xp)
+  const effectiveLevel = lv.level
   const xpProgress = lv.progressPct
-  const nextRow = RANK_LEVELS.find((r) => r.level === rank.careerLevel + 1)
+  const nextRow = RANK_LEVELS.find((r) => r.level === effectiveLevel + 1)
   const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xp) : 0
 
   return (
@@ -658,7 +664,7 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
 
           <div className="max-w-xs sm:max-w-sm mx-auto sm:mx-0">
             <div className="flex justify-between text-[11px] text-white/40 mb-1.5">
-              <span>Level {rank.careerLevel}</span>
+              <span>Level {effectiveLevel}</span>
               <span>{xp.toLocaleString()} XP</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
@@ -674,7 +680,7 @@ function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
             <div className="text-[10px] text-white/30 mt-1 text-right">
               {nextRow
                 ? `${xpToNext.toLocaleString()} XP to ${nextRow.name}`
-                : rank.careerLevel >= 25
+                : effectiveLevel >= 25
                   ? 'Max level reached'
                   : '—'}
             </div>
@@ -765,8 +771,13 @@ function RankImportTimeoutState() {
 function LevelJourneyStrip({ currentLevel }: { currentLevel: number }) {
   return (
     <div className="mt-5">
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/35">Level journey</p>
-      <div className="flex gap-1 overflow-x-auto pb-2 pt-0.5 [scrollbar-width:thin]">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/35">Level journey</p>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300/80">
+          Your rank: {currentLevel}
+        </p>
+      </div>
+      <div className="grid w-full grid-cols-[repeat(25,minmax(0,1fr))] gap-1 pt-0.5">
         {RANK_LEVELS.map((row) => {
           const done = row.level < currentLevel
           const active = row.level === currentLevel
@@ -774,15 +785,18 @@ function LevelJourneyStrip({ currentLevel }: { currentLevel: number }) {
             <div
               key={row.level}
               title={`${row.level}. ${row.name}`}
-              className="flex h-9 min-w-[2.25rem] shrink-0 flex-col items-center justify-center rounded-lg border text-[9px] font-bold"
+              aria-current={active ? 'step' : undefined}
+              className="flex h-9 w-full flex-col items-center justify-center rounded-lg border text-[9px] font-bold transition-all"
               style={{
                 borderColor: active ? row.color : 'rgba(255,255,255,0.08)',
                 background: done ? `${row.color}35` : active ? `${row.color}22` : 'rgba(255,255,255,0.03)',
                 color: active ? row.color : done ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.25)',
-                boxShadow: active ? `0 0 0 1px ${row.color}55` : undefined,
+                boxShadow: active ? `0 0 0 1px ${row.color}88, 0 0 14px ${row.color}55` : undefined,
+                transform: active ? 'translateY(-1px) scale(1.03)' : undefined,
               }}
             >
               <span className="leading-none">{row.level}</span>
+              {active ? <span className="mt-0.5 text-[7px] leading-none text-white/90">YOU</span> : null}
             </div>
           )
         })}

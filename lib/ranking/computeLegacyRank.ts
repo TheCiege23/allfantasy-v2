@@ -1,5 +1,6 @@
-import { XP_SOURCES, XP_PER_LEVEL, TIERS, levelFromXp, tierFromLevel } from "./config";
+import { XP_SOURCES } from "./config";
 import { difficultyFromLegacyLeague } from "./difficulty";
+import { RANK_LEVELS, getLevelFromXp } from "@/lib/rank/levels";
 
 export type LegacyLeagueHistoryRow = {
   season: number;
@@ -120,8 +121,9 @@ export function computeLegacyRankPreview(input: {
   }
 
   const careerXp = round(xpWins + xpPlayoffs + xpChamps + xpParticipation + xpFormats);
-  const careerLevel = levelFromXp(careerXp);
-  const tier = tierFromLevel(careerLevel);
+  const resolved = getLevelFromXp(careerXp);
+  const careerLevel = resolved.level;
+  const tier = { tier: resolved.level, name: resolved.name };
 
   const seasons = Math.max(1, safe(input.totals.seasons_imported, 1));
   const avgLeaguesPerYear = safe(input.totals.leagues_played, leagues.length) / seasons;
@@ -174,7 +176,7 @@ export function computeLegacyRankPreview(input: {
     },
     yearly_projection: {
       baseline_year_xp: baselineYearXp,
-      baseline_year_levels: Math.floor(baselineYearXp / 500),
+      baseline_year_levels: 0,
       ai_low_year_xp: aiLowYearXp,
       ai_mid_year_xp: aiMidYearXp,
       ai_high_year_xp: aiHighYearXp,
@@ -187,12 +189,12 @@ export function computeLegacyRankPreview(input: {
         aiWinRateLiftRange: "5%–12%",
         aiPlayoffLiftPerYear,
         aiChampLiftPerYear,
-        xp_per_level: XP_PER_LEVEL,
-        tier_xp_thresholds: TIERS.slice().sort((a, b) => a.tier - b.tier).map((t) => ({
-          tier: t.tier,
-          name: t.name,
-          minLevel: t.minLevel,
-          minXp: t.minLevel * XP_PER_LEVEL,
+        xp_per_level: 0,
+        tier_xp_thresholds: RANK_LEVELS.map((r) => ({
+          tier: r.level,
+          name: r.name,
+          minLevel: r.level,
+          minXp: r.minXp,
         })),
       },
     },
