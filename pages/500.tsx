@@ -1,4 +1,6 @@
-export default function Custom500() {
+import type { NextPage } from 'next'
+
+const Custom500: NextPage = () => {
   return (
     <main
       style={{
@@ -18,3 +20,5 @@ export default function Custom500() {
     </main>
   )
 }
+
+export default Custom500
