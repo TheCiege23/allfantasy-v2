@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { hasAfCommissionerSub } from '@/lib/league/ai-feature-gate'
+import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +19,14 @@ export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const profile = await prisma.userProfile.findFirst({
+    where: { userId: session.user.id },
+    select: { afCommissionerSub: true },
+  })
+  if (!profile?.afCommissionerSub) {
+    return NextResponse.json({ error: 'AF Commissioner subscription required' }, { status: 403 })
   }
 
   const body = (await req.json().catch(() => ({}))) as { prompt?: string }
@@ -50,7 +58,7 @@ function parseLeaguePrompt(prompt: string): {
 
   // Detect sport
   let sport = 'NFL'
-  if (lower.includes('nba') || lower.includes('basketball') && !lower.includes('college basketball')) sport = 'NBA'
+  if ((lower.includes('nba') || lower.includes('basketball')) && !lower.includes('college basketball')) sport = 'NBA'
   else if (lower.includes('mlb') || lower.includes('baseball')) sport = 'MLB'
   else if (lower.includes('nhl') || lower.includes('hockey')) sport = 'NHL'
   else if (lower.includes('college football') || lower.includes('ncaaf') || lower.includes('cfb')) sport = 'NCAAF'

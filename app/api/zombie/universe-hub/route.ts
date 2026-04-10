@@ -202,13 +202,16 @@ async function buildLeaderboard(
   const maulMap = new Map<string, number>()
   for (const r of maulings) maulMap.set(r.maulerUserId, (maulMap.get(r.maulerUserId) ?? 0) + r._count.id)
 
+  const rosterIds = leagues.flatMap((z) => z.teams.map((t) => t.rosterId))
+  const rosters = await prisma.roster.findMany({
+    where: { id: { in: rosterIds } },
+    select: { id: true, platformUserId: true },
+  }).catch(() => [])
+  const rosterUserById = new Map(rosters.map((r) => [r.id, r.platformUserId]))
+
   for (const z of leagues) {
     for (const t of z.teams) {
-      const roster = await prisma.roster.findUnique({
-        where: { id: t.rosterId },
-        select: { platformUserId: true },
-      }).catch(() => null)
-      const userId = roster?.platformUserId ?? t.rosterId
+      const userId = rosterUserById.get(t.rosterId) ?? t.rosterId
       const wins = t.wins ?? 0
       const losses = t.losses ?? 0
       const played = wins + losses

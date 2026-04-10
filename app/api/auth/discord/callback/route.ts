@@ -33,16 +33,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/settings?discord=error&reason=no_code', SETTINGS_BASE))
   }
 
-  // State validation: if cookie was lost during cross-site redirect, log but proceed
-  // (the code itself is single-use and tied to our client_id + redirect_uri)
-  if (state && stored && stored !== state) {
-    console.warn('[discord/callback] State mismatch — possible cookie loss during cross-site redirect')
+  if (!state || !stored || stored !== state) {
     cookieStore.delete('discord_oauth_state')
     return NextResponse.redirect(new URL('/settings?discord=error&reason=state_mismatch', SETTINGS_BASE))
-  }
-
-  if (!stored) {
-    console.warn('[discord/callback] State cookie missing — cross-site cookie may have been blocked. Proceeding with code exchange.')
   }
 
   cookieStore.delete('discord_oauth_state')

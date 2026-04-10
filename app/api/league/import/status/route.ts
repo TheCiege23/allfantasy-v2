@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   }).catch(() => []) ?? []
 
   // Calculate progress for each job
-  const jobs = legacyJobs.map((job) => {
+  const legacyStatusJobs = legacyJobs.map((job) => {
     const totalSeasons = job.seasons.length
     const completedSeasons = job.seasons.filter((s) => s.status === 'complete').length
     const progress = totalSeasons > 0 ? Math.round((completedSeasons / totalSeasons) * 100) : 0
@@ -60,6 +60,49 @@ export async function GET(req: NextRequest) {
       })),
     }
   })
+
+  const genericStatusJobs = (genericJobs as Array<{
+    id?: string
+    provider?: string | null
+    status?: string | null
+    progress?: number | null
+    totalSeasons?: number | null
+    seasonsCompleted?: number | null
+    sleeperUsername?: string | null
+    sourceUsername?: string | null
+    leagueCount?: number | null
+    createdAt?: Date | string | null
+    updatedAt?: Date | string | null
+  }>).map((job) => {
+    const createdAt = job.createdAt ? new Date(job.createdAt) : new Date()
+    const updatedAt = job.updatedAt ? new Date(job.updatedAt) : createdAt
+    const totalSeasons = Number(job.totalSeasons ?? 0)
+    const completedSeasons = Number(job.seasonsCompleted ?? 0)
+    const progress =
+      Number.isFinite(Number(job.progress)) && Number(job.progress) >= 0
+        ? Number(job.progress)
+        : totalSeasons > 0
+          ? Math.round((completedSeasons / totalSeasons) * 100)
+          : 0
+
+    return {
+      id: job.id ?? crypto.randomUUID(),
+      provider: (job.provider ?? 'import').toLowerCase(),
+      status: job.status ?? 'queued',
+      progress,
+      totalSeasons,
+      completedSeasons,
+      sleeperUsername: job.sleeperUsername ?? job.sourceUsername ?? null,
+      leagueCount: Number.isFinite(Number(job.leagueCount)) ? Number(job.leagueCount) : null,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+      seasons: [],
+    }
+  })
+
+  const jobs = [...legacyStatusJobs, ...genericStatusJobs].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
 
   return NextResponse.json({ jobs })
 }
