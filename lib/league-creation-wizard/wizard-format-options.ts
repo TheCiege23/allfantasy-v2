@@ -22,11 +22,17 @@ export interface WizardFormatOptions {
   survivorTribeNameMode: SurvivorTribeNameMode
   survivorCustomTribeNamesLines: string
   survivorCommissionerRole: SurvivorCommissionerRole
+  /** Survivor — optional season headline (e.g. Heroes vs Villains), matches `/leagues/create` Rules step */
+  survivorSeasonThemeLabel: string
+  /** Survivor — catalog weekly challenges vs manual (default on) */
+  survivorChallengesSystemRun: boolean
   /** Keeper */
   keeperMaxKeepers: number
   /** Zombie */
   zombieUniverseMode: boolean
   zombieIntertwinedLeagueCount: number
+  /** Zombie — whisperer assignment (passed to `upsertZombieLeagueConfig` at create) */
+  zombieWhispererSelection: 'random' | 'veteran_priority'
   /** Salary cap */
   salaryCapStartupCap: number | null
   salaryCapMode: 'dynasty' | 'bestball'
@@ -51,9 +57,12 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   survivorTribeNameMode: 'auto',
   survivorCustomTribeNamesLines: '',
   survivorCommissionerRole: 'commissioner_only',
+  survivorSeasonThemeLabel: '',
+  survivorChallengesSystemRun: true,
   keeperMaxKeepers: 3,
   zombieUniverseMode: false,
   zombieIntertwinedLeagueCount: 1,
+  zombieWhispererSelection: 'random',
   salaryCapStartupCap: null,
   salaryCapMode: 'dynasty',
   guillotineRulesAcknowledged: false,
@@ -98,6 +107,10 @@ export function formatOptionsApplyToLeagueType(
     out.survivor_creation_team_count = clampSurvivorTeamCount(sport, options.survivorTeamCount)
     out.survivor_tribe_name_mode = options.survivorTribeNameMode
     out.survivor_commissioner_role = options.survivorCommissionerRole
+    out.survivor_challenges_system_run = options.survivorChallengesSystemRun !== false
+    if (options.survivorSeasonThemeLabel.trim()) {
+      out.survivor_season_theme_label = options.survivorSeasonThemeLabel.trim()
+    }
     out.survivor_suggested_tribe_count = suggestedSurvivorTribeCount(
       clampSurvivorTeamCount(sport, options.survivorTeamCount)
     )
@@ -119,6 +132,7 @@ export function formatOptionsApplyToLeagueType(
   if (leagueType === 'zombie') {
     out.zombie_creation_universe_mode = options.zombieUniverseMode
     out.zombie_creation_intertwined_league_count = Math.max(1, Math.min(8, options.zombieIntertwinedLeagueCount))
+    out.zombie_whisperer_selection = options.zombieWhispererSelection === 'veteran_priority' ? 'veteran_priority' : 'random'
   }
 
   if (leagueType === 'salary_cap') {

@@ -183,6 +183,25 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label className="text-white/85">Season headline (optional)</Label>
+            <Input
+              value={v.survivorSeasonThemeLabel}
+              onChange={(e) => onChange({ survivorSeasonThemeLabel: e.target.value })}
+              placeholder="e.g. Heroes vs Villains"
+              className="border-white/20 bg-[#030a20] text-white"
+              data-testid="wizard-survivor-season-theme"
+            />
+          </div>
+          <label className="flex items-start gap-2 text-sm text-white/85">
+            <input
+              type="checkbox"
+              checked={v.survivorChallengesSystemRun}
+              onChange={(e) => onChange({ survivorChallengesSystemRun: e.target.checked })}
+              className="mt-1 rounded border-white/30"
+            />
+            System-run weekly challenges (recommended; reduces collusion if you play)
+          </label>
         </div>
       )}
 
@@ -202,6 +221,25 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
 
       {leagueType === 'zombie' && (
         <div className="space-y-3 rounded-2xl border border-lime-500/25 bg-lime-950/10 p-4">
+          <div className="space-y-1.5">
+            <Label className="text-white/85">Whisperer selection</Label>
+            <Select
+              value={v.zombieWhispererSelection}
+              onValueChange={(x) =>
+                onChange({
+                  zombieWhispererSelection: x === 'veteran_priority' ? 'veteran_priority' : 'random',
+                })
+              }
+            >
+              <SelectTrigger className="border-white/20 bg-[#030a20] text-white" data-testid="wizard-zombie-whisperer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="random">Random</SelectItem>
+                <SelectItem value="veteran_priority">Veteran priority</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Label className="text-white/85 flex items-center gap-2">
             <input
               type="checkbox"
