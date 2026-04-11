@@ -31,6 +31,7 @@ export function RightControlPanel({
   onAfterLeagueNavigate,
   onSettingsNavigate,
   onLeaguesRefresh,
+  onLeagueRemoved,
 }: RightControlPanelLayoutProps) {
   const router = useRouter()
   const resolvedSelectedId = activeLeagueId ?? selectedId
@@ -67,6 +68,7 @@ export function RightControlPanel({
             compact
             loading={leaguesLoading}
             onLeaguesRefresh={onLeaguesRefresh}
+            onLeagueRemoved={onLeagueRemoved}
           />
         </div>
       </div>

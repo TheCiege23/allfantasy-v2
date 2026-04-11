@@ -80,6 +80,8 @@ export type RightControlPanelLayoutProps = {
   onSettingsNavigate?: () => void
   /** Refetch league list (e.g. after Sleeper refresh) */
   onLeaguesRefresh?: () => void
+  /** Optimistically drop a league from local state after successful remove-from-list */
+  onLeagueRemoved?: (leagueId: string) => void
 }
 
 export interface DashboardConnectedLeague extends UserLeague {

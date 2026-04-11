@@ -29,8 +29,12 @@ export type CalculateRankResult = {
  */
 export async function calculateAndSaveRank(userId: string): Promise<CalculateRankResult | null> {
   try {
+    /** Hub/sync leagues omit import_*; only ranking snapshots and legacy career rows contribute XP. */
     const leagues = await prisma.league.findMany({
-      where: { userId },
+      where: {
+        userId,
+        OR: [{ leagueVariant: 'legacy_summary' }, { importWins: { not: null } }],
+      },
       select: {
         importWins: true,
         importLosses: true,

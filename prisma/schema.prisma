@@ -454,8 +454,10 @@ model LegacyUserRankCache {
 
 model PlatformIdentity {
   id               String    @id @default(uuid())
+  /// AllFantasy user id (owner of this linked provider account).
   userId           String
   platform         String
+  /// Provider’s stable user id (e.g. Sleeper `user_id`) — not the AF primary key.
   platformUserId   String
   platformUsername String
   displayName      String?
@@ -3725,6 +3727,7 @@ model CommentaryEntry {
 }
 
 model UserProfile {
+  /// AllFantasy account id (primary). Same as `AppUser.id` — canonical user key for the product.
   userId                    String              @id
   displayName               String?
   phone                     String?             @unique
@@ -3732,7 +3735,9 @@ model UserProfile {
   emailVerifiedAt           DateTime?
   ageConfirmedAt            DateTime?
   verificationMethod        VerificationMethod?
+  /// Current Sleeper handle (display); can change — do not use as primary key.
   sleeperUsername           String?
+  /// Stable Sleeper `user_id` from API — provider scope only; links imports to this AF user.
   sleeperUserId             String?             @unique
   sleeperLinkedAt           DateTime?
   sleeperVerifiedAt         DateTime?

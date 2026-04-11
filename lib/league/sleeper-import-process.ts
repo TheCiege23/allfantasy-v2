@@ -411,7 +411,18 @@ export async function processLeague(
   const platformLeagueId = leagueData.league_id?.toString();
   if (!platformLeagueId) return null;
 
-  const leaguePayload = buildLeagueUpdateData(leagueData, season, sportLabel);
+  const leaguePayload = {
+    ...buildLeagueUpdateData(leagueData, season, sportLabel),
+    /** Full Sleeper hub sync supersedes ranking-only snapshot rows (`legacy_summary` / `ranking_only`). */
+    leagueVariant: null,
+    importWins: null,
+    importLosses: null,
+    importTies: null,
+    importMadePlayoffs: null,
+    importWonChampionship: null,
+    importFinalStanding: null,
+    importPointsFor: null,
+  };
 
   const league = await prisma.league.upsert({
     where: {

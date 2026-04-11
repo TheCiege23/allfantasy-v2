@@ -673,12 +673,36 @@ export async function GET(request: Request) {
       }
     }
 
-    const careerXpBig = rankCache.careerXp ?? 0n
+    const d = denormCatchup
+    /** Sleeper `League.import_*` rows drive XP via `calculateAndSaveRank`; prefer profile XP over legacy cache. */
+    const careerXpBig =
+      importedLeagueRows.length > 0 && d?.xpTotal != null
+        ? BigInt(jsonSafeXp(d.xpTotal))
+        : rankCache.careerXp ?? 0n
     const xpTotalNum = Number(careerXpBig)
     const lv = getLevelFromXp(xpTotalNum)
-    const d = denormCatchup
     const tier = lv.tier
     const tierName = lv.name
+
+    const importedTiesSum =
+      importedLeagueRows.length > 0
+        ? importedLeagueRows.reduce((s, r) => s + (r.importTies ?? 0), 0)
+        : 0
+    const displayTies = importedLeagueRows.length > 0 ? importedTiesSum : totalTies
+    const gamesForImported =
+      importedLeagueRows.length > 0
+        ? careerStats.totalWins + careerStats.totalLosses + importedTiesSum
+        : totalGames
+    const winRateForDisplay =
+      importedLeagueRows.length > 0
+        ? gamesForImported > 0
+          ? (careerStats.totalWins / gamesForImported) * 100
+          : 0
+        : winRate
+    const playoffRateForDisplay =
+      importedLeagueRows.length > 0
+        ? (careerStats.playoffAppearances / importedLeagueRows.length) * 100
+        : playoffRate
 
     const rank = {
       careerTier: lv.tierGroup,
@@ -688,15 +712,18 @@ export async function GET(request: Request) {
       aiReportGrade: scoreToLetterGrade(aiScore),
       aiScore,
       aiInsight,
-      winRate: Math.round(winRate * 10) / 10,
-      playoffRate: Math.round(playoffRate * 10) / 10,
+      winRate: Math.round(winRateForDisplay * 10) / 10,
+      playoffRate: Math.round(playoffRateForDisplay * 10) / 10,
       championshipCount,
       seasonsPlayed: careerStats.seasonsPlayed,
       totalWins: careerStats.totalWins,
       totalLosses: careerStats.totalLosses,
-      totalTies,
+      totalTies: displayTies,
       playoffAppearances: careerStats.playoffAppearances,
-      importedAt: rankCache.lastCalculatedAt?.toISOString() ?? null,
+      importedAt:
+        importedLeagueRows.length > 0 && d?.rankCalculatedAt
+          ? d.rankCalculatedAt.toISOString()
+          : rankCache.lastCalculatedAt?.toISOString() ?? null,
     }
 
     let overviewProfile: ReturnType<typeof computeCompositeProfile> | null = null

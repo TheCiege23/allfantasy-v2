@@ -339,6 +339,16 @@ export function DashboardShell({
       .catch(() => {})
   }, [applyLeaguesPayload])
 
+  const onLeagueRemoved = useCallback(
+    (leagueId: string) => {
+      setLeagues((prev) => prev.filter((l) => l.id !== leagueId))
+      if (activeLeagueId === leagueId) {
+        router.push('/dashboard')
+      }
+    },
+    [activeLeagueId, router]
+  )
+
   const handleTriggerImport = () => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent('af-dashboard-open-import'))
@@ -384,6 +394,7 @@ export function DashboardShell({
           userImage={userImage}
           onImport={handleTriggerImport}
           onLeaguesRefresh={onLeaguesRefresh}
+          onLeagueRemoved={onLeagueRemoved}
         />
       }
     >
@@ -532,6 +543,7 @@ export function DashboardShell({
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
                   onSettingsNavigate={() => setMobileRightOpen(false)}
                   onLeaguesRefresh={onLeaguesRefresh}
+                  onLeagueRemoved={onLeagueRemoved}
                 />
               </div>
             </div>

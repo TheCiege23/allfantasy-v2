@@ -1,6 +1,22 @@
+/**
+ * Platform identities attach **external** provider accounts to an **AllFantasy** user.
+ *
+ * - **Primary key for the person on AF**: `AppUser.id` / `UserProfile.userId` (same UUID) — always use this for auth, leagues, and permissions.
+ * - **Provider ids** (`platformUserId`, e.g. Sleeper `user_id`): secondary; only identify rows within that provider’s import/sync flows. Never treat as the main user key on the AF site.
+ */
 import { prisma } from '@/lib/prisma'
 
 export type Platform = 'sleeper' | 'yahoo' | 'mfl' | 'fantrax' | 'espn'
+
+/** Thrown when this provider account is already linked to a different AllFantasy user (AF `userId` is authoritative). */
+export class PlatformIdentityConflictError extends Error {
+  constructor(
+    message = 'This external account is already linked to another AllFantasy user.',
+  ) {
+    super(message)
+    this.name = 'PlatformIdentityConflictError'
+  }
+}
 
 export async function upsertPlatformIdentity(params: {
   afUserId:         string
@@ -19,9 +35,13 @@ export async function upsertPlatformIdentity(params: {
   })
 
   if (existing) {
+    if (existing.userId !== afUserId) {
+      throw new PlatformIdentityConflictError()
+    }
     return prisma.platformIdentity.update({
       where: { id: existing.id },
       data: {
+        userId: afUserId,
         platformUsername,
         displayName:  displayName ?? platformUsername,
         avatarUrl:    avatarUrl ?? existing.avatarUrl,
@@ -65,6 +85,7 @@ export async function lockPlatformRank(
   })
 }
 
+/** Resolve the **AllFantasy** user id from a provider’s stable user id (e.g. Sleeper `user_id`). */
 export async function findAfUserByPlatformId(
   platform: Platform,
   platformUserId: string

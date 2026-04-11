@@ -243,13 +243,10 @@ export async function GET() {
       .filter((lg: any) => !lg.hasUnifiedRecord)
 
     const leagues = [...normalizedGeneric, ...normalizedSleeper]
-    console.log('[league/list] raw count before filter:', leagues.length)
 
     const filteredGeneric = normalizedGeneric.filter(isRealLeague)
     const filteredSleeper = normalizedSleeper.filter(isRealLeague)
     const filtered = [...filteredGeneric, ...filteredSleeper]
-    console.log('[league/list] after isRealLeague filter:', filtered.length)
-    console.log('[league/list] sample raw league:', JSON.stringify(leagues[0]))
 
     const leaguesSorted = filtered.sort((a: any, b: any) => {
       const aDate = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0

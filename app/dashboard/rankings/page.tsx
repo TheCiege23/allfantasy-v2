@@ -1019,6 +1019,29 @@ function RankingsLoadingShell() {
   )
 }
 
+/** Rank hero + cards skeleton — page chrome (back link, title) is already visible above. */
+function RankingsRankBlockSkeleton() {
+  return (
+    <>
+      <div className="flex flex-col items-center gap-3 pb-6 sm:flex-row sm:justify-center sm:pb-8">
+        <div className="h-10 w-10 shrink-0 animate-spin rounded-full border-2 border-violet-500/40 border-t-violet-500" />
+        <p className="text-sm text-white/45">Loading your rank…</p>
+      </div>
+      <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <div className="h-36 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          <div className="h-44 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+        </div>
+        <div className="space-y-4">
+          <div className="h-56 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          <div className="h-36 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          <div className="h-32 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+        </div>
+      </div>
+    </>
+  )
+}
+
 function MyRankingsPageInner() {
   const { data: session } = useSession()
   const router = useRouter()
@@ -1026,7 +1049,7 @@ function MyRankingsPageInner() {
   const [rank, setRank] = useState<PlayerRank | null>(null)
   const [overviewProfile, setOverviewProfile] = useState<CompositeProfile | null>(null)
   const [legacyUsername, setLegacyUsername] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [rankBlockLoading, setRankBlockLoading] = useState(true)
   const [importProcessing, setImportProcessing] = useState(false)
   const [rankFetchError, setRankFetchError] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -1055,7 +1078,7 @@ function MyRankingsPageInner() {
 
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true
-    if (!silent) setLoading(true)
+    if (!silent) setRankBlockLoading(true)
     try {
       const response = await fetch('/api/user/rank', {
         cache: 'no-store',
@@ -1098,7 +1121,7 @@ function MyRankingsPageInner() {
       setApiTier(null)
       setLevelRank(null)
     } finally {
-      if (!silent) setLoading(false)
+      if (!silent) setRankBlockLoading(false)
     }
   }, [])
 
@@ -1265,10 +1288,6 @@ function MyRankingsPageInner() {
 
   const hideRankForPhasedImport = importRankHidden
 
-  if (loading) {
-    return <RankingsLoadingShell />
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -1389,7 +1408,9 @@ function MyRankingsPageInner() {
           />
         ) : null}
 
-        {hideRankForPhasedImport ? null : showImport ? (
+        {hideRankForPhasedImport ? null : rankBlockLoading && !rank && !rankFetchError ? (
+          <RankingsRankBlockSkeleton />
+        ) : showImport ? (
           <EmptyRankState
             onImported={() => {
               setShowImport(false)

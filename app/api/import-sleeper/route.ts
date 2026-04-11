@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import pLimit from "p-limit";
 import { z } from "zod";
-import { LeagueSport } from "@prisma/client";
+import { LeagueSport, Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { requireVerifiedUser } from "@/lib/auth-guard";
-import { upsertPlatformIdentity, isPlatformRankLocked, lockPlatformRank } from "@/lib/platform-identity";
+import {
+  upsertPlatformIdentity,
+  isPlatformRankLocked,
+  lockPlatformRank,
+  PlatformIdentityConflictError,
+} from "@/lib/platform-identity";
 import { computeAndSaveRank } from "@/lib/ranking/computeAndSaveRank";
+import { calculateAndSaveRank } from "@/lib/rank/calculateRank";
 import { refreshUserRankingsContext } from "@/lib/rankings/refreshUserContext";
 import { syncLeagueHistory } from "@/lib/league/syncLeagueHistory";
+import { upsertSleeperRankingImportLeague } from "@/lib/league/sleeper-ranking-import";
 import {
   processLeague,
   getSleeperAvatarUrl,
@@ -24,6 +31,10 @@ import {
   buildRateLimit429,
 } from "@/lib/rate-limit";
 
+/**
+ * Sleeper league import — **AllFantasy `userId` (session) is canonical**.
+ * `sleeperUserId` from Sleeper is stored only to route Sleeper API calls and imports; it is not the primary user key on AF.
+ */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -31,12 +42,20 @@ const CURRENT_IMPORT_SEASON = new Date().getFullYear();
 
 const leagueImportLimit = pLimit(8);
 
-const bodySchema = z.object({
-  sleeperUserId: z.string().min(1).max(100),
-  sport: z.enum(["nfl", "nba", "mlb", "nhl", "mls"]).default("nfl"),
-  season: z.number().int().min(2020).max(2035).default(CURRENT_IMPORT_SEASON),
-  isLegacy: z.boolean().default(false),
-});
+const bodySchema = z
+  .object({
+    /** Sleeper `user_id` or username (API `/user/:id` accepts both). Provider identifier only — AF account is `session.user.id`. */
+    sleeperUserId: z.string().min(1).max(100).optional(),
+    /** Alias for older clients (e.g. `{ username, platform }`). Same resolution as `sleeperUserId`. */
+    username: z.string().min(1).max(100).optional(),
+    sport: z.enum(["nfl", "nba", "mlb", "nhl", "mls"]).default("nfl"),
+    season: z.number().int().min(2020).max(2035).default(CURRENT_IMPORT_SEASON),
+    isLegacy: z.boolean().default(false),
+  })
+  .refine((d) => Boolean(d.sleeperUserId?.trim() || d.username?.trim()), {
+    message: "sleeperUserId or username is required",
+    path: ["sleeperUserId"],
+  });
 
 const sportMap: Record<"nfl" | "nba" | "mlb" | "nhl" | "mls", LeagueSport> = {
   nfl: LeagueSport.NFL,
@@ -52,7 +71,7 @@ export async function POST(req: Request) {
     if (!auth.ok) {
       return auth.response;
     }
-    const userId = auth.userId;
+    const afUserId = auth.userId;
 
     const ip = getClientIp(req);
 
@@ -81,8 +100,68 @@ export async function POST(req: Request) {
       );
     }
 
-    const { sleeperUserId, sport, season, isLegacy } = parsed.data;
+    const { sport, season, isLegacy } = parsed.data;
+    const rawIdentifier = (parsed.data.sleeperUserId ?? parsed.data.username ?? "").trim();
     const sportLabel = sportMap[sport];
+
+    const sleeperUser = await getSleeperUser(rawIdentifier);
+    if (!sleeperUser?.user_id) {
+      return NextResponse.json({ error: "Sleeper user not found" }, { status: 404 });
+    }
+    const sleeperUserId = sleeperUser.user_id;
+    const sleeperUsernameResolved = sleeperUser.username?.trim() || rawIdentifier;
+
+    try {
+      await prisma.userProfile.upsert({
+        where: { userId: afUserId },
+        update: {
+          sleeperUserId,
+          sleeperUsername: sleeperUsernameResolved,
+          sleeperLinkedAt: new Date(),
+        },
+        create: {
+          userId: afUserId,
+          sleeperUserId,
+          sleeperUsername: sleeperUsernameResolved,
+          sleeperLinkedAt: new Date(),
+        },
+      })
+    } catch (e: unknown) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        return NextResponse.json(
+          {
+            error:
+              "That Sleeper profile is already linked to another AllFantasy account. Sign in with the account that owns it, or use a different Sleeper user.",
+          },
+          { status: 409 }
+        );
+      }
+      console.error("[import-sleeper] userProfile sleeper link failed:", e);
+      return NextResponse.json({ error: "Could not save Sleeper link to your profile." }, { status: 500 });
+    }
+
+    try {
+      await upsertPlatformIdentity({
+        afUserId,
+        platform: "sleeper",
+        platformUserId: sleeperUser.user_id,
+        platformUsername: sleeperUsernameResolved,
+        displayName: sleeperUser.display_name?.trim() || sleeperUsernameResolved,
+        avatarUrl: getSleeperAvatarUrl(sleeperUser.avatar) ?? undefined,
+        sport,
+      });
+    } catch (e: unknown) {
+      if (e instanceof PlatformIdentityConflictError) {
+        return NextResponse.json(
+          {
+            error:
+              "That Sleeper profile is already linked to another AllFantasy account. Sign in with the account that owns it, or use a different Sleeper user.",
+          },
+          { status: 409 }
+        );
+      }
+      throw e;
+    }
 
     const leaguesData = await getUserLeagues(sleeperUserId, sport, String(season)).catch(() => null) as unknown as SleeperLeague[] | null;
 
@@ -95,15 +174,38 @@ export async function POST(req: Request) {
 
     const results = await Promise.all(
       leaguesData.map((leagueData) =>
-        leagueImportLimit(() =>
-          processLeague(leagueData, userId, season, sportLabel).catch((error) => {
+        leagueImportLimit(async () => {
+          try {
+            if (isLegacy) {
+              const row = await upsertSleeperRankingImportLeague(
+                leagueData,
+                afUserId,
+                season,
+                sportLabel,
+                sleeperUserId
+              );
+              if (!row) return null;
+              return {
+                leagueId: row.leagueId,
+                commentaryTelemetry: {
+                  evaluated: 0,
+                  featured: 0,
+                  emitted: 0,
+                  skippedDuplicate: 0,
+                  skippedMinor: 0,
+                  skippedEmpty: 0,
+                } satisfies MatchupCommentaryTelemetry,
+              };
+            }
+            return await processLeague(leagueData, afUserId, season, sportLabel);
+          } catch (error) {
             console.error(
               `[Import Sleeper] Failed league ${leagueData.league_id}:`,
               getErrorMessage(error)
             );
             return null;
-          })
-        )
+          }
+        })
       )
     );
 
@@ -119,52 +221,50 @@ export async function POST(req: Request) {
     // These are non-critical for the import response and can run in the background.
     void (async () => {
       try {
-        const [sleeperUser, legacyUser] = await Promise.all([
-          getSleeperUser(sleeperUserId),
-          prisma.legacyUser.findUnique({
-            where: { sleeperUserId },
-            select: { id: true },
-          }),
-        ]);
-
-        await upsertPlatformIdentity({
-          afUserId: userId,
-          platform: "sleeper",
-          platformUserId: sleeperUser?.user_id ?? sleeperUserId,
-          platformUsername: sleeperUser?.username ?? sleeperUserId,
-          displayName: sleeperUser?.display_name ?? sleeperUser?.username ?? sleeperUserId,
-          avatarUrl: getSleeperAvatarUrl(sleeperUser?.avatar) ?? undefined,
-          sport,
+        const legacyUser = await prisma.legacyUser.findUnique({
+          where: { sleeperUserId },
+          select: { id: true },
         });
 
-        const isLocked = await isPlatformRankLocked(userId, "sleeper");
-        if (!isLocked && legacyUser) {
-          await computeAndSaveRank(userId, legacyUser);
-          await lockPlatformRank(userId, "sleeper");
+        const isLocked = await isPlatformRankLocked(afUserId, "sleeper");
+        if (!isLocked) {
+          await calculateAndSaveRank(afUserId);
+          // Ranking import uses `League.import_*` + `calculateAndSaveRank` only; avoid legacy cache
+          // overwriting `user_profiles` XP (see `computeAndSaveRank` in lib/ranking).
+          if (!isLegacy && legacyUser) {
+            await computeAndSaveRank(afUserId, legacyUser);
+          }
+          await lockPlatformRank(afUserId, "sleeper");
+        } else if (isLegacy) {
+          await calculateAndSaveRank(afUserId);
         }
       } catch (err) {
         console.error("[import-sleeper] rank lock error:", err);
       }
 
       try {
-        await refreshUserRankingsContext(userId);
+        await refreshUserRankingsContext(afUserId);
       } catch (err) {
         console.error("[import-sleeper] rankings context error:", err);
       }
 
-      for (let i = 0; i < leaguesData.length; i++) {
-        const row = results[i];
-        if (!row) continue;
-        const platformLeagueId = leaguesData[i]?.league_id?.toString();
-        if (!platformLeagueId) continue;
-        void syncLeagueHistory(row.leagueId, platformLeagueId, userId).catch((err) =>
-          console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
-        );
+      if (!isLegacy) {
+        for (let i = 0; i < leaguesData.length; i++) {
+          const row = results[i];
+          if (!row) continue;
+          const platformLeagueId = leaguesData[i]?.league_id?.toString();
+          if (!platformLeagueId) continue;
+          void syncLeagueHistory(row.leagueId, platformLeagueId, afUserId).catch((err) =>
+            console.error(`[import-sleeper] History sync failed for ${platformLeagueId}:`, err)
+          );
+        }
       }
     })();
 
+    // userId = AllFantasy account (primary). sleeperUserId = Sleeper provider id (imports only).
     return NextResponse.json({
       success: true,
+      userId: afUserId,
       imported,
       failed,
       total: leaguesData.length,
@@ -173,6 +273,8 @@ export async function POST(req: Request) {
       sport,
       season,
       commentaryTelemetry,
+      sleeperUserId,
+      sleeperUsername: sleeperUsernameResolved,
     });
   } catch (error) {
     console.error("[Import Sleeper]", error);

@@ -12,6 +12,7 @@ export type LeagueFilterRecord = {
   totalTeams?: number | null
   status?: string | null
   platform?: string | null
+  settings?: unknown
 }
 
 export const EXCLUDED_VARIANTS = new Set([
@@ -30,9 +31,16 @@ export const EXCLUDED_STATUSES = new Set([
   "career_data",
 ])
 
+function settingsFlagRankImportOnly(settings: unknown): boolean {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false
+  return (settings as { rankImportOnly?: unknown }).rankImportOnly === true
+}
+
 export function isRealLeague(record: LeagueFilterRecord): boolean {
   const name = record.name?.trim()
   if (!name) return false
+
+  if (settingsFlagRankImportOnly(record.settings)) return false
 
   const teamCount =
     record.leagueSize ??
