@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -38,6 +39,10 @@ import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
+import { SurvivorHome } from '@/components/survivor/SurvivorHome'
+import { SurvivorFirstEntryModal } from '@/components/survivor/SurvivorFirstEntryModal'
+import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
+import { ZombieHome } from '@/components/zombie/ZombieHome'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 
@@ -129,6 +134,11 @@ export function LeagueShell({
 }: LeagueShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const openChatQuery = searchParams?.get('openChat') ?? null
+  const initialOpenChat = useMemo(
+    () => normalizeOpenChatQueryParam(openChatQuery),
+    [openChatQuery],
+  )
   const { rosterId: capRosterId } = useRedraftRosterId(league.id)
   const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
   const idpCapEnabled = Boolean(capSummary)
@@ -144,47 +154,127 @@ export function LeagueShell({
       const g = { id: 'guillotine', label: 'Guillotine' }
       base = idx >= 0 ? [...base.slice(0, idx + 1), g, ...base.slice(idx + 1)] : [g, ...base]
     }
+    if (league.leagueVariant === 'survivor') {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const s = { id: 'survivor', label: '🏝 Survivor' }
+      base = idx >= 0 ? [...base.slice(0, idx + 1), s, ...base.slice(idx + 1)] : [s, ...base]
+    }
+    if (league.leagueVariant === 'zombie') {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const z = { id: 'zombie', label: '🧟 Zombie' }
+      base = idx >= 0 ? [...base.slice(0, idx + 1), z, ...base.slice(idx + 1)] : [z, ...base]
+    }
     if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
-    if (isCommissioner) {
-      return [...base, { id: 'settings', label: '⚙ Settings' }]
-    }
-    return base
+    return [...base, { id: 'settings', label: '⚙ Settings' }]
   }, [
     league.sport,
     league.leagueType,
     league.keeperPhaseActive,
     league.bestBallMode,
     league.guillotineMode,
-    isCommissioner,
+    league.leagueVariant,
   ])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
+  const guillotineLandingApplied = useRef(false)
+  const survivorLandingApplied = useRef(false)
+  const zombieLandingApplied = useRef(false)
+
+  useEffect(() => {
+    guillotineLandingApplied.current = false
+    survivorLandingApplied.current = false
+    zombieLandingApplied.current = false
+  }, [league.id])
 
   useEffect(() => {
     const ids = new Set(tabDefs.map((t) => t.id))
     setActiveTab((prev) => (ids.has(prev) ? prev : tabDefs[0]?.id ?? 'draft'))
   }, [tabDefs])
 
+  /** First load per league navigation: guillotine leagues open on the Guillotine hub (once per visit). */
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (!league.guillotineMode || guillotineLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('guillotine')) return
+    setActiveTab('guillotine')
+    guillotineLandingApplied.current = true
+  }, [league.id, league.guillotineMode, tabDefs, searchParams])
+
+  /** Survivor leagues default to the Survivor hub (once per visit) when no deep link. */
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (league.guillotineMode) return
+    if (league.leagueVariant !== 'survivor' || survivorLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('survivor')) return
+    setActiveTab('survivor')
+    survivorLandingApplied.current = true
+  }, [league.id, league.leagueVariant, tabDefs, searchParams])
+
+  /** Zombie leagues default to the Zombie hub (once per visit) when no deep link. */
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (league.guillotineMode) return
+    if (league.leagueVariant !== 'zombie' || zombieLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('zombie')) return
+    setActiveTab('zombie')
+    zombieLandingApplied.current = true
+  }, [league.id, league.leagueVariant, league.guillotineMode, tabDefs, searchParams])
+
   useEffect(() => {
     const view = searchParams?.get('view')
-    if (!view) return
+    const tabParam = searchParams?.get('tab')
+    const raw = view ?? tabParam
+    if (!raw) return
+    const key = raw.trim().toLowerCase()
+    const sportU = String(league.sport ?? '').toUpperCase()
+    const intelligenceFallback = sportU === 'NFL' || sportU === 'NCAAF' ? 'trend' : 'players'
     const map: Record<string, string> = {
       team: 'team',
       roster: 'team',
+      squad: 'squad',
       matchup: 'scores',
       scores: 'scores',
       draft: 'draft',
       redraft: 'redraft',
       trades: 'trades',
+      league: 'league',
+      players: 'players',
+      waivers: 'players',
+      settings: 'settings',
+      guillotine: 'guillotine',
+      bestball: 'bestball',
+      keeper: 'keeper',
+      intelligence: intelligenceFallback,
+      trend: 'trend',
+      standings: 'standings',
+      fixtures: 'fixtures',
+      transfers: 'transfers',
+      table: 'table',
+      leaderboard: 'leaderboard',
+      'my-picks': 'my-picks',
+      schedule: 'schedule',
+      survivor: 'survivor',
+      island: 'survivor',
+      zombie: 'zombie',
+      horde: 'zombie',
+      outbreak: 'zombie',
     }
-    const target = map[view]
+    const target = map[key]
     if (!target) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (ids.has(target)) setActiveTab(target)
-  }, [searchParams, tabDefs])
+  }, [searchParams, tabDefs, league.sport])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<string | null>(null)
+  const [leaveLeagueHintOpen, setLeaveLeagueHintOpen] = useState(false)
   const [portalMounted, setPortalMounted] = useState(false)
   const [idpUi, setIdpUi] = useState<{ active: boolean; positionMode: string } | null>(null)
   const [idpViewMode, setIdpViewMode] = useState<'offense' | 'defense' | 'full'>('full')
@@ -327,7 +417,14 @@ export function LeagueShell({
     [allLeagues],
   )
 
-  const inviteToken = league.invites[0]?.token
+  const settingsInviteCode =
+    league.settings &&
+    typeof league.settings === 'object' &&
+    !Array.isArray(league.settings) &&
+    typeof (league.settings as Record<string, unknown>).inviteCode === 'string'
+      ? String((league.settings as Record<string, unknown>).inviteCode).trim()
+      : ''
+  const inviteToken = settingsInviteCode || league.invites[0]?.token || ''
 
   const handleLeagueSelect = (l: UserLeague | null) => {
     if (l && l.id !== league.id) {
@@ -344,6 +441,16 @@ export function LeagueShell({
   const handlePlayerClick = (playerId: string) => setSelectedPlayer(playerId)
   const closePlayerCard = () => setSelectedPlayer(null)
 
+  const openLeagueSettingsModal = (initialPanel: string | null = null) => {
+    setSettingsInitialPanel(initialPanel)
+    setSettingsOpen(true)
+  }
+
+  const closeLeagueSettingsModal = () => {
+    setSettingsOpen(false)
+    setSettingsInitialPanel(null)
+  }
+
   return (
     <>
       <AppShell
@@ -358,6 +465,7 @@ export function LeagueShell({
             leagues={leagueList}
             discordConnected={discordConnected}
             zombieChimmyPrefill={zombieChimmyPrefill}
+            initialOpenChat={initialOpenChat}
           />
         }
         rightPanel={
@@ -374,14 +482,39 @@ export function LeagueShell({
           />
         }
       >
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <main
+          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
+            league.leagueVariant === 'survivor'
+              ? 'relative border-x border-amber-500/10 bg-gradient-to-b from-[#081018] via-[#07071a] to-[#07071a]'
+              : league.leagueVariant === 'zombie'
+                ? 'relative border-x border-violet-500/15 bg-gradient-to-b from-[#120818] via-[#07071a] to-[#07071a]'
+                : ''
+          }`}
+          data-league-variant={
+            league.leagueVariant === 'survivor'
+              ? 'survivor'
+              : league.leagueVariant === 'zombie'
+                ? 'zombie'
+                : undefined
+          }
+        >
           <LeagueHeader
             league={selectedLeague}
             leagueId={league.id}
             tabs={tabDefs}
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}
+            memberGearMenu={
+              isCommissioner
+                ? null
+                : {
+                    onEditTeam: () => openLeagueSettingsModal('my-team'),
+                    onCoOwners: () => openLeagueSettingsModal('co-owners'),
+                    onPreviousLeagues: () => openLeagueSettingsModal('league-history'),
+                    onLeaveLeague: () => setLeaveLeagueHintOpen(true),
+                  }
+            }
             onGoHome={() => router.push('/dashboard')}
             idpLeagueActive={idpUi?.active ?? false}
             idpViewMode={idpViewMode}
@@ -392,6 +525,8 @@ export function LeagueShell({
             c2cConfig={c2cConfig}
             isCommissioner={isCommissioner}
             onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+            survivorLeagueActive={league.leagueVariant === 'survivor'}
+            zombieLeagueActive={league.leagueVariant === 'zombie'}
             idpCapEnabled={idpCapEnabled}
             capSummary={capSummary}
             capRosterId={capRosterId}
@@ -445,7 +580,9 @@ export function LeagueShell({
 
       {portalMounted &&
       isCommissioner &&
-      ((devyConfig !== null && devyConfig !== 'none') || (c2cChecked && c2cConfig !== null))
+      ((devyConfig !== null && devyConfig !== 'none') ||
+        (c2cChecked && c2cConfig !== null) ||
+        league.leagueVariant === 'survivor')
         ? createPortal(
             <CommissionerSettingsModal
               leagueId={league.id}
@@ -456,11 +593,29 @@ export function LeagueShell({
           )
         : null}
 
+      {portalMounted && league.leagueVariant === 'survivor'
+        ? createPortal(
+            <SurvivorFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
+            document.body,
+          )
+        : null}
+
+      {portalMounted && (league.leagueVariant === 'zombie' || league.leagueVariant === 'survivor')
+        ? createPortal(
+            <LeagueClipOverlayHost
+              leagueId={league.id}
+              variant={league.leagueVariant === 'zombie' ? 'zombie' : 'survivor'}
+              enabled
+            />,
+            document.body,
+          )
+        : null}
+
       {portalMounted
         ? createPortal(
             <LeagueSettingsModal
               open={settingsOpen}
-              onClose={() => setSettingsOpen(false)}
+              onClose={closeLeagueSettingsModal}
               league={league}
               displayLeague={selectedLeague}
               userId={userId}
@@ -469,8 +624,9 @@ export function LeagueShell({
               isCommissioner={isCommissioner}
               isHeadCommissioner={isHeadCommissioner}
               sleeperMemberMap={sleeperUsersByPlatformId}
+              initialActivePanel={settingsInitialPanel}
               onGoToDraftTab={() => {
-                setSettingsOpen(false)
+                closeLeagueSettingsModal()
                 const ids = tabDefs.map((t) => t.id)
                 setActiveTab(ids.includes('draft') ? 'draft' : ids[0] ?? 'draft')
               }}
@@ -478,6 +634,49 @@ export function LeagueShell({
             document.body,
           )
         : null}
+
+      {leaveLeagueHintOpen ? (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-league-hint-title"
+          data-testid="leave-league-hint-dialog"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
+            aria-label="Close"
+            onClick={() => setLeaveLeagueHintOpen(false)}
+          />
+          <div className="relative z-10 w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#0a1228] p-5 shadow-2xl">
+            <h2 id="leave-league-hint-title" className="text-lg font-bold text-white">
+              Leave league
+            </h2>
+            <p className="mt-3 text-[13px] leading-relaxed text-white/65">
+              Leaving works through your host platform or your commissioner. AllFantasy will add self-serve leave where
+              the platform API allows it.
+            </p>
+            {league.platform === 'sleeper' && league.platformLeagueId ? (
+              <a
+                href={`https://sleeper.com/leagues/${encodeURIComponent(league.platformLeagueId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex text-[13px] font-semibold text-cyan-400 hover:text-cyan-300"
+              >
+                Open league in Sleeper →
+              </a>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setLeaveLeagueHintOpen(false)}
+              className="mt-5 w-full rounded-xl border border-white/[0.12] bg-white/[0.06] py-2.5 text-[13px] font-semibold text-white/90 hover:bg-white/[0.1]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
@@ -529,7 +728,13 @@ function LeagueTabRouter({
     case 'bestball':
       return <BestBallTab leagueId={leagueId} sport={sport} />
     case 'guillotine':
-      return <GuillotineTab leagueId={leagueId} sport={sport} />
+      return (
+        <GuillotineTab leagueId={leagueId} sport={sport} leagueName={selectedLeague.name} />
+      )
+    case 'survivor':
+      return <SurvivorHome leagueId={leagueId} />
+    case 'zombie':
+      return <ZombieHome leagueId={leagueId} />
     case 'keeper':
       return <KeeperSelectionTab leagueId={leagueId} />
     case 'team':
@@ -590,7 +795,8 @@ function LeagueHeader({
   tabs,
   activeTab,
   onTabChange,
-  onOpenSettings,
+  onOpenLeagueSettingsModal,
+  memberGearMenu,
   onGoHome,
   idpLeagueActive = false,
   idpViewMode = 'full',
@@ -601,6 +807,8 @@ function LeagueHeader({
   c2cConfig = null,
   isCommissioner = false,
   onOpenCommissionerSettings,
+  survivorLeagueActive = false,
+  zombieLeagueActive = false,
   idpCapEnabled = false,
   capSummary = null,
   capRosterId = null,
@@ -610,7 +818,15 @@ function LeagueHeader({
   tabs: TabDef[]
   activeTab: string
   onTabChange: (t: string) => void
-  onOpenSettings: () => void
+  /** Opens the full League Settings modal (commissioner / co-comm hub, or member card grid). */
+  onOpenLeagueSettingsModal: () => void
+  /** When set, header gear opens a compact menu (regular members) instead of the full modal. */
+  memberGearMenu: null | {
+    onEditTeam: () => void
+    onCoOwners: () => void
+    onPreviousLeagues: () => void
+    onLeaveLeague: () => void
+  }
   onGoHome: () => void
   idpLeagueActive?: boolean
   idpViewMode?: 'offense' | 'defense' | 'full'
@@ -621,6 +837,10 @@ function LeagueHeader({
   c2cConfig?: C2CConfigClient | null
   isCommissioner?: boolean
   onOpenCommissionerSettings?: () => void
+  /** Survivor format — show quick links + Commissioner entry (same pattern as Devy/C2C). */
+  survivorLeagueActive?: boolean
+  /** Zombie format — horde hub quick links + Commissioner. */
+  zombieLeagueActive?: boolean
   idpCapEnabled?: boolean
   capSummary?: {
     totalCap: number
@@ -628,6 +848,27 @@ function LeagueHeader({
   } | null
   capRosterId?: string | null
 }) {
+  const [memberGearOpen, setMemberGearOpen] = useState(false)
+  const memberGearWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!memberGearOpen) return
+    const close = () => setMemberGearOpen(false)
+    const onDocDown = (e: MouseEvent) => {
+      const el = memberGearWrapRef.current
+      if (el && !el.contains(e.target as Node)) close()
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    document.addEventListener('mousedown', onDocDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [memberGearOpen])
+
   const capPct =
     capSummary && capSummary.totalCap > 0 ? capSummary.availableCap / capSummary.totalCap : 0
   const capPillClass =
@@ -770,7 +1011,7 @@ function LeagueHeader({
             </div>
           ) : null}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-0.5">
+        <div className="relative flex flex-shrink-0 items-center gap-0.5" ref={memberGearWrapRef}>
           <button
             type="button"
             onClick={onGoHome}
@@ -782,13 +1023,77 @@ function LeagueHeader({
           </button>
           <button
             type="button"
-            onClick={onOpenSettings}
-            className="rounded-lg p-1.5 text-lg leading-none text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
-            aria-label="League settings"
+            onClick={() => {
+              if (memberGearMenu) setMemberGearOpen((o) => !o)
+              else onOpenLeagueSettingsModal()
+            }}
+            aria-expanded={memberGearMenu ? memberGearOpen : undefined}
+            aria-haspopup={memberGearMenu ? 'menu' : undefined}
+            className={`rounded-lg p-1.5 text-lg leading-none transition-colors hover:bg-white/[0.06] ${
+              memberGearOpen ? 'text-cyan-300/95' : 'text-white/30 hover:text-white/60'
+            }`}
+            aria-label={memberGearMenu ? 'League menu' : 'League settings'}
             data-testid="league-header-settings"
           >
             ⚙️
           </button>
+          {memberGearMenu && memberGearOpen ? (
+            <div
+              className="absolute right-0 top-[calc(100%+8px)] z-[60] w-[min(calc(100vw-32px),280px)] overflow-hidden rounded-xl border border-white/[0.1] bg-[#0a1228] py-1 shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+              role="menu"
+              data-testid="member-league-gear-menu"
+            >
+              <div
+                className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-l border-t border-white/[0.1] bg-[#0a1228]"
+                aria-hidden
+              />
+              <div className="relative pt-0.5">
+                {(
+                  [
+                    {
+                      id: 'edit-team',
+                      title: 'Edit Team',
+                      sub: 'Customize your team',
+                      onSelect: memberGearMenu.onEditTeam,
+                    },
+                    {
+                      id: 'co-owners',
+                      title: 'Co-owner Settings',
+                      sub: 'Select co-owners to run your team',
+                      onSelect: memberGearMenu.onCoOwners,
+                    },
+                    {
+                      id: 'leave',
+                      title: 'Leave League',
+                      sub: 'Leave this league.',
+                      onSelect: memberGearMenu.onLeaveLeague,
+                    },
+                    {
+                      id: 'previous',
+                      title: 'Previous Leagues',
+                      sub: 'Look at previous leagues',
+                      onSelect: memberGearMenu.onPreviousLeagues,
+                    },
+                  ] as const
+                ).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="menuitem"
+                    data-testid={`member-gear-${item.id}`}
+                    onClick={() => {
+                      setMemberGearOpen(false)
+                      item.onSelect()
+                    }}
+                    className="flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
+                  >
+                    <span className="text-[13px] font-semibold text-white/95">{item.title}</span>
+                    <span className="text-[11px] leading-snug text-white/40">{item.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -836,7 +1141,7 @@ function LeagueHeader({
                 type="button"
                 onClick={() => {
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
-                  else onOpenSettings()
+                  else onOpenLeagueSettingsModal()
                 }}
                 className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
                 data-testid={`c2c-quick-${label.toLowerCase()}`}
@@ -877,7 +1182,7 @@ function LeagueHeader({
                 type="button"
                 onClick={() => {
                   if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
-                  else onOpenSettings()
+                  else onOpenLeagueSettingsModal()
                 }}
                 className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/[0.06] hover:text-white"
                 data-testid={`devy-quick-${label.toLowerCase()}`}
@@ -890,6 +1195,83 @@ function LeagueHeader({
                 href={href}
                 className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200/90 transition-colors hover:bg-cyan-500/10"
                 data-testid={`devy-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </Link>
+            ),
+          )}
+        </div>
+      ) : null}
+
+      {survivorLeagueActive ? (
+        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-amber-500/15 bg-gradient-to-r from-amber-950/20 to-transparent px-5 py-2">
+          {(
+            [
+              ['Island', `/league/${leagueId}?view=survivor`],
+              ['Team', `/league/${leagueId}?view=team`],
+              ['Chat', `/league/${leagueId}?tab=Chat`],
+              ['Scores', `/league/${leagueId}?view=scores`],
+              ['Commissioner', '__commish__'],
+            ] as const
+          ).map(([label, href]) =>
+            href === '__commish__' ? (
+              <button
+                key={`survivor-${label}`}
+                type="button"
+                onClick={() => {
+                  if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
+                  else onOpenLeagueSettingsModal()
+                }}
+                className="whitespace-nowrap rounded-lg border border-amber-500/25 bg-amber-950/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100/95 transition-colors hover:bg-amber-500/15"
+                data-testid="survivor-quick-commissioner"
+              >
+                {label}
+              </button>
+            ) : (
+              <Link
+                key={`survivor-${label}`}
+                href={href}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100/85 transition-colors hover:bg-amber-500/10"
+                data-testid={`survivor-quick-${label.toLowerCase()}`}
+              >
+                {label}
+              </Link>
+            ),
+          )}
+        </div>
+      ) : null}
+
+      {zombieLeagueActive ? (
+        <div className="scrollbar-none mt-2 flex gap-1 overflow-x-auto border-t border-violet-500/20 bg-gradient-to-r from-violet-950/25 to-transparent px-5 py-2">
+          {(
+            [
+              ['Horde', `/league/${leagueId}?view=zombie`],
+              ['Full hub', `/zombie/${leagueId}`],
+              ['Rules', `/zombie/${leagueId}/rules`],
+              ['Team', `/league/${leagueId}?view=team`],
+              ['Chat', `/league/${leagueId}?tab=Chat`],
+              ['Commissioner', '__commish__'],
+            ] as const
+          ).map(([label, href]) =>
+            href === '__commish__' ? (
+              <button
+                key={`zombie-${label}`}
+                type="button"
+                onClick={() => {
+                  if (isCommissioner && onOpenCommissionerSettings) onOpenCommissionerSettings()
+                  else onOpenLeagueSettingsModal()
+                }}
+                className="whitespace-nowrap rounded-lg border border-violet-500/30 bg-violet-950/30 px-3 py-1.5 text-[11px] font-semibold text-violet-100/95 transition-colors hover:bg-violet-500/15"
+                data-testid="zombie-quick-commissioner"
+              >
+                {label}
+              </button>
+            ) : (
+              <Link
+                key={`zombie-${label}`}
+                href={href}
+                className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-violet-100/90 transition-colors hover:bg-violet-500/10"
+                data-testid={`zombie-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {label}
               </Link>

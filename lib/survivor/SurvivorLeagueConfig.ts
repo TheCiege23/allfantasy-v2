@@ -74,6 +74,10 @@ export async function getSurvivorConfig(leagueId: string): Promise<SurvivorConfi
       tribalCouncilDayOfWeek: row.tribalCouncilDayOfWeek,
       tribalCouncilTimeUtc: row.tribalCouncilTimeUtc,
       minigameFrequency: row.minigameFrequency ?? 'none',
+      seasonThemeLabel: row.seasonThemeLabel ?? null,
+      challengesSystemRun: row.challengesSystemRun ?? true,
+      regularSeasonEndWeek: row.regularSeasonEndWeek ?? null,
+      faqSeededAt: row.faqSeededAt?.toISOString() ?? null,
     }
   }
 
@@ -83,7 +87,7 @@ export async function getSurvivorConfig(leagueId: string): Promise<SurvivorConfi
     leagueId: league.id,
     configId: '',
     mode: 'redraft',
-    tribeCount: 4,
+    tribeCount: 3,
     tribeSize: 4,
     tribeFormation: 'random',
     mergeTrigger: 'week',
@@ -103,6 +107,10 @@ export async function getSurvivorConfig(leagueId: string): Promise<SurvivorConfi
     tribalCouncilDayOfWeek: null,
     tribalCouncilTimeUtc: null,
     minigameFrequency: 'none',
+    seasonThemeLabel: null,
+    challengesSystemRun: true,
+    regularSeasonEndWeek: null,
+    faqSeededAt: null,
   }
 }
 
@@ -130,6 +138,9 @@ export async function upsertSurvivorConfig(
     tribalCouncilDayOfWeek: number | null
     tribalCouncilTimeUtc: string | null
     minigameFrequency: string
+    seasonThemeLabel: string | null
+    challengesSystemRun: boolean
+    regularSeasonEndWeek: number | null
   }>
 ): Promise<SurvivorConfig | null> {
   const league = await prisma.league.findUnique({
@@ -145,7 +156,7 @@ export async function upsertSurvivorConfig(
     create: {
       leagueId,
       mode: input.mode ?? 'redraft',
-      tribeCount: input.tribeCount ?? 4,
+      tribeCount: Math.min(4, Math.max(2, input.tribeCount ?? 3)),
       tribeSize: input.tribeSize ?? 4,
       tribeFormation: input.tribeFormation ?? 'random',
       mergeTrigger: input.mergeTrigger ?? 'week',
@@ -165,10 +176,15 @@ export async function upsertSurvivorConfig(
       tribalCouncilDayOfWeek: input.tribalCouncilDayOfWeek ?? null,
       tribalCouncilTimeUtc: input.tribalCouncilTimeUtc ?? null,
       minigameFrequency: input.minigameFrequency ?? 'none',
+      seasonThemeLabel: input.seasonThemeLabel ?? null,
+      challengesSystemRun: input.challengesSystemRun ?? true,
+      regularSeasonEndWeek: input.regularSeasonEndWeek ?? null,
     },
     update: {
       ...(input.mode !== undefined && { mode: input.mode }),
-      ...(input.tribeCount !== undefined && { tribeCount: input.tribeCount }),
+      ...(input.tribeCount !== undefined && {
+        tribeCount: Math.min(4, Math.max(2, input.tribeCount)),
+      }),
       ...(input.tribeSize !== undefined && { tribeSize: input.tribeSize }),
       ...(input.tribeFormation !== undefined && { tribeFormation: input.tribeFormation }),
       ...(input.mergeTrigger !== undefined && { mergeTrigger: input.mergeTrigger }),
@@ -188,6 +204,9 @@ export async function upsertSurvivorConfig(
       ...(input.tribalCouncilDayOfWeek !== undefined && { tribalCouncilDayOfWeek: input.tribalCouncilDayOfWeek }),
       ...(input.tribalCouncilTimeUtc !== undefined && { tribalCouncilTimeUtc: input.tribalCouncilTimeUtc }),
       ...(input.minigameFrequency !== undefined && { minigameFrequency: input.minigameFrequency }),
+      ...(input.seasonThemeLabel !== undefined && { seasonThemeLabel: input.seasonThemeLabel }),
+      ...(input.challengesSystemRun !== undefined && { challengesSystemRun: input.challengesSystemRun }),
+      ...(input.regularSeasonEndWeek !== undefined && { regularSeasonEndWeek: input.regularSeasonEndWeek }),
     },
   })
   return getSurvivorConfig(leagueId)

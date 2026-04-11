@@ -10,11 +10,6 @@ import {
 } from '@/lib/league-creation-wizard/sport-team-limits'
 import { StepHeader } from './StepHelp'
 
-const ROSTER_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30] as const
-
-/** Shown as quick-tap chips; full range stays in the dropdown. */
-const QUICK_TEAM_PICKS = [4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32] as const
-
 const COMMON_TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern' },
   { value: 'America/Chicago', label: 'Central' },
@@ -33,49 +28,44 @@ export type TeamSizeSelectorProps = {
   sport: string
   name: string
   teamCount: number
-  rosterSize: number | null
   tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
-  /** IANA timezone for league schedule and waivers. */
+  /** IANA timezone for league schedule and waivers — stored as the league’s official timezone. */
   leagueTimezone: string
   onNameChange: (name: string) => void
   onTeamCountChange: (n: number) => void
-  onRosterSizeChange: (n: number | null) => void
   onTradeReviewModeChange: (mode: 'none' | 'commissioner' | 'league_vote' | 'instant') => void
   onTimezoneChange: (tz: string) => void
 }
 
 /**
- * League name, number of teams, and optional roster size.
+ * League name, number of teams, and official league timezone.
  */
 export function TeamSizeSelector({
   sport,
   name,
   teamCount,
-  rosterSize,
   tradeReviewMode,
   leagueTimezone,
   onNameChange,
   onTeamCountChange,
-  onRosterSizeChange,
   onTradeReviewModeChange,
   onTimezoneChange,
 }: TeamSizeSelectorProps) {
   const teamCounts = getTeamCountOptionsForSport(sport)
   const maxTeams = getMaxTeamsForSport(sport)
   const safeTeamCount = clampTeamCountForSport(sport, teamCount)
-  const quickPicks = QUICK_TEAM_PICKS.filter((n) => n <= maxTeams && n >= 4)
   return (
     <div className="space-y-6">
       <h3 className="sr-only">Team setup</h3>
       <StepHeader
         title="Name your league"
-        description="Choose a display name, league size, and timezone for waivers and draft clocks."
+        description="Set the display name, how many teams you want, and the official league timezone (waivers, draft clocks, and league time)."
         help={
           <>
-            Roster size is usually set by your scoring preset (e.g. PPR). Override it here only if you need a custom number of bench or total spots.
+            Roster size and waiver or playoff details are configured in <strong>League settings</strong> after the league is created.
           </>
         }
-        helpTitle="Roster size"
+        helpTitle="After you create"
       />
       <div className="space-y-5">
         <div className="space-y-1.5">
@@ -88,51 +78,7 @@ export function TeamSizeSelector({
             aria-describedby="name-help"
             title="Editable later in league settings"
           />
-          <p id="name-help" className="mt-1 text-sm text-white/70">Don't worry. You can change this later.</p>
-        </div>
-
-        <div className="space-y-2">
-          <div className="space-y-0.5">
-            <p className="text-3xl font-black tracking-tight text-white">Choose League Size</p>
-            <p className="text-base text-white/65">You can change it later in settings.</p>
-          </div>
-          <Label className="text-cyan-300">Quick team size picks</Label>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {quickPicks.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onTeamCountChange(n)}
-                className={`min-h-[48px] rounded-2xl border text-center text-lg font-black transition ${
-                  safeTeamCount === n
-                    ? 'border-cyan-300 bg-cyan-400/10 text-white shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
-                    : 'border-white/10 bg-white/[0.03] text-white/90 hover:bg-white/[0.06]'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-white/90">League timezone</Label>
-          <Select value={leagueTimezone} onValueChange={onTimezoneChange}>
-            <SelectTrigger
-              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
-              aria-label="League timezone"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {COMMON_TIMEZONES.map((z) => (
-                <SelectItem key={z.value} value={z.value}>
-                  {z.label} ({z.value.replace(/_/g, ' ')})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="mt-1 text-xs text-white/50">Used for waiver processing times and draft scheduling.</p>
+          <p id="name-help" className="mt-1 text-sm text-white/70">This name is saved to your league.</p>
         </div>
 
         <div className="space-y-1.5">
@@ -154,9 +100,32 @@ export function TeamSizeSelector({
             </SelectContent>
           </Select>
           <p className="mt-1 text-xs text-white/50">
-            Up to {maxTeams} teams for {sport}. Most leagues use 10 or 12.
+            Up to {maxTeams} teams for {sport}. You can change this later in settings.
           </p>
         </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-white/90">League timezone</Label>
+          <Select value={leagueTimezone} onValueChange={onTimezoneChange}>
+            <SelectTrigger
+              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+              aria-label="League timezone"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMMON_TIMEZONES.map((z) => (
+                <SelectItem key={z.value} value={z.value}>
+                  {z.label} ({z.value.replace(/_/g, ' ')})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="mt-1 text-xs text-white/50">
+            Stored as the league&apos;s official timezone (schedule, waivers, draft).
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <Label className="text-white/90">Trade review mode</Label>
           <Select value={tradeReviewMode} onValueChange={(v) => onTradeReviewModeChange(v as TeamSizeSelectorProps['tradeReviewMode'])}>
@@ -173,31 +142,7 @@ export function TeamSizeSelector({
               <SelectItem value="none">No review</SelectItem>
             </SelectContent>
           </Select>
-          <p className="mt-1 text-xs text-white/50">This is your starting policy and can be changed later in settings.</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-white/90">Roster size (optional)</Label>
-          <Select
-            value={rosterSize != null ? String(rosterSize) : 'default'}
-            onValueChange={(v) => onRosterSizeChange(v === 'default' ? null : Number(v))}
-          >
-            <SelectTrigger
-              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
-              title="Default uses your sport and scoring preset"
-              aria-label="Roster size"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">Use sport default</SelectItem>
-              {ROSTER_SIZES.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n} players
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="mt-1 text-xs text-white/50">Leave as default to use the preset for your sport and scoring.</p>
+          <p className="mt-1 text-xs text-white/50">Starting policy; full waiver and playoff controls are in league settings.</p>
         </div>
       </div>
     </div>

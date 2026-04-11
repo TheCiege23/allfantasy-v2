@@ -120,6 +120,22 @@ export function isTokenNotificationBypassUserId(userId: string | null | undefine
   return isDevAdminUserId(userId)
 }
 
+/**
+ * Full subscription + AI + token-ledger bypass for internal / QA testing (same snapshot as dev admin).
+ * Use Prisma `AppUser.id` (matches `session.user.id` / Supabase auth user id when linked).
+ *
+ * Covers: {@link isTokenNotificationBypassUserId} (TOKEN list + dev admin + static admin) and
+ * optional `AI_ENTITLEMENT_BYPASS_USER_IDS` for an explicit QA list without reusing other env names.
+ */
+export function isSubscriptionEntitlementBypassUserId(userId: string | null | undefined): boolean {
+  const normalizedUserId = String(userId ?? "").trim()
+  if (!normalizedUserId) return false
+  if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
+    return true
+  }
+  return isTokenNotificationBypassUserId(userId)
+}
+
 export function buildDevAdminEntitlementSnapshot(): DevAdminEntitlementSnapshot {
   return {
     plans: [...DEV_ADMIN_PLANS],

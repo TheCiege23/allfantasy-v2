@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { setWhisperer } from '@/lib/zombie/ZombieOwnerStatusService'
 import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
 import { logAuditEntry } from '@/lib/zombie/auditService'
+import { queueAnimation } from '@/lib/zombie/animationEngine'
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -134,6 +135,17 @@ export async function selectWhisperer(
       isPublic: z.whispererIsPublic,
     },
   })
+
+  await queueAnimation(
+    leagueId,
+    z.currentWeek ?? 1,
+    'whisperer_selected',
+    uid,
+    { rosterId: pickRosterId },
+    undefined,
+    undefined,
+    7000,
+  ).catch(() => {})
 
   return { whispererRecordId: rec.id, rosterId: pickRosterId }
 }

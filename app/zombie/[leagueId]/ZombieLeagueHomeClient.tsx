@@ -18,6 +18,7 @@ import { ZombieStatusBadge } from '@/app/zombie/components/ZombieStatusBadge'
 import { ZombieEventFeed } from '@/app/zombie/components/ZombieEventFeed'
 import { ZombieHordeBar } from '@/app/zombie/components/ZombieHordeBar'
 import { ZombieWhispererCard } from '@/app/zombie/components/ZombieWhispererCard'
+import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
 
 type TeamRow = {
   rosterId: string
@@ -222,6 +223,8 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
   ]
 
   return (
+    <>
+      <LeagueClipOverlayHost leagueId={leagueId} variant="zombie" enabled={Boolean(userId)} />
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.22),transparent_30%),radial-gradient(circle_at_top_right,rgba(250,204,21,0.08),transparent_32%),linear-gradient(180deg,rgba(14,15,20,0.98),rgba(10,11,15,0.98))] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.35)] sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -519,5 +522,6 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
         </aside>
       </div>
     </div>
+    </>
   )
 }

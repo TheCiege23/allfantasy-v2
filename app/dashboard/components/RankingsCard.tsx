@@ -40,20 +40,34 @@ type RankingsCardProps = {
   onAskChimmy?: () => void
   rankRefreshKey?: number
   onImportNow?: () => void
+  /** From dashboard RSC — skip initial loading skeleton when present. */
+  initialRankPayload?: Record<string, unknown> | null
 }
 
-export function RankingsCard({ onAskChimmy, rankRefreshKey = 0, onImportNow }: RankingsCardProps) {
-  const [data, setData] = useState<RankApiPayload | null>(null)
-  const [loading, setLoading] = useState(true)
+export function RankingsCard({
+  onAskChimmy,
+  rankRefreshKey = 0,
+  onImportNow,
+  initialRankPayload = null,
+}: RankingsCardProps) {
+  const [data, setData] = useState<RankApiPayload | null>(() =>
+    initialRankPayload != null ? (initialRankPayload as RankApiPayload) : null
+  )
+  const [loading, setLoading] = useState(() => initialRankPayload == null)
 
   useEffect(() => {
+    if (rankRefreshKey === 0 && initialRankPayload != null) {
+      setData(initialRankPayload as RankApiPayload)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     fetch('/api/user/rank', { cache: 'no-store', credentials: 'same-origin' })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: RankApiPayload) => setData(d))
       .catch(() => setData({ imported: false }))
       .finally(() => setLoading(false))
-  }, [rankRefreshKey])
+  }, [rankRefreshKey, initialRankPayload])
 
   if (loading) {
     return <div className="h-48 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />

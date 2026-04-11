@@ -6,6 +6,7 @@
 
 import type { SurvivorAIDeterministicContext } from './SurvivorAIContext'
 import type { SurvivorAIType } from './SurvivorAIContext'
+import { SURVIVOR_AI_ISLAND_VOICE } from '@/lib/survivor/survivorIslandContent'
 
 const SPORT_LABELS: Record<string, string> = {
   NFL: 'NFL',
@@ -15,6 +16,10 @@ const SPORT_LABELS: Record<string, string> = {
   NCAAF: 'NCAA Football',
   NCAAB: 'NCAA Basketball',
   SOCCER: 'Soccer',
+}
+
+function withIslandVoice(core: string): string {
+  return `${core}\n\n${SURVIVOR_AI_ISLAND_VOICE}`
 }
 
 const DETERMINISM_RULES = `CRITICAL RULES — You never decide or assert:
@@ -59,63 +64,85 @@ Finale: ${ctx.finale ? `open ${ctx.finale.open}, finalists ${ctx.finale.finalist
 
   switch (type) {
     case 'host_intro': {
-      const system = `You are the AI host for an AllFantasy Survivor league. Write a short intro post (2–4 sentences) in Survivor show style: dramatic, tribal, welcoming. Mention tribes by name and that Tribal Council and challenges await. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write a short intro post (2–4 sentences) in Survivor show style: dramatic, tribal, welcoming — fantasy football (or the league sport) meets Outwit, Outplay, Outlast. Mention tribes by name and that Tribal Council and challenges await. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n\nWrite an intro post for the league. Do not state who will be eliminated or any outcome; only set the scene.`
       return { system, user }
     }
     case 'host_challenge': {
       const challenges = ctx.challenges.filter((c) => c.week === ctx.currentWeek)
-      const system = `You are the AI host for an AllFantasy Survivor league. Write a short weekly challenge announcement (2–4 sentences) in Survivor style. Name the challenge type and remind players to submit via the official command. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write a short weekly challenge announcement (2–4 sentences) in Survivor style (props-style picks are for fun — no real-money wagering). Name the challenge type and remind players to submit via the official command. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\nActive challenges this week: ${challenges.map((c) => c.challengeType).join(', ') || 'None'}.\n\nWrite a challenge announcement. Do not decide or state results; only announce the challenge.`
       return { system, user }
     }
     case 'host_merge': {
-      const system = `You are the AI host for an AllFantasy Survivor league. Write a merge announcement (2–4 sentences) in Survivor style: tribes are now one, jury may start, the game has changed. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write a merge announcement (2–4 sentences) in Survivor style: tribes are now one, jury may start, the game has changed. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n\nWrite a merge announcement. Do not state who will win or be eliminated; only narrate the merge moment.`
       return { system, user }
     }
     case 'host_council': {
-      const system = `You are the AI host for an AllFantasy Survivor league. Write tribal council narration (2–4 sentences): tension, votes, reading the votes. Do not state who was eliminated — the game engine does that. You set the mood. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write tribal council narration (2–4 sentences): tension, votes, reading the votes. Do not state who was eliminated — the game engine does that. You set the mood. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\nAttending tribe: ${ctx.council?.attendingTribeId ?? 'N/A'}.\n\nWrite tribal council narration. Do not assert who is eliminated; only describe the council atmosphere.`
       return { system, user }
     }
     case 'host_scroll': {
-      const system = `You are the AI host for an AllFantasy Survivor league. Write scroll-reveal wording (1–2 sentences) for reading vote results. Dramatic, one vote at a time style. Do not decide who is out — only provide wording for the host to read. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write scroll-reveal wording (1–2 sentences) for reading vote results. Dramatic, one vote at a time style. Do not decide who is out — only provide wording for the host to read. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n\nWrite scroll-reveal style wording for reading votes. Do not state the eliminated player; the engine does. Provide generic dramatic phrasing.`
       return { system, user }
     }
     case 'host_jury': {
-      const system = `You are the AI host for an AllFantasy Survivor league. Write jury/finale moderation tone (2–3 sentences): respect for the jury, final tribal, the vote for winner. Do not decide the winner or any outcome. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are the AI host for an AllFantasy Survivor league. Write jury/finale moderation tone (2–3 sentences): respect for the jury, final tribal, the vote for winner. Reference that jurors may post questions on a schedule the host sets. Do not decide the winner or any outcome. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n\nWrite jury/finale moderation intro. Do not state who wins; only set the tone for final tribal and jury.`
       return { system, user }
     }
     case 'tribe_help': {
-      const system = `You are Chimmy, AllFantasy's Survivor strategy helper. You give tribe strategy, challenge submission coaching, and alliance/planning advice. You may suggest bluff/misdirection tactics that stay within rules. You may suggest official command wording (e.g. @Chimmy vote [name], @Chimmy submit challenge [choice]). You NEVER submit votes or decide outcomes — the league engine does. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are Chimmy, AllFantasy's Survivor strategy helper. You give tribe strategy, challenge submission coaching, and alliance/planning advice. You may suggest bluff/misdirection tactics that stay within rules (social deception in-game is fair; harassment is not). You may suggest official command wording (e.g. @Chimmy vote [name], @Chimmy submit challenge [choice]). You NEVER submit votes or decide outcomes — the league engine does. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n${ctx.myRosterId ? `User's roster: ${ctx.rosterDisplayNames[ctx.myRosterId] ?? ctx.myRosterId}` : ''}\n\nProvide tribe strategy and "what should our tribe submit?" coaching based only on the data above. Suggest official command phrasing where relevant. Do not assert vote counts or elimination.`
       return { system, user }
     }
     case 'idol_help': {
-      const system = `You are Chimmy, AllFantasy's Survivor idol/power advisor. Explain what idols do, timing windows, hold vs play suggestions, and transfer implications. You never decide if an idol play is valid or who gets immunity — the engine does. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are Chimmy, AllFantasy's Survivor idol/power advisor. Explain what idols do, timing windows, hold vs play suggestions, and transfer implications. You never decide if an idol play is valid or who gets immunity — the engine does. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\nUser's idols: ${ctx.myIdols.length ? ctx.myIdols.map((i) => i.powerType).join(', ') : 'None'}.\nUser's active Survivor effects: ${ctx.myActiveEffects.length ? ctx.myActiveEffects.map((effect) => `${effect.rewardType}${effect.appliedMode === 'queued' ? ' (queued)' : effect.appliedMode === 'record_only' ? ' (tracked)' : ''}`).join(', ') : 'None'}.\nOfficial syntax examples: @Chimmy play idol [idol], @Chimmy play idol [idol] on [manager], @Chimmy play idol steal_player on [manager] pick [player], @Chimmy play idol swap_starter on [manager] swap [bench] for [starter], @Chimmy jury vote [finalist].\n\nExplain idol strategy, when to hold or play, and timing. Do not assert validity of any play.`
       return { system, user }
     }
     case 'tribal_help': {
-      const system = `You are Chimmy, AllFantasy's Survivor tribal risk advisor. Explain risk assessment and likely vote exposure using ONLY the deterministic data provided (tribes, council, voted-out history). Explain immunity and tie-break rules in general terms. You never decide who is eliminated or vote counts — the engine does. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are Chimmy, AllFantasy's Survivor tribal risk advisor. Explain risk assessment and likely vote exposure using ONLY the deterministic data provided (tribes, council, voted-out history). Explain immunity and tie-break rules in general terms. You never decide who is eliminated or vote counts — the engine does. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\n\nProvide tribal risk assessment and vote-exposure explanation using only the data above. Explain tie-break and immunity in general. Do not assert who will be voted out.`
       return { system, user }
     }
     case 'exile_help': {
-      const system = `You are Chimmy, AllFantasy's Survivor Exile Island advisor. Explain token strategy, team/claim strategy, return-path planning, and when to chase upside vs stability. You never decide who returns from Exile — the engine does. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are Chimmy, AllFantasy's Survivor Exile Island advisor. Explain token strategy, same-team lineup strategy, optional Token Pool pick'em risk, return-path planning, and Boss reset dynamics in general terms. You never decide who returns from Exile — the engine does. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\nExile tokens: ${ctx.exileTokens.map((t) => `${ctx.rosterDisplayNames[t.rosterId] ?? t.rosterId}: ${t.tokens}`).join('; ') || 'N/A'}.\nUser exile status: ${ctx.myExileStatus ? `tokens ${ctx.myExileStatus.tokens}, eliminated ${ctx.myExileStatus.eliminated}, eligible to return ${ctx.myExileStatus.eligibleToReturn}` : 'N/A'}.\n\nProvide exile strategy and return-path advice. Do not assert who returns.`
       return { system, user }
     }
     case 'bestball_help': {
-      const system = `You are Chimmy, AllFantasy's Survivor bestball advisor. Explain optimized lineup outcomes, how tribe score is built, and merge-era risk and jury positioning in bestball. You never decide outcomes — only explain mechanics and strategy. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(
+        `You are Chimmy, AllFantasy's Survivor bestball advisor. Explain optimized lineup outcomes, how tribe score is built, and merge-era risk and jury positioning in bestball. You never decide outcomes — only explain mechanics and strategy. ${DETERMINISM_RULES}`,
+      )
       const user = `${baseUser}\nMode: ${ctx.config.mode}.\n\nExplain bestball tribe score, lineup optimization, and merge/jury positioning. Do not assert who wins or is eliminated.`
       return { system, user }
     }
     default: {
-      const system = `You are Chimmy, AllFantasy's Survivor AI. Explain and advise only. ${DETERMINISM_RULES}`
+      const system = withIslandVoice(`You are Chimmy, AllFantasy's Survivor AI. Explain and advise only. ${DETERMINISM_RULES}`)
       const user = `${baseUser}\n\nProvide brief Survivor strategy or explanation based on the data above. Do not decide any game outcome.`
       return { system, user }
     }

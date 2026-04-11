@@ -40,6 +40,7 @@ export type LeagueTypeId =
   | 'c2c'
   | 'zombie'
   | 'salary_cap'
+  | 'big_brother'
 
 export type DraftTypeId =
   | 'snake'
@@ -202,6 +203,8 @@ export interface LeagueCreationWizardState {
   /** AF Commissioner-tier AI (gated in UI unless subscribed). */
   commissionerPreferences: WizardCommissionerPreferences
   privacySettings: WizardPrivacySettings
+  /** Per–league-type fields (tournament hub, survivor tribes, keeper count, etc.). */
+  formatOptions: import('@/lib/league-creation-wizard/wizard-format-options').WizardFormatOptions
   /**
    * Optional full settings snapshot from a saved template.
    * These keys are merged into League.settings on create before wizard-level overrides.

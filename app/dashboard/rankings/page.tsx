@@ -150,11 +150,15 @@ function playerRankFromApiResponse(data: RankResponse): PlayerRank | null {
   if (data.rank) {
     const xpNum = Number(data.rank.careerXp) || data.xpTotal || 0
     const lv = getLevelFromXp(xpNum)
+    const wr = data.rank.winRate
+    const pr = data.rank.playoffRate
     return {
       ...data.rank,
       careerLevel: lv.level,
       careerTier: lv.tierGroup,
       careerTierName: lv.name,
+      winRate: typeof wr === 'number' && Number.isFinite(wr) ? wr : Number(wr) || 0,
+      playoffRate: typeof pr === 'number' && Number.isFinite(pr) ? pr : Number(pr) || 0,
     }
   }
   const cs = data.careerStats ?? data.stats ?? null
@@ -428,16 +432,18 @@ function CareerStats({ rank }: { rank: PlayerRank }) {
   const wins = rank.totalWins ?? 0
   const losses = rank.totalLosses ?? 0
   const ties = rank.totalTies ?? 0
+  const winRateSafe = Number.isFinite(Number(rank.winRate)) ? Number(rank.winRate) : 0
+  const playoffRateSafe = Number.isFinite(Number(rank.playoffRate)) ? Number(rank.playoffRate) : 0
   const recordLabel = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`
   const stats = [
     { label: 'Record', value: wins + losses + ties > 0 ? recordLabel : '—', sub: 'imported leagues (all connected providers)' },
-    { label: 'Win Rate', value: `${rank.winRate.toFixed(1)}%`, sub: 'career average' },
+    { label: 'Win Rate', value: `${winRateSafe.toFixed(1)}%`, sub: 'career average' },
     {
       label: 'Playoffs',
       value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
       sub: 'appearances (qualified seasons)',
     },
-    { label: 'Playoff rate', value: `${rank.playoffRate.toFixed(0)}%`, sub: 'of league seasons' },
+    { label: 'Playoff rate', value: `${playoffRateSafe.toFixed(0)}%`, sub: 'of league seasons' },
     { label: 'Titles', value: String(rank.championshipCount), sub: 'championships' },
     { label: 'Seasons', value: String(rank.seasonsPlayed), sub: 'distinct seasons played' },
   ]
@@ -525,7 +531,8 @@ function LeagueAccessRules({ rank }: { rank: PlayerRank }) {
 
 function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
   const cfg = getTierConfig(rank)
-  const xp = Number(rank.careerXp)
+  const xpRaw = Number(rank.careerXp)
+  const xp = Number.isFinite(xpRaw) ? xpRaw : 0
   const lv = getLevelFromXp(xp)
   const effectiveLevel = lv.level
   const xpProgress = lv.progressPct
@@ -767,7 +774,7 @@ function TwentyFiveLevelRankCard({ payload }: { payload: RankLevelApiPayload }) 
           <div
             className="h-full rounded-full transition-all"
             style={{
-              width: `${payload.progressPct}%`,
+              width: `${Math.min(100, Math.max(0, Number.isFinite(payload.progressPct) ? payload.progressPct : 0))}%`,
               background: payload.color,
             }}
           />

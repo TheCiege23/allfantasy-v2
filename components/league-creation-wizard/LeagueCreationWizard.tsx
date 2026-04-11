@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   WIZARD_STEP_ORDER,
   DEFAULT_DRAFT_SETTINGS,
@@ -19,7 +19,6 @@ import type {
   WizardStepId,
   LeagueTypeId,
   DraftTypeId,
-  WizardDraftSettings,
   WizardWaiverSettings,
   WizardPlayoffSettings,
   WizardScheduleSettings,
@@ -30,8 +29,6 @@ import type {
   PlatformStyleMirror,
 } from '@/lib/league-creation-wizard/types'
 import { getConceptIntroVideoUrl } from '@/lib/league-creation/concept-intro-videos'
-import { LeagueCreatedIntroModal } from './LeagueCreatedIntroModal'
-import { LeagueSourceSection, type LeagueListRow } from './LeagueSourceSection'
 import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
 import { readFetchJson } from '@/lib/http/readFetchJson'
@@ -59,26 +56,17 @@ import {
   resolveEffectiveLeagueVariant,
 } from '@/lib/league-creation/LeagueVariantResolver'
 import { emitLeagueCreationPerf } from '@/lib/league-creation/perf'
+import {
+  DEFAULT_WIZARD_FORMAT_OPTIONS,
+  formatOptionsApplyToLeagueType,
+  clampSurvivorTeamCount,
+} from '@/lib/league-creation-wizard/wizard-format-options'
+import type { WizardFormatOptions } from '@/lib/league-creation-wizard/wizard-format-options'
+import { LeagueFormatOptionsPanel } from './LeagueFormatOptionsPanel'
 
 /** Lazy-loaded step panels to shrink initial bundle and improve mobile TTI. */
 const ScoringPresetSelector = dynamic(
   () => import('./ScoringPresetSelector').then((m) => ({ default: m.ScoringPresetSelector })),
-  { loading: () => <StepPanelSkeleton />, ssr: true }
-)
-const DraftSettingsPanel = dynamic(
-  () => import('./DraftSettingsPanel').then((m) => ({ default: m.DraftSettingsPanel })),
-  { loading: () => <StepPanelSkeleton />, ssr: true }
-)
-const WaiverSettingsPanel = dynamic(
-  () => import('./WaiverSettingsPanel').then((m) => ({ default: m.WaiverSettingsPanel })),
-  { loading: () => <StepPanelSkeleton />, ssr: true }
-)
-const PlayoffSettingsPanel = dynamic(
-  () => import('./PlayoffSettingsPanel').then((m) => ({ default: m.PlayoffSettingsPanel })),
-  { loading: () => <StepPanelSkeleton />, ssr: true }
-)
-const ScheduleSettingsPanel = dynamic(
-  () => import('./ScheduleSettingsPanel').then((m) => ({ default: m.ScheduleSettingsPanel })),
   { loading: () => <StepPanelSkeleton />, ssr: true }
 )
 const LeaguePrivacyPanel = dynamic(
@@ -108,8 +96,15 @@ const STEP_LABELS: Record<ActiveWizardStepId, string> = {
   sport: 'Sport & setup',
   team_setup: 'League details',
   scoring: 'Scoring & rosters',
-  draft_privacy: 'Draft, AI & privacy',
+  draft_privacy: 'AI & privacy',
   review: 'Review & create',
+}
+
+function mapWizardVisibilityToStoredPrivacy(
+  v: WizardPrivacySettings['visibility']
+): 'public' | 'private' | 'invite_only' {
+  if (v === 'unlisted') return 'invite_only'
+  return v === 'public' ? 'public' : 'private'
 }
 
 const initialState: LeagueCreationWizardState = {
@@ -135,7 +130,16 @@ const initialState: LeagueCreationWizardState = {
   automationSettings: { ...DEFAULT_AUTOMATION_SETTINGS },
   commissionerPreferences: { ...DEFAULT_COMMISSIONER_PREFERENCES },
   privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
+  formatOptions: { ...DEFAULT_WIZARD_FORMAT_OPTIONS },
   templateSettingsOverrides: {},
+}
+
+function mapDraftTypeToTournamentDraft(
+  d: DraftTypeId
+): 'snake' | 'linear' | 'auction' {
+  if (d === 'linear') return 'linear'
+  if (d === 'auction' || d === 'devy_auction' || d === 'c2c_auction') return 'auction'
+  return 'snake'
 }
 
 function toWizardWaiverSettings(
@@ -299,6 +303,8 @@ export type LeagueCreationWizardProps = {
   onSaveAsTemplate?: (state: LeagueCreationWizardState) => void
   /** True while save-as-template request is in progress. */
   savingTemplate?: boolean
+  /** Open on a specific step (`/create-league?step=scoring`). */
+  initialStep?: WizardStepId
 }
 
 export function LeagueCreationWizard({
@@ -306,11 +312,15 @@ export function LeagueCreationWizard({
   initialWizardState,
   onSaveAsTemplate,
   savingTemplate = false,
+  initialStep,
 }: LeagueCreationWizardProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [state, setState] = useState<LeagueCreationWizardState>(() => {
     const merged = { ...initialState, ...(initialWizardState ?? {}) }
-    merged.step = 'sport'
+    const fromUrl =
+      initialStep && (WIZARD_STEP_ORDER as readonly string[]).includes(initialStep) ? initialStep : null
+    merged.step = fromUrl ?? 'sport'
     merged.setupSource = initialWizardState?.setupSource ?? 'fresh'
     merged.copyFromLeagueId = initialWizardState?.copyFromLeagueId ?? null
     merged.leagueTimezone = initialWizardState?.leagueTimezone ?? 'America/New_York'
@@ -319,17 +329,15 @@ export function LeagueCreationWizard({
       ...DEFAULT_COMMISSIONER_PREFERENCES,
       ...(initialWizardState?.commissionerPreferences ?? {}),
     }
+    merged.formatOptions = {
+      ...DEFAULT_WIZARD_FORMAT_OPTIONS,
+      ...(initialWizardState?.formatOptions ?? {}),
+    }
     return merged
   })
   const { featureAccess: commissionerPlanUnlocked } = useEntitlement('commissioner_automation')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [postCreateIntro, setPostCreateIntro] = useState<{
-    leagueId: string
-    name: string
-    videoUrl?: string
-  } | null>(null)
-  const [showAdvancedScoringRules, setShowAdvancedScoringRules] = useState(false)
   const skipInitialWaiverPresetSyncRef = useRef(Boolean(initialWizardState?.waiverSettings))
   const lastWaiverPresetKeyRef = useRef<string | null>(null)
   const waiverManualOverrideKeyRef = useRef<string | null>(null)
@@ -384,9 +392,6 @@ export function LeagueCreationWizard({
       if (!isDraftTypeAllowedForLeagueType(state.draftType, state.leagueType)) {
         return 'Draft style is not valid for the selected format.'
       }
-      if (state.setupSource === 'copy_league' && !state.copyFromLeagueId) {
-        return 'Pick an AllFantasy league to copy settings from, or choose a different starting option.'
-      }
       return null
     }
     if (state.step === 'team_setup') {
@@ -399,18 +404,6 @@ export function LeagueCreationWizard({
       return null
     }
     if (state.step === 'draft_privacy') {
-      if (state.draftType === 'auction' && (state.draftSettings.auctionBudgetPerTeam ?? 0) <= 0) {
-        return 'Auction leagues require a positive budget per team.'
-      }
-      if (state.leagueType === 'keeper' && (state.draftSettings.keeperMaxKeepers ?? 0) <= 0) {
-        return 'Keeper leagues require at least 1 keeper slot.'
-      }
-      if (state.leagueType === 'devy' && state.draftSettings.devyRounds.length === 0) {
-        return 'Devy leagues require at least one devy round.'
-      }
-      if (state.leagueType === 'c2c' && state.draftSettings.c2cCollegeRounds.length === 0) {
-        return 'C2C leagues require at least one college round.'
-      }
       return null
     }
     return null
@@ -419,20 +412,44 @@ export function LeagueCreationWizard({
     state.leagueType,
     state.draftType,
     state.sport,
-    state.setupSource,
-    state.copyFromLeagueId,
     state.name,
     state.leagueTimezone,
-    state.draftSettings.auctionBudgetPerTeam,
-    state.draftSettings.keeperMaxKeepers,
-    state.draftSettings.devyRounds,
-    state.draftSettings.c2cCollegeRounds,
   ])
 
   const go = useCallback((step: WizardStepId) => {
     setState((s) => ({ ...s, step }))
     setError(null)
   }, [])
+
+  const handleEditStep = useCallback(
+    (stepId: WizardStepId) => {
+      go(stepId)
+      const q = new URLSearchParams()
+      q.set('step', stepId)
+      q.set('returnTo', 'review')
+      router.replace(`/create-league?${q.toString()}`)
+    },
+    [go, router]
+  )
+
+  useEffect(() => {
+    if (state.step === 'review') {
+      router.replace('/create-league?step=review')
+    }
+  }, [state.step, router])
+
+  useEffect(() => {
+    const stepParam = searchParams?.get('step')
+    if (!stepParam) return
+    if (!(WIZARD_STEP_ORDER as readonly string[]).includes(stepParam)) return
+    setState((s) => (s.step === stepParam ? s : { ...s, step: stepParam as WizardStepId }))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (state.leagueType !== 'survivor') return
+    const tc = clampSurvivorTeamCount(String(state.sport), state.formatOptions.survivorTeamCount)
+    setState((s) => (s.teamCount === tc ? s : { ...s, teamCount: tc }))
+  }, [state.leagueType, state.sport, state.formatOptions.survivorTeamCount])
 
   const goNext = useCallback(() => {
     if (stepValidationError) {
@@ -511,7 +528,6 @@ export function LeagueCreationWizard({
       return { ...s, teamCount: clampTeamCountForSport(String(s.sport), n) }
     })
   }, [])
-  const handleRosterSizeChange = useCallback((n: number | null) => setState((s) => ({ ...s, rosterSize: n })), [])
   const handleTradeReviewModeChange = useCallback((mode: LeagueCreationWizardState['tradeReviewMode']) => {
     setState((s) => {
       tradeReviewManualOverrideRef.current = true
@@ -528,34 +544,6 @@ export function LeagueCreationWizard({
           requestedVariant: v,
         }).variant ?? 'STANDARD'
       return { ...s, scoringPreset: resolvedVariant, leagueVariant: resolvedVariant }
-    })
-  }, [])
-
-  const handleDraftSettingsChange = useCallback((patch: Partial<WizardDraftSettings>) => {
-    setState((s) => ({ ...s, draftSettings: { ...s.draftSettings, ...patch } }))
-  }, [])
-
-  const handleWaiverSettingsChange = useCallback((patch: Partial<WizardWaiverSettings>) => {
-    setState((s) => {
-      const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
-      waiverManualOverrideKeyRef.current = key
-      return { ...s, waiverSettings: { ...s.waiverSettings, ...patch } }
-    })
-  }, [])
-
-  const handlePlayoffSettingsChange = useCallback((patch: Partial<WizardPlayoffSettings>) => {
-    setState((s) => {
-      const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
-      playoffManualOverrideKeyRef.current = key
-      return { ...s, playoffSettings: { ...s.playoffSettings, ...patch } }
-    })
-  }, [])
-
-  const handleScheduleSettingsChange = useCallback((patch: Partial<WizardScheduleSettings>) => {
-    setState((s) => {
-      const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
-      scheduleManualOverrideKeyRef.current = key
-      return { ...s, scheduleSettings: { ...s.scheduleSettings, ...patch } }
     })
   }, [])
 
@@ -581,32 +569,8 @@ export function LeagueCreationWizard({
     setState((s) => ({ ...s, privacySettings: { ...s.privacySettings, ...patch } }))
   }, [])
 
-  const handleSetupSourceChange = useCallback((source: LeagueCreationWizardState['setupSource']) => {
-    setState((s) => ({
-      ...s,
-      setupSource: source,
-      copyFromLeagueId: source !== 'copy_league' ? null : s.copyFromLeagueId,
-    }))
-  }, [])
-
-  const handleCopyLeagueApply = useCallback((league: LeagueListRow) => {
-    const sp = String(league.sport ?? '').trim() || 'NFL'
-    setState((s) => {
-      const nextTeam = clampTeamCountForSport(sp, league.leagueSize ?? s.teamCount)
-      const overrides =
-        league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
-          ? { ...(league.settings as Record<string, unknown>) }
-          : {}
-      return {
-        ...s,
-        setupSource: 'copy_league',
-        copyFromLeagueId: league.id,
-        sport: sp,
-        teamCount: nextTeam,
-        templateSettingsOverrides: overrides,
-        name: s.name.trim().length > 0 ? s.name : `Copy of ${(league.name ?? 'League').trim()}`,
-      }
-    })
+  const handleFormatOptionsChange = useCallback((patch: Partial<WizardFormatOptions>) => {
+    setState((s) => ({ ...s, formatOptions: { ...s.formatOptions, ...patch } }))
   }, [])
 
   const handleTimezoneChange = useCallback((tz: string) => {
@@ -628,6 +592,65 @@ export function LeagueCreationWizard({
     setCreating(true)
     setError(null)
     try {
+      if (state.leagueType === 'guillotine' && !state.formatOptions.guillotineRulesAcknowledged) {
+        setError('Confirm Guillotine elimination rules on the AI & privacy step.')
+        setCreating(false)
+        return
+      }
+      if (
+        state.leagueType === 'tournament' &&
+        state.formatOptions.tournamentLeagueNamingMode === 'commissioner_custom' &&
+        !state.formatOptions.tournamentCustomLeagueNamesLines.trim()
+      ) {
+        setError('Enter feeder league names (one per line) or choose app-generated names.')
+        setCreating(false)
+        return
+      }
+
+      if (state.leagueType === 'tournament') {
+        const tournamentDraft = mapDraftTypeToTournamentDraft(state.draftType)
+        const customLines = state.formatOptions.tournamentCustomLeagueNamesLines
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean)
+        const res = await fetch('/api/tournament/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: state.name.trim() || 'Tournament',
+            sport: state.sport,
+            settings: {
+              participantPoolSize: state.formatOptions.tournamentParticipantPoolSize,
+              initialLeagueSize: state.formatOptions.tournamentInitialLeagueSize,
+              leagueNamingMode: state.formatOptions.tournamentLeagueNamingMode,
+              draftType: tournamentDraft,
+            },
+            ...(state.formatOptions.tournamentLeagueNamingMode === 'commissioner_custom' && customLines.length > 0
+              ? { leagueNames: customLines }
+              : {}),
+          }),
+          credentials: 'same-origin',
+        })
+        const { ok, data, errorMessage } = await readFetchJson<{ tournamentId?: string }>(res)
+        if (!ok) {
+          setError(errorMessage ?? 'Failed to create tournament')
+          return
+        }
+        const tournamentId = data?.tournamentId
+        if (tournamentId) {
+          onSuccess?.(tournamentId)
+          router.push(`/tournament/${tournamentId}`)
+        } else {
+          setError('Tournament created but no ID returned')
+        }
+        return
+      }
+
+      const effectiveLeagueSize =
+        state.leagueType === 'survivor'
+          ? clampSurvivorTeamCount(String(state.sport), state.formatOptions.survivorTeamCount)
+          : state.teamCount
+
       const isDynasty = isDynastyLeagueType(state.leagueType)
       const leagueVariant = resolveCreationVariantOrDefault({
         sport: state.sport,
@@ -658,14 +681,14 @@ export function LeagueCreationWizard({
           : [defaultCollegeSport]
       const presetScoringTemplate = creationPreset?.scoringTemplate
       const introUrl = getConceptIntroVideoUrl(String(state.sport))
+      const storedPrivacy = mapWizardVisibilityToStoredPrivacy(state.privacySettings.visibility)
       const body = {
         name,
         platform: 'manual',
         sport: state.sport,
         isDynasty,
         leagueVariant,
-        leagueSize: state.teamCount,
-        rosterSize: state.rosterSize ?? undefined,
+        leagueSize: effectiveLeagueSize,
         scoring: leagueVariant ?? undefined,
         league_type: state.leagueType,
         draft_type: state.draftType,
@@ -674,82 +697,20 @@ export function LeagueCreationWizard({
           : {}),
         settings: {
           ...(state.templateSettingsOverrides ?? {}),
-          league_size: state.teamCount,
-          roster_size: state.rosterSize,
+          ...formatOptionsApplyToLeagueType(state.leagueType, state.formatOptions, String(state.sport)),
+          league_size: effectiveLeagueSize,
           league_type: state.leagueType,
           draft_type: state.draftType,
           league_timezone: state.leagueTimezone,
           scoring_format: presetScoringTemplate?.formatType ?? undefined,
           scoring_template_id: presetScoringTemplate?.templateId ?? undefined,
-          draft_rounds: state.draftSettings.rounds,
-          draft_timer_seconds: state.draftSettings.timerSeconds,
-          draft_third_round_reversal: state.draftSettings.thirdRoundReversal,
-          third_round_reversal: state.draftSettings.thirdRoundReversal,
-          waiver_type: state.waiverSettings.waiverType,
-          waiver_processing_days: state.waiverSettings.processingDays,
-          waiver_processing_time_utc: state.waiverSettings.processingTimeUtc,
-          faab_enabled: state.waiverSettings.faabEnabled,
-          faab_budget: state.waiverSettings.faabBudget,
-          faab_reset_rules: state.waiverSettings.faabResetRules,
-          waiver_claim_priority_behavior: state.waiverSettings.claimPriorityBehavior,
-          waiver_continuous_waivers_behavior: state.waiverSettings.continuousWaiversBehavior,
-          waiver_free_agent_unlock_behavior: state.waiverSettings.freeAgentUnlockBehavior,
-          waiver_game_lock_behavior: state.waiverSettings.gameLockBehavior,
-          waiver_drop_lock_behavior: state.waiverSettings.dropLockBehavior,
-          waiver_same_day_add_drop_rules: state.waiverSettings.sameDayAddDropRules,
-          waiver_max_claims_per_period: state.waiverSettings.maxClaimsPerPeriod,
           trade_review_mode: state.tradeReviewMode,
-          playoff_team_count: state.playoffSettings.playoffTeamCount,
-          playoff_structure: {
-            playoff_team_count: state.playoffSettings.playoffTeamCount,
-            playoff_weeks: state.playoffSettings.playoffWeeks,
-            playoff_start_week: state.playoffSettings.playoffStartWeek,
-            playoff_start_point: state.playoffSettings.playoffStartWeek,
-            first_round_byes: state.playoffSettings.firstRoundByes,
-            seeding_rules: state.playoffSettings.seedingRules,
-            tiebreaker_rules: state.playoffSettings.tiebreakerRules,
-            bye_rules: state.playoffSettings.byeRules,
-            matchup_length: state.playoffSettings.matchupLength,
-            total_rounds: state.playoffSettings.totalRounds,
-            consolation_bracket_enabled: state.playoffSettings.consolationBracketEnabled,
-            third_place_game_enabled: state.playoffSettings.thirdPlaceGameEnabled,
-            toilet_bowl_enabled: state.playoffSettings.toiletBowlEnabled,
-            championship_length: state.playoffSettings.championshipLength,
-            consolation_plays_for: state.playoffSettings.consolationPlaysFor,
-            reseed_behavior: state.playoffSettings.reseedBehavior,
-          },
-          standings_tiebreakers: state.playoffSettings.tiebreakerRules,
-          schedule_unit: state.scheduleSettings.scheduleUnit,
-          regular_season_length: state.scheduleSettings.regularSeasonLength,
-          matchup_frequency: state.scheduleSettings.matchupFrequency,
-          schedule_cadence: state.scheduleSettings.matchupCadence,
-          schedule_head_to_head_behavior: state.scheduleSettings.headToHeadOrPointsBehavior,
-          lock_time_behavior: state.scheduleSettings.lockTimeBehavior,
-          schedule_lock_window_behavior: state.scheduleSettings.lockWindowBehavior,
-          schedule_scoring_period_behavior: state.scheduleSettings.scoringPeriodBehavior,
-          schedule_reschedule_handling: state.scheduleSettings.rescheduleHandling,
-          schedule_doubleheader_handling: state.scheduleSettings.doubleheaderOrMultiGameHandling,
-          schedule_playoff_transition_point: state.scheduleSettings.playoffTransitionPoint,
-          schedule_generation_strategy: state.scheduleSettings.scheduleGenerationStrategy,
-          auction_budget_per_team: state.draftSettings.auctionBudgetPerTeam,
-          special_draft_type: state.draftType,
-          keeper_max_keepers: state.draftSettings.keeperMaxKeepers,
           devy_rounds: devyRounds,
-          devy_slot_count: state.draftSettings.devySlotCount ?? 12,
-          devy_ir_slots: state.draftSettings.devyIrSlots ?? 2,
-          devy_taxi_slots: state.draftSettings.devyTaxiSlots ?? 6,
           devy_college_sports: devyCollegeSports,
           c2c_college_rounds: c2cCollegeRounds,
           c2c_college_sports: c2cCollegeSports,
           c2c_startup_mode: state.draftSettings.c2cStartupMode ?? 'merged',
           c2c_standings_model: state.draftSettings.c2cStandingsModel ?? 'unified',
-          c2c_best_ball_pro: state.draftSettings.c2cBestBallPro ?? true,
-          c2c_best_ball_college: state.draftSettings.c2cBestBallCollege ?? false,
-          c2c_college_roster_size: state.draftSettings.c2cCollegeRosterSize ?? 20,
-          c2c_rookie_draft_rounds: state.draftSettings.c2cRookieDraftRounds ?? 4,
-          c2c_college_draft_rounds: state.draftSettings.c2cCollegeDraftRounds ?? 6,
-          c2c_scoring_system: state.draftSettings.c2cScoringSystem ?? 'ppr',
-          c2c_mix_pro_players: state.draftSettings.c2cMixProPlayers ?? true,
           ai_adp_enabled: state.aiSettings.aiAdpEnabled,
           orphan_team_ai_manager_enabled: state.aiSettings.orphanTeamAiManagerEnabled,
           draft_helper_enabled: state.aiSettings.draftHelperEnabled,
@@ -759,6 +720,8 @@ export function LeagueCreationWizard({
           draft_notifications_enabled: state.automationSettings.draftNotificationsEnabled,
           autopick_from_queue_enabled: state.automationSettings.autopickFromQueueEnabled,
           slow_draft_reminders_enabled: state.automationSettings.slowDraftRemindersEnabled,
+          league_privacy_visibility: storedPrivacy,
+          league_allow_invite_link: state.privacySettings.allowInviteLink,
           visibility: state.privacySettings.visibility,
           allow_invite_link: state.privacySettings.allowInviteLink,
         },
@@ -784,7 +747,11 @@ export function LeagueCreationWizard({
       const leagueId = data?.league?.id
       if (leagueId) {
         onSuccess?.(leagueId)
-        setPostCreateIntro({ leagueId, name, videoUrl: introUrl })
+        const q = new URLSearchParams()
+        q.set('created', '1')
+        q.set('openChat', 'league')
+        if (state.privacySettings.allowInviteLink) q.set('showInvite', '1')
+        router.push(`/league/${leagueId}?${q.toString()}`)
       } else {
         setError('League created but no ID returned')
       }
@@ -799,7 +766,7 @@ export function LeagueCreationWizard({
     } finally {
       setCreating(false)
     }
-  }, [state, onSuccess, creationPreset?.scoringTemplate, commissionerPlanUnlocked])
+  }, [state, onSuccess, creationPreset?.scoringTemplate, commissionerPlanUnlocked, router])
 
   useEffect(() => {
     const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -990,13 +957,6 @@ export function LeagueCreationWizard({
         >
           {state.step === 'sport' && (
             <>
-              <LeagueSourceSection
-                setupSource={state.setupSource}
-                copyFromLeagueId={state.copyFromLeagueId}
-                currentSport={String(state.sport)}
-                onSetupSourceChange={handleSetupSourceChange}
-                onCopyLeagueApply={handleCopyLeagueApply}
-              />
               <SportSelector value={state.sport} onChange={handleSportChange} />
               {creationPresetLoading && (
                 <p
@@ -1040,14 +1000,18 @@ export function LeagueCreationWizard({
                 sport={String(state.sport)}
                 name={state.name}
                 teamCount={state.teamCount}
-                rosterSize={state.rosterSize}
                 tradeReviewMode={state.tradeReviewMode}
                 leagueTimezone={state.leagueTimezone}
                 onNameChange={handleNameChange}
                 onTeamCountChange={handleTeamCountChange}
-                onRosterSizeChange={handleRosterSizeChange}
                 onTradeReviewModeChange={handleTradeReviewModeChange}
                 onTimezoneChange={handleTimezoneChange}
+              />
+              <LeagueFormatOptionsPanel
+                sport={String(state.sport)}
+                leagueType={state.leagueType}
+                value={state.formatOptions}
+                onChange={handleFormatOptionsChange}
               />
               <WizardStepNav
                 onBack={goBack}
@@ -1088,63 +1052,10 @@ export function LeagueCreationWizard({
                     Refreshing preset templates for this sport and variant…
                   </p>
                 )}
-                <div className="rounded-2xl border border-white/10 bg-[#030b1f]/70 p-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedScoringRules((prev) => !prev)}
-                    className="flex w-full items-center justify-between rounded-xl border border-cyan-400/25 bg-cyan-400/5 px-3 py-2 text-left text-sm font-semibold text-cyan-100 hover:bg-cyan-400/10"
-                    aria-expanded={showAdvancedScoringRules}
-                    data-testid="league-creation-advanced-scoring-toggle"
-                  >
-                    <span>Waivers, playoffs &amp; schedule</span>
-                    <span className="text-xs text-cyan-200/80">
-                      {showAdvancedScoringRules ? 'Hide' : 'Show'}
-                    </span>
-                  </button>
-                  {!showAdvancedScoringRules && (
-                    <p className="mt-2 text-xs text-white/60">
-                      Optional — defaults follow your sport and scoring preset (ESPN-style). Full commissioner tools
-                      stay in league settings after you create.
-                    </p>
-                  )}
-                </div>
-                {showAdvancedScoringRules && (
-                  <div className="space-y-5">
-                    <section
-                      className="rounded-2xl border border-white/10 bg-black/25 p-3"
-                      data-testid="league-creation-advanced-waiver"
-                    >
-                      <WaiverSettingsPanel
-                        sport={String(state.sport)}
-                        leagueVariant={state.leagueVariant}
-                        waiverSettings={state.waiverSettings}
-                        onWaiverSettingsChange={handleWaiverSettingsChange}
-                      />
-                    </section>
-                    <section
-                      className="rounded-2xl border border-white/10 bg-black/25 p-3"
-                      data-testid="league-creation-advanced-playoff"
-                    >
-                      <PlayoffSettingsPanel
-                        sport={String(state.sport)}
-                        leagueVariant={state.leagueVariant}
-                        playoffSettings={state.playoffSettings}
-                        onPlayoffSettingsChange={handlePlayoffSettingsChange}
-                      />
-                    </section>
-                    <section
-                      className="rounded-2xl border border-white/10 bg-black/25 p-3"
-                      data-testid="league-creation-advanced-schedule"
-                    >
-                      <ScheduleSettingsPanel
-                        sport={String(state.sport)}
-                        leagueVariant={state.leagueVariant}
-                        scheduleSettings={state.scheduleSettings}
-                        onScheduleSettingsChange={handleScheduleSettingsChange}
-                      />
-                    </section>
-                  </div>
-                )}
+                <p className="rounded-2xl border border-white/10 bg-[#030b1f]/70 px-3 py-2 text-xs text-white/60">
+                  Waivers, playoffs, schedule, and draft timing use sport defaults and can be changed in{' '}
+                  <strong className="text-white/80">League settings</strong> after you create.
+                </p>
               </div>
               <WizardStepNav
                 onBack={goBack}
@@ -1157,12 +1068,10 @@ export function LeagueCreationWizard({
           )}
           {state.step === 'draft_privacy' && (
             <>
-              <DraftSettingsPanel
-                leagueType={state.leagueType}
-                draftType={state.draftType}
-                draftSettings={state.draftSettings}
-                onDraftSettingsChange={handleDraftSettingsChange}
-              />
+              <p className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/60">
+                Draft timing, rounds, and auction budgets use platform defaults for your sport and format. Configure
+                them in <strong className="text-white/80">League settings</strong> after creation.
+              </p>
               <div className="mt-8">
                 <AiAutomationSettingsPanel
                   sport={String(state.sport)}
@@ -1188,7 +1097,7 @@ export function LeagueCreationWizard({
           )}
           {state.step === 'review' && (
             <>
-              <LeagueSummaryPanel state={state} creationPreset={creationPreset} />
+              <LeagueSummaryPanel state={state} creationPreset={creationPreset} onEditStep={handleEditStep} />
               {onSaveAsTemplate && (
                 <div className="mt-3 flex justify-end">
                   <button
@@ -1213,16 +1122,6 @@ export function LeagueCreationWizard({
           )}
         </WizardStepContainer>
       </div>
-      <LeagueCreatedIntroModal
-        open={postCreateIntro != null}
-        leagueName={postCreateIntro?.name ?? ''}
-        videoUrl={postCreateIntro?.videoUrl}
-        onEnterLeague={() => {
-          const id = postCreateIntro?.leagueId
-          setPostCreateIntro(null)
-          if (id) router.push(`/league/${id}`)
-        }}
-      />
     </div>
   )
 }

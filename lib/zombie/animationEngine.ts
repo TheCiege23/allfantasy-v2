@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { zombieClipForAnimation } from '@/lib/zombie/videoAssets'
 
 /**
  * Queue a client-visible animation row. Consumers: SSE (`zombie_event_animation`), league home, universe hub.
@@ -42,6 +43,17 @@ export async function queueAnimation(
   durationMs?: number,
   reducedMotion?: boolean,
 ) {
+  const clip = zombieClipForAnimation(animationType)
+  const baseMeta =
+    metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {}
+  const enriched: Record<string, unknown> = { ...baseMeta }
+  if (clip && typeof enriched.clipUrl !== 'string') {
+    enriched.clipUrl = clip.url
+    enriched.clipType = clip.type
+  }
+
   return prisma.zombieEventAnimation.create({
     data: {
       leagueId,
@@ -51,7 +63,7 @@ export async function queueAnimation(
       secondaryUserId: secondaryUserId ?? null,
       displayLocation: displayLocation ?? 'league_chat_and_home',
       durationMs: durationMs ?? 3000,
-      metadata: metadata as object,
+      metadata: enriched as object,
       reducedMotion: reducedMotion ?? false,
     },
   })

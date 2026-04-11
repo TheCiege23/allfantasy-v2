@@ -12,7 +12,7 @@ import { Send } from 'lucide-react'
 import type { PlatformChatThread, PlatformChatMessage } from '@/types/platform-shared'
 import ChimmyChat from '@/app/components/ChimmyChat'
 import { DiscordIcon } from '@/app/components/icons/DiscordIcon'
-import type { LeftChatPanelLayoutProps, UserLeague } from '../types'
+import type { LeftChatInitialTab, LeftChatPanelLayoutProps, UserLeague } from '../types'
 import { LeagueAvatar } from './LeagueAvatar'
 import { LeagueChatInPanel } from './LeagueChatInPanel'
 import { CHIMMY_VOICES } from '@/lib/tts/voices'
@@ -177,7 +177,13 @@ function ChimmyLeagueContextBar({
   )
 }
 
-type LeftTab = 'league' | 'chimmy' | 'af_huddle' | 'dms'
+function initialLeftTab(
+  selectedLeague: UserLeague | null,
+  initialOpenChat: LeftChatInitialTab | null | undefined
+): LeftChatInitialTab {
+  if (initialOpenChat) return initialOpenChat
+  return selectedLeague ? 'league' : 'chimmy'
+}
 
 /** Position-style avatar fallback colors (aligned with `PlayerImage` positionBgClass). */
 function dmAvatarBgClass(name: string, index: number): string {
@@ -237,9 +243,12 @@ export function LeftChatPanel({
   leagues = [],
   discordConnected = false,
   zombieChimmyPrefill = null,
+  initialOpenChat = null,
   commissionerLeagues = [],
 }: LeftChatPanelLayoutProps) {
-  const [activeTab, setActiveTab] = useState<LeftTab>('chimmy')
+  const [activeTab, setActiveTab] = useState<LeftChatInitialTab>(() =>
+    initialLeftTab(selectedLeague, initialOpenChat)
+  )
   // DM state
   const [dmThreads, setDmThreads] = useState<PlatformChatThread[]>([])
   const [dmUnread, setDmUnread] = useState(0)
@@ -461,11 +470,31 @@ export function LeftChatPanel({
   /** Tracks last right-panel/route league we synced so `leagues` refetches do not override a manual Chimmy pick */
   const lastSyncedRightPanelLeagueRef = useRef<string | null>(null)
 
+  const prevLeagueIdForTabRef = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (selectedLeague) {
-      setActiveTab('league')
-    } else {
+    const id = selectedLeague?.id ?? null
+    const prev = prevLeagueIdForTabRef.current
+
+    if (id === null) {
+      prevLeagueIdForTabRef.current = null
       setActiveTab('chimmy')
+      return
+    }
+
+    if (prev === undefined) {
+      prevLeagueIdForTabRef.current = id
+      return
+    }
+
+    if (prev === null) {
+      prevLeagueIdForTabRef.current = id
+      setActiveTab('league')
+      return
+    }
+
+    if (prev !== id) {
+      prevLeagueIdForTabRef.current = id
+      setActiveTab('league')
     }
   }, [selectedLeague?.id])
 
@@ -511,6 +540,8 @@ export function LeftChatPanel({
       <div className="flex shrink-0 border-b border-white/[0.07]">
         <button
           type="button"
+          data-testid="left-chat-tab-league"
+          aria-pressed={activeTab === 'league'}
           onClick={() => setActiveTab('league')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-league transition-colors ${
             activeTab === 'league'
@@ -523,6 +554,8 @@ export function LeftChatPanel({
         </button>
         <button
           type="button"
+          data-testid="left-chat-tab-chimmy"
+          aria-pressed={activeTab === 'chimmy'}
           onClick={() => setActiveTab('chimmy')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-chimmy transition-colors ${
             activeTab === 'chimmy'
@@ -535,6 +568,8 @@ export function LeftChatPanel({
         </button>
         <button
           type="button"
+          data-testid="left-chat-tab-af-huddle"
+          aria-pressed={activeTab === 'af_huddle'}
           onClick={() => setActiveTab('af_huddle')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-huddle transition-colors ${
             activeTab === 'af_huddle'
@@ -548,6 +583,8 @@ export function LeftChatPanel({
         </button>
         <button
           type="button"
+          data-testid="left-chat-tab-dms"
+          aria-pressed={activeTab === 'dms'}
           onClick={() => setActiveTab('dms')}
           className={`flex flex-1 cursor-pointer items-center justify-center gap-1 py-2.5 text-center text-[16px] dashboard-header-bold header-dms transition-colors ${
             activeTab === 'dms'

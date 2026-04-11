@@ -196,6 +196,9 @@ export async function advanceWeek(leagueId: string): Promise<void> {
     data: { week: next },
     isVisibleToPublic: true,
   })
+
+  const { ensureSystemWeeklyChallenge } = await import('@/lib/survivor/challengeEngine')
+  await ensureSystemWeeklyChallenge(leagueId, next).catch(() => {})
 }
 
 export async function syncWeeklyScores(leagueId: string, week: number): Promise<void> {

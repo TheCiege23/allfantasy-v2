@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getLeagueRole } from '@/lib/league/permissions'
 import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
+import {
+  parseSurvivorFairPlayFromLeagueSettings,
+  redactSurvivorSeasonPayloadForFairPlay,
+  shouldApplySurvivorFairPlayRedaction,
+} from '@/lib/survivor/survivorFairPlay'
 import { seedIdolsAfterDraft } from '@/lib/survivor/idolEngine'
 import { assignPlayersToTribes } from '@/lib/survivor/tribeEngine'
 
@@ -86,6 +92,7 @@ export async function GET(req: NextRequest) {
       survivorMode: true,
       survivorTribeCount: true,
       survivorMergeWeek: true,
+      settings: true,
     },
   })
   const tribes = await prisma.survivorTribe.findMany({ where: { leagueId }, include: { members: true } })
@@ -102,7 +109,16 @@ export async function GET(req: NextRequest) {
   const jury = await prisma.jurySession.findUnique({ where: { leagueId } })
   const me = await prisma.survivorPlayer.findFirst({ where: { leagueId, userId } })
 
-  return NextResponse.json({
+  const settingsJson =
+    league?.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+      ? (league.settings as Record<string, unknown>)
+      : {}
+  const { fairPlayLimited } = parseSurvivorFairPlayFromLeagueSettings(settingsJson)
+  const role = await getLeagueRole(leagueId, userId)
+  const isComm = role === 'commissioner' || role === 'co_commissioner'
+  const fairPlayRedact = shouldApplySurvivorFairPlayRedaction(fairPlayLimited, isComm, Boolean(me))
+
+  const payload = {
     phase: league?.survivorPhase,
     mode: league?.survivorMode,
     tribes,
@@ -112,6 +128,12 @@ export async function GET(req: NextRequest) {
     exileStatus: exile,
     juryStatus: jury,
     userState: me,
-  })
+  }
+
+  if (fairPlayRedact) {
+    return NextResponse.json(redactSurvivorSeasonPayloadForFairPlay(payload, userId, me?.tribeId ?? null))
+  }
+
+  return NextResponse.json(payload)
 }
 

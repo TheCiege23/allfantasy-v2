@@ -18,6 +18,7 @@ import {
   MessageCircle,
   MessageSquare,
   Newspaper,
+  PiggyBank,
   Palette,
   Settings,
   Shield,
@@ -41,6 +42,7 @@ import {
   SettingsSubPanelBody,
   type SubPanelContext,
 } from './LeagueSettingsSubPanels'
+import { CommissionerLeagueSettingsShell } from './CommissionerLeagueSettingsShell'
 import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
 import {
   initialsFromName,
@@ -79,6 +81,7 @@ const COMMISH_CARDS: CardDef[] = [
   { id: 'members-commish', title: 'Members', description: 'Manage league members', icon: MessageSquare },
   { id: 'commish-note', title: 'Commish Note', description: 'Add or update commissioner notes', icon: FileText },
   { id: 'commish-controls', title: 'Commish Controls', description: 'Commissioner league controls', icon: Shield },
+  { id: 'league-dues', title: 'League Dues Tracker', description: 'Track league payment status', icon: PiggyBank },
   { id: 'draft-results-commish', title: 'Draft Results', description: 'Manage draft results', icon: Grid },
   { id: 'league-history-commish', title: 'League History', description: 'Update league history', icon: BookOpen },
 ]
@@ -120,6 +123,8 @@ export type LeagueSettingsModalProps = {
   isHeadCommissioner: boolean
   sleeperMemberMap: SleeperMemberMap
   onGoToDraftTab: () => void
+  /** When set on open, opens this sub-panel immediately (e.g. member gear menu → Edit Team). */
+  initialActivePanel?: string | null
 }
 
 export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
@@ -135,6 +140,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     isHeadCommissioner,
     sleeperMemberMap,
     onGoToDraftTab,
+    initialActivePanel = null,
   } = props
 
   const [mainTab, setMainTab] = useState<SettingsTabKey>('general')
@@ -156,8 +162,13 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   useEffect(() => {
     if (!open) return
     setMainTab(readStoredTab(league.id, isCommissioner))
-    setActivePanel(null)
-  }, [open, league.id, isCommissioner])
+    const tab = readStoredTab(league.id, isCommissioner)
+    if (isCommissioner && tab === 'general') {
+      setActivePanel(null)
+    } else {
+      setActivePanel(initialActivePanel ?? null)
+    }
+  }, [open, league.id, isCommissioner, initialActivePanel])
 
   useEffect(() => {
     if (!open) return
@@ -200,10 +211,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
     if (mainTab === 'idp' && idpConfigLoaded && !idpLeague) {
       setMainTab('general')
     }
-    if (mainTab === 'commish' && !isCommissioner) {
-      setMainTab('general')
-    }
-  }, [open, mainTab, idpLeague, idpConfigLoaded, isCommissioner])
+  }, [open, mainTab, idpLeague, idpConfigLoaded])
 
   useEffect(() => {
     if (!open) return
@@ -314,7 +322,9 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
               role="dialog"
               aria-modal="true"
               aria-labelledby="league-settings-modal-title"
-              className="pointer-events-auto flex max-h-[100dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#0d1117] shadow-2xl md:max-h-[min(92vh,900px)] md:rounded-2xl"
+              className={`pointer-events-auto flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#0d1117] shadow-2xl md:max-h-[min(92vh,900px)] md:rounded-2xl ${
+                isCommissioner && mainTab === 'general' ? 'max-w-4xl' : 'max-w-2xl'
+              }`}
               initial={modalVariants.initial}
               animate={modalVariants.animate}
               exit={modalVariants.exit}
@@ -362,19 +372,6 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                   >
                     GENERAL
                   </button>
-                  {isCommissioner ? (
-                    <button
-                      type="button"
-                      onClick={() => setMainTab('commish')}
-                      className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
-                        mainTab === 'commish'
-                          ? 'border-cyan-500/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.12)]'
-                          : 'border-transparent bg-white/[0.04] text-white/40 hover:bg-white/[0.07] hover:text-white/65'
-                      }`}
-                    >
-                      COMMISH
-                    </button>
-                  ) : null}
                   {idpLeague ? (
                     <button
                       type="button"
@@ -405,34 +402,42 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
               </header>
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8 pt-4 [scrollbar-gutter:stable]">
-                <div className="mx-auto grid grid-cols-2 gap-3">
-                  {cards.map((card) => {
-                    const Icon = card.icon
-                    const ai = card.ai
-                    return (
-                      <button
-                        key={card.id}
-                        type="button"
-                        onClick={() => setActivePanel(card.id)}
-                        className={`rounded-xl border p-3 text-left transition ${
-                          ai
-                            ? 'border-violet-500/25 bg-gradient-to-br from-violet-950/80 via-[#1a1f3a] to-fuchsia-950/50 hover:border-violet-400/35'
-                            : 'border-white/[0.08] bg-[#1a1f3a] hover:border-cyan-500/25 hover:bg-[#1f2544]'
-                        }`}
-                      >
-                        <div
-                          className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${
-                            ai ? 'bg-white/[0.08] text-violet-200' : 'bg-white/[0.06] text-cyan-400/95'
+                {isCommissioner && mainTab === 'general' ? (
+                  <CommissionerLeagueSettingsShell
+                    key={`${league.id}-${initialActivePanel ?? 'hub'}`}
+                    ctx={subCtx}
+                    initialPanelId={initialActivePanel}
+                  />
+                ) : (
+                  <div className="mx-auto grid grid-cols-2 gap-3">
+                    {cards.map((card) => {
+                      const Icon = card.icon
+                      const ai = card.ai
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          onClick={() => setActivePanel(card.id)}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            ai
+                              ? 'border-violet-500/25 bg-gradient-to-br from-violet-950/80 via-[#1a1f3a] to-fuchsia-950/50 hover:border-violet-400/35'
+                              : 'border-white/[0.08] bg-[#1a1f3a] hover:border-cyan-500/25 hover:bg-[#1f2544]'
                           }`}
                         >
-                          <Icon className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
-                        </div>
-                        <h3 className="text-[13px] font-bold leading-snug text-white">{card.title}</h3>
-                        <p className="mt-1 text-[11px] leading-relaxed text-white/40">{card.description}</p>
-                      </button>
-                    )
-                  })}
-                </div>
+                          <div
+                            className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${
+                              ai ? 'bg-white/[0.08] text-violet-200' : 'bg-white/[0.06] text-cyan-400/95'
+                            }`}
+                          >
+                            <Icon className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+                          </div>
+                          <h3 className="text-[13px] font-bold leading-snug text-white">{card.title}</h3>
+                          <p className="mt-1 text-[11px] leading-relaxed text-white/40">{card.description}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>

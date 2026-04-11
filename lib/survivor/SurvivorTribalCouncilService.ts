@@ -16,6 +16,7 @@ import type { SurvivorCouncilResult } from './types'
 import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTradesForElimination'
 import { notifyElimination } from '@/lib/survivor/notificationEngine'
 import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
+import { buildScrollRevealSequence } from '@/lib/survivor/votingEngine'
 
 /**
  * Create a Tribal Council for the week. Pre-merge: pass attendingTribeId. Merge: no tribe.
@@ -69,6 +70,11 @@ export async function closeCouncil(
   })
   if (!council) return { ok: false, error: 'Council not found' }
   if (council.closedAt) return { ok: false, error: 'Council already closed' }
+
+  const voteTotal = await prisma.survivorVote.count({ where: { councilId } })
+  if (voteTotal > 0) {
+    await buildScrollRevealSequence(councilId).catch(() => {})
+  }
 
   const source = seasonPointsSource ?? {
     getSeasonPointsForRoster: getSeasonPointsFromRosterPerformance,

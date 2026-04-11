@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Globe, Settings } from 'lucide-react'
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
@@ -87,23 +87,43 @@ function useDraftCountdown(draftDateIso: string | null | undefined): TimerParts 
 
 export function DraftTab({ league, teams, isOwner, inviteToken, idpLeagueUi = false }: DraftTabProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const sorted = useMemo(() => sortTeamsForDisplay(teams), [teams])
   const filled = teams.length
   const cap = league.teamCount
   const isFull = filled >= cap
+  const justCreated = searchParams?.get('created') === '1'
+  const showInviteHighlight = searchParams?.get('showInvite') === '1'
+  const settings = league.settings as Record<string, unknown> | undefined
+  const allowInviteLink =
+    typeof settings?.league_allow_invite_link === 'boolean'
+      ? settings.league_allow_invite_link
+      : typeof settings?.allow_invite_link === 'boolean'
+        ? settings.allow_invite_link
+        : true
+  const inviteCode =
+    (typeof settings?.inviteCode === 'string' && settings.inviteCode.trim()) ||
+    (typeof inviteToken === 'string' && inviteToken.trim()) ||
+    ''
+  const inviteDisplayPath =
+    inviteCode.length > 0
+      ? `allfantasy.ai/join?code=${encodeURIComponent(inviteCode)}&leagueId=${encodeURIComponent(league.id)}`
+      : ''
+  const inviteCopyUrl = inviteDisplayPath ? `https://${inviteDisplayPath}` : ''
   const showInvite =
-    isOwner && !isFull && typeof inviteToken === 'string' && inviteToken.length > 0
-  const inviteDisplayPath = `allfantasy.ai/join/${inviteToken ?? ''}`
-  const inviteCopyUrl = `https://${inviteDisplayPath}`
+    isOwner &&
+    inviteCode.length > 0 &&
+    allowInviteLink &&
+    (!isFull || (justCreated && showInviteHighlight))
 
   const handleCopyInvite = useCallback(async () => {
-    if (!inviteToken) return
+    if (!inviteCopyUrl) return
     try {
       await navigator.clipboard.writeText(inviteCopyUrl)
     } catch {
       // ignore
     }
-  }, [inviteCopyUrl, inviteToken])
+  }, [inviteCopyUrl])
 
   const draftDateIso = league.draftDate ?? null
   const hasDraftTime = Boolean(draftDateIso && Number.isFinite(new Date(draftDateIso).getTime()))
@@ -165,6 +185,11 @@ export function DraftTab({ league, teams, isOwner, inviteToken, idpLeagueUi = fa
             <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] font-medium text-white/70">
               {filled}/{cap} teams filled
             </span>
+            {justCreated && showInviteHighlight ? (
+              <span className="rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-200">
+                League ID: {league.id}
+              </span>
+            ) : null}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.07] bg-black/25 px-3 py-2 text-[11px] text-cyan-200/90">

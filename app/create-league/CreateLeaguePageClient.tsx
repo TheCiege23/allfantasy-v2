@@ -1,18 +1,30 @@
 'use client'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { CreateLeagueView } from '@/components/league-creation'
+import type { WizardStepId } from '@/lib/league-creation-wizard/types'
+
+const WIZARD_STEPS: WizardStepId[] = ['sport', 'team_setup', 'scoring', 'draft_privacy', 'review']
+
+function parseWizardStep(raw: string | null | undefined): WizardStepId | null {
+  if (!raw || typeof raw !== 'string') return null
+  const v = raw.trim()
+  return WIZARD_STEPS.includes(v as WizardStepId) ? (v as WizardStepId) : null
+}
 
 export interface CreateLeaguePageClientProps {
   userId: string
-  initialTemplateId?: string
 }
 
 /**
  * Client UI for create league — auth is handled by the server `page.tsx` so we never
  * block on `useSession()` staying in the `loading` state.
  */
-export function CreateLeaguePageClient({ userId, initialTemplateId }: CreateLeaguePageClientProps) {
+export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) {
+  const searchParams = useSearchParams()
+  const initialStep = parseWizardStep(searchParams?.get('step'))
+
   return (
     <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
       <header className="px-4 pb-2 pt-4">
@@ -28,7 +40,7 @@ export function CreateLeaguePageClient({ userId, initialTemplateId }: CreateLeag
           <span className="h-9 w-9" aria-hidden />
         </div>
       </header>
-      <CreateLeagueView userId={userId} initialTemplateId={initialTemplateId} />
+      <CreateLeagueView userId={userId} initialStep={initialStep} />
     </div>
   )
 }

@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { queueAnimation } from '@/lib/zombie/animationEngine'
 import { getZombieLeagueConfig } from './ZombieLeagueConfig'
 import { getRosterTeamMap } from './rosterTeamMap'
 import { getAllStatuses, setZombie } from './ZombieOwnerStatusService'
@@ -115,6 +116,16 @@ export async function applyInfections(outcome: ZombieInfectionOutcome, zombieLea
         matchupId: inf.matchupId,
       },
     })
+
+    const infectedRoster = await prisma.roster.findUnique({
+      where: { id: inf.survivorRosterId },
+      select: { platformUserId: true },
+    })
+    const primaryUid = infectedRoster?.platformUserId ?? 'unknown'
+    await queueAnimation(outcome.leagueId, outcome.week, 'zombie_turn', primaryUid, {
+      infectedByRosterId: inf.infectedByRosterId,
+      survivorRosterId: inf.survivorRosterId,
+    }).catch(() => {})
   }
 }
 

@@ -54,6 +54,10 @@ export async function GET(
       tribalCouncilDayOfWeek: config.tribalCouncilDayOfWeek,
       tribalCouncilTimeUtc: config.tribalCouncilTimeUtc,
       minigameFrequency: config.minigameFrequency,
+      seasonThemeLabel: config.seasonThemeLabel,
+      challengesSystemRun: config.challengesSystemRun,
+      regularSeasonEndWeek: config.regularSeasonEndWeek,
+      faqSeededAt: config.faqSeededAt,
     },
   })
 }
@@ -98,6 +102,14 @@ export async function PUT(
     ...(body.tribalCouncilDayOfWeek != null && { tribalCouncilDayOfWeek: Number(body.tribalCouncilDayOfWeek) }),
     ...(body.tribalCouncilTimeUtc != null && { tribalCouncilTimeUtc: String(body.tribalCouncilTimeUtc) }),
     ...(body.minigameFrequency != null && { minigameFrequency: String(body.minigameFrequency) }),
+    ...(body.seasonThemeLabel !== undefined && {
+      seasonThemeLabel: body.seasonThemeLabel === null || body.seasonThemeLabel === '' ? null : String(body.seasonThemeLabel),
+    }),
+    ...(body.challengesSystemRun != null && { challengesSystemRun: Boolean(body.challengesSystemRun) }),
+    ...(body.regularSeasonEndWeek !== undefined && {
+      regularSeasonEndWeek:
+        body.regularSeasonEndWeek === null ? null : Math.min(52, Math.max(1, Number(body.regularSeasonEndWeek))),
+    }),
   })
   if (!updated) return NextResponse.json({ error: 'Update failed' }, { status: 500 })
   return NextResponse.json({ ok: true, config: updated })

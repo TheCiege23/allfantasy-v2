@@ -5427,7 +5427,7 @@ model SurvivorLeagueConfig {
   id                             String                  @id @default(uuid())
   leagueId                       String                  @unique @db.VarChar(64)
   mode                           String                  @default("redraft") @db.VarChar(24)
-  tribeCount                     Int                     @default(4)
+  tribeCount                     Int                     @default(3)
   tribeSize                      Int                     @default(4)
   tribeFormation                 String                  @default("random") @db.VarChar(24)
   mergeTrigger                   String                  @default("week") @db.VarChar(24)
@@ -5447,6 +5447,14 @@ model SurvivorLeagueConfig {
   tribalCouncilDayOfWeek         Int?
   tribalCouncilTimeUtc           String?                 @db.VarChar(16)
   minigameFrequency              String                  @default("none") @db.VarChar(24)
+  /// Commissioner-defined season headline (e.g. "Heroes vs Villains") — not a default game mode.
+  seasonThemeLabel               String?                 @db.VarChar(160)
+  /// When true, the engine picks weekly challenges from templates (no host-only challenge design).
+  challengesSystemRun            Boolean                 @default(true)
+  /// Set when FAQ broadcast + pin was posted to linked league chat.
+  faqSeededAt                    DateTime?
+  /// Optional override for last regular-season scoring week (excludes playoffs); if null, use sport default.
+  regularSeasonEndWeek           Int?
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
   auditLog                       SurvivorAuditLog[]

@@ -123,6 +123,11 @@ export async function GET(req: NextRequest) {
   const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
   const comm = commissionerLeagueFieldsFromRow(league)
   const rawLeagueSettings = league.settings as Record<string, unknown> | null | undefined
+  const viewerHasTeam = league.teams.some((t) => t.claimedByUserId === userId)
+  const survivorFairPlayLimited =
+    rawLeagueSettings?.survivor_commissioner_fair_play_limited_visibility === true ||
+    rawLeagueSettings?.survivor_commissioner_role === 'player_commissioner' ||
+    String(rawLeagueSettings?.survivor_commissioner_role ?? '').toLowerCase() === 'player_commissioner'
   const sportConfig =
     rawLeagueSettings?.sportConfig && typeof rawLeagueSettings.sportConfig === 'object'
       ? rawLeagueSettings.sportConfig
@@ -130,6 +135,8 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     userRole,
+    viewerHasTeam,
+    survivorFairPlayLimited,
     hasAfCommissionerSub: profile?.afCommissionerSub ?? false,
     canEdit,
     league: {

@@ -3,9 +3,11 @@
  */
 
 export { SurvivorHome } from './SurvivorHome'
+export { SurvivorFirstEntryModal } from './SurvivorFirstEntryModal'
 export { SurvivorTribeBoard } from './SurvivorTribeBoard'
 export { SurvivorChallengeCenter } from './SurvivorChallengeCenter'
 export { SurvivorTribalCouncilView } from './SurvivorTribalCouncilView'
+export { SurvivorScrollReveal } from './SurvivorScrollReveal'
 export { SurvivorIdolsView } from './SurvivorIdolsView'
 export { SurvivorExileView } from './SurvivorExileView'
 export { SurvivorMergeJuryView } from './SurvivorMergeJuryView'

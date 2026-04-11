@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import { Copy } from 'lucide-react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { AdvancementOverlay, EliminationOverlay } from '@/app/tournament/components/AdvancementCard'
@@ -30,7 +32,8 @@ export default function TournamentHomePage() {
   const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
-  const { shell, conferences, announcements, participant, viewerUserId } = ctx
+  const { shell, conferences, announcements, participant, viewerUserId, hubKind, isCommissioner, legacyFeederLeagues } =
+    ctx
   const state = useTournamentParticipantState(ctx)
 
   const conference = useMemo(
@@ -100,6 +103,19 @@ export default function TournamentHomePage() {
 
   const latest = announcements[0]
 
+  const copyInvite = useCallback(async (url: string, label: string) => {
+    if (!url?.trim()) {
+      toast.error('No invite link yet for this league.')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success(`${label}: invite link copied`)
+    } catch {
+      toast.error('Could not copy link')
+    }
+  }, [])
+
   const adv = shell.advancersPerLeague
   const bubbleN = shell.bubbleEnabled ? Math.min(shell.bubbleSize, 8) : 0
 
@@ -167,6 +183,56 @@ export default function TournamentHomePage() {
           </p>
         </div>
       </div>
+
+      {hubKind === 'legacy' && isCommissioner && legacyFeederLeagues && legacyFeederLeagues.length > 0 ? (
+        <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-[#081226] to-[#0c1020] p-4 shadow-[0_0_32px_rgba(34,211,238,0.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-[13px] font-bold uppercase tracking-wide text-cyan-100/95">Commissioner hub</h2>
+              <p className="mt-1 text-[11px] leading-snug text-white/50">
+                All qualification feeder leagues for <span className="text-white/75">{shell.name}</span>. Share each
+                invite only with managers assigned to that league.
+              </p>
+            </div>
+          </div>
+          <ul className="mt-4 space-y-3">
+            {legacyFeederLeagues.map((row) => (
+              <li
+                key={row.tournamentLeagueId}
+                className="rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-white">{row.name}</p>
+                    <p className="text-[10px] text-white/40">{row.conferenceName}</p>
+                  </div>
+                  <Link
+                    href={`/league/${row.leagueId}?openChat=league`}
+                    className="shrink-0 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 hover:underline"
+                  >
+                    Open league →
+                  </Link>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyInvite(row.joinUrl, row.name)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 transition hover:border-cyan-400/50 hover:bg-cyan-500/15"
+                  >
+                    <Copy className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                    Copy invite link
+                  </button>
+                  {row.inviteCode ? (
+                    <span className="rounded-md bg-white/[0.06] px-2 py-1 font-mono text-[10px] text-white/45">
+                      {row.inviteCode}
+                    </span>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {state.standingsError ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-[12px] text-red-200">

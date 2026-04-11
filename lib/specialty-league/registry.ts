@@ -22,6 +22,7 @@ import {
   getSurvivorConfig,
   upsertSurvivorConfig,
 } from '@/lib/survivor/SurvivorLeagueConfig'
+import { SURVIVOR_LEAGUE_INTRO_VIDEO } from '@/lib/survivor/constants'
 import { getExcludedRosterIdsForSurvivor, isRosterCurrentlyEliminated } from '@/lib/survivor/SurvivorRosterState'
 import {
   isZombieLeague,
@@ -145,11 +146,11 @@ function registerSurvivor(): void {
 
     assets: () => ({
       leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      firstEntryVideo: SURVIVOR_LEAGUE_INTRO_VIDEO,
+      introVideo: SURVIVOR_LEAGUE_INTRO_VIDEO,
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/survivor/SurvivorFirstEntryModal',
     homeComponent: '@/components/survivor/SurvivorHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/survivor/summary',

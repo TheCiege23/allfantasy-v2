@@ -39,6 +39,9 @@ export interface UserLeague {
   entryFee?: number | null
 }
 
+/** First tab to show in `LeftChatPanel` (from `?openChat=` on `/league/[id]`). */
+export type LeftChatInitialTab = 'league' | 'chimmy' | 'af_huddle' | 'dms'
+
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */
 export type LeftChatPanelLayoutProps = {
   selectedLeague: UserLeague | null
@@ -55,6 +58,11 @@ export type LeftChatPanelLayoutProps = {
   discordConnected?: boolean
   /** `?zombieChimmy=` deep link → league chat composer */
   zombieChimmyPrefill?: string | null
+  /**
+   * Which left-rail tab is active on first paint (`?openChat=league|chimmy|dms|af_huddle`).
+   * When omitted: league chat if `selectedLeague` is set, otherwise Chimmy.
+   */
+  initialOpenChat?: LeftChatInitialTab | null
   /** Leagues the user commissions — for @global broadcast modal */
   commissionerLeagues?: { id: string; name: string; teamCount: number }[]
 }

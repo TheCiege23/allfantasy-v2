@@ -35,6 +35,14 @@ export interface SurvivorConfig {
   tribalCouncilDayOfWeek: number | null
   tribalCouncilTimeUtc: string | null
   minigameFrequency: string
+  /** Commissioner headline — e.g. Heroes vs Villains (not a built-in default). */
+  seasonThemeLabel: string | null
+  /** Engine-generated weekly challenges from templates when true. */
+  challengesSystemRun: boolean
+  /** Optional last regular-season week (no playoffs). */
+  regularSeasonEndWeek: number | null
+  /** Set after FAQ broadcast was posted to league chat. */
+  faqSeededAt: string | null
 }
 
 export interface SurvivorTribeRow {

@@ -38,6 +38,8 @@ type DashboardOverviewProps = {
   leagues: UserLeague[]
   onTriggerImport: () => void
   onOpenChimmy: () => void
+  /** SSR snapshot of `/api/user/rank` — rankings card renders without a client fetch round-trip. */
+  initialUserRankPayload?: Record<string, unknown> | null
 }
 
 function getDefaultOnboardingState(): OnboardingState {
@@ -83,6 +85,7 @@ export function DashboardOverview({
   leagues,
   onTriggerImport,
   onOpenChimmy: _onOpenChimmy,
+  initialUserRankPayload = null,
 }: DashboardOverviewProps) {
   const { hasPro } = useEntitlements()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
@@ -573,6 +576,7 @@ export function DashboardOverview({
         <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
 
         <RankingsCard
+          initialRankPayload={initialUserRankPayload}
           onImportNow={handleImport}
           rankRefreshKey={rankRefreshKey}
           onAskChimmy={() => {

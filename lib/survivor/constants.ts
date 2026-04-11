@@ -7,6 +7,9 @@ import type { LeagueSport } from '@prisma/client'
 
 export const SURVIVOR_VARIANT = 'survivor'
 
+/** Default first-entry intro — asset in `/public/survivor/` (filename is URL-encoded for spaces). */
+export const SURVIVOR_LEAGUE_INTRO_VIDEO = `/survivor/${encodeURIComponent('Survivor League Intro.mp4')}`
+
 /** Default merge week by sport (pre-merge ends; merge starts). */
 export const DEFAULT_MERGE_WEEK_BY_SPORT: Partial<Record<LeagueSport, number>> = {
   NFL: 10,

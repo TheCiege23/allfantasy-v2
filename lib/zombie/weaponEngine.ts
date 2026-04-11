@@ -103,8 +103,10 @@ export async function processWeaponAction(
   const lower = rawMessage.toLowerCase()
 
   let weapon = 'weapon_axe'
-  if (lower.includes('gun')) weapon = 'weapon_gun'
-  if (lower.includes('axe')) weapon = 'weapon_axe'
+  if (lower.includes('gun') || lower.includes('🔫')) weapon = 'weapon_gun'
+  if (lower.includes('axe') || lower.includes('🪓')) weapon = 'weapon_axe'
+  if (lower.includes('knife') || lower.includes('🔪')) weapon = 'weapon_knife'
+  if (lower.includes('bow') || lower.includes('🏹')) weapon = 'weapon_bow'
 
   const log = await prisma.zombieChimmyAction.create({
     data: {

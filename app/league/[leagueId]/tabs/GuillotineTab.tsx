@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { GuillotineHome } from '@/components/guillotine/GuillotineHome'
 import type { SupportedSport } from '@/lib/sport-scope'
 
 type Sub = 'board' | 'team' | 'waivers' | 'history' | 'storylines'
@@ -8,27 +10,35 @@ type Sub = 'board' | 'team' | 'waivers' | 'history' | 'storylines'
 export type GuillotineTabProps = {
   leagueId: string
   sport: SupportedSport | string
+  leagueName?: string | null
 }
 
-export function GuillotineTab({ leagueId, sport }: GuillotineTabProps) {
+const SCROLL_ANCHORS: Record<Exclude<Sub, 'board' | 'team'>, string> = {
+  waivers: 'guillotine-waivers',
+  history: 'guillotine-history',
+  storylines: 'guillotine-ai',
+}
+
+export function GuillotineTab({ leagueId, sport, leagueName }: GuillotineTabProps) {
   const [sub, setSub] = useState<Sub>('board')
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 text-[#e6edf3]">
-      <div className="rounded-xl border border-red-500/20 bg-[#0a1228]/90 px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-red-300/90">Guillotine survival</p>
-        <h2 className="mt-1 text-lg font-bold text-white">Lowest score each period is eliminated</h2>
-        <p className="mt-1 text-[12px] text-white/45">
-          League {leagueId.slice(0, 8)}… · {String(sport)} — connect a guillotine season to load live chop line.
-        </p>
-      </div>
+  useEffect(() => {
+    if (sub === 'board' || sub === 'team') return
+    const id = SCROLL_ANCHORS[sub]
+    const t = requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(t)
+  }, [sub])
 
-      <div className="flex flex-wrap gap-2 border-b border-white/10 pb-3">
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4 text-[#e6edf3]">
+      <div className="flex flex-wrap gap-2 border-b border-white/[0.08] pb-3">
         {(
           [
-            ['board', 'Survival Board'],
+            ['board', 'Hub'],
             ['team', 'My Team'],
-            ['waivers', 'Waiver Pool'],
+            ['waivers', 'Waivers'],
             ['history', 'History'],
             ['storylines', 'Storylines'],
           ] as const
@@ -37,9 +47,12 @@ export function GuillotineTab({ leagueId, sport }: GuillotineTabProps) {
             key={id}
             type="button"
             data-testid={`guillotine-sub-${id}`}
+            aria-pressed={sub === id}
             onClick={() => setSub(id)}
-            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold ${
-              sub === id ? 'bg-red-500/20 text-red-100' : 'bg-white/5 text-white/50 hover:text-white/80'
+            className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+              sub === id
+                ? 'bg-cyan-500/15 text-cyan-100 ring-1 ring-cyan-500/35'
+                : 'bg-white/[0.05] text-white/45 hover:bg-white/10 hover:text-white/85'
             }`}
           >
             {label}
@@ -47,27 +60,22 @@ export function GuillotineTab({ leagueId, sport }: GuillotineTabProps) {
         ))}
       </div>
 
-      {sub === 'board' && (
-        <div className="space-y-3 rounded-xl border border-white/10 bg-[#040915]/80 p-4">
-          <header className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="text-sm font-semibold text-white">Survival board</span>
-            <span className="text-[11px] text-white/40">Scores lock — wire SSE `guillotine_score_update`</span>
-          </header>
-          <p className="text-[13px] text-white/55">
-            Ranked list of active teams by live score will appear here once `/api/guillotine/standings` is wired to
-            your season.
-          </p>
+      {sub === 'team' ? (
+        <div className="rounded-xl border border-white/10 bg-[#0a1228]/90 px-4 py-4">
+          <p className="text-[13px] text-white/85">Lineups, roster, and trades live in the standard league tabs.</p>
+          <Link
+            href={`/league/${encodeURIComponent(leagueId)}?view=team`}
+            className="mt-3 inline-flex text-sm font-semibold text-cyan-400 hover:text-cyan-300"
+            data-testid="guillotine-goto-team"
+          >
+            Open My Team →
+          </Link>
         </div>
-      )}
+      ) : null}
 
-      {sub !== 'board' && (
-        <div className="rounded-xl border border-white/10 bg-[#0a1228]/60 p-4 text-[13px] text-white/50">
-          {sub === 'team' && 'Roster + floor-focused tools — use AfSub AI routes when enabled.'}
-          {sub === 'waivers' && 'Guillotine releases from `/api/guillotine/releases`.'}
-          {sub === 'history' && 'Elimination timeline from `/api/guillotine/history`.'}
-          {sub === 'storylines' && 'Drama-first recaps via `/api/guillotine/ai/storyline` (AfSub).'}
-        </div>
-      )}
+      {sub !== 'team' ? (
+        <GuillotineHome leagueId={leagueId} sport={String(sport)} leagueName={leagueName ?? undefined} />
+      ) : null}
     </div>
   )
 }

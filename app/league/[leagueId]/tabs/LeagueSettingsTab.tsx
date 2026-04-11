@@ -443,12 +443,16 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="h-full space-y-5 overflow-y-auto px-4 py-4">
       {!canEdit && userRole !== null ? (
-        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+        <div
+          className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3"
+          data-testid="league-settings-view-only-banner"
+        >
           <span className="text-[16px] text-amber-400" aria-hidden>
             🔒
           </span>
           <p className="text-[12px] text-amber-300/80">
-            You are viewing league settings as a member. Only the commissioner and co-commissioners can make changes.
+            View-only: league rules and configuration are visible to everyone. Commissioner-only changes stay disabled
+            for members.
           </p>
         </div>
       ) : null}

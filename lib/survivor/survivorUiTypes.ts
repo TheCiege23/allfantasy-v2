@@ -86,4 +86,7 @@ export type LeagueSettingsBrief = {
   userRole?: string | null
   canEdit?: boolean
   hasAfCommissionerSub?: boolean
+  viewerHasTeam?: boolean
+  /** From league JSON when Survivor create used player/commissioner fair-play mode. */
+  survivorFairPlayLimited?: boolean
 }

@@ -4,7 +4,7 @@ import {
   buildDevAdminSpendLedgerEntry,
   buildDevAdminTokenBalanceSnapshot,
   buildDevAdminTokenSpendPreview,
-  isDevAdminUserId,
+  isSubscriptionEntitlementBypassUserId,
 } from "@/lib/dev-admin/access"
 import {
   TOKEN_ENTRY_TYPES,
@@ -292,7 +292,7 @@ export class TokenSpendService {
   }
 
   async getBalance(userId: string): Promise<TokenBalanceSnapshot> {
-    if (isDevAdminUserId(userId)) {
+    if (isSubscriptionEntitlementBypassUserId(userId)) {
       return buildDevAdminTokenBalanceSnapshot()
     }
 
@@ -383,7 +383,7 @@ export class TokenSpendService {
   }
 
   async previewSpend(userId: string, ruleCode: TokenSpendRuleCode | string): Promise<TokenSpendPreview> {
-    if (isDevAdminUserId(userId)) {
+    if (isSubscriptionEntitlementBypassUserId(userId)) {
       return buildDevAdminTokenSpendPreview(String(ruleCode))
     }
 
@@ -406,7 +406,7 @@ export class TokenSpendService {
     entitlement: EntitlementSnapshot
     currentBalance?: number
   }): Promise<TokenSpendPreview> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId)) {
       return buildDevAdminTokenSpendPreview(String(input.ruleCode))
     }
 
@@ -560,7 +560,7 @@ export class TokenSpendService {
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
   }): Promise<TokenLedgerEntryView> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId)) {
       return buildDevAdminSpendLedgerEntry({
         ruleCode: String(input.ruleCode),
         sourceType: input.sourceType,
@@ -689,7 +689,7 @@ export class TokenSpendService {
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
   }): Promise<TokenLedgerEntryView> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId)) {
       return buildDevAdminRefundLedgerEntry({
         refundRuleCode: String(input.refundRuleCode),
         sourceType: input.sourceType ?? "refund_for_spend",

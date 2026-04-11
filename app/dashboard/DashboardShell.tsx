@@ -7,6 +7,7 @@ import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
 import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import AppShell from '@/app/components/AppShell'
+import type { DashboardLeagueListPayload } from '@/lib/dashboard/get-dashboard-league-list'
 import { DashboardOverview } from './components/DashboardOverview'
 import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
@@ -20,6 +21,10 @@ type DashboardShellProps = {
   /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
   activeLeagueId?: string | null
   discordConnected?: boolean
+  /** From dashboard RSC — My Leagues hydrates immediately (no client waterfall). */
+  initialLeagueList?: DashboardLeagueListPayload | null
+  /** From dashboard RSC — rankings card + tier badge hydrate from same payload as `/api/user/rank`. */
+  initialUserRankPayload?: Record<string, unknown> | null
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -50,56 +55,74 @@ function parseSeasonValue(raw: unknown): number | string {
   return new Date().getFullYear()
 }
 
-function DashboardLegacyRankBadge() {
-  const [state, setState] = useState<'loading' | 'ranked' | 'empty'>('loading')
-  const [rank, setRank] = useState<{ label: string; name: string; bg: string; fg: string } | null>(null)
+type LegacyTierBadgeData = {
+  imported?: boolean
+  tier?: string | null
+  tierName?: string | null
+  level?: number | null
+  levelName?: string | null
+  color?: string | null
+  bgColor?: string | null
+  rank?: { careerTier: number; careerTierName: string; careerLevel?: number }
+}
+
+function legacyBadgeFromRankApi(data: LegacyTierBadgeData | null): {
+  state: 'ranked' | 'empty'
+  rank: { label: string; name: string; bg: string; fg: string } | null
+} {
+  if (!data) {
+    return { state: 'empty', rank: null }
+  }
+  const tierCode = data.tier?.trim()
+  if (data.imported && (typeof data.level === 'number' || tierCode || data.rank)) {
+    const label =
+      typeof data.level === 'number' && data.levelName?.trim()
+        ? `L${data.level}`
+        : tierCode ?? `L${data.rank?.careerLevel ?? data.rank?.careerTier ?? 1}`
+    const name =
+      data.levelName?.trim() ||
+      data.tierName?.trim() ||
+      data.rank?.careerTierName ||
+      (tierCode ? String(tierCode) : 'Ranked')
+    const bg = data.bgColor?.trim() || 'rgba(255,255,255,0.08)'
+    const fg = data.color?.trim() || 'rgba(255,255,255,0.9)'
+    return { state: 'ranked', rank: { label, name, bg, fg } }
+  }
+  return { state: 'empty', rank: null }
+}
+
+function DashboardLegacyRankBadge({
+  initialUserRankPayload,
+}: {
+  initialUserRankPayload?: Record<string, unknown> | null
+}) {
+  const fromSsr =
+    initialUserRankPayload != null ? legacyBadgeFromRankApi(initialUserRankPayload as LegacyTierBadgeData) : null
+  const [state, setState] = useState<'loading' | 'ranked' | 'empty'>(() =>
+    fromSsr ? fromSsr.state : 'loading'
+  )
+  const [rank, setRank] = useState<{ label: string; name: string; bg: string; fg: string } | null>(
+    () => fromSsr?.rank ?? null
+  )
 
   useEffect(() => {
+    if (initialUserRankPayload != null) return
     let active = true
     fetch('/api/user/rank', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (data: {
-          imported?: boolean
-          tier?: string | null
-          tierName?: string | null
-          level?: number | null
-          levelName?: string | null
-          color?: string | null
-          bgColor?: string | null
-          rank?: { careerTier: number; careerTierName: string; careerLevel?: number }
-        } | null) => {
-          if (!active || !data) {
-            setState('empty')
-            return
-          }
-          const tierCode = data.tier?.trim()
-          if (data.imported && (typeof data.level === 'number' || tierCode || data.rank)) {
-            const label =
-              typeof data.level === 'number' && data.levelName?.trim()
-                ? `L${data.level}`
-                : tierCode ?? `L${data.rank?.careerLevel ?? data.rank?.careerTier ?? 1}`
-            const name =
-              data.levelName?.trim() ||
-              data.tierName?.trim() ||
-              data.rank?.careerTierName ||
-              (tierCode ? String(tierCode) : 'Ranked')
-            const bg = data.bgColor?.trim() || 'rgba(255,255,255,0.08)'
-            const fg = data.color?.trim() || 'rgba(255,255,255,0.9)'
-            setRank({ label, name, bg, fg })
-            setState('ranked')
-            return
-          }
-          setState('empty')
-        },
-      )
+      .then((data: LegacyTierBadgeData | null) => {
+        if (!active) return
+        const parsed = legacyBadgeFromRankApi(data)
+        setRank(parsed.rank)
+        setState(parsed.state)
+      })
       .catch(() => {
         if (active) setState('empty')
       })
     return () => {
       active = false
     }
-  }, [])
+  }, [initialUserRankPayload])
 
   if (state === 'loading') {
     return (
@@ -255,10 +278,17 @@ export function DashboardShell({
   userImage = null,
   activeLeagueId = null,
   discordConnected = false,
+  initialLeagueList = null,
+  initialUserRankPayload = null,
 }: DashboardShellProps) {
   const router = useRouter()
-  const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
-  const [leaguesLoading, setLeaguesLoading] = useState(true)
+  const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>(() => {
+    if (initialLeagueList == null) return []
+    return initialLeagueList.leagues
+      .map((league) => mapLeague(league))
+      .filter((league): league is DashboardConnectedLeague => Boolean(league))
+  })
+  const [leaguesLoading, setLeaguesLoading] = useState(() => initialLeagueList == null)
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
 
@@ -308,6 +338,7 @@ export function DashboardShell({
   }, [])
 
   useEffect(() => {
+    if (initialLeagueList != null) return
     let active = true
     setLeaguesLoading(true)
     fetch('/api/league/list', { cache: 'no-store' })
@@ -328,7 +359,7 @@ export function DashboardShell({
     return () => {
       active = false
     }
-  }, [applyLeaguesPayload])
+  }, [applyLeaguesPayload, initialLeagueList])
 
   const onLeaguesRefresh = useCallback(() => {
     fetch('/api/league/list', { cache: 'no-store' })
@@ -438,13 +469,15 @@ export function DashboardShell({
             </div>
             {!isLeagueRoute ? (
               <div className="mt-2 flex justify-center">
-                <DashboardLegacyRankBadge />
+                <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
               </div>
             ) : null}
           </div>
 
           <div className="hidden border-b border-white/[0.07] bg-[#0a0a1f] px-6 py-2.5 md:flex md:items-center md:justify-end">
-            {!isLeagueRoute ? <DashboardLegacyRankBadge /> : null}
+            {!isLeagueRoute ? (
+              <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
+            ) : null}
           </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -460,6 +493,7 @@ export function DashboardShell({
               leagues={leagues}
               onTriggerImport={handleTriggerImport}
               onOpenChimmy={handleOpenChimmy}
+              initialUserRankPayload={initialUserRankPayload}
             />
           )}
         </div>

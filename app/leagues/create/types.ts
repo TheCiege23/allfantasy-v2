@@ -38,6 +38,14 @@ export type LeagueCreateFormState = {
   visibility: 'private' | 'unlisted' | 'public'
   allowInviteLink: boolean
   inviteEmails: string
+  /** Survivor: 2–4 tribes (sent as `survivor_suggested_tribe_count`). */
+  survivorTribeCount: number
+  /** Survivor: optional headline (e.g. Heroes vs Villains). */
+  survivorSeasonTheme: string
+  /** Survivor: system-generated weekly challenges (default on). */
+  survivorChallengesSystemRun: boolean
+  /** Zombie: whisperer pick order. */
+  zombieWhispererSelection: 'random' | 'veteran_priority'
 }
 
 export type LeagueCreateStepProps = {

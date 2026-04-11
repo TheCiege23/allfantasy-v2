@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return new Response('Forbidden', { status: 403 })
 
   const onlyOpen = req.nextUrl.searchParams?.get('isDelivered') === 'false'
+  const sinceRaw = req.nextUrl.searchParams.get('since')
+  const sinceDate = sinceRaw ? new Date(sinceRaw) : null
+  const sinceValid = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate : null
 
   const stream = new ReadableStream({
     start(controller) {
@@ -33,6 +36,7 @@ export async function GET(req: NextRequest) {
         const rows = await prisma.zombieEventAnimation.findMany({
           where: {
             leagueId,
+            ...(sinceValid ? { createdAt: { gte: sinceValid } } : {}),
             ...(onlyOpen ? { isDelivered: false } : {}),
           },
           orderBy: { createdAt: 'asc' },

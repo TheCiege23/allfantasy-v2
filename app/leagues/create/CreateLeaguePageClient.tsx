@@ -87,6 +87,10 @@ function buildInitialState(): LeagueCreateFormState {
     visibility: 'private',
     allowInviteLink: true,
     inviteEmails: '',
+    survivorTribeCount: 3,
+    survivorSeasonTheme: '',
+    survivorChallengesSystemRun: true,
+    zombieWhispererSelection: 'random',
   }
 }
 
@@ -240,6 +244,14 @@ export function CreateLeaguePageClient() {
           notes: state.constitutionNotes,
           requestedAt: new Date().toISOString(),
         },
+        ...(state.formatId === 'survivor' && {
+          survivor_suggested_tribe_count: Math.min(4, Math.max(2, Math.round(state.survivorTribeCount))),
+          survivor_season_theme_label: state.survivorSeasonTheme.trim() || undefined,
+          survivor_challenges_system_run: state.survivorChallengesSystemRun,
+        }),
+        ...(state.formatId === 'zombie' && {
+          zombie_whisperer_selection: state.zombieWhispererSelection,
+        }),
       },
     }
 
@@ -259,7 +271,7 @@ export function CreateLeaguePageClient() {
         throw new Error('League created but no ID returned')
       }
 
-      router.push(`/league/${data.league.id}`)
+      router.push(`/league/${data.league.id}?openChat=league&created=1`)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create league')
     } finally {
@@ -339,6 +351,22 @@ export function CreateLeaguePageClient() {
                 {state.leagueName || `${state.sport} ${resolution.format.label}`}
               </div>
               <div className="mt-1 text-white/60">{resolution.format.description}</div>
+              {state.formatId === 'survivor' && (
+                <div className="mt-3 space-y-1 rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90">
+                  <div>
+                    Tribes: {Math.min(4, Math.max(2, state.survivorTribeCount))} · Theme:{' '}
+                    {state.survivorSeasonTheme.trim() || '(set in Rules)'}
+                  </div>
+                  <div>Challenges: {state.survivorChallengesSystemRun ? 'System-run' : 'Manual'}</div>
+                  <div className="text-white/55">Exile island linked at creation; FAQ posts when league chat is linked.</div>
+                </div>
+              )}
+              {state.formatId === 'zombie' && (
+                <div className="mt-3 space-y-1 rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3 text-xs text-emerald-100/90">
+                  <div>Whisperer selection: {state.zombieWhispererSelection.replace(/_/g, ' ')}</div>
+                  <div className="text-white/55">Zombie config is initialized; tune advanced rules in league settings after create.</div>
+                </div>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

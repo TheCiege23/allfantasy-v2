@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -82,13 +83,15 @@ export async function POST(req: NextRequest) {
   const pairs = seededRoundOnePairs(bracketSize)
 
   const result = await prisma.$transaction(async (tx) => {
+    // Extended Prisma client narrows interactive `tx`; use base transaction client for playoff delegates.
+    const db = tx as Prisma.TransactionClient
     if (body.regenerate !== false) {
-      await tx.redraftPlayoffMatchup.deleteMany({ where: { seasonId: season.id } })
-      await tx.redraftPlayoffRound.deleteMany({ where: { seasonId: season.id } })
-      await tx.redraftPlayoffSeed.deleteMany({ where: { seasonId: season.id } })
+      await db.redraftPlayoffMatchup.deleteMany({ where: { seasonId: season.id } })
+      await db.redraftPlayoffRound.deleteMany({ where: { seasonId: season.id } })
+      await db.redraftPlayoffSeed.deleteMany({ where: { seasonId: season.id } })
     }
 
-    const bracket = await tx.redraftPlayoffBracket.upsert({
+    const bracket = await db.redraftPlayoffBracket.upsert({
       where: { seasonId: season.id },
       update: {
         status: 'pending',
@@ -113,7 +116,7 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    await tx.redraftPlayoffSeed.createMany({
+    await db.redraftPlayoffSeed.createMany({
       data: seededRosters.map((roster, idx) => ({
         id: crypto.randomUUID(),
         seasonId: season.id,
@@ -148,7 +151,7 @@ export async function POST(req: NextRequest) {
       const homeRosterId = seedToRoster.get(homeSeed) ?? null
       const awayRosterId = seedToRoster.get(awaySeed) ?? null
       const isBye = Boolean(homeRosterId && !awayRosterId)
-      const row = await tx.redraftPlayoffMatchup.create({
+      const row = await db.redraftPlayoffMatchup.create({
         data: {
           id: crypto.randomUUID(),
           seasonId: season.id,
@@ -187,7 +190,7 @@ export async function POST(req: NextRequest) {
 
       for (let p = 0; p < prevRoundIds.length; p += 1) {
         const target = currentRoundIds[Math.floor(p / 2)]
-        await tx.redraftPlayoffMatchup.update({
+        await db.redraftPlayoffMatchup.update({
           where: { id: prevRoundIds[p] },
           data: { nextMatchupId: target },
         })
@@ -196,7 +199,7 @@ export async function POST(req: NextRequest) {
       prevRoundIds = currentRoundIds
     }
 
-    const generatedRounds = await tx.redraftPlayoffRound.findMany({
+    const generatedRounds = await db.redraftPlayoffRound.findMany({
       where: { seasonId: season.id },
       include: { matchups: { orderBy: { matchupNumber: 'asc' } } },
       orderBy: { roundNumber: 'asc' },

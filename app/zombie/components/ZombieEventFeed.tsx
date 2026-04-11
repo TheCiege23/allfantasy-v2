@@ -103,6 +103,7 @@ function formatAnimationTitle(type: string, meta: Record<string, unknown>): stri
   if (type === 'weapon_acquired' || type === 'weapon_stolen') return '⚔️ A weapon moved on the field.'
   if (type === 'serum_used') return '🧪 A serum was consumed. One Survivor lives.'
   if (type === 'ambush_triggered') return '⚠️ The Whisperer stirred. Something changed.'
+  if (type === 'whisperer_selected') return '🎭 A Whisperer has been chosen. The island holds its breath.'
   if (type === 'whisperer_replaced') return '🎭 The old Whisperer has fallen. A new shadow rises.'
   if (type === 'horde_grows') return `🧟 The Horde grows.${meta.hordeSize != null ? ` ${String(meta.hordeSize)} strong.` : ''}`
   if (type === 'last_survivor') return `🧍 Only a few Survivors remain.`
