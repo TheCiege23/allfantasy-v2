@@ -1,5 +1,5 @@
 {
-  "id": "/app",
+  "id": "https://allfantasy.ai/app",
   "name": "AllFantasy.ai",
   "short_name": "AllFantasy",
   "description": "AI-powered fantasy sports — trade analyzer, draft assistant, waiver AI, and more.",
@@ -14,6 +14,7 @@
   "categories": ["sports", "games", "productivity"],
   "lang": "en",
   "prefer_related_applications": false,
+  "related_applications": [],
   "launch_handler": {
     "client_mode": "navigate-existing"
   },

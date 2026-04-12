@@ -3,13 +3,19 @@
 import { useEffect } from 'react';
 import { initPWA } from '@/lib/pwa';
 
+function shouldRegisterServiceWorker(): boolean {
+  if (process.env.NODE_ENV === 'production') return true;
+  const flag = process.env.NEXT_PUBLIC_ENABLE_PWA_SW;
+  return flag === '1' || flag === 'true';
+}
+
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    if (typeof window === 'undefined') {
+    if (!shouldRegisterServiceWorker()) {
       return;
     }
 
