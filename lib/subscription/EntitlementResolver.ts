@@ -72,8 +72,12 @@ function mapPlanCodeToPlanId(code: string | null | undefined): SubscriptionPlanI
 }
 
 export class EntitlementResolver {
-  async resolveForUser(userId: string, featureId?: SubscriptionFeatureId): Promise<EntitlementResolveResult> {
-    const entitlement = await this.resolveSnapshot(userId)
+  async resolveForUser(
+    userId: string,
+    featureId?: SubscriptionFeatureId,
+    email?: string | null
+  ): Promise<EntitlementResolveResult> {
+    const entitlement = await this.resolveSnapshot(userId, email)
     const hasAccess = featureId
       ? this.hasFeatureAccess(entitlement, featureId)
       : isActiveOrGraceStatus(entitlement.status)
@@ -94,8 +98,8 @@ export class EntitlementResolver {
     }
   }
 
-  async resolveSnapshot(userId: string): Promise<EntitlementSnapshot> {
-    if (isSubscriptionEntitlementBypassUserId(userId)) {
+  async resolveSnapshot(userId: string, email?: string | null): Promise<EntitlementSnapshot> {
+    if (isSubscriptionEntitlementBypassUserId(userId, email)) {
       return buildDevAdminEntitlementSnapshot()
     }
 

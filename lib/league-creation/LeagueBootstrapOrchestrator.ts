@@ -13,6 +13,8 @@ import { bootstrapLeagueDraftConfig } from '@/lib/draft-defaults/LeagueDraftBoot
 import { bootstrapLeagueWaiverSettings } from '@/lib/waiver-defaults/LeagueWaiverBootstrapService'
 import { bootstrapLeaguePlayoffConfig } from '@/lib/playoff-defaults/LeaguePlayoffBootstrapService'
 import { bootstrapLeagueScheduleConfig } from '@/lib/schedule-defaults/LeagueScheduleBootstrapService'
+import { getDefaultScheduleConfig, type ScheduleSport } from '@/lib/fantasy-schedule/types'
+import { updateScheduleConfigForLeague } from '@/lib/fantasy-schedule/ScheduleConfigService'
 
 export interface BootstrapResult {
   roster: { templateId: string }
@@ -92,6 +94,36 @@ export async function runLeagueBootstrap(
     sport: String(leagueSport),
     variant: null,
   }))
+
+  // Apply fantasy-schedule defaults (volume thresholds, dynamic low-volume days, etc.)
+  // These are sport-specific and power the scheduling intelligence layer for specialty leagues.
+  try {
+    const sportKey = String(leagueSport).toUpperCase() as ScheduleSport
+    const fantasyScheduleDefaults = getDefaultScheduleConfig(sportKey)
+    await updateScheduleConfigForLeague(leagueId, fantasyScheduleDefaults)
+  } catch {
+    // Non-fatal — league still works with runtime defaults from getDefaultScheduleConfig()
+  }
+
+  // Apply sport-specific scoring preset defaults
+  if (leagueSport === 'NBA') {
+    try {
+      const { applyDefaultNbaScoringOnCreate } = await import('@/lib/nba-scoring')
+      await applyDefaultNbaScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'MLB') {
+    try {
+      const { applyDefaultMlbScoringOnCreate } = await import('@/lib/mlb-scoring')
+      await applyDefaultMlbScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NHL') {
+    try {
+      const { applyDefaultNhlScoringOnCreate } = await import('@/lib/nhl-scoring')
+      await applyDefaultNhlScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
 
   const waiverResult = await bootstrapLeagueWaiverSettings(leagueId).catch(() => ({
     leagueId,

@@ -34,6 +34,16 @@ import {
   recordToolCall,
 } from '@/lib/ai/working-memory'
 import { buildAgentPrompt, inferAgentFromMessage } from '@/lib/agents/pipeline'
+import { buildTournamentContextForChimmy } from '@/lib/tournament-mode/ai/tournamentContextForChimmy'
+import { buildBigBrotherContextForChimmy } from '@/lib/big-brother/ai/bigBrotherContextForChimmy'
+import { buildIdpContextForChimmy } from '@/lib/idp/ai/idpContextForChimmy'
+import { buildSurvivorContextForChimmy } from '@/lib/survivor/ai/survivorContextForChimmy'
+import { buildZombieContextForChimmy } from '@/lib/zombie/ai/zombieContextForChimmy'
+import { buildDevyContextForChimmy } from '@/lib/devy/ai/devyContextForChimmy'
+import { buildGuillotineContextForChimmy } from '@/lib/guillotine/ai/guillotineContextForChimmy'
+import { buildC2CContextForChimmy } from '@/lib/merged-devy-c2c/ai/c2cContextForChimmy'
+import { buildSalaryCapContextForChimmy } from '@/lib/salary-cap/ai/salaryCapContextForChimmy'
+import { buildDynastyContextForChimmy } from '@/lib/dynasty-core/dynastyContextForChimmy'
 import { CHIMMY_GENERIC_ERROR_MESSAGE } from '@/lib/chimmy-chat/response-copy'
 import { isSupabaseConfigured, supabase } from '@/lib/supabaseClient'
 import {
@@ -705,8 +715,11 @@ function buildUserMessage(input: {
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now()
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as {
+    user?: { id?: string; email?: string | null }
+  } | null
   const userId = session?.user?.id ?? null
+  const userEmail = session?.user?.email ?? null
 
   const limitRes = await runAiProtection(req, {
     action: 'chimmy',
@@ -1044,7 +1057,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   let tokenPreview: TokenSpendPreview | null = null
   let tokenPreviewFailed = false
   try {
-    tokenPreview = await spendService.previewSpend(userId, 'ai_chimmy_chat_message')
+    tokenPreview = await spendService.previewSpend(userId, 'ai_chimmy_chat_message', userEmail)
   } catch (error) {
     if (error instanceof TokenSpendRuleNotFoundError) {
       return NextResponse.json(
@@ -1088,6 +1101,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           sport,
           source: source ?? null,
         },
+        userEmail,
       })
       spendLedger = {
         id: ledger.id,
@@ -1158,8 +1172,92 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             }),
           ])
 
-          const legacyEnrichmentContext =
+          let legacyEnrichmentContext =
             legacyEnrichment.status === 'fulfilled' ? legacyEnrichment.value.context : ''
+
+          // Inject specialty league context for tournament and Big Brother leagues
+          if (planInput.leagueId && planInput.userId) {
+            try {
+              const tournamentCtx = await buildTournamentContextForChimmy(planInput.leagueId, planInput.userId)
+              if (tournamentCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${tournamentCtx}`
+                  : tournamentCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const bbCtx = await buildBigBrotherContextForChimmy(planInput.leagueId, planInput.userId)
+              if (bbCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${bbCtx}`
+                  : bbCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const idpCtx = await buildIdpContextForChimmy(planInput.leagueId, planInput.userId)
+              if (idpCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${idpCtx}`
+                  : idpCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const survivorCtx = await buildSurvivorContextForChimmy(planInput.leagueId, planInput.userId)
+              if (survivorCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${survivorCtx}`
+                  : survivorCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const zombieCtx = await buildZombieContextForChimmy(planInput.leagueId, planInput.userId)
+              if (zombieCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${zombieCtx}`
+                  : zombieCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const devyCtx = await buildDevyContextForChimmy(planInput.leagueId, planInput.userId)
+              if (devyCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${devyCtx}`
+                  : devyCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const guillotineCtx = await buildGuillotineContextForChimmy(planInput.leagueId, planInput.userId)
+              if (guillotineCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${guillotineCtx}`
+                  : guillotineCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const c2cCtx = await buildC2CContextForChimmy(planInput.leagueId, planInput.userId)
+              if (c2cCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${c2cCtx}`
+                  : c2cCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const salaryCapCtx = await buildSalaryCapContextForChimmy(planInput.leagueId, planInput.userId)
+              if (salaryCapCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${salaryCapCtx}`
+                  : salaryCapCtx
+              }
+            } catch { /* non-fatal */ }
+            try {
+              const dynastyCtx = await buildDynastyContextForChimmy(planInput.leagueId, planInput.userId)
+              if (dynastyCtx) {
+                legacyEnrichmentContext = legacyEnrichmentContext
+                  ? `${legacyEnrichmentContext}\n\n${dynastyCtx}`
+                  : dynastyCtx
+              }
+            } catch { /* non-fatal */ }
+          }
 
           if (legacyEnrichment.status === 'fulfilled') {
             recordToolCall(

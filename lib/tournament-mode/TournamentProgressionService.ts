@@ -167,6 +167,7 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
           sport,
           leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
           settings: {
+            league_type: 'tournament',
             tournamentId,
             tournamentName: tournament.name,
             conferenceName: conf.name,

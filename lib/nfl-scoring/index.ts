@@ -1,0 +1,5 @@
+/**
+ * [NEW] lib/nfl-scoring/index.ts — NFL scoring system barrel exports.
+ */
+export * from './NflScoringPresets'
+export { getLeagueNflScoringConfig, saveLeagueNflScoringConfig, applyDefaultNflScoringOnCreate, type LeagueNflScoringConfig } from './NflScoringConfigService'

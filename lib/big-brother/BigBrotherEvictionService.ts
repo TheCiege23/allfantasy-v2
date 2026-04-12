@@ -68,7 +68,7 @@ export async function closeEviction(
     },
   })
 
-  await releaseEvictedRoster(cycle.leagueId, evictedRosterId)
+  await releaseEvictedRoster(cycle.leagueId, evictedRosterId, { week: cycle.week, cycleId: cycle.id })
 
   const [league, evictedRoster] = await Promise.all([
     prisma.league.findUnique({ where: { id: cycle.leagueId }, select: { sport: true } }),

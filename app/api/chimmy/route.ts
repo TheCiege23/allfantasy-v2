@@ -517,7 +517,9 @@ export async function POST(req: NextRequest) {
     return toCompatibilityResponse(delegatedResponse)
   }
 
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as {
+    user?: { id?: string; email?: string | null }
+  } | null
   const userId = session?.user?.id ?? null
 
   const limitRes = await runAiProtection(req, {
@@ -533,6 +535,7 @@ export async function POST(req: NextRequest) {
 
   const gate = await requireFeatureEntitlement({
     userId,
+    userEmail: session?.user?.email,
     featureId: 'ai_chat',
     allowTokenFallback: true,
     confirmTokenSpend: Boolean(parseResult.data.confirmTokenSpend),

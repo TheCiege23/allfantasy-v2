@@ -108,6 +108,8 @@ const LEAGUE_TYPE_ALIASES: Record<string, string> = {
   devy_dynasty: 'devy',
   merged_devy_c2c: 'c2c',
   dynasty_idp: 'idp',
+  /** Feeder leagues created by tournament mode use this Prisma variant string */
+  tournament_mode: 'tournament',
 }
 
 export function normalizeLeagueTypeKey(raw?: string | null): string {

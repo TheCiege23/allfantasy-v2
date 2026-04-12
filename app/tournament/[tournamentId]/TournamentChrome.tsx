@@ -15,10 +15,12 @@ import {
   Settings,
   Target,
   Trophy,
+  Wrench,
 } from 'lucide-react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { TournamentSettingsModal } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModal'
+import { TournamentEntryIntroModal } from '@/components/tournament/TournamentEntryIntroModal'
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
 
@@ -60,6 +62,12 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
+              href: `/app/tournament/${tournamentId}/control`,
+              label: 'Commissioner ops',
+              icon: <Wrench className="h-5 w-5" strokeWidth={1.75} />,
+              commishOnly: true,
+            },
+            {
               href: '#commissioner',
               label: 'Commissioner',
               icon: <Settings className="h-5 w-5" strokeWidth={1.75} />,
@@ -68,7 +76,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           ] as NavItem[])
         : []),
     ],
-    [base, isCommissioner],
+    [base, isCommissioner, tournamentId],
   )
 
   const desktopNav: NavItem[] = useMemo(
@@ -83,6 +91,12 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
+              href: `/app/tournament/${tournamentId}/control`,
+              label: 'Commissioner ops',
+              icon: <span className="text-lg">🛠️</span>,
+              commishOnly: true,
+            },
+            {
               href: '#commissioner',
               label: 'Commissioner',
               icon: <span className="text-lg">⚙️</span>,
@@ -91,7 +105,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           ] as NavItem[])
         : []),
     ],
-    [base, isCommissioner],
+    [base, isCommissioner, tournamentId],
   )
 
   const eliminated = state.status === 'eliminated'
@@ -347,6 +361,8 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       ) : null}
+
+      <TournamentEntryIntroModal tournamentId={tournamentId} sport={shell.sport} />
 
       {isCommissioner ? (
         <TournamentSettingsModal

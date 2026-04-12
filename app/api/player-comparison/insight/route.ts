@@ -108,7 +108,9 @@ export async function POST(req: Request) {
   let userId: string | null = null
   let tokenFallbackLedgerId: string | null = null
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     userId = session?.user?.id ?? null
     if (!userId) {
       return NextResponse.json(
@@ -131,6 +133,7 @@ export async function POST(req: Request) {
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail: session?.user?.email,
       featureId: 'player_comparison_explanations',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean(body.confirmTokenSpend),

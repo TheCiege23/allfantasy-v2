@@ -18,6 +18,14 @@ export default function TournamentControlPage() {
         >
           <ChevronLeft className="h-4 w-4" /> Tournaments
         </Link>
+        {tournamentId ? (
+          <Link
+            href={`/tournament/${tournamentId}`}
+            className="inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
+          >
+            View tournament home
+          </Link>
+        ) : null}
       </div>
 
       <header className="mb-8 flex flex-wrap items-center gap-4 rounded-2xl border border-amber-500/20 bg-amber-950/20 p-4 sm:p-6">

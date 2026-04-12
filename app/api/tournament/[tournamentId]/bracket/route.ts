@@ -1,99 +1,110 @@
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/bracket/route.ts
+ * GET: Bracket data — rounds, leagues-by-round, cut line info, participant counts.
+ * Supports Legacy tournaments.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import {
+  getAdvancementSlotsPerConference,
+  getBubbleSlotsPerConference,
+} from '@/lib/tournament-mode/advancement-rules'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id ?? null
-
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
+  const { tournamentId } = await params
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
-
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
-  }
-
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
-  }
-
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
     include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+      rounds: { orderBy: { roundIndex: 'asc' } },
     },
   })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
+  const settings = (tournament.settings as Record<string, unknown>) ?? {}
+  const poolSize = Number(settings.participantPoolSize) || 120
+  const bubbleEnabled = Boolean(settings.bubbleWeekEnabled)
+  const qualificationWeeks = Number(settings.qualificationWeeks) || 9
+  const tiebreakers = (settings.qualificationTiebreakers as string[]) ?? ['wins', 'points_for']
+  const advancementPerConf = getAdvancementSlotsPerConference(poolSize)
+  const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
+
+  // Get all leagues grouped by round
+  const allTournamentLeagues = await prisma.legacyTournamentLeague.findMany({
+    where: { tournamentId },
+    include: {
+      league: { select: { id: true, name: true, leagueSize: true } },
+      conference: { select: { name: true } },
+    },
+    orderBy: [{ roundIndex: 'asc' }, { conferenceId: 'asc' }, { orderInConference: 'asc' }],
+  })
+
+  const leaguesByRound: Record<number, Array<{
+    leagueId: string
+    leagueName: string | null
+    conferenceName: string
+    phase: string
+    bracketLabel: string | null
+  }>> = {}
+
+  for (const tl of allTournamentLeagues) {
+    const round = tl.roundIndex
+    if (!leaguesByRound[round]) leaguesByRound[round] = []
+    const leagueSettings = (tl.league as { settings?: Record<string, unknown> })?.settings as Record<string, unknown> | undefined
+    leaguesByRound[round].push({
+      leagueId: tl.leagueId,
+      leagueName: tl.league.name,
+      conferenceName: tl.conference.name,
+      phase: tl.phase,
+      bracketLabel: (leagueSettings?.bracketLabel as string) ?? null,
+    })
   }
 
-  return NextResponse.json({ round, leagues })
-}
+  const activeCount = await prisma.legacyTournamentParticipant.count({
+    where: { tournamentId, status: 'active' },
+  })
+  const eliminatedCount = await prisma.legacyTournamentParticipant.count({
+    where: { tournamentId, status: 'eliminated' },
+  })
 
+  // Current active round
+  const activeRound = tournament.rounds.find((r) => r.status === 'active')
+  const currentRound = activeRound?.roundIndex ?? 0
+
+  return NextResponse.json({
+    tournamentName: tournament.name,
+    qualificationWeeks,
+    currentRound,
+    rounds: tournament.rounds.map((r) => ({
+      roundIndex: r.roundIndex,
+      phase: r.phase,
+      name: r.name,
+      startWeek: r.startWeek,
+      endWeek: r.endWeek,
+      status: r.status,
+    })),
+    cutLine: {
+      advancementPerConference: advancementPerConf,
+      description: `Top ${advancementPerConf} per conference advance (pool size: ${poolSize})`,
+    },
+    bubble: {
+      enabled: bubbleEnabled,
+      slotsPerConference: bubbleSlots,
+      description: bubbleEnabled
+        ? `${bubbleSlots} bubble slot(s) per conference may advance after Week ${qualificationWeeks}`
+        : 'Bubble week is disabled',
+    },
+    tiebreakers,
+    activeCount,
+    eliminatedCount,
+    leaguesByRound,
+  })
+}

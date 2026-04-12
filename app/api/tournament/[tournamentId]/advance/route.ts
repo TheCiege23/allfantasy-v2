@@ -4,15 +4,19 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
 import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { condenseRound } from '@/lib/tournament-mode/TournamentAdvancementService'
+import { runQualificationAdvancement } from '@/lib/tournament-mode/TournamentProgressionService'
+import { emitTournamentNotification } from '@/lib/tournament-mode/TournamentNotificationEmitter'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  const { tournamentId: pathId } = await params
+  const tournamentId = pathId || req.nextUrl.searchParams?.get('tournamentId')?.trim()
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
   const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
@@ -95,5 +99,102 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ round, leagues })
+}
+
+/**
+ * POST: Advance the tournament to the next round.
+ * - If round 0 (qualification): runs qualification advancement.
+ * - If round 1+: condenses current round into fewer leagues.
+ * - If resolveBubble: true, resolves bubble teams specifically.
+ */
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { tournamentId } = await params
+
+  // Check commissioner access on Legacy tournament
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { creatorId: true, status: true },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Only the commissioner can advance rounds' }, { status: 403 })
+  }
+  if (tournament.status === 'completed') {
+    return NextResponse.json({ error: 'Tournament is already completed' }, { status: 400 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const resolveBubble = body.resolveBubble === true
+  const advancementPerLeague = typeof body.advancementPerLeague === 'number' ? body.advancementPerLeague : 4
+
+  try {
+    // Find the current active round
+    const activeRound = await prisma.legacyTournamentRound.findFirst({
+      where: { tournamentId, status: { in: ['active', 'completed'] } },
+      orderBy: { roundIndex: 'desc' },
+    })
+
+    if (!activeRound || activeRound.roundIndex === 0) {
+      // Qualification round — run qualification advancement
+      if (resolveBubble) {
+        // Bubble resolution is handled as part of qualification advancement
+        const result = await runQualificationAdvancement(tournamentId)
+        await emitTournamentNotification({
+          tournamentId,
+          event: 'BUBBLE_RESOLVED',
+          meta: { bubblesAdvanced: result.bubbleAdvanced },
+        })
+        await emitTournamentNotification({
+          tournamentId,
+          event: 'ROUND_ADVANCED',
+          meta: { newRoundIndex: 1, advanced: result.advanced, eliminated: result.eliminated },
+        })
+        return NextResponse.json(result)
+      }
+
+      const result = await runQualificationAdvancement(tournamentId)
+      await emitTournamentNotification({
+        tournamentId,
+        event: 'ROUND_ADVANCED',
+        meta: { newRoundIndex: 1, advanced: result.advanced, eliminated: result.eliminated },
+      })
+      return NextResponse.json(result)
+    }
+
+    // Later rounds — condense
+    const result = await condenseRound(tournamentId, activeRound.roundIndex, advancementPerLeague)
+
+    if (result.phase === 'championship') {
+      await emitTournamentNotification({
+        tournamentId,
+        event: 'CHAMPIONSHIP_FORMED',
+        meta: { playerCount: result.advanced },
+      })
+    } else {
+      await emitTournamentNotification({
+        tournamentId,
+        event: 'ROUND_ADVANCED',
+        meta: { newRoundIndex: result.newRoundIndex, advanced: result.advanced, eliminated: result.eliminated, phase: result.phase },
+      })
+    }
+
+    await emitTournamentNotification({
+      tournamentId,
+      event: 'REDRAFT_SCHEDULED',
+      meta: { roundIndex: result.newRoundIndex },
+    })
+
+    return NextResponse.json(result)
+  } catch (e) {
+    console.error('[tournament/advance] Error:', e)
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Advancement failed' },
+      { status: 500 }
+    )
+  }
 }
 

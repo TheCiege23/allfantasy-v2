@@ -20,6 +20,7 @@ export type LeagueFormatId =
   | 'c2c'
   | 'zombie'
   | 'salary_cap'
+  | 'big_brother'
 
 export type LeagueDraftTypeId =
   | 'snake'
@@ -263,6 +264,23 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
       weeklyAutomation: true,
       introVideoEnabled: true,
       importReviewEnabled: true,
+    },
+  },
+  big_brother: {
+    id: 'big_brother',
+    label: 'Big Brother',
+    description: 'Social-strategy elimination: HOH nominations, Veto competitions, private eviction voting, and jury finale.',
+    supportedSports: ALL_SPORTS,
+    defaultRosterMode: 'redraft',
+    draftTypes: DRAFT_TYPES_STANDARD,
+    defaultModifiers: [],
+    supportedModifiers: ['superflex', 'te_premium'],
+    capabilities: {
+      deterministicFeatures: ['hoh_assignment', 'nominations', 'veto_draw', 'veto_challenge', 'eviction_vote', 'jury_enrollment', 'finale_vote', 'roster_release'],
+      aiOptionalFeatures: ['challenge_themes', 'ceremony_announcements', 'weekly_recap', 'chimmy_host'],
+      weeklyAutomation: true,
+      introVideoEnabled: true,
+      importReviewEnabled: false,
     },
   },
 }

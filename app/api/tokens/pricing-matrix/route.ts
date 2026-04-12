@@ -12,12 +12,17 @@ export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const entitlement = await new EntitlementResolver().resolveSnapshot(session.user.id)
+    const entitlement = await new EntitlementResolver().resolveSnapshot(
+      session.user.id,
+      session.user.email
+    )
     const matrix = listTokenSpendRuleMatrix().map((entry) => {
       const decision = resolveTokenChargeDecisionForEntitlement({
         entitlement,

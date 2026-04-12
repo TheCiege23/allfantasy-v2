@@ -1,99 +1,126 @@
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/control/route.ts
+ * GET: Commissioner dashboard data (all leagues with fill status + invite links).
+ * POST: Regenerate invite for a specific league.
+ * Supports Legacy tournaments.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { generateInviteCode } from '@/lib/tournament-mode/LeagueNamingService'
+import { buildLeagueInviteUrl } from '@/lib/viral-loop'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
-  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+  const { tournamentId } = await params
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
-
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { id: true, name: true, creatorId: true },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
   }
 
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
-  }
-
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
+  const tournamentLeagues = await prisma.legacyTournamentLeague.findMany({
+    where: { tournamentId },
     include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+      league: { select: { id: true, name: true, leagueSize: true } },
+      conference: { select: { id: true, name: true } },
     },
+    orderBy: [{ roundIndex: 'asc' }, { conferenceId: 'asc' }, { orderInConference: 'asc' }],
   })
 
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
-  }
+  const leagues = await Promise.all(
+    tournamentLeagues.map(async (tl) => {
+      const rosterCount = await prisma.roster.count({ where: { leagueId: tl.leagueId } })
+      const leagueSize = tl.league.leagueSize ?? 12
+      const fillStatus = rosterCount >= leagueSize ? 'full' : rosterCount > 0 ? 'partial' : 'empty'
 
-  return NextResponse.json({ round, leagues })
+      // Get invite code from league settings
+      const leagueSettings = await prisma.league.findUnique({
+        where: { id: tl.leagueId },
+        select: { settings: true },
+      })
+      const settings = (leagueSettings?.settings as Record<string, unknown>) ?? {}
+      const inviteCode = (settings.tournamentInviteCode as string) ?? null
+      const joinUrl = inviteCode ? buildLeagueInviteUrl(inviteCode) : null
+
+      return {
+        tournamentLeagueId: tl.id,
+        leagueId: tl.leagueId,
+        leagueName: tl.league.name ?? `League ${tl.orderInConference + 1}`,
+        conferenceName: tl.conference.name,
+        roundIndex: tl.roundIndex,
+        phase: tl.phase,
+        inviteCode,
+        joinUrl,
+        leagueSize,
+        rosterCount,
+        fillStatus,
+      }
+    })
+  )
+
+  return NextResponse.json({
+    tournamentId,
+    tournamentName: tournament.name,
+    leagues,
+  })
 }
 
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { tournamentId } = await params
+
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { creatorId: true },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
+  }
+
+  const body = await req.json().catch(() => ({}))
+  const leagueId = body.leagueId as string
+  if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
+
+  // Verify league belongs to this tournament
+  const tl = await prisma.legacyTournamentLeague.findFirst({
+    where: { tournamentId, leagueId },
+  })
+  if (!tl) return NextResponse.json({ error: 'League not in this tournament' }, { status: 400 })
+
+  const newCode = generateInviteCode()
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { settings: true },
+  })
+  const currentSettings = (league?.settings as Record<string, unknown>) ?? {}
+  await prisma.league.update({
+    where: { id: leagueId },
+    data: { settings: { ...currentSettings, tournamentInviteCode: newCode } },
+  })
+
+  const joinUrl = buildLeagueInviteUrl(newCode)
+  return NextResponse.json({ inviteCode: newCode, joinUrl })
+}

@@ -82,7 +82,9 @@ export async function POST(req: NextRequest) {
     | null = null
 
   if (includeInsights) {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json(
         {
@@ -95,6 +97,7 @@ export async function POST(req: NextRequest) {
 
     const gate = await requireFeatureEntitlement({
       userId: session.user.id,
+      userEmail: session.user.email,
       featureId: 'matchup_explanations',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean(body.confirmTokenSpend),

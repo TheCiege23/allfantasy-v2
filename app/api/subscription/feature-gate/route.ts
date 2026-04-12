@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic"
 export async function POST(req: Request) {
   try {
     const session = (await getServerSession(authOptions as any)) as
-      | { user?: { id?: string } }
+      | { user?: { id?: string; email?: string | null } }
       | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -32,7 +32,8 @@ export async function POST(req: Request) {
     const gate = new FeatureGateService()
     const decision = await gate.evaluateUserFeatureAccess(
       session.user.id,
-      featureId as SubscriptionFeatureId
+      featureId as SubscriptionFeatureId,
+      session.user.email
     )
     if (!decision.allowed) {
       return NextResponse.json(

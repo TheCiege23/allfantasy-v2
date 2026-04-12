@@ -1,99 +1,68 @@
+/**
+ * [UPDATED] POST: Create a missing child league for a tournament (recovery tool).
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { runPostCreateInitialization } from '@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { TOURNAMENT_LEAGUE_VARIANT } from '@/lib/tournament-mode/constants'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
-  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+  const { tournamentId } = await params
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    include: { conferences: { orderBy: { orderIndex: 'asc' } } },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+  const body = await req.json().catch(() => ({}))
+  const conferenceId = body.conferenceId as string
+  const roundIndex = typeof body.roundIndex === 'number' ? body.roundIndex : 0
+  const leagueName = (body.leagueName as string) ?? `Recovery League ${Date.now()}`
+  const leagueSize = typeof body.leagueSize === 'number' ? body.leagueSize : 12
 
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!conferenceId) return NextResponse.json({ error: 'conferenceId required' }, { status: 400 })
 
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const conf = tournament.conferences.find((c) => c.id === conferenceId)
+  if (!conf) return NextResponse.json({ error: 'Conference not found in this tournament' }, { status: 400 })
 
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
-  }
-
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
-  }
-
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-    include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+  const sport = normalizeToSupportedSport(tournament.sport)
+  const league = await prisma.league.create({
+    data: {
+      userId: tournament.creatorId,
+      name: leagueName,
+      platform: 'manual',
+      platformLeagueId: `tournament-${tournamentId}-recovery-${conferenceId}-${Date.now()}`,
+      leagueSize,
+      scoring: 'PPR',
+      isDynasty: false,
+      sport,
+      leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
+      settings: { league_type: 'tournament', tournamentId, conferenceName: conf.name, roundIndex, phase: 'qualification' },
+      syncStatus: 'manual',
     },
   })
 
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
-  }
+  try {
+    await runPostCreateInitialization(league.id, sport, TOURNAMENT_LEAGUE_VARIANT)
+  } catch { /* non-fatal */ }
 
-  return NextResponse.json({ round, leagues })
+  const orderInConference = await prisma.legacyTournamentLeague.count({ where: { tournamentId, conferenceId, roundIndex } })
+  await prisma.legacyTournamentLeague.create({
+    data: { tournamentId, conferenceId, leagueId: league.id, roundIndex, phase: 'qualification', orderInConference },
+  })
+
+  await logTournamentAudit(tournamentId, 'create_missing_league', { actorId: userId, metadata: { leagueId: league.id, conferenceId, roundIndex } })
+  return NextResponse.json({ ok: true, leagueId: league.id })
 }
-

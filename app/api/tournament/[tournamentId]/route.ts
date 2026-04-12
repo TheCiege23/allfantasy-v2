@@ -1,99 +1,106 @@
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/route.ts
+ * GET: Tournament overview (conferences, rounds, leagues, settings).
+ * Supports both TournamentShell (new) and LegacyTournament models.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+  const { tournamentId } = await params
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
-
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
+  // Try Shell model first
+  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } }).catch(() => null)
+  if (shell) {
+    // Delegate to Shell-based read
+    const conferences = await prisma.tournamentConference.findMany({
+      where: { tournamentId },
+      orderBy: { conferenceNumber: 'asc' },
     })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
+    const rounds = await prisma.tournamentRound.findMany({
+      where: { tournamentId },
+      orderBy: { roundNumber: 'asc' },
     })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
+    return NextResponse.json({
+      id: shell.id,
+      name: shell.name,
+      sport: shell.sport,
+      season: shell.season,
+      status: shell.status,
+      isCommissioner: userId === shell.commissionerId,
+      conferences,
+      rounds,
+      _leagueCount: 0,
+    })
   }
 
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
-  }
-
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
+  // Fallback to Legacy model
+  const legacy = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
     include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+      conferences: {
+        orderBy: { orderIndex: 'asc' },
+        include: {
+          leagues: {
+            orderBy: [{ roundIndex: 'asc' }, { orderInConference: 'asc' }],
+            include: { league: { select: { id: true, name: true, leagueSize: true } } },
+          },
+        },
+      },
+      rounds: { orderBy: { roundIndex: 'asc' } },
     },
   })
+  if (!legacy) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
-  }
+  const settings = (legacy.settings as Record<string, unknown>) ?? {}
+  const leagueCount = legacy.conferences.reduce((acc, c) => acc + c.leagues.length, 0)
 
-  return NextResponse.json({ round, leagues })
+  return NextResponse.json({
+    id: legacy.id,
+    name: legacy.name,
+    sport: legacy.sport,
+    season: legacy.season,
+    status: legacy.status,
+    isCommissioner: userId === legacy.creatorId,
+    conferences: legacy.conferences.map((c) => ({
+      id: c.id,
+      name: c.name,
+      theme: c.theme,
+      leagues: c.leagues.map((tl) => ({
+        id: tl.id,
+        leagueId: tl.leagueId,
+        league: tl.league,
+        roundIndex: tl.roundIndex,
+        phase: tl.phase,
+        orderInConference: tl.orderInConference,
+      })),
+    })),
+    rounds: legacy.rounds.map((r) => ({
+      id: r.id,
+      roundIndex: r.roundIndex,
+      phase: r.phase,
+      name: r.name,
+      startWeek: r.startWeek,
+      endWeek: r.endWeek,
+      status: r.status,
+    })),
+    _leagueCount: leagueCount,
+    settings: {
+      roundRedraftSchedule: settings.roundRedraftSchedule,
+      qualificationWeeks: settings.qualificationWeeks,
+    },
+  })
 }
-

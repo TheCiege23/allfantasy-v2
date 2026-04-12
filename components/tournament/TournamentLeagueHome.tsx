@@ -101,7 +101,7 @@ export function TournamentLeagueHome({ leagueId }: { leagueId: string }) {
           </div>
         </div>
         <Link
-          href={`/app/tournament/${config.tournamentId}`}
+          href={`/tournament/${config.tournamentId}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-950/20 px-3 py-1.5 text-sm text-amber-200 hover:bg-amber-950/40"
         >
           Tournament hub <ExternalLink className="h-3.5 w-3.5" />

@@ -5,8 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { compareByTiebreakers } from './advancement-rules'
 import {
+  compareByTiebreakers,
   getAdvancementSlotsPerConference,
   getBubbleSlotsPerConference,
 } from './advancement-rules'
@@ -101,6 +101,7 @@ export async function getUniversalStandingsRaw(tournamentId: string): Promise<Un
       const losses = Math.max(0, games - wins - ties)
       return {
         roster: r,
+        rosterId: r.id,
         wins,
         losses,
         ties,
@@ -108,7 +109,12 @@ export async function getUniversalStandingsRaw(tournamentId: string): Promise<Un
         pointsAgainst: paMap.get(r.id) ?? 0,
       }
     })
-    withStats.sort((a, b) => compareByTiebreakers(a, b))
+    const matchupData = matchups.map((m) => ({
+      teamA: m.teamA,
+      teamB: m.teamB,
+      winnerTeamId: m.winnerTeamId,
+    }))
+    withStats.sort((a, b) => compareByTiebreakers(a, b, undefined, matchupData))
     withStats.forEach((s, idx) => {
       qualificationRank++
       rows.push({
@@ -155,14 +161,30 @@ export async function applyConferenceRankingAndCutLine(
   }
 
   const tiebreakerOrder = (settings.qualificationTiebreakers as string[]) ?? ['wins', 'points_for']
+
+  // Load all matchup facts for H2H tiebreaker support
+  const allLeagueIds = [...new Set(rows.map((r) => r.leagueId))]
+  const allMatchups = tiebreakerOrder.includes('head_to_head')
+    ? await prisma.matchupFact.findMany({
+        where: { leagueId: { in: allLeagueIds } },
+        select: { teamA: true, teamB: true, winnerTeamId: true },
+      })
+    : []
+  const matchupData = allMatchups.map((m) => ({
+    teamA: m.teamA,
+    teamB: m.teamB,
+    winnerTeamId: m.winnerTeamId,
+  }))
+
   const result: UniversalStandingsRow[] = []
   let qualificationRank = 0
 
   for (const [, list] of byConference) {
     list.sort((a, b) => compareByTiebreakers(
-      { wins: a.wins, losses: a.losses, pointsFor: a.pointsFor, pointsAgainst: a.pointsAgainst },
-      { wins: b.wins, losses: b.losses, pointsFor: b.pointsFor, pointsAgainst: b.pointsAgainst },
-      tiebreakerOrder
+      { rosterId: a.rosterId, wins: a.wins, losses: a.losses, pointsFor: a.pointsFor, pointsAgainst: a.pointsAgainst },
+      { rosterId: b.rosterId, wins: b.wins, losses: b.losses, pointsFor: b.pointsFor, pointsAgainst: b.pointsAgainst },
+      tiebreakerOrder,
+      matchupData
     ))
     const cutLine = advancementPerConf
     const bubbleStart = cutLine + 1

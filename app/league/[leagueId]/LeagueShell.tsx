@@ -41,6 +41,12 @@ import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
 import { SurvivorFirstEntryModal } from '@/components/survivor/SurvivorFirstEntryModal'
+import { BigBrotherFirstEntryModal } from '@/components/big-brother/BigBrotherFirstEntryModal'
+import { IDPFirstEntryModal } from '@/components/idp/IDPFirstEntryModal'
+import { BigBrotherHome } from '@/components/big-brother/BigBrotherHome'
+import IDPHome from '@/components/idp/IDPHome'
+import { DevyFirstEntryModal } from '@/components/devy/DevyFirstEntryModal'
+import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
 import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
 import { ZombieHome } from '@/components/zombie/ZombieHome'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
@@ -164,6 +170,16 @@ export function LeagueShell({
       const z = { id: 'zombie', label: '🧟 Zombie' }
       base = idx >= 0 ? [...base.slice(0, idx + 1), z, ...base.slice(idx + 1)] : [z, ...base]
     }
+    if (league.leagueVariant === 'big_brother') {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const bb = { id: 'big_brother', label: '👁 Big Brother' }
+      base = idx >= 0 ? [...base.slice(0, idx + 1), bb, ...base.slice(idx + 1)] : [bb, ...base]
+    }
+    if (league.leagueVariant === 'idp' || league.leagueVariant === 'dynasty_idp') {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const idp = { id: 'idp', label: '🛡 IDP' }
+      base = idx >= 0 ? [...base.slice(0, idx + 1), idp, ...base.slice(idx + 1)] : [idp, ...base]
+    }
     if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
@@ -226,6 +242,31 @@ export function LeagueShell({
     setActiveTab('zombie')
     zombieLandingApplied.current = true
   }, [league.id, league.leagueVariant, league.guillotineMode, tabDefs, searchParams])
+
+  /** Big Brother leagues default to the Big Brother hub. */
+  const bigBrotherLandingApplied = useRef(false)
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (league.leagueVariant !== 'big_brother' || bigBrotherLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('big_brother')) return
+    setActiveTab('big_brother')
+    bigBrotherLandingApplied.current = true
+  }, [league.id, league.leagueVariant, tabDefs, searchParams])
+
+  /** IDP leagues default to the IDP hub. */
+  const idpLandingApplied = useRef(false)
+  useEffect(() => {
+    const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
+    if (deepLink?.trim()) return
+    if (league.leagueVariant !== 'idp' && league.leagueVariant !== 'dynasty_idp') return
+    if (idpLandingApplied.current) return
+    const ids = new Set(tabDefs.map((t) => t.id))
+    if (!ids.has('idp')) return
+    setActiveTab('idp')
+    idpLandingApplied.current = true
+  }, [league.id, league.leagueVariant, tabDefs, searchParams])
 
   useEffect(() => {
     const view = searchParams?.get('view')
@@ -600,6 +641,34 @@ export function LeagueShell({
           )
         : null}
 
+      {portalMounted && league.leagueVariant === 'big_brother'
+        ? createPortal(
+            <BigBrotherFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
+            document.body,
+          )
+        : null}
+
+      {portalMounted && (league.leagueVariant === 'idp' || league.leagueVariant === 'dynasty_idp')
+        ? createPortal(
+            <IDPFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
+            document.body,
+          )
+        : null}
+
+      {portalMounted && (league.leagueVariant === 'devy_dynasty' || league.leagueVariant === 'merged_devy_c2c')
+        ? createPortal(
+            <DevyFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
+            document.body,
+          )
+        : null}
+
+      {portalMounted && league.guillotineMode
+        ? createPortal(
+            <GuillotineFirstEntryModal leagueId={league.id} show onClose={() => {}} />,
+            document.body,
+          )
+        : null}
+
       {portalMounted && (league.leagueVariant === 'zombie' || league.leagueVariant === 'survivor')
         ? createPortal(
             <LeagueClipOverlayHost
@@ -735,6 +804,10 @@ function LeagueTabRouter({
       return <SurvivorHome leagueId={leagueId} />
     case 'zombie':
       return <ZombieHome leagueId={leagueId} />
+    case 'big_brother':
+      return <BigBrotherHome leagueId={leagueId} />
+    case 'idp':
+      return <IDPHome leagueId={leagueId} />
     case 'keeper':
       return <KeeperSelectionTab leagueId={leagueId} />
     case 'team':

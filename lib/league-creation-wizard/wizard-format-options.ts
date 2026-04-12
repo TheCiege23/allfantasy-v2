@@ -45,6 +45,24 @@ export interface WizardFormatOptions {
   guillotineRulesAcknowledged: boolean
   /** Big Brother — optional subtitle shown on league home */
   bigBrotherSubtitle: string
+  /** Big Brother — finale format (final_2 or final_3) */
+  bigBrotherFinaleFormat: string
+  /** Big Brother — jury start mode */
+  bigBrotherJuryMode: string
+  /** Big Brother — HOH challenge mode */
+  bigBrotherChallengeMode: string
+  /** Big Brother — eviction tie-break mode */
+  bigBrotherTieBreak: string
+  /** Big Brother — allow consecutive HOH wins */
+  bigBrotherConsecutiveHoh: boolean
+  /** IDP — enabled flag for the modifier */
+  idpEnabled: boolean
+  /** IDP — position mode (standard=grouped DL/LB/DB, advanced=split DE/DT/LB/CB/S) */
+  idpPositionMode: string
+  /** IDP — roster preset (beginner, standard, advanced) */
+  idpRosterPreset: string
+  /** IDP — scoring preset (balanced, tackle_heavy, big_play_heavy) */
+  idpScoringPreset: string
   /** Taxi / devy — creation-time targets (roster templates still from presets) */
   dynastyTaxiSlots: number
   devyTaxiSlots: number
@@ -73,6 +91,15 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   salaryCapMode: 'dynasty',
   guillotineRulesAcknowledged: false,
   bigBrotherSubtitle: '',
+  bigBrotherFinaleFormat: 'final_2',
+  bigBrotherJuryMode: 'after_eliminations',
+  bigBrotherChallengeMode: 'deterministic_score',
+  bigBrotherTieBreak: 'hoh_vote',
+  bigBrotherConsecutiveHoh: false,
+  idpEnabled: false,
+  idpPositionMode: 'standard',
+  idpRosterPreset: 'standard',
+  idpScoringPreset: 'balanced',
   dynastyTaxiSlots: 4,
   devyTaxiSlots: 6,
   devyCollegeSlots: 4,
@@ -149,8 +176,23 @@ export function formatOptionsApplyToLeagueType(
     out.salary_cap_mode = options.salaryCapMode
   }
 
-  if (leagueType === 'big_brother' && options.bigBrotherSubtitle.trim()) {
-    out.big_brother_subtitle = options.bigBrotherSubtitle.trim()
+  if (leagueType === 'big_brother') {
+    if (options.bigBrotherSubtitle.trim()) {
+      out.big_brother_subtitle = options.bigBrotherSubtitle.trim()
+    }
+    out.big_brother_finale_format = options.bigBrotherFinaleFormat || 'final_2'
+    out.big_brother_jury_mode = options.bigBrotherJuryMode || 'after_eliminations'
+    out.big_brother_challenge_mode = options.bigBrotherChallengeMode || 'deterministic_score'
+    out.big_brother_tie_break = options.bigBrotherTieBreak || 'hoh_vote'
+    out.big_brother_consecutive_hoh = options.bigBrotherConsecutiveHoh ?? false
+  }
+
+  // IDP applies as a modifier across league types (NFL only)
+  if (options.idpEnabled) {
+    out.idp_enabled = true
+    out.idp_position_mode = options.idpPositionMode || 'standard'
+    out.idp_roster_preset = options.idpRosterPreset || 'standard'
+    out.idp_scoring_preset = options.idpScoringPreset || 'balanced'
   }
 
   if (leagueType === 'dynasty') {

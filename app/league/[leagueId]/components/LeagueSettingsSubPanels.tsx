@@ -27,6 +27,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import type { UserLeague } from '@/app/dashboard/types'
 import { DiscordLeagueSyncPanel } from './DiscordLeagueSyncPanel'
+import { PlayoffSettingsEditor as PlayoffSettingsEditorLazy } from '@/components/league-settings/PlayoffSettingsEditor'
 import {
   detectScoringFlavor,
   getDivisionCount,
@@ -759,7 +760,16 @@ export function SettingsSubPanelBody({
         />
       )
     case 'playoffs':
-      return <PlayoffSettingsReadonlyPanel ctx={ctx} />
+      return (
+        <>
+          <PlayoffSettingsReadonlyPanel ctx={ctx} />
+          {ctx.isCommissioner && (
+            <div className="mt-6">
+              <PlayoffSettingsEditorLazy leagueId={ctx.league.id} />
+            </div>
+          )}
+        </>
+      )
     case 'roster':
       return <RosterSettingsReadonlyPanel ctx={ctx} />
     case 'scoring':

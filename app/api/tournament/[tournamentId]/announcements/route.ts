@@ -1,99 +1,94 @@
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/announcements/route.ts
+ * GET: List tournament announcements.
+ * POST: Create a new announcement (commissioner only).
+ * Supports Legacy tournaments.
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id ?? null
-
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
+  const { tournamentId } = await params
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+  const announcements = await prisma.legacyTournamentAnnouncement.findMany({
+    where: { tournamentId },
+    orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
+    take: 100,
+  })
 
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json({
+    announcements: announcements.map((a) => ({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      type: a.type,
+      pinned: a.pinned,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  })
+}
 
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
+  const { tournamentId } = await params
+
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { creatorId: true },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
   }
 
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
+  const body = await req.json().catch(() => ({}))
+  const title = (body.title as string) ?? null
+  const announcementBody = body.body as string
+  const type = (body.type as string) ?? 'general'
+  const pinned = body.pinned === true
+
+  if (!announcementBody || typeof announcementBody !== 'string' || announcementBody.trim().length === 0) {
+    return NextResponse.json({ error: 'Announcement body is required' }, { status: 400 })
   }
 
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-    include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
+  const announcement = await prisma.legacyTournamentAnnouncement.create({
+    data: {
+      tournamentId,
+      title: title?.trim() || null,
+      body: announcementBody.trim(),
+      type,
+      pinned,
     },
   })
 
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
-  }
+  await logTournamentAudit(tournamentId, 'post_announcement', {
+    actorId: userId,
+    metadata: { announcementId: announcement.id, type },
+  })
 
-  return NextResponse.json({ round, leagues })
+  return NextResponse.json({
+    id: announcement.id,
+    title: announcement.title,
+    body: announcement.body,
+    type: announcement.type,
+    pinned: announcement.pinned,
+    createdAt: announcement.createdAt.toISOString(),
+  })
 }
-

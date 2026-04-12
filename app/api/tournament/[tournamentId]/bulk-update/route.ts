@@ -1,99 +1,57 @@
+/**
+ * [UPDATED] POST: Bulk update league names, themes, or settings for tournament child leagues.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
-  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+  const { tournamentId } = await params
+  const tournament = await prisma.legacyTournament.findUnique({ where: { id: tournamentId }, select: { creatorId: true, settings: true } })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+  const body = await req.json().catch(() => ({}))
+  const updates = body.updates as Array<{ leagueId: string; name?: string }> | undefined
+  const themePack = body.themePack as string | undefined
+  const bannerUrl = body.bannerUrl as string | undefined
+  let updated = 0
 
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Bulk rename leagues
+  if (updates && Array.isArray(updates)) {
+    for (const u of updates) {
+      if (!u.leagueId) continue
+      const tl = await prisma.legacyTournamentLeague.findFirst({ where: { tournamentId, leagueId: u.leagueId } })
+      if (!tl) continue
+      if (u.name && typeof u.name === 'string') {
+        await prisma.league.update({ where: { id: u.leagueId }, data: { name: u.name.trim().slice(0, 120) } })
+        updated++
+      }
     }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
   }
 
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
+  // Bulk theme update
+  if (themePack || bannerUrl !== undefined) {
+    const currentSettings = (tournament.settings as Record<string, unknown>) ?? {}
+    const hubSettings = (currentSettings.hubSettings as Record<string, unknown>) ?? {}
+    const newHub = { ...hubSettings }
+    if (themePack) newHub.themePack = themePack
+    if (bannerUrl !== undefined) newHub.bannerUrl = bannerUrl || null
+    await prisma.legacyTournament.update({
+      where: { id: tournamentId },
+      data: { settings: { ...currentSettings, hubSettings: newHub } },
     })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
   }
 
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-    include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
-    },
-  })
-
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
-  }
-
-  return NextResponse.json({ round, leagues })
+  await logTournamentAudit(tournamentId, 'bulk_update', { actorId: userId, metadata: { updated, themePack, bannerUrl: bannerUrl !== undefined } })
+  return NextResponse.json({ ok: true, updated })
 }
-

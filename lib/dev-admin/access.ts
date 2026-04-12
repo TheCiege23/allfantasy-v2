@@ -1,4 +1,5 @@
 import type { EntitlementStatus, SubscriptionPlanId } from "@/lib/subscription/types"
+import { isAdminEmailAllowed } from "@/lib/adminAuth"
 import { getTokenSpendRuleMatrixEntry, type TokenPricingTier } from "@/lib/tokens/pricing-matrix"
 
 const DEV_ADMIN_PLANS: readonly SubscriptionPlanId[] = ["all_access"]
@@ -127,13 +128,23 @@ export function isTokenNotificationBypassUserId(userId: string | null | undefine
  * Covers: {@link isTokenNotificationBypassUserId} (TOKEN list + dev admin + static admin) and
  * optional `AI_ENTITLEMENT_BYPASS_USER_IDS` for an explicit QA list without reusing other env names.
  */
-export function isSubscriptionEntitlementBypassUserId(userId: string | null | undefined): boolean {
+/**
+ * Full bypass for subscriptions + token metering. Pass `email` when available so accounts in
+ * `ADMIN_EMAILS` match platform admin / “super admin” the same way `/admin` does (not only env user-id lists).
+ */
+export function isSubscriptionEntitlementBypassUserId(
+  userId: string | null | undefined,
+  email?: string | null
+): boolean {
   const normalizedUserId = String(userId ?? "").trim()
-  if (!normalizedUserId) return false
-  if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
-    return true
+  if (normalizedUserId) {
+    if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
+      return true
+    }
   }
-  return isTokenNotificationBypassUserId(userId)
+  if (isTokenNotificationBypassUserId(userId)) return true
+  if (email && isAdminEmailAllowed(email)) return true
+  return false
 }
 
 export function buildDevAdminEntitlementSnapshot(): DevAdminEntitlementSnapshot {

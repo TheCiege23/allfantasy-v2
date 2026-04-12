@@ -144,7 +144,7 @@ export async function runBigBrotherAdminAction(input: BigBrotherAdminInput): Pro
       if (!rosterId) return { ok: false, error: 'params.rosterId required' }
       const excluded = await getExcludedRosterIds(leagueId)
       if (!excluded.includes(rosterId)) return { ok: false, error: 'Roster is not evicted' }
-      await releaseEvictedRoster(leagueId, rosterId)
+      await releaseEvictedRoster(leagueId, rosterId, { week: current?.week, cycleId: current?.id })
       await appendBigBrotherAudit(leagueId, config.configId, 'phase_transition', { adminAction: 'force_waiver_release', rosterId })
       return { ok: true, message: 'Waiver release executed for roster' }
     }
@@ -195,16 +195,41 @@ export async function runBigBrotherAdminAction(input: BigBrotherAdminInput): Pro
     case 'force_advance_week': {
       if (!current) return { ok: false, error: 'No current cycle' }
       const phase = current.phase as BigBrotherWeekPhase
-      if (phase === 'VOTING_OPEN' || phase === 'VOTING_LOCKED') {
-        const res = await closeEviction(current.id, { postToChat: true })
-        if (!res.ok) return { ok: false, error: res.error ?? 'Close eviction failed' }
-        return { ok: true, message: 'Eviction closed' }
+
+      // HOH phases — skip to nomination
+      if (phase === 'HOH_OPEN') {
+        await transitionPhase(current.id, 'HOH_LOCKED')
+        await transitionPhase(current.id, 'NOMINATION_OPEN')
+        return { ok: true, message: 'HOH skipped; nomination open (assign HOH manually or auto-nominate)' }
       }
+      if (phase === 'HOH_LOCKED') {
+        await transitionPhase(current.id, 'NOMINATION_OPEN')
+        return { ok: true, message: 'Advanced to nomination open' }
+      }
+
+      // Nomination — auto-nominate and lock
       if (phase === 'NOMINATION_OPEN') {
         const res = await runAutoNomination(current.id, {})
         if (!res.ok) return { ok: false, error: res.error }
         await transitionPhase(current.id, 'NOMINATION_LOCKED')
         return { ok: true, message: 'Auto-nomination applied' }
+      }
+      if (phase === 'NOMINATION_LOCKED') {
+        await transitionPhase(current.id, 'VETO_DRAW')
+        return { ok: true, message: 'Advanced to veto draw' }
+      }
+
+      // Veto phases
+      if (phase === 'VETO_DRAW') {
+        const { selectVetoCompetitors } = await import('./BigBrotherVetoEngine')
+        const res = await selectVetoCompetitors(current.id)
+        if (!res.ok) return { ok: false, error: res.error }
+        await transitionPhase(current.id, 'VETO_CHALLENGE_OPEN')
+        return { ok: true, message: 'Veto draw completed; challenge open' }
+      }
+      if (phase === 'VETO_CHALLENGE_OPEN') {
+        await transitionPhase(current.id, 'VETO_DECISION_OPEN')
+        return { ok: true, message: 'Advanced to veto decision' }
       }
       if (phase === 'VETO_DECISION_OPEN') {
         await transitionPhase(current.id, 'VOTING_OPEN')
@@ -214,8 +239,41 @@ export async function runBigBrotherAdminAction(input: BigBrotherAdminInput): Pro
         const res = await runAutoReplacementNominee(current.id, {})
         if (!res.ok) return { ok: false, error: res.error }
         await transitionPhase(current.id, 'VOTING_OPEN')
-        return { ok: true, message: 'Auto-replacement applied' }
+        return { ok: true, message: 'Auto-replacement applied; voting open' }
       }
+
+      // Voting — close eviction
+      if (phase === 'VOTING_OPEN' || phase === 'VOTING_LOCKED') {
+        const res = await closeEviction(current.id, { postToChat: true })
+        if (!res.ok) return { ok: false, error: res.error ?? 'Close eviction failed' }
+        return { ok: true, message: 'Eviction closed' }
+      }
+
+      // Post-eviction — advance to next week
+      if (phase === 'EVICTION_RESOLVED') {
+        await transitionPhase(current.id, 'JURY_UPDATE')
+        return { ok: true, message: 'Advanced to jury update' }
+      }
+      if (phase === 'JURY_UPDATE') {
+        await transitionPhase(current.id, 'RESET_NEXT_WEEK')
+        return { ok: true, message: 'Advanced to reset/next week' }
+      }
+      if (phase === 'RESET_NEXT_WEEK') {
+        // Create next cycle
+        const nextWeek = current.week + 1
+        const existing = await prisma.bigBrotherCycle.findFirst({
+          where: { leagueId, configId: config.configId, week: nextWeek },
+        })
+        if (existing) return { ok: true, message: `Week ${nextWeek} cycle already exists` }
+        await prisma.bigBrotherCycle.create({
+          data: { leagueId, configId: config.configId, week: nextWeek, phase: 'HOH_OPEN' },
+        })
+        await appendBigBrotherAudit(leagueId, config.configId, 'phase_transition', {
+          event: 'new_week_started', week: nextWeek, adminForced: true,
+        })
+        return { ok: true, message: `Week ${nextWeek} started (HOH_OPEN)` }
+      }
+
       return { ok: false, error: `Force advance not implemented for phase ${phase}` }
     }
     default:

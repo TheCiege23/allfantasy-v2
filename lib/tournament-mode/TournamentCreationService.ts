@@ -114,6 +114,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
         sport,
         leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
         settings: {
+          league_type: 'tournament',
           tournamentId: tournament.id,
           tournamentName: input.name,
           conferenceName,

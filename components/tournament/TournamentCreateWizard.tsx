@@ -86,7 +86,7 @@ export function TournamentCreateWizard() {
         setError(data.error ?? 'Failed to create tournament')
         return
       }
-      router.push(`/app/tournament/${data.tournamentId}/control`)
+      router.push(`/tournament/${data.tournamentId}`)
     } catch (err) {
       setError('Something went wrong')
     } finally {
@@ -305,6 +305,32 @@ export function TournamentCreateWizard() {
                 className="rounded border-white/20"
               />
               <label htmlFor="faabReset" className="text-sm text-white/80">FAAB reset by round</label>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm text-white/70">FAAB budget</label>
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                value={settings.faabBudgetDefault ?? 100}
+                onChange={(e) => setSettings((s) => ({ ...s, faabBudgetDefault: Number(e.target.value) || 100 }))}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-white/70">Tiebreakers</label>
+              <select
+                value={(settings.qualificationTiebreakers ?? ['wins', 'points_for']).join(',')}
+                onChange={(e) => setSettings((s) => ({ ...s, qualificationTiebreakers: e.target.value.split(',') }))}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
+              >
+                <option value="wins,points_for">W-L then Points For</option>
+                <option value="wins,points_for,head_to_head">W-L then PF then H2H</option>
+                <option value="wins,head_to_head,points_for">W-L then H2H then PF</option>
+                <option value="points_for,wins">Points For then W-L</option>
+              </select>
             </div>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

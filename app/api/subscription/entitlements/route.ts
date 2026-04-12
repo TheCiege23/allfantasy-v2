@@ -21,7 +21,9 @@ export const dynamic = "force-dynamic"
  */
 export async function GET(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -38,7 +40,8 @@ export async function GET(req: Request) {
     const resolver = new EntitlementResolver()
     const { entitlement, hasAccess, message } = await resolver.resolveForUser(
       session.user.id,
-      featureId
+      featureId,
+      session.user.email
     )
     const requiredPlanId = featureId ? getRequiredPlanForFeature(featureId) : null
     const requiredPlan = requiredPlanId ? getDisplayPlanName(requiredPlanId) : null

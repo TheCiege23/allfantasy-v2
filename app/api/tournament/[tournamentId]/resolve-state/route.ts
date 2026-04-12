@@ -1,99 +1,79 @@
+/**
+ * [UPDATED] POST: Resolve invalid user progression state.
+ * Fixes orphaned participants, mismatched statuses, or stuck round transitions.
+ */
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
-import { canViewStandings } from '@/lib/tournament/shellAccess'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
-  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+  const { tournamentId } = await params
+  const tournament = await prisma.legacyTournament.findUnique({ where: { id: tournamentId }, select: { creatorId: true } })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
-  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
+  const fixes: string[] = []
 
-  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
-  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  if (participantId) {
-    const p = await prisma.tournamentParticipant.findFirst({
-      where: { id: participantId, tournamentId },
-    })
-    if (!p) return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
-    if (userId !== p.userId && userId !== shell.commissionerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-    const parts = await prisma.tournamentLeagueParticipant.findMany({
-      where: { participantId: p.id },
-      include: { league: true },
-    })
-    return NextResponse.json({ participant: p, leagueParticipations: parts })
-  }
-
-  if (conferenceId) {
-    const conf = await prisma.tournamentConference.findFirst({
-      where: { id: conferenceId, tournamentId },
-    })
-    if (!conf) return NextResponse.json({ error: 'Conference not found' }, { status: 404 })
-    return NextResponse.json({ conference: conf, standingsCache: conf.standingsCache })
-  }
-
-  const rn = roundNumber ? parseInt(roundNumber, 10) : null
-  const round =
-    rn != null && Number.isFinite(rn)
-      ? await prisma.tournamentRound.findFirst({ where: { tournamentId, roundNumber: rn } })
-      : await prisma.tournamentRound.findFirst({
-          where: { tournamentId, roundNumber: shell.currentRoundNumber || 1 },
-        })
-
-  if (!round) return NextResponse.json({ error: 'Round not found' }, { status: 404 })
-
-  const leagues = await prisma.tournamentLeague.findMany({
-    where: { tournamentId, roundId: round.id },
-    include: {
-      participants: { include: { participant: { select: { displayName: true, userId: true } } } },
-    },
+  // Fix 1: Participants marked 'active' but with no current league (orphaned)
+  const orphaned = await prisma.legacyTournamentParticipant.findMany({
+    where: { tournamentId, status: 'active', currentLeagueId: null },
   })
-
-  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
-  if (weekRaw != null && weekRaw !== '') {
-    const w = parseInt(weekRaw, 10)
-    if (!Number.isFinite(w)) {
-      return NextResponse.json({ error: 'Invalid week' }, { status: 400 })
-    }
-    if (w < round.weekStart || w > round.weekEnd) {
-      return NextResponse.json(
-        { error: `week must be between ${round.weekStart} and ${round.weekEnd} for this round` },
-        { status: 400 },
-      )
-    }
-    const weekPts = await computeWeeklyPointsByTlpId(
-      leagues.map((l) => ({
-        leagueId: l.leagueId,
-        participants: l.participants.map((p) => ({ id: p.id, redraftRosterId: p.redraftRosterId })),
-      })),
-      w,
-    )
-    const leaguesWithWeek = leagues.map((l) => ({
-      ...l,
-      participants: l.participants.map((p) => ({
-        ...p,
-        weekPoints: weekPts.get(p.id) ?? 0,
-      })),
-    }))
-    return NextResponse.json({ round, leagues: leaguesWithWeek, weeklyWeek: w })
+  if (orphaned.length > 0) {
+    await prisma.legacyTournamentParticipant.updateMany({
+      where: { tournamentId, status: 'active', currentLeagueId: null },
+      data: { status: 'eliminated', eliminatedAtRoundIndex: -1 },
+    })
+    fixes.push(`${orphaned.length} orphaned active participants → eliminated`)
   }
 
-  return NextResponse.json({ round, leagues })
-}
+  // Fix 2: Participants with currentLeagueId pointing to a non-existent league
+  const activeWithLeague = await prisma.legacyTournamentParticipant.findMany({
+    where: { tournamentId, status: 'active', currentLeagueId: { not: null } },
+    select: { userId: true, currentLeagueId: true },
+  })
+  for (const p of activeWithLeague) {
+    if (!p.currentLeagueId) continue
+    const exists = await prisma.league.findUnique({ where: { id: p.currentLeagueId }, select: { id: true } })
+    if (!exists) {
+      await prisma.legacyTournamentParticipant.update({
+        where: { tournamentId_userId: { tournamentId, userId: p.userId } },
+        data: { status: 'eliminated', currentLeagueId: null, currentRosterId: null, eliminatedAtRoundIndex: -1 },
+      })
+      fixes.push(`Participant ${p.userId.slice(0, 8)}… had invalid league ref → eliminated`)
+    }
+  }
 
+  // Fix 3: Rounds stuck in 'active' that should be 'completed' (all leagues have zero active rosters)
+  const activeRounds = await prisma.legacyTournamentRound.findMany({
+    where: { tournamentId, status: 'active' },
+  })
+  for (const round of activeRounds) {
+    const roundLeagues = await prisma.legacyTournamentLeague.findMany({
+      where: { tournamentId, roundIndex: round.roundIndex },
+      select: { leagueId: true },
+    })
+    // Check if a newer round exists (meaning this one should be completed)
+    const newerRound = await prisma.legacyTournamentRound.findFirst({
+      where: { tournamentId, roundIndex: { gt: round.roundIndex }, status: 'active' },
+    })
+    if (newerRound && roundLeagues.length > 0) {
+      await prisma.legacyTournamentRound.update({
+        where: { id: round.id },
+        data: { status: 'completed' },
+      })
+      fixes.push(`Round ${round.roundIndex} stuck in 'active' with newer round → completed`)
+    }
+  }
+
+  await logTournamentAudit(tournamentId, 'resolve_state', { actorId: userId, metadata: { fixes } })
+  return NextResponse.json({ ok: true, fixes })
+}
