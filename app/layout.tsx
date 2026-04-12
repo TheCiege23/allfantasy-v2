@@ -15,6 +15,7 @@ import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryCl
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
+import { shouldRegisterServiceWorker } from '@/lib/pwa/shouldRegisterServiceWorker';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
 import {
@@ -94,6 +95,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Script id="af-init-lang" strategy="beforeInteractive">
           {buildLanguageInitScript(htmlLang)}
         </Script>
+
+        {shouldRegisterServiceWorker() && (
+          <Script id="af-register-sw" strategy="beforeInteractive">
+            {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
+          </Script>
+        )}
 
         {gaMeasurementId && (
           <>

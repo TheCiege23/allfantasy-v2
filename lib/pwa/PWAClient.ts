@@ -17,12 +17,8 @@ export function initPWA() {
     console.log('[AF] PWA installed');
   });
 
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .register('/sw.js', { scope: '/' })
-      .then((registration) => console.log('[AF] SW registered', registration.scope))
-      .catch((error) => console.error('[AF] SW failed', error));
-  }
+  // Service worker is registered from app/layout via beforeInteractive script so
+  // auditors (e.g. PWABuilder) and installability checks see a controller without waiting for React.
 }
 
 export function canInstallApp(): boolean {
