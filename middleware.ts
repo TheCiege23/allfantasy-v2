@@ -7,9 +7,10 @@ import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 
 /**
  * App routes that must have a valid NextAuth session (JWT).
- * Matches: /dashboard/rankings, /dashboard/rankings/*, /league/*
+ * Matches: /af-rankings, /dashboard/rankings (redirect), /league/*
  */
 function requiresSessionAuth(pathname: string): boolean {
+  if (pathname.startsWith("/af-rankings")) return true
   if (pathname.startsWith("/dashboard/rankings")) return true
   if (pathname.startsWith("/league/")) return true
   return false

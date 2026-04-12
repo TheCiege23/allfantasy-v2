@@ -1,5 +1,5 @@
 const APP_NAME = 'AllFantasy';
-const CACHE_VER = 'v1.0.0';
+const CACHE_VER = 'v1.0.1';
 const CACHE_STATIC = `${APP_NAME}-static-${CACHE_VER}`;
 const CACHE_PAGES = `${APP_NAME}-pages-${CACHE_VER}`;
 const CACHE_IMAGES = `${APP_NAME}-images-${CACHE_VER}`;
@@ -71,9 +71,13 @@ self.addEventListener('activate', (event) => {
         }
         return Promise.all(stale.map((name) => caches.delete(name)));
       })
-      .then(() => {
+      .then(async () => {
         console.log(`[${APP_NAME} SW] Active - claiming all clients`);
-        return self.clients.claim();
+        await self.clients.claim();
+        if ('navigationPreload' in self.registration) {
+          await self.registration.navigationPreload.enable();
+          console.log(`[${APP_NAME} SW] Navigation preload enabled`);
+        }
       })
   );
 });
@@ -92,7 +96,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstWithOfflineFallback(request));
+    event.respondWith(networkFirstWithOfflineFallback(event));
     return;
   }
 
@@ -134,7 +138,22 @@ async function networkFirst(request, cacheName) {
   }
 }
 
-async function networkFirstWithOfflineFallback(request) {
+async function networkFirstWithOfflineFallback(event) {
+  const { request } = event;
+
+  try {
+    const preloadResponse = await event.preloadResponse;
+    if (preloadResponse) {
+      if (preloadResponse.ok) {
+        const cache = await caches.open(CACHE_PAGES);
+        cache.put(request, preloadResponse.clone());
+      }
+      return preloadResponse;
+    }
+  } catch {
+    // Fall through to network fetch
+  }
+
   try {
     const response = await fetch(request);
     if (response.ok) {
