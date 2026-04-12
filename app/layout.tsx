@@ -37,6 +37,11 @@ export const viewport = {
   viewportFit: 'cover' as const,
 };
 
+const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFEST === '1';
+const metadataManifestPath = useExperimentalManifest
+  ? '/manifest.experimental.webmanifest'
+  : '/manifest.webmanifest';
+
 export const metadata: Metadata = {
   ...buildSeoMeta({
     title: 'AllFantasy – AI Powered Fantasy Sports Tools',
@@ -57,7 +62,7 @@ export const metadata: Metadata = {
     ],
     apple: '/af-crest.png',
   },
-  manifest: '/manifest.webmanifest',
+  manifest: metadataManifestPath,
   robots: {
     index: true,
     follow: true,

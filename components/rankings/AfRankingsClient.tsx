@@ -211,6 +211,8 @@ type ImportJobProgressResponse = {
   }>
 }
 
+const RANK_API_TIMEOUT_MS = 15000
+
 const statusIcon = (s: string) =>
   (
     ({
@@ -1086,10 +1088,13 @@ function MyRankingsPageInner() {
   const loadRank = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = opts?.silent === true
     if (!silent) setRankBlockLoading(true)
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => controller.abort(), RANK_API_TIMEOUT_MS)
     try {
       const response = await fetch('/api/user/rank', {
         cache: 'no-store',
         credentials: 'same-origin',
+        signal: controller.signal,
       })
       const data = (await response.json().catch(() => ({}))) as RankResponse
       if (response.ok) {
@@ -1128,6 +1133,7 @@ function MyRankingsPageInner() {
       setApiTier(null)
       setLevelRank(null)
     } finally {
+      window.clearTimeout(timeoutId)
       if (!silent) setRankBlockLoading(false)
     }
   }, [])

@@ -1,5 +1,5 @@
 const APP_NAME = 'AllFantasy';
-const CACHE_VER = 'v1.0.1';
+const CACHE_VER = 'v1.0.2';
 const CACHE_STATIC = `${APP_NAME}-static-${CACHE_VER}`;
 const CACHE_PAGES = `${APP_NAME}-pages-${CACHE_VER}`;
 const CACHE_IMAGES = `${APP_NAME}-images-${CACHE_VER}`;
@@ -7,6 +7,8 @@ const ALL_CACHES = [CACHE_STATIC, CACHE_PAGES, CACHE_IMAGES];
 
 const PRECACHE_ASSETS = [
   '/',
+  '/app',
+  '/app/home',
   '/offline',
   '/manifest.webmanifest',
   '/af-crest.png',
