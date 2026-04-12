@@ -9,6 +9,7 @@ import {
   type WizardFormatOptions,
   getSurvivorTeamBounds,
   clampSurvivorTeamCount,
+  suggestedSurvivorTribeCount,
 } from '@/lib/league-creation-wizard/wizard-format-options'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
 import { StepHeader } from './StepHelp'
@@ -140,6 +141,36 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               }
               className="border-white/20 bg-[#030a20] text-white"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-white/85">Number of tribes</Label>
+            <Select
+              value={v.survivorTribeCountOverride == null ? 'auto' : String(v.survivorTribeCountOverride)}
+              onValueChange={(x) =>
+                onChange({
+                  survivorTribeCountOverride:
+                    x === 'auto' ? null : (Math.min(4, Math.max(2, Number(x))) as 2 | 3 | 4),
+                })
+              }
+            >
+              <SelectTrigger
+                className="border-white/20 bg-[#030a20] text-white"
+                data-testid="wizard-survivor-tribe-count"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto (recommended from cast size)</SelectItem>
+                <SelectItem value="2">2 tribes</SelectItem>
+                <SelectItem value="3">3 tribes</SelectItem>
+                <SelectItem value="4">4 tribes</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-white/45">
+              {v.survivorTribeCountOverride == null
+                ? `Auto → ${suggestedSurvivorTribeCount(v.survivorTeamCount)} tribes for ${v.survivorTeamCount} teams.`
+                : `Fixed at ${v.survivorTribeCountOverride} tribes (matches /leagues/create Rules).`}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Tribe names</Label>

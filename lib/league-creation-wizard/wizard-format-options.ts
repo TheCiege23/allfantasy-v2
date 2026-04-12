@@ -26,6 +26,11 @@ export interface WizardFormatOptions {
   survivorSeasonThemeLabel: string
   /** Survivor — catalog weekly challenges vs manual (default on) */
   survivorChallengesSystemRun: boolean
+  /**
+   * Survivor — tribe count sent to create (`survivor_suggested_tribe_count`).
+   * `null` = auto from cast size via `suggestedSurvivorTribeCount`; otherwise 2–4.
+   */
+  survivorTribeCountOverride: null | 2 | 3 | 4
   /** Keeper */
   keeperMaxKeepers: number
   /** Zombie */
@@ -59,6 +64,7 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   survivorCommissionerRole: 'commissioner_only',
   survivorSeasonThemeLabel: '',
   survivorChallengesSystemRun: true,
+  survivorTribeCountOverride: null,
   keeperMaxKeepers: 3,
   zombieUniverseMode: false,
   zombieIntertwinedLeagueCount: 1,
@@ -111,9 +117,12 @@ export function formatOptionsApplyToLeagueType(
     if (options.survivorSeasonThemeLabel.trim()) {
       out.survivor_season_theme_label = options.survivorSeasonThemeLabel.trim()
     }
-    out.survivor_suggested_tribe_count = suggestedSurvivorTribeCount(
-      clampSurvivorTeamCount(sport, options.survivorTeamCount)
-    )
+    const cast = clampSurvivorTeamCount(sport, options.survivorTeamCount)
+    const tribeCount =
+      options.survivorTribeCountOverride != null
+        ? Math.min(4, Math.max(2, options.survivorTribeCountOverride))
+        : suggestedSurvivorTribeCount(cast)
+    out.survivor_suggested_tribe_count = tribeCount
     if (options.survivorCustomTribeNamesLines.trim()) {
       out.survivor_custom_tribe_names = options.survivorCustomTribeNamesLines
         .split('\n')
