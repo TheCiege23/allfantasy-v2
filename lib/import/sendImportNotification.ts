@@ -82,7 +82,7 @@ export async function sendImportCompleteNotification(userId: string, jobId: stri
             <div style="font-size:22px;font-weight:600;color:${lvl.color};margin-top:4px">${levelName}</div>
             <div style="color:${lvl.color};opacity:.7;margin-top:2px">${profile?.rankTier ?? 'Rookie'} Tier</div>
           </div>
-          <a href="https://www.allfantasy.ai/dashboard/rankings"
+          <a href="https://www.allfantasy.ai/af-rankings"
              style="display:inline-block;background:${lvl.color};color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:500">
             View My Rank
           </a>

@@ -1,7 +1,7 @@
 import type { LegacyProviderId } from './types'
 
 /**
- * Popover copy for `/dashboard/rankings` and similar surfaces. Explains what to enter and where full import lives.
+ * Popover copy for `/af-rankings` and similar surfaces. Explains what to enter and where full import lives.
  */
 export function LegacyProviderImportHelp({ providerId }: { providerId: LegacyProviderId }) {
   const commonImportPage = (

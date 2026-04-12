@@ -92,7 +92,7 @@ export function RankingsCard({
           </button>
         ) : (
           <Link
-            href="/dashboard/rankings"
+            href="/af-rankings"
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
             Get Started <ArrowRight className="h-4 w-4" />
@@ -214,7 +214,7 @@ export function RankingsCard({
         {/* Footer link */}
         <div className="mt-4 flex items-center justify-between">
           <Link
-            href="/dashboard/rankings"
+            href="/af-rankings"
             className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
             View full rankings <ArrowRight className="h-4 w-4" />

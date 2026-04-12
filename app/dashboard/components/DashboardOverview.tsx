@@ -224,7 +224,7 @@ export function DashboardOverview({
         label: 'Join or create a league',
         description: 'Get into a league so the shell can open league mode.',
         done: onboarding.step3,
-        ctaHref: '/dashboard/rankings',
+        ctaHref: '/af-rankings',
         ctaLabel: 'Explore',
       },
       {

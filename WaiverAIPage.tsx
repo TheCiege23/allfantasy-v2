@@ -267,7 +267,7 @@ function LeagueGate({ onSelect }: { onSelect: (league: UserLeague) => void }) {
               Import a league from Sleeper, Yahoo, or MFL to use Waiver Wire AI.
             </p>
             <Link
-              href="/dashboard/rankings"
+              href="/af-rankings"
               className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition-all"
               style={{ background: 'linear-gradient(135deg, #059669, #0891b2)' }}
             >

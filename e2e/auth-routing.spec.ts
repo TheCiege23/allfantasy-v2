@@ -23,8 +23,8 @@ test.describe('@db Protected route enforcement', () => {
 
   const protectedRouteExpectations: Array<{ path: string; loginUrlPattern: RegExp }> = [
     {
-      path: '/dashboard/rankings',
-      loginUrlPattern: /\/login\?callbackUrl=(?:\/dashboard\/rankings|%2Fdashboard%2Frankings)/,
+      path: '/af-rankings',
+      loginUrlPattern: /\/login\?callbackUrl=(?:\/af-rankings|%2Faf-rankings)/,
     },
     {
       path: '/league/test-league',
@@ -63,8 +63,8 @@ test.describe('@db Protected route enforcement', () => {
     await registerAndLogin(page);
     await signOutSession(page);
 
-    await page.goto('/dashboard/rankings');
-    await expect(page).toHaveURL(/\/login\?callbackUrl=(?:\/dashboard\/rankings|%2Fdashboard%2Frankings)/);
+    await page.goto('/af-rankings');
+    await expect(page).toHaveURL(/\/login\?callbackUrl=(?:\/af-rankings|%2Faf-rankings)/);
   });
 
   test('returns auth errors for protected API routes when unauthenticated', async ({ request }) => {

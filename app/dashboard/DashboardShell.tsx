@@ -148,7 +148,7 @@ function DashboardLegacyRankBadge({
 
   return (
     <Link
-      href="/dashboard/rankings"
+      href="/af-rankings"
       className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-95"
       style={{
         background: rank.bg,
