@@ -14,7 +14,9 @@ import {
   getPlayoffStagesBySport,
   calculateScheduleAdjustment,
 } from '@/lib/playoff-settings'
-import { evaluateUserFeatureAccess } from '@/lib/subscription/FeatureGateService'
+import { FeatureGateService } from '@/lib/subscription/FeatureGateService'
+
+const featureGate = new FeatureGateService()
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +41,7 @@ export async function GET(
   // Check premium access
   let isPremium = false
   try {
-    const access = await evaluateUserFeatureAccess(session.user.id, 'advanced_playoff_setup')
+    const access = await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_playoff_setup')
     isPremium = access.allowed
   } catch { isPremium = false }
 
@@ -73,7 +75,7 @@ export async function PUT(
   // Check premium access
   let isPremium = false
   try {
-    const access = await evaluateUserFeatureAccess(session.user.id, 'advanced_playoff_setup')
+    const access = await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_playoff_setup')
     isPremium = access.allowed
   } catch { isPremium = false }
 

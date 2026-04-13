@@ -19,6 +19,7 @@ export type BigBrotherAuditEventType =
   | 'phase_transition'
   | 'auto_nomination'
   | 'auto_replacement_nominee'
+  | 'roster_archived'
 
 export async function appendBigBrotherAudit(
   leagueId: string,

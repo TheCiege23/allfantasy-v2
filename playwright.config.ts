@@ -79,7 +79,7 @@ export default defineConfig({
     command: `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
     url: PLAYWRIGHT_BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 240_000,
     env: {
       ...process.env,
       DATABASE_URL:

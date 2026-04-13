@@ -177,6 +177,7 @@ function ChimmyLeagueContextBar({
   )
 }
 
+/** Chimmy is the default tab only when no league is selected; with a league, league chat is primary. */
 function initialLeftTab(
   selectedLeague: UserLeague | null,
   initialOpenChat: LeftChatInitialTab | null | undefined

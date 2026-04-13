@@ -84,11 +84,11 @@ export async function crownChampion(tournamentId: string): Promise<ChampionResul
   if (!winner || !winner.userId) throw new Error('Could not determine champion — no valid rosters')
 
   // Fetch user display info
-  const user = await prisma.user.findUnique({
+  const user = await prisma.appUser.findUnique({
     where: { id: winner.userId },
-    select: { id: true, name: true, username: true },
+    select: { id: true, displayName: true, username: true },
   })
-  const teamName = user?.name ?? user?.username ?? winner.userId
+  const teamName = user?.displayName ?? user?.username ?? winner.userId
 
   // Mark champion in participant table
   await prisma.legacyTournamentParticipant.updateMany({

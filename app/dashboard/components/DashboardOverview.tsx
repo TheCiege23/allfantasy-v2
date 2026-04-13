@@ -21,6 +21,8 @@ import {
   writeFavoriteSportsSelection,
 } from '@/lib/dashboard/favorite-sports-storage'
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { interpolateTemplate } from '@/lib/i18n/interpolate'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -87,6 +89,7 @@ export function DashboardOverview({
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
 }: DashboardOverviewProps) {
+  const { t } = useLanguage()
   const { hasPro } = useEntitlements()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
@@ -207,44 +210,43 @@ export function DashboardOverview({
     () => [
       {
         id: 'step1',
-        label: 'Select favorite sports',
-        description: 'Tell AllFantasy which sports you care about most — including sports we don’t officially support yet.',
+        label: t('dashboard.onboarding.step1.label'),
+        description: t('dashboard.onboarding.step1.desc'),
         done: onboarding.step1,
-        ctaLabel: 'Choose',
+        ctaLabel: t('dashboard.onboarding.step1.cta'),
       },
       {
         id: 'step2',
-        label: 'Connect a platform',
-        description: 'Sleeper, Discord, Yahoo, ESPN, Fantrax, MFL, Fleaflicker — import or link accounts.',
+        label: t('dashboard.onboarding.step2.label'),
+        description: t('dashboard.onboarding.step2.desc'),
         done: onboarding.step2,
-        ctaLabel: 'Connect',
+        ctaLabel: t('dashboard.onboarding.step2.cta'),
       },
       {
         id: 'step3',
-        label: 'Join or create a league',
-        description: 'Get into a league so the shell can open league mode.',
+        label: t('dashboard.onboarding.step3.label'),
+        description: t('dashboard.onboarding.step3.desc'),
         done: onboarding.step3,
         ctaHref: '/af-rankings',
-        ctaLabel: 'Explore',
+        ctaLabel: t('dashboard.onboarding.step3.cta'),
       },
       {
         id: 'step4',
-        label: 'Try an AI action',
-        description: 'Open the AF AI Tools hub — Chimmy, trade AI, waivers, draft helper, and more.',
+        label: t('dashboard.onboarding.step4.label'),
+        description: t('dashboard.onboarding.step4.desc'),
         done: onboarding.step4,
         ctaHref: '/ai/tools',
-        ctaLabel: 'Open',
+        ctaLabel: t('dashboard.onboarding.step4.cta'),
       },
       {
         id: 'step5',
-        label: 'Invite a friend',
-        description:
-          'Copy a unique invite link to text, email, or social — sends friends to the AllFantasy home page.',
+        label: t('dashboard.onboarding.step5.label'),
+        description: t('dashboard.onboarding.step5.desc'),
         done: onboarding.step5,
-        ctaLabel: inviteCopied ? 'Copied!' : 'Copy',
+        ctaLabel: inviteCopied ? t('dashboard.onboarding.step5.ctaCopied') : t('dashboard.onboarding.step5.ctaCopy'),
       },
     ],
-    [onboarding, inviteCopied]
+    [onboarding, inviteCopied, t]
   )
 
   const completedCount = checklistSteps.filter((step) => step.done).length
@@ -404,9 +406,7 @@ export function DashboardOverview({
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         {allDone ? (
-          <p className="text-xs text-cyan-400/95">
-            ✓ All set! You&apos;re ready to get the most out of AllFantasy.
-          </p>
+          <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
           <section className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e]">
             <button
@@ -415,8 +415,10 @@ export function DashboardOverview({
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
             >
               <div>
-                <p className="text-sm font-bold text-white">Get Started</p>
-                <p className="mt-1 text-xs text-white/40">{completedCount} of 5 complete</p>
+                <p className="text-sm font-bold text-white">{t('dashboard.overview.getStarted')}</p>
+                <p className="mt-1 text-xs text-white/40">
+                  {interpolateTemplate(t('dashboard.overview.checklistProgress'), { done: completedCount })}
+                </p>
               </div>
               <span
                 className="inline-block text-lg leading-none text-white/40 transition-transform duration-200"
@@ -499,7 +501,7 @@ export function DashboardOverview({
                         onClick={() => setSportsModalOpen(true)}
                         className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
                       >
-                        Edit
+                        {t('dashboard.onboarding.edit')}
                       </button>
                     ) : step.id === 'step2' ? (
                       <button
@@ -507,7 +509,7 @@ export function DashboardOverview({
                         onClick={() => setPlatformModalOpen(true)}
                         className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
                       >
-                        Add
+                        {t('dashboard.onboarding.add')}
                       </button>
                     ) : null}
                   </div>
@@ -521,7 +523,7 @@ export function DashboardOverview({
             className="flex h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/50 transition hover:bg-white/[0.06]"
           >
             <span>
-              Setup · <span className="text-white/80">{completedCount}/5</span> complete
+              {interpolateTemplate(t('dashboard.overview.setupCollapsed'), { done: completedCount })}
             </span>
             <span
               className="text-white/40 transition-transform"
@@ -533,9 +535,12 @@ export function DashboardOverview({
         )}
 
         <section className="border-b border-white/[0.07] pb-5">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">Dashboard Overview</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
+            {t('dashboard.overview.sectionTitle')}
+          </p>
           <h1 className="mt-2 text-[22px] font-black leading-tight text-white">
-            Welcome back, <span className="font-bold text-cyan-400">{userName}</span>
+            {t('dashboard.overview.welcomeBack')}{' '}
+            <span className="font-bold text-cyan-400">{userName}</span>
           </h1>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -543,20 +548,20 @@ export function DashboardOverview({
               href="/create-league"
               className="rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-semibold text-black"
             >
-              + Create League
+              {t('dashboard.overview.createLeague')}
             </Link>
             <button
               type="button"
               onClick={handleImport}
               className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
-              Import
+              {t('dashboard.overview.import')}
             </button>
             <Link
               href="/find-league"
               className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
-              Find League
+              {t('dashboard.overview.findLeague')}
             </Link>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>

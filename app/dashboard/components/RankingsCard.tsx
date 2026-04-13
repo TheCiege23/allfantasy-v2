@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { interpolateTemplate } from '@/lib/i18n/interpolate'
 import { getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
 
 type RankApiPayload = {
@@ -50,6 +52,7 @@ export function RankingsCard({
   onImportNow,
   initialRankPayload = null,
 }: RankingsCardProps) {
+  const { t } = useLanguage()
   const [data, setData] = useState<RankApiPayload | null>(() =>
     initialRankPayload != null ? (initialRankPayload as RankApiPayload) : null
   )
@@ -78,24 +81,22 @@ export function RankingsCard({
     return (
       <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
         <div className="text-2xl">🏆</div>
-        <p className="mt-3 text-sm font-semibold text-white">Import your leagues to unlock your ranking</p>
-        <p className="mt-1 text-xs text-white/40">
-          Connect Sleeper to build your career profile and earn your rank.
-        </p>
+        <p className="mt-3 text-sm font-semibold text-white">{t('dashboard.rankings.emptyTitle')}</p>
+        <p className="mt-1 text-xs text-white/40">{t('dashboard.rankings.emptyBody')}</p>
         {onImportNow ? (
           <button
             type="button"
             onClick={onImportNow}
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
-            Import Now <ArrowRight className="h-4 w-4" />
+            {t('dashboard.rankings.importNow')} <ArrowRight className="h-4 w-4" />
           </button>
         ) : (
           <Link
             href="/af-rankings"
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
-            Get Started <ArrowRight className="h-4 w-4" />
+            {t('dashboard.rankings.getStarted')} <ArrowRight className="h-4 w-4" />
           </Link>
         )}
       </div>
@@ -132,7 +133,9 @@ export function RankingsCard({
       <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">My Ranking</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+            {t('dashboard.rankings.myRanking')}
+          </p>
           <div className="flex items-center gap-3">
             {onAskChimmy ? (
               <button
@@ -140,7 +143,7 @@ export function RankingsCard({
                 onClick={onAskChimmy}
                 className="text-xs font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
               >
-                Ask Chimmy →
+                {t('dashboard.rankings.askChimmy')}
               </button>
             ) : null}
           </div>
@@ -168,7 +171,9 @@ export function RankingsCard({
           <div className="flex shrink-0 flex-col items-center gap-0.5">
             <div className="min-w-[54px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
               <div className="text-xl font-black leading-none text-violet-300">{aiGrade}</div>
-              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
+              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                {t('dashboard.rankings.aiGrade')}
+              </div>
             </div>
             {aiScore != null ? (
               <div className="text-center">
@@ -182,8 +187,18 @@ export function RankingsCard({
         {/* XP Progress bar */}
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/45">
-            <span>{xpIntoLevel.toLocaleString()} / {xpForLevel.toLocaleString()} XP in level</span>
-            <span>{progressPct}%{nextLevelName ? ` → ${nextLevelName}` : ''}</span>
+            <span>
+              {interpolateTemplate(t('dashboard.rankings.xpInLevel'), {
+                from: xpIntoLevel.toLocaleString(),
+                to: xpForLevel.toLocaleString(),
+              })}
+            </span>
+            <span>
+              {progressPct}%
+              {nextLevelName
+                ? interpolateTemplate(t('dashboard.rankings.nextLevelHint'), { name: nextLevelName })
+                : ''}
+            </span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
             <div
@@ -192,17 +207,17 @@ export function RankingsCard({
             />
           </div>
           <p className="mt-1 text-[10px] text-white/30">
-            {xpTotal.toLocaleString()} total XP
+            {interpolateTemplate(t('dashboard.rankings.totalXp'), { n: xpTotal.toLocaleString() })}
           </p>
         </div>
 
         {/* Career stats */}
         <div className="mt-4 grid grid-cols-4 gap-2">
           {[
-            { label: 'Record', value: record },
-            { label: 'Titles', value: String(championships) },
-            { label: 'Playoffs', value: String(playoffApps) },
-            { label: 'Seasons', value: String(seasons) },
+            { label: t('dashboard.rankings.stat.record'), value: record },
+            { label: t('dashboard.rankings.stat.titles'), value: String(championships) },
+            { label: t('dashboard.rankings.stat.playoffs'), value: String(playoffApps) },
+            { label: t('dashboard.rankings.stat.seasons'), value: String(seasons) },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border border-white/8 bg-white/[0.03] px-2 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide text-white/35">{stat.label}</div>
@@ -217,7 +232,7 @@ export function RankingsCard({
             href="/af-rankings"
             className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
-            View full rankings <ArrowRight className="h-4 w-4" />
+            {t('dashboard.rankings.viewFull')} <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </div>

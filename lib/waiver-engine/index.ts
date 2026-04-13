@@ -35,3 +35,74 @@ export type {
   TeamNeedsMap,
   UserGoal,
 } from "./team-needs";
+
+// --- Deterministic Facts Layer ---
+export {
+  buildDeterministicFacts,
+  formatFactsForPrompt,
+  computePerformanceFacts,
+  computeLeagueFacts,
+  computeWaiverPoolFacts,
+  computeDecisionFacts,
+} from "./waiver-deterministic-facts";
+export type {
+  FactualEvidence as WaiverFactualEvidence,
+  TeamStructureFacts,
+  PerformanceFacts,
+  LeagueFacts as WaiverLeagueFacts,
+  WaiverPoolFacts,
+  DecisionFacts,
+  DeterministicFactsResult,
+} from "./waiver-deterministic-facts";
+
+// --- FAAB Engine ---
+export {
+  computeFaabBid,
+  computeFaabStrategy,
+} from "./waiver-faab-engine";
+export type {
+  FaabContext,
+  FaabBidResult,
+  FaabBidInput,
+  FaabStrategyNote,
+} from "./waiver-faab-engine";
+
+// --- Sport Adapters ---
+export {
+  getWaiverSportAdapter,
+  getSupportedWaiverSports,
+  getWaiverPositionScarcity,
+  getProjectionWeight,
+  formatSportContextForPrompt,
+} from "./waiver-sport-adapters";
+export type {
+  WaiverSport,
+  SportWaiverAdapter,
+  OpportunitySignal,
+} from "./waiver-sport-adapters";
+
+// --- Recommendation Types & Scoring ---
+export {
+  computeWaiverFitScore,
+  classifyRecommendationType,
+  computeUrgencyScore,
+  WaiverResponseV2Schema,
+  WaiverSuggestionV2Schema,
+  RecommendationTypeEnum,
+} from "./waiver-recommendation-types";
+export type {
+  WaiverResponseV2,
+  WaiverSuggestionV2,
+  RecommendationType,
+  TimingRecommendation,
+  WaiverFitScoreInput,
+  TeamDiagnosis,
+  StrategyNotesV2,
+  Callouts,
+} from "./waiver-recommendation-types";
+
+// --- System Prompt ---
+export {
+  WAIVER_STRATEGIST_SYSTEM_PROMPT,
+  buildEnhancedWaiverUserPrompt,
+} from "./waiver-strategist-prompt";

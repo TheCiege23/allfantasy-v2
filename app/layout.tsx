@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import type { Session } from 'next-auth';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { BackToTop } from '@/components/BackToTop';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
@@ -81,6 +83,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const cookieMode = cookieStore.get('af_mode')?.value;
   const htmlMode = resolveEffectiveDataMode(cookieMode);
+  let initialSession: Session | null = null;
+
+  if (process.env.PLAYWRIGHT_E2E === '1') {
+    try {
+      const [{ getServerSession }, { authOptions }] = await Promise.all([
+        import('next-auth'),
+        import('@/lib/auth'),
+      ]);
+      initialSession = (await getServerSession(authOptions as never)) as Session | null;
+    } catch (error) {
+      console.warn('[layout] failed to preload session for Playwright E2E:', error);
+    }
+  }
+
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
@@ -216,7 +232,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           crossOrigin="anonymous"
         />
 
-        <SessionAppProvider>
+        <SessionAppProvider session={initialSession}>
           <ThemeProvider>
             <LanguageProviderClient>
               <ErrorTrackingInit />
@@ -228,6 +244,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ErrorBoundaryClient>
                 {children}
               </ErrorBoundaryClient>
+              <GlobalModeToggle />
               <Toaster position="top-center" richColors closeButton />
               <BackToTop />
             </LanguageProviderClient>

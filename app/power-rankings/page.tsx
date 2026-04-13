@@ -12,6 +12,8 @@ import {
   normalizeToSupportedSport,
   type SupportedSport,
 } from "@/lib/sport-scope";
+import { useLanguage } from "@/components/i18n/LanguageProviderClient";
+import { interpolateTemplate } from "@/lib/i18n/interpolate";
 
 type LeagueFormat = "redraft" | "dynasty" | "keeper";
 type RankingView = "power" | "dynasty" | "composite";
@@ -270,16 +272,6 @@ interface ActiveJob {
   status: string;
 }
 
-const SPORT_LABELS: Record<SupportedSport, string> = {
-  NFL: "NFL",
-  NHL: "NHL",
-  NBA: "NBA",
-  MLB: "MLB",
-  NCAAF: "NCAA Football",
-  NCAAB: "NCAA Basketball",
-  SOCCER: "Soccer",
-};
-
 const PLATFORM_LABELS: Record<
   string,
   { emoji: string; label: string; color: string }
@@ -293,6 +285,32 @@ const PLATFORM_LABELS: Record<
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
+}
+
+function phaseTranslationKey(phase: string): string {
+  switch (phase) {
+    case "Contender":
+      return "powerRankingsPage.phase.contender";
+    case "Rebuilding":
+      return "powerRankingsPage.phase.rebuilding";
+    case "Mid-Pack":
+      return "powerRankingsPage.phase.midPack";
+    default:
+      return "powerRankingsPage.phase.flexible";
+  }
+}
+
+function luckStatusTranslationKey(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "lucky") return "powerRankingsPage.luck.status.lucky";
+  if (s === "unlucky") return "powerRankingsPage.luck.status.unlucky";
+  return "powerRankingsPage.luck.status.neutral";
+}
+
+function winWindowLabelKey(label: string): string {
+  if (label === "Win Now") return "powerRankingsPage.winWindow.winNow";
+  if (label === "Rebuild") return "powerRankingsPage.winWindow.rebuild";
+  return "powerRankingsPage.winWindow.flexible";
 }
 
 function recordFromUnknown(value: unknown): Record<string, unknown> | null {
@@ -642,23 +660,21 @@ function LoadingCard() {
 }
 
 function LoginRequiredState() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
       <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
         <div className="rounded-3xl border border-white/8 bg-[#0c0c1e] p-8 text-center">
           <div className="text-xs font-bold uppercase tracking-[0.3em] text-amber-300">
-            Power Rankings
+            {t("powerRankingsPage.badge")}
           </div>
-          <h1 className="mt-4 text-3xl font-black">Sign in to open your league rankings</h1>
-          <p className="mt-3 text-sm leading-6 text-white/55">
-            League selection, rankings refresh jobs, manager psychology, and dynasty
-            roadmap tools require an authenticated account.
-          </p>
+          <h1 className="mt-4 text-3xl font-black">{t("powerRankingsPage.loginTitle")}</h1>
+          <p className="mt-3 text-sm leading-6 text-white/55">{t("powerRankingsPage.loginBody")}</p>
           <Link
             href="/login?callbackUrl=%2Fpower-rankings"
             className="mt-6 inline-flex rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm font-bold text-amber-200 hover:bg-amber-500/20"
           >
-            Go to Login
+            {t("powerRankingsPage.goToLogin")}
           </Link>
         </div>
       </div>
@@ -677,20 +693,18 @@ function LeagueGate({
   error: string | null;
   onSelect: (league: UserLeague) => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
       <div className="border-b border-white/6 bg-[#07071a]/90 backdrop-blur-xl">
         <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6">
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-300">
-              Power Rankings
+              {t("powerRankingsPage.badge")}
             </span>
           </div>
-          <h1 className="mt-2 text-3xl font-black">Select a League</h1>
-          <p className="mt-2 text-sm text-white/45">
-            Choose a synced league first. The page will load the rankings board,
-            expanded manager detail, and worker-powered psychology and roadmap tools.
-          </p>
+          <h1 className="mt-2 text-3xl font-black">{t("powerRankingsPage.selectLeagueTitle")}</h1>
+          <p className="mt-2 text-sm text-white/45">{t("powerRankingsPage.selectLeagueBody")}</p>
         </div>
       </div>
 
@@ -712,16 +726,13 @@ function LeagueGate({
         {!loading && !error && leagues.length === 0 ? (
           <div className="rounded-3xl border border-white/8 bg-[#0c0c1e] p-8 text-center">
             <div className="text-5xl">🏆</div>
-            <h2 className="mt-4 text-2xl font-black text-white">No leagues connected yet</h2>
-            <p className="mt-3 text-sm leading-6 text-white/50">
-              Import a league first so the rankings board can read your league and
-              roster context.
-            </p>
+            <h2 className="mt-4 text-2xl font-black text-white">{t("powerRankingsPage.noLeaguesTitle")}</h2>
+            <p className="mt-3 text-sm leading-6 text-white/50">{t("powerRankingsPage.noLeaguesBody")}</p>
             <Link
               href="/af-legacy"
               className="mt-6 inline-flex rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm font-bold text-amber-200 hover:bg-amber-500/20"
             >
-              Import a League
+              {t("powerRankingsPage.importLeagueCta")}
             </Link>
           </div>
         ) : null}
@@ -749,21 +760,29 @@ function LeagueGate({
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50">
-                        {SPORT_LABELS[league.sport]}
+                        {t(`powerRankingsPage.sport.${league.sport}`)}
                       </span>
                       <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/50">
-                        {league.format}
+                        {t(`powerRankingsPage.format.${league.format}`)}
                       </span>
                     </div>
                   </div>
                   <div className="mt-4 text-lg font-bold text-white">{league.name}</div>
                   <div className="mt-2 text-sm text-white/45">
-                    {league.teamCount} teams · {league.scoring} · Season {league.season}
+                    {interpolateTemplate(t("powerRankingsPage.leagueTeamsLine"), {
+                      n: league.teamCount,
+                      scoring: league.scoring,
+                      season: league.season,
+                    })}
                   </div>
                   <div className="mt-4 flex items-center justify-between text-xs text-white/40">
-                    <span>{league.sleeperLeagueId ? "Sleeper-ready" : "Generic sync"}</span>
+                    <span>
+                      {league.sleeperLeagueId
+                        ? t("powerRankingsPage.sleeperReady")
+                        : t("powerRankingsPage.genericSync")}
+                    </span>
                     <span className={league.synced ? "text-emerald-300" : "text-amber-300"}>
-                      {league.synced ? "Ready" : "Needs sync"}
+                      {league.synced ? t("powerRankingsPage.statusReady") : t("powerRankingsPage.statusNeedsSync")}
                     </span>
                   </div>
                 </button>
@@ -889,6 +908,7 @@ function ExpandedTeamDetail({
   onCoach: (team: TeamRanking) => void;
   onRoadmap: (team: TeamRanking) => void;
 }) {
+  const { t } = useLanguage();
   const rankExplanation = team.rankExplanation;
   const psychologyLoading =
     currentJob?.kind === "psychology" && currentJob.rosterId === team.rosterId;
@@ -903,7 +923,7 @@ function ExpandedTeamDetail({
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/8 bg-[#0c0c1e] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">
-              Manager Detail
+              {t("powerRankingsPage.detail.manager")}
             </div>
             <div className="mt-3 flex items-center gap-2">
               <div className="text-xl font-black text-white">{team.managerName}</div>
@@ -916,8 +936,10 @@ function ExpandedTeamDetail({
 
           {rankExplanation ? (
             <CollapsibleCard
-              title="Rank Explanation"
-              badge={`${rankExplanation.confidence} Confidence`}
+              title={t("powerRankingsPage.detail.rankExplanation")}
+              badge={interpolateTemplate(t("powerRankingsPage.confidenceSuffix"), {
+                level: t(`powerRankingsPage.confidence.${rankExplanation.confidence.toLowerCase()}`),
+              })}
             >
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -926,23 +948,23 @@ function ExpandedTeamDetail({
                   </span>
                   {rankExplanation.tooEarly ? (
                     <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-200">
-                      TOO EARLY
+                      {t("powerRankingsPage.tooEarly")}
                     </span>
                   ) : null}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <ScorePill label="WIN" value={rankExplanation.win} colorClass="bg-emerald-500" />
-                  <ScorePill label="PWR" value={rankExplanation.pwr} colorClass="bg-cyan-500" />
-                  <ScorePill label="LCK" value={rankExplanation.lck} colorClass="bg-amber-500" />
-                  <ScorePill label="MKT" value={rankExplanation.mkt} colorClass="bg-purple-500" />
-                  <ScorePill label="MGR" value={rankExplanation.mgr} colorClass="bg-pink-500" />
+                  <ScorePill label={t("powerRankingsPage.scorePill.win")} value={rankExplanation.win} colorClass="bg-emerald-500" />
+                  <ScorePill label={t("powerRankingsPage.scorePill.pwr")} value={rankExplanation.pwr} colorClass="bg-cyan-500" />
+                  <ScorePill label={t("powerRankingsPage.scorePill.lck")} value={rankExplanation.lck} colorClass="bg-amber-500" />
+                  <ScorePill label={t("powerRankingsPage.scorePill.mkt")} value={rankExplanation.mkt} colorClass="bg-purple-500" />
+                  <ScorePill label={t("powerRankingsPage.scorePill.mgr")} value={rankExplanation.mgr} colorClass="bg-pink-500" />
                 </div>
               </div>
             </CollapsibleCard>
           ) : null}
 
           {rankExplanation?.whyChanged.length ? (
-            <CollapsibleCard title="Why Rank Changed">
+            <CollapsibleCard title={t("powerRankingsPage.detail.whyRankChanged")}>
               <div className="space-y-2">
                 {rankExplanation.whyChanged.map((item) => (
                   <div
@@ -963,12 +985,17 @@ function ExpandedTeamDetail({
           ) : null}
 
           {team.forwardOdds ? (
-            <CollapsibleCard title="Forward Odds" badge={`${team.forwardOdds.simCount.toLocaleString()} sims`}>
+            <CollapsibleCard
+              title={t("powerRankingsPage.detail.forwardOdds")}
+              badge={interpolateTemplate(t("powerRankingsPage.forwardOdds.sims"), {
+                n: team.forwardOdds.simCount.toLocaleString(),
+              })}
+            >
               <div className="space-y-3">
                 {[
-                  { label: "Playoffs", value: team.forwardOdds.playoffs, bar: "bg-emerald-500" },
-                  { label: "Top 3", value: team.forwardOdds.top3, bar: "bg-blue-500" },
-                  { label: "Title", value: team.forwardOdds.title, bar: "bg-amber-500" },
+                  { label: t("powerRankingsPage.forwardOdds.playoffs"), value: team.forwardOdds.playoffs, bar: "bg-emerald-500" },
+                  { label: t("powerRankingsPage.forwardOdds.top3"), value: team.forwardOdds.top3, bar: "bg-blue-500" },
+                  { label: t("powerRankingsPage.forwardOdds.title"), value: team.forwardOdds.title, bar: "bg-amber-500" },
                 ].map((item) => (
                   <div key={item.label} className="space-y-1">
                     <div className="flex items-center justify-between text-sm text-white/65">
@@ -985,7 +1012,7 @@ function ExpandedTeamDetail({
           ) : null}
 
           {team.keyDrivers && team.keyDrivers.length > 0 ? (
-            <CollapsibleCard title="Key Drivers">
+            <CollapsibleCard title={t("powerRankingsPage.detail.keyDrivers")}>
               <div className="grid gap-3 sm:grid-cols-2">
                 {team.keyDrivers.map((driver) => (
                   <div
@@ -1011,7 +1038,7 @@ function ExpandedTeamDetail({
           ) : null}
 
           {team.winWindow ? (
-            <CollapsibleCard title="Win Window">
+            <CollapsibleCard title={t("powerRankingsPage.detail.winWindow")}>
               <div className="space-y-2">
                 <div
                   className={cx(
@@ -1023,18 +1050,22 @@ function ExpandedTeamDetail({
                         : "bg-gradient-to-r from-cyan-300 to-teal-400 bg-clip-text text-transparent"
                   )}
                 >
-                  {team.winWindow.label}
+                  {t(winWindowLabelKey(team.winWindow.label))}
                 </div>
                 <p className="text-sm leading-6 text-white/60">{team.winWindow.detail}</p>
-                <div className="text-xs text-white/35">Confidence: {team.winWindow.confidence}</div>
+                <div className="text-xs text-white/35">
+                  {interpolateTemplate(t("powerRankingsPage.winWindow.confidenceLabel"), {
+                    level: t(`powerRankingsPage.level.${team.winWindow.confidence.toLowerCase()}`),
+                  })}
+                </div>
               </div>
             </CollapsibleCard>
           ) : null}
 
           {team.luckMeter ? (
-            <CollapsibleCard title="Luck Meter" badge={team.luckMeter.status}>
+            <CollapsibleCard title={t("powerRankingsPage.detail.luckMeter")} badge={t(luckStatusTranslationKey(team.luckMeter.status))}>
               <div className="space-y-4">
-                <div className="text-xs text-white/35">Unlucky |━━━━━━━━━━━━━━━━━━━━━━━━━━━━━| Lucky</div>
+                <div className="text-xs text-white/35">{t("powerRankingsPage.luck.scale")}</div>
                 <div className="relative h-3 rounded-full bg-[linear-gradient(90deg,#ef4444,#fbbf24,#10b981)]">
                   <div
                     className="absolute -top-2 text-white"
@@ -1046,20 +1077,22 @@ function ExpandedTeamDetail({
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="rounded-xl border border-white/8 bg-[#0c0c1e] p-3 text-center">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">
-                      Actual Record
+                      {t("powerRankingsPage.luck.actualRecord")}
                     </div>
                     <div className="mt-2 text-lg font-black text-white">{team.luckMeter.actualRecord}</div>
                   </div>
                   <div className="rounded-xl border border-white/8 bg-[#0c0c1e] p-3 text-center">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">
-                      Should-Be Record
+                      {t("powerRankingsPage.luck.shouldBeRecord")}
                     </div>
                     <div className="mt-2 text-lg font-black text-white">{team.luckMeter.shouldBeRecord}</div>
                   </div>
                 </div>
                 <div className="text-sm text-white/60">
-                  Luck: {team.luckMeter.luckWins > 0 ? "+" : ""}
-                  {team.luckMeter.luckWins.toFixed(1)} wins
+                  {interpolateTemplate(t("powerRankingsPage.luck.winsLine"), {
+                    sign: team.luckMeter.luckWins > 0 ? "+" : "",
+                    n: team.luckMeter.luckWins.toFixed(1),
+                  })}
                 </div>
                 <p className="text-sm leading-6 text-white/60">{team.luckMeter.insight}</p>
                 {team.insight ? (
@@ -1072,7 +1105,7 @@ function ExpandedTeamDetail({
           ) : null}
 
           {team.positionValues ? (
-            <CollapsibleCard title="Position Values">
+            <CollapsibleCard title={t("powerRankingsPage.detail.positionValues")}>
               <div className="grid gap-3 sm:grid-cols-4">
                 {[
                   { label: "QB", value: team.positionValues.QB },
@@ -1088,17 +1121,19 @@ function ExpandedTeamDetail({
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-white/8 bg-[#0c0c1e] p-3 text-sm text-white/65">
-                  Starter Value: <span className="font-bold text-white">{team.positionValues.starterValue.toLocaleString()}</span>
+                  {t("powerRankingsPage.position.starterValue")}{" "}
+                  <span className="font-bold text-white">{team.positionValues.starterValue.toLocaleString()}</span>
                 </div>
                 <div className="rounded-xl border border-white/8 bg-[#0c0c1e] p-3 text-sm text-white/65">
-                  Bench Depth: <span className="font-bold text-white">{team.positionValues.benchDepth.toLocaleString()}</span>
+                  {t("powerRankingsPage.position.benchDepth")}{" "}
+                  <span className="font-bold text-white">{team.positionValues.benchDepth.toLocaleString()}</span>
                 </div>
               </div>
             </CollapsibleCard>
           ) : null}
 
           {team.nextSteps && team.nextSteps.length > 0 ? (
-            <CollapsibleCard title="Next Steps">
+            <CollapsibleCard title={t("powerRankingsPage.detail.nextSteps")}>
               <div className="space-y-3">
                 {team.nextSteps.map((step) => (
                   <div key={step.label} className="rounded-xl border border-white/8 bg-[#0c0c1e] p-4">
@@ -1113,7 +1148,8 @@ function ExpandedTeamDetail({
                               : "bg-white/[0.06] text-white/55"
                         )}
                       >
-                        {step.impact} IMPACT
+                        {t(`powerRankingsPage.impact.${step.impact.toLowerCase()}`)}
+                        {t("powerRankingsPage.impact.suffix")}
                       </span>
                       <span className="text-sm font-semibold text-white">{step.label}</span>
                     </div>
@@ -1129,10 +1165,11 @@ function ExpandedTeamDetail({
           <div className="sticky top-24 rounded-3xl border border-white/8 bg-[#0c0c1e] p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                Your Coach
+                {t("powerRankingsPage.coach.title")}
               </div>
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/45">
-                {team.rankExplanation?.rankLabel ?? `${team.score} score`}
+                {team.rankExplanation?.rankLabel ??
+                  interpolateTemplate(t("powerRankingsPage.coach.scoreFallback"), { n: team.score })}
               </span>
             </div>
 
@@ -1147,7 +1184,9 @@ function ExpandedTeamDetail({
                   boxShadow: "0 10px 30px rgba(6,182,212,0.18)",
                 }}
               >
-                {psychologyLoading ? "Loading Coaching Insight..." : "Get My Coaching Insight"}
+                {psychologyLoading
+                  ? t("powerRankingsPage.coach.loadingInsight")
+                  : t("powerRankingsPage.coach.getInsight")}
               </button>
               <button
                 type="button"
@@ -1155,14 +1194,23 @@ function ExpandedTeamDetail({
                 disabled={roadmapLoading}
                 className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-white/75 transition-all hover:border-white/20 hover:text-white disabled:opacity-50"
               >
-                {roadmapLoading ? "Generating 3-5 Year Plan..." : "Generate 3-5 Year Plan"}
+                {roadmapLoading
+                  ? t("powerRankingsPage.coach.generatingPlan")
+                  : t("powerRankingsPage.coach.generatePlan")}
               </button>
             </div>
 
             {(psychologyLoading || roadmapLoading) && currentJob ? (
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-white/45">
-                  <span>{currentJob.kind === "psychology" ? "Psychology" : "Roadmap"} job</span>
+                  <span>
+                    {interpolateTemplate(t("powerRankingsPage.job.label"), {
+                      kind:
+                        currentJob.kind === "psychology"
+                          ? t("powerRankingsPage.job.psychology")
+                          : t("powerRankingsPage.job.roadmap"),
+                    })}
+                  </span>
                   <span>{currentJob.progress}%</span>
                 </div>
                 <div className="h-2 rounded-full bg-white/5 overflow-hidden">
@@ -1178,15 +1226,15 @@ function ExpandedTeamDetail({
                 </div>
                 <div className="mt-4 space-y-2 text-sm text-white/70">
                   <div>
-                    <span className="text-white/45">Decision Style:</span>{" "}
+                    <span className="text-white/45">{t("powerRankingsPage.psychology.decisionStyle")}</span>{" "}
                     {humanizeKey(team.psychology.decisionSpeed.toLowerCase())}
                   </div>
                   <div>
-                    <span className="text-white/45">Trade Tendencies:</span>{" "}
+                    <span className="text-white/45">{t("powerRankingsPage.psychology.tradeTendencies")}</span>{" "}
                     {team.psychology.tendencies[0] ?? team.psychology.negotiationStyle}
                   </div>
                   <div>
-                    <span className="text-white/45">Draft Style:</span>{" "}
+                    <span className="text-white/45">{t("powerRankingsPage.psychology.draftStyle")}</span>{" "}
                     {team.psychology.tendencies[1] ?? team.psychology.summary}
                   </div>
                 </div>
@@ -1194,7 +1242,7 @@ function ExpandedTeamDetail({
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">
-                      Strengths
+                      {t("powerRankingsPage.psychology.strengths")}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {psychologyStrengths.map((item) => (
@@ -1206,7 +1254,7 @@ function ExpandedTeamDetail({
                   </div>
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/35">
-                      Weaknesses
+                      {t("powerRankingsPage.psychology.weaknesses")}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {psychologyWeaknesses.map((item) => (
@@ -1228,7 +1276,7 @@ function ExpandedTeamDetail({
               <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                    Dynasty Roadmap
+                    {t("powerRankingsPage.roadmap.title")}
                   </div>
                   <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/45">
                     {team.dynastyRoadmap.confidence}
@@ -1242,7 +1290,7 @@ function ExpandedTeamDetail({
                     {team.dynastyRoadmap.yearPlans.map((year) => (
                       <div key={year.year} className="w-60 rounded-2xl border border-white/10 bg-[#0c0c1e] p-4">
                         <div className="inline-flex rounded-full bg-gradient-to-r from-cyan-500/20 to-teal-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200">
-                          Year {year.year}
+                          {interpolateTemplate(t("powerRankingsPage.roadmap.year"), { n: year.year })}
                         </div>
                         <div className="mt-3 text-sm font-bold text-white">
                           {year.label.replace(`Year ${year.year}: `, "")}
@@ -1298,7 +1346,9 @@ function TeamRow({
   onCoach: (team: TeamRanking) => void;
   onRoadmap: (team: TeamRanking) => void;
 }) {
+  const { t } = useLanguage();
   const avatarUrl = buildAvatarUrl(team.avatar);
+  const phaseLabel = t(phaseTranslationKey(team.phase));
 
   return (
     <div className={cx("overflow-hidden rounded-3xl border border-white/8 bg-[#0c0c1e]", rowBorderClass(displayRank))}>
@@ -1329,7 +1379,7 @@ function TeamRow({
         <div className="text-center text-sm text-white/65">{team.record}</div>
         <div className="text-center">
           <div className="text-xl font-black text-white">{team.score}</div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Score</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{t("powerRankingsPage.col.score")}</div>
         </div>
         <div className="space-y-1">
           <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
@@ -1349,7 +1399,7 @@ function TeamRow({
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm text-white/45">{team.risk}</span>
           <span className={cx("rounded-full border px-2 py-0.5 text-[10px]", phaseBadgeClass(team.phase))}>
-            {team.phase}
+            {phaseLabel}
           </span>
         </div>
         <div className={cx("text-xs text-white/40 transition-transform", expanded && "rotate-180")}>
@@ -1375,7 +1425,7 @@ function TeamRow({
             <div className="flex items-center gap-2">
               <div className="truncate text-sm font-bold text-white">{team.teamName}</div>
               <span className={cx("rounded-full border px-2 py-0.5 text-[10px]", phaseBadgeClass(team.phase))}>
-                {team.phase}
+                {phaseLabel}
               </span>
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-xs text-white/40">
@@ -1384,15 +1434,15 @@ function TeamRow({
             </div>
             <div className="mt-3 grid grid-cols-3 gap-3 text-center">
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Record</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{t("powerRankingsPage.col.record")}</div>
                 <div className="mt-1 text-sm font-bold text-white">{team.record}</div>
               </div>
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Score</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{t("powerRankingsPage.col.score")}</div>
                 <div className="mt-1 text-sm font-bold text-white">{team.score}</div>
               </div>
               <div className="rounded-xl border border-white/8 bg-white/[0.03] p-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Trend</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">{t("powerRankingsPage.col.trend")}</div>
                 <div className={cx("mt-1 text-sm font-bold", trendClass(team.trend))}>
                   {trendGlyph(team.trend)}
                 </div>
@@ -1413,7 +1463,7 @@ function TeamRow({
       >
         {expanded ? (
           detailLoading ? (
-            <div className="px-4 py-6 text-sm text-white/45">Loading detail...</div>
+            <div className="px-4 py-6 text-sm text-white/45">{t("powerRankingsPage.loadingDetail")}</div>
           ) : (
             <ExpandedTeamDetail team={team} currentJob={currentJob} onCoach={onCoach} onRoadmap={onRoadmap} />
           )
@@ -1425,6 +1475,7 @@ function TeamRow({
 
 export default function PowerRankingsPage() {
   const { data: session, status } = useSession();
+  const { t } = useLanguage();
   const [leagues, setLeagues] = useState<UserLeague[]>([]);
   const [leagueLoading, setLeagueLoading] = useState(false);
   const [leagueError, setLeagueError] = useState<string | null>(null);
@@ -1808,28 +1859,29 @@ export default function PowerRankingsPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.24em] text-amber-300">
-                  🏆 Power Rankings
+                  {t("powerRankingsPage.hubBadge")}
                 </span>
               </div>
-              <h1 className="mt-2 text-2xl font-black">League Rankings Hub</h1>
+              <h1 className="mt-2 text-2xl font-black">{t("powerRankingsPage.hubTitle")}</h1>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <div className="text-xs font-bold text-white">{selectedLeague.name}</div>
               <div className="text-[11px] text-white/40">
-                {SPORT_LABELS[selectedLeague.sport]} · {selectedLeague.format} · {selectedLeague.scoring}
+                {t(`powerRankingsPage.sport.${selectedLeague.sport}`)} ·{" "}
+                {t(`powerRankingsPage.format.${selectedLeague.format}`)} · {selectedLeague.scoring}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
               <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/35">
-                View
+                {t("powerRankingsPage.viewLabel")}
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[
-                  { id: "power" as RankingView, label: "Power" },
-                  { id: "dynasty" as RankingView, label: "Dynasty Outlook" },
-                  { id: "composite" as RankingView, label: "Composite" },
+                  { id: "power" as RankingView, label: t("powerRankingsPage.viewPower") },
+                  { id: "dynasty" as RankingView, label: t("powerRankingsPage.viewDynasty") },
+                  { id: "composite" as RankingView, label: t("powerRankingsPage.viewComposite") },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -1859,14 +1911,16 @@ export default function PowerRankingsPage() {
                   boxShadow: "0 10px 32px rgba(245,158,11,0.18)",
                 }}
               >
-                {activeJob?.kind === "refresh" ? "Refreshing Rankings..." : "Refresh Rankings"}
+                {activeJob?.kind === "refresh"
+                  ? t("powerRankingsPage.refreshingRankings")
+                  : t("powerRankingsPage.refreshRankings")}
               </button>
               <button
                 type="button"
                 onClick={resetLeague}
                 className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-white/60 hover:border-white/20 hover:text-white"
               >
-                Change League
+                {t("powerRankingsPage.changeLeague")}
               </button>
             </div>
           </div>
@@ -1874,7 +1928,7 @@ export default function PowerRankingsPage() {
           {activeJob?.kind === "refresh" ? (
             <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between text-xs text-white/45">
-                <span>Background refresh</span>
+                <span>{t("powerRankingsPage.backgroundRefresh")}</span>
                 <span>{activeJob.progress}%</span>
               </div>
               <div className="h-2 rounded-full bg-white/5 overflow-hidden">
@@ -1889,14 +1943,10 @@ export default function PowerRankingsPage() {
         <div className="mb-6 rounded-3xl border border-white/8 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_45%),#0a0d1a] p-6">
           <div className="max-w-3xl">
             <div className="text-xs font-bold uppercase tracking-[0.3em] text-amber-300/80">
-              League-Gated Rankings
+              {t("powerRankingsPage.introKicker")}
             </div>
-            <h2 className="mt-3 text-3xl font-black leading-tight">
-              Read the full rankings table, expand each manager, and run worker-backed psychology and dynasty roadmap jobs.
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-white/55">
-              The board loads from the existing rankings engine, then adds queue-driven refresh, coaching, and roadmap workflows on top.
-            </p>
+            <h2 className="mt-3 text-3xl font-black leading-tight">{t("powerRankingsPage.introTitle")}</h2>
+            <p className="mt-3 text-sm leading-6 text-white/55">{t("powerRankingsPage.introBody")}</p>
           </div>
         </div>
 
@@ -1924,34 +1974,48 @@ export default function PowerRankingsPage() {
           <>
             <div className="mb-6 grid gap-4 lg:grid-cols-4">
               <HeroCard
-                title="Champion Favorite"
+                title={t("powerRankingsPage.hero.champion")}
                 headline={heroData.champion.teamName}
-                detail={`Rank #${heroData.champion.rank} · ${heroData.champion.record} · Score ${heroData.champion.score}`}
+                detail={interpolateTemplate(t("powerRankingsPage.hero.championDetail"), {
+                  rank: heroData.champion.rank,
+                  record: heroData.champion.record,
+                  score: heroData.champion.score,
+                })}
                 accent="border-amber-500/20 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.15),transparent_45%),#0c0c1e]"
               />
               <HeroCard
-                title="Strongest Roster"
+                title={t("powerRankingsPage.hero.strongest")}
                 headline={heroData.strongest.teamName}
-                detail={`Value ${Math.round(heroData.strongest.raw.starterValue + heroData.strongest.raw.benchValue).toLocaleString()} · Best starters and depth`}
+                detail={interpolateTemplate(t("powerRankingsPage.hero.strongestDetail"), {
+                  value: Math.round(
+                    heroData.strongest.raw.starterValue + heroData.strongest.raw.benchValue
+                  ).toLocaleString(),
+                })}
                 accent="border-emerald-500/20 bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.15),transparent_45%),#0c0c1e]"
               />
               <HeroCard
-                title="Market Leader"
+                title={t("powerRankingsPage.hero.marketLeader")}
                 headline={heroData.marketLeader.teamName}
-                detail={`Highest market score · ${heroData.marketLeader.mvScore}`}
+                detail={interpolateTemplate(t("powerRankingsPage.hero.marketLeaderDetail"), {
+                  mv: heroData.marketLeader.mvScore,
+                })}
                 accent="border-cyan-500/20 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.15),transparent_45%),#0c0c1e]"
               />
               <HeroCard
-                title="Trade Market"
+                title={t("powerRankingsPage.hero.tradeMarket")}
                 headline={
                   heroData.marketInsight
-                    ? `${heroData.marketInsight.position} demand`
-                    : "Import trades to unlock market data"
+                    ? interpolateTemplate(t("powerRankingsPage.hero.tradeDemand"), {
+                        position: heroData.marketInsight.position,
+                      })
+                    : t("powerRankingsPage.hero.tradeNoData")
                 }
-                detail={heroData.marketInsight?.label ?? "Open Trade Hub and evaluate next moves."}
+                detail={
+                  heroData.marketInsight?.label ?? t("powerRankingsPage.hero.tradeDetailFallback")
+                }
                 accent="border-violet-500/20 bg-[radial-gradient(circle_at_top,rgba(124,58,237,0.15),transparent_45%),#0c0c1e]"
                 ctaHref="/trade-evaluator"
-                ctaLabel="Open Trade Hub"
+                ctaLabel={t("powerRankingsPage.hero.openTradeHub")}
               />
             </div>
 
@@ -1959,26 +2023,37 @@ export default function PowerRankingsPage() {
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                    Rankings Table
+                    {t("powerRankingsPage.tableTitle")}
                   </div>
                   <div className="mt-1 text-sm text-white/45">
-                    {rankingsMeta?.leagueName} · Week {rankingsMeta?.week} ·{" "}
-                    {rankingsMeta?.computedAt
-                      ? `Updated ${new Date(rankingsMeta.computedAt).toLocaleString()}`
-                      : "Fresh load"}
+                    {rankingsMeta
+                      ? interpolateTemplate(t("powerRankingsPage.tableMeta"), {
+                          name: rankingsMeta.leagueName,
+                          week: String(rankingsMeta.week),
+                          updated: rankingsMeta.computedAt
+                            ? interpolateTemplate(t("powerRankingsPage.updatedPrefix"), {
+                                time: new Date(rankingsMeta.computedAt).toLocaleString(),
+                              })
+                            : t("powerRankingsPage.freshLoad"),
+                        })
+                      : null}
                   </div>
                 </div>
-                <div className="text-xs text-white/35">{displayedTeams.length} managers</div>
+                <div className="text-xs text-white/35">
+                  {interpolateTemplate(t("powerRankingsPage.managerCount"), {
+                    n: displayedTeams.length,
+                  })}
+                </div>
               </div>
 
               <div className="mb-3 hidden md:grid grid-cols-[52px_minmax(0,1.5fr)_90px_180px_80px_120px_120px_42px] gap-3 px-4 text-[10px] font-bold uppercase tracking-[0.24em] text-white/30">
-                <div>Rank</div>
-                <div>Team</div>
-                <div className="text-center">Record</div>
-                <div className="text-center">Score</div>
-                <div className="text-center">WS/PS/MVS</div>
-                <div className="text-center">Trend</div>
-                <div>Strength / Risk</div>
+                <div>{t("powerRankingsPage.col.rank")}</div>
+                <div>{t("powerRankingsPage.col.team")}</div>
+                <div className="text-center">{t("powerRankingsPage.col.record")}</div>
+                <div className="text-center">{t("powerRankingsPage.col.score")}</div>
+                <div className="text-center">{t("powerRankingsPage.col.wsPsMvs")}</div>
+                <div className="text-center">{t("powerRankingsPage.col.trend")}</div>
+                <div>{t("powerRankingsPage.col.strengthRisk")}</div>
                 <div />
               </div>
 

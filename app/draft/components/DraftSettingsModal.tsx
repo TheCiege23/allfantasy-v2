@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { QRCodeSVG } from 'qrcode.react'
 
 type Props = {
@@ -12,6 +13,7 @@ type Props = {
 }
 
 export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart }: Props) {
+  const { t } = useLanguage()
   const [sport, setSport] = useState('NFL')
   const [teams, setTeams] = useState(12)
   const [rounds, setRounds] = useState(15)
@@ -30,10 +32,10 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/[0.1] bg-[#0c0c1e] p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-bold text-white">Mock draft setup</h2>
+        <h2 className="text-lg font-bold text-white">{t('draftRoom.settingsModal.title')}</h2>
         <div className="mt-4 space-y-3 text-[12px] text-white/80">
           <label className="block">
-            <span className="text-white/50">Sport</span>
+            <span className="text-white/50">{t('draftRoom.settingsModal.sport')}</span>
             <select
               value={sport}
               onChange={(e) => setSport(e.target.value)}
@@ -59,7 +61,7 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
             </select>
           </label>
           <label className="block">
-            <span className="text-white/50">Rounds</span>
+            <span className="text-white/50">{t('draftRoom.settingsModal.rounds')}</span>
             <select
               value={rounds}
               onChange={(e) => setRounds(Number(e.target.value))}
@@ -73,7 +75,7 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
             </select>
           </label>
           <label className="block">
-            <span className="text-white/50">Timer</span>
+            <span className="text-white/50">{t('draftRoom.settingsModal.timer')}</span>
             <select
               value={timer}
               onChange={(e) => setTimer(Number(e.target.value))}
@@ -104,7 +106,7 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
             </div>
           </div>
           <label className="block">
-            <span className="text-white/50">Player pool</span>
+            <span className="text-white/50">{t('draftRoom.settingsModal.playerPool')}</span>
             <select
               value={pool}
               onChange={(e) => setPool(e.target.value)}
@@ -117,9 +119,13 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
           </label>
           {inviteUrl ? (
             <div className="rounded-lg border border-white/[0.08] bg-white/[0.03] p-3">
-              <p className="text-[10px] text-white/45">Invite link</p>
+              <p className="text-[10px] text-white/45">{t('draftRoom.settingsModal.inviteLink')}</p>
               <p className="break-all text-[11px] text-cyan-300/90">{inviteUrl}</p>
-              {inviteCode ? <p className="mt-1 text-[10px] text-white/40">Code: {inviteCode}</p> : null}
+              {inviteCode ? (
+                <p className="mt-1 text-[10px] text-white/40">
+                  {t('draftRoom.settingsModal.code')} {inviteCode}
+                </p>
+              ) : null}
               <div className="mt-2 flex justify-center bg-white p-2">
                 <QRCodeSVG value={inviteUrl} size={120} />
               </div>
@@ -139,7 +145,7 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
             onClick={onClose}
             className="flex-1 rounded-lg border border-white/[0.1] py-2 text-[12px] text-white/70"
           >
-            Close
+            {t('draftRoom.settingsModal.close')}
           </button>
           {onStart ? (
             <button
@@ -147,7 +153,7 @@ export function DraftSettingsModal({ open, onClose, roomId, inviteCode, onStart 
               onClick={onStart}
               className="flex-1 rounded-lg bg-cyan-500 py-2 text-[12px] font-bold text-black"
             >
-              Start Mock Draft
+              {t('draftRoom.settingsModal.startMock')}
             </button>
           ) : null}
         </div>

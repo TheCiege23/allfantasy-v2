@@ -51,11 +51,12 @@ export async function handleBbStatCorrectionSignal(
 
     // Log the stat correction event for commissioner review
     for (const cycle of resolvedCycles) {
-      await appendBigBrotherAudit(config.leagueId, config.id, 'stat_correction_noted', {
+      await appendBigBrotherAudit(config.leagueId, config.id, 'phase_transition', {
         cycleId: cycle.id,
         week: cycle.week,
         hohRosterId: cycle.hohRosterId,
         evictedRosterId: cycle.evictedRosterId,
+        event: 'stat_correction_noted',
         note: 'Fantasy scores changed after cycle resolved. HOH/Veto/Eviction outcomes are final and not replayed. Commissioner may review if the correction materially affected the result.',
       })
     }

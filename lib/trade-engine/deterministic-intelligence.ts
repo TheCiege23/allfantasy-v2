@@ -1,10 +1,13 @@
 import type { TradeDecisionContextV1, AssetValuation, PlayerRiskMarker, SourceFreshness } from './trade-decision-context'
+import { computeTeamManagerContext, type TeamManagerContextResult } from './team-manager-context-engine'
 
 export type DeterministicIntelligence = {
   confidence: number
   reasons: string[]
   warnings: string[]
   counterBaselines: string[]
+  /** Team & manager context with multipliers (null if context unavailable) */
+  teamManagerContext: TeamManagerContextResult | null
 }
 
 function computeDeterministicConfidence(ctx: TradeDecisionContextV1): number {
@@ -243,10 +246,52 @@ function buildDeterministicCounters(ctx: TradeDecisionContextV1): string[] {
 }
 
 export function buildDeterministicIntelligence(ctx: TradeDecisionContextV1): DeterministicIntelligence {
+  let teamManagerContext: TeamManagerContextResult | null = null
+  try {
+    teamManagerContext = computeTeamManagerContext(ctx)
+  } catch (err) {
+    console.warn('[deterministic-intel] Team/manager context engine failed:', (err as any)?.message || err)
+  }
+
+  const reasons = buildDeterministicReasons(ctx)
+  const warnings = buildDeterministicWarnings(ctx)
+
+  // Inject context multiplier insights into reasons
+  if (teamManagerContext) {
+    const { sideA, sideB, styleMatch } = teamManagerContext
+
+    // Surface meaningful multiplier adjustments
+    for (const [label, side] of [['Side A', sideA], ['Side B', sideB]] as const) {
+      const cm = side.contextMultiplier
+      if (cm.adjustments.length > 0) {
+        const pct = Math.round((cm.multiplier - 1) * 100)
+        if (Math.abs(pct) >= 3) {
+          const dir = pct > 0 ? 'boosted' : 'reduced'
+          const topAdj = cm.adjustments
+            .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))[0]
+          reasons.push(
+            `${label} context ${dir} by ${Math.abs(pct)}%: ${topAdj.reason}`,
+          )
+        }
+      }
+
+      // Surface need fit
+      if (side.needFit.starterUpgrade) {
+        reasons.push(`${label} gets a starter upgrade at ${side.needFit.positionsFilled.join('/')} — fills starting need`)
+      }
+    }
+
+    // Surface style match warnings
+    if (styleMatch.fairnessGapRisk) {
+      warnings.push('Fairness perception gap between managers — counter-trade may be needed to reach agreement')
+    }
+  }
+
   return {
     confidence: computeDeterministicConfidence(ctx),
-    reasons: buildDeterministicReasons(ctx),
-    warnings: buildDeterministicWarnings(ctx),
+    reasons,
+    warnings,
     counterBaselines: buildDeterministicCounters(ctx),
+    teamManagerContext,
   }
 }

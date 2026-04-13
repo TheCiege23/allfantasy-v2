@@ -6,6 +6,7 @@
 import { getFullAIContext, buildMemoryPromptSection } from '@/lib/ai-memory'
 import { listAiMemoryByUser } from './ai-memory-store'
 import { getRecentChatHistory } from './chat-history-store'
+import { buildUnifiedMemoryPromptSection } from './unified-memory-system'
 
 export interface ChimmyMemoryContextInput {
   userId: string
@@ -53,6 +54,15 @@ ${aiMemories
 
 Use this to personalize responses and avoid repeating yourself.
 `)
+  }
+
+  const unifiedSection = await buildUnifiedMemoryPromptSection({
+    userId,
+    leagueId,
+    includePlatform: true,
+  })
+  if (unifiedSection.trim()) {
+    sections.push(unifiedSection)
   }
 
   if (conversationId) {

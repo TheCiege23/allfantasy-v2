@@ -164,6 +164,16 @@ export type LeagueTradeBlockItem = {
   accent: 'teal' | 'blue' | 'orange' | 'slate'
 }
 
+/** Trade block row for league Trades tab (DB + owner display). */
+export type LeagueTradeBlockPanelItem = {
+  id: string
+  playerId: string
+  name: string
+  position: string
+  team: string | null
+  ownerName: string
+}
+
 export type LeagueTradesData = {
   tradeBlock: LeagueTradeBlockItem[]
   activeTrades: LeagueTradeHistoryItem[]

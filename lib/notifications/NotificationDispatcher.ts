@@ -21,6 +21,12 @@ export type DispatchNotificationParams = {
   actionLabel?: string
   meta?: Record<string, unknown>
   severity?: "low" | "medium" | "high"
+  /**
+   * Opt-out specific transport channels for this dispatch call.
+   * Used by ChimmyAlertEngine to respect per-alert channel filtering
+   * (e.g. when applyChannelPrefs has already stripped email/sms/push).
+   */
+  skipChannels?: { email?: boolean; sms?: boolean; push?: boolean }
 }
 
 /**
@@ -39,6 +45,7 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
     actionLabel,
     meta,
     severity = "medium",
+    skipChannels,
   } = params
 
   for (const userId of userIds) {
@@ -85,7 +92,7 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
         })
       }
 
-      if (catPrefs.email && availability.email && profile.email) {
+      if (catPrefs.email && availability.email && profile.email && !skipChannels?.email) {
         try {
           await retryWithBackoff(
             async () => {
@@ -109,12 +116,12 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
         }
       }
 
-      if (catPrefs.sms && availability.sms && profile.phone) {
+      if (catPrefs.sms && availability.sms && profile.phone && !skipChannels?.sms) {
         const smsBody = body ? `${title}\n${body}` : title
         await sendSms(profile.phone, smsBody.slice(0, 320))
       }
 
-      if (catPrefs.inApp && availability.inApp && isPushCategory(category)) {
+      if (catPrefs.inApp && availability.inApp && isPushCategory(category) && !skipChannels?.push) {
         sendPushToUser(userId, {
           title,
           body: body ?? undefined,

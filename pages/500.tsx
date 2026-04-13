@@ -1,6 +1,8 @@
-import type { NextPage } from 'next'
-
-const Custom500: NextPage = () => {
+/**
+ * Pages Router custom 500 — minimal UI for unexpected server errors.
+ * Must be a plain function default export (Next build validates the component shape).
+ */
+export default function Custom500Page() {
   return (
     <main
       style={{
@@ -20,5 +22,3 @@ const Custom500: NextPage = () => {
     </main>
   )
 }
-
-export default Custom500

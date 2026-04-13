@@ -28,6 +28,7 @@ export function LotteryReveal({ result, onClose }: Props) {
     }
   }, [result.runAt])
 
+  const allRevealed = step >= lotteryPicks.length
   const showFullOrderTable = mode === 'all' || step >= lotteryPicks.length
 
   const goNextPick = () => {

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Clock, User, Hash, Settings, Play, Pause, RotateCcw, Undo2, Sparkles, ArrowLeftRight, RefreshCw } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
 import type { TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
@@ -55,6 +56,28 @@ const TIMER_COLORS = {
   none: 'text-white/60',
 }
 
+function translateDraftStatus(draftStatus: string, t: (key: string) => string): string {
+  const key = `draftRoom.status.${draftStatus}`
+  const out = t(key)
+  if (out !== key) return out
+  return draftStatus.replace(/_/g, ' ')
+}
+
+function translateDraftType(draftType: string, t: (key: string) => string): string {
+  const norm = draftType.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')
+  const key = `draftRoom.draftType.${norm}`
+  const out = t(key)
+  if (out !== key) return out
+  return draftType
+}
+
+function translateTimerMode(mode: TimerMode, t: (key: string) => string): string {
+  const key = `draftRoom.timerMode.${mode}`
+  const out = t(key)
+  if (out !== key) return out
+  return mode.replace(/_/g, ' ')
+}
+
 export function DraftTopBar({
   leagueName,
   sport,
@@ -90,11 +113,12 @@ export function DraftTopBar({
   resyncLoading = false,
   backHref,
 }: DraftTopBarProps) {
+  const { t } = useLanguage()
   const timerDisplay =
     timerStatus === 'none' || (timerRemainingSeconds == null && timerStatus !== 'paused')
       ? '—'
       : timerStatus === 'paused' && timerRemainingSeconds == null
-        ? 'Paused'
+        ? t('draftRoom.topBar.timerPaused')
         : formatTimerRemaining(timerRemainingSeconds ?? 0)
 
   return (
@@ -105,13 +129,14 @@ export function DraftTopBar({
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-white/55">
             <span>{sport}</span>
             <span>·</span>
-            <span>{draftType}</span>
+            <span>{translateDraftType(draftType, t)}</span>
             <span>·</span>
             <span className="rounded border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] text-white/75" data-testid="draft-topbar-timer-mode">
-              timer: {timerMode.replace('_', ' ')}
+              {t('draftRoom.topBar.timerPrefix')} {translateTimerMode(timerMode, t)}
             </span>
             <span className={`rounded border px-1.5 py-0.5 text-[10px] ${autoPickEnabled ? 'border-cyan-400/35 bg-cyan-500/10 text-cyan-200' : 'border-white/20 bg-white/5 text-white/70'}`} data-testid="draft-topbar-auto-pick-status">
-              auto-pick: {autoPickEnabled ? 'on' : 'off'}
+              {t('draftRoom.topBar.autoPickPrefix')}{' '}
+              {autoPickEnabled ? t('draftRoom.topBar.autoPick.on') : t('draftRoom.topBar.autoPick.off')}
             </span>
             <span>·</span>
             <span
@@ -125,7 +150,7 @@ export function DraftTopBar({
                       : 'border-white/20 bg-white/5 text-white/70'
               }`}
             >
-              {draftStatus.replace('_', ' ')}
+              {translateDraftStatus(draftStatus, t)}
             </span>
           </div>
         </div>
@@ -135,7 +160,7 @@ export function DraftTopBar({
             data-testid="draft-back-button"
             className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/80 hover:bg-white/10 touch-manipulation"
           >
-            Back
+            {t('draftRoom.topBar.back')}
           </Link>
         )}
         {pickLabel && (
@@ -154,21 +179,21 @@ export function DraftTopBar({
             {isOrphanOnClock ? (
               <span className="text-[10px] text-cyan-300/80" data-testid="draft-topbar-orphan-mode-label">
                 {orphanDrafterRequestedMode === 'ai' && orphanFallbackActive
-                  ? 'AI Manager (CPU fallback)'
+                  ? t('draftRoom.topBar.aiManagerCpuFallback')
                   : orphanDrafterMode === 'ai'
-                    ? 'AI Manager'
-                    : 'CPU Manager'}
+                    ? t('draftRoom.topBar.aiManager')
+                    : t('draftRoom.topBar.cpuManager')}
               </span>
             ) : (
-              <span className="text-[10px] text-cyan-300/80">on the clock</span>
+              <span className="text-[10px] text-cyan-300/80">{t('draftRoom.topBar.onTheClock')}</span>
             )}
           </div>
         )}
         <div className={`flex items-center gap-1.5 rounded-lg border border-white/12 bg-[#0a1228] px-2.5 py-1.5 ${TIMER_COLORS[timerStatus]}`}>
           <Clock className="h-3.5 w-3.5" />
           <span className="text-sm font-medium tabular-nums" data-testid="draft-topbar-timer-value">{timerDisplay}</span>
-          {timerStatus === 'paused' && <span className="text-[10px]">(paused)</span>}
-          {timerStatus === 'expired' && <span className="text-[10px]">(expired)</span>}
+          {timerStatus === 'paused' && <span className="text-[10px]">{t('draftRoom.topBar.pausedParen')}</span>}
+          {timerStatus === 'expired' && <span className="text-[10px]">{t('draftRoom.topBar.expiredParen')}</span>}
         </div>
         {showUseQueue && onUseQueue && (
           <button
@@ -177,9 +202,9 @@ export function DraftTopBar({
             disabled={useQueueLoading}
             data-testid="draft-use-queue-button"
             className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/12 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
-            aria-label="Submit pick from queue"
+            aria-label={t('draftRoom.topBar.aria.useQueue')}
           >
-            {useQueueLoading ? '…' : 'Use queue'}
+            {useQueueLoading ? '…' : t('draftRoom.topBar.useQueue')}
           </button>
         )}
       </div>
@@ -191,10 +216,10 @@ export function DraftTopBar({
             onClick={onTradesClick}
             data-testid="draft-open-trades-button"
             className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/85 hover:bg-white/10 touch-manipulation"
-            aria-label="Draft pick trades"
+            aria-label={t('draftRoom.topBar.aria.trades')}
           >
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            Trades
+            {t('draftRoom.topBar.trades')}
             {pendingTradesCount > 0 && (
               <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-medium text-cyan-100">
                 {pendingTradesCount}
@@ -203,7 +228,7 @@ export function DraftTopBar({
           </button>
         )}
         {isReconnecting && (
-          <span className="text-[10px] text-amber-400">Reconnecting…</span>
+          <span className="text-[10px] text-amber-400">{t('draftRoom.topBar.reconnecting')}</span>
         )}
         {onResync && (
           <button
@@ -212,10 +237,10 @@ export function DraftTopBar({
             disabled={resyncLoading}
             data-testid="draft-resync-button"
             className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/75 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
-            aria-label="Resync draft room"
+            aria-label={t('draftRoom.topBar.aria.resync')}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${resyncLoading ? 'animate-spin' : ''}`} />
-            Resync
+            {t('draftRoom.topBar.resync')}
           </button>
         )}
         {isCommissioner && (
@@ -226,10 +251,10 @@ export function DraftTopBar({
               data-testid="draft-open-commissioner-controls"
               className="min-h-[44px] inline-flex items-center gap-2 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/85 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
               disabled={commissionerLoading}
-              aria-label="Commissioner controls"
+              aria-label={t('draftRoom.topBar.aria.commissioner')}
             >
               <Settings className="h-3.5 w-3.5" />
-              Commissioner
+              {t('draftRoom.topBar.commissioner')}
             </button>
             {draftStatus === 'in_progress' && (
               <>
@@ -239,10 +264,10 @@ export function DraftTopBar({
                   disabled={commissionerLoading}
                   data-testid="draft-pause-button"
                   className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-amber-400/35 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-50 touch-manipulation"
-                  aria-label="Pause draft"
+                  aria-label={t('draftRoom.topBar.aria.pause')}
                 >
                   <Pause className="h-3.5 w-3.5" />
-                  Pause
+                  {t('draftRoom.topBar.pause')}
                 </button>
                 <button
                   type="button"
@@ -250,10 +275,10 @@ export function DraftTopBar({
                   disabled={commissionerLoading}
                   data-testid="draft-resume-button"
                   className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
-                  aria-label="Resume draft"
+                  aria-label={t('draftRoom.topBar.aria.resume')}
                 >
                   <Play className="h-3.5 w-3.5" />
-                  Resume
+                  {t('draftRoom.topBar.resume')}
                 </button>
               </>
             )}
@@ -264,10 +289,10 @@ export function DraftTopBar({
                 disabled={commissionerLoading}
                 data-testid="draft-resume-button"
                 className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-100 hover:bg-emerald-500/20 disabled:opacity-50 touch-manipulation"
-                aria-label="Resume draft"
+                aria-label={t('draftRoom.topBar.aria.resume')}
               >
                 <Play className="h-3.5 w-3.5" />
-                Resume
+                {t('draftRoom.topBar.resume')}
               </button>
             )}
             {(draftStatus === 'in_progress' || draftStatus === 'paused') && (
@@ -279,10 +304,10 @@ export function DraftTopBar({
                     disabled={commissionerLoading || runAiPickLoading}
                     data-testid="draft-run-ai-pick-button"
                     className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-violet-400/35 bg-violet-500/10 px-3 py-2.5 text-xs text-violet-100 hover:bg-violet-500/20 disabled:opacity-50 touch-manipulation"
-                    aria-label="Run AI pick for orphan"
+                    aria-label={t('draftRoom.topBar.aria.runAiPick')}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
-                    {runAiPickLoading ? 'Running…' : 'Run AI pick'}
+                    {runAiPickLoading ? t('draftRoom.topBar.running') : t('draftRoom.topBar.runAiPick')}
                   </button>
                 )}
                 <button
@@ -291,10 +316,10 @@ export function DraftTopBar({
                   disabled={commissionerLoading}
                   data-testid="draft-reset-timer-button"
                   className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-black/25 px-3 py-2.5 text-xs text-white/75 hover:bg-white/10 disabled:opacity-50 touch-manipulation"
-                  aria-label="Reset timer"
+                  aria-label={t('draftRoom.topBar.aria.resetTimer')}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset timer
+                  {t('draftRoom.topBar.resetTimer')}
                 </button>
                 <button
                   type="button"
@@ -302,10 +327,10 @@ export function DraftTopBar({
                   disabled={commissionerLoading}
                   data-testid="draft-undo-pick-button"
                   className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-red-400/35 bg-red-500/10 px-3 py-2.5 text-xs text-red-100 hover:bg-red-500/20 disabled:opacity-50 touch-manipulation"
-                  aria-label="Undo last pick"
+                  aria-label={t('draftRoom.topBar.aria.undo')}
                 >
                   <Undo2 className="h-3.5 w-3.5" />
-                  Undo
+                  {t('draftRoom.topBar.undo')}
                 </button>
               </>
             )}

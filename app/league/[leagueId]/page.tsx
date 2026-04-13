@@ -6,6 +6,8 @@ import { getLeagueRole } from '@/lib/league/permissions'
 import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
+import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
+import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +36,7 @@ export default async function LeaguePage({
     where: { id: leagueId },
     include: {
       teams: { orderBy: { externalId: 'asc' } },
+      rosters: { select: { platformUserId: true, faabRemaining: true, waiverPriority: true } },
       invites: {
         where: { isActive: true },
         orderBy: { createdAt: 'desc' },
@@ -104,6 +107,21 @@ export default async function LeaguePage({
     }
   }
 
+  const seasonYear = league.season ?? new Date().getFullYear()
+  const leagueSeasonRow = await prisma.leagueSeason.findUnique({
+    where: { leagueId_season: { leagueId, season: seasonYear } },
+    select: { championTeamId: true, teamRecords: true, status: true },
+  })
+  const seasonSnapshot: LeagueSeasonSnapshot | null = leagueSeasonRow
+    ? {
+        championTeamId: leagueSeasonRow.championTeamId,
+        teamRecords: leagueSeasonRow.teamRecords,
+        status: leagueSeasonRow.status,
+      }
+    : null
+
+  const leagueDashboard = await buildLeagueDashboardView(league)
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <LeagueShell
@@ -123,6 +141,8 @@ export default async function LeaguePage({
         discordConnected={Boolean(userProfile?.discordUserId)}
         zombieChimmyPrefill={zombieChimmyPrefill}
         dispersalDraftInProgress={null}
+        seasonSnapshot={seasonSnapshot}
+        leagueDashboard={leagueDashboard}
       />
     </div>
   )

@@ -164,7 +164,7 @@ export async function POST(
   })
 
   // Audit
-  await appendBigBrotherAudit(leagueId, config.configId, 'hoh_challenge_result', {
+  await appendBigBrotherAudit(leagueId, config.configId, 'hoh_assigned', {
     cycleId: current.id,
     week: current.week,
     winnerId,

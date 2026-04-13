@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import {
   Mail,
   Phone,
@@ -32,6 +33,7 @@ export function SecuritySettingsSection({
   profile: SettingsProfile
   onRefetch: () => void
 }) {
+  const { t } = useLanguage()
   const status = getSecurityStatus(profile)
   const contact = getContactSummary(profile)
 
@@ -143,17 +145,17 @@ export function SecuritySettingsSection({
   const resolvePhoneErrorMessage = (error?: string) => {
     switch (error) {
       case "PHONE_VERIFY_NOT_CONFIGURED":
-        return "Phone verification is not configured on the server yet."
+        return t("settings.security.phoneError.notConfigured")
       case "INVALID_PHONE":
-        return "Please enter a valid phone number with country code."
+        return t("settings.security.phoneError.invalidPhone")
       case "UNAUTHENTICATED":
-        return "Please sign in again and retry."
+        return t("settings.security.phoneError.unauthenticated")
       case "SEND_FAILED":
-        return "The verification text could not be sent right now."
+        return t("settings.security.phoneError.sendFailed")
       case "VERIFY_FAILED":
-        return "The verification check failed right now."
+        return t("settings.security.phoneError.verifyFailed")
       default:
-        return error || "Verification failed. Try again."
+        return error || t("settings.security.phoneError.generic")
     }
   }
 
@@ -201,11 +203,11 @@ export function SecuritySettingsSection({
     e.preventDefault()
     setPasswordError(null)
     if (newPassword !== confirmPassword) {
-      setPasswordError("New password and confirmation do not match.")
+      setPasswordError(t("settings.security.passwordMismatch"))
       return
     }
     if (newPassword.length < 8 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
-      setPasswordError("Password must be at least 8 characters with letters and numbers.")
+      setPasswordError(t("settings.security.passwordRules"))
       return
     }
     setPasswordChanging(true)
@@ -221,7 +223,7 @@ export function SecuritySettingsSection({
         setPasswordSuccess(false)
       }, 2000)
     } else {
-      setPasswordError(result.message ?? result.error ?? "Failed to change password.")
+      setPasswordError(result.message ?? result.error ?? t("settings.security.passwordChangeFailed"))
     }
   }
 
@@ -249,7 +251,7 @@ export function SecuritySettingsSection({
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        setIdleError(data?.error ?? "Failed to save session setting")
+        setIdleError(data?.error ?? t("settings.security.idleSaveFailed"))
         return
       }
       if (typeof window !== "undefined") {
@@ -269,41 +271,33 @@ export function SecuritySettingsSection({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Security</h2>
-        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Verification, password, and contact methods.
-        </p>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("settings.security.title")}</h2>
+        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>{t("settings.security.subtitle")}</p>
       </div>
 
       <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Two-factor authentication</p>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Authenticator or SMS 2FA is not enabled yet. When it ships, you will be able to turn it on here.
-        </p>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.security.twoFactorTitle")}</p>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.security.twoFactorBody")}</p>
       </div>
 
       <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Active sessions</p>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          You are signed in on this browser. Use Sign out below or from Account to end this session.
-        </p>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.security.sessionsTitle")}</p>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.security.sessionsBody")}</p>
       </div>
 
       <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
         <div className="flex items-start gap-2">
           <Clock className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--muted)" }} />
           <div>
-            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              Auto sign-out when idle
-            </p>
+            <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.security.idleTitle")}</p>
             <p className="mt-1 text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-              After no keyboard, mouse, or touch activity for the chosen time, you will be signed out and returned to the home page. Turn off to stay signed in until the normal session expiry.
+              {t("settings.security.idleBody")}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label htmlFor="session-idle-select" className="sr-only">
-            Idle session timeout
+            {t("settings.security.idleSelectAria")}
           </label>
           <select
             id="session-idle-select"
@@ -319,12 +313,12 @@ export function SecuritySettingsSection({
             }
             onChange={(e) => void saveSessionIdle(e.target.value)}
           >
-            <option value="off">Off</option>
-            <option value="30">30 minutes</option>
-            <option value="60">1 hour</option>
-            <option value="240">4 hours</option>
-            <option value="720">12 hours</option>
-            <option value="1440">24 hours</option>
+            <option value="off">{t("settings.security.idleOptionOff")}</option>
+            <option value="30">{t("settings.security.idleOption30m")}</option>
+            <option value="60">{t("settings.security.idleOption1h")}</option>
+            <option value="240">{t("settings.security.idleOption4h")}</option>
+            <option value="720">{t("settings.security.idleOption12h")}</option>
+            <option value="1440">{t("settings.security.idleOption24h")}</option>
           </select>
           {idleSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--muted)" }} />
@@ -337,23 +331,23 @@ export function SecuritySettingsSection({
 
       {/* Security status card */}
       <div className="rounded-xl border p-4 space-y-2" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Account security status</p>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.security.statusTitle")}</p>
         <ul className="space-y-1.5 text-sm" style={{ color: "var(--muted)" }}>
           <li className="flex items-center gap-2">
             {status.emailVerified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-amber-500" />}
-            Email: {status.emailVerified ? "Verified" : "Not verified"}
+            {t("settings.security.rowEmail")}: {status.emailVerified ? t("settings.security.verified") : t("settings.security.notVerified")}
           </li>
           <li className="flex items-center gap-2">
             {!status.phoneSet ? <XCircle className="h-4 w-4 text-amber-500" /> : status.phoneVerified ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-amber-500" />}
-            Phone: {!status.phoneSet ? "Not set" : status.phoneVerified ? "Verified" : "Not verified"}
+            {t("settings.security.rowPhone")}: {!status.phoneSet ? t("settings.security.notSet") : status.phoneVerified ? t("settings.security.verified") : t("settings.security.notVerified")}
           </li>
           <li className="flex items-center gap-2">
             {status.hasPassword ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-amber-500" />}
-            Password: {status.hasPassword ? "Set" : "Not set"}
+            {t("settings.security.rowPassword")}: {status.hasPassword ? t("settings.security.passwordSet") : t("settings.security.passwordNotSet")}
           </li>
           {status.recoveryOptions.length > 0 && (
             <li className="flex items-center gap-2">
-              <span style={{ color: "var(--muted)" }}>Recovery: {status.recoveryOptions.join(", ")}</span>
+              <span style={{ color: "var(--muted)" }}>{t("settings.security.rowRecovery")}: {status.recoveryOptions.join(", ")}</span>
             </li>
           )}
         </ul>
@@ -365,7 +359,7 @@ export function SecuritySettingsSection({
           <div>
             <p className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--text)" }}>
               <Mail className="h-4 w-4" />
-              Email
+              {t("settings.security.emailHeading")}
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{contact.email ?? "—"}</p>
           </div>
@@ -377,7 +371,7 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Edit email
+                {t("settings.security.editEmail")}
               </button>
               {!contact.emailVerified && contact.email && (
                 <button
@@ -387,7 +381,7 @@ export function SecuritySettingsSection({
                   className="rounded-lg border px-3 py-2 text-sm font-medium"
                   style={{ borderColor: "var(--border)", color: "var(--text)" }}
                 >
-                  {emailSending ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Sending…</> : "Send verification"}
+                  {emailSending ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> {t("settings.security.sendingEmail")}</> : t("settings.security.sendVerification")}
                 </button>
               )}
               <Link
@@ -395,7 +389,7 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Verify / change
+                {t("settings.security.verifyChangeLink")}
               </Link>
             </div>
           ) : (
@@ -405,26 +399,26 @@ export function SecuritySettingsSection({
               className="rounded-lg border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
-              Cancel
+              {t("settings.actions.cancel")}
             </button>
           )}
         </div>
         {emailEdit && (
           <div className="pt-2 border-t space-y-3" style={{ borderColor: "var(--border)" }}>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>New email</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.newEmail")}</label>
               <input
                 type="email"
                 value={emailInput}
                 onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="you@example.com"
+                placeholder={t("settings.security.emailPlaceholder")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
               />
             </div>
             {status.hasPassword && (
               <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Current password</label>
+                <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.currentPassword")}</label>
                 <div className="relative">
                   <input
                     type={showEmailCurrentPassword ? "text" : "password"}
@@ -438,14 +432,14 @@ export function SecuritySettingsSection({
                     type="button"
                     onClick={() => setShowEmailCurrentPassword((s) => !s)}
                     className="absolute right-2 top-1/2 -translate-y-1/2"
-                    aria-label={showEmailCurrentPassword ? "Hide" : "Show"}
+                    aria-label={showEmailCurrentPassword ? t("settings.security.ariaHide") : t("settings.security.ariaShow")}
                     style={{ color: "var(--muted)" }}
                   >
                     {showEmailCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
                 <p className="mt-1 text-[11px]" style={{ color: "var(--muted)" }}>
-                  Required to protect your account when changing email.
+                  {t("settings.security.emailPasswordHint")}
                 </p>
               </div>
             )}
@@ -457,7 +451,7 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--accent-cyan)", color: "var(--text)" }}
               >
-                {emailSaving ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Saving…</> : "Save email"}
+                {emailSaving ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> {t("settings.actions.saving")}</> : t("settings.security.saveEmail")}
               </button>
               <button
                 type="button"
@@ -465,22 +459,22 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Cancel
+                {t("settings.actions.cancel")}
               </button>
             </div>
           </div>
         )}
-        {emailResult === "sent" && <p className="text-xs text-emerald-600">Check your email for the verification link.</p>}
-        {emailResult === "already" && <p className="text-xs" style={{ color: "var(--muted)" }}>Email is already verified.</p>}
-        {emailResult === "rate_limited" && <p className="text-xs text-amber-600">Too many attempts. Please try again later.</p>}
-        {emailResult === "error" && <p className="text-xs text-red-600">Failed to send. Try again.</p>}
-        {emailSaveResult === "saved" && <p className="text-xs text-emerald-600">Email updated. Check your inbox to verify the new address.</p>}
-        {emailSaveResult === "saved_no_email" && <p className="text-xs text-amber-600">Email updated, but verification email could not be sent right now.</p>}
-        {emailSaveResult === "invalid" && <p className="text-xs text-red-600">Enter a valid email address.</p>}
-        {emailSaveResult === "duplicate" && <p className="text-xs text-red-600">That email is already in use by another account.</p>}
-        {emailSaveResult === "wrong_password" && <p className="text-xs text-red-600">Current password is incorrect.</p>}
-        {emailSaveResult === "password_required" && <p className="text-xs text-red-600">Current password is required to change email.</p>}
-        {emailSaveResult === "error" && <p className="text-xs text-red-600">Could not update email. Please try again.</p>}
+        {emailResult === "sent" && <p className="text-xs text-emerald-600">{t("settings.security.checkEmailInbox")}</p>}
+        {emailResult === "already" && <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.security.emailAlreadyVerified")}</p>}
+        {emailResult === "rate_limited" && <p className="text-xs text-amber-600">{t("settings.security.rateLimitedShort")}</p>}
+        {emailResult === "error" && <p className="text-xs text-red-600">{t("settings.security.emailSendFailed")}</p>}
+        {emailSaveResult === "saved" && <p className="text-xs text-emerald-600">{t("settings.security.emailUpdatedVerify")}</p>}
+        {emailSaveResult === "saved_no_email" && <p className="text-xs text-amber-600">{t("settings.security.emailUpdatedNoVerifyEmail")}</p>}
+        {emailSaveResult === "invalid" && <p className="text-xs text-red-600">{t("settings.security.invalidEmail")}</p>}
+        {emailSaveResult === "duplicate" && <p className="text-xs text-red-600">{t("settings.security.duplicateEmail")}</p>}
+        {emailSaveResult === "wrong_password" && <p className="text-xs text-red-600">{t("settings.security.wrongPassword")}</p>}
+        {emailSaveResult === "password_required" && <p className="text-xs text-red-600">{t("settings.security.passwordRequiredForEmail")}</p>}
+        {emailSaveResult === "error" && <p className="text-xs text-red-600">{t("settings.security.emailUpdateFailed")}</p>}
       </div>
 
       {/* Phone */}
@@ -489,10 +483,10 @@ export function SecuritySettingsSection({
           <div>
             <p className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--text)" }}>
               <Phone className="h-4 w-4" />
-              Phone
+              {t("settings.security.phoneHeading")}
             </p>
             <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-              {profile?.phone ? (profile.phoneVerifiedAt ? "Verified" : "Not verified") : "Not set"}
+              {profile?.phone ? (profile.phoneVerifiedAt ? t("settings.security.verified") : t("settings.security.notVerified")) : t("settings.security.notSet")}
               {profile?.phone && ` · ${profile.phone}`}
             </p>
           </div>
@@ -504,31 +498,31 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Update phone
+                {t("settings.security.updatePhone")}
               </button>
               <Link
                 href="/verify?method=phone&returnTo=%2Fsettings%3Ftab%3Dsecurity"
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Verify / add
+                {t("settings.security.verifyAddLink")}
               </Link>
             </div>
           ) : (
             <button type="button" onClick={cancelPhoneEdit} className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-              Cancel
+              {t("settings.actions.cancel")}
             </button>
           )}
         </div>
         {phoneEdit && (
           <div className="pt-2 border-t space-y-3" style={{ borderColor: "var(--border)" }}>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Phone number</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.phoneNumber")}</label>
               <input
                 type="tel"
                 value={phoneInput}
                 onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="+1 234 567 8900"
+                placeholder={t("settings.security.phonePlaceholder")}
                 className="w-full rounded-lg border px-3 py-2 text-sm"
                 style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
               />
@@ -541,19 +535,19 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                {phoneSending ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Send verification code
+                {phoneSending ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} {t("settings.security.sendVerificationCode")}
               </button>
             ) : (
               <>
                 <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Code</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.code")}</label>
                   <input
                     type="text"
                     inputMode="numeric"
                     maxLength={6}
                     value={phoneCode}
                     onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="000000"
+                    placeholder={t("settings.security.codePlaceholder")}
                     className="w-full rounded-lg border px-3 py-2 text-sm font-mono"
                     style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
                   />
@@ -566,7 +560,7 @@ export function SecuritySettingsSection({
                     className="rounded-lg border px-3 py-2 text-sm font-medium"
                     style={{ borderColor: "var(--accent-cyan)", color: "var(--text)" }}
                   >
-                    {phoneVerifying ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Verifying…</> : "Verify"}
+                    {phoneVerifying ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> {t("settings.security.verifying")}</> : t("settings.security.verify")}
                   </button>
                   <button
                     type="button"
@@ -575,13 +569,13 @@ export function SecuritySettingsSection({
                     className="rounded-lg border px-3 py-2 text-sm font-medium"
                     style={{ borderColor: "var(--border)", color: "var(--text)" }}
                   >
-                    {phoneSending ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} Resend code
+                    {phoneSending ? <Loader2 className="h-4 w-4 animate-spin inline" /> : null} {t("settings.security.resendCode")}
                   </button>
                 </div>
-                {phoneResult === "verified" && <p className="text-xs text-emerald-600">Phone verified. Updating…</p>}
-                {phoneResult === "invalid" && <p className="text-xs text-red-600">Invalid code. Try again.</p>}
-                {phoneResult === "rate_limited" && <p className="text-xs text-amber-600">Too many attempts. Wait a few minutes.</p>}
-                {phoneResult === "error" && <p className="text-xs text-red-600">{phoneErrorMessage ?? "Verification failed. Try again."}</p>}
+                {phoneResult === "verified" && <p className="text-xs text-emerald-600">{t("settings.security.phoneVerifiedUpdating")}</p>}
+                {phoneResult === "invalid" && <p className="text-xs text-red-600">{t("settings.security.invalidCode")}</p>}
+                {phoneResult === "rate_limited" && <p className="text-xs text-amber-600">{t("settings.security.rateLimitedMinutes")}</p>}
+                {phoneResult === "error" && <p className="text-xs text-red-600">{phoneErrorMessage ?? t("settings.security.phoneError.generic")}</p>}
               </>
             )}
           </div>
@@ -593,7 +587,7 @@ export function SecuritySettingsSection({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium flex items-center gap-2" style={{ color: "var(--text)" }}>
             <Lock className="h-4 w-4" />
-            Password
+            {t("settings.security.passwordHeading")}
           </p>
           {!passwordFormOpen ? (
             <div className="flex gap-2">
@@ -603,26 +597,26 @@ export function SecuritySettingsSection({
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Change password
+                {t("settings.security.changePassword")}
               </button>
               <Link
                 href="/forgot-password"
                 className="rounded-lg border px-3 py-2 text-sm font-medium"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Forgot password
+                {t("settings.security.forgotPassword")}
               </Link>
             </div>
           ) : (
             <button type="button" onClick={() => { setPasswordFormOpen(false); setPasswordError(null); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); }} className="rounded-lg border px-3 py-2 text-sm font-medium" style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-              Cancel
+              {t("settings.actions.cancel")}
             </button>
           )}
         </div>
         {passwordFormOpen && (
           <form onSubmit={handleChangePassword} className="pt-2 border-t space-y-3" style={{ borderColor: "var(--border)" }}>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Current password</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.currentPassword")}</label>
               <div className="relative">
                 <input
                   type={showCurrent ? "text" : "password"}
@@ -632,13 +626,13 @@ export function SecuritySettingsSection({
                   style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
                   autoComplete="current-password"
                 />
-                <button type="button" onClick={() => setShowCurrent((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showCurrent ? "Hide" : "Show"}>
+                <button type="button" onClick={() => setShowCurrent((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showCurrent ? t("settings.security.ariaHide") : t("settings.security.ariaShow")}>
                   {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>New password</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.newPassword")}</label>
               <div className="relative">
                 <input
                   type={showNew ? "text" : "password"}
@@ -648,13 +642,13 @@ export function SecuritySettingsSection({
                   style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
                   autoComplete="new-password"
                 />
-                <button type="button" onClick={() => setShowNew((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showNew ? "Hide" : "Show"}>
+                <button type="button" onClick={() => setShowNew((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showNew ? t("settings.security.ariaHide") : t("settings.security.ariaShow")}>
                   {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>Confirm new password</label>
+              <label className="block text-xs font-medium mb-1" style={{ color: "var(--muted2)" }}>{t("settings.security.confirmNewPassword")}</label>
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
@@ -664,20 +658,20 @@ export function SecuritySettingsSection({
                   style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
                   autoComplete="new-password"
                 />
-                <button type="button" onClick={() => setShowConfirm((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showConfirm ? "Hide" : "Show"}>
+                <button type="button" onClick={() => setShowConfirm((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs" style={{ color: "var(--muted)" }} aria-label={showConfirm ? t("settings.security.ariaHide") : t("settings.security.ariaShow")}>
                   {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             {passwordError && <p className="text-xs text-red-600">{passwordError}</p>}
-            {passwordSuccess && <p className="text-xs text-emerald-600">Password updated successfully.</p>}
+            {passwordSuccess && <p className="text-xs text-emerald-600">{t("settings.security.passwordUpdated")}</p>}
             <button
               type="submit"
               disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword}
               className="rounded-lg border px-4 py-2 text-sm font-medium"
               style={{ borderColor: "var(--accent-cyan)", color: "var(--text)" }}
             >
-              {passwordChanging ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> Saving…</> : "Save new password"}
+              {passwordChanging ? <><Loader2 className="h-4 w-4 animate-spin inline mr-1" /> {t("settings.actions.saving")}</> : t("settings.security.saveNewPassword")}
             </button>
           </form>
         )}

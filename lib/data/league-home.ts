@@ -1342,15 +1342,6 @@ async function buildActivityItems(context: LeagueContext): Promise<LeagueActivit
       timestamp: formatDateTime(row.processedAt),
       amountLabel: row.faabSpent != null ? `BID $${row.faabSpent}` : null,
       lines: [
-        ...(dropPlayer
-          ? [{
-              type: 'drop' as const,
-              label: 'DROP',
-              playerName: dropPlayer.name,
-              playerMeta: `${dropPlayer.position}${dropPlayer.team ? ` - ${dropPlayer.team}` : ''}`,
-              headshotUrl: dropPlayer.headshotUrl,
-            }]
-          : []),
         ...(addPlayer
           ? [{
               type: 'add' as const,
@@ -1358,6 +1349,15 @@ async function buildActivityItems(context: LeagueContext): Promise<LeagueActivit
               playerName: addPlayer.name,
               playerMeta: `${addPlayer.position}${addPlayer.team ? ` - ${addPlayer.team}` : ''}`,
               headshotUrl: addPlayer.headshotUrl,
+            }]
+          : []),
+        ...(dropPlayer
+          ? [{
+              type: 'drop' as const,
+              label: 'DROP',
+              playerName: dropPlayer.name,
+              playerMeta: `${dropPlayer.position}${dropPlayer.team ? ` - ${dropPlayer.team}` : ''}`,
+              headshotUrl: dropPlayer.headshotUrl,
             }]
           : []),
       ],
@@ -1370,8 +1370,8 @@ async function buildActivityItems(context: LeagueContext): Promise<LeagueActivit
         id: trade.id,
         type: 'trade' as const,
         managerName: history.sleeperUsername,
-        badge: 'COMPLETE',
-        badgeTone: 'green' as const,
+        badge: 'TRADE',
+        badgeTone: 'teal' as const,
         timestamp: formatDateTime(trade.tradeDate ?? history.updatedAt),
         summary: `Trade between ${history.sleeperUsername}${trade.partnerName ? ` and ${trade.partnerName}` : ''}`,
         lines: [{

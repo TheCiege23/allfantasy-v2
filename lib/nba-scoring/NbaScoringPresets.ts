@@ -20,75 +20,108 @@ export interface NbaScoringPreset {
 
 /** All supported NBA stat keys for scoring configuration. */
 export const NBA_STAT_KEYS = [
-  // Core stats
+  // General
   'points_scored',
-  'rebound',
-  'offensive_rebound',
-  'defensive_rebound',
-  'assist',
-  'steal',
-  'block',
-  'turnover',
+  'seconds_played',
+  'minutes_played',
+  'plus_minus',
   // Shooting
   'field_goals_made',
   'field_goals_attempted',
   'field_goals_missed',
+  'two_point_made',
+  'two_point_attempted',
+  'two_point_missed',
+  // Free Throws
   'free_throws_made',
   'free_throws_attempted',
   'free_throws_missed',
+  // Three-Point
   'three_point_made',
   'three_point_attempted',
   'three_point_missed',
-  // Bonus / milestones
+  // Rebounds
+  'rebound',
+  'offensive_rebound',
+  'defensive_rebound',
+  // Playmaking
+  'assist',
+  'turnover',
+  // Defense
+  'steal',
+  'block',
+  // Discipline
+  'personal_foul',
+  'technical_foul',
+  'flagrant_foul',
+  // Bonuses
   'double_double',
   'triple_double',
   'forty_plus_points_bonus',
   'fifty_plus_points_bonus',
   'fifteen_plus_assists_bonus',
   'twenty_plus_rebounds_bonus',
-  // Fouls / misc
-  'technical_foul',
-  'flagrant_foul',
-  'personal_foul',
-  'plus_minus',
-  // Time
-  'seconds_played',
-  'minutes_played',
+  'ten_plus_fg_bonus',
+  'five_plus_threes_bonus',
+  // Advanced (premium)
+  'usage_rate_bonus',
+  'efficiency_bonus',
+  'true_shooting_bonus',
+  'assist_turnover_bonus',
 ] as const
 
 export type NbaStatKey = (typeof NBA_STAT_KEYS)[number]
 
 /** Human-readable labels for each stat key. */
 export const NBA_STAT_LABELS: Record<string, string> = {
+  // General
   points_scored: 'Points Scored',
-  rebound: 'Rebound',
-  offensive_rebound: 'Offensive Rebound',
-  defensive_rebound: 'Defensive Rebound',
-  assist: 'Assist',
-  steal: 'Steal',
-  block: 'Block',
-  turnover: 'Turnover',
+  seconds_played: 'Seconds Played',
+  minutes_played: 'Minutes Played',
+  plus_minus: 'Plus/Minus',
+  // Shooting
   field_goals_made: 'Field Goals Made',
   field_goals_attempted: 'Field Goals Attempted',
   field_goals_missed: 'Field Goals Missed',
+  two_point_made: '2-Point Field Goals Made',
+  two_point_attempted: '2-Point Field Goals Attempted',
+  two_point_missed: '2-Point Field Goals Missed',
+  // Free Throws
   free_throws_made: 'Free Throws Made',
   free_throws_attempted: 'Free Throws Attempted',
   free_throws_missed: 'Free Throws Missed',
+  // Three-Point
   three_point_made: '3-Point Shots Made',
   three_point_attempted: '3-Point Shots Attempted',
   three_point_missed: '3-Point Shots Missed',
+  // Rebounds
+  rebound: 'Rebound',
+  offensive_rebound: 'Offensive Rebound',
+  defensive_rebound: 'Defensive Rebound',
+  // Playmaking
+  assist: 'Assist',
+  turnover: 'Turnover',
+  // Defense
+  steal: 'Steal',
+  block: 'Block',
+  // Discipline
+  personal_foul: 'Personal Foul',
+  technical_foul: 'Technical Foul',
+  flagrant_foul: 'Flagrant Foul',
+  // Bonuses
   double_double: 'Double-Double',
   triple_double: 'Triple-Double',
   forty_plus_points_bonus: '40+ Points Bonus',
   fifty_plus_points_bonus: '50+ Points Bonus',
   fifteen_plus_assists_bonus: '15+ Assists Bonus',
   twenty_plus_rebounds_bonus: '20+ Rebounds Bonus',
-  technical_foul: 'Technical Foul',
-  flagrant_foul: 'Flagrant Foul',
-  personal_foul: 'Personal Foul',
-  plus_minus: 'Plus/Minus',
-  seconds_played: 'Seconds Played',
-  minutes_played: 'Minutes Played',
+  ten_plus_fg_bonus: '10+ Made Field Goals Bonus',
+  five_plus_threes_bonus: '5+ Made 3PT Bonus',
+  // Advanced (premium)
+  usage_rate_bonus: 'Usage Rate Bonus',
+  efficiency_bonus: 'Efficiency Bonus',
+  true_shooting_bonus: 'True Shooting Bonus',
+  assist_turnover_bonus: 'Assist-to-Turnover Bonus',
 }
 
 // ============================================================

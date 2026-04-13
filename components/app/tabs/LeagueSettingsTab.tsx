@@ -34,6 +34,7 @@ import { IDPSettingsPanel } from '@/components/idp/IDPSettingsPanel'
 import { IDPAIPanel } from '@/components/idp/settings/IDPAIPanel'
 import DynastySettingsPanel from '@/components/app/settings/DynastySettingsPanel'
 import type { LeagueTabProps } from '@/components/app/tabs/types'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const SUBTABS_BASE = [
   'General',
@@ -67,6 +68,47 @@ const SUBTABS_BASE = [
 const SUBTABS = [...SUBTABS_BASE, 'Devy Settings', 'C2C Settings', 'Big Brother Settings', 'IDP Settings'] as const
 type SettingsSubtab = (typeof SUBTABS)[number]
 
+const SUBTAB_I18N: Record<SettingsSubtab, string> = {
+  General: 'league.appSettings.subtab.general',
+  Templates: 'league.appSettings.subtab.templates',
+  'League Import': 'league.appSettings.subtab.leagueImport',
+  'Privacy & invites': 'league.appSettings.subtab.privacyInvites',
+  'Team Settings': 'league.appSettings.subtab.teamSettings',
+  'Roster Settings': 'league.appSettings.subtab.rosterSettings',
+  'Scoring Settings': 'league.appSettings.subtab.scoringSettings',
+  'Trade Settings': 'league.appSettings.subtab.tradeSettings',
+  'Dynasty Settings': 'league.appSettings.subtab.dynastySettings',
+  'Draft Settings': 'league.appSettings.subtab.draftSettings',
+  'AI Settings': 'league.appSettings.subtab.aiSettings',
+  'Automation Settings': 'league.appSettings.subtab.automationSettings',
+  'Waiver Settings': 'league.appSettings.subtab.waiverSettings',
+  'Playoff Settings': 'league.appSettings.subtab.playoffSettings',
+  'Schedule Settings': 'league.appSettings.subtab.scheduleSettings',
+  'Division Settings': 'league.appSettings.subtab.divisionSettings',
+  'Member Settings': 'league.appSettings.subtab.memberSettings',
+  'Commissioner Controls': 'league.appSettings.subtab.commissionerControls',
+  'Behavior Profiles': 'league.appSettings.subtab.behaviorProfiles',
+  'League Drama': 'league.appSettings.subtab.leagueDrama',
+  Reputation: 'league.appSettings.subtab.reputation',
+  'GM Economy': 'league.appSettings.subtab.gmEconomy',
+  'Rules & Info': 'league.appSettings.subtab.rulesInfo',
+  'Previous Leagues': 'league.appSettings.subtab.previousLeagues',
+  'Reset League': 'league.appSettings.subtab.resetLeague',
+  'Delete League': 'league.appSettings.subtab.deleteLeague',
+  'Devy Settings': 'league.appSettings.subtab.devySettings',
+  'C2C Settings': 'league.appSettings.subtab.c2cSettings',
+  'Big Brother Settings': 'league.appSettings.subtab.bigBrotherSettings',
+  'IDP Settings': 'league.appSettings.subtab.idpSettings',
+}
+
+/** Subtabs visible to non-commissioners (read-only / team & info). Commissioner sees full list per league type. */
+const MEMBER_SETTINGS_SUBTABS = new Set<SettingsSubtab>([
+  'General',
+  'Team Settings',
+  'Rules & Info',
+  'Previous Leagues',
+])
+
 export default function LeagueSettingsTab({
   leagueId,
   isDynasty,
@@ -74,8 +116,9 @@ export default function LeagueSettingsTab({
   isMergedDevyC2C,
   isBigBrother,
   isIdp,
-  isCommissioner,
+  isCommissioner = false,
 }: LeagueTabProps & { isDynasty?: boolean; isDevyDynasty?: boolean; isMergedDevyC2C?: boolean; isBigBrother?: boolean; isIdp?: boolean; isCommissioner?: boolean }) {
+  const { t } = useLanguage()
   const router = useRouter()
   const pathname = usePathname() ?? ""
   const searchParams = useSearchParams()
@@ -87,7 +130,8 @@ export default function LeagueSettingsTab({
       (tab !== 'Devy Settings' || isDevyDynasty) &&
       (tab !== 'C2C Settings' || isMergedDevyC2C) &&
       (tab !== 'Big Brother Settings' || isBigBrother) &&
-      (tab !== 'IDP Settings' || isIdp)
+      (tab !== 'IDP Settings' || isIdp) &&
+      (isCommissioner || MEMBER_SETTINGS_SUBTABS.has(tab)),
   )
 
   const syncSettingsTabInUrl = useCallback(
@@ -112,9 +156,16 @@ export default function LeagueSettingsTab({
     }
     const requestedLower = requested.toLowerCase()
     const resolved = visibleSubtabs.find((tab) => tab.toLowerCase() === requestedLower)
-    if (!resolved) return
+    if (!resolved) {
+      const fallback = visibleSubtabs[0]
+      if (fallback) {
+        setActive(fallback)
+        syncSettingsTabInUrl(fallback)
+      }
+      return
+    }
     setActive((prev) => (prev === resolved ? prev : resolved))
-  }, [active, searchParams, visibleSubtabs])
+  }, [active, searchParams, visibleSubtabs, syncSettingsTabInUrl])
 
   return (
     <section className="space-y-4">
@@ -129,7 +180,7 @@ export default function LeagueSettingsTab({
             }}
             className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition ${active === tab ? 'bg-white text-black' : 'border border-white/10 bg-black/20 text-white/75 hover:bg-white/10'}`}
           >
-            {tab}
+            {t(SUBTAB_I18N[tab])}
           </button>
         ))}
       </div>

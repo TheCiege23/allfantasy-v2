@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/components/i18n/LanguageProviderClient';
+import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import TabDataState from '@/components/app/tabs/TabDataState';
 import type { PowerRankingsOutput } from '@/lib/league-power-rankings/types';
 import { RankingTable } from './RankingTable';
@@ -24,6 +26,7 @@ export interface PowerRankingsPageProps {
 }
 
 export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
+  const { t } = useLanguage();
   const [data, setData] = useState<PowerRankingsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
 
   return (
     <TabDataState
-      title="Rankings"
+      title={t('leaguePowerRankings.tabTitle')}
       loading={loading}
       error={error}
       onReload={() => void load()}
@@ -72,17 +75,20 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
           data-testid="power-rankings-content"
         >
           <InContextMonetizationCard
-            title="League rankings AI commentary access"
+            title={t('leaguePowerRankings.monetizationTitle')}
             featureId="league_rankings"
             tokenRuleCodes={['ai_league_rankings_explanation']}
             testIdPrefix="rankings-monetization"
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-white">
-              Week {data.week} Power Rankings
+              {interpolateTemplate(t('leaguePowerRankings.weekPowerTitle'), { week: data.week })}
             </h2>
             <span className="text-xs text-white/50">
-              {data.leagueName} · {data.season}
+              {interpolateTemplate(t('leaguePowerRankings.leagueMeta'), {
+                name: data.leagueName,
+                season: data.season,
+              })}
             </span>
           </div>
 
@@ -98,13 +104,13 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
                 className="w-[120px] border-white/10 bg-black/30 text-white"
                 data-testid="power-rankings-week-filter"
               >
-                <SelectValue placeholder="Week" />
+                <SelectValue placeholder={t('leaguePowerRankings.filter.weekPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="current">Current</SelectItem>
+                <SelectItem value="current">{t('leaguePowerRankings.filter.current')}</SelectItem>
                 {WEEK_OPTIONS.map((w) => (
                   <SelectItem key={w} value={String(w)}>
-                    Week {w}
+                    {interpolateTemplate(t('leaguePowerRankings.filter.weekN'), { n: w })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -118,12 +124,12 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
                 className="w-[130px] border-white/10 bg-black/30 text-white"
                 data-testid="power-rankings-movement-filter"
               >
-                <SelectValue placeholder="Movement" />
+                <SelectValue placeholder={t('leaguePowerRankings.filter.movementPlaceholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All teams</SelectItem>
-                <SelectItem value="risers">Risers</SelectItem>
-                <SelectItem value="fallers">Fallers</SelectItem>
+                <SelectItem value="all">{t('leaguePowerRankings.filter.allTeams')}</SelectItem>
+                <SelectItem value="risers">{t('leaguePowerRankings.filter.risers')}</SelectItem>
+                <SelectItem value="fallers">{t('leaguePowerRankings.filter.fallers')}</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -140,12 +146,17 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Refresh
+              {t('leaguePowerRankings.refresh')}
             </Button>
           </div>
 
           <div className="text-xs text-white/50">
-            PowerScore weights - Record {Math.round(data.formula.recordWeight * 100)}%, Recent {Math.round(data.formula.recentPerformanceWeight * 100)}%, Roster {Math.round(data.formula.rosterStrengthWeight * 100)}%, Projection {Math.round(data.formula.projectionStrengthWeight * 100)}%
+            {interpolateTemplate(t('leaguePowerRankings.formulaWeights'), {
+              record: Math.round(data.formula.recordWeight * 100),
+              recent: Math.round(data.formula.recentPerformanceWeight * 100),
+              roster: Math.round(data.formula.rosterStrengthWeight * 100),
+              projection: Math.round(data.formula.projectionStrengthWeight * 100),
+            })}
           </div>
           <RankingTable leagueId={leagueId} teams={filteredTeams} />
           <AICommentary

@@ -28,6 +28,7 @@ import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import type { UserLeague } from '@/app/dashboard/types'
 import { DiscordLeagueSyncPanel } from './DiscordLeagueSyncPanel'
 import { PlayoffSettingsEditor as PlayoffSettingsEditorLazy } from '@/components/league-settings/PlayoffSettingsEditor'
+import { RosterSettingsEditor as RosterSettingsEditorLazy } from '@/components/league-settings/RosterSettingsEditor'
 import {
   detectScoringFlavor,
   getDivisionCount,
@@ -46,6 +47,16 @@ import { IDPScoringPanel } from '@/app/idp/components/settings/IDPScoringPanel'
 import { IDPDisplayPanel } from '@/app/idp/components/settings/IDPDisplayPanel'
 import { IDPAIPanel } from '@/app/idp/components/settings/IDPAIPanel'
 import { DeleteLeagueFromAfPanel } from './DeleteLeagueFromAfPanel'
+import { NflScoringSettingsPanel } from '@/components/league-settings/NflScoringSettingsPanel'
+import { NbaScoringSettingsPanel } from '@/components/league-settings/NbaScoringSettingsPanel'
+import { NcaabScoringSettingsPanel } from '@/components/league-settings/NcaabScoringSettingsPanel'
+import { MlbScoringSettingsPanel } from '@/components/league-settings/MlbScoringSettingsPanel'
+import { NhlScoringSettingsPanel } from '@/components/league-settings/NhlScoringSettingsPanel'
+import { NcaafScoringSettingsPanel } from '@/components/league-settings/NcaafScoringSettingsPanel'
+import { SoccerScoringSettingsPanel } from '@/components/league-settings/SoccerScoringSettingsPanel'
+import { DraftSettingsCommissionerPanel } from '@/components/league-settings/DraftSettingsCommissionerPanel'
+import { DivisionSettingsCommissionerPanel } from '@/components/league-settings/DivisionSettingsCommissionerPanel'
+import { MemberSettingsCommissionerPanel } from '@/components/league-settings/MemberSettingsCommissionerPanel'
 
 /** Matches `LeagueShellLeague` without importing `LeagueShell` (avoid circular imports). */
 export type LeagueSettingsModalLeague = League & {
@@ -751,13 +762,18 @@ export function SettingsSubPanelBody({
       )
     case 'draft':
       return (
-        <DraftSubPanel
-          bundle={bundle}
-          draftId={draftId}
-          draftDateIso={ctx.displayLeague.draftDate ?? null}
-          mockDraftHref={mockDraftHref}
-          onGoToDraftTab={ctx.onGoToDraftTab}
-        />
+        <div className="space-y-6">
+          <DraftSubPanel
+            bundle={bundle}
+            draftId={draftId}
+            draftDateIso={ctx.displayLeague.draftDate ?? null}
+            mockDraftHref={mockDraftHref}
+            onGoToDraftTab={ctx.onGoToDraftTab}
+          />
+          {ctx.isCommissioner && (
+            <DraftSettingsCommissionerPanel leagueId={ctx.league.id} />
+          )}
+        </div>
       )
     case 'playoffs':
       return (
@@ -771,9 +787,64 @@ export function SettingsSubPanelBody({
         </>
       )
     case 'roster':
-      return <RosterSettingsReadonlyPanel ctx={ctx} />
+      return (
+        <>
+          <RosterSettingsReadonlyPanel ctx={ctx} />
+          {(ctx.league.sport === 'NFL' || ctx.league.sport === 'NBA' || ctx.league.sport === 'NCAAB' || ctx.league.sport === 'MLB' || ctx.league.sport === 'NCAAF' || ctx.league.sport === 'NHL' || ctx.league.sport === 'SOCCER') && (
+            <div className="mt-6">
+              <RosterSettingsEditorLazy leagueId={ctx.league.id} />
+            </div>
+          )}
+        </>
+      )
     case 'scoring':
-      return <ScoringSubPanel scoring={scoring} flavor={flavor} sleeperSettingsHref={sleeperSettingsHref} />
+      return (
+        <div className="space-y-6">
+          <ScoringSubPanel scoring={scoring} flavor={flavor} sleeperSettingsHref={sleeperSettingsHref} />
+          {ctx.league.sport === 'NFL' && (
+            <NflScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'NBA' && (
+            <NbaScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'NCAAB' && (
+            <NcaabScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'MLB' && (
+            <MlbScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'NHL' && (
+            <NhlScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'NCAAF' && (
+            <NcaafScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+          {ctx.league.sport === 'SOCCER' && (
+            <SoccerScoringSettingsPanel
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          )}
+        </div>
+      )
     case 'notifications':
       return <NotificationsPanel />
     case 'invite':
@@ -795,9 +866,16 @@ export function SettingsSubPanelBody({
     case 'commish-general':
       return <CommishGeneralPanel leagueName={ctx.displayLeague.name} sleeperSettingsHref={sleeperSettingsHref} />
     case 'division-settings':
-      return <DivisionSettingsPanel ctx={ctx} />
+      return (
+        <div className="space-y-6">
+          <DivisionSettingsPanel ctx={ctx} />
+          <DivisionSettingsCommissionerPanel leagueId={ctx.league.id} />
+        </div>
+      )
     case 'members-commish':
-      return <MembersCommishPanel ctx={ctx} />
+      return (
+        <MemberSettingsCommissionerPanel leagueId={ctx.league.id} />
+      )
     case 'commish-note':
       return <CommishNotePanel ctx={ctx} />
     case 'commish-controls':

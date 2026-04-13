@@ -39,7 +39,12 @@ const CHALLENGE_TYPE_OPTIONS = [
 
 type ChallengeType = (typeof CHALLENGE_TYPE_OPTIONS)[number]["id"]
 
-export default function NewBracketLeaguePage() {
+type CreateEntryButtonProps = {
+  leagueId?: string
+  tiebreakerEnabled?: boolean
+}
+
+export default function NewBracketLeaguePage(props: CreateEntryButtonProps = {}) {
   const now = new Date()
   const defaultSeason = now.getFullYear()
   const searchParams = useSearchParams()
@@ -51,7 +56,7 @@ export default function NewBracketLeaguePage() {
   const [isPublic, setIsPublic] = useState(false)
   const [scoringMode, setScoringMode] = useState<string>("momentum")
   const [maxEntriesPerUser, setMaxEntriesPerUser] = useState(1)
-  const [tiebreakerEnabled, setTiebreakerEnabled] = useState(true)
+  const [tiebreakerEnabled, setTiebreakerEnabled] = useState(props.tiebreakerEnabled ?? true)
   const [tiebreakerType, setTiebreakerType] = useState("championship_total_points")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

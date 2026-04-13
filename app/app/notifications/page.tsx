@@ -82,6 +82,12 @@ export default function NotificationsPage() {
           <h1 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
             Notifications
           </h1>
+          <Link
+            href="/app/notifications/compact"
+            className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/35 px-2 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-black/5"
+          >
+            Compact
+          </Link>
         </div>
         {unreadCount > 0 && (
           <button

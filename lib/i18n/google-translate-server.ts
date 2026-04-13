@@ -59,22 +59,31 @@ export async function translateMissingEnglishKeysWithGoogle(entries: Record<stri
   const keys = filtered.map(([key]) => key)
   const values = filtered.map(([, value]) => value)
 
+  const chunks: string[][] = []
   for (let i = 0; i < values.length; i += REQUEST_BATCH_SIZE) {
-    const batch = values.slice(i, i + REQUEST_BATCH_SIZE)
-    const translated = await translateBatch(batch, targetLang)
+    chunks.push(values.slice(i, i + REQUEST_BATCH_SIZE))
+  }
 
+  const batchResults = await Promise.all(
+    chunks.map((batch) => translateBatch(batch, targetLang)),
+  )
+
+  let offset = 0
+  for (let c = 0; c < chunks.length; c++) {
+    const batch = chunks[c]!
+    const translated = batchResults[c]
     if (!translated) {
-      // fallback: just return English if Google fails
       for (let j = 0; j < batch.length; j++) {
-        result[keys[i + j]] = batch[j]
+        result[keys[offset + j]!] = batch[j]!
       }
-      continue
+    } else {
+      for (let j = 0; j < batch.length; j++) {
+        const translatedText = translated[j]
+        result[keys[offset + j]!] =
+          translatedText && translatedText.trim() ? translatedText : batch[j]!
+      }
     }
-
-    for (let j = 0; j < batch.length; j++) {
-      const translatedText = translated[j]
-      result[keys[i + j]] = translatedText && translatedText.trim() ? translatedText : batch[j]
-    }
+    offset += batch.length
   }
 
   return result

@@ -15,7 +15,9 @@ import {
   buildFullScoringConfig,
   type NbaScoringPresetKey,
 } from '@/lib/nba-scoring'
-import { evaluateUserFeatureAccess } from '@/lib/subscription/FeatureGateService'
+import { FeatureGateService } from '@/lib/subscription/FeatureGateService'
+
+const featureGate = new FeatureGateService()
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +42,7 @@ export async function GET(
 
   let isPremium = false
   try {
-    const access = await evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')
+    const access = await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')
     isPremium = access.allowed
   } catch { isPremium = false }
 
@@ -71,7 +73,7 @@ export async function PUT(
   if (presetKey === 'custom' || customRules) {
     let isPremium = false
     try {
-      const access = await evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')
+      const access = await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')
       isPremium = access.allowed
     } catch { isPremium = false }
     if (!isPremium) {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Upload, Trash2 } from "lucide-react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ProfileImagePreviewController } from "@/components/identity/ProfileImagePreviewController"
 import { setProfileAvatarUrl, AVATAR_PRESET_EMOJI } from "@/lib/avatar"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
@@ -20,6 +21,7 @@ export function ProfileSettingsSection({
   onRefetch: () => void
   uploadLeagueId: string | null
 }) {
+  const { t } = useLanguage()
   const [displayName, setDisplayName] = useState(profile?.displayName ?? "")
   const [avatarPreset, setAvatarPreset] = useState<string | null>(profile?.avatarPreset ?? null)
   const [avatarSelectionTouched, setAvatarSelectionTouched] = useState(false)
@@ -108,9 +110,11 @@ export function ProfileSettingsSection({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Profile</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+          {t("settings.profile.title")}
+        </h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          How you appear across AllFantasy.
+          {t("settings.profile.subtitle")}
         </p>
       </div>
 
@@ -125,7 +129,7 @@ export function ProfileSettingsSection({
         />
         <div>
           <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{profile?.username ?? "—"}</p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Username (read-only)</p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.profile.usernameReadonly")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <input
               ref={fileInputRef}
@@ -152,7 +156,7 @@ export function ProfileSettingsSection({
                 style={{ borderColor: "var(--accent-red)", color: "var(--accent-red-strong)" }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Remove
+                {t("settings.profile.remove")}
               </button>
             )}
           </div>
@@ -163,7 +167,9 @@ export function ProfileSettingsSection({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Avatar (20 options)</label>
+        <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted2)" }}>
+          {t("settings.profile.avatarPicker")}
+        </label>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -177,9 +183,9 @@ export function ProfileSettingsSection({
               background: avatarPreset == null ? "color-mix(in srgb, var(--accent-cyan) 18%, transparent)" : "var(--panel2)",
               color: "var(--text)",
             }}
-            title="Use initial"
+            title={t("settings.profile.useInitialTitle")}
           >
-            Initial
+            {t("settings.profile.initialAvatar")}
           </button>
           {AVATAR_PRESETS.map((id) => (
             <button
@@ -203,14 +209,16 @@ export function ProfileSettingsSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted2)" }}>Display name</label>
+        <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted2)" }}>
+          {t("settings.profile.displayName")}
+        </label>
         <input
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
           className="w-full max-w-md rounded-xl border px-3 py-2 text-sm outline-none"
           style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-          placeholder="Your display name"
+          placeholder={t("settings.profile.displayNamePlaceholder")}
         />
       </div>
 
@@ -224,7 +232,7 @@ export function ProfileSettingsSection({
             color: "var(--on-accent-bg)",
           }}
         >
-          {saving ? "Saving…" : "Save profile"}
+          {saving ? t("settings.actions.saving") : t("settings.profile.save")}
         </button>
         <button
           type="button"
@@ -232,7 +240,7 @@ export function ProfileSettingsSection({
           className="rounded-xl border px-4 py-2 text-sm font-medium"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          Cancel changes
+          {t("settings.actions.cancelChanges")}
         </button>
       </div>
     </form>

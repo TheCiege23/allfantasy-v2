@@ -2,6 +2,7 @@
 
 import { type ReactNode } from 'react'
 import { LayoutGrid, MessageCircle, ListOrdered, User, Sparkles, Users, Shield } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 export type MobileDraftTab = 'board' | 'players' | 'queue' | 'helper' | 'roster' | 'keepers' | 'chat'
 
@@ -26,14 +27,24 @@ export type DraftRoomShellProps = {
   onMobileTabChange: (tab: MobileDraftTab) => void
 }
 
+const MOBILE_TAB_I18N: Record<MobileDraftTab, string> = {
+  board: 'draftRoom.shell.mobile.board',
+  players: 'draftRoom.shell.mobile.players',
+  queue: 'draftRoom.shell.mobile.queue',
+  helper: 'draftRoom.shell.mobile.ai',
+  roster: 'draftRoom.shell.mobile.roster',
+  keepers: 'draftRoom.shell.mobile.keepers',
+  chat: 'draftRoom.shell.mobile.chat',
+}
+
 const MOBILE_TABS = [
-  { id: 'board' as const, label: 'Board', icon: LayoutGrid },
-  { id: 'players' as const, label: 'Players', icon: User },
-  { id: 'queue' as const, label: 'Queue', icon: ListOrdered },
-  { id: 'helper' as const, label: 'AI', icon: Sparkles },
-  { id: 'roster' as const, label: 'Roster', icon: Users },
-  { id: 'keepers' as const, label: 'Keepers', icon: Shield },
-  { id: 'chat' as const, label: 'Chat', icon: MessageCircle },
+  { id: 'board' as const, icon: LayoutGrid },
+  { id: 'players' as const, icon: User },
+  { id: 'queue' as const, icon: ListOrdered },
+  { id: 'helper' as const, icon: Sparkles },
+  { id: 'roster' as const, icon: Users },
+  { id: 'keepers' as const, icon: Shield },
+  { id: 'chat' as const, icon: MessageCircle },
 ]
 
 export function DraftRoomShell({
@@ -51,6 +62,7 @@ export function DraftRoomShell({
   mobileTab,
   onMobileTabChange,
 }: DraftRoomShellProps) {
+  const { t } = useLanguage()
   const visibleTabs = MOBILE_TABS.filter(
     (t) =>
       (t.id !== 'helper' || helperPanel) &&
@@ -109,8 +121,13 @@ export function DraftRoomShell({
             {keeperPanel && mobileTab === 'keepers' && keeperPanel}
           </div>
         </div>
-        <nav className="flex shrink-0 border-t border-white/10 bg-[#070f21]/95 safe-area-bottom" aria-label="Draft sections">
-          {visibleTabs.map(({ id, label, icon: Icon }) => (
+        <nav
+          className="flex shrink-0 border-t border-white/10 bg-[#070f21]/95 safe-area-bottom"
+          aria-label={t('draftRoom.shell.aria.draftSections')}
+        >
+          {visibleTabs.map(({ id, icon: Icon }) => {
+            const label = t(MOBILE_TAB_I18N[id])
+            return (
             <button
               key={id}
               type="button"
@@ -125,7 +142,8 @@ export function DraftRoomShell({
               <Icon className="h-5 w-5 shrink-0" aria-hidden />
               <span>{label}</span>
             </button>
-          ))}
+            )
+          })}
         </nav>
       </div>
     </div>

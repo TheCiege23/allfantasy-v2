@@ -18,6 +18,7 @@ import type { AIContextEnvelope } from '@/lib/unified-ai/types'
 import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
+import { recordUnifiedMemoryFromChatTurn } from '@/lib/ai-memory/unified-memory-system'
 
 function extractSportsContextMeta(envelope: AIContextEnvelope): {
   source?: string
@@ -224,6 +225,13 @@ export async function POST(req: Request) {
       leagueId,
       answer: responseContract.aiExplanation,
       confidence: responseContract.confidence ?? null,
+    }),
+    recordUnifiedMemoryFromChatTurn({
+      userId: session.user.id,
+      leagueId,
+      sport: contract.sport,
+      userMessage: contract.userMessage,
+      assistantAnswer: responseContract.aiExplanation,
     }),
   ]
   await Promise.allSettled(persistTasks)

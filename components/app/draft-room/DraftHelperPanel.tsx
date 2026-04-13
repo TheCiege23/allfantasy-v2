@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Sparkles, RefreshCw, MessageCircle, AlertTriangle } from 'lucide-react'
 import { getDraftAIChatUrl, buildAskChimmyAboutPickPrompt } from '@/lib/draft-room/DraftToAIContextBridge'
-import { DRAFT_WAR_ROOM_LEGACY_URL, getWarRoomPanelDescription, getWarRoomPanelTitle } from '@/lib/draft-room'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { DRAFT_WAR_ROOM_LEGACY_URL } from '@/lib/draft-room'
 import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
@@ -74,6 +75,7 @@ export function DraftHelperPanel({
   onPlayerClick,
 }: DraftHelperPanelProps) {
   const [warRoomOpen, setWarRoomOpen] = useState(false)
+  const { t } = useLanguage()
   const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
   const chimmyPrompt = buildAskChimmyAboutPickPrompt({
     sport,
@@ -97,7 +99,7 @@ export function DraftHelperPanel({
       <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-white">Draft Helper</span>
+          <span className="text-sm font-semibold text-white">{t('draftRoom.helper.title')}</span>
         </div>
         <button
           type="button"
@@ -120,13 +122,14 @@ export function DraftHelperPanel({
             disabled={!aiAssistantEnabled}
             className="rounded border-white/25 bg-black/40"
           />
-          AI explanation {!aiAssistantEnabled && !aiAvailabilityLoading ? '(disabled)' : ''}
+          {t('draftRoom.helper.aiExplainLabel')}
+          {!aiAssistantEnabled && !aiAvailabilityLoading ? ` ${t('draftRoom.helper.aiExplainDisabled')}` : ''}
         </label>
       </div>
       <div className="border-b border-white/8 px-3 py-1.5 text-[10px] text-white/60" data-testid="draft-helper-execution-mode">
         {executionMode === 'ai_explained'
-          ? 'Execution: instant recommendation + AI explanation'
-          : 'Execution: instant automated recommendation'}
+          ? t('draftRoom.helper.execution.aiExplained')
+          : t('draftRoom.helper.execution.deterministic')}
       </div>
       <div className="border-b border-white/8 px-2 py-2">
         <InContextMonetizationCard
@@ -169,7 +172,9 @@ export function DraftHelperPanel({
                 </span>
               </p>
               <p className="text-[10px] text-white/80">{recommendation.reason}</p>
-              <p className="mt-1 text-[10px] text-white/60">Confidence: {recommendation.confidence}%</p>
+              <p className="mt-1 text-[10px] text-white/60">
+                {t('draftRoom.helper.confidence')} {recommendation.confidence}%
+              </p>
             </div>
             {explanation && (
               <p className="mb-2 text-[10px] text-white/80">{explanation}</p>
@@ -207,7 +212,7 @@ export function DraftHelperPanel({
             )}
             {evidence.length > 0 && (
               <div className="mb-2">
-                <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider">Evidence</p>
+                <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider">{t('draftRoom.helper.evidence')}</p>
                 <ul className="list-inside list-disc text-[10px] text-white/70">
                   {evidence.slice(0, 4).map((item, i) => (
                     <li key={`e-${i}`}>{item}</li>
@@ -232,7 +237,7 @@ export function DraftHelperPanel({
             )}
             {alternatives.length > 0 && (
               <div className="mb-2">
-                <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider mb-1">Alternatives</p>
+                <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider mb-1">{t('draftRoom.helper.alternatives')}</p>
                 <ul className="space-y-1">
                   {alternatives.slice(0, 3).map((alt, i) => (
                     <li
@@ -269,7 +274,7 @@ export function DraftHelperPanel({
                 className="mt-2 inline-flex items-center gap-1.5 rounded border border-amber-300/35 bg-amber-500/10 px-2.5 py-1.5 text-[10px] text-amber-100 hover:bg-amber-500/20"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
-                AI unavailable - refresh deterministic advice
+                {t('draftRoom.helper.aiUnavailableRefresh')}
               </button>
             )}
           </>
@@ -282,7 +287,7 @@ export function DraftHelperPanel({
         <div className="mt-2 border-t border-white/8 pt-2">
           <FeatureGate
             featureId="draft_strategy_build"
-            featureNameOverride="Draft War Room"
+            featureNameOverride={t('draftRoom.helper.warRoom.featureName')}
             className="mb-2"
           >
             <>
@@ -292,12 +297,12 @@ export function DraftHelperPanel({
                 onClick={() => setWarRoomOpen((open) => !open)}
                 className="rounded border border-violet-400/35 bg-violet-500/10 px-2.5 py-1.5 text-[10px] text-violet-100 hover:bg-violet-500/20"
               >
-                {warRoomOpen ? 'Close war room' : 'Open war room'}
+                {warRoomOpen ? t('draftRoom.helper.warRoom.close') : t('draftRoom.helper.warRoom.open')}
               </button>
               {warRoomOpen && (
                 <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/8 px-2.5 py-2 text-[10px]" data-testid="draft-war-room-panel">
-                  <p className="font-medium text-violet-100">{getWarRoomPanelTitle('league_draft')}</p>
-                  <p className="mt-1 text-violet-200/90">{getWarRoomPanelDescription('league_draft')}</p>
+                  <p className="font-medium text-violet-100">{t('draftRoom.warRoom.leagueDraft.title')}</p>
+                  <p className="mt-1 text-violet-200/90">{t('draftRoom.warRoom.leagueDraft.description')}</p>
                   <a
                     href={DRAFT_WAR_ROOM_LEGACY_URL}
                     target="_blank"
@@ -305,7 +310,7 @@ export function DraftHelperPanel({
                     data-testid="draft-war-room-link"
                     className="mt-2 inline-flex rounded border border-violet-300/35 px-2 py-1 text-violet-100 hover:bg-violet-500/20"
                   >
-                    Launch war room
+                    {t('draftRoom.helper.warRoom.launch')}
                   </a>
                 </div>
               )}

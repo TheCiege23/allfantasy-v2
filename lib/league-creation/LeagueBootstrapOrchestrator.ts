@@ -15,6 +15,7 @@ import { bootstrapLeaguePlayoffConfig } from '@/lib/playoff-defaults/LeaguePlayo
 import { bootstrapLeagueScheduleConfig } from '@/lib/schedule-defaults/LeagueScheduleBootstrapService'
 import { getDefaultScheduleConfig, type ScheduleSport } from '@/lib/fantasy-schedule/types'
 import { updateScheduleConfigForLeague } from '@/lib/fantasy-schedule/ScheduleConfigService'
+import { createDefaultLeagueRosterConfig, getRosterEngineRegistry, type SupportedRosterSport } from '@/lib/roster-engine'
 
 export interface BootstrapResult {
   roster: { templateId: string }
@@ -123,6 +124,41 @@ export async function runLeagueBootstrap(
       const { applyDefaultNhlScoringOnCreate } = await import('@/lib/nhl-scoring')
       await applyDefaultNhlScoringOnCreate(leagueId)
     } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NFL') {
+    try {
+      const { applyDefaultNflScoringOnCreate } = await import('@/lib/nfl-scoring')
+      await applyDefaultNflScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NCAAF') {
+    try {
+      const { applyDefaultNcaafScoringOnCreate } = await import('@/lib/ncaaf-scoring')
+      await applyDefaultNcaafScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NCAAB') {
+    try {
+      const { applyDefaultNcaabScoringOnCreate } = await import('@/lib/ncaab-scoring')
+      await applyDefaultNcaabScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'SOCCER') {
+    try {
+      const { applyDefaultSoccerScoringOnCreate } = await import('@/lib/soccer-scoring')
+      await applyDefaultSoccerScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+
+  // Apply unified roster defaults (one-league one-config) through the shared roster engine.
+  const leagueType = (settings.league_type as string) ?? (settings.leagueType as string) ?? 'redraft'
+  const rosterRegistry = getRosterEngineRegistry()
+  if (rosterRegistry.isSupported(String(leagueSport))) {
+    try {
+      await createDefaultLeagueRosterConfig(leagueId, leagueSport as SupportedRosterSport, leagueType)
+    } catch {
+      // non-fatal
+    }
   }
 
   const waiverResult = await bootstrapLeagueWaiverSettings(leagueId).catch(() => ({

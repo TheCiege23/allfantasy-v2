@@ -1,25 +1,37 @@
 'use client'
 
+/**
+ * CommissionerLeagueSettingsShell.tsx
+ * Sleeper-style commissioner settings shell with left sidebar navigation.
+ * Sidebar: plain text links, cyan active state, no icons — exact Sleeper match.
+ * All 14 tabs: League, Team, Roster, Scoring, Draft, Draft Results, Playoff,
+ * Division, Member, Co-owner, Commissioner Control, Dues, Previous Leagues, Delete.
+ */
+
 import { useMemo, useState } from 'react'
-import {
-  BarChart2,
-  ClipboardList,
-  Grid,
-  History,
-  Medal,
-  PiggyBank,
-  Settings,
-  Shield,
-  Trash2,
-  Trophy,
-  User,
-  UserPlus,
-  Users,
-} from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { DeleteLeagueFromAfPanel } from './DeleteLeagueFromAfPanel'
 import { LeagueRulesSummarySection } from './LeagueRulesSummarySection'
 import { ScoringSettingsFullSection } from './ScoringSettingsFullSection'
 import { SettingsSubPanelBody, type SubPanelContext } from './LeagueSettingsSubPanels'
+import { NflScoringSettingsPanel } from '@/components/league-settings/NflScoringSettingsPanel'
+import { NbaScoringSettingsPanel } from '@/components/league-settings/NbaScoringSettingsPanel'
+import { NcaabScoringSettingsPanel } from '@/components/league-settings/NcaabScoringSettingsPanel'
+import { MlbScoringSettingsPanel } from '@/components/league-settings/MlbScoringSettingsPanel'
+import { NhlScoringSettingsPanel } from '@/components/league-settings/NhlScoringSettingsPanel'
+import { NcaafScoringSettingsPanel } from '@/components/league-settings/NcaafScoringSettingsPanel'
+import { SoccerScoringSettingsPanel } from '@/components/league-settings/SoccerScoringSettingsPanel'
+import { DraftSettingsCommissionerPanel } from '@/components/league-settings/DraftSettingsCommissionerPanel'
+import { DivisionSettingsCommissionerPanel } from '@/components/league-settings/DivisionSettingsCommissionerPanel'
+import { MemberSettingsCommissionerPanel } from '@/components/league-settings/MemberSettingsCommissionerPanel'
+import { CoOwnerSettingsPanel } from '@/components/league-settings/CoOwnerSettingsPanel'
+import { CommissionerControlPanel } from '@/components/league-settings/CommissionerControlPanel'
+import { LeagueHistoryPanel } from '@/components/league-settings/LeagueHistoryPanel'
+import { LeagueDuesTrackerPanel } from '@/components/league-settings/LeagueDuesTrackerPanel'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export type CommissionerSectionId =
   | 'league'
@@ -37,36 +49,39 @@ export type CommissionerSectionId =
   | 'history'
   | 'delete'
 
-const NAV: { id: CommissionerSectionId; label: string; icon: typeof Settings }[] = [
-  { id: 'league', label: 'League Settings', icon: Settings },
-  { id: 'team', label: 'Team Settings', icon: User },
-  { id: 'roster', label: 'Roster Settings', icon: Users },
-  { id: 'scoring', label: 'Scoring Settings', icon: BarChart2 },
-  { id: 'draft', label: 'Draft Settings', icon: ClipboardList },
-  { id: 'draftResults', label: 'Draft Results', icon: Grid },
-  { id: 'playoffs', label: 'Playoff Settings', icon: Medal },
-  { id: 'divisions', label: 'Division Settings', icon: Trophy },
-  { id: 'members', label: 'Member Settings', icon: Users },
-  { id: 'coowners', label: 'Co-owner Settings', icon: UserPlus },
-  { id: 'commissioner', label: 'Commissioner Control', icon: Shield },
-  { id: 'dues', label: 'League Dues Tracker', icon: PiggyBank },
-  { id: 'history', label: 'Previous Leagues', icon: History },
-  { id: 'delete', label: 'Delete League', icon: Trash2 },
+// ---------------------------------------------------------------------------
+// NAV — all 14 tabs, text-only sidebar matching Sleeper
+// ---------------------------------------------------------------------------
+
+// Nav items use translation key suffixes — resolved at render via t()
+const NAV_IDS: { id: CommissionerSectionId; labelKey: string; subtitleKey: string }[] = [
+  { id: 'league', labelKey: 'commish.nav.leagueSettings', subtitleKey: 'commish.subtitle.leagueSettings' },
+  { id: 'team', labelKey: 'commish.nav.teamSettings', subtitleKey: 'commish.subtitle.teamSettings' },
+  { id: 'roster', labelKey: 'commish.nav.rosterSettings', subtitleKey: 'commish.subtitle.rosterSettings' },
+  { id: 'scoring', labelKey: 'commish.nav.scoringSettings', subtitleKey: 'commish.subtitle.scoringSettings' },
+  { id: 'draft', labelKey: 'commish.nav.draftSettings', subtitleKey: 'commish.subtitle.draftSettings' },
+  { id: 'draftResults', labelKey: 'commish.nav.draftResults', subtitleKey: 'commish.subtitle.draftResults' },
+  { id: 'playoffs', labelKey: 'commish.nav.playoffSettings', subtitleKey: 'commish.subtitle.playoffSettings' },
+  { id: 'divisions', labelKey: 'commish.nav.divisionSettings', subtitleKey: 'commish.subtitle.divisionSettings' },
+  { id: 'members', labelKey: 'commish.nav.memberSettings', subtitleKey: 'commish.subtitle.memberSettings' },
+  { id: 'coowners', labelKey: 'commish.nav.coownerSettings', subtitleKey: 'commish.subtitle.coownerSettings' },
+  { id: 'commissioner', labelKey: 'commish.nav.commissionerControl', subtitleKey: 'commish.subtitle.commissionerControl' },
+  { id: 'dues', labelKey: 'commish.nav.duesTracker', subtitleKey: 'commish.subtitle.duesTracker' },
+  { id: 'history', labelKey: 'commish.nav.leagueHistory', subtitleKey: 'commish.subtitle.leagueHistory' },
+  { id: 'delete', labelKey: 'commish.nav.deleteLeague', subtitleKey: 'commish.subtitle.deleteLeague' },
 ]
 
-const PANEL_BY_SECTION: Record<Exclude<CommissionerSectionId, 'league' | 'delete' | 'scoring'>, string> = {
+// Sections that go through the generic SettingsSubPanelBody
+const PANEL_BY_SECTION: Record<string, string> = {
   team: 'my-team',
   roster: 'roster',
-  draft: 'draft',
   draftResults: 'draft-results-commish',
   playoffs: 'playoffs',
-  divisions: 'division-settings',
-  members: 'members-commish',
-  coowners: 'co-owners',
-  commissioner: 'commish-controls',
-  dues: 'league-dues',
-  history: 'league-history-commish',
 }
+
+// ---------------------------------------------------------------------------
+// Initial panel resolver
+// ---------------------------------------------------------------------------
 
 function panelFromInitial(initial: string | null | undefined): CommissionerSectionId | null {
   if (!initial) return null
@@ -85,12 +100,34 @@ function panelFromInitial(initial: string | null | undefined): CommissionerSecti
     'division-settings': 'divisions',
     'members-commish': 'members',
     'commish-controls': 'commissioner',
-    'league-dues': 'dues',
     'commish-general': 'commissioner',
     'commish-note': 'commissioner',
+    'league-dues': 'dues',
   }
   return map[initial] ?? null
 }
+
+// ---------------------------------------------------------------------------
+// Sport scoring panel helper
+// ---------------------------------------------------------------------------
+
+function SportScoringPanel({ sport, leagueId, isCommissioner }: { sport: string; leagueId: string; isCommissioner: boolean }) {
+  const props = { leagueId, isCommissioner }
+  switch (sport) {
+    case 'NFL': return <NflScoringSettingsPanel {...props} />
+    case 'NBA': return <NbaScoringSettingsPanel {...props} />
+    case 'NCAAB': return <NcaabScoringSettingsPanel {...props} />
+    case 'MLB': return <MlbScoringSettingsPanel {...props} />
+    case 'NHL': return <NhlScoringSettingsPanel {...props} />
+    case 'NCAAF': return <NcaafScoringSettingsPanel {...props} />
+    case 'SOCCER': return <SoccerScoringSettingsPanel {...props} />
+    default: return null
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function CommissionerLeagueSettingsShell({
   ctx,
@@ -99,54 +136,93 @@ export function CommissionerLeagueSettingsShell({
   ctx: SubPanelContext
   initialPanelId?: string | null
 }) {
-  const [section, setSection] = useState<CommissionerSectionId>(() => panelFromInitial(initialPanelId) ?? 'league')
+  const { t } = useLanguage()
+  const [section, setSection] = useState<CommissionerSectionId>(
+    () => panelFromInitial(initialPanelId) ?? 'league',
+  )
 
-  const title = useMemo(() => NAV.find((n) => n.id === section)?.label ?? 'Settings', [section])
+  const navItem = useMemo(() => NAV_IDS.find((n) => n.id === section), [section])
+  const title = navItem ? t(navItem.labelKey) : 'Settings'
+  const subtitle = navItem ? t(navItem.subtitleKey) : ''
 
   const sleeperSettingsHref = useMemo(
     () => (ctx.sleeperLeagueId ? `https://sleeper.com/leagues/${ctx.sleeperLeagueId}/settings` : null),
     [ctx.sleeperLeagueId],
   )
 
+  // ----- Body content -----
   const body = useMemo(() => {
-    if (section === 'league') {
-      return (
-        <LeagueRulesSummarySection
-          league={ctx.league}
-          displayLeague={ctx.displayLeague}
-          sleeperSettingsHref={sleeperSettingsHref}
-          showEditLink={Boolean(sleeperSettingsHref)}
-        />
-      )
+    switch (section) {
+      case 'league':
+        return (
+          <LeagueRulesSummarySection
+            league={ctx.league}
+            displayLeague={ctx.displayLeague}
+            sleeperSettingsHref={sleeperSettingsHref}
+            showEditLink={Boolean(sleeperSettingsHref)}
+          />
+        )
+
+      case 'scoring':
+        return (
+          <div className="space-y-6">
+            <ScoringSettingsFullSection
+              league={ctx.league}
+              sleeperSettingsHref={sleeperSettingsHref}
+              showEditLink={Boolean(sleeperSettingsHref)}
+            />
+            <SportScoringPanel
+              sport={ctx.league.sport}
+              leagueId={ctx.league.id}
+              isCommissioner={ctx.isCommissioner}
+            />
+          </div>
+        )
+
+      case 'draft':
+        return <DraftSettingsCommissionerPanel leagueId={ctx.league.id} />
+
+      case 'divisions':
+        return <DivisionSettingsCommissionerPanel leagueId={ctx.league.id} />
+
+      case 'members':
+        return <MemberSettingsCommissionerPanel leagueId={ctx.league.id} />
+
+      case 'coowners':
+        return <CoOwnerSettingsPanel leagueId={ctx.league.id} />
+
+      case 'commissioner':
+        return <CommissionerControlPanel leagueId={ctx.league.id} />
+
+      case 'dues':
+        return <LeagueDuesTrackerPanel leagueId={ctx.league.id} />
+
+      case 'history':
+        return <LeagueHistoryPanel leagueId={ctx.league.id} />
+
+      case 'delete':
+        return (
+          <DeleteLeagueFromAfPanel
+            leagueId={ctx.league.id}
+            currentUserId={ctx.userId}
+            leagueOwnerUserId={ctx.league.userId}
+          />
+        )
+
+      default: {
+        // draftResults, playoffs, roster, team, dues
+        const panelId = PANEL_BY_SECTION[section]
+        if (panelId) return <SettingsSubPanelBody panelId={panelId} ctx={ctx} />
+        return <p className="text-[13px] text-white/45">Select a settings section.</p>
+      }
     }
-    if (section === 'scoring') {
-      return (
-        <ScoringSettingsFullSection
-          league={ctx.league}
-          sleeperSettingsHref={sleeperSettingsHref}
-          showEditLink={Boolean(sleeperSettingsHref)}
-        />
-      )
-    }
-    if (section === 'delete') {
-      return (
-        <DeleteLeagueFromAfPanel
-          leagueId={ctx.league.id}
-          currentUserId={ctx.userId}
-          leagueOwnerUserId={ctx.league.userId}
-        />
-      )
-    }
-    const panelId = PANEL_BY_SECTION[section]
-    return <SettingsSubPanelBody panelId={panelId} ctx={ctx} />
   }, [section, ctx, sleeperSettingsHref])
 
   return (
-    <div className="flex min-h-[320px] flex-1 flex-col gap-0 md:min-h-[420px] md:flex-row md:gap-3">
-      {/* Mobile: horizontal chips */}
-      <div className="scrollbar-none flex gap-1 overflow-x-auto border-b border-white/[0.06] pb-2 md:hidden">
-        {NAV.map((item) => {
-          const Icon = item.icon
+    <div className="flex min-h-[380px] flex-1 flex-col gap-0 md:min-h-[460px] md:flex-row">
+      {/* ===== Mobile: horizontal scroll tabs ===== */}
+      <div className="scrollbar-none flex gap-0.5 overflow-x-auto border-b border-white/[0.06] pb-2 md:hidden">
+        {NAV_IDS.map((item) => {
           const active = section === item.id
           return (
             <button
@@ -154,58 +230,51 @@ export function CommissionerLeagueSettingsShell({
               type="button"
               onClick={() => setSection(item.id)}
               data-testid={`commissioner-settings-nav-${item.id}`}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide ${
+              className={`shrink-0 rounded-md px-3 py-1.5 text-[11px] font-semibold transition ${
                 active
-                  ? 'border-cyan-500/40 bg-cyan-500/15 text-cyan-100'
-                  : 'border-transparent bg-white/[0.04] text-white/45'
+                  ? 'bg-cyan-500/15 text-cyan-300'
+                  : 'text-white/50 hover:text-white/80'
               }`}
             >
-              <Icon className="h-3.5 w-3.5 opacity-80" aria-hidden />
-              {item.label.replace(' Settings', '').replace(' Control', '')}
+              {t(item.labelKey)}
             </button>
           )
         })}
       </div>
 
-      {/* Desktop sidebar */}
+      {/* ===== Desktop sidebar — Sleeper style: text only, no icons ===== */}
       <nav
-        className="hidden w-[200px] shrink-0 flex-col gap-0.5 border-r border-white/[0.06] pr-2 md:flex"
+        className="hidden w-[180px] shrink-0 flex-col gap-0 border-r border-white/[0.06] pr-3 pt-1 md:flex"
         aria-label="Commissioner settings sections"
       >
-        {NAV.map((item) => {
-          const Icon = item.icon
+        {NAV_IDS.map((item) => {
           const active = section === item.id
-          const danger = item.id === 'delete'
           return (
             <button
               key={item.id}
               type="button"
               onClick={() => setSection(item.id)}
               data-testid={`commissioner-settings-nav-${item.id}`}
-              className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-semibold transition ${
-                danger
-                  ? active
-                    ? 'bg-rose-500/15 text-rose-100'
-                    : 'text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200'
-                  : active
-                    ? 'bg-cyan-500/12 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.2)]'
-                    : 'text-white/55 hover:bg-white/[0.05] hover:text-white/85'
+              className={`w-full py-2.5 text-left text-[13px] font-medium transition ${
+                active
+                  ? 'text-cyan-400'
+                  : 'text-white/70 hover:text-white'
               }`}
             >
-              <Icon className="h-4 w-4 shrink-0 opacity-85" aria-hidden />
-              <span className="leading-tight">{item.label}</span>
+              {t(item.labelKey)}
             </button>
           )
         })}
       </nav>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1 md:py-0">
-        <div className="mb-3 flex items-start justify-between gap-2 border-b border-white/[0.06] pb-2">
-          <div>
-            <h2 className="text-[15px] font-bold text-white">{title}</h2>
-            <p className="text-[11px] text-white/40">League homepage · commissioner view</p>
-          </div>
+      {/* ===== Content area ===== */}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1 md:px-5 md:py-0">
+        {/* Header — matches Sleeper: bold title + gray subtitle */}
+        <div className="mb-5">
+          <h2 className="text-[16px] font-bold text-white">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-[12px] text-white/40">{subtitle}</p>}
         </div>
+
         {body}
       </div>
     </div>

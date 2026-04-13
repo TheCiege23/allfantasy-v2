@@ -10,7 +10,7 @@ export const THEME_STORAGE_KEY = 'af_mode'
 export const THEME_COOKIE_KEY = 'af_mode'
 
 /** Default theme when none is stored (must match layout script default). */
-export const DEFAULT_THEME: ThemeId = 'dark'
+export const DEFAULT_THEME: ThemeId = 'light'
 
 export const THEME_IDS: ThemeId[] = ['light', 'dark', 'legacy', 'system']
 
@@ -50,7 +50,7 @@ export function normalizeStoredTheme(value: string | null | undefined): ThemeId 
 
 /**
  * Value for `data-mode` on <html>: `system` resolves to light or dark (legacy unchanged).
- * SSR / no window: `system` defaults to `dark` to avoid hydration mismatch.
+ * Fallback effective paint matches `DEFAULT_THEME` (currently light when unset/invalid input).
  */
 export function resolveEffectiveDataMode(value: string | null | undefined): 'light' | 'dark' | 'legacy' {
   const stored = normalizeStoredTheme(value)
@@ -59,7 +59,10 @@ export function resolveEffectiveDataMode(value: string | null | undefined): 'lig
     return systemPrefersLight() ? 'light' : 'dark'
   }
   if (stored === 'light' || stored === 'dark') return stored
-  return 'dark'
+  const d = DEFAULT_THEME
+  if (d === 'legacy') return 'legacy'
+  if (d === 'system') return systemPrefersLight() ? 'light' : 'dark'
+  return d
 }
 
 /**

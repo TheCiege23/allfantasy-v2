@@ -114,6 +114,14 @@ export interface LeagueTeamSlot {
   losses: number
   ties: number
   pointsFor: number
+  pointsAgainst: number
+  /** Platform standing / finish rank when synced (lower is better). */
+  currentRank: number | null
+  /** Remaining FAAB — from linked `Roster` when available. */
+  faabRemaining: number | null
+  waiverPriority: number | null
+  /** AF `LeagueDivision.id` when assigned */
+  divisionId: string | null
 }
 
 /** League team row for tab UIs (draft, league, trades) */

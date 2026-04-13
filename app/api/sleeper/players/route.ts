@@ -11,6 +11,8 @@ export type SlimPlayer = {
   espn_id?: string
   /** NBA.com / Sleeper NBA `stats_id` when present */
   nba_id?: string
+  /** From Sleeper NFL payload when present — used for rookie filters */
+  years_exp?: number
 }
 
 function parseSlimMap(data: Record<string, unknown>, opts: { nba: boolean }): Record<string, SlimPlayer> {
@@ -42,6 +44,10 @@ function parseSlimMap(data: Record<string, unknown>, opts: { nba: boolean }): Re
       }
     }
 
+    const yearsRaw = p.years_exp
+    const years_exp =
+      typeof yearsRaw === 'number' && Number.isFinite(yearsRaw) ? yearsRaw : undefined
+
     const row: SlimPlayer = {
       id: playerId,
       name,
@@ -49,6 +55,7 @@ function parseSlimMap(data: Record<string, unknown>, opts: { nba: boolean }): Re
       team,
       ...(espn_id ? { espn_id } : {}),
       ...(nba_id ? { nba_id } : {}),
+      ...(years_exp !== undefined ? { years_exp } : {}),
     }
     out[playerId] = row
   }

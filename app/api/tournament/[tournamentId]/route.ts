@@ -38,7 +38,7 @@ export async function GET(
       id: shell.id,
       name: shell.name,
       sport: shell.sport,
-      season: shell.season,
+      season: null,
       status: shell.status,
       isCommissioner: userId === shell.commissionerId,
       conferences,

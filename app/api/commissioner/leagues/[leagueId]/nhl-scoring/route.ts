@@ -6,7 +6,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueNhlScoringConfig, saveLeagueNhlScoringConfig, getNhlScoringPresets, buildFullNhlScoringConfig, type NhlScoringPresetKey } from '@/lib/nhl-scoring'
-import { evaluateUserFeatureAccess } from '@/lib/subscription/FeatureGateService'
+import { FeatureGateService } from '@/lib/subscription/FeatureGateService'
+
+const featureGate = new FeatureGateService()
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ lea
   if (league.sport !== 'NHL') return NextResponse.json({ error: 'NHL leagues only' }, { status: 400 })
   const config = await getLeagueNhlScoringConfig(leagueId)
   let isPremium = false
-  try { isPremium = (await evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')).allowed } catch {}
+  try { isPremium = (await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_scoring')).allowed } catch {}
   return NextResponse.json({ config, presets: getNhlScoringPresets(), isCommissioner: league.userId === session.user.id, isPremium })
 }
 
@@ -33,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ leag
   if (league.sport !== 'NHL') return NextResponse.json({ error: 'NHL leagues only' }, { status: 400 })
   const body = await req.json().catch(() => ({}))
   const presetKey = (body.presetKey ?? 'af_default') as NhlScoringPresetKey
-  if ((presetKey === 'custom' || body.rules) && !(await evaluateUserFeatureAccess(session.user.id, 'advanced_scoring').then(a => a.allowed).catch(() => false)))
+  if ((presetKey === 'custom' || body.rules) && !(await featureGate.evaluateUserFeatureAccess(session.user.id, 'advanced_scoring').then(a => a.allowed).catch(() => false)))
     return NextResponse.json({ error: 'premiumRequired' }, { status: 403 })
   await saveLeagueNhlScoringConfig(leagueId, { presetKey, rules: body.rules ?? buildFullNhlScoringConfig(presetKey), userId: session.user.id, premiumFeaturesUsed: presetKey === 'custom' })
   return NextResponse.json({ ok: true, config: await getLeagueNhlScoringConfig(leagueId) })

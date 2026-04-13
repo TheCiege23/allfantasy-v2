@@ -5,15 +5,48 @@ import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Home } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  BarChart3,
+  CalendarDays,
+  CalendarRange,
+  ClipboardList,
+  Crosshair,
+  Eye,
+  History,
+  Home,
+  LayoutGrid,
+  LineChart,
+  ListOrdered,
+  Lock,
+  Repeat2,
+  RotateCcw,
+  Scissors,
+  Settings,
+  Shield,
+  ShieldPlus,
+  Shirt,
+  Skull,
+  Sparkles,
+  Table,
+  Telescope,
+  TreePalm,
+  Trophy,
+  User,
+  Users,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { mapLeagueTeamsToSlots } from '@/lib/league/map-league-teams-to-slots'
+import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
+import type { LeagueDashboardView } from '@/app/league/[leagueId]/league-dashboard-types'
 import AppShell from '@/app/components/AppShell'
 import { LeftChatPanel } from '@/app/dashboard/components/LeftChatPanel'
 import { RightControlPanel } from '@/app/dashboard/components/RightControlPanel'
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
-import { getLeagueTabs, leagueTabSportEmoji, type TabDef } from './LeagueTabs'
+import { getLeagueTabs, leagueTabSportEmoji, localizeLeagueTabs, type TabDef } from './LeagueTabs'
 import { DraftTab } from './tabs/DraftTab'
 import { TeamTab } from './tabs/TeamTab'
 import { LeagueTab } from './tabs/LeagueTab'
@@ -21,6 +54,7 @@ import { PlayersTab } from './tabs/PlayersTab'
 import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { ScoresTab } from './tabs/ScoresTab'
+import { WarRoomTab } from './tabs/WarRoomTab'
 import { HistoryTab } from './tabs/HistoryTab'
 import { StandingsTab } from './tabs/StandingsTab'
 import { FixturesTab } from './tabs/FixturesTab'
@@ -48,15 +82,18 @@ import IDPHome from '@/components/idp/IDPHome'
 import { DevyFirstEntryModal } from '@/components/devy/DevyFirstEntryModal'
 import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
 import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { ZombieHome } from '@/components/zombie/ZombieHome'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
+import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
 export type LeagueShellLeague = League & {
   teams: LeagueTeam[]
   invites: LeagueInvite[]
+  rosters?: { platformUserId: string; faabRemaining: number | null; waiverPriority: number | null }[]
 }
 
 function weekFromLeagueSettings(settings: unknown): number | null {
@@ -118,6 +155,10 @@ export type LeagueShellProps = {
   zombieChimmyPrefill?: string | null
   /** Active dispersal draft — show join/setup banner on league home. */
   dispersalDraftInProgress?: { draftId: string; status: string } | null
+  /** Season snapshot for post-season manager ordering (champion first). */
+  seasonSnapshot?: LeagueSeasonSnapshot | null
+  /** AF-native league settings copy + standings layout (divisions / guillotine / survivor). */
+  leagueDashboard: LeagueDashboardView
 }
 
 export function LeagueShell({
@@ -137,6 +178,8 @@ export function LeagueShell({
   discordConnected = false,
   zombieChimmyPrefill = null,
   dispersalDraftInProgress = null,
+  seasonSnapshot = null,
+  leagueDashboard,
 }: LeagueShellProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -148,6 +191,7 @@ export function LeagueShell({
   const { rosterId: capRosterId } = useRedraftRosterId(league.id)
   const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
   const idpCapEnabled = Boolean(capSummary)
+  const { t, language } = useLanguage()
   const tabDefs = useMemo(() => {
     let base = getLeagueTabs(String(league.sport))
     if (league.bestBallMode) {
@@ -183,7 +227,8 @@ export function LeagueShell({
     if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
-    return [...base, { id: 'settings', label: '⚙ Settings' }]
+    const withSettings = [...base, { id: 'settings', label: '⚙ Settings' }]
+    return localizeLeagueTabs(withSettings, t)
   }, [
     league.sport,
     league.leagueType,
@@ -191,6 +236,8 @@ export function LeagueShell({
     league.bestBallMode,
     league.guillotineMode,
     league.leagueVariant,
+    t,
+    language,
   ])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
   const guillotineLandingApplied = useRef(false)
@@ -282,6 +329,9 @@ export function LeagueShell({
       squad: 'squad',
       matchup: 'scores',
       scores: 'scores',
+      war_room: 'war_room',
+      warroom: 'war_room',
+      af_war_room: 'war_room',
       draft: 'draft',
       redraft: 'redraft',
       trades: 'trades',
@@ -441,8 +491,19 @@ export function LeagueShell({
     [league, draftDateIso],
   )
 
+  const rosterWalletByPlatformUserId = useMemo(() => {
+    const m = new Map<string, { faabRemaining: number | null; waiverPriority: number | null }>()
+    for (const r of league.rosters ?? []) {
+      m.set(r.platformUserId, {
+        faabRemaining: r.faabRemaining ?? null,
+        waiverPriority: r.waiverPriority ?? null,
+      })
+    }
+    return m
+  }, [league.rosters])
+
   const teamSlots = useMemo(() => {
-    const base = mapLeagueTeamsToSlots(league.teams, league.settings)
+    const base = mapLeagueTeamsToSlots(league.teams, league.settings, rosterWalletByPlatformUserId)
     if (league.platform !== 'sleeper') return base
     return base.map((slot) => {
       const pid = slot.platformUserId
@@ -451,7 +512,13 @@ export function LeagueShell({
       if (!su?.avatar) return slot
       return { ...slot, avatarUrl: su.avatar }
     })
-  }, [league.platform, league.teams, league.settings, sleeperUsersByPlatformId])
+  }, [
+    league.platform,
+    league.teams,
+    league.settings,
+    rosterWalletByPlatformUserId,
+    sleeperUsersByPlatformId,
+  ])
 
   const leagueList: UserLeague[] = useMemo(
     () => allLeagues.map((l) => prismaLeagueToUserLeague(l)),
@@ -539,59 +606,72 @@ export function LeagueShell({
                 : undefined
           }
         >
-          <LeagueHeader
-            league={selectedLeague}
-            leagueId={league.id}
-            tabs={tabDefs}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}
-            memberGearMenu={
-              isCommissioner
-                ? null
-                : {
-                    onEditTeam: () => openLeagueSettingsModal('my-team'),
-                    onCoOwners: () => openLeagueSettingsModal('co-owners'),
-                    onPreviousLeagues: () => openLeagueSettingsModal('league-history'),
-                    onLeaveLeague: () => setLeaveLeagueHintOpen(true),
-                  }
-            }
-            onGoHome={() => router.push('/dashboard')}
-            idpLeagueActive={idpUi?.active ?? false}
-            idpViewMode={idpViewMode}
-            onIdpViewModeChange={setIdpViewMode}
-            devyLeagueActive={devyConfig !== null && devyConfig !== 'none'}
-            devyBucketStats={devyBucketStats}
-            c2cLeagueActive={c2cConfig !== null}
-            c2cConfig={c2cConfig}
-            isCommissioner={isCommissioner}
-            onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
-            survivorLeagueActive={league.leagueVariant === 'survivor'}
-            zombieLeagueActive={league.leagueVariant === 'zombie'}
-            idpCapEnabled={idpCapEnabled}
-            capSummary={capSummary}
-            capRosterId={capRosterId}
-          />
-
-          {dispersalDraftInProgress ? (
-            <div className="shrink-0 border-b border-cyan-500/20 bg-[#081226] px-4 py-2.5">
-              <Link
-                href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
-                className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
-              >
-                <span>
-                  {dispersalDraftInProgress.status === 'in_progress'
-                    ? 'Dispersal draft in progress — join the draft room to make picks.'
-                    : 'Dispersal draft open — continue setup or open the draft room.'}
-                </span>
-                <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
-                  {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
-                </span>
-              </Link>
-            </div>
-          ) : null}
-
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+            <LeagueHeader
+              league={selectedLeague}
+              leagueId={league.id}
+              tabs={tabDefs}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}
+              memberGearMenu={
+                isCommissioner
+                  ? null
+                  : {
+                      onEditTeam: () => openLeagueSettingsModal('my-team'),
+                      onCoOwners: () => openLeagueSettingsModal('co-owners'),
+                      onPreviousLeagues: () => openLeagueSettingsModal('league-history'),
+                      onLeaveLeague: () => setLeaveLeagueHintOpen(true),
+                    }
+              }
+              onGoHome={() => router.push('/dashboard')}
+              idpLeagueActive={idpUi?.active ?? false}
+              idpViewMode={idpViewMode}
+              onIdpViewModeChange={setIdpViewMode}
+              devyLeagueActive={devyConfig !== null && devyConfig !== 'none'}
+              devyBucketStats={devyBucketStats}
+              c2cLeagueActive={c2cConfig !== null}
+              c2cConfig={c2cConfig}
+              isCommissioner={isCommissioner}
+              onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+              survivorLeagueActive={league.leagueVariant === 'survivor'}
+              zombieLeagueActive={league.leagueVariant === 'zombie'}
+              idpCapEnabled={idpCapEnabled}
+              capSummary={capSummary}
+              capRosterId={capRosterId}
+            />
+
+            {dispersalDraftInProgress ? (
+              <div className="shrink-0 border-b border-cyan-500/20 bg-[#081226] px-4 py-2.5">
+                <Link
+                  href={`/league/${league.id}/dispersal-draft/${dispersalDraftInProgress.draftId}`}
+                  className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-cyan-100/95 hover:text-cyan-50"
+                >
+                  <span>
+                    {dispersalDraftInProgress.status === 'in_progress'
+                      ? 'Dispersal draft in progress — join the draft room to make picks.'
+                      : 'Dispersal draft open — continue setup or open the draft room.'}
+                  </span>
+                  <span className="font-semibold text-cyan-300 underline decoration-cyan-500/40 underline-offset-2">
+                    {dispersalDraftInProgress.status === 'in_progress' ? 'Join draft room →' : 'Open →'}
+                  </span>
+                </Link>
+              </div>
+            ) : null}
+
+            {/* Renew League banner — shown to commissioner when season ends */}
+            <RenewLeagueBanner
+              leagueId={league.id}
+              currentSeason={Number(selectedLeague.season ?? new Date().getFullYear())}
+              isCommissioner={isCommissioner}
+              leagueStatus={league.status ?? undefined}
+              seasonPhase={
+                ((league.settings as Record<string, unknown> | undefined)?.dynastySeasonPhase as string)
+                ?? ((league.settings as Record<string, unknown> | undefined)?.season_phase as string)
+                ?? undefined
+              }
+            />
+
             <LeagueTabRouter
               activeTab={activeTab}
               tabDefs={tabDefs}
@@ -601,10 +681,14 @@ export function LeagueShell({
               teamSlots={teamSlots}
               inviteToken={inviteToken}
               isOwner={isOwner}
+              isCommissioner={isCommissioner}
+              isHeadCommissioner={isHeadCommissioner}
               onPlayerClick={handlePlayerClick}
               idpLeagueActive={idpUi?.active ?? false}
               idpViewMode={idpViewMode}
               idpPositionMode={idpUi?.positionMode ?? 'standard'}
+              seasonSnapshot={seasonSnapshot}
+              leagueDashboard={leagueDashboard}
             />
           </div>
         </main>
@@ -759,10 +843,14 @@ function LeagueTabRouter({
   teamSlots,
   inviteToken,
   isOwner,
+  isCommissioner,
+  isHeadCommissioner,
   onPlayerClick,
   idpLeagueActive,
   idpViewMode,
   idpPositionMode,
+  seasonSnapshot,
+  leagueDashboard,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -772,11 +860,16 @@ function LeagueTabRouter({
   teamSlots: UserLeagueTeam[]
   inviteToken: string | undefined
   isOwner: boolean
+  isCommissioner: boolean
+  isHeadCommissioner: boolean
   onPlayerClick: (playerId: string) => void
   idpLeagueActive: boolean
   idpViewMode: 'offense' | 'defense' | 'full'
   idpPositionMode: string
+  seasonSnapshot: LeagueSeasonSnapshot | null
+  leagueDashboard: LeagueDashboardView
 }) {
+  const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)
   const tabLabel = tab?.label ?? activeTab
   const sport = selectedLeague.sport
@@ -788,8 +881,11 @@ function LeagueTabRouter({
           league={selectedLeague}
           teams={teamSlots}
           isOwner={isOwner}
+          isCommissioner={isCommissioner}
           inviteToken={inviteToken}
           idpLeagueUi={idpLeagueActive}
+          seasonSnapshot={seasonSnapshot}
+          standingsPresentation={leagueDashboard.standings}
         />
       )
     case 'redraft':
@@ -823,10 +919,22 @@ function LeagueTabRouter({
           idpLeagueUi={idpLeagueActive}
           idpViewMode={idpViewMode}
           idpPositionMode={idpPositionMode}
+          onUserSettingsClick={() => router.push('/settings')}
         />
       )
     case 'league':
-      return <LeagueTab league={selectedLeague} teams={teamSlots} />
+      return (
+        <LeagueTab
+          league={selectedLeague}
+          teams={teamSlots}
+          seasonSnapshot={seasonSnapshot}
+          leagueDashboard={leagueDashboard}
+          isOwner={isOwner}
+          isCommissioner={isCommissioner}
+          inviteToken={inviteToken}
+          idpLeagueUi={idpLeagueActive}
+        />
+      )
     case 'players':
       return <PlayersTab league={selectedLeague} onPlayerClick={onPlayerClick} sport={sport} />
     case 'trend':
@@ -837,10 +945,18 @@ function LeagueTabRouter({
       return (
         <ScoresTab league={selectedLeague} sport={sport} idpLeagueUi={idpLeagueActive} />
       )
+    case 'war_room':
+      return <WarRoomTab league={selectedLeague} sport={sport} />
     case 'history':
       return <HistoryTab league={selectedLeague} />
     case 'settings':
-      return <LeagueSettingsContentTab leagueId={leagueId} />
+      return (
+        <LeagueSettingsContentTab
+          leagueId={leagueId}
+          isCommissioner={isCommissioner}
+          isHeadCommissioner={isHeadCommissioner}
+        />
+      )
     case 'standings':
       return (
         <StandingsTab league={selectedLeague} tabLabel={tabLabel} idpLeagueUi={idpLeagueActive} />
@@ -860,6 +976,59 @@ function LeagueTabRouter({
     default:
       return <LeagueTabPlaceholder league={selectedLeague} tabLabel={tabLabel} />
   }
+}
+
+const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
+  draft: LayoutGrid,
+  redraft: RotateCcw,
+  team: User,
+  roster: ClipboardList,
+  squad: Users,
+  league: Shield,
+  players: Shirt,
+  trend: LineChart,
+  trades: ArrowLeftRight,
+  scores: BarChart3,
+  war_room: Telescope,
+  history: History,
+  standings: ListOrdered,
+  fixtures: CalendarDays,
+  transfers: Repeat2,
+  table: Table,
+  leaderboard: Trophy,
+  'my-picks': Crosshair,
+  schedule: CalendarRange,
+  bestball: Sparkles,
+  guillotine: Scissors,
+  survivor: TreePalm,
+  zombie: Skull,
+  big_brother: Eye,
+  idp: ShieldPlus,
+  keeper: Lock,
+  settings: Settings,
+}
+
+function LeagueTabNavGlyph({
+  tabId,
+  className,
+  active,
+}: {
+  tabId: string
+  className?: string
+  active: boolean
+}) {
+  const Icon = LEAGUE_TAB_NAV_ICONS[tabId] ?? LayoutGrid
+  return (
+    <span className="relative inline-flex shrink-0">
+      <Icon className={className} strokeWidth={2.25} aria-hidden />
+      {tabId === 'trend' && !active ? (
+        <span
+          className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-cyan-400 ring-2 ring-[#0a1228]"
+          aria-hidden
+        />
+      ) : null}
+    </span>
+  )
 }
 
 function LeagueHeader({
@@ -921,6 +1090,7 @@ function LeagueHeader({
   } | null
   capRosterId?: string | null
 }) {
+  const { t } = useLanguage()
   const [memberGearOpen, setMemberGearOpen] = useState(false)
   const memberGearWrapRef = useRef<HTMLDivElement>(null)
 
@@ -951,17 +1121,25 @@ function LeagueHeader({
         ? 'border-[color:var(--cap-amber)]/45 bg-[color:var(--cap-amber)]/15 text-amber-100'
         : 'border-[color:var(--cap-red)]/45 bg-[color:var(--cap-red)]/15 text-red-100'
   return (
-    <div className="flex-shrink-0 border-b border-white/[0.07] bg-[#0c0c1e]">
-      <div className="flex items-center gap-3 px-5 pb-0 pt-4">
+    <div className="sticky top-0 z-[45] flex-shrink-0 border-b border-white/[0.08] bg-[#050814] shadow-[0_10px_28px_rgba(0,0,0,0.42)]">
+      <div className="flex flex-wrap items-start gap-3 px-4 pb-2 pt-4 sm:px-5">
         <div
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[10px] text-base"
-          style={{ background: 'linear-gradient(135deg, #1e3a5f, #0e4a6e)' }}
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+          aria-hidden
         >
-          {leagueTabSportEmoji(league.sport)}
+          <span className="drop-shadow">{leagueTabSportEmoji(league.sport)}</span>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="truncate text-[15px] font-bold text-white">{league.name}</h1>
+
+        <div className="min-w-0 flex-1 basis-[min(100%,12rem)]">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <h1 className="max-w-full truncate text-base font-bold leading-tight text-white sm:text-[17px]">
+              {league.name}
+            </h1>
+            <span className="whitespace-normal text-[12px] leading-snug text-white/45 sm:text-[13px]">
+              {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'} {league.scoring}
+            </span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
             {idpLeagueActive ? (
               <span className="idp-creator-badge flex-shrink-0 whitespace-nowrap">✦ Created by TheCiege</span>
             ) : null}
@@ -1015,10 +1193,6 @@ function LeagueHeader({
                 </span>
               </>
             ) : null}
-            <span className="flex-shrink-0 text-[11px] text-white/40">
-              {league.season} {league.teamCount}-Team {league.isDynasty ? 'Dynasty' : 'Redraft'}{' '}
-              {league.scoring}
-            </span>
           </div>
           {idpLeagueActive && onIdpViewModeChange ? (
             <div className="mt-2 flex max-w-md flex-wrap gap-1 rounded-lg border border-white/[0.08] bg-black/20 p-1">
@@ -1044,129 +1218,134 @@ function LeagueHeader({
             </div>
           ) : null}
         </div>
-        <div className="flex flex-shrink-0 flex-col items-end gap-1">
-          {c2cLeagueActive && c2cConfig ? (
-            <span
-              className="whitespace-nowrap rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-violet-100"
-              data-testid="c2c-score-mode-chip"
-            >
-              {c2cScoreModeChip(c2cConfig)}
-            </span>
-          ) : null}
-          {idpCapEnabled && capSummary && capRosterId ? (
-            <Link
-              href={`/idp/cap/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`}
-              className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide transition hover:brightness-110 ${capPillClass}`}
-              data-testid="idp-cap-header-pill"
-            >
-              CAP: ${capSummary.availableCap.toFixed(1)}M
-            </Link>
-          ) : null}
-          {devyLeagueActive ? (
-            <div
-              className="flex max-w-[200px] flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[9px] font-semibold text-white/70 sm:max-w-none sm:text-[10px]"
-              data-testid="devy-bucket-stats"
-            >
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-active)' }} />
-                {devyBucketStats.active} NFL
+
+        <div className="ml-auto flex min-w-0 flex-shrink-0 flex-col items-end gap-2 sm:max-w-[42%]">
+          <div className="flex w-full flex-col items-end gap-1">
+            {c2cLeagueActive && c2cConfig ? (
+              <span
+                className="whitespace-nowrap rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-violet-100"
+                data-testid="c2c-score-mode-chip"
+              >
+                {c2cScoreModeChip(c2cConfig)}
               </span>
-              <span className="text-white/25">·</span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-taxi)' }} />
-                {devyBucketStats.taxi} Taxi
-              </span>
-              <span className="text-white/25">·</span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-devy)' }} />
-                {devyBucketStats.devy} Devy
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <div className="relative flex flex-shrink-0 items-center gap-0.5" ref={memberGearWrapRef}>
-          <button
-            type="button"
-            onClick={onGoHome}
-            className="rounded-lg p-1.5 text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
-            aria-label="Dashboard home"
-            data-testid="league-header-home"
-          >
-            <Home className="h-5 w-5" strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (memberGearMenu) setMemberGearOpen((o) => !o)
-              else onOpenLeagueSettingsModal()
-            }}
-            aria-expanded={memberGearMenu ? memberGearOpen : undefined}
-            aria-haspopup={memberGearMenu ? 'menu' : undefined}
-            className={`rounded-lg p-1.5 text-lg leading-none transition-colors hover:bg-white/[0.06] ${
-              memberGearOpen ? 'text-cyan-300/95' : 'text-white/30 hover:text-white/60'
-            }`}
-            aria-label={memberGearMenu ? 'League menu' : 'League settings'}
-            data-testid="league-header-settings"
-          >
-            ⚙️
-          </button>
-          {memberGearMenu && memberGearOpen ? (
-            <div
-              className="absolute right-0 top-[calc(100%+8px)] z-[60] w-[min(calc(100vw-32px),280px)] overflow-hidden rounded-xl border border-white/[0.1] bg-[#0a1228] py-1 shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
-              role="menu"
-              data-testid="member-league-gear-menu"
-            >
+            ) : null}
+            {idpCapEnabled && capSummary && capRosterId ? (
+              <Link
+                href={`/idp/cap/${leagueId}?rosterId=${encodeURIComponent(capRosterId)}`}
+                className={`whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide transition hover:brightness-110 ${capPillClass}`}
+                data-testid="idp-cap-header-pill"
+              >
+                CAP: ${capSummary.availableCap.toFixed(1)}M
+              </Link>
+            ) : null}
+            {devyLeagueActive ? (
               <div
-                className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-l border-t border-white/[0.1] bg-[#0a1228]"
-                aria-hidden
-              />
-              <div className="relative pt-0.5">
-                {(
-                  [
-                    {
-                      id: 'edit-team',
-                      title: 'Edit Team',
-                      sub: 'Customize your team',
-                      onSelect: memberGearMenu.onEditTeam,
-                    },
-                    {
-                      id: 'co-owners',
-                      title: 'Co-owner Settings',
-                      sub: 'Select co-owners to run your team',
-                      onSelect: memberGearMenu.onCoOwners,
-                    },
-                    {
-                      id: 'leave',
-                      title: 'Leave League',
-                      sub: 'Leave this league.',
-                      onSelect: memberGearMenu.onLeaveLeague,
-                    },
-                    {
-                      id: 'previous',
-                      title: 'Previous Leagues',
-                      sub: 'Look at previous leagues',
-                      onSelect: memberGearMenu.onPreviousLeagues,
-                    },
-                  ] as const
-                ).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="menuitem"
-                    data-testid={`member-gear-${item.id}`}
-                    onClick={() => {
-                      setMemberGearOpen(false)
-                      item.onSelect()
-                    }}
-                    className="flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
-                  >
-                    <span className="text-[13px] font-semibold text-white/95">{item.title}</span>
-                    <span className="text-[11px] leading-snug text-white/40">{item.sub}</span>
-                  </button>
-                ))}
+                className="flex max-w-[200px] flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[9px] font-semibold text-white/70 sm:max-w-none sm:text-[10px]"
+                data-testid="devy-bucket-stats"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-active)' }} />
+                  {devyBucketStats.active} NFL
+                </span>
+                <span className="text-white/25">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-taxi)' }} />
+                  {devyBucketStats.taxi} Taxi
+                </span>
+                <span className="text-white/25">·</span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: 'var(--devy-devy)' }} />
+                  {devyBucketStats.devy} Devy
+                </span>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
+
+          <div className="relative flex flex-wrap items-center justify-end gap-1" ref={memberGearWrapRef}>
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-[#121826] text-white/55 transition hover:border-white/[0.14] hover:bg-[#161d2e] hover:text-white/90"
+              aria-label={t('league.header.dashboardHome')}
+              data-testid="league-header-home"
+            >
+              <Home className="h-[18px] w-[18px]" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (memberGearMenu) setMemberGearOpen((o) => !o)
+                else onOpenLeagueSettingsModal()
+              }}
+              aria-expanded={memberGearMenu ? memberGearOpen : undefined}
+              aria-haspopup={memberGearMenu ? 'menu' : undefined}
+              className={cn(
+                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.1] bg-[#121826] transition hover:border-white/[0.14] hover:bg-[#161d2e]',
+                memberGearOpen ? 'text-cyan-300' : 'text-white/45 hover:text-white/85',
+              )}
+              aria-label={memberGearMenu ? t('league.header.leagueMenu') : t('league.header.leagueSettings')}
+              data-testid="league-header-settings"
+            >
+              <Settings className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />
+            </button>
+            {memberGearMenu && memberGearOpen ? (
+              <div
+                className="absolute right-0 top-[calc(100%+8px)] z-[60] w-[min(calc(100vw-32px),280px)] overflow-hidden rounded-xl border border-white/[0.1] bg-[#0a1228] py-1 shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+                role="menu"
+                data-testid="member-league-gear-menu"
+              >
+                <div
+                  className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-l border-t border-white/[0.1] bg-[#0a1228]"
+                  aria-hidden
+                />
+                <div className="relative pt-0.5">
+                  {(
+                    [
+                      {
+                        id: 'edit-team',
+                        title: t('league.memberMenu.editTeam'),
+                        sub: t('league.memberMenu.editTeam.sub'),
+                        onSelect: memberGearMenu.onEditTeam,
+                      },
+                      {
+                        id: 'co-owners',
+                        title: t('league.memberMenu.coOwners'),
+                        sub: t('league.memberMenu.coOwners.sub'),
+                        onSelect: memberGearMenu.onCoOwners,
+                      },
+                      {
+                        id: 'leave',
+                        title: t('league.memberMenu.leave'),
+                        sub: t('league.memberMenu.leave.sub'),
+                        onSelect: memberGearMenu.onLeaveLeague,
+                      },
+                      {
+                        id: 'previous',
+                        title: t('league.memberMenu.previous'),
+                        sub: t('league.memberMenu.previous.sub'),
+                        onSelect: memberGearMenu.onPreviousLeagues,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="menuitem"
+                      data-testid={`member-gear-${item.id}`}
+                      onClick={() => {
+                        setMemberGearOpen(false)
+                        item.onSelect()
+                      }}
+                      className="flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left transition hover:bg-white/[0.06]"
+                    >
+                      <span className="text-[13px] font-semibold text-white/95">{item.title}</span>
+                      <span className="text-[11px] leading-snug text-white/40">{item.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -1353,21 +1532,42 @@ function LeagueHeader({
         </div>
       ) : null}
 
-      <div className="scrollbar-none mt-2 flex overflow-x-auto px-5">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onTabChange(tab.id)}
-            className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-[12px] font-semibold transition-all ${
-              activeTab === tab.id
-                ? 'border-cyan-500 text-white'
-                : 'border-transparent text-white/40 hover:text-white/70'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="scrollbar-none mt-2 px-4 pb-3 sm:px-5">
+        <div
+          className="flex gap-1 overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0a1228] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+          role="tablist"
+          aria-label="League navigation"
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                data-testid={`league-tab-${tab.id}`}
+                onClick={() => onTabChange(tab.id)}
+                className={cn(
+                  'flex min-h-[40px] min-w-0 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors sm:px-3 sm:text-[11px]',
+                  isActive
+                    ? 'bg-cyan-400 text-[#050814] shadow-sm'
+                    : 'text-cyan-400/95 hover:bg-white/[0.06] hover:text-cyan-300',
+                )}
+              >
+                <LeagueTabNavGlyph
+                  tabId={tab.id}
+                  active={isActive}
+                  className={cn(
+                    'h-3.5 w-3.5 sm:h-4 sm:w-4',
+                    isActive ? 'text-[#050814]' : 'text-cyan-400',
+                  )}
+                />
+                <span className="truncate">{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

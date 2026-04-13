@@ -1,5 +1,7 @@
 'use client'
 
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { interpolateTemplate } from '@/lib/i18n/interpolate'
 import type { UserLeague } from '../types'
 
 export type LineupChipState = 'preview' | 'issues' | 'clear'
@@ -30,43 +32,59 @@ export function TodayStrip({
   pendingTradeCount,
   onTradesClick,
 }: TodayStripProps) {
+  const { t } = useLanguage()
+
   if (leagues.length === 0) {
     return null
   }
 
   const issueLabel =
-    lineupCount === 1 ? '1 lineup issue' : `${lineupCount} lineup issues`
+    lineupCount === 1
+      ? t('dashboard.today.lineupIssueOne')
+      : interpolateTemplate(t('dashboard.today.lineupIssueMany'), { n: lineupCount })
   const previewLabel =
-    lineupCount === 1 ? '1 lineup to set' : `${lineupCount} lineups to set`
+    lineupCount === 1
+      ? t('dashboard.today.lineupToSetOne')
+      : interpolateTemplate(t('dashboard.today.lineupToSetMany'), { n: lineupCount })
+
+  const waiverChipLabel =
+    waiverCount > 0
+      ? waiverCount === 1
+        ? t('dashboard.today.waiverRecOne')
+        : interpolateTemplate(t('dashboard.today.waiverRecs'), { n: waiverCount })
+      : t('dashboard.today.checkWaivers')
+
+  const tradeChipLabel =
+    pendingTradeCount > 0
+      ? pendingTradeCount === 1
+        ? t('dashboard.today.pendingTradeOne')
+        : interpolateTemplate(t('dashboard.today.pendingTrades'), { n: pendingTradeCount })
+      : t('dashboard.today.checkTrades')
 
   return (
     <section className="space-y-1.5">
-      <p className="text-[12px] font-semibold uppercase tracking-wider text-white/35">Today</p>
+      <p className="text-[12px] font-semibold uppercase tracking-wider text-white/35">
+        {t('dashboard.today.title')}
+      </p>
       <div className="scrollbar-none flex gap-2 overflow-x-auto py-1">
-        {waiverCount > 0 ? (
-          <button
-            type="button"
-            onClick={onWaiverClick}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[13px] text-cyan-400 transition hover:border-cyan-500/35 hover:bg-cyan-500/20"
-          >
-            📋 {waiverCount} waiver rec{waiverCount === 1 ? '' : 's'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onWaiverClick}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-3 py-1.5 text-[13px] text-white/75 transition hover:bg-white/[0.10]"
-          >
-            📋 Check waivers
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onWaiverClick}
+          className={
+            waiverCount > 0
+              ? 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[13px] text-cyan-400 transition hover:border-cyan-500/35 hover:bg-cyan-500/20'
+              : 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-3 py-1.5 text-[13px] text-white/75 transition hover:bg-white/[0.10]'
+          }
+        >
+          {waiverChipLabel}
+        </button>
         {lineupChipState === 'clear' ? (
           <button
             type="button"
             onClick={onLineupIssuesClick}
             className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[13px] text-emerald-400 transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/15"
           >
-            ✓ Lineups look good
+            {t('dashboard.today.lineupsGood')}
           </button>
         ) : (
           <button
@@ -77,23 +95,17 @@ export function TodayStrip({
             ⚠ {lineupChipState === 'preview' ? previewLabel : issueLabel}
           </button>
         )}
-        {pendingTradeCount > 0 ? (
-          <button
-            type="button"
-            onClick={onTradesClick}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[13px] text-amber-400 transition hover:border-amber-500/35 hover:bg-amber-500/20"
-          >
-            🔄 {pendingTradeCount} pending trade{pendingTradeCount === 1 ? '' : 's'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onTradesClick}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-3 py-1.5 text-[13px] text-white/75 transition hover:bg-white/[0.10]"
-          >
-            🔄 Check trades
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onTradesClick}
+          className={
+            pendingTradeCount > 0
+              ? 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[13px] text-amber-400 transition hover:border-amber-500/35 hover:bg-amber-500/20'
+              : 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-3 py-1.5 text-[13px] text-white/75 transition hover:bg-white/[0.10]'
+          }
+        >
+          {tradeChipLabel}
+        </button>
       </div>
     </section>
   )

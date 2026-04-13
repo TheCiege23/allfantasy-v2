@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { Prisma, VerificationMethod } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
@@ -60,7 +60,7 @@ function isDatabaseUnavailableError(err: unknown): boolean {
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     // Common transient/db connectivity issues from Prisma.
-    if (["P1001", "P1002", "P1008", "P1017", "P2024"].includes(err.code)) {
+    if (["P1001", "P1002", "P1008", "P1017", "P2024", "P2028"].includes(err.code)) {
       return true
     }
   }
@@ -71,8 +71,40 @@ function isDatabaseUnavailableError(err: unknown): boolean {
   if (message.includes("terminating connection due to administrator command")) return true
   if (message.includes("maxclientsinsessionmode")) return true
   if (message.includes("too many clients")) return true
+  if (message.includes("unable to start a transaction in the given time")) return true
 
   return false
+}
+
+function throwRegistrationConflict(err: Prisma.PrismaClientKnownRequestError): never {
+  const target = getUniqueConstraintTarget(err)
+  if (target.includes("email")) {
+    throw new Response(
+      JSON.stringify({ error: "An account with this email already exists." }),
+      { status: 409 }
+    )
+  }
+  if (target.includes("username")) {
+    throw new Response(
+      JSON.stringify({ error: "username already taken, choose another username" }),
+      { status: 409 }
+    )
+  }
+  throw new Response(
+    JSON.stringify({ error: "An account with one of these details already exists." }),
+    { status: 409 }
+  )
+}
+
+async function withRegistrationConflictHandling<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation()
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      throwRegistrationConflict(err)
+    }
+    throw err
+  }
 }
 
 export async function POST(req: Request) {
@@ -202,7 +234,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: agreementsValidation.error }, { status: 400 })
     }
 
-    const method = verificationMethod === "PHONE" ? "PHONE" : "EMAIL"
+    const method: VerificationMethod = verificationMethod === "PHONE" ? "PHONE" : "EMAIL"
     const normalizedPhone = normalizePhone(phone)
     if (method === "PHONE" && !normalizedPhone) {
       return NextResponse.json({ error: "Phone is required for phone verification." }, { status: 400 })
@@ -275,7 +307,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const passwordHash = await bcrypt.hash(password, 12)
+    const passwordHash = await bcrypt.hash(password, isE2ERequest ? 6 : 12)
     const now = new Date()
 
     let sleeperData: { sleeperUsername?: string; sleeperUserId?: string; sleeperLinkedAt?: Date } = {}
@@ -293,70 +325,104 @@ export async function POST(req: Request) {
       } catch {}
     }
 
-    const user = await prisma.$transaction(async (tx) => {
-      const created = await tx.appUser.create({
-        data: {
-          email,
-          username,
-          passwordHash,
-          displayName: displayName?.trim() || username,
-          detectedStateCode,
-          stateRestrictionLevel,
-          isStateRestricted: isStateRestrictedFlag,
-        },
-        select: { id: true, email: true, username: true },
-      })
+    const createProfileData = {
+      displayName: displayName?.trim() || username,
+      phone: normalizedPhone,
+      ageConfirmedAt: now,
+      verificationMethod: method,
+      phoneVerifiedAt: method === "PHONE" ? now : null,
+      ...sleeperData,
+      profileComplete: false,
+      timezone: resolvedTimezone,
+      preferredLanguage: resolvedLanguage,
+      themePreference: resolvedThemePreference,
+      avatarPreset: resolvedAvatarPreset,
+    }
 
-      await tx.userProfile.create({
-        data: {
-          userId: created.id,
-          displayName: displayName?.trim() || username,
-          phone: normalizedPhone,
-          ageConfirmedAt: now,
-          verificationMethod: method,
-          phoneVerifiedAt: method === "PHONE" ? now : null,
-          ...sleeperData,
-          profileComplete: false,
-          timezone: resolvedTimezone,
-          preferredLanguage: resolvedLanguage,
-          themePreference: resolvedThemePreference,
-          avatarPreset: resolvedAvatarPreset,
-        },
-      })
-
-      await tx.managerXPProfile.upsert({
-        where: { managerId: created.id },
+    const upsertManagerXpProfile = async (
+      client: Pick<typeof prisma, "managerXPProfile">,
+      managerId: string
+    ) => {
+      await client.managerXPProfile.upsert({
+        where: { managerId },
         create: {
-          managerId: created.id,
+          managerId,
           totalXP: 0,
           currentTier: getTierFromXP(0),
           xpToNextTier: getXPRemainingToNextTier(0),
         },
         update: {},
+        select: { managerId: true },
       })
+    }
 
-      return created
-    }).catch((err) => {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        const target = getUniqueConstraintTarget(err)
-        if (target.includes("email")) {
-          throw new Response(
-            JSON.stringify({ error: "An account with this email already exists." }),
-            { status: 409 }
-          )
+    const user = await withRegistrationConflictHandling(async () => {
+      if (isE2ERequest) {
+        const created = await prisma.appUser.create({
+          data: {
+            email,
+            username,
+            passwordHash,
+            displayName: displayName?.trim() || username,
+            detectedStateCode,
+            stateRestrictionLevel,
+            isStateRestricted: isStateRestrictedFlag,
+          },
+          select: { id: true, email: true, username: true },
+        })
+
+        try {
+          await prisma.userProfile.create({
+            data: {
+              userId: created.id,
+              ...createProfileData,
+            },
+            select: { userId: true },
+          })
+        } catch (profileErr) {
+          try {
+            await prisma.appUser.delete({ where: { id: created.id } })
+          } catch (cleanupErr) {
+            console.warn("[register] failed to clean up e2e user after profile create error:", cleanupErr)
+          }
+          throw profileErr
         }
-        if (target.includes("username")) {
-          throw new Response(
-            JSON.stringify({ error: "username already taken, choose another username" }),
-            { status: 409 }
-          )
+
+        try {
+          await upsertManagerXpProfile(prisma, created.id)
+        } catch (xpErr) {
+          console.warn("[register] managerXPProfile upsert failed during e2e signup (non-blocking):", xpErr)
         }
-        throw new Response(
-          JSON.stringify({ error: "An account with one of these details already exists." }),
-          { status: 409 }
-        )
+
+        return created
       }
-      throw err
+
+      return prisma.$transaction(async (tx) => {
+        const created = await tx.appUser.create({
+          data: {
+            email,
+            username,
+            passwordHash,
+            displayName: displayName?.trim() || username,
+            detectedStateCode,
+            stateRestrictionLevel,
+            isStateRestricted: isStateRestrictedFlag,
+          },
+          select: { id: true, email: true, username: true },
+        })
+
+        await tx.userProfile.create({
+          data: {
+            userId: created.id,
+            ...createProfileData,
+          },
+          select: { userId: true },
+        })
+
+        await upsertManagerXpProfile(tx, created.id)
+
+        return created
+      })
     })
 
     // Mirror credentials in Supabase Auth so password recovery can use resetPasswordForEmail (no Neon round-trip).

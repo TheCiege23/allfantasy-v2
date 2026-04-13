@@ -22,3 +22,12 @@ export {
   applyDefaultNbaScoringOnCreate,
   type LeagueNbaScoringConfig,
 } from './NbaScoringConfigService'
+
+export {
+  NBA_SCORING_CATEGORIES,
+  NBA_PREMIUM_SCORING,
+  buildFullNbaDefaultConfig,
+  getAllNbaScoringKeys,
+  type NbaScoringRow,
+  type NbaScoringCategory,
+} from './NbaScoringCategories'

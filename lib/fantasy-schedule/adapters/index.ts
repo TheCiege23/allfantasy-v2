@@ -4,7 +4,7 @@
  * since they operate on WeekVolumeProfile (abstract game counts, not sport-specific data).
  */
 
-import type { LeagueScheduleAdapter } from '../types'
+import type { FantasyWeekPlan, LeagueScheduleAdapter, SportScheduleConfig, WeekVolumeProfile } from '../types'
 
 // Import adapters from the NBA module (they're sport-agnostic)
 import { StandardScheduleAdapter } from '@/lib/nba-schedule/adapters/StandardScheduleAdapter'
@@ -23,21 +23,41 @@ const bigBrotherAdapter = new BigBrotherScheduleAdapter()
 const tournamentAdapter = new TournamentScheduleAdapter()
 const c2cAdapter = new C2CScheduleAdapter()
 
+function wrapAdapter(adapter: any): LeagueScheduleAdapter {
+  return {
+    resolveFantasyWeek(
+      volumeProfile: WeekVolumeProfile,
+      config: SportScheduleConfig,
+      context?: Record<string, unknown>,
+    ): FantasyWeekPlan {
+      const basePlan = adapter.resolveFantasyWeek(volumeProfile as unknown, config as unknown, context)
+      return {
+        ...basePlan,
+        sport: volumeProfile.sport,
+        volumeProfile: {
+          ...basePlan.volumeProfile,
+          sport: volumeProfile.sport,
+        },
+      }
+    },
+  }
+}
+
 const ADAPTER_MAP: Record<string, LeagueScheduleAdapter> = {
-  redraft: standardAdapter,
-  dynasty: standardAdapter,
-  keeper: standardAdapter,
-  best_ball: standardAdapter,
-  salary_cap: standardAdapter,
-  guillotine: guillotineAdapter,
-  survivor: survivorAdapter,
-  zombie: zombieAdapter,
-  big_brother: bigBrotherAdapter,
-  tournament: tournamentAdapter,
-  c2c: c2cAdapter,
-  devy: standardAdapter,
+  redraft: wrapAdapter(standardAdapter),
+  dynasty: wrapAdapter(standardAdapter),
+  keeper: wrapAdapter(standardAdapter),
+  best_ball: wrapAdapter(standardAdapter),
+  salary_cap: wrapAdapter(standardAdapter),
+  guillotine: wrapAdapter(guillotineAdapter),
+  survivor: wrapAdapter(survivorAdapter),
+  zombie: wrapAdapter(zombieAdapter),
+  big_brother: wrapAdapter(bigBrotherAdapter),
+  tournament: wrapAdapter(tournamentAdapter),
+  c2c: wrapAdapter(c2cAdapter),
+  devy: wrapAdapter(standardAdapter),
 }
 
 export function getScheduleAdapter(formatId: string): LeagueScheduleAdapter {
-  return ADAPTER_MAP[formatId] ?? standardAdapter
+  return ADAPTER_MAP[formatId] ?? wrapAdapter(standardAdapter)
 }

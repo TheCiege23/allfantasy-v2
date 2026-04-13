@@ -32,13 +32,13 @@ export default function TournamentProgressPage() {
       return {
         roundIndex: r.roundNumber ?? 0,
         roundLabel: r.roundLabel ?? `Round ${r.roundNumber}`,
-        phase: r.type ?? 'qualification',
+        phase: r.roundType ?? 'qualification',
         status: r.status ?? 'pending',
         nodes: tls.map((l) => ({
           id: l.id,
           label: l.name ?? `League`,
-          phase: r.type ?? 'qualification',
-          leagueId: l.leagueId,
+          phase: r.roundType ?? 'qualification',
+          leagueId: l.leagueId ?? undefined,
           teamCount: l.currentTeamCount ?? 0,
           teamSlots: l.teamSlots ?? 0,
           status: l.status ?? 'pending',

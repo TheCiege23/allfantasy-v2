@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
@@ -140,6 +141,8 @@ export async function PUT(
     .filter((v): v is { statKey: string; pointsValue: number; enabled: boolean } => v !== null)
 
   await replaceLeagueScoringOverrides(params.leagueId, overrides)
+
+  revalidatePath(`/league/${params.leagueId}`)
 
   const refreshed = await getLeagueScoringConfig(params.leagueId)
   return NextResponse.json(refreshed ?? { ok: true })

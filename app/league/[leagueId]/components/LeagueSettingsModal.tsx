@@ -44,6 +44,8 @@ import {
 } from './LeagueSettingsSubPanels'
 import { CommissionerLeagueSettingsShell } from './CommissionerLeagueSettingsShell'
 import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
+import LanguageToggle from '@/components/i18n/LanguageToggle'
+import { ThemeModeSelect } from '@/components/theme/ThemeModeSelect'
 import {
   initialsFromName,
   leagueAvatarSrc,
@@ -161,12 +163,17 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
 
   useEffect(() => {
     if (!open) return
-    setMainTab(readStoredTab(league.id, isCommissioner))
-    const tab = readStoredTab(league.id, isCommissioner)
-    if (isCommissioner && tab === 'general') {
+    if (initialActivePanel) {
+      setMainTab('general')
+      setActivePanel(initialActivePanel)
+      return
+    }
+    const stored = readStoredTab(league.id, isCommissioner)
+    setMainTab(stored)
+    if (isCommissioner && stored === 'general') {
       setActivePanel(null)
     } else {
-      setActivePanel(initialActivePanel ?? null)
+      setActivePanel(null)
     }
   }, [open, league.id, isCommissioner, initialActivePanel])
 
@@ -247,6 +254,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
   )
 
   const cards = useMemo(() => {
+    if (mainTab === 'user') return []
     if (mainTab === 'general') return GENERAL_CARDS
     if (mainTab === 'commish') return COMMISH_CARDS
     if (mainTab === 'idp') return IDP_CARDS
@@ -363,6 +371,24 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setMainTab('user')}
+                    className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
+                      mainTab === 'user'
+                        ? 'border-cyan-500/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.12)]'
+                        : 'border-transparent bg-white/[0.04] text-white/40 hover:bg-white/[0.07] hover:text-white/65'
+                    }`}
+                    data-testid="league-settings-tab-user"
+                    aria-label="User settings"
+                  >
+                    <User
+                      className={`h-3.5 w-3.5 ${mainTab === 'user' ? 'text-cyan-300' : 'text-white/35'}`}
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    USER
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setMainTab('general')}
                     className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
                       mainTab === 'general'
@@ -402,7 +428,21 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
               </header>
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-8 pt-4 [scrollbar-gutter:stable]">
-                {isCommissioner && mainTab === 'general' ? (
+                {mainTab === 'user' ? (
+                  <div className="mx-auto max-w-md space-y-6 py-1">
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/40">Language</p>
+                      <LanguageToggle />
+                    </div>
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/40">Theme</p>
+                      <ThemeModeSelect size="md" className="inline-flex w-full flex-wrap items-center gap-2 text-xs" />
+                    </div>
+                    <p className="text-[12px] leading-relaxed text-white/45">
+                      Use the home icon in the league header to return to the dashboard.
+                    </p>
+                  </div>
+                ) : isCommissioner && mainTab === 'general' ? (
                   <CommissionerLeagueSettingsShell
                     key={`${league.id}-${initialActivePanel ?? 'hub'}`}
                     ctx={subCtx}

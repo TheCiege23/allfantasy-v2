@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { interpolateTemplate } from '@/lib/i18n/interpolate'
 
 type AIShortcutsGridProps = {
   leagueName?: string
   onShortcut: (prompt: string) => void
 }
+
+type ShortcutSlug = 'startSit' | 'trade' | 'waiver' | 'trending' | 'power' | 'injury'
 
 type ShortcutDef = {
   key: string
@@ -16,66 +20,68 @@ type ShortcutDef = {
   faq: string
 }
 
-const SHORTCUTS: ShortcutDef[] = [
+/** Chimmy prompts stay in English for model quality. */
+const SHORTCUT_SPECS: {
+  key: string
+  slug: ShortcutSlug
+  icon: string
+  buildPrompt: (leagueLabel: string) => string
+}[] = [
   {
     key: 'start-sit',
+    slug: 'startSit',
     icon: '📊',
-    label: 'Start/Sit',
-    description: 'Who should I start?',
     buildPrompt: (L) => `Help me with my start/sit decisions for ${L}`,
-    faq:
-      "Tell Chimmy which players you're deciding between and your league's scoring settings. Chimmy analyzes matchup, recent form, and target share to give you a clear recommendation.",
   },
   {
     key: 'trade',
+    slug: 'trade',
     icon: '🔄',
-    label: 'Trade Value',
-    description: 'Evaluate a trade',
     buildPrompt: (L) => `Analyze a trade for ${L}`,
-    faq:
-      'Paste or describe a trade offer. Chimmy evaluates both sides using dynasty/redraft values, your roster needs, and the other manager\'s historical performance.',
   },
   {
     key: 'waiver',
+    slug: 'waiver',
     icon: '⚠️',
-    label: 'Waiver Wire',
-    description: 'Best pickups',
     buildPrompt: (L) => `Who should I add off waivers in ${L}?`,
-    faq:
-      'Chimmy scans all available players in your league and ranks them by projected value, not just points. Considers matchup, snap share, and target share trends.',
   },
   {
     key: 'trending',
+    slug: 'trending',
     icon: '📈',
-    label: 'Trending Players',
-    description: "Who's hot/cold",
     buildPrompt: () => 'Which players are trending up or down?',
-    faq:
-      "See who's rising or falling in value across all fantasy platforms based on recent news, snap counts, and injury reports.",
   },
   {
     key: 'power',
+    slug: 'power',
     icon: '🏆',
-    label: 'Power Rankings',
-    description: "How's my team?",
     buildPrompt: (L) => `Give me power rankings for ${L}`,
-    faq:
-      "Chimmy calculates your team's true strength score based on roster quality, upcoming schedule, and positional depth — not just record.",
   },
   {
     key: 'injury',
+    slug: 'injury',
     icon: '🩺',
-    label: 'Injury Impact',
-    description: 'Assess my injuries',
     buildPrompt: (L) => `Analyze injury impacts on my roster in ${L}`,
-    faq:
-      'Tells you exactly how each injury affects your team: who to drop, who to pick up, and what Chimmy recommends as the replacement.',
   },
 ]
 
 export function AIShortcutsGrid({ leagueName, onShortcut }: AIShortcutsGridProps) {
+  const { t } = useLanguage()
   const leagueLabel = leagueName?.trim() || 'my league'
   const [openFaqKey, setOpenFaqKey] = useState<string | null>(null)
+
+  const shortcuts = useMemo<ShortcutDef[]>(
+    () =>
+      SHORTCUT_SPECS.map((s) => ({
+        key: s.key,
+        icon: s.icon,
+        label: t(`dashboard.shortcut.${s.slug}.label`),
+        description: t(`dashboard.shortcut.${s.slug}.desc`),
+        buildPrompt: s.buildPrompt,
+        faq: t(`dashboard.shortcut.${s.slug}.faq`),
+      })),
+    [t]
+  )
 
   const toggleFaq = useCallback((key: string) => {
     setOpenFaqKey((k) => (k === key ? null : key))
@@ -84,22 +90,26 @@ export function AIShortcutsGrid({ leagueName, onShortcut }: AIShortcutsGridProps
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">AI TOOLS</p>
+        <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
+          {t('dashboard.aiShortcuts.title')}
+        </p>
         <button
           type="button"
           onClick={() => {
-            const prompt = `Give me a quick overview of what you can help with in ${leagueLabel}.`
+            const prompt = interpolateTemplate(t('dashboard.aiShortcuts.chimmyOverviewPrompt'), {
+              league: leagueLabel,
+            })
             onShortcut(prompt)
             window.dispatchEvent(new CustomEvent('af-chimmy-shortcut', { detail: { prompt } }))
           }}
           className="text-[12px] font-semibold text-cyan-400 transition hover:text-cyan-300"
         >
-          Ask Chimmy →
+          {t('dashboard.aiShortcuts.askChimmy')}
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {SHORTCUTS.map((s) => (
+        {shortcuts.map((s) => (
           <div key={s.key} className="relative">
             <button
               type="button"
@@ -116,7 +126,7 @@ export function AIShortcutsGrid({ leagueName, onShortcut }: AIShortcutsGridProps
             </button>
             <button
               type="button"
-              aria-label={`How ${s.label} works`}
+              aria-label={interpolateTemplate(t('dashboard.shortcut.faqAria'), { label: s.label })}
               onClick={(e) => {
                 e.stopPropagation()
                 toggleFaq(s.key)

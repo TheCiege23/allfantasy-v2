@@ -3,7 +3,8 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Search, User, Plus } from 'lucide-react'
-import { applyDraftFilters, DRAFT_ROOM_MESSAGES, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 
@@ -208,6 +209,7 @@ function PlayerPanelInner({
   formatType,
   selectedPlayerTarget = null,
 }: PlayerPanelProps) {
+  const { t } = useLanguage()
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [teamFilter, setTeamFilter] = useState('All')
@@ -499,11 +501,11 @@ function PlayerPanelInner({
       )}
       <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain p-2.5">
         {loading ? (
-          <p className="py-4 text-center text-xs text-white/50">{DRAFT_ROOM_MESSAGES.playerPoolLoading}</p>
+          <p className="py-4 text-center text-xs text-white/50">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
         ) : showRosterView ? (
           <ul className="space-y-1">
             {currentRoster.length === 0 ? (
-              <li className="text-[10px] text-white/50">No picks yet.</li>
+              <li className="text-[10px] text-white/50">{t('draftRoom.playerPanel.noPicksYet')}</li>
             ) : (
               currentRoster.map((p, i) => (
                 <li

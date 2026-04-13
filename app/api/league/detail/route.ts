@@ -113,6 +113,7 @@ export async function GET(req: NextRequest) {
       teamName: team.teamName,
       ownerName: team.ownerName,
       avatarUrl: team.avatarUrl,
+      platformUserId: team.platformUserId ?? null,
       role: team.role,
       isOrphan: team.isOrphan,
       claimedByUserId: team.claimedByUserId,
@@ -121,6 +122,11 @@ export async function GET(req: NextRequest) {
       losses: team.losses,
       ties: team.ties,
       pointsFor: team.pointsFor,
+      pointsAgainst: team.pointsAgainst,
+      currentRank: team.currentRank ?? null,
+      faabRemaining: null,
+      waiverPriority: null,
+      divisionId: team.divisionId ?? null,
     })),
   })
 }

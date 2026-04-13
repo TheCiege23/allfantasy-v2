@@ -174,13 +174,13 @@ export function initialsFromName(name: string): string {
 
 export const SETTINGS_TAB_STORAGE_PREFIX = 'af-league-settings-tab-'
 
-export type SettingsTabKey = 'general' | 'commish' | 'ai' | 'idp'
+export type SettingsTabKey = 'user' | 'general' | 'commish' | 'ai' | 'idp'
 
 export function readStoredTab(leagueId: string, isCommissioner: boolean): SettingsTabKey {
   if (typeof window === 'undefined') return 'general'
   try {
     const v = window.localStorage.getItem(`${SETTINGS_TAB_STORAGE_PREFIX}${leagueId}`) as SettingsTabKey | null
-    if (v === 'ai' || v === 'general') return v
+    if (v === 'ai' || v === 'general' || v === 'user') return v
     /** Legacy COMMISH tab merged into commissioner settings hub. */
     if (v === 'commish') return 'general'
     if (v === 'idp') return 'idp'

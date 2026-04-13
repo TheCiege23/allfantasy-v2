@@ -3,3 +3,4 @@
  */
 export * from './NflScoringPresets'
 export { getLeagueNflScoringConfig, saveLeagueNflScoringConfig, applyDefaultNflScoringOnCreate, type LeagueNflScoringConfig } from './NflScoringConfigService'
+export { NFL_SCORING_CATEGORIES, NFL_PREMIUM_SCORING, buildFullNflDefaultConfig, getAllNflScoringKeys, type ScoringRow, type ScoringCategory } from './NflScoringCategories'

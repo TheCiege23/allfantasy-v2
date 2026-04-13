@@ -37,6 +37,32 @@ function parseRetryAfterMs(value: string | undefined): number | null {
   return delta > 0 ? delta : null
 }
 
+async function waitForSessionReady(page: Page): Promise<void> {
+  const maxAttempts = 15
+  let lastError = ""
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await page.request.get("/api/auth/session", { timeout: 10_000 })
+      if (response.ok()) {
+        const body = (await response.json().catch(() => null)) as {
+          user?: { id?: string | null } | null
+        } | null
+        if (body?.user?.id) return
+      }
+    } catch (error) {
+      lastError = String((error as Error)?.message ?? error)
+    }
+
+    await delay(Math.min(250 * attempt, 1500))
+  }
+
+  if (lastError) {
+    throw new Error(`Session did not become ready after sign-in: ${lastError}`)
+  }
+  throw new Error("Session did not become ready after sign-in")
+}
+
 async function registerWithRetry(
   page: Page,
   credentials: TestCredentials
@@ -115,6 +141,14 @@ async function registerWithRetry(
 }
 
 async function loginWithRetry(page: Page, credentials: TestCredentials): Promise<void> {
+  return loginWithRetryTo(page, credentials, "/dashboard")
+}
+
+async function loginWithRetryTo(
+  page: Page,
+  credentials: TestCredentials,
+  landingPath: string | null
+): Promise<void> {
   const maxAttempts = 8
   let lastError = ""
 
@@ -158,7 +192,7 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
           csrfToken,
           login: credentials.username,
           password: credentials.password,
-          callbackUrl: "/dashboard",
+          callbackUrl: landingPath ?? "/dashboard",
           json: "true",
         },
         timeout: 15_000,
@@ -178,6 +212,8 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
         }
         break
       }
+
+      await waitForSessionReady(page)
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)
       if (attempt < maxAttempts) {
@@ -188,8 +224,12 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
     }
 
     try {
-      await page.goto("/dashboard")
-      await page.waitForURL("/dashboard")
+      if (!landingPath) {
+        return
+      }
+
+      await page.goto(landingPath)
+      await page.waitForURL((url) => url.pathname === new URL(landingPath, url.origin).pathname)
       return
     } catch (error) {
       lastError = String((error as Error)?.message ?? error)
@@ -203,8 +243,15 @@ async function loginWithRetry(page: Page, credentials: TestCredentials): Promise
 }
 
 export async function registerAndLogin(page: Page): Promise<void> {
+  return registerAndLoginTo(page, "/dashboard")
+}
+
+export async function registerAndLoginTo(
+  page: Page,
+  landingPath: string | null
+): Promise<void> {
   const credentials = makeTestCredentials()
 
   await registerWithRetry(page, credentials)
-  await loginWithRetry(page, credentials)
+  await loginWithRetryTo(page, credentials, landingPath)
 }

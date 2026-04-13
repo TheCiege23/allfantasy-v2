@@ -1,6 +1,8 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect } from "react"
+import ChimmyAlertPreferencesPanel from "@/components/chimmy-surfaces/ChimmyAlertPreferencesPanel"
 
 export default function AlertSettingsClient() {
   const [injuryAlerts, setInjuryAlerts] = useState(true)
@@ -118,6 +120,16 @@ export default function AlertSettingsClient() {
       <p className="text-xs text-white/40">
         Alerts appear in the notification bell and link to the relevant player or league page when you tap them.
       </p>
+
+      <section className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <h2 className="text-sm font-semibold text-white">Chimmy alert controls</h2>
+        <p className="mt-1 text-xs text-white/60">
+          Fine-tune Chimmy frequency, channels, muted categories, and commissioner-only alert rules.
+        </p>
+        <div className="mt-4">
+          <ChimmyAlertPreferencesPanel />
+        </div>
+      </section>
     </div>
   )
 }

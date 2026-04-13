@@ -2,6 +2,14 @@ import { prisma } from '@/lib/prisma'
 import { fetchFantasyCalcValues, findPlayerByName } from '@/lib/fantasycalc'
 import { fetchNewsContext, fetchRollingInsights } from '@/lib/upstream-apis'
 import type { TradeDecisionContextV1 } from './trade-decision-context'
+import {
+  runNewsImpactEngine,
+  formatNewsImpactForPrompt,
+  type RawNewsItem,
+  type NewsImpactResult,
+} from './news-impact-engine'
+import { computeTeamManagerContext } from './team-manager-context-engine'
+import { readCache, writeCache } from '@/lib/enrichment-cache'
 
 type PrismaLike = typeof prisma
 
@@ -515,6 +523,13 @@ export async function buildTradeHubIntelBlock(
     parts.push(sortedSignals.slice(0, 20).map(formatSignalLine).join('\n'))
   }
 
+  // --- News Impact Engine: score, categorize, time-decay, value-adjust ---
+  const newsImpactResult = await computeNewsImpact(news?.items || [], playerNames)
+  if (newsImpactResult && newsImpactResult.items.length > 0) {
+    parts.push('')
+    parts.push(formatNewsImpactForPrompt(newsImpactResult))
+  }
+
   parts.push(
     'Interpretation rules: prioritize weighted signals (confidence + freshness + relevance), reconcile market (FantasyCalc/KTC) with injuries/news, and adapt recommendation to competitive window plus positional needs.',
   )
@@ -524,6 +539,53 @@ export async function buildTradeHubIntelBlock(
   parts.push('--- END EXTERNAL TRADE INTELLIGENCE LAYER ---')
 
   return parts.join('\n')
+}
+
+/**
+ * Runs the news impact engine with caching (20-min TTL).
+ * Converts upstream NewsContextItems → RawNewsItems, scores & decays them.
+ */
+async function computeNewsImpact(
+  newsItems: Array<{
+    id: string
+    title: string
+    source: string
+    url: string | null
+    publishedAt: string
+    isInjury: boolean
+    injuryStatus?: string | null
+    playerName?: string | null
+    team: string | null
+  }>,
+  playerNames: string[],
+): Promise<NewsImpactResult | null> {
+  if (!newsItems.length) return null
+
+  // Cache key includes sorted player names + item IDs hash for precision
+  const itemIdHash = newsItems.map(i => i.id).sort().join(',').slice(0, 200)
+  const cacheParams = { playerNames: [...playerNames].sort(), itemIdHash }
+  const cached = await readCache<NewsImpactResult>(prisma, 'news_intelligence', cacheParams).catch(() => null)
+  if (cached) return cached.data
+
+  // Convert upstream format → RawNewsItem
+  const rawItems: RawNewsItem[] = newsItems.map((item) => ({
+    id: item.id,
+    title: item.title,
+    source: item.source,
+    url: item.url,
+    publishedAt: item.publishedAt,
+    playerName: item.playerName ?? null,
+    team: item.team,
+    isInjury: item.isInjury,
+    injuryStatus: item.injuryStatus,
+  }))
+
+  const result = runNewsImpactEngine(rawItems)
+
+  // Write to cache (20-min TTL)
+  await writeCache(prisma, 'news_intelligence', cacheParams, result, 'news_impact_engine').catch(() => {})
+
+  return result
 }
 
 function toPlayerNames(ctx: TradeDecisionContextV1): string[] {
@@ -554,7 +616,7 @@ export async function buildTradeAnalyzerIntelPrompt(
     `Trade balance: favoredSide=${ctx.valueDelta.favoredSide} diff=${ctx.valueDelta.absoluteDiff.toFixed(0)} (${ctx.valueDelta.percentageDiff.toFixed(1)}%)`,
   ]
 
-  return buildTradeHubIntelBlock(
+  const intelBlock = await buildTradeHubIntelBlock(
     {
       playerNames: toPlayerNames(ctx),
       teamAbbrevs: toTeamAbbrevs(ctx),
@@ -565,6 +627,19 @@ export async function buildTradeAnalyzerIntelPrompt(
     },
     deps,
   )
+
+  // Append team & manager context intelligence
+  let teamManagerBlock = ''
+  try {
+    const tmCtx = computeTeamManagerContext(ctx)
+    teamManagerBlock = tmCtx.promptBlock
+  } catch (err) {
+    console.warn('[trade-intel] Team/manager context engine failed:', (err as any)?.message || err)
+  }
+
+  return teamManagerBlock
+    ? `${intelBlock}\n\n${teamManagerBlock}`
+    : intelBlock
 }
 
 

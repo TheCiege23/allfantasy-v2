@@ -21,7 +21,7 @@ export const PeerReviewVerdictSchema = z.object({
 
 export type PeerReviewVerdict = z.infer<typeof PeerReviewVerdictSchema>;
 
-export const PEER_REVIEW_PROMPT_CONTRACT = `You are a peer reviewer evaluating a dynasty fantasy football trade. You must return ONLY valid JSON matching this exact schema — no markdown, no explanation outside the JSON:
+export const PEER_REVIEW_PROMPT_CONTRACT = `You are a peer reviewer evaluating a fantasy trade. You must return ONLY valid JSON matching this exact schema — no markdown, no explanation outside the JSON:
 
 {
   "verdict": "Team A" | "Team B" | "Even" | "Slight edge to Team A" | "Slight edge to Team B",
@@ -37,11 +37,18 @@ Rules:
 - "reasons": 3-7 bullet points grounding your verdict in the provided numbers (market values, ADP, analytics, roster needs)
 - "counters": 2-5 counter-arguments — why someone might disagree with your verdict
 - "warnings": 0-5 data quality or risk warnings (missing ADP, stale injury data, age cliffs, etc.)
+
+ANTI-HALLUCINATION RULES (CRITICAL):
 - Do NOT hallucinate values. Use ONLY the numbers in the deterministic fact layer.
+- Do NOT invent stats, player values, ADP numbers, or trade volumes that are not in the payload.
+- If data is missing for key players, note it in warnings and reduce confidence.
+- Every reason MUST cite specific data from the payload (values, ages, positions, roster needs).
+- Do NOT override or contradict the deterministic fairness score — only interpret and explain it.
+
+SOURCE OF TRUTH:
 - Treat the fact layer and external intelligence block as your source of truth for: Sleeper historical context, manager tendencies, roster needs, scoring settings, FantasyCalc values, rookie value context, injuries/news, and rolling player/team stats.
 - For Grok runs, if web/x search tools are available, use them to validate major breaking-news claims before finalizing verdict.
-- Explicitly account for competitive window fit (win-now/rebuild/middle) in reasons/counters.
-- If data is missing for key players, note it in warnings and reduce confidence.`;
+- Explicitly account for competitive window fit (win-now/rebuild/middle) in reasons/counters.`;
 
 export const PEER_REVIEW_TEMPERATURE = 0.4;
 export const PEER_REVIEW_MAX_TOKENS = 1500;
@@ -400,12 +407,28 @@ export const LegacyWinnerEnum = z.enum([
 
 export const WinnerEnum = LegacyWinnerEnum;
 
+export const ConfidenceBreakdownSchema = z.object({
+  data_quality: z.number().min(0).max(100),
+  market_alignment: z.number().min(0).max(100),
+  risk_weighting: z.number().min(0).max(100),
+});
+
+export type ConfidenceBreakdown = z.infer<typeof ConfidenceBreakdownSchema>;
+
 export const TradeAnalysisSchema = z.object({
   winner: LegacyWinnerEnum,
-  valueDelta: z.string(),
-  factors: z.array(z.string()).min(1),
   confidence: z.number().min(0).max(100),
-  dynastyVerdict: z.string(),
+  reasoning: z.string().min(1),
+  key_factors: z.array(z.string()).min(1),
+  risk_flags: z.array(z.string()),
+  counter_suggestions: z.array(z.string()),
+  news_impact: z.array(z.string()),
+  confidence_breakdown: ConfidenceBreakdownSchema,
+  /** @deprecated kept for backwards compat — maps to reasoning */
+  valueDelta: z.string().optional(),
+  /** @deprecated kept for backwards compat — maps to key_factors */
+  factors: z.array(z.string()).optional(),
+  dynastyVerdict: z.string().optional(),
   vetoRisk: z.string().optional(),
   agingConcerns: z.array(z.string()).optional(),
   recommendations: z.array(z.string()).optional(),
@@ -435,20 +458,105 @@ export type ConsensusAnalysis = TradeAnalysis & {
   };
 };
 
+/**
+ * Score a provider result on a 100-point scale:
+ *   Schema validity    — 40 pts
+ *   Reasoning depth    — 20 pts
+ *   Factor diversity   — 10 pts
+ *   Confidence calib.  — 20 pts
+ *   News relevance     — 10 pts
+ */
 export function scoreProviderResult(result: ProviderResult): number {
   let score = 0;
 
+  // --- Schema validity (40 pts) ---
   if (result.schemaValid) score += 40;
-  if (result.analysis) {
-    score += Math.min(30, (result.analysis.confidence / 100) * 30);
-    if (result.analysis.factors?.length >= 3) score += 10;
-    if (result.analysis.valueDelta?.length > 10) score += 5;
-    if (result.analysis.dynastyVerdict?.length > 10) score += 5;
-    if (result.analysis.recommendations?.length) score += 5;
-    if (result.analysis.agingConcerns?.length) score += 5;
+
+  if (!result.analysis) return score;
+
+  const a = result.analysis;
+
+  // --- Reasoning depth (20 pts) ---
+  const reasoningLen = (a.reasoning ?? '').length;
+  if (reasoningLen >= 200) score += 20;
+  else if (reasoningLen >= 100) score += 14;
+  else if (reasoningLen >= 40) score += 8;
+  else if (reasoningLen > 0) score += 4;
+
+  // --- Factor diversity (10 pts) ---
+  const factorCount = a.key_factors?.length ?? 0;
+  if (factorCount >= 5) score += 10;
+  else if (factorCount >= 3) score += 7;
+  else if (factorCount >= 1) score += 4;
+
+  // --- Confidence calibration (20 pts) ---
+  // Reward middle-ground confidence; penalize extremes (0 or 100) unless justified
+  const cb = a.confidence_breakdown;
+  if (cb) {
+    const avg = (cb.data_quality + cb.market_alignment + cb.risk_weighting) / 3;
+    const spread = Math.max(cb.data_quality, cb.market_alignment, cb.risk_weighting) -
+                   Math.min(cb.data_quality, cb.market_alignment, cb.risk_weighting);
+    // Reasonable average → up to 14 pts, low spread → up to 6 pts
+    score += Math.min(14, Math.round((avg / 100) * 14));
+    score += spread <= 30 ? 6 : spread <= 50 ? 3 : 0;
+  } else {
+    // Fallback: simple confidence score
+    score += Math.min(20, Math.round((a.confidence / 100) * 20));
   }
 
+  // --- News relevance (10 pts) ---
+  const newsCount = a.news_impact?.length ?? 0;
+  if (newsCount >= 3) score += 10;
+  else if (newsCount >= 1) score += 6;
+  // 0 news is acceptable for OpenAI (no live data), still earns partial
+  else if (result.provider === 'openai') score += 3;
+
   return Math.min(100, score);
+}
+
+/** Parse confidence safely, handling NaN and string inputs. */
+function safeParseConfidence(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.min(100, Math.max(0, value));
+  }
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    if (Number.isFinite(parsed)) return Math.min(100, Math.max(0, parsed));
+  }
+  return 50;
+}
+
+/** Coerce a raw response (old or new format) into the unified TradeAnalysis shape. */
+function coerceToNewSchema(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+
+  return {
+    ...raw,
+    // Map old "teamA/teamB/even" string variants to enum values
+    winner: raw.winner ?? raw.verdict,
+    confidence: safeParseConfidence(raw.confidence),
+    // New fields — populate from old equivalents if missing
+    reasoning: raw.reasoning ?? raw.dynastyVerdict ?? raw.reason ?? '',
+    key_factors: Array.isArray(raw.key_factors)
+      ? raw.key_factors
+      : Array.isArray(raw.factors) ? raw.factors : [],
+    risk_flags: Array.isArray(raw.risk_flags)
+      ? raw.risk_flags
+      : Array.isArray(raw.agingConcerns) ? raw.agingConcerns : [],
+    counter_suggestions: Array.isArray(raw.counter_suggestions)
+      ? raw.counter_suggestions
+      : Array.isArray(raw.recommendations) ? raw.recommendations : [],
+    news_impact: Array.isArray(raw.news_impact) ? raw.news_impact : [],
+    confidence_breakdown: raw.confidence_breakdown ?? {
+      data_quality: safeParseConfidence(raw.confidence),
+      market_alignment: safeParseConfidence(raw.confidence),
+      risk_weighting: safeParseConfidence(raw.confidence),
+    },
+    // Preserve legacy fields
+    valueDelta: raw.valueDelta,
+    factors: Array.isArray(raw.factors) ? raw.factors : Array.isArray(raw.key_factors) ? raw.key_factors : [],
+    dynastyVerdict: raw.dynastyVerdict ?? raw.reasoning,
+  };
 }
 
 export function validateAndParseAnalysis(raw: any): {
@@ -456,52 +564,51 @@ export function validateAndParseAnalysis(raw: any): {
   analysis: TradeAnalysis | null;
 } {
   try {
+    // Try direct parse first
     const parsed = TradeAnalysisSchema.safeParse(raw);
     if (parsed.success) {
       return { valid: true, analysis: parsed.data };
     }
 
-    const coerced = {
-      ...raw,
-      confidence:
-        typeof raw?.confidence === "string"
-          ? parseFloat(raw.confidence)
-          : raw?.confidence,
-      factors: Array.isArray(raw?.factors) ? raw.factors : [],
-    };
-
+    // Coerce old/partial format into new schema
+    const coerced = coerceToNewSchema(raw);
     const retry = TradeAnalysisSchema.safeParse(coerced);
     if (retry.success) {
       return { valid: true, analysis: retry.data };
     }
 
-    if (
-      raw &&
-      typeof raw === "object" &&
-      raw.winner &&
-      raw.dynastyVerdict
-    ) {
-      return {
-        valid: false,
-        analysis: {
-          winner: raw.winner,
-          valueDelta: raw.valueDelta || "",
-          factors: Array.isArray(raw.factors) ? raw.factors : [],
-          confidence:
-            typeof raw.confidence === "number" ? raw.confidence : 50,
-          dynastyVerdict: raw.dynastyVerdict || "",
-          vetoRisk: raw.vetoRisk,
-          agingConcerns: Array.isArray(raw.agingConcerns)
-            ? raw.agingConcerns
-            : undefined,
-          recommendations: Array.isArray(raw.recommendations)
-            ? raw.recommendations
-            : undefined,
-          youGiveAdjusted: raw.youGiveAdjusted,
-          youWantAdded: raw.youWantAdded,
-          reason: raw.reason,
-        },
-      };
+    // Last resort: if we have a winner and any reasoning, build a partial analysis
+    if (raw && typeof raw === 'object' && (raw.winner || raw.verdict)) {
+      const fallback = coerceToNewSchema(raw);
+      const winnerVal = fallback.winner;
+      if (winnerVal && LegacyWinnerEnum.safeParse(winnerVal).success) {
+        return {
+          valid: false,
+          analysis: {
+            winner: winnerVal,
+            confidence: typeof fallback.confidence === 'number'
+              ? Math.min(100, Math.max(0, fallback.confidence)) : 50,
+            reasoning: fallback.reasoning || 'Analysis provided but schema incomplete',
+            key_factors: Array.isArray(fallback.key_factors) && fallback.key_factors.length > 0
+              ? fallback.key_factors : ['Schema incomplete — factors unavailable'],
+            risk_flags: Array.isArray(fallback.risk_flags) ? fallback.risk_flags : [],
+            counter_suggestions: Array.isArray(fallback.counter_suggestions) ? fallback.counter_suggestions : [],
+            news_impact: Array.isArray(fallback.news_impact) ? fallback.news_impact : [],
+            confidence_breakdown: fallback.confidence_breakdown ?? {
+              data_quality: 50, market_alignment: 50, risk_weighting: 50,
+            },
+            valueDelta: fallback.valueDelta,
+            factors: fallback.factors,
+            dynastyVerdict: fallback.dynastyVerdict,
+            vetoRisk: raw.vetoRisk,
+            agingConcerns: Array.isArray(raw.agingConcerns) ? raw.agingConcerns : undefined,
+            recommendations: Array.isArray(raw.recommendations) ? raw.recommendations : undefined,
+            youGiveAdjusted: raw.youGiveAdjusted,
+            youWantAdded: raw.youWantAdded,
+            reason: raw.reason,
+          },
+        };
+      }
     }
 
     return { valid: false, analysis: null };
@@ -536,6 +643,23 @@ function resolveWinner(
   return best;
 }
 
+function mergeConfidenceBreakdowns(
+  a: ConfidenceBreakdown,
+  b: ConfidenceBreakdown,
+  wA: number,
+  wB: number,
+): ConfidenceBreakdown {
+  return {
+    data_quality: Math.round(a.data_quality * wA + b.data_quality * wB),
+    market_alignment: Math.round(a.market_alignment * wA + b.market_alignment * wB),
+    risk_weighting: Math.round(a.risk_weighting * wA + b.risk_weighting * wB),
+  };
+}
+
+function winnersAgree(a: TradeAnalysis, b: TradeAnalysis): boolean {
+  return verdictClass(a.winner) === verdictClass(b.winner);
+}
+
 export function mergeAnalyses(
   results: ProviderResult[],
   primaryProvider: "openai" | "grok"
@@ -544,15 +668,25 @@ export function mergeAnalyses(
 
   if (valid.length === 0) return null;
 
+  const totalLatencyMs = Math.max(...results.map((r) => r.latencyMs));
+
+  // --- Single provider (other failed): apply -15 penalty ---
   if (valid.length === 1) {
     const r = valid[0];
-    return {
+    const otherFailed = results.find((p) => p.analysis === null);
+    const penalty = otherFailed ? 15 : 0;
+    const adjusted = {
       ...r.analysis!,
+      confidence: Math.max(0, r.analysis!.confidence - penalty),
+    };
+
+    return {
+      ...adjusted,
       meta: {
         providers: results,
         consensusMethod: "single",
         primaryProvider,
-        totalLatencyMs: Math.max(...results.map((r) => r.latencyMs)),
+        totalLatencyMs,
       },
     };
   }
@@ -563,14 +697,16 @@ export function mergeAnalyses(
   const pScore = scoreProviderResult(primary);
   const sScore = scoreProviderResult(secondary);
 
+  // If secondary is too weak, use primary with -15 penalty
   if (sScore < 30) {
     return {
       ...primary.analysis!,
+      confidence: Math.max(0, primary.analysis!.confidence - 15),
       meta: {
         providers: results,
         consensusMethod: "primary_fallback",
         primaryProvider,
-        totalLatencyMs: Math.max(...results.map((r) => r.latencyMs)),
+        totalLatencyMs,
       },
     };
   }
@@ -579,27 +715,57 @@ export function mergeAnalyses(
   const sA = secondary.analysis!;
 
   const totalWeight = pScore + sScore;
-  const pWeight = pScore / totalWeight;
-  const sWeight = sScore / totalWeight;
+  // Guard against division by zero (both scores are 0)
+  const pWeight = totalWeight > 0 ? pScore / totalWeight : 0.5;
+  const sWeight = totalWeight > 0 ? sScore / totalWeight : 0.5;
+
+  const agree = winnersAgree(pA, sA);
+
+  // --- Consensus logic ---
+  let mergedConfidence: number;
+  let consensusMethod: ConsensusAnalysis["meta"]["consensusMethod"];
+
+  if (agree) {
+    // Both agree → boost confidence +10, merge reasoning
+    mergedConfidence = Math.min(
+      100,
+      Math.round(pA.confidence * pWeight + sA.confidence * sWeight) + 10,
+    );
+    consensusMethod = "weighted_merge";
+  } else {
+    // Disagree → cap confidence at 40, trigger REVIEW MODE
+    mergedConfidence = Math.min(
+      40,
+      Math.round(pA.confidence * pWeight + sA.confidence * sWeight),
+    );
+    consensusMethod = "weighted_merge";
+  }
 
   const merged: TradeAnalysis = {
     winner: resolveWinner(pA, sA, pScore, sScore),
-    valueDelta:
-      pScore >= sScore ? pA.valueDelta : sA.valueDelta,
-    factors: dedupeAndRank(pA.factors || [], sA.factors || []),
-    confidence: Math.round(
-      pA.confidence * pWeight + sA.confidence * sWeight
+    confidence: mergedConfidence,
+    reasoning: pScore >= sScore
+      ? `${pA.reasoning}\n\n[${secondary.provider} adds]: ${sA.reasoning}`
+      : `${sA.reasoning}\n\n[${primary.provider} adds]: ${pA.reasoning}`,
+    key_factors: dedupeAndRank(pA.key_factors ?? pA.factors ?? [], sA.key_factors ?? sA.factors ?? []),
+    risk_flags: dedupeAndRank(pA.risk_flags ?? [], sA.risk_flags ?? []),
+    counter_suggestions: dedupeAndRank(pA.counter_suggestions ?? [], sA.counter_suggestions ?? []),
+    news_impact: dedupeAndRank(pA.news_impact ?? [], sA.news_impact ?? []),
+    confidence_breakdown: mergeConfidenceBreakdowns(
+      pA.confidence_breakdown ?? { data_quality: 50, market_alignment: 50, risk_weighting: 50 },
+      sA.confidence_breakdown ?? { data_quality: 50, market_alignment: 50, risk_weighting: 50 },
+      pWeight,
+      sWeight,
     ),
-    dynastyVerdict:
-      pScore >= sScore ? pA.dynastyVerdict : sA.dynastyVerdict,
+    // Legacy fields
+    valueDelta: pScore >= sScore ? pA.valueDelta : sA.valueDelta,
+    factors: dedupeAndRank(pA.factors ?? pA.key_factors ?? [], sA.factors ?? sA.key_factors ?? []),
+    dynastyVerdict: pScore >= sScore ? pA.dynastyVerdict : sA.dynastyVerdict,
     vetoRisk: pA.vetoRisk || sA.vetoRisk,
-    agingConcerns: dedupeAndRank(
-      pA.agingConcerns || [],
-      sA.agingConcerns || []
-    ),
+    agingConcerns: dedupeAndRank(pA.agingConcerns || [], sA.agingConcerns || []),
     recommendations: dedupeAndRank(
-      pA.recommendations || [],
-      sA.recommendations || []
+      pA.recommendations ?? pA.counter_suggestions ?? [],
+      sA.recommendations ?? sA.counter_suggestions ?? [],
     ),
     youGiveAdjusted: pA.youGiveAdjusted || sA.youGiveAdjusted,
     youWantAdded: pA.youWantAdded || sA.youWantAdded,
@@ -610,9 +776,9 @@ export function mergeAnalyses(
     ...merged,
     meta: {
       providers: results,
-      consensusMethod: "weighted_merge",
+      consensusMethod,
       primaryProvider,
-      totalLatencyMs: Math.max(...results.map((r) => r.latencyMs)),
+      totalLatencyMs,
     },
   };
 }

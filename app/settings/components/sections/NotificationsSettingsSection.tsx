@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import ChimmyAlertPreferencesPanel from "@/components/chimmy-surfaces/ChimmyAlertPreferencesPanel"
 import {
   resolveNotificationPreferences,
   getNotificationPreferencesFingerprint,
@@ -23,6 +25,7 @@ export function NotificationsSettingsSection({
   profile: SettingsProfile
   onRefetch: () => void
 }) {
+  const { t } = useLanguage()
   const resolved = resolveNotificationPreferences(profile?.notificationPreferences as NotificationPreferences | null)
   const [prefs, setPrefs] = useState<NotificationPreferences>(resolved)
   const [expandedCategory, setExpandedCategory] = useState<NotificationCategoryId | null>("lineup_reminders")
@@ -191,17 +194,26 @@ export function NotificationsSettingsSection({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Notifications</h2>
-        <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Choose how you receive alerts: lineup reminders, matchups, trades, chat, bracket, AI, and more. Critical account and verification emails are always sent.
+        <h2 className="text-lg font-semibold text-[var(--text)]">
+          {t("settings.notifications.title")}
+        </h2>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          {t("settings.notifications.subtitle")}
         </p>
       </div>
 
-      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
+      <div
+        className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--panel2)] p-4"
+        data-testid="notifications-global-card"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Notifications</p>
+          <p className="text-sm font-medium text-[var(--text)]">
+            {t("settings.notifications.globalLabel")}
+          </p>
           <label className="flex items-center gap-2 text-sm">
-            <span style={{ color: "var(--muted)" }}>{prefs.globalEnabled !== false ? "On" : "Off"}</span>
+            <span className="text-[var(--muted)]">
+              {prefs.globalEnabled !== false ? t("settings.notifications.on") : t("settings.notifications.off")}
+            </span>
             <input
               type="checkbox"
               checked={prefs.globalEnabled !== false}
@@ -212,45 +224,41 @@ export function NotificationsSettingsSection({
                 setTestResultTone(null)
                 setPrefs((p) => ({ ...p, globalEnabled: e.target.checked }))
               }}
-              className="h-4 w-4 rounded"
-              style={{ accentColor: "var(--accent-cyan)" }}
+              className="h-4 w-4 rounded accent-[var(--accent-cyan)]"
+              data-testid="notifications-global-toggle"
             />
           </label>
         </div>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          When off, non-critical notifications are paused. Account and security emails still apply.
-        </p>
+        <p className="text-xs text-[var(--muted)]">{t("settings.notifications.globalHint")}</p>
       </div>
 
       <div className="rounded-xl border border-white/[0.08] bg-[#1a1f3a]/90 p-4 space-y-3">
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Delivery masters</p>
+        <p className="text-sm font-medium text-[var(--text)]">
+          {t("settings.notifications.deliveryMasters")}
+        </p>
         <label className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span style={{ color: "var(--muted)" }}>Email notifications (all categories)</span>
+          <span className="text-[var(--muted)]">{t("settings.notifications.emailAll")}</span>
           <input
             type="checkbox"
             checked={allEmailOn}
             onChange={(e) => setAllEmailChannels(e.target.checked)}
-            className="h-4 w-4 rounded"
-            style={{ accentColor: "var(--accent-cyan)" }}
+            className="h-4 w-4 rounded accent-[var(--accent-cyan)]"
           />
         </label>
         <label className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span style={{ color: "var(--muted)" }}>Push / in-app (all categories)</span>
+          <span className="text-[var(--muted)]">{t("settings.notifications.pushAll")}</span>
           <input
             type="checkbox"
             checked={allPushOn}
             onChange={(e) => setAllPushChannels(e.target.checked)}
-            className="h-4 w-4 rounded"
-            style={{ accentColor: "var(--accent-cyan)" }}
+            className="h-4 w-4 rounded accent-[var(--accent-cyan)]"
           />
         </label>
-        <p className="text-xs" style={{ color: "var(--muted2)" }}>
-          When a mix of categories differs, the checkbox is off until all match; toggling applies to every category.
-        </p>
+        <p className="text-xs text-[var(--muted2)]">{t("settings.notifications.deliveryMixHint")}</p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>By category</p>
+        <p className="text-sm font-medium text-[var(--muted2)]">{t("settings.notifications.byCategory")}</p>
         <ul className="space-y-2">
           {NOTIFICATION_CATEGORY_IDS.map((categoryId) => (
             <li key={categoryId}>
@@ -269,27 +277,26 @@ export function NotificationsSettingsSection({
       </div>
 
       {remoteUpdatePending && (
-        <div className="rounded-xl border px-3 py-2 text-sm" style={{ borderColor: "var(--accent-cyan)", background: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)", color: "var(--text)" }}>
-          Saved notification preferences changed in another session. Keep editing or reload the latest saved version.
+        <div className="rounded-xl border border-[var(--accent-cyan)] bg-[color-mix(in_srgb,var(--accent-cyan)_12%,transparent)] px-3 py-2 text-sm text-[var(--text)]">
+          {t("settings.notifications.remotePending")}
           <button
             type="button"
             onClick={handleReloadSaved}
-            className="ml-2 rounded-lg border px-2 py-1 text-xs font-medium"
-            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            className="ml-2 rounded-lg border border-[var(--border)] px-2 py-1 text-xs font-medium text-[var(--text)]"
           >
-            Reload saved
+            {t("settings.notifications.reloadSaved")}
           </button>
         </div>
       )}
 
-      <div className="rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>Send a test notification</p>
+      <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--panel2)] p-4">
+        <p className="text-sm font-medium text-[var(--text)]">{t("settings.notifications.testTitle")}</p>
         <div className="flex flex-wrap items-center gap-2">
           <select
+            aria-label="Notification test category"
             value={testCategory}
             onChange={(e) => setTestCategory(e.target.value as NotificationCategoryId)}
-            className="rounded-lg border px-3 py-2 text-sm"
-            style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--text)" }}
+            className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--text)]"
           >
             {NOTIFICATION_CATEGORY_IDS.map((id) => (
               <option key={id} value={id}>{NOTIFICATION_CATEGORY_LABELS[id]}</option>
@@ -299,34 +306,40 @@ export function NotificationsSettingsSection({
             type="button"
             onClick={handleSendTestNotification}
             disabled={testing}
-            className="rounded-lg border px-3 py-2 text-sm font-medium"
-            style={{ borderColor: "var(--border)", color: "var(--text)" }}
+            className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium text-[var(--text)]"
           >
-            {testing ? "Sending test…" : "Send test notification"}
+            {testing ? t("settings.notifications.sendingTest") : t("settings.notifications.sendTest")}
           </button>
         </div>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          Test uses your currently selected delivery channels for the chosen category.
-        </p>
+        <p className="text-xs text-[var(--muted)]">{t("settings.notifications.testHint")}</p>
         {testResultMessage && (
           <p
-            className="text-xs"
-            style={{
-              color:
-                testResultTone === "success"
-                  ? "#059669"
-                  : testResultTone === "error"
-                    ? "var(--accent-red-strong)"
-                    : "var(--muted2)",
-            }}
+            className={[
+              "text-xs",
+              testResultTone === "success"
+                ? "text-emerald-600"
+                : testResultTone === "error"
+                  ? "text-[var(--accent-red-strong)]"
+                  : "text-[var(--muted2)]",
+            ].join(" ")}
           >
             {testResultMessage}
           </p>
         )}
       </div>
 
+      <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--panel2)] p-4">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">Chimmy alert controls</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Tune Chimmy alert frequency, muted categories, and channel-level delivery without leaving settings.
+          </p>
+        </div>
+        <ChimmyAlertPreferencesPanel />
+      </div>
+
       {saveError && (
-        <p className="text-sm" style={{ color: "var(--accent-red-strong)" }}>{saveError}</p>
+        <p className="text-sm text-[var(--accent-red-strong)]">{saveError}</p>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -334,36 +347,37 @@ export function NotificationsSettingsSection({
           type="button"
           disabled={saving || !dirty}
           onClick={handleSave}
-          className="rounded-xl px-4 py-2 text-sm font-semibold"
-          style={{
-            background: dirty && !saving ? "linear-gradient(135deg, var(--accent-cyan), var(--accent-purple))" : "var(--panel2)",
-            color: dirty && !saving ? "var(--on-accent-bg)" : "var(--muted)",
-            border: "1px solid var(--border)",
-          }}
+          data-testid="notifications-save-button"
+          className={[
+            "rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold",
+            dirty && !saving
+              ? "bg-[linear-gradient(135deg,var(--accent-cyan),var(--accent-purple))] text-[var(--on-accent-bg)]"
+              : "bg-[var(--panel2)] text-[var(--muted)]",
+          ].join(" ")}
         >
-          {saving ? "Saving…" : "Save preferences"}
+          {saving ? t("settings.actions.saving") : t("settings.notifications.save")}
         </button>
         <button
           type="button"
           onClick={handleReset}
-          className="rounded-xl border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="notifications-reset-button"
+          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]"
         >
-          Reset to defaults
+          {t("settings.notifications.resetDefaults")}
         </button>
         <a
           href="/alerts/settings"
-          className="rounded-xl border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="notifications-sports-alerts-link"
+          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]"
         >
-          Sports alerts page
+          {t("settings.notifications.sportsAlertsPage")}
         </a>
         <a
           href="/settings?tab=profile"
-          className="rounded-xl border px-4 py-2 text-sm font-medium"
-          style={{ borderColor: "var(--border)", color: "var(--text)" }}
+          data-testid="notifications-back-to-profile-link"
+          className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text)]"
         >
-          Back to profile
+          {t("settings.notifications.backToProfile")}
         </a>
       </div>
     </div>

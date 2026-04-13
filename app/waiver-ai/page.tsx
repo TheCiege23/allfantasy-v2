@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { LandingToolVisitTracker } from '@/components/landing/LandingToolVisitTracker'
@@ -1079,6 +1080,8 @@ function AnalysisPanel({
 
 export default function WaiverAIPage() {
   const { data: session, status } = useSession()
+  const searchParams = useSearchParams()
+  const leagueIdFromUrl = searchParams?.get('leagueId') ?? null
   const [leagues, setLeagues] = useState<UserLeague[]>([])
   const [leagueError, setLeagueError] = useState<string | null>(null)
   const [leagueLoading, setLeagueLoading] = useState(false)
@@ -1150,6 +1153,14 @@ export default function WaiverAIPage() {
       cancelled = true
     }
   }, [session, status])
+
+  useEffect(() => {
+    if (!leagueIdFromUrl || leagues.length === 0 || selectedLeague) return
+    const hit = leagues.find(
+      (l) => l.id === leagueIdFromUrl || l.rosterLeagueId === leagueIdFromUrl,
+    )
+    if (hit) setSelectedLeague(hit)
+  }, [leagueIdFromUrl, leagues, selectedLeague])
 
   const refreshWire = useCallback(
     async (league: UserLeague, weakness?: string) => {

@@ -400,6 +400,102 @@ export async function getRosterTemplate(
 ): Promise<RosterTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
   const normalizedFormat = normalizeRosterFormatType(sport, formatType)
+
+  // Check for commissioner-customized roster config in League.settings (any sport)
+  if (leagueId) {
+    try {
+      const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { settings: true, sport: true } })
+      const settings = (league?.settings as Record<string, unknown>) ?? {}
+      const sportPrefix = `${(league?.sport ?? sport).toLowerCase()}_roster_`
+      const customConfig = settings[`${sportPrefix}config`] as Record<string, unknown> | undefined
+      if (customConfig?.slots && typeof customConfig.slots === 'object') {
+        const customSlots = customConfig.slots as Record<string, number>
+
+        // Load sport-specific slot definitions for eligible positions
+        let slotDefsMap: Map<string, string[]> | null = null
+        try {
+          if (sport === 'NFL') {
+            const { NFL_SLOT_MAP } = await import('@/lib/nfl-roster/NflRosterTemplates')
+            slotDefsMap = new Map([...NFL_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'NBA') {
+            const { NBA_SLOT_MAP } = await import('@/lib/nba-roster/NbaRosterTemplates')
+            slotDefsMap = new Map([...NBA_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'NCAAB') {
+            const { NCAAB_SLOT_MAP } = await import('@/lib/ncaab-roster/NcaabRosterTemplates')
+            slotDefsMap = new Map([...NCAAB_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'MLB') {
+            const { MLB_SLOT_MAP } = await import('@/lib/mlb-roster/MlbRosterTemplates')
+            slotDefsMap = new Map([...MLB_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'NCAAF') {
+            const { NCAAF_SLOT_MAP } = await import('@/lib/ncaaf-roster/NcaafRosterTemplates')
+            slotDefsMap = new Map([...NCAAF_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'NHL') {
+            const { NHL_SLOT_MAP } = await import('@/lib/nhl-roster/NhlRosterTemplates')
+            slotDefsMap = new Map([...NHL_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          } else if (sport === 'SOCCER') {
+            const { SOCCER_SLOT_MAP } = await import('@/lib/soccer-roster/SoccerRosterTemplates')
+            slotDefsMap = new Map([...SOCCER_SLOT_MAP].map(([k, v]) => [k, v.eligiblePositions]))
+          }
+        } catch { /* fall through to generic */ }
+
+        const reserveSlots = new Set([
+          'BN', 'IR', 'IL', 'IL_PLUS', 'IR_PLUS', 'TAXI', 'DEVY', 'CAMPUS',
+          // MLB
+          'NA', 'PROSPECT', 'RIGHTS', 'MINORS',
+          // NHL
+          'RESERVE',
+          // Soccer
+          'YOUTH', 'DEVELOPMENT', 'ACADEMY',
+        ])
+        const flexSlots = new Set([
+          'FLEX', 'SUPERFLEX', 'UTIL', 'SUPER_UTIL', 'IDP_FLEX',
+          // NFL
+          'FLEX_WR_RB', 'FLEX_WR_TE',
+          // NBA/NCAAB
+          'FLEX_PG_SG', 'FLEX_SF_PF', 'FLEX_G_F', 'FLEX_F_C',
+          // NHL
+          'FLEX_CW', 'FLEX_LW_RW', 'FLEX_FD', 'W', 'SKT',
+          // Soccer
+          'FLEX_DEF_MID', 'FLEX_MID_FWD',
+          // MLB
+          'CI', 'MI', 'H', 'P',
+        ])
+
+        const slots = Object.entries(customSlots)
+          .filter(([, count]) => (count as number) > 0)
+          .map(([slotName, count], idx) => {
+            const isReserve = reserveSlots.has(slotName) || slotName.startsWith('C2C_BN')
+            const isBench = slotName === 'BN' || slotName.startsWith('C2C_BN')
+            const isTaxi = slotName === 'TAXI'
+            const isDevy = slotName === 'DEVY' || slotName === 'CAMPUS'
+            const isFlex = flexSlots.has(slotName) || slotName.includes('FLEX') || slotName.startsWith('C2C_UTIL')
+
+            return {
+              slotName,
+              allowedPositions: slotDefsMap?.get(slotName) ?? [slotName],
+              starterCount: isReserve ? 0 : (count as number),
+              benchCount: isBench ? (count as number) : 0,
+              reserveCount: (isReserve && !isBench) ? (count as number) : 0,
+              taxiCount: isTaxi ? (count as number) : 0,
+              devyCount: isDevy ? (count as number) : 0,
+              isFlexibleSlot: isFlex,
+              slotOrder: idx,
+            }
+          })
+
+        return {
+          templateId: `custom-${sport}-${leagueId}`,
+          sportType: sport,
+          name: 'Custom League Roster',
+          formatType: normalizedFormat,
+          slots,
+        }
+      }
+    } catch {
+      // Fall through to standard resolution
+    }
+  }
+
   if (leagueId && sport === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'idp')) {
     try {
       const { getRosterDefaultsForIdpLeague } = await import('@/lib/idp/IDPLeagueConfig')

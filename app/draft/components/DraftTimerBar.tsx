@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type Props = {
   timerEndsAt: string | null
@@ -22,6 +23,7 @@ export function DraftTimerBar({
   onResume,
   autopickActive,
 }: Props) {
+  const { t } = useLanguage()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export function DraftTimerBar({
     <div className="rounded-lg border border-white/[0.08] bg-[#0c0c1e] px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-wider text-white/40">On the clock</p>
+          <p className="text-[10px] uppercase tracking-wider text-white/40">{t('draftRoom.timer.onTheClock')}</p>
           <p className="truncate text-sm font-semibold text-white">{onTheClockLabel}</p>
         </div>
         <div className="text-right font-mono text-xl font-bold tabular-nums text-white">
@@ -65,7 +67,7 @@ export function DraftTimerBar({
               onClick={onResume}
               className="rounded border border-cyan-500/40 px-2 py-1 text-[10px] font-semibold text-cyan-300 hover:bg-cyan-500/10"
             >
-              Resume
+              {t('draftRoom.timer.resume')}
             </button>
           </div>
         ) : null}
@@ -74,7 +76,7 @@ export function DraftTimerBar({
         <div className={cn('h-full transition-all', color)} style={{ width: `${pct}%` }} />
       </div>
       {autopickActive ? (
-        <p className="mt-1 text-[10px] text-cyan-300/80">Autopick armed — queue will be used</p>
+        <p className="mt-1 text-[10px] text-cyan-300/80">{t('draftRoom.timer.autopickArmed')}</p>
       ) : null}
     </div>
   )

@@ -1,6 +1,12 @@
 import type { LeagueTeam } from '@prisma/client'
 import type { LeagueTeamSlot } from '@/app/dashboard/types'
 
+export type RosterWalletRow = {
+  platformUserId: string
+  faabRemaining: number | null
+  waiverPriority: number | null
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -21,22 +27,35 @@ function getDraftPosition(settings: Record<string, unknown> | null, externalId: 
 }
 
 /** Map Prisma league teams + settings JSON to `LeagueTeamSlot` for tab UIs. */
-export function mapLeagueTeamsToSlots(teams: LeagueTeam[], settings: unknown): LeagueTeamSlot[] {
+export function mapLeagueTeamsToSlots(
+  teams: LeagueTeam[],
+  settings: unknown,
+  rosterWalletByPlatformUserId?: Map<string, Pick<RosterWalletRow, 'faabRemaining' | 'waiverPriority'>>,
+): LeagueTeamSlot[] {
   const rec = toRecord(settings)
-  return teams.map((t) => ({
-    id: t.id,
-    externalId: t.externalId,
-    teamName: t.teamName,
-    ownerName: t.ownerName,
-    avatarUrl: t.avatarUrl,
-    platformUserId: t.platformUserId ?? null,
-    role: t.role,
-    isOrphan: t.isOrphan,
-    claimedByUserId: t.claimedByUserId,
-    draftPosition: getDraftPosition(rec, t.externalId),
-    wins: t.wins,
-    losses: t.losses,
-    ties: t.ties,
-    pointsFor: t.pointsFor,
-  }))
+  return teams.map((t) => {
+    const pid = t.platformUserId?.trim() || null
+    const wallet = pid && rosterWalletByPlatformUserId ? rosterWalletByPlatformUserId.get(pid) : undefined
+    return {
+      id: t.id,
+      externalId: t.externalId,
+      teamName: t.teamName,
+      ownerName: t.ownerName,
+      avatarUrl: t.avatarUrl,
+      platformUserId: t.platformUserId ?? null,
+      role: t.role,
+      isOrphan: t.isOrphan,
+      claimedByUserId: t.claimedByUserId,
+      draftPosition: getDraftPosition(rec, t.externalId),
+      wins: t.wins,
+      losses: t.losses,
+      ties: t.ties,
+      pointsFor: t.pointsFor,
+      pointsAgainst: t.pointsAgainst,
+      currentRank: t.currentRank ?? null,
+      faabRemaining: wallet?.faabRemaining ?? null,
+      waiverPriority: wallet?.waiverPriority ?? null,
+      divisionId: t.divisionId ?? null,
+    }
+  })
 }

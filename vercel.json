@@ -219,6 +219,10 @@
     {
       "path": "/api/cron/autocoach-status-scan",
       "schedule": "*/3 6-23 * * *"
+    },
+    {
+      "path": "/api/cron/chimmy-alerts",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

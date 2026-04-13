@@ -203,7 +203,7 @@ async function loadProfileRankFlags(userId: string): Promise<{
   try {
     const profileRows = await prisma.$queryRaw<
       Array<{ league_import_detail_pending: boolean | null; rank_calculated_at: Date | null }>
-    >`SELECT league_import_detail_pending, rank_calculated_at FROM user_profiles WHERE user_id = ${userId} LIMIT 1`
+    >`SELECT league_import_detail_pending, rank_calculated_at FROM user_profiles WHERE "userId" = ${userId} LIMIT 1`
 
     const profileFlags = profileRows[0]
 
@@ -266,7 +266,7 @@ async function loadProfileRankDenorm(userId: string): Promise<ProfileRankDenormR
              legacy_career_tier, legacy_career_tier_name, legacy_career_level, legacy_career_xp,
              career_wins, career_losses, career_championships, career_playoff_appearances,
              career_seasons_played, career_leagues_played, rank_calculated_at
-      FROM user_profiles WHERE user_id = ${userId} LIMIT 1
+      FROM user_profiles WHERE "userId" = ${userId} LIMIT 1
     `
     const row = rows[0]
     if (!row) return null
@@ -554,7 +554,7 @@ export async function GET(request: Request) {
       >`
         SELECT season, import_wins, import_losses, import_ties, import_made_playoffs, import_won_championship
         FROM leagues
-        WHERE user_id = ${userId}
+        WHERE "userId" = ${userId}
           AND platform = 'sleeper'
           AND import_wins IS NOT NULL
       `

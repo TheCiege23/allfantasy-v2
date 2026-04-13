@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 export function SettingsSection({
   id,
@@ -56,13 +57,14 @@ export function SettingsRow({
 }
 
 export function FaqButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const { t } = useLanguage()
   return (
     <button
       type="button"
       onClick={onToggle}
       className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[10px] text-white/40 transition hover:bg-white/10 hover:text-white/60"
       aria-expanded={open}
-      aria-label="Help"
+      aria-label={t('league.draftSettings.aria.help')}
     >
       ?
     </button>
@@ -168,11 +170,16 @@ export function LeagueSettingsHeader({
   /** When false, hide bulk save (view-only member). */
   canEdit?: boolean
 }) {
+  const { t } = useLanguage()
   return (
     <div className="mb-5 flex items-center justify-between">
       <div>
-        <h2 className="text-[17px] font-bold text-white">League Settings</h2>
-        <p className="mt-0.5 text-[12px] text-white/40">Commissioner only · Changes save automatically</p>
+        <h2 className="text-[17px] font-bold text-white">{t('league.draftSettings.title')}</h2>
+        <p className="mt-0.5 text-[12px] text-white/40">
+          {canEdit
+            ? t('league.draftSettings.subtitle.commissioner')
+            : t('league.draftSettings.subtitle.member')}
+        </p>
       </div>
       {isDirty && canEdit ? (
         <button
@@ -181,25 +188,42 @@ export function LeagueSettingsHeader({
           disabled={!canEdit}
           className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Save Changes
+          {t('league.draftSettings.saveChanges')}
         </button>
       ) : null}
     </div>
   )
 }
 
-const SECTION_NAV: { id: string; label: string }[] = [
-  { id: 'draft-time', label: 'Draft Time' },
-  { id: 'automation', label: 'Automation' },
-  { id: 'draft-format', label: 'Format' },
-  { id: 'draft-order', label: 'Draft Order' },
-  { id: 'keepers', label: 'Keepers' },
-  { id: 'player-pool', label: 'Player Pool' },
-  { id: 'ai-controls', label: 'AI' },
-  { id: 'reset', label: 'Reset' },
-]
+/** Full nav — commissioner / co-commissioner draft & league controls */
+const SECTION_NAV_COMMISSIONER_IDS = [
+  'draft-time',
+  'automation',
+  'draft-format',
+  'draft-order',
+  'keepers',
+  'player-pool',
+  'ai-controls',
+  'reset',
+] as const
 
-export function SettingsNav() {
+/** Members: schedule + format + order (read-only); no league automation or destructive blocks in nav */
+const SECTION_NAV_MEMBER_IDS = ['draft-time', 'draft-format', 'draft-order'] as const
+
+const NAV_SECTION_I18N: Record<string, string> = {
+  'draft-time': 'league.draftSettings.nav.draftTime',
+  automation: 'league.draftSettings.nav.automation',
+  'draft-format': 'league.draftSettings.nav.format',
+  'draft-order': 'league.draftSettings.nav.draftOrder',
+  keepers: 'league.draftSettings.nav.keepers',
+  'player-pool': 'league.draftSettings.nav.playerPool',
+  'ai-controls': 'league.draftSettings.nav.ai',
+  reset: 'league.draftSettings.nav.reset',
+}
+
+export function SettingsNav({ canEdit }: { canEdit: boolean }) {
+  const { t } = useLanguage()
+  const ids = canEdit ? SECTION_NAV_COMMISSIONER_IDS : SECTION_NAV_MEMBER_IDS
   const scrollTo = useCallback((sectionId: string) => {
     const el = document.getElementById(sectionId)
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -208,14 +232,14 @@ export function SettingsNav() {
   return (
     <div className="sticky top-0 z-10 mb-4 border-b border-white/[0.06] bg-[#0f1521]/90 px-1 py-2 backdrop-blur-sm">
       <div className="flex gap-1 overflow-x-auto">
-        {SECTION_NAV.map((s) => (
+        {ids.map((id) => (
           <button
-            key={s.id}
+            key={id}
             type="button"
-            onClick={() => scrollTo(s.id)}
+            onClick={() => scrollTo(id)}
             className="whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-medium text-white/50 transition hover:bg-white/[0.06] hover:text-white"
           >
-            {s.label}
+            {t(NAV_SECTION_I18N[id] ?? id)}
           </button>
         ))}
       </div>

@@ -161,8 +161,8 @@ export async function optimizeForLeagueRoster(
   const offenseSlots: Array<{ slotName: string; count: number }> = []
   const idpSlots: Array<{ slotName: string; count: number }> = []
 
-  if (rosterDefaults?.starters) {
-    for (const [slotName, count] of Object.entries(rosterDefaults.starters)) {
+  if (rosterDefaults?.starter_slots) {
+    for (const [slotName, count] of Object.entries(rosterDefaults.starter_slots)) {
       if (typeof count !== 'number' || count <= 0) continue
       if (IDP_POSITION_SET.has(slotName.toUpperCase()) || slotName.toUpperCase() === 'IDP_FLEX') {
         idpSlots.push({ slotName, count })
