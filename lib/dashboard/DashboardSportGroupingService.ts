@@ -29,6 +29,8 @@ export interface LeagueForGrouping {
   navigationLeagueId?: string | null
   unifiedLeagueId?: string | null
   hasUnifiedRecord?: boolean | null
+  /** From Prisma `League.settings` or synthetic tournament row — used for `/tournament/...` vs `/league/...`. */
+  settings?: Record<string, unknown> | null
 }
 
 export interface SportGroup {

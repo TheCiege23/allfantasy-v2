@@ -19,6 +19,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { groupLeaguesBySport } from '@/lib/dashboard'
+import { getLeagueListDestinationHref } from '@/lib/dashboard/league-list-destination'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import { useLeagueList } from '@/hooks/useLeagueList'
@@ -110,7 +111,9 @@ export default function FinalDashboardClient() {
     [buildLeagueContextHref, firstLeague?.id]
   )
 
-  const aiSuggestionsHref = firstLeague?.id ? `/league/${firstLeague.id}?tab=Advisor` : '/app/coach'
+  const aiSuggestionsHref = firstLeague?.id
+    ? `${getLeagueListDestinationHref(firstLeague)}?tab=Advisor`
+    : '/app/coach'
   const tradeSuggestionHref = buildLeagueContextHref('/trade-evaluator')
   const waiverSuggestionHref = buildLeagueContextHref('/waiver-ai')
 
@@ -280,7 +283,7 @@ export default function FinalDashboardClient() {
                     {group.leagues.slice(0, MAX_LEAGUES_PER_GROUP).map((league) => (
                       <li key={league.id}>
                         <Link
-                          href={`/league/${league.id}`}
+                          href={getLeagueListDestinationHref(league)}
                           className="flex items-center gap-2 px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
                         >
                           <Trophy className="h-3.5 w-3.5 text-white/35 shrink-0" />
@@ -351,7 +354,10 @@ export default function FinalDashboardClient() {
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">Live matchups</h2>
-              <Link href={firstLeague ? `/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'} className="text-xs text-white/55 hover:text-white/80">
+              <Link
+                href={firstLeague ? `${getLeagueListDestinationHref(firstLeague)}?tab=Matchups` : '/app/matchup-simulation'}
+                className="text-xs text-white/55 hover:text-white/80"
+              >
                 Open matchups
               </Link>
             </div>
@@ -383,7 +389,7 @@ export default function FinalDashboardClient() {
               </div>
             ) : (
               <Link
-                href={firstLeague ? `/league/${firstLeague.id}?tab=Matchups` : '/app/matchup-simulation'}
+                href={firstLeague ? `${getLeagueListDestinationHref(firstLeague)}?tab=Matchups` : '/app/matchup-simulation'}
                 className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-300">

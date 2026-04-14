@@ -621,6 +621,9 @@ function InjuryBody({ sport, refreshTick }: { sport: SportFilter; refreshTick: n
   const [err, setErr] = useState<string | null>(null)
   const [articles, setArticles] = useState<{ title: string; source: string; publishedAt: string | null }[]>([])
   const [players, setPlayers] = useState<{ name: string; injuryStatus: string | null; team: string }[]>([])
+  const [grokDigests, setGrokDigests] = useState<
+    { sport: string; summary: string; bullets: string[]; generatedAt: string }[]
+  >([])
 
   useEffect(() => {
     setLoading(true)
@@ -635,25 +638,69 @@ function InjuryBody({ sport, refreshTick }: { sport: SportFilter; refreshTick: n
         (j: {
           articles?: typeof articles
           playerInjuries?: { name: string; injuryStatus: string | null; team: string }[]
+          injuryReports?: { name: string; team: string; status: string; gameStatus?: string | null }[]
+          grokInjuryDigests?: { sport: string; summary: string; bullets: string[]; generatedAt: string }[]
         }) => {
           setArticles(j.articles ?? [])
-          setPlayers((j.playerInjuries ?? []).slice(0, 15))
+          setGrokDigests(j.grokInjuryDigests ?? [])
+          const fromPlayers = (j.playerInjuries ?? []).map((p) => ({
+            name: p.name,
+            team: p.team,
+            injuryStatus: p.injuryStatus,
+          }))
+          const fromReports = (j.injuryReports ?? []).map((r) => ({
+            name: r.name,
+            team: r.team,
+            injuryStatus: r.gameStatus ?? r.status,
+          }))
+          const merged = [...fromPlayers, ...fromReports]
+          const seen = new Set<string>()
+          const deduped = merged.filter((row) => {
+            const k = `${row.name}|${row.team}`.toLowerCase()
+            if (seen.has(k)) return false
+            seen.add(k)
+            return true
+          })
+          setPlayers(deduped.slice(0, 18))
         }
       )
       .catch(() => setErr('Injury feed unavailable (sync NewsAPI / sports data in admin jobs).'))
       .finally(() => setLoading(false))
   }, [sport, refreshTick])
 
-  if (loading && articles.length === 0 && players.length === 0) {
+  if (loading && articles.length === 0 && players.length === 0 && grokDigests.length === 0) {
     return <p className="text-[13px] text-white/50">Loading injury intel from DB feeds…</p>
   }
-  if (err && articles.length === 0 && players.length === 0) {
+  if (err && articles.length === 0 && players.length === 0 && grokDigests.length === 0) {
     return <p className="text-[13px] text-red-300/90">{err}</p>
   }
+
+  const digestForFilter =
+    sport === 'ALL'
+      ? grokDigests.slice(0, 4)
+      : grokDigests.filter((d) => d.sport === sport).slice(0, 2)
 
   return (
     <div className="grid max-h-64 gap-3 overflow-y-auto text-[12px] sm:grid-cols-2">
       {loading ? <p className="col-span-full text-[11px] text-cyan-200/60">Refreshing…</p> : null}
+      {digestForFilter.length > 0 ? (
+        <div className="col-span-full space-y-2 border-b border-white/10 pb-2">
+          <p className="text-[11px] font-bold uppercase text-white/40">Injury digest (Grok → DB cache)</p>
+          {digestForFilter.map((g, i) => (
+            <div key={`${g.sport}-${i}`} className="rounded-md border border-white/10 bg-[#0a1228]/80 p-2">
+              <p className="text-[10px] uppercase text-cyan-200/50">{g.sport}</p>
+              {g.summary ? <p className="mt-1 leading-snug text-white/80">{g.summary}</p> : null}
+              {g.bullets?.length ? (
+                <ul className="mt-1 list-inside list-disc space-y-0.5 text-white/65">
+                  {g.bullets.slice(0, 6).map((b, j) => (
+                    <li key={j}>{b}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div>
         <p className="mb-1 text-[11px] font-bold uppercase text-white/40">Headlines</p>
         <ul className="space-y-1.5 text-white/70">

@@ -297,16 +297,16 @@ async function loadLegacyTournamentLayoutPayload(
   }
 
   const legacyFeederLeagues: LegacyFeederLeagueRow[] = t.leagues.map((tl) => {
-    const ls = (tl.league.settings as Record<string, unknown> | null) ?? {}
+    const ls = (tl.league?.settings as Record<string, unknown> | null) ?? {}
     const inviteCode = typeof ls.inviteCode === 'string' ? ls.inviteCode : ''
     const joinUrl = typeof ls.inviteLink === 'string' ? ls.inviteLink : ''
     return {
       tournamentLeagueId: tl.id,
-      leagueId: tl.leagueId,
-      name: tl.league.name ?? 'League',
+      leagueId: tl.leagueId ?? '',
+      name: tl.league?.name ?? 'League',
       inviteCode,
       joinUrl,
-      conferenceName: tl.conference.name,
+      conferenceName: tl.conference?.name ?? 'Conference',
     }
   })
 
@@ -343,7 +343,7 @@ async function loadLegacyTournamentLayoutPayload(
 
     legacyMiniCommissioners = miniRows.map((m) => ({
       leagueId: m.leagueId,
-      leagueName: m.league.name ?? 'League',
+      leagueName: m.league?.name ?? 'League',
       userId: m.userId,
       displayName:
         m.user.displayName?.trim() || m.user.username?.trim() || m.user.id,
@@ -363,7 +363,7 @@ async function loadLegacyTournamentLayoutPayload(
       return {
         id: r.id,
         leagueId: r.leagueId,
-        leagueName: r.league.name ?? 'League',
+        leagueName: r.league?.name ?? 'League',
         requesterDisplayName,
         createdAt: r.createdAt.toISOString(),
         proposedPatchKeys: keys,
@@ -392,17 +392,17 @@ async function loadLegacyTournamentLayoutPayload(
     })),
     tournamentLeagues: t.leagues.map((tl) => ({
       id: tl.id,
-      name: tl.league.name ?? 'League',
-      slug: slugifySegment(tl.league.name ?? 'league', 'league'),
+      name: tl.league?.name ?? 'League',
+      slug: slugifySegment(tl.league?.name ?? 'league', 'league'),
       roundId: firstRound.id,
       conferenceId: tl.conferenceId,
       leagueId: tl.leagueId,
       status: tl.phase,
-      teamSlots: tl.league.leagueSize ?? 12,
-      currentTeamCount: tl.league.teams.length,
+      teamSlots: tl.league?.leagueSize ?? 12,
+      currentTeamCount: tl.league?.teams?.length ?? 0,
       draftScheduledAt: null,
       colorHex: null,
-      logoUrl: tl.league.logoUrl ?? tl.league.avatarUrl ?? null,
+      logoUrl: tl.league?.logoUrl ?? tl.league?.avatarUrl ?? null,
       advancersCount: 0,
     })),
     participant: serializedParticipant,
@@ -440,7 +440,12 @@ export async function loadTournamentLayoutPayload(
   })
 
   if (!shell) {
-    return loadLegacyTournamentLayoutPayload(tournamentId, userId)
+    try {
+      return await loadLegacyTournamentLayoutPayload(tournamentId, userId)
+    } catch (err) {
+      console.error('[loadTournamentLayoutPayload] legacy tournament payload failed', { tournamentId, err })
+      return null
+    }
   }
 
   const participant = userId

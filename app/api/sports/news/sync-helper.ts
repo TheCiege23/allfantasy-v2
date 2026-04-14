@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev';
 import { createHash } from 'crypto';
+import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 
 const NEWS_FRESHNESS_MS = 30 * 60 * 1000;
 
@@ -46,6 +47,8 @@ function stableArticleId(url: string, fallback: string): string {
 
 interface NewsArticle {
   id: string;
+  /** Prisma `LeagueSport` — required for DB upsert (`SportsNews.sport`). */
+  sport: SupportedSport;
   title: string;
   description: string | null;
   content: string | null;
@@ -60,6 +63,17 @@ interface NewsArticle {
   playerNames: string[];
   categories: string[];
   sentiment: string | null;
+}
+
+/** ESPN `site.api.espn.com` sports path segment per league (multi-sport news ingest). */
+const ESPN_NEWS_SPORTS_PATH: Record<SupportedSport, string> = {
+  NFL: 'football/nfl',
+  NBA: 'basketball/nba',
+  NHL: 'hockey/nhl',
+  MLB: 'baseball/mlb',
+  NCAAF: 'football/college-football',
+  NCAAB: 'basketball/mens-college-basketball',
+  SOCCER: 'soccer/usa.1',
 }
 
 const NFL_TEAM_KEYWORDS: Record<string, string> = {
@@ -243,55 +257,89 @@ function classifyCategory(title: string, description: string | null): string {
   return 'general';
 }
 
-export async function fetchESPNNews(team?: string): Promise<NewsArticle[]> {
-  try {
-    const url = team
-      ? `https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?team=${team}&limit=50`
-      : 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=50';
+async function mapEspnNewsJsonToArticles(
+  data: { articles?: unknown[] },
+  sport: SupportedSport,
+  teamFilter?: string
+): Promise<NewsArticle[]> {
+  const articles = data.articles || [];
+  const knownPlayers = await getKnownPlayerNames();
+  const results: NewsArticle[] = [];
 
+  for (const raw of articles) {
+    const a = raw as Record<string, unknown>;
+    const categories = (a.categories || []) as Array<{ description?: string; type?: string }>;
+    const teamCategory = categories.find((c) => c.type === 'team');
+    const teamAbbrev = teamCategory ? normalizeTeamAbbrev(teamCategory.description || '') : null;
+
+    const title = String(a.headline || a.title || '');
+    const desc = String(a.description || '');
+    const combinedText = `${title} ${desc}`;
+    const allTeams = extractAllTeamsFromText(combinedText);
+    const playerNames = extractPlayerNamesFromText(combinedText, knownPlayers);
+    const primaryTeam =
+      teamAbbrev || (teamFilter ? normalizeTeamAbbrev(teamFilter) : null) || (allTeams[0] || null);
+
+    results.push({
+      id: String(a.id || ''),
+      sport,
+      title,
+      description: desc || null,
+      content: String(a.story || a.description || ''),
+      url: (a.links as { web?: { href?: string } } | undefined)?.web?.href || '',
+      published: String(a.published || ''),
+      team: primaryTeam,
+      teams: allTeams,
+      source: 'espn',
+      sourceId: 'espn',
+      author: (a.byline as string) || null,
+      imageUrl: (a.images as Array<{ url?: string }> | undefined)?.[0]?.url || null,
+      playerNames,
+      categories: [
+        ...categories.map((c) => c.description || ''),
+        classifyCategory(title, desc),
+      ],
+      sentiment: detectSentiment(title, desc),
+    });
+  }
+
+  return results;
+}
+
+/** ESPN headlines for one sport (stored with correct `sport` for DB reads). */
+export async function fetchESPNNewsForSport(
+  sport: SupportedSport,
+  opts?: { team?: string; limit?: number }
+): Promise<NewsArticle[]> {
+  const path = ESPN_NEWS_SPORTS_PATH[sport];
+  const limit = opts?.limit ?? 35;
+  const teamQ = opts?.team ? `&team=${encodeURIComponent(opts.team)}` : '';
+  const url = `https://site.api.espn.com/apis/site/v2/sports/${path}/news?limit=${limit}${teamQ}`;
+
+  try {
     const response = await fetch(url, { next: { revalidate: 300 } });
     if (!response.ok) return [];
-
     const data = await response.json();
-    const articles = data.articles || [];
+    return mapEspnNewsJsonToArticles(data, sport, opts?.team);
+  } catch (error) {
+    console.error(`[News] ESPN fetch failed (${sport}):`, error);
+    return [];
+  }
+}
 
-    const knownPlayers = await getKnownPlayerNames();
-    const results: NewsArticle[] = [];
-    for (const a of articles) {
-      const categories = (a.categories || []) as Array<{ description?: string; type?: string }>;
-      const teamCategory = categories.find((c) => c.type === 'team');
-      const teamAbbrev = teamCategory ? normalizeTeamAbbrev(teamCategory.description || '') : null;
-
-      const title = String(a.headline || a.title || '');
-      const desc = String(a.description || '');
-      const combinedText = `${title} ${desc}`;
-      const allTeams = extractAllTeamsFromText(combinedText);
-      const playerNames = extractPlayerNamesFromText(combinedText, knownPlayers);
-      const primaryTeam = teamAbbrev || (team ? normalizeTeamAbbrev(team) : null) || (allTeams[0] || null);
-
-      results.push({
-        id: String(a.id || ''),
-        title,
-        description: desc || null,
-        content: String(a.story || a.description || ''),
-        url: a.links?.web?.href || '',
-        published: String(a.published || ''),
-        team: primaryTeam,
-        teams: allTeams,
-        source: 'espn',
-        sourceId: 'espn',
-        author: a.byline || null,
-        imageUrl: a.images?.[0]?.url || null,
-        playerNames,
-        categories: [
-          ...categories.map((c) => c.description || ''),
-          classifyCategory(title, desc),
-        ],
-        sentiment: detectSentiment(title, desc),
-      });
+/** All supported ESPN league feeds in parallel (DB-backed sync); optional NFL team filter. */
+export async function fetchESPNNews(team?: string): Promise<NewsArticle[]> {
+  try {
+    if (team) {
+      return fetchESPNNewsForSport('NFL', { team, limit: 50 });
     }
 
-    return results;
+    const batches = await Promise.all(
+      SUPPORTED_SPORTS.map((sport) =>
+        fetchESPNNewsForSport(sport, { limit: 30 }).catch(() => [] as NewsArticle[])
+      )
+    );
+    return batches.flat();
   } catch (error) {
     console.error('[News] ESPN fetch failed:', error);
     return [];
@@ -304,6 +352,8 @@ export async function fetchNewsAPIEverything(query: string, opts?: {
   sortBy?: string;
   from?: string;
   pageSize?: number;
+  /** Tag rows for `SportsNews.sport` (NewsAPI text is mixed; default NFL). */
+  impliedSport?: SupportedSport;
 }): Promise<NewsArticle[]> {
   const apiKey = process.env.NEWS_API_KEY || process.env.NEWSAPI_KEY;
   if (!apiKey) {
@@ -341,7 +391,7 @@ export async function fetchNewsAPIEverything(query: string, opts?: {
     }
 
     const data = await response.json();
-    return parseNewsAPIResponse(data.articles || [], 'newsapi_everything');
+    return parseNewsAPIResponse(data.articles || [], 'newsapi_everything', opts?.impliedSport ?? 'NFL');
   } catch (error) {
     console.error('[News] NewsAPI /everything failed:', error);
     return [];
@@ -383,14 +433,18 @@ export async function fetchNewsAPITopHeadlines(opts?: {
     }
 
     const data = await response.json();
-    return parseNewsAPIResponse(data.articles || [], 'newsapi_headlines');
+    return parseNewsAPIResponse(data.articles || [], 'newsapi_headlines', 'NFL');
   } catch (error) {
     console.error('[News] NewsAPI /top-headlines failed:', error);
     return [];
   }
 }
 
-async function parseNewsAPIResponse(articles: any[], sourceTag: string): Promise<NewsArticle[]> {
+async function parseNewsAPIResponse(
+  articles: any[],
+  sourceTag: string,
+  impliedSport: SupportedSport = 'NFL'
+): Promise<NewsArticle[]> {
   const knownPlayers = await getKnownPlayerNames();
   const results: NewsArticle[] = [];
 
@@ -420,6 +474,7 @@ async function parseNewsAPIResponse(articles: any[], sourceTag: string): Promise
 
     results.push({
       id: articleId,
+      sport: impliedSport,
       title,
       description,
       content: articleContent,
@@ -449,10 +504,12 @@ async function upsertArticles(articles: NewsArticle[], sourceName: string): Prom
     if (!article.id) continue;
 
     try {
+      const sport = article.sport ?? 'NFL';
+
       await prisma.sportsNews.upsert({
         where: {
           sport_externalId_source: {
-            sport: 'NFL',
+            sport,
             externalId: article.id,
             source: sourceName,
           },
@@ -476,7 +533,7 @@ async function upsertArticles(articles: NewsArticle[], sourceName: string): Prom
           expiresAt,
         },
         create: {
-          sport: 'NFL',
+          sport,
           externalId: article.id,
           title: article.title,
           description: article.description,
@@ -549,8 +606,9 @@ export async function syncNewsToDb(team?: string): Promise<number> {
   const seenIds = new Set<string>();
   const deduped = (articles: NewsArticle[]): NewsArticle[] => {
     return articles.filter((a) => {
-      if (seenIds.has(a.id)) return false;
-      seenIds.add(a.id);
+      const key = `${a.sport}:${a.id}`;
+      if (seenIds.has(key)) return false;
+      seenIds.add(key);
       return true;
     });
   };
@@ -587,7 +645,7 @@ export async function syncFullNewsCoverage(): Promise<{ total: number; breakdown
 
   const seenIds = new Set<string>();
   for (const a of [...espnArticles, ...headlineArticles]) {
-    seenIds.add(a.id);
+    seenIds.add(`${a.sport}:${a.id}`);
   }
 
   const queryRotation = FANTASY_QUERY_PATTERNS;
@@ -607,8 +665,9 @@ export async function syncFullNewsCoverage(): Promise<{ total: number; breakdown
     });
 
     const fresh = articles.filter((a) => {
-      if (seenIds.has(a.id)) return false;
-      seenIds.add(a.id);
+      const key = `${a.sport}:${a.id}`;
+      if (seenIds.has(key)) return false;
+      seenIds.add(key);
       return true;
     });
 

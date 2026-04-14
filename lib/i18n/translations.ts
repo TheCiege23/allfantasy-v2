@@ -1238,6 +1238,15 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.today.pendingTrades": "🔄 {{n}} pending trades",
     "dashboard.today.pendingTradeOne": "🔄 1 pending trade",
     "dashboard.today.checkTrades": "🔄 Check trades",
+    "dashboard.today.waiverInjuryPulseOne": "📋 1 injury update",
+    "dashboard.today.waiverInjuryPulses": "📋 {{n}} injury updates",
+
+    "dashboard.waiverModal.injuryPulseTitle": "Injury pulse",
+    "dashboard.waiverModal.injuryPulseHint":
+      "From your leagues’ sports — same feeds as waivers and live scoring. Cross-check with official reports before FAAB.",
+    "dashboard.waiverModal.emptyWithInjuryPulse":
+      "No trending pickup rows — use injury pulse above for context.",
+    "dashboard.waiverModal.emptyNoRecs": "No waiver recommendations right now.",
 
     "dashboard.aiShortcuts.title": "AI TOOLS",
     "dashboard.aiShortcuts.askChimmy": "Ask Chimmy →",

@@ -16,6 +16,7 @@ import { bootstrapLeagueScheduleConfig } from '@/lib/schedule-defaults/LeagueSch
 import { getDefaultScheduleConfig, type ScheduleSport } from '@/lib/fantasy-schedule/types'
 import { updateScheduleConfigForLeague } from '@/lib/fantasy-schedule/ScheduleConfigService'
 import { createDefaultLeagueRosterConfig, getRosterEngineRegistry, type SupportedRosterSport } from '@/lib/roster-engine'
+import { warmLeagueSportsDataAfterCreate } from '@/lib/league-creation/warmLeagueSportsData'
 
 export interface BootstrapResult {
   roster: { templateId: string }
@@ -176,6 +177,10 @@ export async function runLeagueBootstrap(
       // non-fatal; league still works with in-memory IDP defaults
     }
   }
+
+  void warmLeagueSportsDataAfterCreate(leagueSport).catch(() => {
+    // non-fatal — chain warms on first read if this fails
+  })
 
   return {
     roster: rosterResult,

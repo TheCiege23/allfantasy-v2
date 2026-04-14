@@ -15,6 +15,8 @@ export type TodayStripProps = {
   onLineupIssuesClick: () => void
   waiverCount: number
   onWaiverClick: () => void
+  /** DB injury rows for user league sports — highlights chip when no pickup recs yet. */
+  injuryPulseCount?: number
   pendingTradeCount: number
   onTradesClick: () => void
 }
@@ -29,6 +31,7 @@ export function TodayStrip({
   onLineupIssuesClick,
   waiverCount,
   onWaiverClick,
+  injuryPulseCount = 0,
   pendingTradeCount,
   onTradesClick,
 }: TodayStripProps) {
@@ -52,7 +55,13 @@ export function TodayStrip({
       ? waiverCount === 1
         ? t('dashboard.today.waiverRecOne')
         : interpolateTemplate(t('dashboard.today.waiverRecs'), { n: waiverCount })
-      : t('dashboard.today.checkWaivers')
+      : injuryPulseCount > 0
+        ? injuryPulseCount === 1
+          ? t('dashboard.today.waiverInjuryPulseOne')
+          : interpolateTemplate(t('dashboard.today.waiverInjuryPulses'), { n: injuryPulseCount })
+        : t('dashboard.today.checkWaivers')
+
+  const waiverChipHighlighted = waiverCount > 0 || injuryPulseCount > 0
 
   const tradeChipLabel =
     pendingTradeCount > 0
@@ -71,8 +80,10 @@ export function TodayStrip({
           type="button"
           onClick={onWaiverClick}
           className={
-            waiverCount > 0
-              ? 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[13px] text-cyan-400 transition hover:border-cyan-500/35 hover:bg-cyan-500/20'
+            waiverChipHighlighted
+              ? waiverCount > 0
+                ? 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1.5 text-[13px] text-cyan-400 transition hover:border-cyan-500/35 hover:bg-cyan-500/20'
+                : 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[13px] text-amber-200/95 transition hover:border-amber-500/35 hover:bg-amber-500/18'
               : 'inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.06] px-3 py-1.5 text-[13px] text-white/75 transition hover:bg-white/[0.10]'
           }
         >

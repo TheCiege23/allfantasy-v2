@@ -11,11 +11,15 @@ import {
   type ApiDataType,
   type ApiFetchParams,
   type ApiProvider,
+  type ApiProviderName,
   type ApiResult,
   type ChainFetchResult,
 } from '@/lib/workers/api-config'
 import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
+import { clearSportsProvider } from '@/lib/workers/providers/clearsports'
 import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insights'
+import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
+import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
 import { persistNormalizedSportsRows } from '@/lib/workers/sports-cache-persist'
 
 function isPopulatedResult(value: unknown): boolean {
@@ -27,6 +31,58 @@ function isPopulatedResult(value: unknown): boolean {
 
 function mergeQuery(params: ApiFetchParams): Record<string, unknown> {
   return { ...(params.query ?? {}), ...(params.options ?? {}) }
+}
+
+async function tryRollingInsightsBlock(
+  params: ApiFetchParams & { forceRefresh?: boolean },
+  chainSport: ApiChainSport,
+  dt: string,
+  merged: Record<string, unknown>,
+): Promise<ChainFetchResult | null> {
+  if (!isRollingInsightsEnabledForSport(chainSport)) return null
+  const startedRi = Date.now()
+  try {
+    const ri = await rollingInsightsProvider({
+      ...params,
+      sport: chainSport,
+      dataType: dt,
+      query: merged,
+    })
+    if (isPopulatedResult(ri.data)) {
+      return {
+        data: ri.data,
+        fromCache: false,
+        source: 'rolling_insights',
+        latency: ri.latency ?? toLatency(startedRi),
+        error: ri.error,
+      }
+    }
+  } catch (e) {
+    console.warn(`[api-chain] Rolling Insights failed ${chainSport}/${dt}:`, e)
+  }
+  return null
+}
+
+async function tryProviderBlock(
+  provider: ApiProvider,
+  baseParams: ApiFetchParams,
+): Promise<ChainFetchResult | null> {
+  if (!provider.supports(baseParams)) return null
+  const startedAt = Date.now()
+  try {
+    const data = await provider.fetch(baseParams)
+    if (isPopulatedResult(data)) {
+      return {
+        data,
+        fromCache: false,
+        source: provider.name as ApiProviderName,
+        latency: toLatency(startedAt),
+      }
+    }
+  } catch (e) {
+    console.warn(`[api-chain] ${provider.name} failed:`, e)
+  }
+  return null
 }
 
 function toLatency(startedAt: number): number {
@@ -345,48 +401,43 @@ export async function fetchWithChain(
     }
   }
 
-  // 2. CACHE MISS — Rolling Insights (primary for all 7 sports)
+  // 2. CACHE MISS — RI primary; ClearSports/TheSportsDB/api-sports fill gaps; Sleeper last for NFL injuries/players/images.
   let result: ChainFetchResult | null = null
 
-  const skipApiSportsFallback = dt === 'scores' || dt === 'live_game' || dt === 'games'
+  const skipGameLikeFallbacks = dt === 'scores' || dt === 'live_game' || dt === 'games'
+  const isImageDt = dt === 'player_headshots' || dt === 'team_logos'
 
-  if (isRollingInsightsEnabledForSport(chainSport)) {
-    try {
-      const startedRi = Date.now()
-      const ri = await rollingInsightsProvider({
-        ...params,
-        sport: chainSport,
-        dataType: dt,
-        query: merged,
-      })
-      if (isPopulatedResult(ri.data)) {
-        result = {
-          data: ri.data,
-          fromCache: false,
-          source: 'rolling_insights',
-          latency: ri.latency ?? toLatency(startedRi),
-          error: ri.error,
-        }
-      }
-    } catch (e) {
-      console.warn(`[api-chain] Rolling Insights failed ${chainSport}/${dt}:`, e)
-    }
-  }
+  const baseParams: ApiFetchParams = { ...params, sport: chainSport, dataType: dt, query: merged }
 
-  // 3. FALLBACK to api-sports if RI failed (not for live scores / games)
-  if (!isPopulatedResult(result?.data) && !skipApiSportsFallback) {
-    try {
-      const normalized: ApiFetchParams = { ...params, sport: chainSport, dataType: dt, query: merged }
-      const startedAt = Date.now()
-      if (apiSportsProvider.supports(normalized)) {
-        const data = await apiSportsProvider.fetch(normalized)
-        if (isPopulatedResult(data)) {
-          result = { data, fromCache: false, source: 'api_sports', latency: toLatency(startedAt) }
-        }
-      }
-    } catch (e) {
-      console.warn('[api-chain] api-sports fallback failed:', e)
+  if (isImageDt) {
+    result =
+      (await tryProviderBlock(clearSportsProvider, baseParams)) ??
+      (await tryProviderBlock(theSportsDbProvider, baseParams)) ??
+      (await tryProviderBlock(apiSportsProvider, baseParams)) ??
+      (await tryRollingInsightsBlock(params, chainSport, dt, merged)) ??
+      (await tryProviderBlock(sleeperChainProvider, baseParams))
+  } else {
+    result = await tryRollingInsightsBlock(params, chainSport, dt, merged)
+
+    if (!skipGameLikeFallbacks) {
+      result =
+        result && isPopulatedResult(result.data)
+          ? result
+          : (await tryProviderBlock(apiSportsProvider, baseParams)) ?? result
+      result =
+        result && isPopulatedResult(result.data)
+          ? result
+          : (await tryProviderBlock(clearSportsProvider, baseParams)) ?? result
+      result =
+        result && isPopulatedResult(result.data)
+          ? result
+          : (await tryProviderBlock(theSportsDbProvider, baseParams)) ?? result
     }
+
+    result =
+      result && isPopulatedResult(result.data)
+        ? result
+        : (await tryProviderBlock(sleeperChainProvider, baseParams)) ?? result
   }
 
   if (!result || !isPopulatedResult(result.data)) {
@@ -464,15 +515,10 @@ export class ApiChain {
       }
     }
 
-    const src =
-      chain.source === 'rolling_insights'
-        ? 'rolling_insights'
-        : chain.source === 'api_sports'
-          ? 'api_sports'
-          : 'cache'
-
-    if (chain.source === 'rolling_insights') attemptedSources.push('rolling_insights')
-    if (chain.source === 'api_sports') attemptedSources.push('api_sports')
+    const src = (chain.source ?? 'rolling_insights') as ApiResult<T>['source']
+    if (chain.source && chain.source !== 'cache') {
+      attemptedSources.push(chain.source as ApiProviderName)
+    }
 
     return {
       data: chain.data as T,

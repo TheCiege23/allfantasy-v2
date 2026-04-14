@@ -1,5 +1,8 @@
+import 'server-only'
+
 import { prisma } from '@/lib/prisma'
 import type { FantasyCalcPlayer, FantasyCalcSettings } from '@/lib/fantasycalc'
+import { fetchFantasyCalcValues } from '@/lib/fantasycalc'
 
 const KEY_PREFIX = 'fantasycalc:values:'
 
@@ -97,6 +100,30 @@ export async function readFantasyCalcValuesFromDb(
     syncedAt: parsed.syncedAt,
     expiresAt: row.expiresAt.toISOString(),
   }
+}
+
+/**
+ * Server-only path: read FantasyCalc valuations from `sportsDataCache` when fresh or tolerably stale;
+ * otherwise fetch from FantasyCalc API once, persist, then return. Use this instead of calling
+ * `fetchFantasyCalcValues` directly from API routes so calculations are DB-backed.
+ */
+export async function getFantasyCalcValuesDbFirst(
+  settings: FantasyCalcSettings,
+  options?: { maxStaleMs?: number }
+): Promise<FantasyCalcPlayer[]> {
+  const fromDb = await readFantasyCalcValuesFromDb(settings, { allowStale: true })
+  const maxStale = options?.maxStaleMs ?? 1000 * 60 * 60 * 6
+
+  if (fromDb.players.length > 0) {
+    const syncedMs = fromDb.syncedAt ? Date.now() - new Date(fromDb.syncedAt).getTime() : Infinity
+    if (!fromDb.stale || syncedMs <= maxStale) {
+      return fromDb.players
+    }
+  }
+
+  const fresh = await fetchFantasyCalcValues(settings)
+  await writeFantasyCalcValuesToDb(settings, fresh)
+  return fresh
 }
 
 export async function getFantasyCalcCacheHealth(): Promise<{

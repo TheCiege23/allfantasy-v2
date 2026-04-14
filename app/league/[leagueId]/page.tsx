@@ -8,6 +8,7 @@ import { LeagueShell } from './LeagueShell'
 import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 import type { LeagueDashboardView } from './league-dashboard-types'
+import { resolveTournamentDestinationFromLeagueSettings } from '@/lib/dashboard/league-list-destination'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,11 +90,11 @@ export default async function LeaguePage({
     redirect('/dashboard')
   }
 
-  // Redirect tournament feeder leagues to tournament hub
+  // Redirect tournament hub / feeder leagues to tournament home (same rules as My Leagues list links)
   const leagueSettings = league.settings && typeof league.settings === 'object' ? league.settings as Record<string, unknown> : {}
-  if (leagueSettings.league_type === 'tournament' && typeof leagueSettings.tournamentId === 'string') {
-    const tournamentId = leagueSettings.tournamentId
-    redirect(`/tournament/${tournamentId}`)
+  const tournamentHref = resolveTournamentDestinationFromLeagueSettings(leagueSettings)
+  if (tournamentHref) {
+    redirect(tournamentHref)
   }
 
   const sleeperCommissionerId =

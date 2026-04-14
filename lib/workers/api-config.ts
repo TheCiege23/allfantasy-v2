@@ -19,6 +19,8 @@ export type ApiProviderName =
   | 'api_sports'
   | 'thesportsdb'
   | 'cfbd'
+  /** Final fantasy-data fallback (NFL player pool + injury_status from public players feed). */
+  | 'sleeper'
 
 /** Cache TTLs in seconds — drives all cache expiry (DB-first). */
 export const API_CHAIN_TTLS = {

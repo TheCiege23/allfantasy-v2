@@ -38,7 +38,9 @@ import { isClearSportsAvailable } from './provider-config';
 import { normalizeToSupportedSport, type SupportedSport } from './sport-scope';
 import { sanitizeProviderError } from './ai-orchestration/provider-utils';
 import { logDiagnosticsEvent } from './provider-diagnostics';
-import { isRollingInsightsEnabledForSport } from '@/lib/workers/api-config';
+import { fetchWithChain } from '@/lib/workers/api-chain';
+import { isRollingInsightsEnabledForSport, legacySupportedSportToApiChain } from '@/lib/workers/api-config';
+import { getPlayersBySport } from '@/lib/sleeper-client';
 
 export type Sport = SupportedSport;
 export type DataType = 'teams' | 'players' | 'games' | 'stats' | 'standings' | 'schedule' | 'depth_charts' | 'team_stats';
@@ -62,14 +64,14 @@ interface SportsDataResponse {
 }
 
 const API_PRIORITY: Record<Sport, string[]> = {
-  // NFL keeps deterministic-first provider ordering from existing implementation.
-  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  NHL: ['clear_sports', 'api_sports', 'thesportsdb'],
-  NBA: ['clear_sports', 'api_sports', 'thesportsdb'],
-  MLB: ['clear_sports', 'api_sports', 'thesportsdb'],
-  NCAAB: ['clear_sports', 'api_sports', 'thesportsdb'],
-  NCAAF: ['clear_sports', 'api_sports', 'thesportsdb'],
-  SOCCER: ['clear_sports', 'api_sports', 'thesportsdb'],
+  // Rolling Insights first for all supported sports (env may disable per-sport upstream); then ClearSports → API-Sports → TheSportsDB → Sleeper (NFL only).
+  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper'],
+  NHL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  NBA: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  MLB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  NCAAB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  NCAAF: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  SOCCER: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {
@@ -235,7 +237,8 @@ interface NormalizedGame {
   source: string;
 }
 
-async function fetchFromRollingInsights(
+/** NFL-only depth charts / team detail — uses legacy GraphQL helpers. */
+async function fetchFromRollingInsightsNflLegacy(
   dataType: DataType,
   identifier?: string,
   season?: string,
@@ -348,6 +351,123 @@ async function fetchFromRollingInsights(
     console.error('[SportsRouter] Rolling Insights fetch failed:', sanitizeProviderError(error instanceof Error ? error.message : String(error)));
     return null;
   }
+}
+
+function mapRouterDataTypeToChain(dataType: DataType): string {
+  switch (dataType) {
+    case 'teams':
+      return 'teams'
+    case 'players':
+      return 'players'
+    case 'games':
+      return 'games'
+    case 'schedule':
+      return 'schedule'
+    case 'stats':
+      return 'stats'
+    case 'standings':
+      return 'standings'
+    case 'depth_charts':
+      return 'depth_charts'
+    case 'team_stats':
+      return 'team_stats'
+    default:
+      return 'teams'
+  }
+}
+
+function normalizeChainPayloadForRouter(sport: Sport, dataType: DataType, data: unknown): unknown {
+  if (!Array.isArray(data)) return data
+  switch (dataType) {
+    case 'teams':
+      return data.map((raw) => {
+        const t = raw as Record<string, unknown>
+        return {
+          id: String(t.id ?? ''),
+          name: String(t.name ?? t.team ?? ''),
+          shortName:
+            normalizeTeamAbbrev(String(t.shortName ?? t.abbrv ?? t.abbreviation ?? '')) ||
+            String(t.shortName ?? t.abbrv ?? ''),
+          mascot: t.mascot ?? '',
+          city: t.city ?? '',
+          logo: t.logo ?? t.img ?? '',
+          source: 'rolling_insights',
+        }
+      })
+    case 'players':
+      return data.map((raw) => {
+        const p = raw as Record<string, unknown>
+        return {
+          id: String(p.id ?? ''),
+          name: String(p.name ?? p.player ?? p.full_name ?? ''),
+          position: p.position ?? null,
+          team: normalizeTeamAbbrev(String(p.team ?? p.team_abbr ?? '')) || null,
+          teamId: p.teamId ?? null,
+          number: p.number ?? null,
+          height: p.height ?? null,
+          weight: p.weight ?? null,
+          college: p.college ?? null,
+          dob: p.dob ?? null,
+          status: p.status ?? null,
+          img: p.imageUrl ?? p.img ?? null,
+          fantasyPoints: null,
+          seasonStats: Array.isArray(p.regularSeason) ? p.regularSeason : [],
+          source: 'rolling_insights',
+        }
+      })
+    case 'games':
+    case 'schedule':
+      return data.map((raw) => {
+        const g = raw as Record<string, unknown>
+        return {
+          id: String(g.id ?? g.gameId ?? ''),
+          homeTeam: String(g.homeTeam ?? g.home ?? ''),
+          awayTeam: String(g.awayTeam ?? g.away ?? ''),
+          date: g.date ?? g.startTime ?? null,
+          status: g.status ?? null,
+          season: g.season != null ? String(g.season) : null,
+          venue: g.venue ?? null,
+          source: 'rolling_insights',
+        }
+      })
+    default:
+      return data
+  }
+}
+
+/**
+ * Rolling Insights for all chain sports via DB-first `fetchWithChain` (same stack as workers).
+ * NFL `depth_charts` / `team_stats` keep legacy specialized fetchers.
+ */
+async function fetchFromRollingInsightsViaChain(
+  sport: Sport,
+  dataType: DataType,
+  identifier?: string,
+  season?: string,
+): Promise<unknown | null> {
+  const chainSport = legacySupportedSportToApiChain(sport)
+  if (!isRollingInsightsEnabledForSport(chainSport)) return null
+
+  if (sport === 'NFL' && (dataType === 'depth_charts' || dataType === 'team_stats')) {
+    return fetchFromRollingInsightsNflLegacy(dataType, identifier, season)
+  }
+
+  const chainDt = mapRouterDataTypeToChain(dataType)
+  const query: Record<string, unknown> = {}
+  if (identifier) {
+    query.search = identifier
+    query.playerName = identifier
+    if (dataType === 'depth_charts' || dataType === 'team_stats') query.teamName = identifier
+  }
+  if (season) query.season = season
+
+  const res = await fetchWithChain({
+    sport: chainSport,
+    dataType: chainDt,
+    query,
+  })
+  if (res.data == null) return null
+  return normalizeChainPayloadForRouter(sport, dataType, res.data)
 }
 
 async function fetchFromAPISports(
@@ -648,6 +768,47 @@ function normalizeESPNData(data: unknown, dataType: DataType): unknown {
   return data;
 }
 
+/** Final fallback: Sleeper public NFL player map (search by name). */
+async function fetchFromSleeper(
+  sport: Sport,
+  dataType: DataType,
+  identifier?: string,
+): Promise<unknown | null> {
+  if (sport !== 'NFL' || dataType !== 'players') return null;
+  const q = identifier?.trim().toLowerCase() ?? '';
+  if (!q) return null;
+
+  try {
+    const players = await getPlayersBySport('nfl');
+    if (!players || typeof players !== 'object') return null;
+
+    const out: Array<Record<string, unknown>> = [];
+    for (const [id, raw] of Object.entries(players)) {
+      const p = raw as unknown as Record<string, unknown>;
+      const name = String(p.full_name ?? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim());
+      if (!name.toLowerCase().includes(q)) continue;
+      out.push({
+        id,
+        name,
+        position: p.position ?? null,
+        team: normalizeTeamAbbrev(String(p.team ?? '')) ?? p.team ?? null,
+        number: p.number ?? null,
+        height: p.height ?? null,
+        weight: p.weight ?? null,
+        college: p.college ?? null,
+        dob: p.birth_date ?? null,
+        status: p.injury_status ?? null,
+        img: `https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg`,
+        source: 'sleeper',
+      });
+      if (out.length >= 40) break;
+    }
+    return out.length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchFromSource(
   source: string,
   sport: Sport,
@@ -665,8 +826,7 @@ async function fetchFromSource(
   const result = await fetchWithTimeout(async () => {
     switch (source) {
       case 'rolling_insights':
-        if (sport !== 'NFL' || !isRollingInsightsEnabledForSport(sport)) return null;
-        return fetchFromRollingInsights(dataType, identifier, season);
+        return fetchFromRollingInsightsViaChain(sport, dataType, identifier, season);
       case 'api_sports':
         if (sport !== 'NFL') return null;
         return fetchFromAPISports(dataType, identifier, season);
@@ -682,6 +842,8 @@ async function fetchFromSource(
         if (dataType === 'players' || dataType === 'stats') return raw;
         return normalizeESPNData(raw, dataType);
       }
+      case 'sleeper':
+        return fetchFromSleeper(sport, dataType, identifier);
       default:
         return null;
     }

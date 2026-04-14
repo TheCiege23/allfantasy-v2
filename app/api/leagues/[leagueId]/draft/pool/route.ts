@@ -18,6 +18,8 @@ import { isC2CLeague, getC2CPromotedProPlayerIdsExcludedFromRookiePool } from '@
 import { isIdpLeague } from '@/lib/idp'
 import type { LeagueSport } from '@prisma/client'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { apiChain } from '@/lib/workers/api-chain'
+import { legacySupportedSportToApiChain } from '@/lib/workers/api-config'
 import {
   API_CACHE_TTL,
   buildApiCacheKey,
@@ -337,6 +339,15 @@ export async function GET(
       })
       return responsePayload
     })
+
+    if (payload && typeof payload === 'object' && 'sport' in payload) {
+      const s = (payload as { sport: LeagueSport }).sport
+      const chainSport = legacySupportedSportToApiChain(s)
+      void Promise.allSettled([
+        apiChain.fetch({ sport: chainSport, dataType: 'injuries' }),
+        apiChain.fetch({ sport: chainSport, dataType: 'schedule' }),
+      ]).catch(() => {})
+    }
 
     const res = NextResponse.json(payload)
     res.headers.set('Cache-Control', DRAFT_POOL_CACHE_CONTROL)

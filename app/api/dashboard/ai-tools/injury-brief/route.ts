@@ -32,7 +32,17 @@ export async function GET(req: NextRequest) {
 
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
-    const [newsRows, playerRows] = await Promise.all([
+    const injuryReportWhere =
+      sportParam != null
+        ? { sport: sportParam }
+        : { sport: { in: [...SUPPORTED_SPORTS] as unknown as string[] } }
+
+    const digestCacheKeys =
+      sportParam != null
+        ? [`grok_injury_digest:${sportParam}`]
+        : SUPPORTED_SPORTS.map((s) => `grok_injury_digest:${s}`)
+
+    const [newsRows, playerRows, injuryReportRows, digestRows] = await Promise.all([
       prisma.sportsNews.findMany({
         where: {
           ...sportWhereNews,
@@ -55,6 +65,20 @@ export async function GET(req: NextRequest) {
         orderBy: { lastUpdated: 'desc' },
         take: 25,
       }),
+      prisma.injuryReportRecord.findMany({
+        where: {
+          ...injuryReportWhere,
+          reportDate: { gte: since },
+        },
+        orderBy: { reportDate: 'desc' },
+        take: 40,
+      }),
+      prisma.sportsDataCache.findMany({
+        where: {
+          cacheKey: { in: digestCacheKeys },
+          expiresAt: { gt: new Date() },
+        },
+      }),
     ])
 
     const articles = newsRows.map((a) => ({
@@ -67,11 +91,12 @@ export async function GET(req: NextRequest) {
       playerName: a.playerName,
     }))
 
-    const injuries = playerRows
+    const playerInjuries = playerRows
       .filter((p) => p.injuryStatus && p.injuryStatus.length > 0)
       .slice(0, 20)
       .map((p) => ({
         id: p.id,
+        source: 'sports_player_record' as const,
         sport: p.sport,
         name: p.name,
         team: p.team,
@@ -81,9 +106,44 @@ export async function GET(req: NextRequest) {
         lastUpdated: p.lastUpdated.toISOString(),
       }))
 
+    const grokInjuryDigests = digestRows
+      .map((row) => {
+        const d = row.data as {
+          summary?: string
+          bullets?: string[]
+          sport?: string
+          generatedAt?: string
+        }
+        const keySport = row.cacheKey.replace(/^grok_injury_digest:/, '')
+        return {
+          sport: (d.sport ?? keySport) as string,
+          summary: d.summary ?? '',
+          bullets: Array.isArray(d.bullets) ? d.bullets : [],
+          generatedAt: d.generatedAt ?? row.createdAt.toISOString(),
+        }
+      })
+      .filter((x) => x.summary.length > 0 || x.bullets.length > 0)
+
+    const injuryReports = injuryReportRows.map((r) => ({
+      id: r.id,
+      source: 'injury_report' as const,
+      sport: r.sport,
+      playerId: r.playerId,
+      name: r.playerName,
+      team: r.team,
+      status: r.status,
+      bodyPart: r.bodyPart,
+      notes: r.notes,
+      practice: r.practice,
+      gameStatus: r.gameStatus,
+      reportDate: r.reportDate.toISOString(),
+    }))
+
     return NextResponse.json({
       articles,
-      playerInjuries: injuries,
+      playerInjuries,
+      injuryReports,
+      grokInjuryDigests,
       fetchedAt: new Date().toISOString(),
     })
   } catch (e) {

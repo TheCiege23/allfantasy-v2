@@ -9,7 +9,8 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildLeagueDecisionContext, summarizeLeagueDecisionContext } from '@/lib/league-decision-context'
 import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getAllPlayers } from '@/lib/sleeper-client'
-import { fetchFantasyCalcValues, findPlayerByName, FantasyCalcPlayer } from '@/lib/fantasycalc'
+import { findPlayerByName, FantasyCalcPlayer } from '@/lib/fantasycalc'
+import { getFantasyCalcValuesDbFirst } from '@/lib/fantasycalc-db'
 import { parseSleeperRosterPositions } from '@/lib/trade-engine/sleeper-converter'
 import {
   generateTradeCandidates,
@@ -354,14 +355,14 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder", tool: "TradeFi
 
     let fcPlayers: FantasyCalcPlayer[] = []
     try {
-      fcPlayers = await fetchFantasyCalcValues({
+      fcPlayers = await getFantasyCalcValuesDbFirst({
         isDynasty: true,
         numQbs: isSF ? 2 : 1,
         numTeams: sleeperLeague.total_rosters || 12,
         ppr: 1,
       })
     } catch (e) {
-      console.warn('[TradeFinder] FantasyCalc fetch failed:', (e as Error)?.message)
+      console.warn('[TradeFinder] FantasyCalc load failed:', (e as Error)?.message)
     }
 
     const [leagueDecisionCtx, pricedAssets] = await Promise.all([

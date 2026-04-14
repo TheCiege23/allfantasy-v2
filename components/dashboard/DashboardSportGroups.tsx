@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import type { SportGroup, LeagueForGrouping } from '@/lib/dashboard'
+import { resolveLeagueHomeHrefFromListRow } from '@/lib/dashboard/league-list-destination'
 
 export interface DashboardSportGroupsProps {
   groups: SportGroup[]
@@ -19,7 +20,7 @@ export function DashboardSportGroups({
   groups,
   maxPerGroup = 3,
   emptyLeagueLabel = 'Unnamed league',
-  renderLeagueHref = (league) => `/leagues/${league.id}`,
+  renderLeagueHref = (league) => resolveLeagueHomeHrefFromListRow(league),
 }: DashboardSportGroupsProps) {
   return (
     <div className="space-y-6">

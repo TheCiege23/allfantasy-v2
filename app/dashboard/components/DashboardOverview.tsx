@@ -116,6 +116,18 @@ export function DashboardOverview({
   const waiverFetchedAt = useRef<number | null>(null)
   const tradeFetchedAt = useRef<number | null>(null)
 
+  useEffect(() => {
+    if (leagues.length === 0) return
+    void fetch('/api/dashboard/waivers', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: WaiverDashboardResponse | null) => {
+        if (d) {
+          setWaiverData(d)
+          waiverFetchedAt.current = Date.now()
+        }
+      })
+      .catch(() => {})
+  }, [leagues.length])
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
@@ -394,6 +406,8 @@ export function DashboardOverview({
     return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
   }, [waiverData])
 
+  const injuryPulseCount = useMemo(() => waiverData?.injuryPulse?.length ?? 0, [waiverData])
+
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
   const handleAiShortcut = useCallback((_prompt: string) => {
@@ -574,6 +588,7 @@ export function DashboardOverview({
           onLineupIssuesClick={handleLineupIssuesClick}
           waiverCount={waiverChipCount}
           onWaiverClick={handleWaiverClick}
+          injuryPulseCount={injuryPulseCount}
           pendingTradeCount={pendingTradeChipCount}
           onTradesClick={handleTradeClick}
         />

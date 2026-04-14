@@ -118,6 +118,14 @@ export const translationsEsParity: Record<string, string> = {
   "dashboard.today.title": "Hoy",
   "dashboard.today.waiverRecOne": "📋 1 recomendación waiver",
   "dashboard.today.waiverRecs": "📋 {{n}} recomendaciones waiver",
+  "dashboard.today.waiverInjuryPulseOne": "📋 1 actualización de lesiones",
+  "dashboard.today.waiverInjuryPulses": "📋 {{n}} actualizaciones de lesiones",
+  "dashboard.waiverModal.injuryPulseTitle": "Pulso de lesiones",
+  "dashboard.waiverModal.injuryPulseHint":
+    "De los deportes de tus ligas — mismos datos que waivers y marcadores. Verifica con fuentes oficiales antes del FAAB.",
+  "dashboard.waiverModal.emptyWithInjuryPulse":
+    "Sin recomendaciones trending — usa el pulso de lesiones arriba como contexto.",
+  "dashboard.waiverModal.emptyNoRecs": "No hay recomendaciones de waivers ahora.",
   "league.header.dashboardHome": "Inicio del panel",
   "league.header.leagueMenu": "Menú de liga",
   "league.header.leagueSettings": "Ajustes de liga",

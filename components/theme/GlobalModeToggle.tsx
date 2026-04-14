@@ -7,6 +7,9 @@ export function GlobalModeToggle() {
   const pathname = usePathname() ?? ""
   if (pathname?.startsWith("/admin")) return null
 
+  /** Right-rail profile footer (username + settings) sits bottom-right; fixed toggle covered the gear. */
+  if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/league/")) return null
+
   const createLeagueRoute = pathname === '/create-league' || pathname === '/leagues/create'
 
   return (

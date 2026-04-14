@@ -8,7 +8,18 @@ import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES, DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import type { TournamentSettings, ConferenceMode, LeagueNamingMode } from '@/lib/tournament-mode/types'
-import { computeLeagueCount } from '@/lib/tournament-mode/TournamentCreationService'
+
+function computeLeagueCount(participantPoolSize: number, initialLeagueSize: number = TOURNAMENT_TEAMS_PER_LEAGUE): number {
+  const poolKey = participantPoolSize as keyof typeof FEEDER_LEAGUES_BY_POOL
+  if (
+    initialLeagueSize === TOURNAMENT_TEAMS_PER_LEAGUE &&
+    Object.prototype.hasOwnProperty.call(FEEDER_LEAGUES_BY_POOL, poolKey)
+  ) {
+    return FEEDER_LEAGUES_BY_POOL[poolKey]
+  }
+  const size = Math.max(4, Math.floor(Number(initialLeagueSize)))
+  return Math.max(2, Math.floor(participantPoolSize / size))
+}
 
 export function TournamentCreateWizard() {
   const router = useRouter()
