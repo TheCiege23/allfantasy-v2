@@ -3,6 +3,7 @@
  */
 
 export * from './types'
+export * from './tournament-sport-cutoffs'
 export {
   DEFAULT_TOURNAMENT_SETTINGS,
   TOURNAMENT_LEAGUE_VARIANT,

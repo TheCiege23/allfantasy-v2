@@ -2561,6 +2561,9 @@ model AppUser {
   platformChatThreadsCreated     PlatformChatThread[]       @relation("PlatformChatThreadCreator")
   platformMessageReports         PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
   platformNotifications          PlatformNotification[]
+  tournamentMiniCommissionerRoles LegacyTournamentMiniCommissioner[]
+  tournamentLeagueSettingRequestsSubmitted LegacyTournamentLeagueSettingRequest[] @relation("TournamentLeagueSettingRequestRequester")
+  tournamentLeagueSettingRequestsResolved  LegacyTournamentLeagueSettingRequest[] @relation("TournamentLeagueSettingRequestResolver")
   platformUserReportsAgainst     PlatformUserReport[]       @relation("PlatformUserReportReported")
   platformUserReportsCreated     PlatformUserReport[]       @relation("PlatformUserReportReporter")
   walletAccount                  PlatformWalletAccount?
@@ -4183,7 +4186,9 @@ model League {
   survivorTribeSwaps              SurvivorTribeSwap[]
   survivorTwistEvents             SurvivorTwistEvent[]
   survivorWeeklyScores            SurvivorWeeklyScore[]
-  legacyTournamentLeague          LegacyTournamentLeague?
+  legacyTournamentLeague                  LegacyTournamentLeague?
+  tournamentMiniCommissionerAssignments   LegacyTournamentMiniCommissioner[]
+  tournamentLeagueSettingRequests       LegacyTournamentLeagueSettingRequest[]
   tournamentShellLeague           TournamentLeague?
   waiverClaims                    WaiverClaim[]
   waiverPickups                   WaiverPickup[]
@@ -4558,9 +4563,11 @@ model LegacyTournament {
   auditLogs      LegacyTournamentAuditLog[]
   conferences    LegacyTournamentConference[]
   leagues        LegacyTournamentLeague[]
-  participants   LegacyTournamentParticipant[]
-  rounds         LegacyTournamentRound[]
-  creator        AppUser                        @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants          LegacyTournamentParticipant[]
+  rounds                  LegacyTournamentRound[]
+  miniCommissioners       LegacyTournamentMiniCommissioner[]
+  leagueSettingRequests   LegacyTournamentLeagueSettingRequest[]
+  creator                 AppUser                        @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId])
   @@index([sport, season])
@@ -4686,6 +4693,47 @@ model LegacyTournamentParticipant {
   @@index([conferenceId])
   @@index([tournamentId, status])
   @@map("tournament_participants")
+}
+
+/// Deputy commissioner for one feeder/elimination league (cannot edit full tournament hub).
+model LegacyTournamentMiniCommissioner {
+  id           String   @id @default(cuid())
+  tournamentId String
+  leagueId     String
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  league     League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, leagueId])
+  @@index([userId])
+  @@index([tournamentId])
+  @@map("tournament_mini_commissioners")
+}
+
+/// Proposed league.settings patch — main commissioner must approve.
+model LegacyTournamentLeagueSettingRequest {
+  id            String    @id @default(cuid())
+  tournamentId  String
+  leagueId      String
+  requesterId   String
+  proposedPatch Json
+  status        String    @default("pending") @db.VarChar(16)
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+  resolverId    String?
+
+  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  league     League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  requester  AppUser         @relation("TournamentLeagueSettingRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  resolver   AppUser?        @relation("TournamentLeagueSettingRequestResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+
+  @@index([tournamentId, status])
+  @@index([requesterId])
+  @@map("tournament_league_setting_requests")
 }
 
 model TournamentShell {

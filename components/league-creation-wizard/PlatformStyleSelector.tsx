@@ -11,7 +11,6 @@ const STYLE_OPTIONS: { id: PlatformStyleMirror; label: string; hint: string }[] 
   { id: 'af', label: 'AllFantasy default', hint: 'Balanced preset for this sport' },
   { id: 'espn', label: 'ESPN-style', hint: 'Closer to ESPN default scoring where available' },
   { id: 'yahoo', label: 'Yahoo-style', hint: 'Closer to Yahoo default scoring where available' },
-  { id: 'sleeper', label: 'Sleeper-style', hint: 'Closer to Sleeper default scoring where available' },
 ]
 
 export type PlatformStyleSelectorProps = {
@@ -26,6 +25,7 @@ export type PlatformStyleSelectorProps = {
  */
 export function PlatformStyleSelector({ sport, value, onChange, onResolvedVariant }: PlatformStyleSelectorProps) {
   const variants = useMemo(() => getVariantsForSport(sport), [sport])
+  const safeValue = STYLE_OPTIONS.some((option) => option.id === value) ? value : 'af'
 
   const apply = (style: PlatformStyleMirror) => {
     onChange(style)
@@ -41,14 +41,14 @@ export function PlatformStyleSelector({ sport, value, onChange, onResolvedVarian
         help={<>These shortcuts only change the starting preset — not your host login or data.</>}
         helpTitle="Platform styles"
       />
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {STYLE_OPTIONS.map((opt) => (
           <button
             key={opt.id}
             type="button"
             onClick={() => apply(opt.id)}
             className={`rounded-xl border px-2 py-2.5 text-left text-xs transition ${
-              value === opt.id
+              safeValue === opt.id
                 ? 'border-cyan-400/45 bg-cyan-500/10 text-white'
                 : 'border-white/10 bg-white/[0.03] text-white/80 hover:bg-white/[0.06]'
             }`}
@@ -61,7 +61,7 @@ export function PlatformStyleSelector({ sport, value, onChange, onResolvedVarian
       <div className="space-y-1">
         <Label className="text-[11px] text-white/50">Active variant after shortcut</Label>
         <p className="text-sm text-cyan-100/90">
-          {resolveVariantForPlatformStyle(sport, value, variants)}
+          {resolveVariantForPlatformStyle(sport, safeValue, variants)}
         </p>
       </div>
     </div>

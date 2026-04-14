@@ -15,21 +15,25 @@ import {
 } from './constants'
 import { generateLeagueNames, getConferenceDisplayNames, generateInviteCode } from './LeagueNamingService'
 import type { CreateTournamentInput, TournamentSettings, InviteDistributionItem } from './types'
+import {
+  getFeederLeagueCountForPool,
+  getQualificationAdvancementTotal,
+  TOURNAMENT_TEAMS_PER_LEAGUE,
+} from './tournament-sport-cutoffs'
 
-/** Compute number of leagues from participant pool and league size (or auto balance). */
-export function computeLeagueCount(
-  participantPoolSize: number,
-  initialLeagueSize: number | 'auto'
-): number {
-  if (initialLeagueSize === 'auto') {
-    if (participantPoolSize <= 60) return 6
-    if (participantPoolSize <= 120) return 10
-    if (participantPoolSize <= 180) return 15
-    return 20
+function normalizeTournamentDraftType(raw: unknown): 'snake' | 'auction' {
+  const s = String(raw ?? 'snake').toLowerCase()
+  if (s === 'auction') return 'auction'
+  return 'snake'
+}
+
+/** Feeder league count: pool size tiered to 6 / 12 / 18 leagues of 12 teams, or floor(pool/12). */
+export function computeLeagueCount(participantPoolSize: number, initialLeagueSize: number = TOURNAMENT_TEAMS_PER_LEAGUE): number {
+  if (initialLeagueSize === TOURNAMENT_TEAMS_PER_LEAGUE) {
+    return getFeederLeagueCountForPool(participantPoolSize)
   }
-  const size = Number(initialLeagueSize)
-  if (!Number.isInteger(size) || size < 4) return Math.max(1, Math.floor(participantPoolSize / 10))
-  return Math.max(1, Math.floor(participantPoolSize / size))
+  const size = Math.max(4, Math.floor(Number(initialLeagueSize)))
+  return Math.max(2, Math.floor(participantPoolSize / size))
 }
 
 /**
@@ -42,11 +46,25 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
   conferenceNames: [string, string]
 }> {
   const sport = normalizeToSupportedSport(input.sport)
-  const settings: TournamentSettings = {
+  const merged = {
     ...DEFAULT_TOURNAMENT_SETTINGS,
     ...input.settings,
   }
-  const leagueCount = computeLeagueCount(settings.participantPoolSize, settings.initialLeagueSize)
+  const poolSize = merged.participantPoolSize
+  const settings: TournamentSettings = {
+    ...merged,
+    initialLeagueSize: TOURNAMENT_TEAMS_PER_LEAGUE,
+    draftType: normalizeTournamentDraftType(merged.draftType),
+    qualificationAdvancementTotal: getQualificationAdvancementTotal(String(sport ?? 'NFL'), poolSize),
+    eliminationAdvancementPerLeague:
+      typeof merged.eliminationAdvancementPerLeague === 'number'
+        ? merged.eliminationAdvancementPerLeague
+        : DEFAULT_TOURNAMENT_SETTINGS.eliminationAdvancementPerLeague,
+  }
+  const leagueCount = computeLeagueCount(settings.participantPoolSize, TOURNAMENT_TEAMS_PER_LEAGUE)
+  if (leagueCount < 2) {
+    throw new Error('Tournament mode requires at least 2 feeder leagues.')
+  }
   const perConference = Math.ceil(leagueCount / 2)
   const themeSeed = Date.now() % 1_000_000
   const [confA, confB] = getConferenceDisplayNames(
@@ -108,7 +126,7 @@ export async function createTournament(input: CreateTournamentInput): Promise<{
         name: leagueName,
         platform: 'manual',
         platformLeagueId: `tournament-${tournament.id}-${i}-${Date.now()}`,
-        leagueSize: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
+        leagueSize: TOURNAMENT_TEAMS_PER_LEAGUE,
         scoring: 'PPR',
         isDynasty: false,
         sport,

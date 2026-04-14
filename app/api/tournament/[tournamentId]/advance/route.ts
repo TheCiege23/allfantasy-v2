@@ -7,6 +7,8 @@ import { canViewStandings } from '@/lib/tournament/shellAccess'
 import { condenseRound } from '@/lib/tournament-mode/TournamentAdvancementService'
 import { runQualificationAdvancement } from '@/lib/tournament-mode/TournamentProgressionService'
 import { emitTournamentNotification } from '@/lib/tournament-mode/TournamentNotificationEmitter'
+import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
+import type { TournamentSettings } from '@/lib/tournament-mode/types'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -117,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tou
   // Check commissioner access on Legacy tournament
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { creatorId: true, status: true },
+    select: { creatorId: true, status: true, settings: true },
   })
   if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
   if (tournament.creatorId !== userId) {
@@ -129,7 +131,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tou
 
   const body = await req.json().catch(() => ({}))
   const resolveBubble = body.resolveBubble === true
-  const advancementPerLeague = typeof body.advancementPerLeague === 'number' ? body.advancementPerLeague : 4
+  const mergedTourSettings: Partial<TournamentSettings> = {
+    ...DEFAULT_TOURNAMENT_SETTINGS,
+    ...(typeof tournament.settings === 'object' && tournament.settings !== null
+      ? (tournament.settings as Partial<TournamentSettings>)
+      : {}),
+  }
+  const defaultAdvancePerLeague = Math.max(
+    1,
+    Math.min(11, mergedTourSettings.eliminationAdvancementPerLeague ?? DEFAULT_TOURNAMENT_SETTINGS.eliminationAdvancementPerLeague ?? 6)
+  )
+  const advancementPerLeague =
+    typeof body.advancementPerLeague === 'number' ? body.advancementPerLeague : defaultAdvancePerLeague
 
   try {
     // Find the current active round

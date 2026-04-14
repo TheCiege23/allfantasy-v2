@@ -12,7 +12,10 @@ import {
   suggestedSurvivorTribeCount,
 } from '@/lib/league-creation-wizard/wizard-format-options'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
+import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import { StepHeader } from './StepHelp'
+
+const CHECKBOX_CLASS = 'mt-0.5 shrink-0 size-5 rounded border border-white/30 bg-[#020817] accent-cyan-400'
 
 export type LeagueFormatOptionsPanelProps = {
   sport: string
@@ -48,14 +51,21 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
         <div className="space-y-4 rounded-2xl border border-purple-500/25 bg-purple-950/20 p-4">
           <h4 className="text-sm font-semibold text-purple-100">Tournament hub</h4>
           <p className="text-xs text-white/55">
-            Minimum pool size is 32 managers. The platform spins up multiple feeder leagues from this pool (see{' '}
-            <span className="text-white/75">Tournament</span> hub after create).
+            Choose how many managers join the tournament. Each feeder league is exactly{' '}
+            <span className="text-white/80">{TOURNAMENT_TEAMS_PER_LEAGUE} teams</span> (12 managers). The pool size
+            determines how many feeder leagues we create (6, 12, or 18).
           </p>
           <div className="space-y-1.5">
-            <Label className="text-white/85">Participant pool size</Label>
+            <Label className="text-white/85">Participant pool</Label>
             <Select
               value={String(v.tournamentParticipantPoolSize)}
-              onValueChange={(x) => onChange({ tournamentParticipantPoolSize: Number(x) })}
+              onValueChange={(x) => {
+                const pool = Number(x)
+                onChange({
+                  tournamentParticipantPoolSize: pool,
+                  tournamentInitialLeagueSize: 12,
+                })
+              }}
             >
               <SelectTrigger className="border-white/20 bg-[#030a20] text-white">
                 <SelectValue />
@@ -63,34 +73,22 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               <SelectContent>
                 {TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED.map((n) => (
                   <SelectItem key={n} value={String(n)}>
-                    {n} managers
+                    {n} managers → {FEEDER_LEAGUES_BY_POOL[n as keyof typeof FEEDER_LEAGUES_BY_POOL]} leagues ×{' '}
+                    {TOURNAMENT_TEAMS_PER_LEAGUE} teams
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+          <p className="text-[11px] text-white/45">
+            Conference naming (Black/Gold, themed, or custom) is a cosmetic suggestion for labels — it does not block
+            creation.
+          </p>
           <div className="space-y-1.5">
             <Label className="text-white/85">Feeder league size</Label>
-            <Select
-              value={v.tournamentInitialLeagueSize === 'auto' ? 'auto' : String(v.tournamentInitialLeagueSize)}
-              onValueChange={(x) =>
-                onChange({
-                  tournamentInitialLeagueSize: x === 'auto' ? 'auto' : Number(x),
-                })
-              }
-            >
-              <SelectTrigger className="border-white/20 bg-[#030a20] text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">Auto (balance leagues)</SelectItem>
-                {[10, 11, 12].map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n} per feeder league
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/80">
+              Fixed at {TOURNAMENT_TEAMS_PER_LEAGUE} managers per feeder league
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Feeder league names</Label>
@@ -196,6 +194,8 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               onChange={(e) => onChange({ survivorCustomTribeNamesLines: e.target.value })}
               rows={4}
               className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="Tribe One&#10;Tribe Two&#10;Tribe Three"
+              aria-label="Custom tribe names"
             />
           )}
           <div className="space-y-1.5">
@@ -227,12 +227,18 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               data-testid="wizard-survivor-season-theme"
             />
           </div>
-          <label className="flex items-start gap-2 text-sm text-white/85">
+          <label
+            className={`flex items-start gap-3 rounded-2xl border px-3 py-3 text-sm transition ${
+              v.survivorChallengesSystemRun
+                ? 'border-cyan-400/35 bg-cyan-500/10 text-white'
+                : 'border-white/12 bg-black/25 text-white/85 hover:bg-black/35'
+            }`}
+          >
             <input
               type="checkbox"
               checked={v.survivorChallengesSystemRun}
               onChange={(e) => onChange({ survivorChallengesSystemRun: e.target.checked })}
-              className="mt-1 rounded border-white/30"
+              className={CHECKBOX_CLASS}
             />
             System-run weekly challenges (recommended; reduces collusion if you play)
           </label>
@@ -274,12 +280,21 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               </SelectContent>
             </Select>
           </div>
-          <Label className="text-white/85 flex items-center gap-2">
+          <Label
+            htmlFor="zombie-universe-mode"
+            className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-white/85 transition ${
+              v.zombieUniverseMode
+                ? 'border-cyan-400/35 bg-cyan-500/10 text-white'
+                : 'border-white/12 bg-black/25 hover:bg-black/35'
+            }`}
+          >
             <input
+              id="zombie-universe-mode"
               type="checkbox"
               checked={v.zombieUniverseMode}
               onChange={(e) => onChange({ zombieUniverseMode: e.target.checked })}
-              className="rounded border-white/30"
+              className={CHECKBOX_CLASS}
+              aria-label="Create a Zombie universe"
             />
             Create a Zombie universe (inter-linked leagues)
           </Label>
@@ -343,12 +358,18 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
             Guillotine: lowest scorers are eliminated each period until one team remains. Chop timing and correction
             windows are tuned after create.
           </p>
-          <label className="flex items-start gap-2 text-sm text-white/85">
+          <label
+            className={`flex items-start gap-3 rounded-2xl border px-3 py-3 text-sm transition ${
+              v.guillotineRulesAcknowledged
+                ? 'border-cyan-400/35 bg-cyan-500/10 text-white'
+                : 'border-white/12 bg-black/25 text-white/85 hover:bg-black/35'
+            }`}
+          >
             <input
               type="checkbox"
               checked={v.guillotineRulesAcknowledged}
               onChange={(e) => onChange({ guillotineRulesAcknowledged: e.target.checked })}
-              className="mt-1 rounded border-white/30"
+              className={CHECKBOX_CLASS}
             />
             I understand eliminations run on scoring periods and can be adjusted in settings.
           </label>
@@ -384,6 +405,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 value={v.bigBrotherFinaleFormat ?? 'final_2'}
                 onChange={(e) => onChange({ bigBrotherFinaleFormat: e.target.value })}
                 className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                aria-label="Finale format"
               >
                 <option value="final_2">Final 2 (classic)</option>
                 <option value="final_3">Final 3</option>
@@ -395,6 +417,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 value={v.bigBrotherJuryMode ?? 'after_eliminations'}
                 onChange={(e) => onChange({ bigBrotherJuryMode: e.target.value })}
                 className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                aria-label="Jury start mode"
               >
                 <option value="after_eliminations">After N evictions (default 7)</option>
                 <option value="when_remaining">When X houseguests remain</option>
@@ -410,6 +433,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 value={v.bigBrotherChallengeMode ?? 'deterministic_score'}
                 onChange={(e) => onChange({ bigBrotherChallengeMode: e.target.value })}
                 className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                aria-label="HOH challenge mode"
               >
                 <option value="deterministic_score">Fantasy score (highest weekly score wins)</option>
                 <option value="hybrid">Hybrid (score + challenge factor)</option>
@@ -422,6 +446,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 value={v.bigBrotherTieBreak ?? 'hoh_vote'}
                 onChange={(e) => onChange({ bigBrotherTieBreak: e.target.value })}
                 className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                aria-label="Eviction tie-break"
               >
                 <option value="hoh_vote">HOH breaks the tie</option>
                 <option value="season_points">Season points (lowest evicted)</option>
@@ -436,7 +461,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               id="bb-consecutive-hoh"
               checked={v.bigBrotherConsecutiveHoh ?? false}
               onChange={(e) => onChange({ bigBrotherConsecutiveHoh: e.target.checked })}
-              className="rounded border-white/20"
+              className={CHECKBOX_CLASS}
             />
             <label htmlFor="bb-consecutive-hoh" className="text-[12px] text-white/70">
               Allow consecutive HOH wins (default: off — previous HOH cannot compete next week)
@@ -537,7 +562,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               id="idp-enabled"
               checked={v.idpEnabled}
               onChange={(e) => onChange({ idpEnabled: e.target.checked })}
-              className="rounded border-white/20"
+              className={CHECKBOX_CLASS}
             />
             <label htmlFor="idp-enabled" className="text-sm text-white/80">Enable IDP roster slots</label>
           </div>
@@ -550,6 +575,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                   value={v.idpPositionMode}
                   onChange={(e) => onChange({ idpPositionMode: e.target.value })}
                   className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                  aria-label="IDP position mode"
                 >
                   <option value="standard">Standard (DL / LB / DB)</option>
                   <option value="advanced">Advanced (DE / DT / LB / CB / S)</option>
@@ -562,6 +588,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                   value={v.idpRosterPreset}
                   onChange={(e) => onChange({ idpRosterPreset: e.target.value })}
                   className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                  aria-label="IDP roster preset"
                 >
                   <option value="beginner">Beginner (1 DL, 2 LB, 2 DB, 1 FLEX)</option>
                   <option value="standard">Standard (2 DL, 2 LB, 2 DB, 2 FLEX)</option>
@@ -574,6 +601,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                   value={v.idpScoringPreset}
                   onChange={(e) => onChange({ idpScoringPreset: e.target.value })}
                   className="w-full rounded-lg border border-white/15 bg-[#030a20] px-3 py-2 text-sm text-white"
+                  aria-label="IDP scoring style"
                 >
                   <option value="balanced">Balanced</option>
                   <option value="tackle_heavy">Tackle-heavy</option>

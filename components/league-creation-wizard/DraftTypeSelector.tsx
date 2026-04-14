@@ -59,7 +59,7 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
  */
 export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftTypeSelectorProps) {
   const { rules } = useSportRules(sport, null)
-  const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType)
+  const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType, sport)
   const allowedBySport = rules?.draft.allowedDraftTypes ?? allowedByLeagueType
   const allowed = (() => {
     const normalizedSportAllowed = new Set(

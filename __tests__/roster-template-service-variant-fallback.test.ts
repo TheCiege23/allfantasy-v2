@@ -16,6 +16,22 @@ describe('RosterTemplateService variant fallback', () => {
     findUniqueMock.mockResolvedValue(null)
   })
 
+  it('falls back to in-memory defaults when roster_templates schema is missing sportType column', async () => {
+    const { getRosterTemplate } = await import('@/lib/multi-sport/RosterTemplateService')
+
+    findUniqueMock.mockRejectedValueOnce(
+      new Error(
+        'Invalid `prisma.rosterTemplate.findUnique()` invocation: The column roster_templates.sportType does not exist in the current database.'
+      )
+    )
+
+    const template = await getRosterTemplate('NFL', 'survivor')
+
+    expect(template.templateId).toBe('default-NFL-survivor')
+    expect(template.sportType).toBe('NFL')
+    expect(template.slots.length).toBeGreaterThan(0)
+  })
+
   it('uses devy dynasty fallback slots for NFL devy format', async () => {
     const { getRosterTemplate } = await import('@/lib/multi-sport/RosterTemplateService')
 

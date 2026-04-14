@@ -5,11 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import {
-  compareByTiebreakers,
-  getAdvancementSlotsPerConference,
-  getBubbleSlotsPerConference,
-} from './advancement-rules'
+import { compareByTiebreakers, getBubbleSlotsPerConference } from './advancement-rules'
+import { getQualificationCutSlotsPerConference } from './tournament-sport-cutoffs'
 
 export interface UniversalStandingsRow {
   leagueId: string
@@ -145,12 +142,18 @@ export async function applyConferenceRankingAndCutLine(
 ): Promise<UniversalStandingsRow[]> {
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { settings: true },
+    select: { settings: true, sport: true, conferences: { select: { id: true } } },
   })
   const settings = (tournament?.settings as Record<string, unknown>) ?? {}
-  const poolSize = Number(settings.participantPoolSize) || 120
+  const poolSize = Number(settings.participantPoolSize) || 72
   const bubbleEnabled = Boolean(settings.bubbleWeekEnabled)
-  const advancementPerConf = getAdvancementSlotsPerConference(poolSize)
+  const confCount = tournament?.conferences.length ?? 2
+  const advancementPerConf = getQualificationCutSlotsPerConference(
+    String(tournament?.sport ?? 'NFL'),
+    poolSize,
+    typeof settings.qualificationAdvancementTotal === 'number' ? settings.qualificationAdvancementTotal : undefined,
+    confCount
+  )
   const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
 
   const byConference = new Map<string, UniversalStandingsRow[]>()

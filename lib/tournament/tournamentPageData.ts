@@ -7,6 +7,7 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import type { TournamentSettings } from '@/lib/tournament-mode/types'
+import { getQualificationAdvancementTotal } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 
 export type SerializedConference = {
   id: string
@@ -110,6 +111,23 @@ export type LegacyFeederLeagueRow = {
   conferenceName: string
 }
 
+export type SerializedMiniCommissionerAssignment = {
+  leagueId: string
+  leagueName: string
+  userId: string
+  displayName: string
+  username: string | null
+}
+
+export type SerializedPendingLeagueSettingRequest = {
+  id: string
+  leagueId: string
+  leagueName: string
+  requesterDisplayName: string
+  createdAt: string
+  proposedPatchKeys: string[]
+}
+
 export type TournamentLayoutPayload = {
   shell: SerializedShell
   conferences: SerializedConference[]
@@ -122,6 +140,12 @@ export type TournamentLayoutPayload = {
   hubKind: 'shell' | 'legacy'
   /** Feeder leagues + invite links (legacy tournaments; commissioner hub). */
   legacyFeederLeagues?: LegacyFeederLeagueRow[]
+  /** Deputy commissioners (legacy; main commissioner view). */
+  legacyMiniCommissioners?: SerializedMiniCommissionerAssignment[]
+  /** Pending `league.settings` proposals (legacy; main commissioner). */
+  legacyPendingLeagueSettingRequests?: SerializedPendingLeagueSettingRequest[]
+  /** League IDs where the viewer is the assigned mini-commissioner (legacy). */
+  viewerMiniCommissionerLeagueIds?: string[]
 }
 
 function dt(d: Date | null | undefined): string | null {
@@ -142,7 +166,19 @@ function mergeLegacySettings(raw: unknown): TournamentSettings {
     typeof raw === 'object' && raw !== null && !Array.isArray(raw)
       ? (raw as Partial<TournamentSettings>)
       : {}
-  return { ...DEFAULT_TOURNAMENT_SETTINGS, ...patch }
+  const merged = { ...DEFAULT_TOURNAMENT_SETTINGS, ...patch }
+  const dt = String(merged.draftType ?? 'snake').toLowerCase()
+  if (dt === 'linear') {
+    merged.draftType = 'snake'
+  }
+  const ilsRaw = merged.initialLeagueSize as unknown
+  if (ilsRaw === 'auto' || typeof ilsRaw !== 'number' || !Number.isFinite(ilsRaw)) {
+    merged.initialLeagueSize = 12
+  }
+  if (merged.eliminationAdvancementPerLeague == null || typeof merged.eliminationAdvancementPerLeague !== 'number') {
+    merged.eliminationAdvancementPerLeague = DEFAULT_TOURNAMENT_SETTINGS.eliminationAdvancementPerLeague
+  }
+  return merged
 }
 
 async function loadLegacyTournamentLayoutPayload(
@@ -175,6 +211,12 @@ async function loadLegacyTournamentLayoutPayload(
     where: { tournamentId: t.id },
   })
 
+  const feederLeagueCount = Math.max(1, t.leagues.length)
+  const advancementTotal =
+    settings.qualificationAdvancementTotal ??
+    getQualificationAdvancementTotal(String(t.sport), settings.participantPoolSize)
+  const advancersPerLeagueDisplay = Math.max(1, Math.floor(advancementTotal / feederLeagueCount))
+
   const serializedShell: SerializedShell = {
     id: t.id,
     name: t.name,
@@ -184,12 +226,11 @@ async function loadLegacyTournamentLayoutPayload(
     currentParticipantCount: participantCount,
     conferenceCount: t.conferences.length,
     leaguesPerConference: Math.max(1, Math.ceil(t.leagues.length / Math.max(1, t.conferences.length))),
-    teamsPerLeague:
-      typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
+    teamsPerLeague: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
     namingMode: settings.leagueNamingMode,
     currentRoundNumber: firstRound.roundIndex + 1,
     totalRounds: Math.max(t.rounds.length, 1),
-    advancersPerLeague: 1,
+    advancersPerLeague: advancersPerLeagueDisplay,
     wildcardCount: 0,
     bubbleEnabled: settings.bubbleWeekEnabled,
     bubbleSize: 8,
@@ -198,7 +239,7 @@ async function loadLegacyTournamentLayoutPayload(
     draftType: settings.draftType,
     waiverType: 'faab',
     openingRosterSize: 15,
-    tournamentRosterSize: settings.initialLeagueSize === 'auto' ? 12 : Number(settings.initialLeagueSize) || 12,
+    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
     eliteRosterSize: 8,
     faabResetOnRedraft: settings.faabResetByRound,
     draftClockSeconds: 90,
@@ -269,6 +310,67 @@ async function loadLegacyTournamentLayoutPayload(
     }
   })
 
+  let legacyMiniCommissioners: SerializedMiniCommissionerAssignment[] | undefined
+  let legacyPendingLeagueSettingRequests: SerializedPendingLeagueSettingRequest[] | undefined
+  const viewerMiniCommissionerLeagueIds: string[] = []
+
+  if (userId) {
+    const mine = await prisma.legacyTournamentMiniCommissioner.findMany({
+      where: { tournamentId: t.id, userId },
+      select: { leagueId: true },
+    })
+    viewerMiniCommissionerLeagueIds.push(...mine.map((m) => m.leagueId))
+  }
+
+  if (userId && t.creatorId === userId) {
+    const [miniRows, pendingRows] = await Promise.all([
+      prisma.legacyTournamentMiniCommissioner.findMany({
+        where: { tournamentId: t.id },
+        include: {
+          user: { select: { id: true, username: true, displayName: true } },
+          league: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.legacyTournamentLeagueSettingRequest.findMany({
+        where: { tournamentId: t.id, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          league: { select: { name: true } },
+          requester: { select: { displayName: true, username: true } },
+        },
+      }),
+    ])
+
+    legacyMiniCommissioners = miniRows.map((m) => ({
+      leagueId: m.leagueId,
+      leagueName: m.league.name ?? 'League',
+      userId: m.userId,
+      displayName:
+        m.user.displayName?.trim() || m.user.username?.trim() || m.user.id,
+      username: m.user.username,
+    }))
+
+    legacyPendingLeagueSettingRequests = pendingRows.map((r) => {
+      const patch = r.proposedPatch
+      const keys =
+        typeof patch === 'object' && patch !== null && !Array.isArray(patch)
+          ? Object.keys(patch as Record<string, unknown>)
+          : []
+      const requesterDisplayName =
+        r.requester.displayName?.trim() ||
+        r.requester.username?.trim() ||
+        r.requesterId
+      return {
+        id: r.id,
+        leagueId: r.leagueId,
+        leagueName: r.league.name ?? 'League',
+        requesterDisplayName,
+        createdAt: r.createdAt.toISOString(),
+        proposedPatchKeys: keys,
+      }
+    })
+  }
+
   return {
     shell: serializedShell,
     conferences: t.conferences.map((c, i) => ({
@@ -316,6 +418,10 @@ async function loadLegacyTournamentLayoutPayload(
     })),
     hubKind: 'legacy',
     legacyFeederLeagues,
+    legacyMiniCommissioners,
+    legacyPendingLeagueSettingRequests,
+    viewerMiniCommissionerLeagueIds:
+      viewerMiniCommissionerLeagueIds.length > 0 ? viewerMiniCommissionerLeagueIds : undefined,
   }
 }
 

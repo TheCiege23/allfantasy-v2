@@ -3,17 +3,18 @@
  * Tournament Mode — type definitions for tournament creation, conferences, rounds, and hub.
  */
 
-export type TournamentDraftType = 'snake' | 'linear' | 'auction'
+export type TournamentDraftType = 'snake' | 'auction'
 
-export const TOURNAMENT_PARTICIPANT_POOL_SIZES = [60, 120, 180, 240] as const
+/** Participant pools: 6 / 12 / 18 feeder leagues × 12 teams each. */
+export const TOURNAMENT_PARTICIPANT_POOL_SIZES = [72, 144, 216] as const
 export type TournamentParticipantPoolSize = (typeof TOURNAMENT_PARTICIPANT_POOL_SIZES)[number]
 
 export type ConferenceMode = 'black_vs_gold' | 'random_themed' | 'commissioner_custom'
 
 export type LeagueNamingMode = 'commissioner_custom' | 'app_generated' | 'ai_themed'
 
-export const TOURNAMENT_LEAGUE_SIZES = [10, 11, 12] as const
-export type TournamentLeagueSize = (typeof TOURNAMENT_LEAGUE_SIZES)[number]
+/** Feeder leagues always use 12-team slots; kept for typing / display. */
+export const TOURNAMENT_LEAGUE_SIZE_FIXED = 12 as const
 
 export type TournamentPhase = 'qualification' | 'elimination' | 'elite_eight' | 'championship'
 
@@ -22,9 +23,19 @@ export type TournamentStatus = 'setup' | 'qualification' | 'elimination' | 'fina
 export interface TournamentSettings {
   draftType: TournamentDraftType
   participantPoolSize: number
+  /**
+   * Cosmetic / naming suggestion only at create time; defaults to black_vs_gold.
+   * Does not block creation.
+   */
   conferenceMode: ConferenceMode
   leagueNamingMode: LeagueNamingMode
-  initialLeagueSize: number | 'auto'
+  /** Always 12 — one feeder league holds exactly 12 managers before overflow to the next league. */
+  initialLeagueSize: number
+  /**
+   * Managers advancing out of qualification (sport-aware, set at create).
+   * Used for shell display and advancement scheduling.
+   */
+  qualificationAdvancementTotal?: number
   qualificationWeeks: number
   qualificationTiebreakers: string[]  // e.g. ['wins', 'points_for']
   bubbleWeekEnabled: boolean
@@ -37,6 +48,8 @@ export interface TournamentSettings {
   universalPageVisibility: 'public' | 'unlisted' | 'private'
   forumAnnouncementsEnabled: boolean
   bannerTheme?: string
+  /** Top N advancing from each league in elimination rounds when calling condense (default 6 ≈ half of 12). */
+  eliminationAdvancementPerLeague?: number
 }
 
 export interface TournamentHubSettings {

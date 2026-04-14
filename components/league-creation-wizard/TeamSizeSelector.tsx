@@ -23,6 +23,45 @@ const COMMON_TIMEZONES = [
   { value: 'Europe/London', label: 'London' },
 ] as const
 
+export type TeamCountSelectorProps = {
+  sport: string
+  teamCount: number
+  onTeamCountChange: (n: number) => void
+}
+
+export function TeamCountSelector({ sport, teamCount, onTeamCountChange }: TeamCountSelectorProps) {
+  const teamCounts = getTeamCountOptionsForSport(sport)
+  const maxTeams = getMaxTeamsForSport(sport)
+  const safeTeamCount = clampTeamCountForSport(sport, teamCount)
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-white/90">Number of teams</Label>
+      <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
+        <SelectTrigger
+          className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+          title="Set how many managers will join this league"
+          aria-label="Number of teams"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {teamCounts.map((n) => (
+            <SelectItem key={n} value={String(n)}>
+              {n} teams
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="mt-1 text-xs text-white/50">
+        {sport.toUpperCase() === 'NFL'
+          ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
+          : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
+      </p>
+    </div>
+  )
+}
+
 export type TeamSizeSelectorProps = {
   /** Used to cap league size (one manager per team), ESPN / Sleeper–style limits per sport. */
   sport: string
@@ -35,6 +74,7 @@ export type TeamSizeSelectorProps = {
   onTeamCountChange: (n: number) => void
   onTradeReviewModeChange: (mode: 'none' | 'commissioner' | 'league_vote' | 'instant') => void
   onTimezoneChange: (tz: string) => void
+  showTeamCount?: boolean
 }
 
 /**
@@ -50,10 +90,8 @@ export function TeamSizeSelector({
   onTeamCountChange,
   onTradeReviewModeChange,
   onTimezoneChange,
+  showTeamCount = true,
 }: TeamSizeSelectorProps) {
-  const teamCounts = getTeamCountOptionsForSport(sport)
-  const maxTeams = getMaxTeamsForSport(sport)
-  const safeTeamCount = clampTeamCountForSport(sport, teamCount)
   return (
     <div className="space-y-6">
       <h3 className="sr-only">Team setup</h3>
@@ -81,28 +119,9 @@ export function TeamSizeSelector({
           <p id="name-help" className="mt-1 text-sm text-white/70">This name is saved to your league.</p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-white/90">Number of teams</Label>
-          <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
-            <SelectTrigger
-              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
-              title="10 or 12 is most common"
-              aria-label="Number of teams"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {teamCounts.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n} teams
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="mt-1 text-xs text-white/50">
-            Up to {maxTeams} teams for {sport}. You can change this later in settings.
-          </p>
-        </div>
+        {showTeamCount ? (
+          <TeamCountSelector sport={sport} teamCount={teamCount} onTeamCountChange={onTeamCountChange} />
+        ) : null}
 
         <div className="space-y-1.5">
           <Label className="text-white/90">League timezone</Label>

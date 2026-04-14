@@ -1,19 +1,25 @@
 /**
  * PROMPT 3: Deterministic advancement rules and tiebreakers.
- * 60 → top 16 per conference, 120 → 32, 180 → 48, 240 → 64.
+ * Qualification cuts use `qualificationAdvancementTotal` / conference count (see tournament-sport-cutoffs).
  * Tiebreakers: 1) W-L, 2) Points For. Bubble: optional Week 9 fill remaining slots.
  */
 
+import { getQualificationCutSlotsPerConference } from './tournament-sport-cutoffs'
+
+/** @deprecated Prefer getQualificationCutSlotsPerConference with full tournament settings. */
 export const ADVANCEMENT_SLOTS_BY_POOL: Record<number, number> = {
   60: 16,
+  72: 30,
   120: 32,
+  144: 60,
   180: 48,
+  216: 90,
   240: 64,
 }
 
-/** Default advancement per conference for a given participant pool size. */
+/** Fallback advancement per conference when only pool size is known (assumes 2 conferences, sport NFL). */
 export function getAdvancementSlotsPerConference(participantPoolSize: number): number {
-  return ADVANCEMENT_SLOTS_BY_POOL[participantPoolSize] ?? 16
+  return getQualificationCutSlotsPerConference('NFL', participantPoolSize, undefined, 2)
 }
 
 /** Default tiebreaker order (deterministic). Commissioner override can be stored in Tournament.settings.qualificationTiebreakers. */

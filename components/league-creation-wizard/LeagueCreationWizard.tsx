@@ -46,7 +46,7 @@ import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
 import { LeagueTypeSelector } from './LeagueTypeSelector'
 import { DraftTypeSelector } from './DraftTypeSelector'
-import { TeamSizeSelector } from './TeamSizeSelector'
+import { TeamCountSelector, TeamSizeSelector } from './TeamSizeSelector'
 import { AiAutomationSettingsPanel } from './AiAutomationSettingsPanel'
 import { LeagueSettingsPreviewPanel } from '@/components/league-creation'
 import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
@@ -61,6 +61,8 @@ import {
   formatOptionsApplyToLeagueType,
   clampSurvivorTeamCount,
 } from '@/lib/league-creation-wizard/wizard-format-options'
+import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
+import { getFeederLeagueCountForPool } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import type { WizardFormatOptions } from '@/lib/league-creation-wizard/wizard-format-options'
 import { LeagueFormatOptionsPanel } from './LeagueFormatOptionsPanel'
 
@@ -89,6 +91,8 @@ function StepPanelSkeleton() {
     </div>
   )
 }
+
+const WIZARD_STORAGE_KEY = 'af:create-league:wizard-state'
 
 type ActiveWizardStepId = (typeof WIZARD_STEP_ORDER)[number]
 
@@ -134,10 +138,7 @@ const initialState: LeagueCreationWizardState = {
   templateSettingsOverrides: {},
 }
 
-function mapDraftTypeToTournamentDraft(
-  d: DraftTypeId
-): 'snake' | 'linear' | 'auction' {
-  if (d === 'linear') return 'linear'
+function mapDraftTypeToTournamentDraft(d: DraftTypeId): 'snake' | 'auction' {
   if (d === 'auction' || d === 'devy_auction' || d === 'c2c_auction') return 'auction'
   return 'snake'
 }
@@ -317,10 +318,21 @@ export function LeagueCreationWizard({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [state, setState] = useState<LeagueCreationWizardState>(() => {
-    const merged = { ...initialState, ...(initialWizardState ?? {}) }
+    const storedState = (() => {
+      if (typeof window === 'undefined') return null
+      try {
+        const raw = window.sessionStorage.getItem(WIZARD_STORAGE_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw) as Partial<LeagueCreationWizardState>
+        return parsed && typeof parsed === 'object' ? parsed : null
+      } catch {
+        return null
+      }
+    })()
+    const merged = { ...initialState, ...(storedState ?? {}), ...(initialWizardState ?? {}) }
     const fromUrl =
       initialStep && (WIZARD_STEP_ORDER as readonly string[]).includes(initialStep) ? initialStep : null
-    merged.step = fromUrl ?? 'sport'
+    merged.step = fromUrl ?? storedState?.step ?? 'sport'
     merged.setupSource = initialWizardState?.setupSource ?? 'fresh'
     merged.copyFromLeagueId = initialWizardState?.copyFromLeagueId ?? null
     merged.leagueTimezone = initialWizardState?.leagueTimezone ?? 'America/New_York'
@@ -416,27 +428,29 @@ export function LeagueCreationWizard({
     state.leagueTimezone,
   ])
 
-  const go = useCallback((step: WizardStepId) => {
+  const buildStepHref = useCallback(
+    (step: WizardStepId, returnToReview = false) => {
+      const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
+      nextParams.set('step', step)
+      if (returnToReview) nextParams.set('returnTo', 'review')
+      else nextParams.delete('returnTo')
+      return `/create-league?${nextParams.toString()}`
+    },
+    [searchParams]
+  )
+
+  const go = useCallback((step: WizardStepId, options?: { returnToReview?: boolean }) => {
     setState((s) => ({ ...s, step }))
     setError(null)
-  }, [])
+    router.push(buildStepHref(step, options?.returnToReview === true), { scroll: false })
+  }, [buildStepHref, router])
 
   const handleEditStep = useCallback(
     (stepId: WizardStepId) => {
-      go(stepId)
-      const q = new URLSearchParams()
-      q.set('step', stepId)
-      q.set('returnTo', 'review')
-      router.replace(`/create-league?${q.toString()}`)
+      go(stepId, { returnToReview: true })
     },
-    [go, router]
+    [go]
   )
-
-  useEffect(() => {
-    if (state.step === 'review') {
-      router.replace('/create-league?step=review')
-    }
-  }, [state.step, router])
 
   useEffect(() => {
     const stepParam = searchParams?.get('step')
@@ -446,10 +460,36 @@ export function LeagueCreationWizard({
   }, [searchParams])
 
   useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(state))
+  }, [state])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [state.step])
+
+  useEffect(() => {
     if (state.leagueType !== 'survivor') return
     const tc = clampSurvivorTeamCount(String(state.sport), state.formatOptions.survivorTeamCount)
     setState((s) => (s.teamCount === tc ? s : { ...s, teamCount: tc }))
   }, [state.leagueType, state.sport, state.formatOptions.survivorTeamCount])
+
+  useEffect(() => {
+    if (state.leagueType !== 'tournament') return
+    const p = state.formatOptions.tournamentParticipantPoolSize
+    const allowed = TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED as readonly number[]
+    if (allowed.includes(p)) return
+    const nearest = allowed.reduce((a, b) => (Math.abs(b - p) < Math.abs(a - p) ? b : a))
+    setState((s) => ({
+      ...s,
+      formatOptions: {
+        ...s.formatOptions,
+        tournamentParticipantPoolSize: nearest,
+        tournamentInitialLeagueSize: 12,
+      },
+    }))
+  }, [state.leagueType, state.formatOptions.tournamentParticipantPoolSize])
 
   const goNext = useCallback(() => {
     if (stepValidationError) {
@@ -459,10 +499,14 @@ export function LeagueCreationWizard({
       })
       return
     }
+    if (searchParams?.get('returnTo') === 'review') {
+      go('review')
+      return
+    }
     const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
     if (idx < WIZARD_STEP_ORDER.length - 1) go(WIZARD_STEP_ORDER[idx + 1]!)
     else go('review')
-  }, [state.step, go, stepValidationError])
+  }, [searchParams, state.step, go, stepValidationError])
 
   const goBack = useCallback(() => {
     const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
@@ -473,7 +517,7 @@ export function LeagueCreationWizard({
     setState((s) => {
       const allowed = getAllowedLeagueTypesForSport(sport)
       const leagueType = allowed.includes(s.leagueType) ? s.leagueType : (allowed[0] ?? 'redraft')
-      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType)
+      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, sport)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
       const variants = getVariantsForSport(sport)
       const fallbackVariant = variants[0]?.value ?? 'STANDARD'
@@ -498,7 +542,7 @@ export function LeagueCreationWizard({
 
   const handleLeagueTypeChange = useCallback((leagueType: LeagueTypeId) => {
     setState((s) => {
-      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType)
+      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, s.sport)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
       const resolvedVariant =
         resolveEffectiveLeagueVariant({
@@ -597,22 +641,26 @@ export function LeagueCreationWizard({
         setCreating(false)
         return
       }
-      if (
-        state.leagueType === 'tournament' &&
-        state.formatOptions.tournamentLeagueNamingMode === 'commissioner_custom' &&
-        !state.formatOptions.tournamentCustomLeagueNamesLines.trim()
-      ) {
-        setError('Enter feeder league names (one per line) or choose app-generated names.')
-        setCreating(false)
-        return
-      }
-
       if (state.leagueType === 'tournament') {
-        const tournamentDraft = mapDraftTypeToTournamentDraft(state.draftType)
+        const feederCount = getFeederLeagueCountForPool(state.formatOptions.tournamentParticipantPoolSize)
         const customLines = state.formatOptions.tournamentCustomLeagueNamesLines
           .split('\n')
           .map((l) => l.trim())
           .filter(Boolean)
+        if (
+          state.formatOptions.tournamentLeagueNamingMode === 'commissioner_custom' &&
+          !state.formatOptions.tournamentCustomLeagueNamesLines.trim()
+        ) {
+          setError('Enter feeder league names (one per line) or choose app-generated names.')
+          setCreating(false)
+          return
+        }
+        if (state.formatOptions.tournamentLeagueNamingMode === 'commissioner_custom' && customLines.length < feederCount) {
+          setError(`Enter ${feederCount} feeder league names (one per line) for this pool size.`)
+          setCreating(false)
+          return
+        }
+        const tournamentDraft = mapDraftTypeToTournamentDraft(state.draftType)
         const res = await fetch('/api/tournament/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -621,7 +669,7 @@ export function LeagueCreationWizard({
             sport: state.sport,
             settings: {
               participantPoolSize: state.formatOptions.tournamentParticipantPoolSize,
-              initialLeagueSize: state.formatOptions.tournamentInitialLeagueSize,
+              initialLeagueSize: 12,
               leagueNamingMode: state.formatOptions.tournamentLeagueNamingMode,
               draftType: tournamentDraft,
             },
@@ -638,8 +686,11 @@ export function LeagueCreationWizard({
         }
         const tournamentId = data?.tournamentId
         if (tournamentId) {
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+          }
           onSuccess?.(tournamentId)
-          router.push(`/tournament/${tournamentId}`)
+          router.push(`/tournament/${tournamentId}?created=1`)
         } else {
           setError('Tournament created but no ID returned')
         }
@@ -698,6 +749,7 @@ export function LeagueCreationWizard({
         settings: {
           ...(state.templateSettingsOverrides ?? {}),
           ...formatOptionsApplyToLeagueType(state.leagueType, state.formatOptions, String(state.sport)),
+          platform_style_mirror: state.platformStyleMirror,
           league_size: effectiveLeagueSize,
           league_type: state.leagueType,
           draft_type: state.draftType,
@@ -714,9 +766,11 @@ export function LeagueCreationWizard({
           ai_adp_enabled: state.aiSettings.aiAdpEnabled,
           orphan_team_ai_manager_enabled: state.aiSettings.orphanTeamAiManagerEnabled,
           draft_helper_enabled: state.aiSettings.draftHelperEnabled,
+          creation_commissioner_preferences_requested: state.commissionerPreferences,
           creation_commissioner_preferences: commissionerPlanUnlocked
             ? state.commissionerPreferences
             : { ...DEFAULT_COMMISSIONER_PREFERENCES },
+          creation_commissioner_preferences_locked: !commissionerPlanUnlocked,
           draft_notifications_enabled: state.automationSettings.draftNotificationsEnabled,
           autopick_from_queue_enabled: state.automationSettings.autopickFromQueueEnabled,
           slow_draft_reminders_enabled: state.automationSettings.slowDraftRemindersEnabled,
@@ -746,6 +800,9 @@ export function LeagueCreationWizard({
       }
       const leagueId = data?.league?.id
       if (leagueId) {
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+        }
         onSuccess?.(leagueId)
         const q = new URLSearchParams()
         q.set('created', '1')
@@ -894,7 +951,7 @@ export function LeagueCreationWizard({
       return
     }
     if (lastTeamPresetKeyRef.current === key) return
-    setState((s) => ({ ...s, teamCount: defaultTeamCount }))
+    setState((s) => ({ ...s, teamCount: clampTeamCountForSport(String(s.sport), defaultTeamCount) }))
     lastTeamPresetKeyRef.current = key
   }, [creationPreset?.league?.default_team_count, state.sport, state.leagueVariant, state.scoringPreset])
 
@@ -985,6 +1042,13 @@ export function LeagueCreationWizard({
                   value={state.draftType}
                   onChange={handleDraftTypeChange}
                 />
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <TeamCountSelector
+                    sport={String(state.sport)}
+                    teamCount={state.teamCount}
+                    onTeamCountChange={handleTeamCountChange}
+                  />
+                </div>
               </div>
               <WizardStepNav
                 onNext={goNext}
@@ -1006,6 +1070,7 @@ export function LeagueCreationWizard({
                 onTeamCountChange={handleTeamCountChange}
                 onTradeReviewModeChange={handleTradeReviewModeChange}
                 onTimezoneChange={handleTimezoneChange}
+                showTeamCount={false}
               />
               <LeagueFormatOptionsPanel
                 sport={String(state.sport)}

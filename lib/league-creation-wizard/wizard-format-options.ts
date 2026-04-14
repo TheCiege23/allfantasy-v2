@@ -13,7 +13,8 @@ export type SurvivorCommissionerRole = 'commissioner_only' | 'player_commissione
 export interface WizardFormatOptions {
   /** Fantasy tournament (multi-league hub) — uses POST /api/tournament/create */
   tournamentParticipantPoolSize: number
-  tournamentInitialLeagueSize: number | 'auto'
+  /** Fixed at 12 — each feeder league holds 12 managers. */
+  tournamentInitialLeagueSize: 12
   tournamentLeagueNamingMode: TournamentLeagueNamingMode
   /** One name per line when naming mode is commissioner_custom */
   tournamentCustomLeagueNamesLines: string
@@ -72,7 +73,7 @@ export interface WizardFormatOptions {
 }
 
 export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
-  tournamentParticipantPoolSize: 32,
+  tournamentParticipantPoolSize: 72,
   tournamentInitialLeagueSize: 12,
   tournamentLeagueNamingMode: 'app_generated',
   tournamentCustomLeagueNamesLines: '',

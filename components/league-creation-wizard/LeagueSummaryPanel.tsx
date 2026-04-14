@@ -37,6 +37,12 @@ function buildCommissionerPreferencesSummary(prefs: WizardCommissionerPreference
   return `${enabled.length} on: ${enabled.join(' · ')}`
 }
 
+function getPlatformStyleLabel(platformStyleMirror: LeagueCreationWizardState['platformStyleMirror']): string {
+  if (platformStyleMirror === 'espn') return 'ESPN-style'
+  if (platformStyleMirror === 'yahoo') return 'Yahoo-style'
+  return 'AllFantasy default'
+}
+
 export type LeagueSummaryPanelProps = {
   state: LeagueCreationWizardState
   creationPreset?: LeagueCreationPresetPayload | null
@@ -53,9 +59,9 @@ function SummaryRow({
   testId?: string
 }) {
   return (
-    <div className="flex justify-between gap-2 py-1.5 border-b border-white/10" data-testid={testId}>
-      <dt className="text-white/60">{label}</dt>
-      <dd className="text-white/90 font-medium text-right max-w-[60%]">{value}</dd>
+    <div className="flex justify-between gap-2 border-b border-white/10 py-1.5" data-testid={testId}>
+      <div className="text-white/60">{label}</div>
+      <div className="max-w-[60%] text-right font-medium text-white/90">{value}</div>
     </div>
   )
 }
@@ -83,7 +89,7 @@ function SummarySection({
           Edit
         </button>
       </div>
-      <dl className="space-y-0 text-sm">{children}</dl>
+      <div className="space-y-0 text-sm">{children}</div>
     </div>
   )
 }
@@ -139,18 +145,7 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
       </SummarySection>
 
       <SummarySection title="Scoring" stepId="scoring" onEditStep={onEditStep}>
-        <SummaryRow
-          label="Platform style"
-          value={
-            state.platformStyleMirror === 'espn'
-              ? 'ESPN-style'
-              : state.platformStyleMirror === 'yahoo'
-                ? 'Yahoo-style'
-                : state.platformStyleMirror === 'sleeper'
-                  ? 'Sleeper-style'
-                  : 'AllFantasy default'
-          }
-        />
+        <SummaryRow label="Platform style" value={getPlatformStyleLabel(state.platformStyleMirror)} />
         <SummaryRow label="Preset / variant" value={variantText} />
       </SummarySection>
 

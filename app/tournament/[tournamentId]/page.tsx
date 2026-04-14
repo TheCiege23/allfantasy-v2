@@ -12,6 +12,7 @@ import { TournamentStatusCard } from '@/app/tournament/components/TournamentStat
 import { LeagueIdentityCard } from '@/app/tournament/components/LeagueIdentityCard'
 import { RoundProgressBar } from '@/app/tournament/components/RoundProgressBar'
 import { ForumPostCard } from '@/app/tournament/components/ForumPostCard'
+import { MiniCommissionerHub } from '@/app/tournament/[tournamentId]/components/MiniCommissionerHub'
 
 function useCountdown(target: Date | null) {
   const [now, setNow] = useState(() => Date.now())
@@ -32,8 +33,19 @@ export default function TournamentHomePage() {
   const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
-  const { shell, conferences, announcements, participant, viewerUserId, hubKind, isCommissioner, legacyFeederLeagues } =
-    ctx
+  const {
+    shell,
+    conferences,
+    announcements,
+    participant,
+    viewerUserId,
+    hubKind,
+    isCommissioner,
+    legacyFeederLeagues,
+    legacyMiniCommissioners,
+    legacyPendingLeagueSettingRequests,
+    viewerMiniCommissionerLeagueIds,
+  } = ctx
   const state = useTournamentParticipantState(ctx)
 
   const conference = useMemo(
@@ -234,6 +246,18 @@ export default function TournamentHomePage() {
         </div>
       ) : null}
 
+      {hubKind === 'legacy' ? (
+        <MiniCommissionerHub
+          tournamentId={tournamentId}
+          isCommissioner={isCommissioner}
+          viewerUserId={viewerUserId}
+          legacyFeederLeagues={legacyFeederLeagues}
+          legacyMiniCommissioners={legacyMiniCommissioners}
+          legacyPendingLeagueSettingRequests={legacyPendingLeagueSettingRequests}
+          viewerMiniCommissionerLeagueIds={viewerMiniCommissionerLeagueIds}
+        />
+      ) : null}
+
       {state.standingsError ? (
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-[12px] text-red-200">
           {state.standingsError}
@@ -350,7 +374,7 @@ export default function TournamentHomePage() {
       ) : null}
 
       <div className="tournament-panel p-4">
-        <h2 className="text-[13px] font-bold text-white">Global snapshot</h2>
+        <h2 className="text-[13px] font-bold text-white">Overall snapshot</h2>
         {globalBoard.idx >= 0 ? (
           <>
             <p className="mt-2 text-[15px] text-white">

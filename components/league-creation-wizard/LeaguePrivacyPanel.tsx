@@ -57,12 +57,19 @@ export function LeaguePrivacyPanel({ value, onChange }: LeaguePrivacyPanelProps)
           </Select>
           <p className="mt-1 text-xs text-white/50">Private is recommended until you've invited your managers.</p>
         </div>
-        <label className="flex items-start gap-3 cursor-pointer" title="Share a link so others can join">
+        <label
+          className={`flex items-start gap-3 cursor-pointer rounded-2xl border px-3 py-3 transition ${
+            p.allowInviteLink
+              ? 'border-cyan-400/35 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]'
+              : 'border-white/12 bg-black/25 hover:bg-black/35'
+          }`}
+          title="Share a link so others can join"
+        >
           <input
             type="checkbox"
             checked={p.allowInviteLink}
             onChange={(e) => onChange({ allowInviteLink: e.target.checked })}
-            className="mt-1 rounded border-white/30 bg-gray-900 shrink-0 size-4"
+            className="mt-0.5 shrink-0 size-5 rounded border border-white/30 bg-[#020817] accent-cyan-400"
             aria-describedby="invite-help"
           />
           <div>

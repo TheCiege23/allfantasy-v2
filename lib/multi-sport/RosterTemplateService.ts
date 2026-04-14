@@ -27,6 +27,32 @@ export interface RosterTemplateDto {
   slots: RosterTemplateSlotDto[]
 }
 
+function buildInMemoryTemplate(
+  sport: SportType,
+  normalizedFormat: string,
+  templateId?: string,
+  name?: string
+): RosterTemplateDto {
+  return {
+    templateId: templateId ?? `default-${sport}-${normalizedFormat}`,
+    sportType: sport,
+    name: name ?? `Default ${sport} ${normalizedFormat}`,
+    formatType: normalizedFormat,
+    slots: defaultSlotsForSport(sport, normalizedFormat),
+  }
+}
+
+function isRosterTemplateSchemaCompatibilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    /roster_templates\.(sportType|formatType)/i.test(message) ||
+    /column .* does not exist/i.test(message) ||
+    /Invalid `prisma\.rosterTemplate\.findUnique\(\)` invocation/i.test(message) ||
+    /Unknown arg `sportType_formatType` in where\./i.test(message) ||
+    /P2021|P2022/.test(message)
+  )
+}
+
 function normalizeRosterFormatType(sportType: SportType, formatType: string): string {
   if (sportType !== 'NFL') return formatType
   const normalized = (formatType ?? '').toUpperCase()
@@ -515,12 +541,38 @@ export async function getRosterTemplate(
       // fall through to default
     }
   }
-  const template = await prisma.rosterTemplate.findUnique({
-    where: {
-      sportType_formatType: { sportType: sport, formatType: normalizedFormat },
-    },
-    include: { slots: { orderBy: { slotOrder: 'asc' } } },
-  })
+  let template: {
+    id: string
+    name: string
+    formatType: string
+    slots: Array<{
+      slotName: string
+      allowedPositions: unknown
+      starterCount: number
+      benchCount: number
+      reserveCount: number
+      taxiCount: number
+      devyCount: number
+      isFlexibleSlot: boolean
+      slotOrder: number
+    }>
+  } | null = null
+  try {
+    template = await prisma.rosterTemplate.findUnique({
+      where: {
+        sportType_formatType: { sportType: sport, formatType: normalizedFormat },
+      },
+      include: { slots: { orderBy: { slotOrder: 'asc' } } },
+    })
+  } catch (error) {
+    if (isRosterTemplateSchemaCompatibilityError(error)) {
+      console.warn(
+        `[RosterTemplateService] roster template schema mismatch for ${sport}/${normalizedFormat}; using in-memory defaults`
+      )
+      return buildInMemoryTemplate(sport, normalizedFormat)
+    }
+    throw error
+  }
   if (template) {
     return {
       templateId: template.id,
@@ -540,13 +592,7 @@ export async function getRosterTemplate(
       })),
     }
   }
-  return {
-    templateId: `default-${sport}-${normalizedFormat}`,
-    sportType: sport,
-    name: `Default ${sport} ${normalizedFormat}`,
-    formatType: normalizedFormat,
-    slots: defaultSlotsForSport(sport, normalizedFormat),
-  }
+  return buildInMemoryTemplate(sport, normalizedFormat)
 }
 
 /**

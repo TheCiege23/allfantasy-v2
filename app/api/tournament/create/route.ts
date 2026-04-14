@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { createTournament } from '@/lib/tournament-mode/TournamentCreationService'
+import { computeLeagueCount, createTournament } from '@/lib/tournament-mode/TournamentCreationService'
 import { validateCommissionerLeagueNames } from '@/lib/tournament-mode/LeagueNamingService'
 import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
@@ -57,10 +57,12 @@ export async function POST(req: Request) {
     )
   }
 
-  const draftType = mergedSettings.draftType ?? DEFAULT_TOURNAMENT_SETTINGS.draftType
-  if (!['snake', 'linear', 'auction'].includes(String(draftType))) {
+  const rawDraft = String(mergedSettings.draftType ?? DEFAULT_TOURNAMENT_SETTINGS.draftType).toLowerCase()
+  const draftType = rawDraft === 'linear' ? 'snake' : rawDraft === 'auction' ? 'auction' : 'snake'
+  mergedSettings.draftType = draftType as typeof mergedSettings.draftType
+  if (!['snake', 'auction'].includes(draftType)) {
     return NextResponse.json(
-      { error: 'Draft type must be snake, linear, or auction' },
+      { error: 'Draft type must be snake or auction' },
       { status: 400 }
     )
   }
@@ -73,6 +75,15 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+  }
+
+  mergedSettings.initialLeagueSize = 12
+  const computedLeagueCount = computeLeagueCount(poolSize, 12)
+  if (computedLeagueCount < 2) {
+    return NextResponse.json(
+      { error: 'Tournament mode requires at least 2 feeder leagues. Lower league size or increase participant pool.' },
+      { status: 400 }
+    )
   }
 
   try {

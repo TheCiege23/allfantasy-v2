@@ -35,6 +35,8 @@ const AUTOMATION_PRESET_DETAIL: Record<AutomationDraftPreset, string> = {
     'Everything in Standard, plus slow-draft reminders so long drafts do not stall overnight.',
 }
 
+const CHECKBOX_CLASS = 'mt-0.5 shrink-0 size-5 rounded border border-white/30 bg-[#020817] accent-cyan-400 disabled:opacity-50'
+
 function presetToSettings(preset: AutomationDraftPreset): Partial<WizardAutomationSettings> {
   switch (preset) {
     case 'alerts_only':
@@ -150,6 +152,28 @@ export function AiAutomationSettingsPanel({
     },
   ]
 
+  const aiRows: {
+    key: keyof WizardAISettings
+    label: string
+    description: string
+  }[] = [
+    {
+      key: 'aiAdpEnabled',
+      label: 'AI rankings in draft room',
+      description: `Use AI-assisted player lists during the draft (${sport}).`,
+    },
+    {
+      key: 'draftHelperEnabled',
+      label: 'Draft suggestions',
+      description: 'Pick suggestions and queue hints while drafting.',
+    },
+    {
+      key: 'orphanTeamAiManagerEnabled',
+      label: 'Auto-pick for open teams',
+      description: 'When a team has no manager, use smart picks on the clock.',
+    },
+  ]
+
   return (
     <div className="space-y-8">
       <StepHeader
@@ -191,42 +215,30 @@ export function AiAutomationSettingsPanel({
         </div>
 
         <div className="space-y-3 border-t border-white/10 pt-4">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={aiSettings.aiAdpEnabled}
-              onChange={(e) => onAiChange({ aiAdpEnabled: e.target.checked })}
-              className="mt-1 rounded border-white/30 bg-gray-900 shrink-0 size-4"
-            />
-            <div>
-              <span className="text-sm font-medium text-white/90">AI rankings in draft room</span>
-              <p className="text-xs text-white/50 mt-0.5">Use AI-assisted player lists during the draft ({sport}).</p>
-            </div>
-          </label>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={aiSettings.draftHelperEnabled}
-              onChange={(e) => onAiChange({ draftHelperEnabled: e.target.checked })}
-              className="mt-1 rounded border-white/30 bg-gray-900 shrink-0 size-4"
-            />
-            <div>
-              <span className="text-sm font-medium text-white/90">Draft suggestions</span>
-              <p className="text-xs text-white/50 mt-0.5">Pick suggestions and queue hints while drafting.</p>
-            </div>
-          </label>
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={aiSettings.orphanTeamAiManagerEnabled}
-              onChange={(e) => onAiChange({ orphanTeamAiManagerEnabled: e.target.checked })}
-              className="mt-1 rounded border-white/30 bg-gray-900 shrink-0 size-4"
-            />
-            <div>
-              <span className="text-sm font-medium text-white/90">Auto-pick for open teams</span>
-              <p className="text-xs text-white/50 mt-0.5">When a team has no manager, use smart picks on the clock.</p>
-            </div>
-          </label>
+          {aiRows.map((row) => {
+            const checked = aiSettings[row.key]
+            return (
+              <label
+                key={row.key}
+                className={`flex items-start gap-3 cursor-pointer rounded-2xl border px-3 py-3 transition ${
+                  checked
+                    ? 'border-cyan-400/35 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]'
+                    : 'border-white/12 bg-black/25 hover:bg-black/35'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => onAiChange({ [row.key]: e.target.checked })}
+                  className={CHECKBOX_CLASS}
+                />
+                <div>
+                  <span className="text-sm font-medium text-white/90">{row.label}</span>
+                  <p className="text-xs text-white/50 mt-0.5">{row.description}</p>
+                </div>
+              </label>
+            )
+          })}
         </div>
       </section>
 
@@ -258,7 +270,9 @@ export function AiAutomationSettingsPanel({
                 className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 ${
                   locked
                     ? 'cursor-pointer border-white/10 bg-black/30 opacity-70'
-                    : 'cursor-pointer border-white/15 bg-black/25 hover:bg-black/35'
+                    : checked
+                      ? 'cursor-pointer border-cyan-400/35 bg-cyan-500/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]'
+                      : 'cursor-pointer border-white/15 bg-black/25 hover:bg-black/35'
                 }`}
               >
                 <input
@@ -272,7 +286,7 @@ export function AiAutomationSettingsPanel({
                     }
                     onCommissionerChange({ [row.key]: e.target.checked })
                   }}
-                  className="mt-1 rounded border-white/30 bg-gray-900 shrink-0 size-4 disabled:opacity-50"
+                  className={CHECKBOX_CLASS}
                 />
                 <span>
                   <span className="block text-sm font-medium text-white/90">{row.label}</span>

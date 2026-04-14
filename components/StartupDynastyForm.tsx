@@ -111,7 +111,7 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
     toast.success('League imported! Redirecting...');
     const leagueId = (result.data as { league?: { id?: string } })?.league?.id;
     setTimeout(() => {
-      window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
+      window.location.href = leagueId ? `/league/${leagueId}` : '/af-legacy';
     }, 1500);
   };
 
@@ -151,7 +151,7 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
       toast.success('Dynasty league created! Redirecting...');
       const leagueId = data?.league?.id;
       setTimeout(() => {
-        window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
+        window.location.href = leagueId ? `/league/${leagueId}` : '/af-legacy';
       }, 1500);
     } catch {
       toast.error('Something went wrong. Please try again.');

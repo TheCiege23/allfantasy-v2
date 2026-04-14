@@ -4,13 +4,13 @@
  */
 
 import type { TournamentSettings, TournamentConferenceTheme } from './types'
-export { TOURNAMENT_PARTICIPANT_POOL_SIZES, TOURNAMENT_LEAGUE_SIZES } from './types'
+export { TOURNAMENT_PARTICIPANT_POOL_SIZES, TOURNAMENT_LEAGUE_SIZE_FIXED } from './types'
 
 export const TOURNAMENT_LEAGUE_VARIANT = 'tournament_mode' as const
 
 export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
   draftType: 'snake',
-  participantPoolSize: 120,
+  participantPoolSize: 72,
   conferenceMode: 'black_vs_gold',
   leagueNamingMode: 'app_generated',
   initialLeagueSize: 12,
@@ -25,6 +25,7 @@ export const DEFAULT_TOURNAMENT_SETTINGS: TournamentSettings = {
   benchSpotsElimination: 2,
   universalPageVisibility: 'unlisted',
   forumAnnouncementsEnabled: true,
+  eliminationAdvancementPerLeague: 6,
 }
 
 export const BLACK_THEME: TournamentConferenceTheme = {
