@@ -204,8 +204,9 @@ async function loadLegacyTournamentLayoutPayload(
   if (!t) return null
 
   const settings = mergeLegacySettings(t.settings)
-  const firstRound = t.rounds[0]
-  if (!firstRound) return null
+  const dbFirstRound = t.rounds[0]
+  const primaryRoundId = dbFirstRound?.id ?? `${t.id}:legacy-round-placeholder`
+  const primaryRoundIndex = dbFirstRound?.roundIndex ?? 0
 
   const participantCount = await prisma.legacyTournamentParticipant.count({
     where: { tournamentId: t.id },
@@ -228,7 +229,7 @@ async function loadLegacyTournamentLayoutPayload(
     leaguesPerConference: Math.max(1, Math.ceil(t.leagues.length / Math.max(1, t.conferences.length))),
     teamsPerLeague: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
     namingMode: settings.leagueNamingMode,
-    currentRoundNumber: firstRound.roundIndex + 1,
+    currentRoundNumber: primaryRoundIndex + 1,
     totalRounds: Math.max(t.rounds.length, 1),
     advancersPerLeague: advancersPerLeagueDisplay,
     wildcardCount: 0,
@@ -381,20 +382,33 @@ async function loadLegacyTournamentLayoutPayload(
       colorHex: null,
       conferenceNumber: c.orderIndex,
     })),
-    rounds: t.rounds.map((r) => ({
-      id: r.id,
-      roundNumber: r.roundIndex + 1,
-      roundType: r.phase,
-      roundLabel: r.name ?? `Round ${r.roundIndex + 1}`,
-      weekStart: r.startWeek ?? 1,
-      weekEnd: r.endWeek ?? 18,
-      status: r.status,
-    })),
+    rounds:
+      t.rounds.length > 0
+        ? t.rounds.map((r) => ({
+            id: r.id,
+            roundNumber: r.roundIndex + 1,
+            roundType: r.phase,
+            roundLabel: r.name ?? `Round ${r.roundIndex + 1}`,
+            weekStart: r.startWeek ?? 1,
+            weekEnd: r.endWeek ?? 18,
+            status: r.status,
+          }))
+        : [
+            {
+              id: primaryRoundId,
+              roundNumber: 1,
+              roundType: 'qualification',
+              roundLabel: 'Qualification',
+              weekStart: 1,
+              weekEnd: 18,
+              status: 'pending',
+            },
+          ],
     tournamentLeagues: t.leagues.map((tl) => ({
       id: tl.id,
       name: tl.league?.name ?? 'League',
       slug: slugifySegment(tl.league?.name ?? 'league', 'league'),
-      roundId: firstRound.id,
+      roundId: primaryRoundId,
       conferenceId: tl.conferenceId,
       leagueId: tl.leagueId,
       status: tl.phase,

@@ -58,12 +58,13 @@ export function resolveLeagueHomeHrefFromListRow(row: LeagueListNavInput): strin
   const fromSettings = resolveTournamentDestinationFromLeagueSettings(settings)
   if (fromSettings) return fromSettings
 
+  const tidFromSettings = readTournamentIdFromSettings(settings)
   const variant = String(row.leagueVariant ?? row.league_variant ?? '')
     .trim()
     .toLowerCase()
-  if (variant === 'tournament_hub') {
-    const tid = pickCanonicalLeagueListId(row)
-    if (tid) return `/tournament/${tid}`
+  // Hub rows from `/api/league/list` always include `settings.tournamentId`; never guess `/tournament/[id]` from row id alone.
+  if (variant === 'tournament_hub' && tidFromSettings) {
+    return `/tournament/${tidFromSettings}`
   }
 
   const leagueId = pickCanonicalLeagueListId(row) || row.id
