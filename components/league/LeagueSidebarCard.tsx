@@ -56,6 +56,15 @@ export function LeagueSidebarCard({
   const status = buildStatusConfig(league.status)
   const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
   const platformLabel = getPlatformLabel(league.platform)
+  const settings =
+    league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+      ? (league.settings as Record<string, unknown>)
+      : {}
+  const tournamentId =
+    settings.league_type === 'tournament_hub' && typeof settings.tournamentId === 'string'
+      ? settings.tournamentId
+      : null
+  const destinationHref = tournamentId ? `/tournament/${tournamentId}` : `/league/${league.id}`
 
   return (
     <div
@@ -138,7 +147,7 @@ export function LeagueSidebarCard({
         ) : null}
 
         <Link
-          href={`/league/${league.id}`}
+          href={destinationHref}
           aria-label={`${league.name} — ${status.label}`}
           onClick={() => onSelect?.(league)}
           className={[

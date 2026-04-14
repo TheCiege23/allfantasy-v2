@@ -5,6 +5,7 @@ import { CreateLeagueView } from '@/components/league-creation'
 import type { WizardStepId } from '@/lib/league-creation-wizard/types'
 
 const WIZARD_STEPS: WizardStepId[] = ['sport', 'team_setup', 'scoring', 'draft_privacy', 'review']
+const WIZARD_STORAGE_KEY = 'af:create-league:wizard-state'
 
 function parseWizardStep(raw: string | null | undefined): WizardStepId | null {
   if (!raw || typeof raw !== 'string') return null
@@ -25,11 +26,44 @@ export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) 
   const searchParams = useSearchParams()
   const initialStep = parseWizardStep(searchParams?.get('step'))
 
+  const clearWizardState = () => {
+    if (typeof window === 'undefined') return
+    window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+  }
+
+  const resolveCurrentStep = (): WizardStepId => {
+    if (initialStep) return initialStep
+    if (typeof window === 'undefined') return 'sport'
+    try {
+      const raw = window.sessionStorage.getItem(WIZARD_STORAGE_KEY)
+      if (!raw) return 'sport'
+      const parsed = JSON.parse(raw) as { step?: string } | null
+      return parseWizardStep(parsed?.step) ?? 'sport'
+    } catch {
+      return 'sport'
+    }
+  }
+
+  const pushWizardStep = (step: WizardStepId) => {
+    const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
+    nextParams.set('step', step)
+    nextParams.delete('returnTo')
+    router.push(`/create-league?${nextParams.toString()}`, { scroll: false })
+  }
+
   const handleBack = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back()
+    const currentStep = resolveCurrentStep()
+    const currentStepIndex = WIZARD_STEPS.indexOf(currentStep)
+    if (currentStepIndex > 0) {
+      pushWizardStep(WIZARD_STEPS[currentStepIndex - 1]!)
       return
     }
+    clearWizardState()
+    router.push('/dashboard')
+  }
+
+  const handleHome = () => {
+    clearWizardState()
     router.push('/dashboard')
   }
 
@@ -57,7 +91,7 @@ export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) 
             </button>
             <button
               type="button"
-              onClick={() => router.push('/dashboard')}
+              onClick={handleHome}
               className="inline-flex h-9 items-center justify-center rounded-full border border-white/20 bg-black/20 px-3 text-xs font-semibold text-white/90 hover:bg-white/10"
               aria-label="Go to dashboard home"
             >

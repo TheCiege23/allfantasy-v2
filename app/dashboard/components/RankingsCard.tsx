@@ -122,7 +122,7 @@ export function RankingsCard({
     ? `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}`
     : '—'
   const championships = data.careerChampionships ?? 0
-  const seasons = data.careerSeasonsPlayed ?? data.rank?.careerXp != null ? (data.careerLeaguesPlayed ?? 0) : 0
+  const seasons = data.careerSeasonsPlayed ?? 0
   const playoffApps = data.careerPlayoffAppearances ?? 0
 
   const aiGrade = data.rank?.aiReportGrade ?? '—'

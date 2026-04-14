@@ -727,7 +727,7 @@ function LevelJourneyStrip({
 
 function TwentyFiveLevelRankCard({ payload }: { payload: RankLevelApiPayload }) {
   const icon = getLevelIcon(payload.tierGroup)
-  const seasons = payload.careerLeaguesPlayed ?? 0
+  const seasons = payload.careerSeasonsPlayed ?? 0
   const cells = [
     { label: 'Seasons', value: String(seasons) },
     { label: 'Wins', value: String(payload.careerWins ?? 0) },

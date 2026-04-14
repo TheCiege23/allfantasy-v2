@@ -752,8 +752,8 @@ export async function GET(request: Request) {
       careerLosses: d?.careerLosses ?? careerStats.totalLosses,
       careerChampionships: d?.careerChampionships ?? careerStats.championships,
       careerPlayoffAppearances: d?.careerPlayoffAppearances ?? careerStats.playoffAppearances,
-      careerSeasonsPlayed: d?.careerSeasonsPlayed ?? careerStats.leaguesPlayed,
-      careerLeaguesPlayed: d?.careerLeaguesPlayed ?? careerStats.seasonsPlayed,
+      careerSeasonsPlayed: d?.careerSeasonsPlayed ?? careerStats.seasonsPlayed,
+      careerLeaguesPlayed: d?.careerLeaguesPlayed ?? careerStats.leaguesPlayed,
       rankCalculatedAt: d?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
     }
 
