@@ -534,10 +534,9 @@ export function LeagueShell({
       : ''
   const inviteToken = settingsInviteCode || league.invites[0]?.token || ''
 
+  /** Sidebar rows navigate via `<Link>` (`getLeagueListDestinationHref`); avoid `router.push(/league/${id})` so tournament hub links work. */
   const handleLeagueSelect = (l: UserLeague | null) => {
-    if (l && l.id !== league.id) {
-      router.push(`/league/${l.id}`)
-    } else if (!l) {
+    if (!l) {
       router.push('/dashboard')
     }
   }

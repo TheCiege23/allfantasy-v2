@@ -332,7 +332,9 @@ export function LeagueCreationWizard({
     const merged = { ...initialState, ...(storedState ?? {}), ...(initialWizardState ?? {}) }
     const fromUrl =
       initialStep && (WIZARD_STEP_ORDER as readonly string[]).includes(initialStep) ? initialStep : null
-    merged.step = fromUrl ?? storedState?.step ?? 'sport'
+    // Fresh visits to `/create-league` (no `?step=`) must start at step 1. Session still restores
+    // name, sport, etc., but must not skip ahead to a later step.
+    merged.step = fromUrl ?? 'sport'
     merged.setupSource = initialWizardState?.setupSource ?? 'fresh'
     merged.copyFromLeagueId = initialWizardState?.copyFromLeagueId ?? null
     merged.leagueTimezone = initialWizardState?.leagueTimezone ?? 'America/New_York'

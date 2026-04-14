@@ -35,6 +35,7 @@ import { computeTradeFairnessScore, computeTradeRecommendationScore, normalizeSc
 import { fuseDecisionScore } from '@/lib/legacy-tool/fusion'
 import { evaluateCommissionerAlert } from '@/lib/legacy-tool/fairness'
 import { normalizeGrokSignalsToDeltaEvents, persistGrokDeltaEvents } from '@/lib/legacy-tool/grok-delta'
+import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
 import {
   buildPrivateTradeCoachingNotification,
   buildLeagueTradeProcessedNotification,
@@ -1501,6 +1502,13 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
     const assetsBRaw = (reqData.assetsB || []).map((a: any) => formatAsset(a)).filter(Boolean) as TradeAsset[]
 
     const leagueMode = !!leagueId && leagueId.length > 0
+
+    if (leagueMode) {
+      const boundary = await assertSleeperBoundaryForLeagueId(leagueId)
+      if (!boundary.ok) {
+        return NextResponse.json({ error: boundary.message }, { status: boundary.status })
+      }
+    }
 
     if (assetsARaw.length === 0 || assetsBRaw.length === 0) {
       return NextResponse.json(

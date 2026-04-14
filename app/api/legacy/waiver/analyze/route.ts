@@ -43,6 +43,7 @@ import {
   buildPrivateWaiverCoachingNotification,
   buildLeagueWaiverProcessedNotification,
 } from '@/lib/legacy-tool/notifications'
+import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
 
 const openai = getOpenAIRouteClient()
 
@@ -189,12 +190,18 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
 
     const resolvedUsername = sleeperUserIdentity?.username || sleeper_username
     const resolvedUserId = sleeperUserIdentity?.userId || undefined
+    const normalizedLeagueId = String(league_id || '').trim()
 
-    if (!resolvedUsername || !league_id) {
+    if (!resolvedUsername || !normalizedLeagueId) {
       return NextResponse.json(
         { error: 'Missing sleeper_username or league_id' },
         { status: 400 }
       )
+    }
+
+    const boundary = await assertSleeperBoundaryForLeagueId(normalizedLeagueId)
+    if (!boundary.ok) {
+      return NextResponse.json({ error: boundary.message }, { status: boundary.status })
     }
 
     const rl = consumeRateLimit({
@@ -221,7 +228,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
       return NextResponse.json({ error: 'Sleeper user not found' }, { status: 404 })
     }
 
-    const leagueInfo = await getLeagueInfo(league_id)
+    const leagueInfo = await getLeagueInfo(normalizedLeagueId)
     if (!leagueInfo) {
       return NextResponse.json({ error: 'League not found' }, { status: 404 })
     }
@@ -232,7 +239,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
     const isOffseason = leagueStatus === 'complete' || leagueStatus === 'pre_draft'
 
     const [rosters, allPlayers] = await Promise.all([
-      getLeagueRosters(league_id),
+      getLeagueRosters(normalizedLeagueId),
       getAllPlayers(),
     ])
 

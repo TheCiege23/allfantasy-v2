@@ -56,7 +56,11 @@ export default function LegacyImportForm({ userId }: { userId: string }) {
 
     try {
       if (platform === 'sleeper') {
-        const userRes = await fetch(`https://api.sleeper.app/v1/user/${sleeperUsername.trim()}`); // db-first-exception: legacy UI import bootstrap pending DB-backed lookup
+        const userRes = await fetch('/api/legacy/user/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: sleeperUsername.trim() }),
+        });
         if (!userRes.ok) {
           setFormError('Sleeper username not found. Please check and try again.');
           toast.error('Sleeper username not found.');

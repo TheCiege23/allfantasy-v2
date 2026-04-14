@@ -30,6 +30,7 @@ import {
   getClientIp,
   buildRateLimit429,
 } from "@/lib/rate-limit";
+import { consumeDailyLimit } from "@/lib/rate-limit-daily";
 
 /**
  * Sleeper league import — **AllFantasy `userId` (session) is canonical**.
@@ -110,6 +111,22 @@ export async function POST(req: Request) {
     }
     const sleeperUserId = sleeperUser.user_id;
     const sleeperUsernameResolved = sleeperUser.username?.trim() || rawIdentifier;
+
+    const dailyImport = await consumeDailyLimit({
+      provider: "sleeper",
+      endpoint: `${isLegacy ? "ranking-import" : "league-import"}:${sleeperUserId}:${sport}:${season}`,
+    });
+    if (!dailyImport.success) {
+      return NextResponse.json(
+        {
+          error: isLegacy
+            ? "Ranking import is limited to once per day for this Sleeper account, sport, and season."
+            : "League import is limited to once per day for this Sleeper account, sport, and season.",
+          retryAfterSec: dailyImport.retryAfterSec,
+        },
+        { status: 429 }
+      );
+    }
 
     try {
       await prisma.userProfile.upsert({

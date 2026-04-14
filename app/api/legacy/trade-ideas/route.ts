@@ -4,6 +4,7 @@ import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai
 import { getPlayerValuesForNames, FantasyCalcSettings } from '@/lib/fantasycalc'
 import { requireAuthOrOrigin, forbiddenResponse } from '@/lib/api-auth'
 import { getAllPlayers, getLeagueInfo, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/sleeper-client'
+import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
 
 function formatPlayerValues(values: Record<string, any>): string {
   const lines: string[] = []
@@ -190,14 +191,20 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
 
     const body = await req.json()
     const { leagueId, username, goals, depth, count = 5 } = body
+    const normalizedLeagueId = String(leagueId || '').trim()
     
-    if (!leagueId || !username) {
+    if (!normalizedLeagueId || !username) {
       return NextResponse.json({ error: 'leagueId and username are required' }, { status: 400 })
+    }
+
+    const boundary = await assertSleeperBoundaryForLeagueId(normalizedLeagueId)
+    if (!boundary.ok) {
+      return NextResponse.json({ error: boundary.message }, { status: boundary.status })
     }
     
     const [sleeperData, tradeHistory] = await Promise.all([
-      fetchSleeperData(leagueId),
-      fetchTradeHistory(leagueId)
+      fetchSleeperData(normalizedLeagueId),
+      fetchTradeHistory(normalizedLeagueId)
     ])
     
     const { league, rosters, users, players } = sleeperData

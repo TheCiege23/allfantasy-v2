@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { Plus, Settings } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { ThemeModeSelector } from '@/components/theme/ThemeModeSelector'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
 
@@ -87,8 +86,6 @@ export function RightControlPanel({
         ... MessageCircle, Users, Bot toggles ...
       </div>
       */}
-
-      <ThemeModeSelector className="shrink-0 border-t border-white/[0.07] px-2 py-2" />
 
       <div
         className="relative z-10 flex min-h-[52px] flex-shrink-0 items-center gap-2 border-t border-white/[0.07] bg-[#0a0a1f] px-2 py-2"

@@ -578,7 +578,7 @@ export function DashboardOverview({
           onTradesClick={handleTradeClick}
         />
 
-        <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
+        <AIShortcutsGrid leagues={leagues} />
 
         <RankingsCard
           initialRankPayload={initialUserRankPayload}

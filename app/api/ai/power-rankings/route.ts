@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueAccess, requireSleeper } from '@/lib/ai/league-settings-ai/access'
 import { callClaudeJson } from '@/lib/ai/league-settings-ai/claude'
+import { consumeDailyLimit } from '@/lib/rate-limit-daily'
 import {
   fetchPlayersMap,
   fetchSleeperLeagueBundle,
@@ -38,6 +39,20 @@ export async function POST(req: Request) {
   const sleeperId = requireSleeper(league)
   if (!sleeperId) {
     return NextResponse.json({ error: 'Power rankings require a Sleeper-synced league' }, { status: 400 })
+  }
+
+  const daily = await consumeDailyLimit({
+    provider: 'sleeper',
+    endpoint: `power-rankings:${leagueId}`,
+  })
+  if (!daily.success) {
+    return NextResponse.json(
+      {
+        error: 'Power rankings can only be generated once per day per league.',
+        retryAfterSec: daily.retryAfterSec,
+      },
+      { status: 429 }
+    )
   }
 
   try {

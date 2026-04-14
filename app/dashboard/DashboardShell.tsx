@@ -327,16 +327,12 @@ export function DashboardShell({
     [leagues]
   )
 
-  const handleSelectLeague = useCallback(
-    (league: UserLeague | null) => {
-      if (league) {
-        router.push(`/league/${league.id}`)
-      } else {
-        router.push('/dashboard')
-      }
-    },
-    [router]
-  )
+  /** My Leagues rows use `<Link href={getLeagueListDestinationHref}>` — do not `router.push` here or it overrides tournament (and other) URLs. */
+  const handleSelectLeague = useCallback((league: UserLeague | null) => {
+    if (!league) {
+      router.push('/dashboard')
+    }
+  }, [router])
 
   useEffect(() => {
     const openMobileLeft = () => {

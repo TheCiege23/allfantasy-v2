@@ -6,6 +6,7 @@ import { Star, Trash2 } from 'lucide-react'
 import { LeagueAvatar } from '@/app/dashboard/components/LeagueAvatar'
 import { buildLeagueFormatLabel, buildStatusConfig } from '@/lib/leagues/leagueFormatLabel'
 import type { UserLeague } from '@/app/dashboard/types'
+import { getLeagueListDestinationHref } from '@/lib/dashboard/league-list-destination'
 
 export type LeagueSidebarCardProps = {
   league: UserLeague
@@ -56,15 +57,7 @@ export function LeagueSidebarCard({
   const status = buildStatusConfig(league.status)
   const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
   const platformLabel = getPlatformLabel(league.platform)
-  const settings =
-    league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
-      ? (league.settings as Record<string, unknown>)
-      : {}
-  const tournamentId =
-    settings.league_type === 'tournament_hub' && typeof settings.tournamentId === 'string'
-      ? settings.tournamentId
-      : null
-  const destinationHref = tournamentId ? `/tournament/${tournamentId}` : `/league/${league.id}`
+  const destinationHref = getLeagueListDestinationHref(league)
 
   return (
     <div

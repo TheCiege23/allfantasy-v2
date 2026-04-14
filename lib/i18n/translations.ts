@@ -1266,6 +1266,14 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.shortcut.injury.desc": "Assess my injuries",
     "dashboard.shortcut.injury.faq":
       "Tells you exactly how each injury affects your team: who to drop, who to pick up, and what Chimmy recommends as the replacement.",
+    "dashboard.shortcut.warRoom.label": "AF War Room",
+    "dashboard.shortcut.warRoom.desc": "Draft prep & long-range plan",
+    "dashboard.shortcut.warRoom.faq":
+      "Premium tier for draft prep, future game planning, and multi-year roster construction. Ask Chimmy for a personalized roadmap.",
+    "dashboard.shortcut.matchupPrep.label": "Matchup Prep",
+    "dashboard.shortcut.matchupPrep.desc": "Game script & edges",
+    "dashboard.shortcut.matchupPrep.faq":
+      "Open the matchup simulator for projections, or Ask Chimmy for pace, volatility, and start/sit edges for this week.",
     "dashboard.shortcut.faqAria": "How {{label}} works",
 
     "dashboard.rankings.emptyTitle": "Import your leagues to unlock your ranking",

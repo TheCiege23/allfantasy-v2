@@ -47,7 +47,11 @@ export function LegacyRankingsImportPanel({ onImportSuccess, variant = 'default'
       if (providerId === 'sleeper') {
         const username = importInputs[providerId]?.trim()
         if (!username) throw new Error('Sleeper username required')
-        const userRes = await fetch(`https://api.sleeper.app/v1/user/${encodeURIComponent(username)}`) // db-first-exception: legacy rankings import bootstrap
+        const userRes = await fetch('/api/legacy/user/lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        })
         if (!userRes.ok) throw new Error('Sleeper username not found')
         const userData = await userRes.json()
         const sportResults = await Promise.allSettled(

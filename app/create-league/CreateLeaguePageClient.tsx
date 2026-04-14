@@ -31,18 +31,8 @@ export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) 
     window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
   }
 
-  const resolveCurrentStep = (): WizardStepId => {
-    if (initialStep) return initialStep
-    if (typeof window === 'undefined') return 'sport'
-    try {
-      const raw = window.sessionStorage.getItem(WIZARD_STORAGE_KEY)
-      if (!raw) return 'sport'
-      const parsed = JSON.parse(raw) as { step?: string } | null
-      return parseWizardStep(parsed?.step) ?? 'sport'
-    } catch {
-      return 'sport'
-    }
-  }
+  /** Match wizard: step comes from URL when present; otherwise step 1 (do not use sessionStorage for step). */
+  const resolveCurrentStep = (): WizardStepId => initialStep ?? 'sport'
 
   const pushWizardStep = (step: WizardStepId) => {
     const nextParams = new URLSearchParams(searchParams?.toString() ?? '')

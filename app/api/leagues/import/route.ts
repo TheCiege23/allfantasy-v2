@@ -8,6 +8,7 @@ import { processImportJob } from "@/lib/import/processImportJob";
 import { canChainImportSteps, scheduleImportSeasonStep } from "@/lib/import/triggerImportChain";
 import { SLEEPER_IMPORT_SPORTS } from "@/lib/league-import/sleeper/import-sports";
 import { isMissingDatabaseObjectError } from "@/lib/prisma/schema-drift";
+import { consumeDailyLimit } from "@/lib/rate-limit-daily";
 import { waitUntil } from "@vercel/functions";
 import { getSleeperUser, getUserLeagues } from "@/lib/sleeper-client";
 
@@ -65,6 +66,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Sleeper user not found" }, { status: 404 });
     }
     const sleeperUserId = sleeperUser.user_id;
+
+    const dailyBulkImport = await consumeDailyLimit({
+      provider: "sleeper",
+      endpoint: `league-import-bulk:${sleeperUserId}`,
+    });
+    if (!dailyBulkImport.success) {
+      return NextResponse.json(
+        {
+          error: "Bulk Sleeper import is limited to once per day for this Sleeper account.",
+          retryAfterSec: dailyBulkImport.retryAfterSec,
+        },
+        { status: 429 },
+      );
+    }
 
     await prisma.userProfile
       .upsert({

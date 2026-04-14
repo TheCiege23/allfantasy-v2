@@ -98,6 +98,14 @@ export const translationsEsParity: Record<string, string> = {
   "dashboard.shortcut.waiver.faq":
     "Chimmy escanea los libres de tu liga y los ordena por valor proyectado, no solo puntos: matchup, snaps y objetivos.",
   "dashboard.shortcut.waiver.label": "Lista de waivers",
+  "dashboard.shortcut.warRoom.desc": "Prep de draft y plan largo",
+  "dashboard.shortcut.warRoom.faq":
+    "Nivel premium para preparar el draft, planificar partidos futuros y construir el roster a varios años. Pide a Chimmy una hoja de ruta.",
+  "dashboard.shortcut.warRoom.label": "AF War Room",
+  "dashboard.shortcut.matchupPrep.desc": "Ritmo del partido y ventajas",
+  "dashboard.shortcut.matchupPrep.faq":
+    "Abre el simulador de enfrentamientos para proyecciones o pregunta a Chimmy por ritmo, volatilidad y titulares de la semana.",
+  "dashboard.shortcut.matchupPrep.label": "Prep de enfrentamiento",
   "dashboard.today.checkTrades": "🔄 Revisar traspasos",
   "dashboard.today.checkWaivers": "📋 Revisar waivers",
   "dashboard.today.lineupIssueMany": "{{n}} problemas de alineación",
