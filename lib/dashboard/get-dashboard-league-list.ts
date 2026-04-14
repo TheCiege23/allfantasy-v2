@@ -49,7 +49,7 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
     })
     .catch(() => null)
 
-  const [genericLeagues, sleeperLeagues] = await Promise.all([
+  const [genericLeagues, sleeperLeagues, tournaments] = await Promise.all([
     (prisma as any).league
       .findMany({
         where: {
@@ -149,6 +149,18 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
         console.error('[League List] sleeper leagues query failed', err)
         return []
       }),
+    prisma.legacyTournament
+      .findMany({
+        where: { creatorId: userId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          leagues: { select: { leagueId: true } },
+        },
+      })
+      .catch((err: unknown) => {
+        console.error('[League List] tournament query failed', err)
+        return []
+      }),
   ])
 
   const sleeperGenericSorted = genericLeagues
@@ -232,6 +244,49 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
     })
     .filter((lg: any) => !lg.hasUnifiedRecord)
 
+  const normalizedTournaments = tournaments.map((t: any) => {
+    const settings =
+      t.settings && typeof t.settings === 'object' && !Array.isArray(t.settings)
+        ? (t.settings as Record<string, unknown>)
+        : {}
+    const poolSize =
+      typeof settings.participantPoolSize === 'number' && Number.isFinite(settings.participantPoolSize)
+        ? settings.participantPoolSize
+        : Math.max(12, (Array.isArray(t.leagues) ? t.leagues.length : 1) * 12)
+    return {
+      id: t.id,
+      name: t.name,
+      sport: t.sport ?? DEFAULT_SPORT,
+      sport_type: t.sport ?? DEFAULT_SPORT,
+      league_variant: 'tournament_hub',
+      platform: 'allfantasy',
+      platformLeagueId: `tournament-${t.id}`,
+      leagueSize: 12,
+      teamCount: poolSize,
+      avatarUrl: null,
+      scoring: 'Tournament',
+      isDynasty: false,
+      syncStatus: null,
+      syncError: null,
+      lastSyncedAt: t.updatedAt,
+      createdAt: t.createdAt,
+      season: t.season,
+      status: t.status,
+      navigationLeagueId: t.id,
+      unifiedLeagueId: t.id,
+      hasUnifiedRecord: true,
+      isCommissioner: true,
+      userRole: 'commissioner' as const,
+      isPaid: false,
+      entryFee: null,
+      settings: {
+        league_type: 'tournament_hub',
+        tournamentId: t.id,
+      },
+      rosters: [],
+    }
+  })
+
   const normalizedGenericFiltered = normalizedGeneric
     .filter(isRealLeague)
     .filter((lg: any) => {
@@ -240,7 +295,8 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
       return settings.league_type !== 'tournament'
     })
   const normalizedSleeperFiltered = normalizedSleeper.filter(isRealLeague)
-  const filtered = [...normalizedGenericFiltered, ...normalizedSleeperFiltered]
+  const normalizedTournamentFiltered = normalizedTournaments.filter(isRealLeague)
+  const filtered = [...normalizedTournamentFiltered, ...normalizedGenericFiltered, ...normalizedSleeperFiltered]
 
   const leaguesSorted = filtered.sort((a: any, b: any) => {
     const aDate = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0

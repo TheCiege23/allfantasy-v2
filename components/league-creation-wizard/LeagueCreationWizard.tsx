@@ -795,7 +795,13 @@ export function LeagueCreationWizard({
       })
       const { ok, data, errorMessage } = await readFetchJson<{ league?: { id: string } }>(res)
       if (!ok) {
-        setError(errorMessage ?? 'Failed to create league')
+        const statusHint = typeof res.status === 'number' ? ` (HTTP ${res.status})` : ''
+        const baseMessage = errorMessage ?? 'Failed to create league'
+        if (state.leagueType === 'survivor') {
+          setError(`Survivor league creation failed${statusHint}: ${baseMessage}`)
+        } else {
+          setError(`${baseMessage}${statusHint}`)
+        }
         return
       }
       const leagueId = data?.league?.id
@@ -808,7 +814,11 @@ export function LeagueCreationWizard({
         q.set('created', '1')
         q.set('openChat', 'league')
         if (state.privacySettings.allowInviteLink) q.set('showInvite', '1')
-        router.push(`/league/${leagueId}?${q.toString()}`)
+        const destination =
+          state.leagueType === 'survivor'
+            ? `/survivor/${leagueId}?created=1`
+            : `/league/${leagueId}?${q.toString()}`
+        router.push(destination)
       } else {
         setError('League created but no ID returned')
       }

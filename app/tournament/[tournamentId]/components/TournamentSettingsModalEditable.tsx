@@ -39,6 +39,9 @@ function SettingRow({
   onChange?: (value: any) => void
   type?: 'text' | 'number' | 'select' | 'checkbox'
 }) {
+  const stringValue = typeof value === 'boolean' ? String(value) : String(value ?? '')
+  const numberValue = typeof value === 'number' ? value : Number(value || 0)
+
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/10 px-3 py-2 mb-2">
       <label className="text-[13px] font-medium text-white">{label}</label>
@@ -48,19 +51,25 @@ function SettingRow({
             type="checkbox"
             checked={Boolean(value)}
             onChange={(e) => onChange?.(e.target.checked)}
+            aria-label={label}
+            title={label}
             className="h-4 w-4 rounded border-white/20 bg-black/20 cursor-pointer"
           />
         ) : type === 'number' ? (
           <input
             type="number"
-            value={value}
+            value={numberValue}
             onChange={(e) => onChange?.(parseInt(e.target.value, 10))}
+            aria-label={label}
+            title={label}
             className="w-20 rounded border border-white/20 bg-black/30 px-2 py-1 text-[13px] text-white text-right"
           />
         ) : type === 'select' ? (
           <select
-            value={value}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
+            aria-label={label}
+            title={label}
             className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[13px] text-white"
           >
             <option value="PPR">PPR</option>
@@ -70,8 +79,10 @@ function SettingRow({
         ) : (
           <input
             type="text"
-            value={value}
+            value={stringValue}
             onChange={(e) => onChange?.(e.target.value)}
+            aria-label={label}
+            title={label}
             className="rounded border border-white/20 bg-black/30 px-2 py-1 text-[13px] text-white w-40 text-right"
           />
         )}

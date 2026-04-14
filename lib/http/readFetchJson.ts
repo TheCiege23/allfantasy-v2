@@ -28,9 +28,22 @@ export async function readFetchJson<T = unknown>(
       ? issues[0].message.trim()
       : null
 
+  const errorsArray = obj && Array.isArray((obj as { errors?: unknown }).errors)
+    ? (obj as { errors: unknown[] }).errors
+    : null
+  const firstError =
+    errorsArray && errorsArray.length > 0
+      ? errorsArray[0]
+      : null
+  const errorArrayMsg =
+    typeof firstError === 'string' && firstError.trim()
+      ? firstError.trim()
+      : null
+
   const fromJson =
     (typeof obj?.error === 'string' && obj.error.trim()) ||
     (typeof obj?.message === 'string' && obj.message.trim()) ||
+    errorArrayMsg ||
     issueMsg
 
   if (fromJson) {

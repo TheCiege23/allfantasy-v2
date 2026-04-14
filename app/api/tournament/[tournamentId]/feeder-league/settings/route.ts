@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createPlatformNotification } from '@/lib/platform/notification-service'
 
 export async function PATCH(
   req: Request,
@@ -52,7 +53,12 @@ export async function PATCH(
     // Get the league
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { id: true, settings: true, name: true },
+      select: {
+        id: true,
+        settings: true,
+        name: true,
+        teams: { select: { claimedByUserId: true } },
+      },
     })
 
     if (!league) {
@@ -73,7 +79,7 @@ export async function PATCH(
 
     // Prepare old state for audit log
     const oldSettings = league.settings && typeof league.settings === 'object' ? league.settings : {}
-    const oldState = {
+    const oldState: Record<string, unknown> = {
       scoring: (oldSettings as any).scoring ?? 'PPR',
       rosterSize: (oldSettings as any).rosterSize ?? 15,
       benchSize: (oldSettings as any).benchSize ?? 7,
@@ -125,12 +131,49 @@ export async function PATCH(
       notificationMessage
     )
 
+    const recipientIds = Array.from(
+      new Set(
+        league.teams
+          .map((t) => t.claimedByUserId)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    )
+
+    if (recipientIds.length > 0) {
+      const changesSummary = Object.entries(changes)
+        .map(([key, value]) => {
+          const prev = oldState[key]
+          return `${formatFieldName(key)}: ${String(prev)} -> ${String(value)}`
+        })
+        .join(' | ')
+
+      await Promise.allSettled(
+        recipientIds.map((recipientId) =>
+          createPlatformNotification({
+            userId: recipientId,
+            productType: 'shared',
+            type: 'tournament_league_settings_updated',
+            title: `${league.name ?? 'League'} settings updated`,
+            body: changesSummary,
+            severity: 'low',
+            meta: {
+              tournamentId,
+              leagueId,
+              changedBy: userId,
+              before: oldState,
+              after: changes,
+            },
+          })
+        )
+      )
+    }
+
     return NextResponse.json({
       success: true,
       leagueId,
       changedFields: Object.keys(changes),
+      notificationsSent: recipientIds.length,
       message: 'League settings updated successfully. Notifications will be sent to all league members.',
-      message: 'League settings updated and notifications sent',
     })
   } catch (err) {
     console.error('[tournament-feeder-league-settings]', err)
