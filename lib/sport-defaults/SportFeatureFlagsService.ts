@@ -137,9 +137,16 @@ const IN_MEMORY_FLAGS: Record<SportType, SportFeatureFlagsDto> = {
  */
 export async function getSportFeatureFlags(sportType: SportType | string): Promise<SportFeatureFlagsDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType) as SportType
-  const row = await prisma.sportFeatureFlags.findUnique({
-    where: { sportType: sport },
-  })
+  let row: Awaited<ReturnType<typeof prisma.sportFeatureFlags.findUnique>>
+  try {
+    row = await prisma.sportFeatureFlags.findUnique({
+      where: { sportType: sport },
+    })
+  } catch (err) {
+    // DB may lag migrations (e.g. missing `sportType` column) — never fail league create / presets.
+    console.warn('[getSportFeatureFlags] DB lookup failed; using in-memory flags', { sport, err })
+    row = null
+  }
   if (row) {
     return {
       sportType: sport,

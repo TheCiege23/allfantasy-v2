@@ -100,7 +100,7 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
           ? arrayOfNumbers((input.draftSettings as Record<string, unknown>).devyRounds)
           : arrayOfNumbers(input.devy_rounds ?? input.devyRounds)
   const devySlots =
-    readNumberFrom(input, ['devy_slots', 'devySlots']) ??
+    readNumberFrom(input, ['devy_slots', 'devySlots', 'devy_college_slots_creation']) ??
     (input.roster && typeof input.roster === 'object'
       ? readNumberFrom(input.roster as Record<string, unknown>, ['devy_slots', 'devySlots'])
       : null) ??
@@ -143,6 +143,7 @@ export function validateLeagueSettings(input: LeagueSettingsInput): LeagueSettin
       'c2cCollegeRosterSize',
       'c2c_college_slots',
       'c2cCollegeSlots',
+      'c2c_college_slots_creation',
       'college_pool_size',
       'collegePoolSize',
     ]) ??

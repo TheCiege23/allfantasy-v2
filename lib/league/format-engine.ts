@@ -205,9 +205,10 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'devy',
     label: 'Devy',
     description: 'Dynasty leagues with a separate college asset pool and future rights.',
-    supportedSports: FOOTBALL_BASKETBALL_SPORTS,
+    /** Create flow: NFL or NBA primary only (college pairs NCAAF / NCAAB via defaults). */
+    supportedSports: ['NFL', 'NBA'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['devy_snake', 'devy_auction', 'snake', 'auction', 'slow_draft', 'mock_draft'],
+    draftTypes: ['devy_snake', 'devy_auction'],
     defaultModifiers: ['devy', 'taxi'],
     supportedModifiers: ['devy', 'taxi', 'superflex', 'te_premium'],
     capabilities: {
@@ -222,9 +223,10 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'c2c',
     label: 'Campus To Canton',
     description: 'Two-track college and pro ecosystem with campus scoring and future pipelines.',
-    supportedSports: FOOTBALL_BASKETBALL_SPORTS,
+    /** Create flow: NFL or NBA primary only (college pools pair NCAAF / NCAAB via defaults). */
+    supportedSports: ['NFL', 'NBA'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['c2c_snake', 'c2c_auction', 'snake', 'auction', 'slow_draft', 'mock_draft'],
+    draftTypes: ['c2c_snake', 'c2c_auction'],
     defaultModifiers: ['c2c', 'taxi'],
     supportedModifiers: ['c2c', 'taxi', 'superflex', 'te_premium'],
     capabilities: {

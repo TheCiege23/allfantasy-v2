@@ -226,18 +226,20 @@ export async function POST(req: Request) {
   }
   if (isDevyRequested) {
     const devySport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(devySport)) {
+    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
+    if (!['NFL', 'NBA'].includes(devySport)) {
       return NextResponse.json(
-        { error: 'Devy leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
+        { error: 'Devy leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
         { status: 400 }
       );
     }
   }
   if (isC2CRequested) {
     const c2cSport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(c2cSport)) {
+    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
+    if (!['NFL', 'NBA'].includes(c2cSport)) {
       return NextResponse.json(
-        { error: 'C2C leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
+        { error: 'C2C leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
         { status: 400 }
       );
     }
@@ -525,6 +527,62 @@ export async function POST(req: Request) {
       (initialSettings as Record<string, unknown>).roster_mode = normalizedRosterMode;
       if (normalizedRosterMode === 'best_ball') (initialSettings as Record<string, unknown>).best_ball = true;
     }
+    // Devy: validator expects `devy_slots` and non-empty `devy_rounds`; align aliases from the wizard payload.
+    {
+      const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
+      const isDevyCreate =
+        lt === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty';
+      if (isDevyCreate) {
+        const s = initialSettings as Record<string, unknown>;
+        const fromCollege =
+          typeof s.devy_college_slots_creation === 'number' && Number.isFinite(s.devy_college_slots_creation)
+            ? s.devy_college_slots_creation
+            : null;
+        const existing =
+          typeof s.devy_slots === 'number' && Number.isFinite(s.devy_slots)
+            ? s.devy_slots
+            : typeof s.devySlots === 'number' && Number.isFinite(s.devySlots)
+              ? s.devySlots
+              : null;
+        const resolved = existing ?? fromCollege;
+        if (resolved != null && resolved > 0) {
+          s.devy_slots = Math.max(1, Math.floor(resolved));
+        }
+        const dr = s.devy_rounds ?? s.devyRounds;
+        if (!Array.isArray(dr) || dr.length === 0) {
+          s.devy_rounds = [1];
+        }
+      }
+    }
+
+    // C2C: validator needs college rounds + pool size; align wizard `*_creation` aliases.
+    {
+      const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
+      const isC2cCreate =
+        lt === 'c2c' || String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c';
+      if (isC2cCreate) {
+        const s = initialSettings as Record<string, unknown>;
+        const fromCreation =
+          typeof s.c2c_college_slots_creation === 'number' && Number.isFinite(s.c2c_college_slots_creation)
+            ? s.c2c_college_slots_creation
+            : null;
+        const existing =
+          typeof s.c2c_college_roster_size === 'number' && Number.isFinite(s.c2c_college_roster_size)
+            ? s.c2c_college_roster_size
+            : typeof s.c2cCollegeRosterSize === 'number' && Number.isFinite(s.c2cCollegeRosterSize)
+              ? s.c2cCollegeRosterSize
+              : null;
+        const resolved = existing ?? fromCreation;
+        if (resolved != null && resolved > 0) {
+          s.c2c_college_roster_size = Math.max(1, Math.floor(resolved));
+        }
+        const cr = s.c2c_college_rounds ?? s.c2cCollegeRounds;
+        if (!Array.isArray(cr) || cr.length === 0) {
+          s.c2c_college_rounds = [1];
+        }
+      }
+    }
+
     const { validateLeagueSettings } = await import('@/lib/league-settings-validation');
     const validation = validateLeagueSettings(initialSettings);
     if (!validation.valid) {

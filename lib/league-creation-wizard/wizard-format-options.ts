@@ -201,6 +201,8 @@ export function formatOptionsApplyToLeagueType(
   if (leagueType === 'devy') {
     out.devy_taxi_slots_creation = options.devyTaxiSlots
     out.devy_college_slots_creation = options.devyCollegeSlots
+    /** Required by `validateLeagueSettings` for devy leagues (college / devy reserve count). */
+    out.devy_slots = Math.max(1, options.devyCollegeSlots)
   }
 
   if (leagueType === 'c2c') {

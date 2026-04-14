@@ -1,7 +1,8 @@
 'use client';
 
 import { Label } from '@/components/ui/label';
-import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
+import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
+import type { LeagueSport } from '@prisma/client';
 
 export type LeagueSportOption = SupportedSport;
 
@@ -42,6 +43,8 @@ export interface LeagueCreationSportSelectorProps {
   onChange: (sport: LeagueSportOption) => void;
   disabled?: boolean;
   showHelper?: boolean;
+  /** When set (e.g. Devy / C2C), only these sports are shown (NFL/NBA + college pairing in defaults). */
+  allowedSports?: readonly LeagueSport[];
 }
 
 /**
@@ -52,13 +55,20 @@ export function LeagueCreationSportSelector({
   onChange,
   disabled = false,
   showHelper = true,
+  allowedSports,
 }: LeagueCreationSportSelectorProps) {
+  const sportsList: LeagueSportOption[] =
+    allowedSports && allowedSports.length > 0
+      ? (allowedSports.filter((s) => (LEAGUE_SPORTS as readonly string[]).includes(s)) as LeagueSportOption[])
+      : LEAGUE_SPORTS;
+  const collegePairMode =
+    sportsList.length === 2 && sportsList.every((s) => COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS.includes(s as LeagueSport));
   const selectedMedia = SPORT_MEDIA[value];
   return (
     <div className="space-y-4">
       <Label className="text-cyan-300">Sport</Label>
       <div className="grid gap-3 sm:grid-cols-2">
-        {LEAGUE_SPORTS.map((s) => (
+        {sportsList.map((s) => (
           <button
             key={s}
             type="button"
@@ -112,7 +122,17 @@ export function LeagueCreationSportSelector({
 
       {showHelper && (
         <p className="text-white/55 text-xs mt-1">
-          <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring. <strong className="text-white/70">IDP</strong> is an NFL preset — choose NFL, then pick a preset below such as Standard, PPR, Superflex, IDP, or Dynasty IDP. Selecting a preset updates roster and scoring automatically.
+          {collegePairMode ? (
+            <>
+              <strong className="text-white/70">Devy</strong> and <strong className="text-white/70">Campus to Canton (C2C)</strong> use{' '}
+              <strong className="text-white/70">NFL + NCAA football</strong> or <strong className="text-white/70">NBA + NCAA basketball</strong>{' '}
+              player pools. Pick the pro league here; the matching college pool is wired in when the league is created.
+            </>
+          ) : (
+            <>
+              <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring. <strong className="text-white/70">IDP</strong> is an NFL preset — choose NFL, then pick a preset below such as Standard, PPR, Superflex, IDP, or Dynasty IDP. Selecting a preset updates roster and scoring automatically.
+            </>
+          )}
         </p>
       )}
     </div>

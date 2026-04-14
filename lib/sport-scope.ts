@@ -27,6 +27,18 @@ export const ROLLING_INSIGHTS_LEAGUE_SPORTS = SUPPORTED_SPORTS
 /** Default sport when league/context has no sport (first in list; do not hardcode one sport). */
 export const DEFAULT_SPORT: LeagueSport = SUPPORTED_SPORTS[0]!
 
+/**
+ * Devy and Campus-to-Canton (C2C) create flows: primary pro league only
+ * (NCAAF / NCAAB college pools pair as NFL↔NCAAF, NBA↔NCAAB in defaults).
+ */
+export const COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS: LeagueSport[] = ['NFL', 'NBA']
+
+/** @alias COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS */
+export const DEVY_WIZARD_PRIMARY_SPORTS = COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS
+
+/** @alias COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS */
+export const C2C_WIZARD_PRIMARY_SPORTS = COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS
+
 /** Type for supported sport string (aligns with LeagueSport). */
 export type SupportedSport = LeagueSport
 

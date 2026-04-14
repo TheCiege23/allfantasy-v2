@@ -121,62 +121,68 @@ export default async function LeaguePage({
 
   const isOwner = league.userId === userId
   const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
-  const role = await getLeagueRole(leagueId, userId).catch((err) => {
-    console.error('[league page] getLeagueRole failed', { leagueId, userId, err })
-    return isOwner ? 'commissioner' : 'member'
-  })
-  const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
-  const isHeadCommissioner = role === 'commissioner'
   if (!isOwner && !userTeam) {
     redirect('/dashboard')
   }
 
-  const allLeagues = await prisma.league
-    .findMany({
-      where: {
-        OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
-    })
-    .catch((err) => {
-      console.error('[league page] allLeagues query failed', { userId, err })
-      return []
-    })
+  const seasonYear = league.season ?? new Date().getFullYear()
 
-  const dbUser = await prisma.appUser
-    .findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true },
-    })
-    .catch((err) => {
-      console.error('[league page] appUser query failed', { userId, err })
-      return null
-    })
+  const [role, allLeagues, dbUser, userProfile, leagueSeasonRow, leagueDashboard] = await Promise.all([
+    getLeagueRole(leagueId, userId).catch((err) => {
+      console.error('[league page] getLeagueRole failed', { leagueId, userId, err })
+      return isOwner ? 'commissioner' : 'member'
+    }),
+    prisma.league
+      .findMany({
+        where: {
+          OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      })
+      .catch((err) => {
+        console.error('[league page] allLeagues query failed', { userId, err })
+        return []
+      }),
+    prisma.appUser
+      .findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true },
+      })
+      .catch((err) => {
+        console.error('[league page] appUser query failed', { userId, err })
+        return null
+      }),
+    prisma.userProfile
+      .findUnique({
+        where: { userId },
+        select: { sleeperUserId: true, discordUserId: true },
+      })
+      .catch((err) => {
+        console.error('[league page] userProfile query failed', { userId, err })
+        return null
+      }),
+    prisma.leagueSeason
+      .findUnique({
+        where: { leagueId_season: { leagueId, season: seasonYear } },
+        select: { championTeamId: true, teamRecords: true, status: true },
+      })
+      .catch((err) => {
+        console.error('[league page] leagueSeason query failed', { leagueId, seasonYear, err })
+        return null
+      }),
+    buildLeagueDashboardView(league).catch((err) => {
+      console.error('[league page] buildLeagueDashboardView failed', { leagueId, err })
+      return defaultLeagueDashboardView
+    }),
+  ])
+
+  const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
+  const isHeadCommissioner = role === 'commissioner'
   const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
-
-  const userProfile = await prisma.userProfile
-    .findUnique({
-      where: { userId },
-      select: { sleeperUserId: true, discordUserId: true },
-    })
-    .catch((err) => {
-      console.error('[league page] userProfile query failed', { userId, err })
-      return null
-    })
   const currentSleeperUserId = userProfile?.sleeperUserId ?? null
   const sleeperUsersByPlatformId: Record<string, { display_name: string; avatar: string | null }> = {}
 
-  const seasonYear = league.season ?? new Date().getFullYear()
-  const leagueSeasonRow = await prisma.leagueSeason
-    .findUnique({
-      where: { leagueId_season: { leagueId, season: seasonYear } },
-      select: { championTeamId: true, teamRecords: true, status: true },
-    })
-    .catch((err) => {
-      console.error('[league page] leagueSeason query failed', { leagueId, seasonYear, err })
-      return null
-    })
   const seasonSnapshot: LeagueSeasonSnapshot | null = leagueSeasonRow
     ? {
         championTeamId: leagueSeasonRow.championTeamId,
@@ -184,11 +190,6 @@ export default async function LeaguePage({
         status: leagueSeasonRow.status,
       }
     : null
-
-  const leagueDashboard = await buildLeagueDashboardView(league).catch((err) => {
-    console.error('[league page] buildLeagueDashboardView failed', { leagueId, err })
-    return defaultLeagueDashboardView
-  })
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

@@ -36,6 +36,8 @@ export function TeamCountSelector({ sport, leagueType, teamCount, onTeamCountCha
   const maxTeams = getMaxTeamsForSport(sport)
   const safeTeamCount = clampTeamCountForSport(sport, teamCount, leagueType)
   const isSurvivor = String(leagueType ?? '').toLowerCase() === 'survivor'
+  const isDevyOrC2c =
+    String(leagueType ?? '').toLowerCase() === 'devy' || String(leagueType ?? '').toLowerCase() === 'c2c'
 
   return (
     <div className="space-y-1.5">
@@ -59,9 +61,13 @@ export function TeamCountSelector({ sport, leagueType, teamCount, onTeamCountCha
       <p className="mt-1 text-xs text-white/50">
         {isSurvivor
           ? 'Survivor uses 16, 20, or 24 managers (one per team). Set on this step; tribe splits are on the next step.'
-          : sport.toUpperCase() === 'NFL'
-            ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
-            : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
+          : isDevyOrC2c
+            ? sport.toUpperCase() === 'NFL'
+              ? 'Even team counts from 4–32 (NFL + NCAAF pool).'
+              : 'Even team counts from 4–30 (NBA + NCAAB pool).'
+            : sport.toUpperCase() === 'NFL'
+              ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
+              : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
       </p>
     </div>
   )

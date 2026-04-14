@@ -31,6 +31,8 @@ import type {
 import { getConceptIntroVideoUrl } from '@/lib/league-creation/concept-intro-videos'
 import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
+import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS } from '@/lib/sport-scope'
+import type { LeagueSport } from '@prisma/client'
 import { readFetchJson } from '@/lib/http/readFetchJson'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { useSportPreset } from '@/hooks/useSportPreset'
@@ -572,15 +574,20 @@ export function LeagueCreationWizard({
 
   const handleLeagueTypeChange = useCallback((leagueType: LeagueTypeId) => {
     setState((s) => {
-      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, s.sport)
+      const sportStr = String(s.sport).toUpperCase() as LeagueSport
+      const nextSport =
+        (leagueType === 'devy' || leagueType === 'c2c') && !COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS.includes(sportStr)
+          ? 'NFL'
+          : s.sport
+      const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, nextSport)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
       const resolvedVariant =
         resolveEffectiveLeagueVariant({
-          sport: s.sport,
+          sport: nextSport,
           leagueType,
           requestedVariant: s.leagueVariant ?? s.scoringPreset ?? null,
         }).variant ?? 'STANDARD'
-      const nextTeam = clampTeamCountForSport(String(s.sport), s.teamCount, leagueType)
+      const nextTeam = clampTeamCountForSport(String(nextSport), s.teamCount, leagueType)
       const nextFormat =
         leagueType === 'survivor'
           ? {
@@ -591,6 +598,7 @@ export function LeagueCreationWizard({
           : s.formatOptions
       return {
         ...s,
+        sport: nextSport,
         leagueType,
         draftType,
         leagueVariant: resolvedVariant,
@@ -1083,7 +1091,7 @@ export function LeagueCreationWizard({
         >
           {state.step === 'sport' && (
             <>
-              <SportSelector value={state.sport} onChange={handleSportChange} />
+              <SportSelector value={state.sport} onChange={handleSportChange} leagueType={state.leagueType} />
               {creationPresetLoading && (
                 <p
                   className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65"
@@ -1211,6 +1219,7 @@ export function LeagueCreationWizard({
               </p>
               <div className="mt-8">
                 <AiAutomationSettingsPanel
+                  leagueType={state.leagueType}
                   sport={String(state.sport)}
                   aiSettings={state.aiSettings}
                   automationSettings={state.automationSettings}

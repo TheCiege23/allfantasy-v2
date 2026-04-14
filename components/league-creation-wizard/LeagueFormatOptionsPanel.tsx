@@ -520,7 +520,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
       {leagueType === 'devy' && (
         <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="space-y-1.5">
-            <Label className="text-white/85">Devy taxi spots</Label>
+            <Label className="text-white/85">Taxi spots</Label>
             <Input
               type="number"
               min={0}
@@ -547,7 +547,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
       {leagueType === 'c2c' && (
         <div className="space-y-3 rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="space-y-1.5">
-            <Label className="text-white/85">C2C taxi spots</Label>
+            <Label className="text-white/85">Taxi spots</Label>
             <Input
               type="number"
               min={0}

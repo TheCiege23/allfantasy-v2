@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import type {
+  LeagueTypeId,
   WizardAISettings,
   WizardAutomationSettings,
   WizardCommissionerPreferences,
@@ -72,6 +73,8 @@ function detectPreset(a: WizardAutomationSettings): AutomationDraftPreset {
 }
 
 export type AiAutomationSettingsPanelProps = {
+  /** Devy / C2C: show format-specific commissioner AI callouts. */
+  leagueType?: LeagueTypeId
   sport: string
   aiSettings: WizardAISettings
   automationSettings: WizardAutomationSettings
@@ -85,6 +88,7 @@ export type AiAutomationSettingsPanelProps = {
  * Draft AI + free draft automation presets + AF Commissioner AI tools (subscription-gated).
  */
 export function AiAutomationSettingsPanel({
+  leagueType,
   sport,
   aiSettings,
   automationSettings,
@@ -93,6 +97,8 @@ export function AiAutomationSettingsPanel({
   onAutomationChange,
   onCommissionerChange,
 }: AiAutomationSettingsPanelProps) {
+  const isDevy = leagueType === 'devy'
+  const isC2c = leagueType === 'c2c'
   const router = useRouter()
   const { loading, featureAccess, upgradePath } = useEntitlement('commissioner_automation')
   /** While loading, do not treat as locked so the section does not flash grey before entitlement resolves. */
@@ -261,6 +267,21 @@ export function AiAutomationSettingsPanel({
           Turn on the tools you want available for this league. Full commissioner controls stay under League → Settings
           after creation.
         </p>
+        {isDevy ? (
+          <p className="rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-3 py-2 text-xs text-cyan-100/85">
+            <span className="font-semibold text-white/90">Devy dynasty:</span> these tools apply to your pro roster and
+            college devy pool (e.g. draft copilot across startup/devy rounds, fairness on devy pick trades, recaps that
+            mention promotions). Fine-grained devy rules stay under{' '}
+            <span className="text-white/80">League → Devy settings</span> after creation.
+          </p>
+        ) : null}
+        {isC2c ? (
+          <p className="rounded-lg border border-cyan-400/20 bg-cyan-500/[0.06] px-3 py-2 text-xs text-cyan-100/85">
+            <span className="font-semibold text-white/90">Campus to Canton:</span> commissioner AI can highlight pro and
+            college storylines, draft help across merged rounds, and fairness on cross-pool trades. Full C2C rules and
+            pool sizes are tuned under <span className="text-white/80">League → Settings</span> after creation.
+          </p>
+        ) : null}
         <div className="space-y-3">
           {commissionerRows.map((row) => {
             const checked = commissionerPreferences[row.key]

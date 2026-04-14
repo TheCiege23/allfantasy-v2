@@ -185,7 +185,7 @@ export function LeagueShell({
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
   const initialOpenChat = useMemo(
-    () => normalizeOpenChatQueryParam(openChatQuery),
+    () => normalizeOpenChatQueryParam(openChatQuery) ?? 'league',
     [openChatQuery],
   )
   const { rosterId: capRosterId } = useRedraftRosterId(league.id)

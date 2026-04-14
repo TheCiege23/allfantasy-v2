@@ -896,14 +896,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: devy+snake and c2c+auction', async () => {
+  it('supports next paths: devy+devy_snake and c2c+c2c_auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'devy',
-        draftType: 'snake',
+        draftType: 'devy_snake',
         isDynasty: true,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(true)
@@ -912,8 +912,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'devy',
               format_id: 'devy',
-              draft_type: 'snake',
-              requested_draft_type: 'snake',
+              draft_type: 'devy_snake',
+              requested_draft_type: 'devy_snake',
             })
           )
         },
@@ -921,7 +921,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'c2c',
-        draftType: 'auction',
+        draftType: 'c2c_auction',
         isDynasty: true,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(true)
@@ -930,8 +930,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'c2c',
               format_id: 'c2c',
-              draft_type: 'auction',
-              requested_draft_type: 'auction',
+              draft_type: 'c2c_auction',
+              requested_draft_type: 'c2c_auction',
             })
           )
         },

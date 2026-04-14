@@ -57,6 +57,18 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
  * Draft type selection (snake, linear, auction, slow draft, mock draft).
  * Integrates with live draft engines and mock draft engine paths.
  */
+function draftTypeLabel(leagueType: LeagueTypeId, id: DraftTypeId): string {
+  if (leagueType === 'devy') {
+    if (id === 'devy_snake') return 'Snake'
+    if (id === 'devy_auction') return 'Auction'
+  }
+  if (leagueType === 'c2c') {
+    if (id === 'c2c_snake') return 'Snake'
+    if (id === 'c2c_auction') return 'Auction'
+  }
+  return DRAFT_TYPE_LABELS[id]
+}
+
 export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftTypeSelectorProps) {
   const { rules } = useSportRules(sport, null)
   const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType, sport)
@@ -89,7 +101,12 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
       <div className="space-y-3">
         <Label className="text-cyan-300">Type</Label>
         <p className="text-xs text-white/60">
-          {String(sport).toUpperCase()} supports: {allowed.map((id) => DRAFT_TYPE_LABELS[id]).join(', ')}
+          {leagueType === 'devy'
+            ? 'Pro startup + college devy pool (NFL↔NCAAF or NBA↔NCAAB). Formats: '
+            : leagueType === 'c2c'
+              ? 'Pro + college C2C pools (NFL↔NCAAF or NBA↔NCAAB). Formats: '
+              : `${String(sport).toUpperCase()} supports: `}
+          {allowed.map((id) => draftTypeLabel(leagueType, id)).join(', ')}
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {allowed.map((id) => {
@@ -136,8 +153,12 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
                     {DRAFT_TYPE_ICONS[id]}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-[0.12em] text-cyan-200/75">{id.replace('_', ' ')}</p>
-                    <p className="text-sm font-bold leading-tight text-white">{DRAFT_TYPE_LABELS[id]}</p>
+                    <p className="text-[10px] uppercase tracking-[0.12em] text-cyan-200/75">
+                      {leagueType === 'devy' || leagueType === 'c2c'
+                        ? draftTypeLabel(leagueType, id).toUpperCase()
+                        : id.replace('_', ' ')}
+                    </p>
+                    <p className="text-sm font-bold leading-tight text-white">{draftTypeLabel(leagueType, id)}</p>
                   </div>
                 </div>
               </button>
@@ -148,7 +169,7 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
 
       <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-4">
         <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Draft type preview</p>
-        <p className="mt-1 text-2xl font-black text-white">{DRAFT_TYPE_LABELS[safeValue]}</p>
+        <p className="mt-1 text-2xl font-black text-white">{draftTypeLabel(leagueType, safeValue)}</p>
         <p className="mt-1 text-sm text-cyan-200/75">How picks flow in your draft room</p>
         <video
           key={previewMedia.selectionVideo}

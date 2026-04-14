@@ -29,10 +29,23 @@ export function getMaxTeamsForSport(sport: string): number {
   return MAX_TEAMS_BY_SPORT[sport] ?? 20
 }
 
+function evenTeamRange(min: number, max: number): number[] {
+  const out: number[] = []
+  const start = min % 2 === 0 ? min : min + 1
+  for (let n = start; n <= max; n += 2) out.push(n)
+  return out
+}
+
 /** Every integer team count from 4 through the sport maximum (one manager per team). */
 export function getTeamCountOptionsForSport(sport: string, leagueType?: string): number[] {
   if (String(leagueType ?? '').toLowerCase() === 'survivor') {
     return [...SURVIVOR_CAST_SIZE_OPTIONS]
+  }
+  if (String(leagueType ?? '').toLowerCase() === 'devy' || String(leagueType ?? '').toLowerCase() === 'c2c') {
+    const u = sport.toUpperCase()
+    if (u === 'NFL') return evenTeamRange(4, 32)
+    if (u === 'NBA') return evenTeamRange(4, 30)
+    return evenTeamRange(4, 20)
   }
   if (sport.toUpperCase() === 'NFL') {
     return [...NFL_TEAM_COUNT_OPTIONS]
@@ -45,9 +58,21 @@ export function getTeamCountOptionsForSport(sport: string, leagueType?: string):
   return out
 }
 
+function clampDevyEvenTeamCount(sport: string, teamCount: number): number {
+  const u = sport.toUpperCase()
+  const max = u === 'NFL' ? 32 : u === 'NBA' ? 30 : 20
+  const min = 4
+  const n = Number.isFinite(teamCount) ? Math.round(teamCount) : 12
+  const clamped = Math.min(Math.max(n, min), max)
+  return clamped % 2 === 0 ? clamped : clamped + (clamped < max ? 1 : -1)
+}
+
 export function clampTeamCountForSport(sport: string, teamCount: number, leagueType?: string): number {
   if (String(leagueType ?? '').toLowerCase() === 'survivor') {
     return clampSurvivorCastSize(teamCount)
+  }
+  if (String(leagueType ?? '').toLowerCase() === 'devy' || String(leagueType ?? '').toLowerCase() === 'c2c') {
+    return clampDevyEvenTeamCount(sport, teamCount)
   }
   if (sport.toUpperCase() === 'NFL') {
     const n = Number.isFinite(teamCount) ? Math.round(teamCount) : NFL_TEAM_COUNT_OPTIONS[0]

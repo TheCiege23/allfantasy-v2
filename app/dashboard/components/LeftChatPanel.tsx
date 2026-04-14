@@ -478,7 +478,11 @@ export function LeftChatPanel({
 
     if (id === null) {
       prevLeagueIdForTabRef.current = null
-      setActiveTab('chimmy')
+      // Without a league context, only fall back to Chimmy when no tab was requested (?openChat= / initial prop).
+      // Otherwise we overwrite e.g. ?openChat=league during a brief null selectedLeague frame on the league route.
+      if (initialOpenChat == null) {
+        setActiveTab('chimmy')
+      }
       return
     }
 
@@ -497,7 +501,7 @@ export function LeftChatPanel({
       prevLeagueIdForTabRef.current = id
       setActiveTab('league')
     }
-  }, [selectedLeague?.id])
+  }, [selectedLeague?.id, initialOpenChat])
 
   useEffect(() => {
     const focusChimmy = () => setActiveTab('chimmy')

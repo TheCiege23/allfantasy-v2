@@ -40,6 +40,12 @@ const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW'>> = {
  */
 export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelectorProps) {
   const allowed = getAllowedLeagueTypesForSport(sport)
+  const visibleLeagueTypes =
+    value === 'devy' && allowed.includes('devy')
+      ? (['devy'] as LeagueTypeId[])
+      : value === 'c2c' && allowed.includes('c2c')
+        ? (['c2c'] as LeagueTypeId[])
+        : allowed
   const safeValue = allowed.includes(value) ? value : allowed[0]!
   const selectedMedia = getLeagueTypeMedia(safeValue)
 
@@ -59,7 +65,7 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
       <div className="space-y-3">
         <Label className="text-cyan-300">Type</Label>
         <div className="grid gap-3 sm:grid-cols-2">
-          {LEAGUE_TYPE_IDS.filter((id) => allowed.includes(id)).map((id) => {
+          {LEAGUE_TYPE_IDS.filter((id) => visibleLeagueTypes.includes(id)).map((id) => {
             const media = getLeagueTypeMedia(id)
             return (
               <button
