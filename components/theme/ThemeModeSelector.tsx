@@ -51,7 +51,7 @@ export function ThemeModeSelector({ className }: { className?: string }) {
                   ? "border-cyan-400/70 bg-cyan-500/15 text-cyan-300"
                   : "border-white/[0.08] bg-white/[0.03] text-white/50 hover:bg-white/[0.07] hover:text-white/80"
               }`}
-              aria-label={interpolateTemplate(t("theme.ariaSwitch"), { label })}
+              aria-label={interpolateTemplate(t("theme.current"), { label })}
               suppressHydrationWarning
             >
               {label}

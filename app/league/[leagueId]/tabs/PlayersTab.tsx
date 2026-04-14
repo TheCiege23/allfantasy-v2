@@ -14,6 +14,7 @@ import {
   fmtStat,
   type RollingInsightsTableStats,
 } from '@/lib/players/rolling-insights-stats-display'
+import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
 
 type RiBatchEntry = {
   season: string | null
@@ -396,6 +397,16 @@ export function PlayersTab({ league, onPlayerClick, sport }: PlayersTabProps) {
           Stats, injury, and season fantasy totals sync from{' '}
           <span className="text-white/45">Rolling Insights</span> when the player is mapped.
         </p>
+
+        <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/40 p-3">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/45">Start A vs B</p>
+          <StartVsComparisonLauncher
+            leagueId={league.id}
+            sport={resolvedSport}
+            weekOrPeriod={`Week ${weekNum}`}
+            showNameInputs
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto px-5 pb-6">

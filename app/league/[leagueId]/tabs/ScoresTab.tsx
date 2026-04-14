@@ -5,6 +5,7 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { IDPMatchupView } from '@/app/idp/components/IDPMatchupView'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
 
 export type ScoresTabProps = {
   league: UserLeague
@@ -123,6 +124,18 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
             ▾
           </span>
         </label>
+      </div>
+
+      <div className="border-b border-white/[0.06] px-4 pb-3 md:px-5">
+        <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/40 p-3">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/45">Start A vs B</p>
+          <StartVsComparisonLauncher
+            leagueId={league.id}
+            sport={resolved}
+            weekOrPeriod={`Week ${week}`}
+            showNameInputs
+          />
+        </div>
       </div>
 
       <div className="grid min-h-0 flex-1 md:grid-cols-[200px_minmax(0,1fr)] md:gap-0">

@@ -273,6 +273,23 @@ export const MODULE_NAMES = {
   C2C_DEVY_ADVISOR: 'c2c-devy-advisor',
   SPECIALTY_LEAGUE_LOGIC: 'specialty-league-logic',
   ADMIN_TOOLS: 'admin-tools',
+  PLAYER_OUTLOOK: 'player-outlook',
+  FRANCHISE_ROADMAP: 'franchise-roadmap',
+  TRADE_BUILDER: 'trade-builder',
+  MARKET_VALUE: 'market-value',
+  OPPONENT_SCOUTING: 'opponent-scouting',
+  LEAGUE_META: 'league-meta',
+  COMMISSIONER_ASSISTANT_V2: 'commissioner-assistant-v2',
+  GOAL_TRACKER: 'goal-tracker',
+  GM_PROFILE: 'gm-profile',
+  GAME_THEORY: 'game-theory',
+  LEAGUE_HEALTH: 'league-health',
+  DRAFT_WAR_ROOM: 'draft-war-room',
+  RIVALRY_ENGINE: 'rivalry-engine',
+  DFS_STRATEGY: 'dfs-strategy',
+  TRADE_NEGOTIATION: 'trade-negotiation',
+  CHAOS_DETECTOR: 'chaos-detector',
+  PORTFOLIO_MANAGER: 'portfolio-manager',
 } as const
 
 export type ModuleName = (typeof MODULE_NAMES)[keyof typeof MODULE_NAMES]

@@ -16,6 +16,15 @@ import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import { buildDraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import {
+  canAiProposeTrade,
+  checkAiProposalRoundCap,
+  isRosterAiControlled,
+  maybeAutoRespondToTradeProposal,
+  parseCommissionerAiManagers,
+  withUpdatedProposalThrottle,
+  saveCommissionerAiManagers,
+} from '@/lib/commissioner-ai-draft-manager'
 import { sendPrivateTradeAIDM } from '@/lib/trade-ai-dm/TradeAIDMService'
 
 export const dynamic = 'force-dynamic'
@@ -196,6 +205,23 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot trade picks that are already on the board.' }, { status: 400 })
   }
 
+  const aiBlob = parseCommissionerAiManagers((draftSession as { commissionerAiManagers?: unknown }).commissionerAiManagers)
+  const proposeGate = canAiProposeTrade({
+    blob: aiBlob,
+    proposerRosterId: myRosterId,
+    receiverRosterId,
+    now: new Date(),
+  })
+  if (!proposeGate.allowed) {
+    return NextResponse.json({ error: proposeGate.reason ?? 'Trade not allowed.' }, { status: 400 })
+  }
+  const picksCount = draftSession.picks?.length ?? 0
+  const currentRound = Math.ceil((picksCount + 1) / Math.max(1, draftSession.teamCount))
+  const capGate = checkAiProposalRoundCap(aiBlob, myRosterId, currentRound)
+  if (!capGate.ok) {
+    return NextResponse.json({ error: capGate.reason ?? 'Proposal cap reached.' }, { status: 400 })
+  }
+
   const proposerSlotEntry = slotOrder.find((e: any) => e.rosterId === myRosterId)
   const receiverSlotEntry = slotOrder.find((e: any) => e.rosterId === receiverRosterId)
   const proposerName = proposerSlotEntry?.displayName ?? giveResolvedOwner.displayName ?? ''
@@ -218,6 +244,19 @@ export async function POST(
       status: 'pending',
     },
   })
+
+  if (isRosterAiControlled(aiBlob, myRosterId)) {
+    try {
+      const nextBlob = withUpdatedProposalThrottle(aiBlob, myRosterId, currentRound, new Date())
+      await saveCommissionerAiManagers(leagueId, nextBlob)
+    } catch (e) {
+      console.error('[trade-proposals AI throttle]', e)
+    }
+  }
+
+  if (isRosterAiControlled(aiBlob, receiverRosterId)) {
+    void maybeAutoRespondToTradeProposal(leagueId, created.id)
+  }
 
   const { createDraftNotification, getAppUserIdForRoster, notifyDraftAiTradeReviewAvailable } = await import('@/lib/draft-notifications')
   const receiverUserId = await getAppUserIdForRoster(receiverRosterId)

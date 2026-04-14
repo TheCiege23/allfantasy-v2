@@ -14,6 +14,7 @@ import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import SessionIdleMonitor from '@/components/auth/SessionIdleMonitor';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
+import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
@@ -242,7 +243,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <SyncProfilePreferences />
               <SessionIdleMonitor />
               <ErrorBoundaryClient>
-                {children}
+                <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
               </ErrorBoundaryClient>
               <GlobalModeToggle />
               <Toaster position="top-center" richColors closeButton />

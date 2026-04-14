@@ -16,10 +16,17 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "node scripts/prisma-migrate-deploy.cjs",
     "db:migrate:baseline": "powershell -ExecutionPolicy Bypass -File \"scripts/baseline-migrations.ps1\"",
+    "db:foundation:apply": "tsx scripts/apply-af-foundation-if-needed.ts",
+    "db:indexes:platform-backend": "prisma db execute --file scripts/sql/platform-backend-indexes.sql --schema prisma/schema.prisma",
+    "db:indexes:verify-platform-backend": "tsx scripts/verify-platform-backend-indexes.ts",
+    "db:deploy-readiness:platform-backend": "npm run db:migrate:deploy && npm run db:indexes:verify-platform-backend && npm run smoke:platform-backend:postgres",
+    "db:deploy-readiness:platform-backend:ci": "npm run db:foundation:apply && npm run db:deploy-readiness:platform-backend",
+    "db:deploy-readiness:platform-backend:ci:readonly": "npm run db:foundation:apply && npm run db:migrate:deploy && npm run db:indexes:verify-platform-backend && npm run smoke:platform-backend:postgres:readonly",
     "db:studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:foundation-apply-branches": "vitest run __tests__/apply-af-foundation-if-needed.test.ts --reporter=verbose",
     "test:e2e": "playwright test",
     "test:e2e:core": "playwright test --grep-invert \"@db|@activation|@retention\"",
     "test:e2e:click-audits": "playwright test --grep \"click audit\"",
@@ -46,7 +53,9 @@
     "qa:legacy-smoke": "node scripts/legacy-feature-smoke-test.mjs",
     "qa:legacy-report": "node scripts/legacy-qa-report.mjs",
     "worker:simulations": "tsx scripts/start-simulation-worker.ts",
-    "backfill:platform-core": "tsx scripts/backfill-platform-core.ts"
+    "backfill:platform-core": "tsx scripts/backfill-platform-core.ts",
+    "smoke:platform-backend:postgres": "tsx scripts/smoke-platform-backend-postgres.ts",
+    "smoke:platform-backend:postgres:readonly": "tsx scripts/smoke-platform-backend-postgres.ts --skip-writes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

@@ -67,6 +67,12 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     return () => mq.removeEventListener("change", onChange)
   }, [mode])
 
+  /** Always paint the active theme to <html data-mode> so global backgrounds/images react immediately. */
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    applyThemeToDocument(mode)
+  }, [mode])
+
   useEffect(() => {
     if (typeof document === "undefined") return
     setStoredTheme(mode)

@@ -7,6 +7,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
+import { usePlayerComparisonUIOptional } from "@/components/player-comparison-ui"
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from "@/lib/sport-scope"
 import type { NegotiationToolkit } from "@/lib/trade-engine/types"
 
@@ -766,6 +767,7 @@ function AssetPanel({
 }
 
 function TradeHubInner() {
+  const playerCompareUi = usePlayerComparisonUIOptional()
   const searchParams = useSearchParams()
   const previewSender = searchParams?.get("previewSender") ?? ""
   const previewReceiver = searchParams?.get("previewReceiver") ?? ""
@@ -792,6 +794,12 @@ function TradeHubInner() {
     [receiver]
   )
   const canEvaluate = senderHasAssets && receiverHasAssets && !loading
+
+  const miniCompare = useMemo(() => {
+    const a = sender.players.find((player) => player.name.trim())?.name.trim() ?? ""
+    const b = receiver.players.find((player) => player.name.trim())?.name.trim() ?? ""
+    return { a, b, ready: Boolean(a && b) }
+  }, [sender.players, receiver.players])
 
   useEffect(() => {
     if (result && resultRef.current) {
@@ -969,6 +977,43 @@ function TradeHubInner() {
           <AssetPanel label="Sender · Giving" accent="#06b6d4" side={sender} onChange={setSender} onClear={() => setSender(emptySide("Sender Team"))} />
           <AssetPanel label="Receiver · Giving" accent="#a78bfa" side={receiver} onChange={setReceiver} onClear={() => setReceiver(emptySide("Receiver Team"))} />
         </div>
+
+        {miniCompare.ready ? (
+          <div
+            className="mt-4 flex flex-col gap-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            data-testid="trade-evaluator-mini-compare-panel"
+          >
+            <p className="text-xs text-white/70">
+              <span className="font-semibold text-cyan-200">Head-to-head compare</span>
+              <span className="text-white/45"> — uses the first named player on each side</span>
+            </p>
+            {playerCompareUi ? (
+              <button
+                type="button"
+                onClick={() =>
+                  playerCompareUi.openComparison({
+                    playerA: miniCompare.a,
+                    playerB: miniCompare.b,
+                    sport,
+                    source: "trade",
+                  })
+                }
+                data-testid="trade-evaluator-mini-compare-open"
+                className="inline-flex shrink-0 items-center justify-center rounded-xl border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20"
+              >
+                Compare {miniCompare.a} vs {miniCompare.b}
+              </button>
+            ) : (
+              <Link
+                href={`/player-compare?playerA=${encodeURIComponent(miniCompare.a)}&playerB=${encodeURIComponent(miniCompare.b)}&sport=${encodeURIComponent(sport)}`}
+                data-testid="trade-evaluator-mini-compare-fallback"
+                className="inline-flex shrink-0 text-sm font-medium text-cyan-300 underline hover:text-cyan-100"
+              >
+                Open compare ({miniCompare.a} vs {miniCompare.b})
+              </Link>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-6 rounded-3xl border border-white/8 bg-[#0c0c1e] p-5 sm:p-6">
           <div className="mb-4 text-xs font-bold uppercase tracking-[0.28em] text-white/45">League Settings</div>

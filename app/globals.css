@@ -258,6 +258,14 @@
   opacity: 1;
 }
 
+html[data-mode="dark"] .mode-image-safe {
+  filter: saturate(1.05) brightness(1.02);
+}
+
+html[data-mode="legacy"] .mode-image-safe {
+  filter: hue-rotate(-8deg) saturate(1.08) brightness(1.03);
+}
+
 .mode-logo-safe,
 .hero-crest,
 img[alt="AllFantasy crest"] {
@@ -340,6 +348,73 @@ html[data-mode="light"] .mode-readable [class*="text-gray-"] {
 
 html[data-mode="light"] .mode-readable [class*="bg-black"] {
   background-color: color-mix(in srgb, var(--panel2) 88%, transparent) !important;
+}
+
+/* Common arbitrary dark backgrounds used across app pages (light mode fallback).
+   Covers the frequent dark navy/midnight/slate hex values used as page + panel bg.
+   Grouped by function: page roots, panel/card, gradient stops, gradient intermediates. */
+html[data-mode="light"] .mode-readable [class*="bg-[#020617]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#02061a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#030816]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#030a1f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#040914]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#040915]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#05060a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#05060b]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#060b1a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#07071a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#070b16]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#070b17]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#07111a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#081026]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#081121]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#081226]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#081329]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#090f1f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0a0f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0a12]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0a18]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0a1a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a0a1f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a1220]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a1228]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0a1328]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0B0F1E]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0b0f1e]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0b1120]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0b1326]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0c0c1e]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0c1020]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0c1224]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d0d1f]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d0d17]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d1117]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d1125]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d1526]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0d1528]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0E1424]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0e1424]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0f0f14]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0f0f1a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0f1117]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0f1521]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#0f172a]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#101224]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#110b1e]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#111938]"],
+html[data-mode="light"] .mode-readable [class*="bg-[#1a1a2e]"],
+/* gradient from-stops */
+html[data-mode="light"] .mode-readable [class*="from-[#07071a]"],
+html[data-mode="light"] .mode-readable [class*="from-[#0a0a0f]"],
+html[data-mode="light"] .mode-readable [class*="from-[#0d0d17]"],
+/* gradient via-stops */
+html[data-mode="light"] .mode-readable [class*="via-[#0d0d17]"],
+/* gradient to-stops */
+html[data-mode="light"] .mode-readable [class*="to-[#0d0d1f]"],
+html[data-mode="light"] .mode-readable [class*="to-[#0f0f1a]"],
+html[data-mode="light"] .mode-readable [class*="to-[#0d1117]"] {
+  background-color: color-mix(in srgb, var(--panel) 94%, transparent) !important;
+  background-image: none !important;
 }
 
 html[data-mode="light"] .mode-readable [class*="border-white"] {

@@ -2,6 +2,8 @@
 
 import React from 'react'
 import { ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react'
+import SaveRecommendationButton from './SaveRecommendationButton'
+import type { SavePayload } from '@/lib/saved-recommendations/useSavedRecommendations'
 
 export type ChimmyRecommendationPriority = 'high' | 'medium' | 'low'
 
@@ -17,6 +19,7 @@ export interface ChimmyRecommendationCardProps {
   completed?: boolean
   onAction?: () => void
   actionLabel?: string
+  savePayload?: SavePayload
   className?: string
 }
 
@@ -35,6 +38,7 @@ export default function ChimmyRecommendationCard({
   completed = false,
   onAction,
   actionLabel = 'Take Action',
+  savePayload,
   className = '',
 }: ChimmyRecommendationCardProps) {
   return (
@@ -73,6 +77,12 @@ export default function ChimmyRecommendationCard({
           {actionLabel}
           <ArrowRight className="h-3 w-3" />
         </button>
+      )}
+
+      {savePayload && (
+        <div className="mt-2">
+          <SaveRecommendationButton payload={savePayload} variant="pill" size="sm" />
+        </div>
       )}
     </div>
   )

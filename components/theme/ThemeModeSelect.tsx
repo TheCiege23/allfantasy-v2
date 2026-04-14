@@ -2,7 +2,9 @@
 
 import { useSession } from "next-auth/react"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
-import { getThemeDisplayName, type ThemeId } from "@/lib/theme"
+import { type ThemeId } from "@/lib/theme"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 const ROW: ThemeId[] = ["light", "dark", "legacy", "system"]
 
@@ -16,6 +18,7 @@ export function ThemeModeSelect(props: {
 }) {
   const { data: session } = useSession()
   const { mode, setMode } = useThemeMode()
+  const { t } = useLanguage()
   const size = props.size ?? "md"
 
   const onChange = (next: ThemeId) => {
@@ -36,9 +39,9 @@ export function ThemeModeSelect(props: {
         `inline-flex items-center gap-1.5 ${size === "sm" ? "text-[10px]" : "text-xs"}`
       }
     >
-      <span className="sr-only">Theme</span>
+      <span className="sr-only">{t("theme.selectorTitle")}</span>
       <span className="hidden text-[var(--muted)] sm:inline" aria-hidden>
-        Theme
+        {t("theme.selectorTitle")}
       </span>
       <select
         value={mode}
@@ -53,12 +56,14 @@ export function ThemeModeSelect(props: {
           borderColor: "var(--border)",
           background: "var(--panel)",
         }}
-        aria-label="Theme: Light, Dark, AF Legacy, or System"
+        aria-label={interpolateTemplate(t("theme.current"), {
+          label: t(`theme.${mode}`),
+        })}
         data-testid="theme-mode-select"
       >
         {ROW.map((id) => (
           <option key={id} value={id}>
-            {getThemeDisplayName(id)}
+            {t(`theme.${id}`)}
           </option>
         ))}
       </select>

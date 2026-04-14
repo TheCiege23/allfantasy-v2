@@ -3,7 +3,7 @@
  * Handles snake and third-round reversal (3RR).
  */
 
-import type { DraftType } from './types'
+import type { DraftType, SlotOrderEntry } from './types'
 
 export interface DraftOrderParams {
   overall: number
@@ -53,4 +53,24 @@ export function getRosterIdForOverall(
   const slot = getSlotInRoundForOverall({ overall, teamCount, draftType, thirdRoundReversal })
   const entry = slotOrder.find((e) => e.slot === slot)
   return entry ? { rosterId: entry.rosterId, displayName: entry.displayName } : null
+}
+
+/** Next `count` pick owners after `nextOverall` (1-based overall index). Used by Live Draft Brain predictions. */
+export function getUpcomingPickOwners(
+  nextOverall: number,
+  count: number,
+  teamCount: number,
+  draftType: DraftType,
+  thirdRoundReversal: boolean,
+  slotOrder: SlotOrderEntry[],
+  totalPicks: number
+): Array<{ rosterId: string; displayName: string }> {
+  const out: Array<{ rosterId: string; displayName: string }> = []
+  for (let k = 0; k < count; k += 1) {
+    const overall = nextOverall + k
+    if (overall > totalPicks) break
+    const r = getRosterIdForOverall(overall, teamCount, draftType, thirdRoundReversal, slotOrder)
+    if (r) out.push(r)
+  }
+  return out
 }

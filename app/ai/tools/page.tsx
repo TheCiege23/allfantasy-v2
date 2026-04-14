@@ -35,11 +35,11 @@ export default function AIToolsPage() {
         </div>
         <div className="mb-4">
           <Link
-            href="/ai/history"
+            href="/ai/saved"
             data-testid="ai-tools-open-history-link"
             className="inline-flex items-center rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 hover:bg-white/10"
           >
-            Open saved history
+            Open saved recommendations
           </Link>
         </div>
         <UnifiedAIWorkbench />

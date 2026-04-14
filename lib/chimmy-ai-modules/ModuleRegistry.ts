@@ -29,6 +29,7 @@ import {
   SpecialtyLeagueLogicModule,
   AdminToolsModule,
 } from './CoreModulesBundle3'
+import { PlayerOutlookModule } from './PlayerOutlookModule'
 
 /**
  * ModuleRegistryImpl — Singleton registry for all Chimmy modules
@@ -81,6 +82,9 @@ class ModuleRegistryImpl implements ModuleRegistry {
       // Tier 6: Specialty & Admin
       new SpecialtyLeagueLogicModule(),
       new AdminToolsModule(),
+
+      // Tier 7: Player Intelligence
+      new PlayerOutlookModule(),
     ]
 
     for (const module of modulesToInit) {
@@ -162,6 +166,97 @@ class ModuleRegistryImpl implements ModuleRegistry {
 
       // Admin
       'admin:integrity_audit': MODULE_NAMES.ADMIN_TOOLS,
+
+      // Player Outlook
+      'player:outlook': MODULE_NAMES.PLAYER_OUTLOOK,
+      'player:analysis': MODULE_NAMES.PLAYER_OUTLOOK,
+      'player:value_check': MODULE_NAMES.PLAYER_OUTLOOK,
+
+      // Franchise Roadmap
+      'franchise:roadmap': MODULE_NAMES.FRANCHISE_ROADMAP,
+      'dynasty:plan': MODULE_NAMES.FRANCHISE_ROADMAP,
+      'devy:plan': MODULE_NAMES.FRANCHISE_ROADMAP,
+      'c2c:plan': MODULE_NAMES.FRANCHISE_ROADMAP,
+
+      // Trade Builder
+      'trade:build': MODULE_NAMES.TRADE_BUILDER,
+      'trade:generate': MODULE_NAMES.TRADE_BUILDER,
+      'trade:propose': MODULE_NAMES.TRADE_BUILDER,
+
+      // Lineup Optimizer
+      'lineup:optimize': MODULE_NAMES.LINEUP_OPTIMIZER,
+      'lineup:set': MODULE_NAMES.LINEUP_OPTIMIZER,
+      'lineup:best': MODULE_NAMES.LINEUP_OPTIMIZER,
+
+      // Market Value
+      'market:value': MODULE_NAMES.MARKET_VALUE,
+      'market:buy_sell': MODULE_NAMES.MARKET_VALUE,
+      'market:trending': MODULE_NAMES.MARKET_VALUE,
+
+      // Opponent Scouting
+      'opponent:scout': MODULE_NAMES.OPPONENT_SCOUTING,
+      'matchup:plan': MODULE_NAMES.OPPONENT_SCOUTING,
+      'opponent:weakness': MODULE_NAMES.OPPONENT_SCOUTING,
+
+      // League Meta
+      'league:meta': MODULE_NAMES.LEAGUE_META,
+      'league:culture': MODULE_NAMES.LEAGUE_META,
+      'league:exploit': MODULE_NAMES.LEAGUE_META,
+
+      // Commissioner Assistant V2
+      'commissioner:review': MODULE_NAMES.COMMISSIONER_ASSISTANT_V2,
+      'commissioner:settings': MODULE_NAMES.COMMISSIONER_ASSISTANT_V2,
+      'commissioner:dispute': MODULE_NAMES.COMMISSIONER_ASSISTANT_V2,
+
+      // Goal Tracker
+      'goal:track': MODULE_NAMES.GOAL_TRACKER,
+      'goal:alignment': MODULE_NAMES.GOAL_TRACKER,
+      'strategy:check': MODULE_NAMES.GOAL_TRACKER,
+
+      // GM Profile
+      'gm:profile': MODULE_NAMES.GM_PROFILE,
+      'gm:identity': MODULE_NAMES.GM_PROFILE,
+      'gm:improvement': MODULE_NAMES.GM_PROFILE,
+
+      // Game Theory
+      'game:theory': MODULE_NAMES.GAME_THEORY,
+      'strategy:leverage': MODULE_NAMES.GAME_THEORY,
+      'matchup:strategy': MODULE_NAMES.GAME_THEORY,
+
+      // League Health
+      'league:health': MODULE_NAMES.LEAGUE_HEALTH,
+      'league:pulse': MODULE_NAMES.LEAGUE_HEALTH,
+      'league:engagement': MODULE_NAMES.LEAGUE_HEALTH,
+
+      // Draft War Room
+      'draft:warroom': MODULE_NAMES.DRAFT_WAR_ROOM,
+      'draft:live': MODULE_NAMES.DRAFT_WAR_ROOM,
+      'draft:board': MODULE_NAMES.DRAFT_WAR_ROOM,
+
+      // Rivalry Engine
+      'rivalry:detect': MODULE_NAMES.RIVALRY_ENGINE,
+      'rivalry:matchup': MODULE_NAMES.RIVALRY_ENGINE,
+      'rivalry:history': MODULE_NAMES.RIVALRY_ENGINE,
+
+      // DFS Strategy
+      'dfs:strategy': MODULE_NAMES.DFS_STRATEGY,
+      'dfs:slate': MODULE_NAMES.DFS_STRATEGY,
+      'dfs:stacks': MODULE_NAMES.DFS_STRATEGY,
+
+      // Trade Negotiation
+      'trade:negotiate': MODULE_NAMES.TRADE_NEGOTIATION,
+      'trade:message': MODULE_NAMES.TRADE_NEGOTIATION,
+      'trade:pitch': MODULE_NAMES.TRADE_NEGOTIATION,
+
+      // Chaos Detector
+      'chaos:detect': MODULE_NAMES.CHAOS_DETECTOR,
+      'upset:watch': MODULE_NAMES.CHAOS_DETECTOR,
+      'volatility:scan': MODULE_NAMES.CHAOS_DETECTOR,
+
+      // Portfolio Manager
+      'portfolio:overview': MODULE_NAMES.PORTFOLIO_MANAGER,
+      'portfolio:priorities': MODULE_NAMES.PORTFOLIO_MANAGER,
+      'portfolio:exposure': MODULE_NAMES.PORTFOLIO_MANAGER,
     }
 
     const moduleName = intentMap[intent]

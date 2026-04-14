@@ -81,7 +81,29 @@ export default function TeamAISurface({
             <ChimmyInsightCard key={ins.id} title={ins.title} summary={ins.summary} tag={ins.tag} severity={ins.severity} />
           ))}
           {recommendations.map((rec) => (
-            <ChimmyRecommendationCard key={rec.id} action={rec.action} rationale={rec.rationale} priority={rec.priority} onAction={rec.onAction} actionLabel={rec.actionLabel} />
+            <ChimmyRecommendationCard
+              key={rec.id}
+              action={rec.action}
+              rationale={rec.rationale}
+              priority={rec.priority}
+              onAction={rec.onAction}
+              actionLabel={rec.actionLabel}
+              savePayload={{
+                leagueId: resolvedActionContext.leagueId ?? null,
+                sport: resolvedActionContext.sport,
+                leagueType: resolvedActionContext.leagueType,
+                title: rec.action,
+                summary: rec.rationale,
+                recommendationType: 'roster_strategy',
+                recommendationPayload: {
+                  action: rec.action,
+                  rationale: rec.rationale,
+                  priority: rec.priority,
+                },
+                explanation: rec.rationale,
+                sourceSurface: 'team_page',
+              }}
+            />
           ))}
 
           {!direction && insights.length === 0 && recommendations.length === 0 && (

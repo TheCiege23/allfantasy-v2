@@ -9,22 +9,28 @@ export type MobileDraftTab = 'board' | 'players' | 'queue' | 'helper' | 'roster'
 export type DraftRoomShellProps = {
   topBar: ReactNode
   managerStrip: ReactNode
-  /** Optional strip above board (e.g. auction spotlight) */
   auctionStrip?: ReactNode
   draftBoard: ReactNode
   playerPanel: ReactNode
   queuePanel: ReactNode
   chatPanel: ReactNode
-  /** Optional AI draft helper panel (recommendation, Ask Chimmy) */
   helperPanel?: ReactNode
-  /** Optional roster panel (my drafted players) for mobile tab */
   rosterPanel?: ReactNode
-  /** Optional keeper panel (keeper draft) for mobile tab */
   keeperPanel?: ReactNode
-  /** Optional sticky bar shown on mobile inside scroll area (e.g. current pick) */
   mobileStickyBar?: ReactNode
   mobileTab: MobileDraftTab
   onMobileTabChange: (tab: MobileDraftTab) => void
+  /**
+   * Premium layout: top board, left team, center pool+queue, right AI, bottom chat+activity.
+   * When set, desktop uses 4-zone + bottom dock; mobile tabs unchanged.
+   */
+  layout?: 'classic' | 'premium'
+  /** Left column — your team / AI badges (desktop premium) */
+  teamPanel?: ReactNode
+  /** Center column — usually player pool + queue stacked */
+  centerColumn?: ReactNode
+  /** Bottom dock — chat + live pick feed side-by-side */
+  bottomBar?: ReactNode
 }
 
 const MOBILE_TAB_I18N: Record<MobileDraftTab, string> = {
@@ -61,57 +67,89 @@ export function DraftRoomShell({
   auctionStrip,
   mobileTab,
   onMobileTabChange,
+  layout = 'classic',
+  teamPanel,
+  centerColumn,
+  bottomBar,
 }: DraftRoomShellProps) {
   const { t } = useLanguage()
   const visibleTabs = MOBILE_TABS.filter(
-    (t) =>
-      (t.id !== 'helper' || helperPanel) &&
-      (t.id !== 'roster' || rosterPanel) &&
-      (t.id !== 'keepers' || keeperPanel)
+    (tab) =>
+      (tab.id !== 'helper' || helperPanel) &&
+      (tab.id !== 'roster' || rosterPanel) &&
+      (tab.id !== 'keepers' || keeperPanel)
+  )
+
+  const premiumDesktop =
+    layout === 'premium' && teamPanel && centerColumn && bottomBar
+  const centerMain = centerColumn ?? (
+    <>
+      <div className="min-h-0 flex-[3] overflow-hidden">{playerPanel}</div>
+      <div className="min-h-[200px] flex-[2] overflow-auto border-t border-white/8 md:min-h-[220px]">{queuePanel}</div>
+    </>
   )
 
   return (
-    <div className="flex h-full flex-col bg-[#040915] text-white" data-testid="draft-room-shell">
+    <div className="flex h-full min-h-[100dvh] flex-col bg-[#040915] text-white" data-testid="draft-room-shell">
       {topBar}
       {managerStrip}
 
-      {/* Desktop layout */}
-      <div className="hidden md:flex flex-1 flex-col overflow-hidden" data-testid="draft-desktop-layout">
-        {auctionStrip && (
-          <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">
-            {auctionStrip}
+      {/* Desktop — premium 4-zone + bottom dock */}
+      {premiumDesktop ? (
+        <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout-premium">
+          {auctionStrip && (
+            <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>
+          )}
+          <div
+            className="min-h-[160px] max-h-[min(42vh,520px)] shrink-0 overflow-auto border-b border-white/8 bg-[#050c1d]"
+            data-testid="draft-premium-board-zone"
+          >
+            {draftBoard}
           </div>
-        )}
-        <div className="min-h-[200px] flex-[2] overflow-auto border-b border-white/8 bg-[#050c1d]">
-          {draftBoard}
+          <div className="flex min-h-0 flex-1 overflow-hidden" data-testid="draft-premium-main-zones">
+            <aside className="w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r border-white/8 bg-[#050c1d]">
+              {teamPanel}
+            </aside>
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-white/8 bg-[#060d1e]">
+              {centerMain}
+            </div>
+            {helperPanel && (
+              <aside className="w-[min(400px,34vw)] shrink-0 overflow-y-auto bg-[#060d1e] shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]">
+                {helperPanel}
+              </aside>
+            )}
+          </div>
+          <div
+            className="flex h-[min(220px,30vh)] min-h-[140px] shrink-0 overflow-hidden border-t border-white/10 bg-[#040915]"
+            data-testid="draft-premium-bottom-dock"
+          >
+            {bottomBar}
+          </div>
         </div>
-        <div className="flex min-h-[280px] flex-1 overflow-hidden">
-          <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">
-            {playerPanel}
-          </div>
-          <div className="min-w-0 flex-[2] overflow-hidden border-r border-white/8">
-            {queuePanel}
-          </div>
-          <div className="min-w-0 flex-[3] overflow-hidden">
-            {chatPanel}
+      ) : (
+        <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout">
+          {auctionStrip && <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>}
+          <div className="min-h-[200px] flex-[2] overflow-auto border-b border-white/8 bg-[#050c1d]">{draftBoard}</div>
+          <div className="flex min-h-[280px] flex-1 overflow-hidden">
+            <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">{playerPanel}</div>
+            <div className="min-w-0 flex-[2] overflow-hidden border-r border-white/8">{queuePanel}</div>
+            <div className="min-w-0 flex-[3] overflow-hidden">{chatPanel}</div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Mobile layout: sticky current-pick area + scrollable content + nav */}
-      <div className="flex md:hidden flex-1 flex-col overflow-hidden" data-testid="draft-mobile-layout">
-        <div className="flex-1 overflow-auto min-h-0 overscroll-contain">
+      {/* Mobile */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:hidden" data-testid="draft-mobile-layout">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
           {mobileStickyBar && (
             <div className="sticky top-0 z-10 shrink-0 border-b border-white/10 bg-[#040915]/95 backdrop-blur-sm">
               {mobileStickyBar}
             </div>
           )}
           {auctionStrip && mobileTab === 'board' && (
-            <div className="shrink-0 border-b border-white/10 bg-[#050c1d]">
-              {auctionStrip}
-            </div>
+            <div className="shrink-0 border-b border-white/10 bg-[#050c1d]">{auctionStrip}</div>
           )}
-          <div key={mobileTab} className="p-3 sm:p-3.5 min-h-[220px] text-sm transition-opacity duration-150">
+          <div key={mobileTab} className="min-h-[220px] p-3 text-sm transition-opacity duration-150 sm:p-3.5">
             {mobileTab === 'board' && draftBoard}
             {mobileTab === 'players' && playerPanel}
             {mobileTab === 'queue' && queuePanel}
@@ -122,26 +160,26 @@ export function DraftRoomShell({
           </div>
         </div>
         <nav
-          className="flex shrink-0 border-t border-white/10 bg-[#070f21]/95 safe-area-bottom"
+          className="safe-area-bottom flex shrink-0 border-t border-white/10 bg-[#070f21]/95"
           aria-label={t('draftRoom.shell.aria.draftSections')}
         >
           {visibleTabs.map(({ id, icon: Icon }) => {
             const label = t(MOBILE_TAB_I18N[id])
             return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onMobileTabChange(id)}
-              data-testid={`draft-mobile-tab-${id}`}
-              className={`flex flex-1 flex-col items-center justify-center gap-0.5 min-h-[48px] py-2.5 text-[11px] touch-manipulation active:scale-[0.98] ${
-                mobileTab === id ? 'text-cyan-200 bg-cyan-500/10' : 'text-white/60'
-              }`}
-              aria-pressed={mobileTab === id}
-              aria-label={label}
-            >
-              <Icon className="h-5 w-5 shrink-0" aria-hidden />
-              <span>{label}</span>
-            </button>
+              <button
+                key={id}
+                type="button"
+                onClick={() => onMobileTabChange(id)}
+                data-testid={`draft-mobile-tab-${id}`}
+                className={`flex min-h-[48px] flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 py-2.5 text-[11px] active:scale-[0.98] ${
+                  mobileTab === id ? 'bg-cyan-500/10 text-cyan-200' : 'text-white/60'
+                }`}
+                aria-pressed={mobileTab === id}
+                aria-label={label}
+              >
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span>{label}</span>
+              </button>
             )
           })}
         </nav>

@@ -64,6 +64,7 @@ vi.mock("@/lib/ai-memory/chat-history-store", () => ({
 vi.mock("@/lib/ai-memory/ai-memory-store", () => ({
   rememberChimmyAssistantMemory: vi.fn(),
   rememberChimmyUserMessageMemory: vi.fn(),
+  getAiMemory: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock("@/lib/agents/pipeline", () => ({
@@ -315,9 +316,9 @@ describe("POST /api/chat/chimmy contract", () => {
 
     expect(res.status).toBe(200)
     expect(spendTokensForRuleMock).not.toHaveBeenCalled()
-    await expect(res.json()).resolves.toMatchObject({
-      response: "Accept the trade.",
-    })
+    const body = await res.json()
+    expect(body.response).toContain("Accept the trade.")
+    expect(body.response).toContain("Chimmy routing")
   })
 
   it("skips token confirmation when preview does not require confirmation", async () => {
@@ -343,9 +344,9 @@ describe("POST /api/chat/chimmy contract", () => {
         ruleCode: "ai_chimmy_chat_message",
       })
     )
-    await expect(res.json()).resolves.toMatchObject({
-      response: "Accept the trade.",
-    })
+    const body = await res.json()
+    expect(body.response).toContain("Accept the trade.")
+    expect(body.response).toContain("Chimmy routing")
   })
 
   it("strips raw JSON context blobs from the displayed response text", async () => {
@@ -371,9 +372,11 @@ describe("POST /api/chat/chimmy contract", () => {
     const res = await POST(buildMultipartRequest(formData) as any)
 
     expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toMatchObject({
-      response: "Start Drake London over Christian Watson this week.",
-    })
+    const body = await res.json()
+    expect(body.response).toContain(
+      "Start Drake London over Christian Watson this week."
+    )
+    expect(body.response).toContain("Chimmy routing")
   })
 
   it("returns 412 when league-specific request is missing league context", async () => {

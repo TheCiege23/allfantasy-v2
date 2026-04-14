@@ -139,8 +139,8 @@ function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload |
     careerLosses: data.careerLosses ?? data.careerStats?.totalLosses ?? null,
     careerChampionships: data.careerChampionships ?? data.careerStats?.championships ?? null,
     careerPlayoffAppearances: data.careerPlayoffAppearances ?? data.careerStats?.playoffAppearances ?? null,
-    careerSeasonsPlayed: data.careerSeasonsPlayed ?? data.careerStats?.leaguesPlayed ?? null,
-    careerLeaguesPlayed: data.careerLeaguesPlayed ?? data.careerStats?.seasonsPlayed ?? null,
+    careerSeasonsPlayed: data.careerSeasonsPlayed ?? data.careerStats?.seasonsPlayed ?? null,
+    careerLeaguesPlayed: data.careerLeaguesPlayed ?? data.careerStats?.leaguesPlayed ?? null,
     rankCalculatedAt: data.rankCalculatedAt ?? null,
   }
 }
@@ -1078,7 +1078,6 @@ function MyRankingsPageInner() {
     finalLevel: number | null
   } | null>(null)
   const [importPhasedBannerDismissed, setImportPhasedBannerDismissed] = useState(false)
-  const [importRankHidden, setImportRankHidden] = useState(() => Boolean(searchParams?.get('jobId')))
   const [showLevelUpBurst, setShowLevelUpBurst] = useState(false)
   const [importStuck, setImportStuck] = useState(false)
   const completedJobHandledRef = useRef<string | null>(null)
@@ -1178,7 +1177,6 @@ function MyRankingsPageInner() {
       setJobProgressError(null)
       return
     }
-    setImportRankHidden(true)
     completedJobHandledRef.current = null
     initialImportLevelRef.current = null
     const jobId = jobIdParam
@@ -1242,7 +1240,6 @@ function MyRankingsPageInner() {
     router.replace('/af-rankings', { scroll: false })
     window.setTimeout(() => {
       void loadRank({ silent: false })
-      setImportRankHidden(false)
       if (
         initialImportLevelRef.current != null &&
         finalLv != null &&
@@ -1299,7 +1296,7 @@ function MyRankingsPageInner() {
     session?.user?.email?.split('@')[0] ||
     'manager'
 
-  const hideRankForPhasedImport = importRankHidden
+  const hideRankForPhasedImport = Boolean(jobIdParam) && jobProgress?.status !== 'complete' && !jobProgressError
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#07071a] to-[#0d0d1f] text-white">

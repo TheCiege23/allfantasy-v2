@@ -270,6 +270,28 @@ export interface AIActionEvent {
 
 // ─── Saved Recommendation ───────────────────────────────────────────────────────
 
+/** Status lifecycle for a unified saved recommendation. */
+export type SavedRecommendationStatus =
+  | 'saved'
+  | 'acted_on'
+  | 'dismissed'
+  | 'stale'
+
+/** Category of recommendation, maps to sourceSurface content type. */
+export type RecommendationCategory =
+  | 'waiver'
+  | 'trade'
+  | 'lineup'
+  | 'start_sit'
+  | 'draft'
+  | 'player_comparison'
+  | 'matchup_simulation'
+  | 'roster_strategy'
+  | 'story_draft'
+  | 'commissioner_announcement'
+  | 'league_health'
+  | 'general'
+
 /** A saved AI recommendation the user can restore and act on later. */
 export interface SavedAIRecommendation {
   id: string
@@ -284,6 +306,47 @@ export interface SavedAIRecommendation {
   expiresAt?: number | null
   actedOn?: boolean
   actedOnAt?: number | null
+}
+
+/**
+ * Unified rich saved recommendation — the canonical model for the Saved
+ * Recommendations system. Extends the legacy SavedAIRecommendation shape with
+ * the full structured payload required for comparison and actioning.
+ */
+export interface UnifiedSavedRecommendation {
+  /** UUIDv4 */
+  id: string
+  userId: string
+  /** League scope (null = global/cross-league) */
+  leagueId: string | null
+  sport: string
+  leagueType: string
+  /** Human-readable short title, e.g. "Start Jefferson over Cooper" */
+  title: string
+  /** 1-3 sentence summary shown in list view */
+  summary: string
+  /** Category driving display routing */
+  recommendationType: RecommendationCategory
+  /** Full structured Chimmy output — preserved for comparison */
+  recommendationPayload: Record<string, unknown>
+  /** Full explanation shown on detail view */
+  explanation: string
+  /** 0.0–1.0 */
+  confidence: number
+  riskLevel: 'low' | 'medium' | 'high' | 'critical' | null
+  /** Bound AI actions that can be executed from the detail view */
+  actions: AIAction[]
+  /** Surface this rec was generated on (e.g. "waiver_wire", "trade_center") */
+  sourceSurface: string
+  createdAt: number
+  updatedAt: number
+  expiresAt: number | null
+  isArchived: boolean
+  status: SavedRecommendationStatus
+  /** Commissioner-specific: was this saved by a commissioner for league use? */
+  isCommissionerRec?: boolean
+  /** Snapshot hash used for stale-detection comparison */
+  payloadHash?: string | null
 }
 
 // ─── Binding Input ──────────────────────────────────────────────────────────────

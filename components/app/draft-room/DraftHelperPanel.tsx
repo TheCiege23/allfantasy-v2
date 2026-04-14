@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import { Sparkles, RefreshCw, MessageCircle, AlertTriangle } from 'lucide-react'
+import { DraftLiveBrainPremiumBlock } from '@/components/app/draft-room/DraftLiveBrainPremiumBlock'
 import { getDraftAIChatUrl, buildAskChimmyAboutPickPrompt } from '@/lib/draft-room/DraftToAIContextBridge'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { DRAFT_WAR_ROOM_LEGACY_URL } from '@/lib/draft-room'
 import { useAIAssistantAvailability } from '@/hooks/useAIAssistantAvailability'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
+import type { LiveDraftBrainEnvelope } from '@/lib/live-draft-brain/schemas'
+import type { LiveDraftBrainInput } from '@/lib/live-draft-brain'
+import { WarRoomPanel } from '@/components/war-room/WarRoomPanel'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -43,6 +47,11 @@ export type DraftHelperPanelProps = {
   onAiExplanationToggle?: (enabled: boolean) => void
   onRefresh: () => void
   onPlayerClick?: (player: { name: string; position: string; team?: string | null }) => void
+  /** Deterministic Live Draft Brain (multi-pick score, next-pick hints, ADP blend) */
+  liveBrain?: LiveDraftBrainEnvelope | null
+  /** Live War Room brain payload when it is your pick (from `buildLiveDraftBrainPayload`). */
+  warRoomBrainInput?: LiveDraftBrainInput | null
+  draftSessionId?: string | null
 }
 
 export function DraftHelperPanel({
@@ -73,6 +82,9 @@ export function DraftHelperPanel({
   onAiExplanationToggle,
   onRefresh,
   onPlayerClick,
+  liveBrain,
+  warRoomBrainInput = null,
+  draftSessionId = null,
 }: DraftHelperPanelProps) {
   const [warRoomOpen, setWarRoomOpen] = useState(false)
   const { t } = useLanguage()
@@ -147,6 +159,11 @@ export function DraftHelperPanel({
         />
       </div>
       <div className="flex-1 overflow-auto p-2">
+        {liveBrain && (
+          <div className="mb-3">
+            <DraftLiveBrainPremiumBlock liveBrain={liveBrain} onPlayerClick={onPlayerClick} />
+          </div>
+        )}
         {error && (
           <p className="mb-2 text-xs text-amber-400">{error}</p>
         )}
@@ -299,16 +316,22 @@ export function DraftHelperPanel({
               >
                 {warRoomOpen ? t('draftRoom.helper.warRoom.close') : t('draftRoom.helper.warRoom.open')}
               </button>
-              {warRoomOpen && (
-                <div className="mt-2 rounded-lg border border-violet-400/30 bg-violet-500/8 px-2.5 py-2 text-[10px]" data-testid="draft-war-room-panel">
-                  <p className="font-medium text-violet-100">{t('draftRoom.warRoom.leagueDraft.title')}</p>
-                  <p className="mt-1 text-violet-200/90">{t('draftRoom.warRoom.leagueDraft.description')}</p>
+              {warRoomOpen && leagueId && (
+                <div className="mt-2 space-y-2" data-testid="draft-war-room-panel">
+                  <WarRoomPanel
+                    leagueId={leagueId}
+                    sport={sport}
+                    draftSessionId={draftSessionId}
+                    useDemoBoard={!warRoomBrainInput}
+                    brainInput={warRoomBrainInput ?? undefined}
+                    includeNarrative
+                  />
                   <a
                     href={DRAFT_WAR_ROOM_LEGACY_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     data-testid="draft-war-room-link"
-                    className="mt-2 inline-flex rounded border border-violet-300/35 px-2 py-1 text-violet-100 hover:bg-violet-500/20"
+                    className="inline-flex rounded border border-violet-300/35 bg-violet-500/8 px-2 py-1 text-[10px] text-violet-100 hover:bg-violet-500/20"
                   >
                     {t('draftRoom.helper.warRoom.launch')}
                   </a>

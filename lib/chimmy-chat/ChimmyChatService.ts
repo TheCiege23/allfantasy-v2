@@ -1,4 +1,9 @@
-import type { AIChatContext, ChimmyMessageMeta, ChimmyThreadMessage } from "./types"
+import type {
+  AIChatContext,
+  ChimmyMessageMeta,
+  ChimmyResponseSectionTitles,
+  ChimmyThreadMessage,
+} from "./types"
 import {
   CHIMMY_DEFAULT_UPGRADE_PATH,
   CHIMMY_GENERIC_ERROR_MESSAGE,
@@ -64,6 +69,29 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
     ? responseStructureRaw.caveats.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : []
 
+  const titlesRaw =
+    responseStructureRaw?.sectionTitles && typeof responseStructureRaw.sectionTitles === "object" && !Array.isArray(responseStructureRaw.sectionTitles)
+      ? (responseStructureRaw.sectionTitles as Record<string, unknown>)
+      : null
+  const pickTitle = (key: string): string | undefined => {
+    const v = titlesRaw?.[key]
+    return typeof v === "string" && v.trim().length > 0 ? v.trim() : undefined
+  }
+  const sectionTitlesCandidate: ChimmyResponseSectionTitles | undefined = titlesRaw
+    ? {
+        shortAnswer: pickTitle("shortAnswer"),
+        whatDataSays: pickTitle("whatDataSays"),
+        whatItMeans: pickTitle("whatItMeans"),
+        recommendedAction: pickTitle("recommendedAction"),
+        caveats: pickTitle("caveats"),
+      }
+    : undefined
+  const sectionTitles =
+    sectionTitlesCandidate &&
+    Object.values(sectionTitlesCandidate).some((v) => typeof v === "string" && v.length > 0)
+      ? sectionTitlesCandidate
+      : undefined
+
   return {
     confidencePct: typeof meta.confidencePct === "number" ? meta.confidencePct : undefined,
     providerStatus:
@@ -71,6 +99,10 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
         ? (meta.providerStatus as Record<string, string>)
         : undefined,
     recommendedTool: typeof meta.recommendedTool === "string" ? meta.recommendedTool : undefined,
+    orchestration:
+      meta.orchestration && typeof meta.orchestration === "object" && !Array.isArray(meta.orchestration)
+        ? (meta.orchestration as ChimmyMessageMeta["orchestration"])
+        : undefined,
     dataSources: Array.isArray(meta.dataSources) ? meta.dataSources.filter((x): x is string => typeof x === "string") : undefined,
     quantData: meta.quantData && typeof meta.quantData === "object" ? (meta.quantData as Record<string, unknown>) : undefined,
     trendData: meta.trendData && typeof meta.trendData === "object" ? (meta.trendData as Record<string, unknown>) : undefined,
@@ -87,6 +119,7 @@ function toMeta(rawMeta: unknown): ChimmyMessageMeta | undefined {
                 ? responseStructureRaw.recommendedAction
                 : undefined,
             caveats,
+            ...(sectionTitles ? { sectionTitles } : {}),
           }
         : undefined,
     variant:

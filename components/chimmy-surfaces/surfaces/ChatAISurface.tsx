@@ -6,6 +6,8 @@ import ChimmySurfaceShell from '../ChimmySurfaceShell'
 import ChimmyInsightCard from '../ChimmyInsightCard'
 import ChimmyLauncherButton from '../ChimmyLauncherButton'
 import ChimmySurfaceActionFeed from '../ChimmySurfaceActionFeed'
+import ChimmyPersonalizationHints from '../ChimmyPersonalizationHints'
+import ChimmyMemoryAwareCues from '../ChimmyMemoryAwareCues'
 import type { ChimmyFeedRecommendation, AIActionContext } from '@/lib/chimmy-actions'
 import { buildActionContext } from '@/lib/chimmy-actions'
 
@@ -39,6 +41,9 @@ export default function ChatAISurface({
       {actionFeed && actionFeed.length > 0 && (
         <ChimmySurfaceActionFeed recommendations={actionFeed} context={resolvedActionContext} className="mb-4" />
       )}
+
+      <ChimmyPersonalizationHints className="mb-3" />
+
       {contextInsights.length > 0 && (
         <div className="space-y-2 mb-3">
           {contextInsights.map((ins) => (
@@ -46,6 +51,9 @@ export default function ChatAISurface({
           ))}
         </div>
       )}
+
+      <ChimmyMemoryAwareCues className="mb-3" />
+
       {onOpenChat && (
         <div className="flex justify-end">
           <ChimmyLauncherButton label="Ask Chimmy" onClick={onOpenChat} />

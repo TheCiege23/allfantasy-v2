@@ -2590,6 +2590,11 @@ model AppUser {
   webPushSubscriptions           WebPushSubscription[]
   zombieUniversesCommissioned    ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
   zombieUniversesCreated         ZombieUniverse[]           @relation("ZombieUniverseCreator")
+  lineupPreferenceTraits         UserLineupPreferenceTrait[]
+  lineupPreferenceEvents         UserLineupPreferenceEvent[]
+  warRoomSnapshots               WarRoomSnapshot[]
+  playerOutlooks                 PlayerOutlook[]
+  aiRecommendationLogs           AiRecommendationLog[]
 
   @@map("app_users")
 }
@@ -3778,6 +3783,16 @@ model UserProfile {
   discordRefreshToken       String?
   discordConnectedAt        DateTime?
   discordGuildId            String?
+  /// Draft / war-room: risk and build prefs (AF War Room AI).
+  riskProfile               String?             @db.VarChar(32)
+  draftStyle                String?             @db.VarChar(32)
+  dynastyWindow             String?             @db.VarChar(32)
+  preferredBuild            String?             @db.VarChar(64)
+  preferredPositionsJson    Json?
+  fadePositionsJson         Json?
+  aiStrategyModeDefault     String?             @db.VarChar(32)
+  aiExplanationStyle        String?             @db.VarChar(32)
+  aiVoicePreference         String?             @db.VarChar(64)
   /// AF Commissioner subscription — unlocks premium league AI / playoff options.
   afCommissionerSub         Boolean             @default(false)
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
@@ -3794,6 +3809,39 @@ model UserProfile {
   @@index([sleeperUsername])
   @@index([phone])
   @@map("user_profiles")
+}
+
+/// Learned lineup optimizer preferences (tie-breakers; reinforced from accepts/rejects/promotions).
+model UserLineupPreferenceTrait {
+  id               String    @id @default(cuid())
+  userId           String
+  traitId          String    @db.VarChar(64)
+  confidence       Float     @default(0)
+  sampleSize       Int       @default(0)
+  lastReinforcedAt DateTime?
+  examples         Json      @default("[]")
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, traitId])
+  @@index([userId])
+  @@map("user_lineup_preference_traits")
+}
+
+/// Append-only learning events for lineup preference reinforcement and audit.
+model UserLineupPreferenceEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      String   @db.VarChar(48)
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now())
+  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([kind])
+  @@map("user_lineup_preference_events")
 }
 
 /// Discord server linked by a commissioner (Tier 2 prep).
@@ -4072,6 +4120,10 @@ model League {
   discordLeagueChannels           DiscordLeagueChannel[]
   draftRecaps                     DraftRecap[]
   draftSessions                   DraftSession?
+  warRoomSnapshots                WarRoomSnapshot[]
+  playerOutlooks                  PlayerOutlook[]
+  managerTendencies               ManagerTendency[]
+  aiRecommendationLogs            AiRecommendationLog[]
   dynastyConfig                   DynastyLeagueConfig?
   findLeagueListings              FindLeagueListing[]
   guillotineAiInsights            GuillotineAIInsight[]
@@ -4304,6 +4356,18 @@ model LeagueSettings {
   aiStackSuggestions   Boolean   @default(false)
   aiRiskUpsideNotes    Boolean   @default(true)
   aiScope              String    @default("everyone")
+  /// AF War Room AI — commissioner / league-scoped toggles and defaults.
+  aiWarRoomEnabled           Boolean @default(false)
+  aiPlayerOutlookEnabled     Boolean @default(true)
+  aiPlayerCompareEnabled     Boolean @default(true)
+  aiContingencyEnabled       Boolean @default(true)
+  aiManagerTendencyEnabled   Boolean @default(true)
+  aiPostDraftReportEnabled   Boolean @default(true)
+  aiDefaultStrategyMode      String? @db.VarChar(32)
+  aiAggressiveness           String? @db.VarChar(16)
+  aiRookieBias               Float?  @default(0)
+  aiStackPreference          String? @db.VarChar(32)
+  aiRiskTolerance            String? @db.VarChar(16)
   randomizeHistory     Json?
   resetHistory         Json?
   updatedAt            DateTime  @updatedAt
@@ -8824,6 +8888,8 @@ model DraftSession {
   devyConfig             Json?
   /// C2C: { enabled: boolean, collegeRounds: number[] } (1-based rounds that are college-only; rest are pro-only)
   c2cConfig              Json?
+  /// Commissioner AI draft managers: assignments (max 4 orphan rosters), trade rules, optional throttle metadata.
+  commissionerAiManagers Json?
   /// Draft pick trades: JSON array of { round, originalRosterId, previousOwnerName, newRosterId, newOwnerName } for ownership resolution
   tradedPicks            Json?                    @default("[]")
   createdAt              DateTime                 @default(now())
@@ -8850,6 +8916,8 @@ model DraftSession {
   queueEntries           DraftQueueEntry[]
   queues                 DraftQueue[]
   draftRecaps            DraftRecap[]
+  warRoomSnapshots       WarRoomSnapshot[]
+  aiRecommendationLogs   AiRecommendationLog[]
   league                 League                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@index([leagueId])
@@ -8999,6 +9067,98 @@ model DraftImportBackup {
 
   @@index([leagueId])
   @@map("draft_import_backups")
+}
+
+/// AF War Room AI — persisted tier board / queue / ADP snapshot for replay and Chimmy context.
+model WarRoomSnapshot {
+  id             String         @id @default(cuid())
+  leagueId       String
+  userId         String
+  draftSessionId String?
+  sport          LeagueSport    @default(NFL)
+  season         Int?
+  snapshotKind   String         @default("in_draft") @db.VarChar(32)
+  payload        Json           @default("{}")
+  createdAt      DateTime       @default(now())
+  league         League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user           AppUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draftSession   DraftSession?  @relation(fields: [draftSessionId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, createdAt])
+  @@index([userId, createdAt])
+  @@index([draftSessionId])
+  @@map("war_room_snapshots")
+}
+
+/// AF War Room AI — cached AI player outlook blurb (deterministic + model refresh).
+model PlayerOutlook {
+  id           String      @id @default(cuid())
+  userId       String
+  leagueId     String?
+  sport        LeagueSport @default(NFL)
+  season       Int?
+  playerId     String
+  playerName   String
+  position     String?     @db.VarChar(16)
+  team         String?     @db.VarChar(16)
+  summary      String      @db.Text
+  confidence   Float?
+  detailJson   Json?
+  source       String      @default("ai") @db.VarChar(24)
+  validUntil   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         AppUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league       League?     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([userId, playerId, sport])
+  @@index([leagueId, season])
+  @@map("player_outlooks")
+}
+
+/// AF War Room AI — inferred draft behavior for an opponent roster in a league season.
+model ManagerTendency {
+  id              String      @id @default(cuid())
+  leagueId        String
+  season          Int
+  rosterId        String
+  sport           LeagueSport @default(NFL)
+  label           String?     @db.VarChar(128)
+  tendenciesJson  Json        @default("{}")
+  samplePicks     Int         @default(0)
+  lastComputedAt  DateTime    @default(now())
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  league          League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, rosterId, season])
+  @@index([leagueId, season])
+  @@map("manager_tendencies")
+}
+
+/// AF War Room AI — audit / telemetry for recommendations (Chimmy, waiver, trade hooks).
+model AiRecommendationLog {
+  id               String        @id @default(cuid())
+  userId           String
+  leagueId         String?
+  draftSessionId   String?
+  feature          String        @db.VarChar(64)
+  recommendationType String?     @db.VarChar(32)
+  inputJson        Json          @default("{}")
+  outputJson       Json          @default("{}")
+  providerSummary  String?       @db.Text
+  tokenEstimate    Int?
+  confidencePct    Float?
+  accepted         Boolean?
+  createdAt        DateTime      @default(now())
+  user             AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league           League?       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  draftSession     DraftSession? @relation(fields: [draftSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([leagueId, feature])
+  @@index([feature, createdAt])
+  @@map("ai_recommendation_logs")
 }
 
 model RankingsBacktestResult {

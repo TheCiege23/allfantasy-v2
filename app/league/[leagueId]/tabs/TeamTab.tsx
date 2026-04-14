@@ -24,6 +24,7 @@ import { placeholderBaselineProjection } from '@/components/weather/placeholderB
 import type { ExpandedStarterSlot } from '@/lib/league/lineup-expand-template'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { TeamLineupSwapModal } from '@/components/league/TeamLineupSwapModal'
+import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
 import {
   applyLineupPick,
   buildPlayerRow,
@@ -898,6 +899,20 @@ export function TeamTab({
             />
           )}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/15 bg-[#0a1228]/50 p-4 backdrop-blur-sm">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/45">Start A vs B</p>
+        <p className="mb-3 text-xs text-white/45">
+          Compare two players with deterministic projections first; AI explains the math (Pro). Supports all league sports.
+        </p>
+        <StartVsComparisonLauncher
+          leagueId={league.id}
+          teamId={dbRosterMeta?.rosterId ?? userTeam?.id ?? null}
+          sport={resolvedSport}
+          weekOrPeriod={`Week ${week}`}
+          showNameInputs
+        />
       </div>
 
       {localAutoCoachGate && !gateOptional ? (

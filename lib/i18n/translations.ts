@@ -1013,7 +1013,7 @@ export const translations: Record<string, Record<string, string>> = {
     "draftRoom.shell.mobile.players": "Players",
     "draftRoom.shell.mobile.queue": "Queue",
     "draftRoom.shell.mobile.ai": "AI",
-    "draftRoom.shell.mobile.roster": "Roster",
+    "draftRoom.shell.mobile.roster": "My team",
     "draftRoom.shell.mobile.keepers": "Keepers",
     "draftRoom.shell.mobile.chat": "Chat",
     "draftRoom.shell.aria.draftSections": "Draft sections",
@@ -1146,6 +1146,11 @@ export const translations: Record<string, Record<string, string>> = {
     "draftRoom.helper.confidence": "Confidence:",
     "draftRoom.helper.alternatives": "Alternatives",
     "draftRoom.helper.askChimmy": "Ask Chimmy about this pick",
+    "draftRoom.helper.liveBrainTitle": "Live Draft Brain",
+    "draftRoom.helper.liveBrainTop3": "Top scored picks",
+    "draftRoom.helper.liveBrainNextPicks": "Next picks (probable)",
+    "draftRoom.helper.liveBrainBoard": "Board signals",
+    "draftRoom.helper.liveBrainPickScore": "Score",
 
     "league.memberMenu.editTeam": "Edit Team",
     "league.memberMenu.editTeam.sub": "Customize your team",
@@ -1181,6 +1186,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.right.brandSubtitle": "AllFantasy",
 
     "theme.selectorTitle": "Theme",
+    "theme.current": "Current theme: {{label}}",
     "theme.ariaSwitch": "Switch to {{label}} theme",
     "theme.light": "Light",
     "theme.dark": "Dark",

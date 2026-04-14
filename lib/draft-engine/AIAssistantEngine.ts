@@ -89,24 +89,34 @@ export class AIAssistantEngine {
     gaps: Record<string, number>;
     strength: Record<string, number>;
   } {
-    // TODO: Implement based on league scoring format and position requirements
-    // For now, return placeholder analysis
-    return {
-      gaps: {
-        QB: 80,
-        RB: 70,
-        WR: 60,
-        TE: 50,
-        DEF: 40,
-      },
-      strength: {
-        QB: 20,
-        RB: 30,
-        WR: 40,
-        TE: 50,
-        DEF: 60,
-      },
-    };
+    // Count positions drafted by this team
+    const positionCounts: Record<string, number> = {};
+    const positionValues: Record<string, number> = {};
+    for (const pick of teamPicks) {
+      const pos = pick.playerPosition || 'UNKNOWN';
+      positionCounts[pos] = (positionCounts[pos] || 0) + 1;
+      // Find this player's value score in the pool
+      const poolPlayer = playerPool.find(p => p.playerId === pick.playerId);
+      positionValues[pos] = (positionValues[pos] || 0) + (poolPlayer?.valueScore || 50);
+    }
+
+    // Standard requirements (adjust per league format in the future)
+    const requirements: Record<string, number> = { QB: 1, RB: 2, WR: 2, TE: 1, K: 1, DEF: 1 };
+
+    const gaps: Record<string, number> = {};
+    const strength: Record<string, number> = {};
+
+    for (const pos of Object.keys(requirements)) {
+      const have = positionCounts[pos] || 0;
+      const needed = requirements[pos] || 1;
+      const gap = Math.max(0, needed - have);
+      // Gap score: 0-100 where 100 = critical need
+      gaps[pos] = Math.min(100, Math.round((gap / needed) * 100));
+      // Strength: based on average value of drafted players at this position
+      strength[pos] = have > 0 ? Math.min(100, Math.round(positionValues[pos] / have)) : 0;
+    }
+
+    return { gaps, strength };
   }
 
   /**

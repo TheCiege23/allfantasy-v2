@@ -53,13 +53,25 @@ import {
   TokenSpendRuleNotFoundError,
   type TokenSpendPreview,
 } from '@/lib/tokens/TokenSpendService'
+import {
+  buildChimmyPromptPersonalizationDirectives,
+  resolveChimmyPersonalizationProfile,
+} from '@/lib/chimmy-personalization'
+import { recordChimmyQualityEvent } from '@/lib/chimmy-quality/ChimmyQualityAnalytics'
+import { getAiMemory } from '@/lib/ai-memory/ai-memory-store'
+import {
+  appendOrchestrationFooterIfMissing,
+  buildOrchestrationMeta,
+  buildOrchestrationPromptSection,
+  buildMemorySummaryLine,
+  classifyChimmyIntent,
+  parseOrchestrationResponseSections,
+} from '@/lib/chimmy-orchestration'
 
 type ConversationTurn = {
   role: 'user' | 'assistant'
   content: string
 }
-
-type ToolKey = 'trade_analyzer' | 'trade_finder' | 'waiver_ai' | 'rankings' | 'mock_draft' | 'none'
 
 type ChimmyPECRExecutionOutput = {
   responseContract: AIToolResponseContract
@@ -76,7 +88,7 @@ type ChimmyPECRExecutionOutput = {
   providerStatus: Record<string, string>
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>
-  recommendedTool: ToolKey
+  recommendedTool: string
   toolLinks: string[]
   responseStructure: ReturnType<typeof buildResponseStructure>
   processingMs: number
@@ -92,13 +104,39 @@ type ChimmyPECRPlanContext = {
 
 const PECR_VALID_TOOL_ROUTES = new Set([
   '/trade-analyzer',
+  '/trade-evaluator',
   '/waiver-wire',
+  '/waiver-ai',
   '/draft-helper',
   '/rankings',
   '/mock-draft',
   '/fantasy-coach',
   '/player-comparison',
+  '/tools/player-decision',
+  '/matchup-simulator',
+  '/social-clips',
+  '/ai/tools',
 ])
+
+function isAllowedChimmyToolLink(link: string): boolean {
+  if (PECR_VALID_TOOL_ROUTES.has(link.split('?')[0] ?? link)) return true
+  const path = link.split('?')[0] ?? ''
+  const prefixes = [
+    '/app/league/',
+    '/tools/',
+    '/trade-evaluator',
+    '/waiver-ai',
+    '/rankings',
+    '/mock-draft',
+    '/matchup-simulator',
+    '/social-clips',
+    '/player-compare',
+    '/chimmy/',
+    '/ai/',
+    '/app/matchup-simulation',
+  ]
+  return prefixes.some((p) => path.startsWith(p))
+}
 
 class ChimmyPECRExecutionError extends Error {
   status: number
@@ -412,15 +450,6 @@ function compactRecord<T extends Record<string, unknown>>(record: T): Record<str
   return Object.fromEntries(entries)
 }
 
-function inferRecommendedTool(answer: string, actionPlan?: string | null): ToolKey {
-  const text = `${answer}\n${actionPlan ?? ''}`.toLowerCase()
-  if (/trade|offer|accept|decline/.test(text)) return 'trade_analyzer'
-  if (/waiver|faab|pickup|free agent/.test(text)) return 'waiver_ai'
-  if (/rank|tiers|ranking/.test(text)) return 'rankings'
-  if (/mock draft|draft sim/.test(text)) return 'mock_draft'
-  return 'none'
-}
-
 function classifyPecrIntent(message: string): string {
   if (/trade|swap|offer|deal|give|receiv/i.test(message)) return 'trade'
   if (/waiver|wire|pickup|drop|add|free.?agent/i.test(message)) return 'waiver'
@@ -459,21 +488,6 @@ function buildLeagueGroundingErrorPayload() {
   return {
     error:
       'League context is required for trade, waiver, and team-specific planning requests. Open Chimmy from a league context or include leagueId.',
-  }
-}
-
-function resolveRecommendedToolLinks(recommendedTool: ToolKey): string[] {
-  switch (recommendedTool) {
-    case 'trade_analyzer':
-      return ['/trade-analyzer']
-    case 'waiver_ai':
-      return ['/waiver-wire']
-    case 'rankings':
-      return ['/rankings']
-    case 'mock_draft':
-      return ['/mock-draft']
-    default:
-      return []
   }
 }
 
@@ -522,7 +536,39 @@ function buildResponseStructure(
   whatItMeans?: string
   recommendedAction?: string
   caveats?: string[]
+  sectionTitles?: {
+    shortAnswer: string
+    whatDataSays: string
+    whatItMeans: string
+    recommendedAction: string
+    caveats: string
+  }
 } {
+  const parsed = parseOrchestrationResponseSections(answer)
+  if (parsed) {
+    const caveats: string[] = []
+    if (parsed.confidence?.trim()) {
+      caveats.push(parsed.confidence.trim())
+    }
+    if (uncertainty?.trim()) {
+      caveats.push(uncertainty.trim())
+    }
+    return {
+      shortAnswer: parsed.direct.trim() || extractFirstSentence(answer) || 'Chimmy response available.',
+      whatDataSays: parsed.tool?.trim() || undefined,
+      whatItMeans: parsed.why?.trim() || undefined,
+      recommendedAction: parsed.followUp?.trim() || actionPlan?.trim() || undefined,
+      caveats: caveats.length > 0 ? caveats : undefined,
+      sectionTitles: {
+        shortAnswer: 'Direct',
+        whatItMeans: 'Why',
+        whatDataSays: 'Tool',
+        caveats: 'Confidence',
+        recommendedAction: 'Follow-up',
+      },
+    }
+  }
+
   const shortAnswer = extractFirstSentence(answer) || 'Chimmy response available.'
   return {
     shortAnswer,
@@ -916,17 +962,66 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     insightTask,
     memoryTask,
   ])
+  const personalizationResult = await resolveChimmyPersonalizationProfile(userId).catch(() => null)
+  const personalizationDirectives = personalizationResult
+    ? buildChimmyPromptPersonalizationDirectives(personalizationResult)
+    : undefined
+  const effectiveDetailLevel =
+    detailLevel ??
+    (personalizationResult?.effective.explanationStyle === 'concise'
+      ? 'concise'
+      : personalizationResult?.effective.explanationStyle === 'balanced'
+      ? 'balanced'
+      : personalizationResult?.effective.explanationStyle)
+  const effectiveRiskMode = riskMode ?? personalizationResult?.effective.riskPreference
+  const effectiveTone =
+    tone ??
+    (personalizationResult?.effective.storyContentPreferences.includes('likes-humor')
+      ? 'engaging'
+      : 'professional')
+  const effectiveStrategyModeFinal = strategyMode ?? effectiveRiskMode ?? effectiveStrategyMode
+
   const screenshotSummary = screenshotResult.status === 'fulfilled' ? screenshotResult.value : undefined
   const insightSummary = insightResult.status === 'fulfilled' ? insightResult.value?.summary : undefined
   const insightSources = insightResult.status === 'fulfilled' ? insightResult.value?.sources ?? [] : []
   const memorySection = memoryResult.status === 'fulfilled' ? memoryResult.value : undefined
-  const combinedMemorySection = [memPrompt.contextBlock, memorySection].filter(Boolean).join('\n\n')
+
+  const recentUserSnippet = conversation
+    .filter((t) => t.role === 'user')
+    .slice(-2)
+    .map((t) => t.content)
+    .join('\n')
+  const chimmyOrchestrationClassification = classifyChimmyIntent(message, recentUserSnippet)
+  let coachingProfileForOrchestration: Record<string, unknown> | null = null
+  if (userId) {
+    coachingProfileForOrchestration = (await getAiMemory(userId, 'user_preferences', {
+      leagueId: leagueId ?? null,
+      key: 'coaching_profile',
+    })) as Record<string, unknown> | null
+  }
+  const chimmyMemorySummaryLine = buildMemorySummaryLine(coachingProfileForOrchestration)
+  const chimmyOrchestrationPrompt = buildOrchestrationPromptSection({
+    classification: chimmyOrchestrationClassification,
+    ctx: { leagueId: leagueId ?? null, sport: sport ?? undefined, week: week ?? undefined },
+    memorySummary: chimmyMemorySummaryLine,
+  })
+  const chimmyOrchestrationMeta = buildOrchestrationMeta({
+    classification: chimmyOrchestrationClassification,
+    ctx: { leagueId: leagueId ?? null, sport: sport ?? undefined, week: week ?? undefined },
+    memorySummary: chimmyMemorySummaryLine,
+  })
+
+  const combinedMemorySection = [memPrompt.contextBlock, memorySection, personalizationDirectives, chimmyOrchestrationPrompt]
+    .filter(Boolean)
+    .join('\n\n')
   const promptPrelude = [behaviorRulesBlock, memPrompt.systemBlock].filter(Boolean).join('\n\n')
 
   if (screenshotSummary) dataSources.push('screenshot_vision')
   if (insightSources.length > 0) dataSources.push(...insightSources)
   if (memorySection) dataSources.push('ai_memory', 'chat_history')
   if (memPrompt.contextBlock) dataSources.push('working_memory')
+  if (personalizationDirectives) dataSources.push('chimmy_personalization')
+  dataSources.push('chimmy_orchestration')
 
   const baseUserMessageBody = buildUserMessage({
     message,
@@ -936,10 +1031,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     memorySection: combinedMemorySection || undefined,
     leagueFormat,
     scoring,
-    strategyMode: effectiveStrategyMode,
-    tone,
-    detailLevel,
-    riskMode,
+    strategyMode: effectiveStrategyModeFinal,
+    tone: effectiveTone,
+    detailLevel: effectiveDetailLevel,
+    riskMode: effectiveRiskMode,
     privateMode,
     targetUsername,
   })
@@ -958,12 +1053,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       insightType,
       privateMode,
       targetUsername,
-      strategyMode: effectiveStrategyMode,
+      strategyMode: effectiveStrategyModeFinal,
       leagueFormat,
       scoring,
-      tone,
-      detailLevel,
-      riskMode,
+      tone: effectiveTone,
+      detailLevel: effectiveDetailLevel,
+      riskMode: effectiveRiskMode,
       source,
       conversationId,
       sessionId,
@@ -1012,9 +1107,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     targetUsername,
     leagueFormat,
     scoring,
-    tone,
-    detailLevel,
-    riskMode,
+    tone: effectiveTone,
+    detailLevel: effectiveDetailLevel,
+    riskMode: effectiveRiskMode,
   })
 
   const specialistAgent = inferAgentFromMessage(
@@ -1286,6 +1381,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               ? buildMemoryPromptSection(legacyMemory.value).trim()
               : ''
 
+          if (legacyMemory.status === 'fulfilled' && legacyMemorySection.length > 0) {
+            const memoryItemsUsedCount =
+              legacyMemory.value.recentEvents.length +
+              legacyMemory.value.teamSnapshots.length +
+              legacyMemory.value.patterns.length +
+              (legacyMemory.value.userProfile ? 1 : 0) +
+              (legacyMemory.value.leagueContext ? 1 : 0)
+
+            await recordChimmyQualityEvent({
+              userId: planInput.userId,
+              leagueId: planInput.leagueId ?? null,
+              eventType: 'memory_item_used_in_response',
+              meta: {
+                source: 'chat_chimmy_route',
+                memoryItemsUsedCount,
+              },
+            })
+          }
+
           return {
             intent,
             steps: ['classify intent', 'run current chimmy orchestration', 'validate answer'],
@@ -1347,11 +1461,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           const providerStatus = buildProviderStatusMap(responseContract)
           const quantData = extractQuantData(responseContract)
           const trendData = extractTrendData(responseContract)
-          const recommendedTool = inferRecommendedTool(
-            sanitizedAiExplanation,
-            sanitizedActionPlan
-          )
-          const toolLinks = resolveRecommendedToolLinks(recommendedTool)
+          const recommendedTool = chimmyOrchestrationMeta.recommendedToolId
+          const toolLinks = [
+            ...(chimmyOrchestrationMeta.primaryLaunch ? [chimmyOrchestrationMeta.primaryLaunch.href] : []),
+            ...chimmyOrchestrationMeta.secondaryLaunches.map((l) => l.href),
+          ]
           const responseStructure = buildResponseStructure(
             sanitizedAiExplanation,
             sanitizedActionPlan,
@@ -1392,7 +1506,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             failures.push('answer claims context is unavailable despite loaded enrichment')
           }
 
-          const invalidToolLinks = output.toolLinks.filter((link) => !PECR_VALID_TOOL_ROUTES.has(link))
+          const invalidToolLinks = output.toolLinks.filter((link) => !isAllowedChimmyToolLink(link))
           if (invalidToolLinks.length > 0) {
             failures.push(`invalid tool links: ${invalidToolLinks.join(', ')}`)
           }
@@ -1429,9 +1543,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     )
 
     const pecrOutput = pecrResult.output
-    const finalAnswer = [pecrOutput.sanitizedAiExplanation, pecrOutput.sanitizedActionPlan]
-      .filter(Boolean)
-      .join('\n\n')
+    const displayExplanation = appendOrchestrationFooterIfMissing(
+      pecrOutput.sanitizedAiExplanation || '',
+      chimmyOrchestrationMeta
+    )
+    const finalAnswer = [displayExplanation, pecrOutput.sanitizedActionPlan].filter(Boolean).join('\n\n')
     const builtInRuleCheck = checkBehaviorRules(finalAnswer, {
       input: message,
       featureName: 'chimmy',
@@ -1471,6 +1587,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       confidencePct: pecrOutput.responseContract.confidence ?? undefined,
       providerStatus: pecrOutput.providerStatus,
       recommendedTool: pecrOutput.recommendedTool,
+      orchestration: chimmyOrchestrationMeta,
       dataSources: dataSources.length ? dataSources : undefined,
       tokenSpend: spendLedger && tokenPreview
         ? {
@@ -1489,7 +1606,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (userId) {
-      const assistantResponse = pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
+      const assistantResponse = displayExplanation || CHIMMY_GENERIC_ERROR_MESSAGE
       recordAIResponse(sessionId, userId, assistantResponse, 0.6).catch(() => {})
       if (/start|sit|accept|decline|add|drop/i.test(assistantResponse)) {
         recordDecision(sessionId, userId, assistantResponse.slice(0, 200), 0.8).catch(() => {})
@@ -1511,6 +1628,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           meta: {
             recommendedTool: pecrOutput.recommendedTool,
             confidence: pecrOutput.responseContract.confidence ?? null,
+            orchestration: chimmyOrchestrationMeta,
           },
         }),
         rememberChimmyUserMessageMemory({
@@ -1532,7 +1650,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(
       {
-        response: pecrOutput.sanitizedAiExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
+        response: displayExplanation || CHIMMY_GENERIC_ERROR_MESSAGE,
         sessionId,
         meta,
       },

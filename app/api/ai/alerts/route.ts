@@ -6,6 +6,7 @@ import { resolveLeagueAccess } from '@/lib/league-access'
 import { getSettingsProfile } from '@/lib/user-settings'
 import { runUnifiedAlertEngine } from '@/lib/chimmy-alerts'
 import type { ChimmyAlertContext, ChimmyAlertSignalBundle, ChimmyAlertUserPreferences } from '@/lib/chimmy-alerts'
+import { mapAlertPreferenceToSensitivity, resolveChimmyPersonalizationProfile } from '@/lib/chimmy-personalization'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,11 +31,14 @@ async function buildContext(input: {
   signalBundle?: ChimmyAlertSignalBundle
   userPreferences?: ChimmyAlertUserPreferences
 }): Promise<ChimmyAlertContext | null> {
-  const profile = await getSettingsProfile(input.userId)
-  const subscriptionProfile = await prisma.userProfile.findUnique({
-    where: { userId: input.userId },
-    select: { afProSub: true, afCommissionerSub: true },
-  })
+  const [profile, subscriptionProfile, personalization] = await Promise.all([
+    getSettingsProfile(input.userId),
+    prisma.userProfile.findUnique({
+      where: { userId: input.userId },
+      select: { afProSub: true, afCommissionerSub: true },
+    }),
+    resolveChimmyPersonalizationProfile(input.userId).catch(() => null),
+  ])
 
   let sport = 'NFL'
   let leagueType = 'redraft'
@@ -104,6 +108,14 @@ async function buildContext(input: {
   }
 
   const prefsFromProfile = ((profile?.notificationPreferences as Record<string, unknown> | undefined)?.chimmyAlerts ?? {}) as Record<string, unknown>
+  const incomingPrefs = (input.userPreferences ?? {}) as Record<string, unknown>
+  const personalizedSensitivity = personalization
+    ? mapAlertPreferenceToSensitivity(personalization.effective.alertPreference)
+    : undefined
+  const resolvedSensitivity =
+    (incomingPrefs.sensitivity as ChimmyAlertUserPreferences['sensitivity'] | undefined) ??
+    personalizedSensitivity ??
+    ((prefsFromProfile.sensitivity as ChimmyAlertUserPreferences['sensitivity'] | undefined) ?? 'normal')
 
   return {
     userId: input.userId,
@@ -124,7 +136,7 @@ async function buildContext(input: {
     userPreferences: {
       mutedClasses: Array.isArray(prefsFromProfile.mutedClasses) ? (prefsFromProfile.mutedClasses as any) : undefined,
       mutedTypes: Array.isArray(prefsFromProfile.mutedTypes) ? (prefsFromProfile.mutedTypes as any) : undefined,
-      sensitivity: (prefsFromProfile.sensitivity as any) ?? 'normal',
+      sensitivity: resolvedSensitivity,
       ...(input.userPreferences ?? {}),
     },
     subscriptionState: {

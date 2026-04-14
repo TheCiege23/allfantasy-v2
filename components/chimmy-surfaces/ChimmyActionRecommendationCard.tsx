@@ -19,8 +19,6 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
-  Bookmark,
-  BookmarkCheck,
   X,
   ArrowRight,
   AlertTriangle,
@@ -30,6 +28,7 @@ import { ChimmyActionGroup } from '@/components/chimmy-actions'
 import ChimmyConfidenceBadge from './ChimmyConfidenceBadge'
 import ChimmyRiskBadge from './ChimmyRiskBadge'
 import type { ChimmyRiskLevel } from './ChimmyRiskBadge'
+import SaveRecommendationButton from './SaveRecommendationButton'
 
 export interface ChimmyActionRecommendationCardProps {
   rec: ChimmyFeedRecommendation
@@ -76,7 +75,6 @@ export default function ChimmyActionRecommendationCard({
 }: ChimmyActionRecommendationCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [dismissed, setDismissed] = useState(rec.isDismissed ?? false)
-  const [saved, setSaved] = useState(rec.isSaved ?? false)
 
   if (dismissed) return null
 
@@ -84,10 +82,49 @@ export default function ChimmyActionRecommendationCard({
   const borderAccent = riskLevel ? RISK_ACCENT[riskLevel] : 'border-l-indigo-500'
   const tagColor = rec.actionType ? (ACTION_TYPE_COLORS[rec.actionType] ?? 'bg-white/10 text-white/60') : null
 
-  function handleSave() {
-    setSaved((v) => !v)
-    onSave?.(rec)
-  }
+  const recommendationType =
+    rec.actionType?.toLowerCase().includes('waiver')
+      ? 'waiver'
+      : rec.actionType?.toLowerCase().includes('trade')
+      ? 'trade'
+      : rec.actionType?.toLowerCase().includes('lineup')
+      ? 'lineup'
+      : rec.actionType?.toLowerCase().includes('draft')
+      ? 'draft'
+      : rec.actionType?.toLowerCase().includes('matchup')
+      ? 'matchup_simulation'
+      : rec.actionType?.toLowerCase().includes('start') || rec.actionType?.toLowerCase().includes('sit')
+      ? 'start_sit'
+      : 'general'
+
+  const savePayload = {
+    leagueId: context.leagueId ?? null,
+    sport: context.sport,
+    leagueType: context.leagueType,
+    title: rec.headline,
+    summary: rec.reason,
+    recommendationType,
+    recommendationPayload: {
+      headline: rec.headline,
+      reason: rec.reason,
+      confidencePct: rec.confidencePct,
+      riskLevel: rec.riskLevel,
+      evidence: rec.evidence,
+      caveats: rec.caveats,
+      alternatives: rec.alternatives,
+      primaryAction: rec.primaryAction,
+      secondaryActions: rec.secondaryActions,
+      surface: context.leagueId ? context.leagueId : context.sport,
+    },
+    explanation: rec.detailedAnalysis ?? rec.reason,
+    confidence: typeof rec.confidencePct === 'number' ? rec.confidencePct / 100 : 0,
+    riskLevel: rec.riskLevel ?? null,
+    actions: [rec.primaryAction, ...(rec.secondaryActions ?? [])].filter(
+      (action): action is NonNullable<typeof action> => Boolean(action),
+    ),
+    sourceSurface: rec.primaryAction?.surface ?? 'chimmy_chat',
+    isCommissionerRec: context.role === 'commissioner' || context.role === 'admin',
+  } as const
 
   function handleDismiss() {
     setDismissed(true)
@@ -138,18 +175,14 @@ export default function ChimmyActionRecommendationCard({
 
         {/* Utility buttons */}
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <button
-            type="button"
-            onClick={handleSave}
-            className="rounded-md p-1.5 text-white/30 hover:text-white/70 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
-            aria-label={saved ? 'Remove from saved' : 'Save recommendation'}
-            title={saved ? 'Remove from saved' : 'Save for later'}
-          >
-            {saved
-              ? <BookmarkCheck className="h-4 w-4 text-indigo-400" aria-hidden="true" />
-              : <Bookmark className="h-4 w-4" aria-hidden="true" />
-            }
-          </button>
+          <SaveRecommendationButton
+            payload={savePayload}
+            variant="icon"
+            size="md"
+            onSaved={() => {
+              onSave?.(rec)
+            }}
+          />
           <button
             type="button"
             onClick={handleDismiss}

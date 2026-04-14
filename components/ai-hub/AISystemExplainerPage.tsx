@@ -4,6 +4,7 @@ import Link from 'next/link'
 import HomeTopNav from '@/components/navigation/HomeTopNav'
 import {
   ArrowRight,
+  BookmarkCheck,
   Bot,
   BrainCircuit,
   Cpu,
@@ -97,15 +98,25 @@ export default function AISystemExplainerPage() {
             legacy history, and analytics surfaces.
           </p>
           <div className="mt-6">
-            <Link
-              href="/ai/tools"
-              data-testid="ai-system-try-tools-final-button"
-              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
-            >
-              <Sparkles className="h-5 w-5 shrink-0" />
-              Try AI Tools
-              <ArrowRight className="h-4 w-4 shrink-0" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/ai/tools"
+                data-testid="ai-system-try-tools-final-button"
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
+              >
+                <Sparkles className="h-5 w-5 shrink-0" />
+                Try AI Tools
+                <ArrowRight className="h-4 w-4 shrink-0" />
+              </Link>
+              <Link
+                href="/ai/saved"
+                data-testid="ai-system-open-saved-button"
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+              >
+                <BookmarkCheck className="h-5 w-5 shrink-0" />
+                Open Saved Recommendations
+              </Link>
+            </div>
           </div>
 
           <section className="mt-10">
@@ -229,15 +240,25 @@ export default function AISystemExplainerPage() {
             <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
               Open the Unified AI Workbench to run tools, compare providers, and inspect confidence-aware outputs.
             </p>
-            <Link
-              href="/ai/tools"
-              data-testid="ai-system-try-tools-button"
-              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
-            >
-              <Sparkles className="h-5 w-5 shrink-0" />
-              Try AI Tools
-              <ArrowRight className="h-4 w-4 shrink-0" />
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/ai/tools"
+                data-testid="ai-system-try-tools-button"
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 transition-colors"
+              >
+                <Sparkles className="h-5 w-5 shrink-0" />
+                Try AI Tools
+                <ArrowRight className="h-4 w-4 shrink-0" />
+              </Link>
+              <Link
+                href="/ai/saved"
+                data-testid="ai-system-saved-recommendations-button"
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+              >
+                <BookmarkCheck className="h-5 w-5 shrink-0" />
+                Saved Recommendations
+              </Link>
+            </div>
           </section>
         </div>
       </article>

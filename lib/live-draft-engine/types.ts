@@ -57,6 +57,24 @@ export interface DraftSessionSnapshot {
   orphanAiProviderAvailable?: boolean
   /** Effective orphan drafter mode after provider fallback ('cpu' when AI unavailable). */
   orphanDrafterEffectiveMode?: 'cpu' | 'ai'
+  /** Commissioner-assigned AI teams + trade rules (when configured on draft session). */
+  commissionerAiDraft?: {
+    assignedAiTeams: Array<{
+      teamId: string
+      teamName: string
+      aiStyle: string
+      tradeAggression: string
+      active: boolean
+    }>
+    tradeRules: {
+      allowOutbound: boolean
+      allowInbound: boolean
+      blockAiToAi: boolean
+      proposalCooldownSeconds: number
+      maxProposalsPerRound: number
+      acceptConfidenceMin: number
+    }
+  }
 }
 
 export interface C2CSessionSnapshot {

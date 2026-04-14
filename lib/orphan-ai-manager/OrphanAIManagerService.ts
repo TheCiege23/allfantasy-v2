@@ -15,6 +15,8 @@ import { computeAIDrafterPick, isAIDrafterProviderAvailable } from '@/lib/automa
 import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import { buildDraftTradeAiReview, type DraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
 import type { LeagueSport } from '@prisma/client'
+import { getAssignmentForRoster, parseCommissionerAiManagers } from '@/lib/commissioner-ai-draft-manager'
+import { mapAiStyleToCpuMode } from '@/lib/commissioner-ai-draft-manager/mapAiStyle'
 
 export type AiManagerAuditAction = 'draft_pick' | 'trade_accept' | 'trade_reject' | 'trade_counter' | 'trade_send'
 
@@ -259,6 +261,15 @@ export async function executeDraftPickForOrphan(
   const shouldAttemptAIMode = requestedMode === 'ai' && aiProviderAvailable
   const strategyProfile = resolveStrategyProfile(currentRosterId, String(sport))
   const queuePreview = buildDeterministicQueuePreview(available, strategyProfile)
+
+  const dsAi = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { commissionerAiManagers: true },
+  })
+  const commissionerBlob = parseCommissionerAiManagers((dsAi as { commissionerAiManagers?: unknown } | null)?.commissionerAiManagers)
+  const commissionerAssign = getAssignmentForRoster(commissionerBlob, currentRosterId)
+  const modeFromCommissioner = commissionerAssign ? mapAiStyleToCpuMode(commissionerAssign.aiStyle) : null
+
   const cpuInput = {
     available,
     teamRoster,
@@ -269,7 +280,7 @@ export async function executeDraftPickForOrphan(
     sport: String(sport),
     isDynasty: league.isDynasty ?? false,
     isSF: isSuperflex,
-    mode: strategyProfile.defaultMode,
+    mode: modeFromCommissioner ?? strategyProfile.defaultMode,
     // Deterministic strategy queue gives each orphan AI manager a stable "brain."
     queueFirst: queuePreview,
   }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ChimmyAlert, ChimmyAlertSignalBundle } from '@/lib/chimmy-alerts'
+import { normalizeAlertPreferenceForClient } from '@/lib/chimmy-personalization'
+import { useChimmyPersonalization } from '@/lib/chimmy-personalization/useChimmyPersonalization'
 import ChimmyAlertBanner from './ChimmyAlertBanner'
 import ChimmyGroupedAlertCard from './ChimmyGroupedAlertCard'
 import ChimmyCommissionerAlertCard from './ChimmyCommissionerAlertCard'
@@ -17,6 +19,9 @@ export interface ChimmyUnifiedAlertFeedProps {
   leagueId?: string
   surface?: string
   signalBundle?: ChimmyAlertSignalBundle
+  userPreferences?: {
+    sensitivity?: 'low' | 'normal' | 'high'
+  }
   presentation?: 'feed' | 'inline_banner' | 'floating_nudge' | 'critical_drawer'
   className?: string
 }
@@ -25,18 +30,48 @@ export default function ChimmyUnifiedAlertFeed({
   leagueId,
   surface,
   signalBundle,
+  userPreferences,
   presentation = 'feed',
   className = '',
 }: ChimmyUnifiedAlertFeedProps) {
   const [alerts, setAlerts] = useState<ChimmyAlert[]>([])
   const [criticalOpen, setCriticalOpen] = useState(true)
+  const { profile } = useChimmyPersonalization()
+
+  const alertMode = useMemo<'minimal' | 'balanced' | 'aggressive'>(() => {
+    if (!profile) return 'balanced'
+    return normalizeAlertPreferenceForClient(profile.effective.alertPreference)
+  }, [profile])
+
+  const sensitivity = useMemo<'low' | 'normal' | 'high'>(() => {
+    if (alertMode === 'minimal') return 'low'
+    if (alertMode === 'aggressive') return 'high'
+    return 'normal'
+  }, [alertMode])
+
+  const trackPersonalizationEvent = useCallback(async (type: 'alert_clicked' | 'alert_dismissed', metadata?: Record<string, unknown>) => {
+    try {
+      await fetch('/api/user/chimmy-personalization/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, metadata }),
+      })
+    } catch {
+      // Non-blocking analytics event.
+    }
+  }, [])
 
   const fetchAlerts = useCallback(async () => {
     const response = await fetch('/api/ai/alerts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
-      body: JSON.stringify({ leagueId, surface, signalBundle }),
+      body: JSON.stringify({
+        leagueId,
+        surface,
+        signalBundle,
+        userPreferences: { sensitivity: userPreferences?.sensitivity ?? sensitivity },
+      }),
     })
 
     if (!response.ok) return
@@ -57,7 +92,7 @@ export default function ChimmyUnifiedAlertFeed({
         }),
       })
     }
-  }, [leagueId, signalBundle, surface])
+  }, [leagueId, sensitivity, signalBundle, surface, userPreferences?.sensitivity])
 
   useEffect(() => {
     void fetchAlerts()
@@ -77,16 +112,28 @@ export default function ChimmyUnifiedAlertFeed({
     })
   }, [alerts])
 
+  const visibleAlerts = useMemo(() => {
+    if (alertMode === 'aggressive') return sortedAlerts
+    if (alertMode === 'minimal') {
+      return sortedAlerts
+        .filter((alert) => alert.severity !== 'informational')
+        .slice(0, 3)
+    }
+    return sortedAlerts
+      .filter((alert) => alert.severity !== 'informational' || alert.urgencyScore >= 70)
+      .slice(0, 6)
+  }, [alertMode, sortedAlerts])
+
   const grouped = useMemo(() => {
     const map = new Map<string, ChimmyAlert[]>()
-    for (const alert of sortedAlerts) {
+    for (const alert of visibleAlerts) {
       const key = alert.class
       const list = map.get(key) ?? []
       list.push(alert)
       map.set(key, list)
     }
     return map
-  }, [sortedAlerts])
+  }, [visibleAlerts])
 
   const onSnooze = async (alert: ChimmyAlert) => {
     await fetch('/api/ai/alerts/lifecycle', {
@@ -103,6 +150,11 @@ export default function ChimmyUnifiedAlertFeed({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alertId: alert.alertId, dedupeKey: alert.dedupeKey, event: 'dismissed' }),
     })
+    void trackPersonalizationEvent('alert_dismissed', {
+      alertId: alert.alertId,
+      dedupeKey: alert.dedupeKey,
+      surface,
+    })
     setAlerts((prev) => prev.filter((a) => a.alertId !== alert.alertId))
   }
 
@@ -112,6 +164,11 @@ export default function ChimmyUnifiedAlertFeed({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ alertId: alert.alertId, dedupeKey: alert.dedupeKey, event: 'clicked' }),
     })
+    void trackPersonalizationEvent('alert_clicked', {
+      alertId: alert.alertId,
+      dedupeKey: alert.dedupeKey,
+      surface,
+    })
   }
 
   const onAcknowledgeCritical = async (alert: ChimmyAlert) => {
@@ -119,11 +176,11 @@ export default function ChimmyUnifiedAlertFeed({
     setCriticalOpen(false)
   }
 
-  const primaryInline = sortedAlerts[0]
-  const primaryNudge = sortedAlerts.find((a) => a.severity !== 'informational')
-  const criticalAlert = sortedAlerts.find((a) => a.severity === 'critical' || (a.severity === 'urgent' && a.urgencyScore >= 85))
+  const primaryInline = visibleAlerts[0]
+  const primaryNudge = visibleAlerts.find((a) => a.severity !== 'informational')
+  const criticalAlert = visibleAlerts.find((a) => a.severity === 'critical' || (a.severity === 'urgent' && a.urgencyScore >= 85))
 
-  if (sortedAlerts.length === 0) return null
+  if (visibleAlerts.length === 0) return null
 
   if (presentation === 'inline_banner' && primaryInline) {
     const action = primaryInline.actions[0]

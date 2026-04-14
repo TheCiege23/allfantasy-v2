@@ -1,16 +1,16 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useThemeMode } from "./ThemeProvider"
-import { getThemeDisplayName, getNextTheme } from "@/lib/theme"
+import { getNextTheme } from "@/lib/theme"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 export function ModeToggle(props: { className?: string }) {
   const { data: session } = useSession()
   const { mode, cycleMode } = useThemeMode()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
+  const { t } = useLanguage()
 
   const handleClick = useCallback(() => {
     const next = getNextTheme(mode)
@@ -24,8 +24,8 @@ export function ModeToggle(props: { className?: string }) {
     }
   }, [mode, cycleMode, session?.user])
 
-  const label = getThemeDisplayName(mode)
-  const title = `${label} Mode`
+  const label = t(`theme.${mode}`)
+  const title = interpolateTemplate(t("theme.current"), { label })
 
   return (
     <button
@@ -43,7 +43,7 @@ export function ModeToggle(props: { className?: string }) {
       aria-label={title}
       suppressHydrationWarning
     >
-      {mounted ? label : "\u00A0"}
+      {label}
     </button>
   )
 }

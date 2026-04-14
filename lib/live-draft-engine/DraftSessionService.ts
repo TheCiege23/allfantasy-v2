@@ -9,6 +9,7 @@ import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
 import { computeTimerState, computeTimerStateWithPauseWindow } from './DraftTimerService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { buildApiResponse, parseCommissionerAiManagers } from '@/lib/commissioner-ai-draft-manager'
 import { formatPickLabel } from './DraftOrderService'
 import { getManagerColorBySeed } from '@/lib/draft-room'
 import {
@@ -325,6 +326,11 @@ export async function buildSessionSnapshot(
     }
   }
 
+  const commissionerAiDraft = buildApiResponse(
+    parseCommissionerAiManagers((session as { commissionerAiManagers?: unknown }).commissionerAiManagers),
+    slotOrder
+  )
+
   return {
     id: session.id,
     leagueId: session.leagueId,
@@ -347,6 +353,7 @@ export async function buildSessionSnapshot(
     isSlowDraft,
     keeper,
     devy,
+    commissionerAiDraft,
     c2c,
   }
 }

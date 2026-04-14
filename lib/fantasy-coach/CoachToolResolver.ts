@@ -8,6 +8,7 @@ const TRADE_ANALYZER = '/trade-evaluator';
 const WAIVER_AI = '/waiver-ai';
 const RANKINGS = '/rankings';
 const PLAYER_PAGE = '/player-comparison';
+const PLAYER_DECISION_TOOL = '/tools/player-decision';
 
 function withQuery(basePath: string, params: CoachHrefParams = {}): string {
   const query = new URLSearchParams();
@@ -62,6 +63,14 @@ export function getPlayerPageHref(
 ): string {
   return withQuery(PLAYER_PAGE, {
     player: playerName,
+    ...params,
+  });
+}
+
+/** Start A vs B decision tool — deterministic-first comparison with scenario modes */
+export function getPlayerDecisionToolHref(params: CoachHrefParams = {}): string {
+  return withQuery(PLAYER_DECISION_TOOL, {
+    source: 'coach-mode',
     ...params,
   });
 }

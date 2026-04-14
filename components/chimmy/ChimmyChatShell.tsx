@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
-import { Send, Image as ImageIcon, Loader2, X, RefreshCw, Volume2 } from 'lucide-react'
+import Link from 'next/link'
+import { Send, Image as ImageIcon, Loader2, X, RefreshCw, Volume2, History, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { getDefaultChimmyChips, type ChimmyVoicePreset } from '@/lib/chimmy-interface'
 import {
@@ -12,12 +13,15 @@ import {
   sendChimmyMessage,
 } from '@/lib/chimmy-chat'
 import type { AIChatContext } from '@/lib/chimmy-chat'
+import { loadChimmyConversation } from '@/lib/chimmy-conversation-service'
 import ChimmyMessageBubble, { type ChimmyMessageMeta } from './ChimmyMessageBubble'
 import ChimmyConversationThread from './ChimmyConversationThread'
 import ChimmyQuickPrompts from './ChimmyQuickPrompts'
 import ChimmyToolContext from './ChimmyToolContext'
 import ChimmyProviderIndicator from './ChimmyProviderIndicator'
 import ChimmyVoiceReadyControls from './ChimmyVoiceReadyControls'
+import SaveConversationDialog from './SaveConversationDialog'
+import ConversationHistorySidebar from './ConversationHistorySidebar'
 import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 import {
   CHIMMY_DEFAULT_UPGRADE_PATH,
@@ -115,6 +119,8 @@ export interface ChimmyChatShellProps {
   toolContext?: ChimmyToolContextValue | null
   /** Optional: open provider comparison (e.g. modal or route) */
   onOpenCompare?: () => void
+  /** Deep link to Start A vs B decision tool (lineup / start-sit handoff) */
+  startSitDecisionHref?: string | null
   /** Voice profile preset (reserved for compatibility). */
   voicePreset?: ChimmyVoicePreset
   /** Enable speech input control (default true). */
@@ -150,6 +156,7 @@ export default function ChimmyChatShell({
   onClose,
   toolContext,
   onOpenCompare,
+  startSitDecisionHref = null,
   voicePreset: _voicePreset = 'calm',
   enableSpeechInput = true,
   className = '',
@@ -172,6 +179,11 @@ export default function ChimmyChatShell({
   const [inlineError, setInlineError] = useState<string | null>(null)
   const [retryLoading, setRetryLoading] = useState(false)
   const [elevenLabsVoiceId, setElevenLabsVoiceId] = useState(DEFAULT_VOICE_ID)
+  // Conversation persistence state
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [showHistorySidebar, setShowHistorySidebar] = useState(false)
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false)
 
   useLayoutEffect(() => {
     setElevenLabsVoiceId(readStoredChimmyVoiceId())
@@ -661,6 +673,30 @@ export default function ChimmyChatShell({
     reader.readAsDataURL(file)
   }
 
+  const handleSelectConversation = useCallback(async (conversationId: string) => {
+    setIsLoadingConversation(true)
+    try {
+      const loaded = await loadChimmyConversation(conversationId)
+      // Convert API format to ChimmyChatMessage format
+      const convertedMessages: ChimmyChatMessage[] = loaded.messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        meta: msg.meta as ChimmyMessageMeta | null,
+      }))
+      setMessages(ensureMessageIds(convertedMessages))
+      setCurrentConversationId(conversationId)
+      setInput('')
+      setInlineError(null)
+      toast.success(`Loaded: ${loaded.title}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to load conversation'
+      toast.error(msg)
+    } finally {
+      setIsLoadingConversation(false)
+    }
+  }, [])
+
   const handleCopyResponse = useCallback(() => {
     const last = [...messages].reverse().find((m) => m.role === 'assistant')
     const structure = last?.meta?.responseStructure
@@ -719,6 +755,31 @@ export default function ChimmyChatShell({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Save conversation button */}
+          <button
+            onClick={() => setShowSaveDialog(true)}
+            disabled={messages.length <= 1 || isTyping}
+            title="Save conversation"
+            className="rounded-lg border border-white/20 bg-white/5 p-2 text-white/70 hover:bg-white/10 hover:text-white/90 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+            aria-label="Save conversation"
+          >
+            <Save className="h-5 w-5" />
+          </button>
+
+          {/* Load conversation button */}
+          <button
+            onClick={() => setShowHistorySidebar(!showHistorySidebar)}
+            title="Load conversation from history"
+            className={`rounded-lg border ${
+              showHistorySidebar
+                ? 'border-cyan-500/30 bg-cyan-600/20 text-cyan-400'
+                : 'border-white/20 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white/90'
+            } p-2 min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors`}
+            aria-label="Load conversation from history"
+          >
+            <History className="h-5 w-5" />
+          </button>
+
           <ChimmyProviderIndicator
             lastMeta={lastMeta}
             onOpenCompare={onOpenCompare}
@@ -735,6 +796,9 @@ export default function ChimmyChatShell({
             speechInputUnavailable={speechInputUnavailable}
             isListening={isListening}
             transcriptRef={transcriptRef}
+            autoPlay={voiceConfig.autoPlay}
+            volume={voiceConfig.volume}
+            onVolumeChange={(v) => updateVoiceConfig({ volume: v })}
           />
         </div>
       </header>
@@ -791,7 +855,7 @@ export default function ChimmyChatShell({
         )}
         {imagePreview && (
           <div className="flex items-center gap-2 p-2 rounded-xl bg-white/5">
-            <img src={imagePreview} alt="Preview" className="w-14 h-14 object-cover rounded-lg" />
+            <img src={imagePreview} alt="Message preview" className="w-14 h-14 object-cover rounded-lg" />
             <button
               type="button"
               onClick={() => {
@@ -799,6 +863,7 @@ export default function ChimmyChatShell({
                 setImageFile(null)
               }}
               className="text-xs text-red-300 hover:text-red-200"
+              aria-label="Remove image"
             >
               Remove
             </button>
@@ -832,6 +897,7 @@ export default function ChimmyChatShell({
               onChange={handleImageUpload}
               data-testid="chimmy-image-upload-input"
               className="hidden"
+              aria-label="Upload image for Chimmy message"
             />
           </label>
 
@@ -866,6 +932,15 @@ export default function ChimmyChatShell({
 
         <div className="flex items-center justify-between text-[10px] text-white/40 flex-wrap gap-2">
           <div className="flex items-center gap-3">
+            {startSitDecisionHref ? (
+              <Link
+                href={startSitDecisionHref}
+                data-testid="chimmy-start-sit-tool-link"
+                className="text-cyan-300/90 hover:text-cyan-100 underline underline-offset-2"
+              >
+                Start A vs B tool
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={handleCopyResponse}
@@ -901,6 +976,23 @@ export default function ChimmyChatShell({
           )}
         </div>
       </div>
+
+      {/* Conversation persistence UI */}
+      <SaveConversationDialog
+        isOpen={showSaveDialog}
+        messageCount={messages.filter((m) => m.role === 'user').length}
+        onClose={() => setShowSaveDialog(false)}
+        onSaved={(conversationId) => {
+          setCurrentConversationId(conversationId)
+        }}
+      />
+
+      <ConversationHistorySidebar
+        isOpen={showHistorySidebar}
+        onClose={() => setShowHistorySidebar(false)}
+        onSelectConversation={handleSelectConversation}
+        currentConversationId={currentConversationId}
+      />
     </div>
   )
 }

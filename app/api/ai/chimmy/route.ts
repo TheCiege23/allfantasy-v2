@@ -19,6 +19,7 @@ import { getChimmyMemoryContext } from '@/lib/ai-memory/chimmy-memory-context'
 import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/chat-history-store'
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 import { recordUnifiedMemoryFromChatTurn } from '@/lib/ai-memory/unified-memory-system'
+import { recordChimmyQualityEvent } from '@/lib/chimmy-quality/ChimmyQualityAnalytics'
 
 function extractSportsContextMeta(envelope: AIContextEnvelope): {
   source?: string
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
       { status: 401 }
     )
   }
+  const userId = session.user.id
 
   let body: Record<string, unknown>
   try {
@@ -114,14 +116,14 @@ export async function POST(req: Request) {
     tool: (body.tool as string) || 'chimmy_chat',
     sport: (body.sport as string) || 'NFL',
     userMessage: (typeof body.userMessage === 'string' ? body.userMessage : typeof body.message === 'string' ? body.message : '') as string,
-    userId: session.user.id,
+    userId,
   }
   const leagueId =
     typeof (body as { leagueId?: unknown }).leagueId === 'string'
       ? ((body as { leagueId: string }).leagueId || null)
       : null
   const conversationId = buildChimmyConversationId({
-    userId: session.user.id,
+    userId,
     leagueId,
     explicitConversationId:
       typeof (body as { conversationId?: unknown }).conversationId === 'string'
@@ -150,12 +152,25 @@ export async function POST(req: Request) {
 
   const memorySection =
     contract.userMessage.trim().length > 0
-      ? await getChimmyMemoryContext({
-          userId: session.user.id,
+        ? await getChimmyMemoryContext({
+          userId,
           leagueId,
           conversationId,
         })
-          .then((ctx) => ctx.promptSection || '')
+          .then(async (ctx) => {
+            if ((ctx.memoryItemsUsedCount ?? 0) > 0 && (ctx.promptSection || '').trim().length > 0) {
+              await recordChimmyQualityEvent({
+                userId,
+                leagueId,
+                eventType: 'memory_item_used_in_response',
+                meta: {
+                  source: 'ai_chimmy_route',
+                  memoryItemsUsedCount: ctx.memoryItemsUsedCount,
+                },
+              })
+            }
+            return ctx.promptSection || ''
+          })
           .catch(() => '')
       : ''
 
@@ -167,7 +182,7 @@ export async function POST(req: Request) {
         : contract.userMessage,
   }
 
-  const unified = requestContractToUnified(enrichedContract, session.user.id)
+  const unified = requestContractToUnified(enrichedContract, userId)
   if (!unified.envelope.userMessage && !unified.envelope.deterministicPayload) {
     return NextResponse.json(
       {
@@ -201,33 +216,33 @@ export async function POST(req: Request) {
       conversationId,
       role: 'user',
       content: contract.userMessage,
-      userId: session.user.id,
+      userId,
       leagueId,
     }),
     appendChatHistory({
       conversationId,
       role: 'assistant',
       content: responseContract.aiExplanation,
-      userId: session.user.id,
+      userId,
       leagueId,
       meta: {
         confidence: responseContract.confidence ?? null,
       },
     }),
     rememberChimmyUserMessageMemory({
-      userId: session.user.id,
+      userId,
       leagueId,
       sport: contract.sport,
       message: contract.userMessage,
     }),
     rememberChimmyAssistantMemory({
-      userId: session.user.id,
+      userId,
       leagueId,
       answer: responseContract.aiExplanation,
       confidence: responseContract.confidence ?? null,
     }),
     recordUnifiedMemoryFromChatTurn({
-      userId: session.user.id,
+      userId,
       leagueId,
       sport: contract.sport,
       userMessage: contract.userMessage,

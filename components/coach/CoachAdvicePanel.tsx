@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Loader2, GraduationCap } from 'lucide-react';
+import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui';
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -65,11 +68,22 @@ type LineupOptimizerExplanation = {
   source: 'ai' | 'deterministic';
 };
 
+type LineupDecisionExplanation = {
+  summary: string;
+  bullets: string[];
+  source: 'ai' | 'deterministic';
+};
+
+/** Premium start/sit JSON from `POST /api/lineup/optimize` (validated server-side). */
+type LineupDecisionEnginePayload = Record<string, unknown>;
+
 type LineupOptimizationResponse = {
   ok: boolean;
   deterministic: boolean;
   result: LineupOptimizerResult;
   explanation: LineupOptimizerExplanation;
+  decisionEngine?: LineupDecisionEnginePayload | null;
+  decisionExplanation?: LineupDecisionExplanation | null;
 };
 
 export type CoachAdviceRequester = (input: {
@@ -222,6 +236,8 @@ export function CoachAdvicePanel({
   requestAdvice = requestCoachAdvice,
   requestLineupOptimization = requestLineupOptimizationDefault,
 }: CoachAdvicePanelProps) {
+  const compareUi = usePlayerComparisonUIOptional();
+  const compareSport = normalizeToSupportedSport(sport) ?? DEFAULT_SPORT;
   const [type, setType] = useState<CoachAdviceType>('lineup_optimization');
   const [advice, setAdvice] = useState<CoachAdviceResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -517,6 +533,39 @@ export function CoachAdvicePanel({
           >
             {optimizerUseAI ? 'AI explain on' : 'AI explain off'}
           </button>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              const payload = {
+                playerA: '',
+                playerB: '',
+                sport: compareSport,
+                leagueId: leagueId ?? null,
+                weekOrPeriod: week != null ? String(week) : null,
+                source: 'lineup' as const,
+              };
+              if (compareUi) {
+                compareUi.openComparison(payload);
+              } else if (typeof window !== 'undefined') {
+                const q = new URLSearchParams({ sport: compareSport });
+                if (leagueId) q.set('leagueId', leagueId);
+                window.location.href = `/player-compare?${q.toString()}`;
+              }
+            }}
+            className="gap-2 border-white/15 text-white/85"
+            data-testid="coach-open-player-compare"
+            data-audit="coach-open-player-compare"
+          >
+            Player compare
+          </Button>
+          <Link
+            href={`/player-compare?sport=${encodeURIComponent(compareSport)}${leagueId ? `&leagueId=${encodeURIComponent(leagueId)}` : ''}`}
+            className="text-xs text-cyan-300/85 underline hover:text-cyan-100"
+            data-testid="coach-player-compare-full-page"
+          >
+            Full page
+          </Link>
         </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
@@ -605,6 +654,33 @@ export function CoachAdvicePanel({
                 <li key={`${bullet}-${index}`}>{bullet}</li>
               ))}
             </ul>
+            {optimizerResult.decisionEngine &&
+            typeof optimizerResult.decisionEngine === 'object' &&
+            optimizerResult.decisionEngine != null &&
+            'lineupMode' in optimizerResult.decisionEngine ? (
+              <div className="mt-4 rounded-lg border border-cyan-400/20 bg-[#0a1228]/90 px-3 py-2">
+                <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-cyan-200/90">
+                  AI lineup decision engine
+                </p>
+                <p className="mt-1 text-xs text-white/80">
+                  Mode:{' '}
+                  <span className="text-white">
+                    {String((optimizerResult.decisionEngine as { lineupMode?: string }).lineupMode ?? '—')}
+                  </span>
+                </p>
+                {optimizerResult.decisionExplanation?.summary ? (
+                  <p className="mt-2 text-xs text-white/75">{optimizerResult.decisionExplanation.summary}</p>
+                ) : null}
+                {Array.isArray((optimizerResult.decisionEngine as { alerts?: string[] }).alerts) &&
+                ((optimizerResult.decisionEngine as { alerts: string[] }).alerts.length ?? 0) > 0 ? (
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-[11px] text-amber-100/85">
+                    {(optimizerResult.decisionEngine as { alerts: string[] }).alerts.slice(0, 3).map((a, i) => (
+                      <li key={`${a}-${i}`}>{a}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         )}
       </CardContent>

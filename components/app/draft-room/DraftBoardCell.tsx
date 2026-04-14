@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { ArrowRight, Gavel } from 'lucide-react'
 import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -19,17 +20,11 @@ export type DraftBoardCellPick = {
   injuryStatus?: string | null
   byeWeek: number | null
   displayName: string | null
-  /** Auction: winning bid amount */
   amount?: number | null
-  /** Keeper: locked keeper pick */
   isKeeper?: boolean
-  /** Devy/college drafted asset marker */
   isDevyPick?: boolean
-  /** C2C marker: drafted from college side */
   isCollegePick?: boolean
-  /** C2C marker: drafted from pro side */
   isProPick?: boolean
-  /** Promotion marker for devy rights promoted into pro player */
   isPromotedFromDevy?: boolean
   source?: string | null
   tradedPickMeta?: {
@@ -92,10 +87,12 @@ function TinyTeamLogo({
   }
   return (
     <span className="inline-flex h-[14px] w-[14px] items-center justify-center rounded bg-white/10 text-[8px] font-medium text-white/70">
-      {team ? team.slice(0, 2).toUpperCase() : '—'}
+      {team ? team.slice(0, 2).toUpperCase() : '-'}
     </span>
   )
 }
+
+export type PickHighlightTone = 'none' | 'user' | 'ai'
 
 export type DraftBoardCellProps = {
   pick: DraftBoardCellPick
@@ -103,10 +100,33 @@ export type DraftBoardCellProps = {
   isCurrentPick?: boolean
   tradedPickColorMode?: boolean
   showNewOwnerInRed?: boolean
-  /** When true and empty, show "Devy" slot marker */
   isDevyRound?: boolean
-  /** When true and empty, show "College" slot marker (C2C) */
   isCollegeRound?: boolean
+  pickHighlight?: PickHighlightTone
+}
+
+function highlightClass(tone: PickHighlightTone | undefined): string {
+  if (tone === 'user') return 'ring-1 ring-amber-400/45 border-amber-400/35 shadow-[0_0_12px_rgba(251,191,36,0.12)]'
+  if (tone === 'ai') return 'ring-1 ring-sky-400/40 border-sky-400/30 shadow-[0_0_14px_rgba(56,189,248,0.14)]'
+  return ''
+}
+
+function compactPickLabel(value: string): string {
+  return value.replace(/\.0(?=\d$)/, '.')
+}
+
+function StatusBadge({
+  label,
+  className,
+}: {
+  label: string
+  className: string
+}) {
+  return (
+    <span className={`inline-flex items-center rounded px-1 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] ${className}`}>
+      {label}
+    </span>
+  )
 }
 
 function DraftBoardCellInner({
@@ -117,12 +137,13 @@ function DraftBoardCellInner({
   showNewOwnerInRed = false,
   isDevyRound = false,
   isCollegeRound = false,
+  pickHighlight = 'none',
 }: DraftBoardCellProps) {
   const assets = React.useMemo(() => {
     const sport = normalizeToSupportedSport(pick.sport ?? DEFAULT_SPORT)
     const display = buildDraftPlayerDisplayModel({
       playerName: pick.playerName ?? '',
-      position: pick.position ?? '—',
+      position: pick.position ?? '-',
       team: pick.team ?? null,
       playerId: pick.playerId ?? null,
       byeWeek: pick.byeWeek ?? null,
@@ -134,21 +155,32 @@ function DraftBoardCellInner({
       teamLogoUrl: display.assets.teamLogoUrl ?? null,
     }
   }, [pick.playerName, pick.position, pick.team, pick.playerId, pick.byeWeek, pick.injuryStatus, pick.sport])
+
   const tint =
     tradedPickColorMode && pick.tradedPickMeta?.tintColor
-      ? { borderColor: `${pick.tradedPickMeta.tintColor}60`, backgroundColor: `${pick.tradedPickMeta.tintColor}15` }
+      ? {
+          borderColor: withAlpha(pick.tradedPickMeta.tintColor, 0.54),
+          backgroundColor: withAlpha(pick.tradedPickMeta.tintColor, 0.16),
+        }
       : undefined
   const managerTint =
     !tint && pick.managerTintColor
-      ? { borderColor: withAlpha(pick.managerTintColor, 0.32), backgroundColor: withAlpha(pick.managerTintColor, 0.08) }
+      ? {
+          borderColor: withAlpha(pick.managerTintColor, 0.32),
+          backgroundColor: withAlpha(pick.managerTintColor, 0.08),
+        }
       : undefined
+
+  const ownerLabel = pick.tradedPickMeta?.newOwnerName ?? pick.displayName ?? null
+  const showTradeChip = Boolean(isEmpty && ownerLabel && pick.tradedPickMeta?.newOwnerName)
+  const compactLabel = compactPickLabel(pick.pickLabel)
 
   return (
     <div
-      className={`flex min-h-[52px] flex-col rounded-lg border p-1.5 text-[10px] transition-colors hover:border-white/20 ${
+      className={`relative flex min-h-[60px] flex-col overflow-hidden rounded-md border px-2 pb-1.5 pt-1.5 text-[10px] transition-colors hover:border-white/20 ${
         isCurrentPick
           ? 'border-cyan-300/60 bg-cyan-500/12 ring-1 ring-cyan-300/35'
-          : 'border-white/10 bg-[#0a1228]'
+          : `border-white/10 bg-[#232c40] ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -156,76 +188,109 @@ function DraftBoardCellInner({
       data-slot={pick.slot}
       data-testid={`draft-board-cell-${pick.overall}`}
     >
-      <div className="flex items-center justify-between gap-1">
-        <span className="tabular-nums font-medium text-white/65">{pick.pickLabel}</span>
-        {pick.displayName && (
-          <span className="max-w-[60px] truncate text-white/45" title={pick.displayName}>
-            {pick.displayName}
-          </span>
-        )}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 0.78 : 0.38) }}
+        aria-hidden
+      />
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
+          {pick.isKeeper ? <StatusBadge label="K" className="bg-emerald-500/18 text-emerald-100" /> : null}
+          {pick.isDevyPick ? <StatusBadge label="D" className="bg-violet-500/18 text-violet-100" /> : null}
+          {pick.isCollegePick ? <StatusBadge label="C" className="bg-violet-500/18 text-violet-100" /> : null}
+          {pick.isProPick ? <StatusBadge label="P" className="bg-cyan-500/18 text-cyan-100" /> : null}
+          {pick.isPromotedFromDevy ? <StatusBadge label="Promoted" className="bg-amber-500/18 text-amber-100" /> : null}
+          {showTradeChip ? (
+            <span
+              className={`max-w-[70px] truncate rounded px-1 py-0.5 text-[8px] font-semibold ${
+                showNewOwnerInRed ? 'bg-red-500/16 text-red-100' : 'bg-white/16 text-white/86'
+              }`}
+              title={ownerLabel ?? undefined}
+            >
+              {ownerLabel}
+            </span>
+          ) : null}
+        </div>
+
+        <span className="tabular-nums text-[9px] font-semibold text-white/48">{compactLabel}</span>
       </div>
+
       {isEmpty ? (
-        <div className="flex flex-1 items-center justify-center text-white/25">
-          {isCollegeRound ? (
-            <span className="rounded bg-violet-500/20 px-1 text-[9px] font-medium text-violet-100">College</span>
-          ) : isDevyRound ? (
-            <span className="rounded bg-violet-500/20 px-1 text-[9px] font-medium text-violet-100">Devy</span>
-          ) : (
-            '—'
-          )}
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <div className="flex items-center gap-1 text-white/28">
+            <ArrowRight className="h-3 w-3" />
+            {isCollegeRound ? (
+              <StatusBadge label="College" className="bg-violet-500/18 text-violet-100" />
+            ) : isDevyRound ? (
+              <StatusBadge label="Devy" className="bg-violet-500/18 text-violet-100" />
+            ) : null}
+          </div>
+
+          {pick.tradedPickMeta?.previousOwnerName ? (
+            <span
+              className="max-w-[56px] truncate text-[8px] text-white/24"
+              title={`Originally ${pick.tradedPickMeta.previousOwnerName}`}
+            >
+              from {pick.tradedPickMeta.previousOwnerName}
+            </span>
+          ) : null}
         </div>
       ) : (
-        <div className="flex flex-1 flex-col justify-center">
-          {pick.isKeeper && (
-            <span className="mb-0.5 inline-block rounded bg-emerald-500/20 px-1 text-[9px] font-medium text-emerald-100">K</span>
-          )}
-          {pick.isDevyPick && (
-            <span className="mb-0.5 inline-block rounded bg-violet-500/20 px-1 text-[9px] font-medium text-violet-100">D</span>
-          )}
-          {pick.isCollegePick && (
-            <span className="mb-0.5 ml-1 inline-block rounded bg-violet-500/20 px-1 text-[9px] font-medium text-violet-100">C</span>
-          )}
-          {pick.isProPick && (
-            <span className="mb-0.5 ml-1 inline-block rounded bg-cyan-500/20 px-1 text-[9px] font-medium text-cyan-100">P</span>
-          )}
-          {pick.isPromotedFromDevy && (
-            <span className="mb-0.5 ml-1 inline-block rounded bg-amber-500/20 px-1 text-[9px] font-medium text-amber-100">Promoted</span>
-          )}
-          <div className="mb-0.5 flex items-center gap-1">
+        <div className="mt-1 flex flex-1 flex-col justify-between">
+          <div className="flex min-w-0 items-center gap-1.5">
             <TinyHeadshot name={pick.playerName} src={assets.headshotUrl} />
             <TinyTeamLogo team={pick.team} src={assets.teamLogoUrl} />
-          </div>
-          {pick.amount != null && pick.amount > 0 && (
-            <span className="text-amber-300/90 font-medium">${pick.amount}</span>
-          )}
-          {pick.playerName && (
-            <span className="truncate font-medium text-white" title={pick.playerName}>
+            <span className="truncate font-semibold text-white" title={pick.playerName ?? undefined}>
               {pick.playerName}
             </span>
-          )}
-          {(pick.position || pick.team) && (
-            <span className="text-white/50">
-              {[pick.position, pick.team].filter(Boolean).join(' · ')}
-            </span>
-          )}
-          {pick.tradedPickMeta?.previousOwnerName && (
-            <span className="truncate text-[9px] text-amber-200/85" title={`Originally ${pick.tradedPickMeta.previousOwnerName}`}>
+          </div>
+
+          <div className="mt-1 flex items-end justify-between gap-2">
+            <div className="min-w-0">
+              {(pick.position || pick.team) ? (
+                <p className="truncate text-[9px] text-white/56">
+                  {[pick.position, pick.team].filter(Boolean).join(' / ')}
+                </p>
+              ) : null}
+              {pick.byeWeek != null && pick.byeWeek > 0 ? (
+                <p className="text-[8px] text-white/34">Bye {pick.byeWeek}</p>
+              ) : null}
+            </div>
+
+            <div className="shrink-0 text-right">
+              {pick.amount != null && pick.amount > 0 ? (
+                <span className="inline-flex items-center gap-1 rounded bg-amber-500/16 px-1.5 py-0.5 text-[8px] font-semibold text-amber-100">
+                  <Gavel className="h-2.5 w-2.5" />
+                  ${pick.amount}
+                </span>
+              ) : ownerLabel ? (
+                <span
+                  className={`block max-w-[66px] truncate text-[8px] ${
+                    showNewOwnerInRed && pick.tradedPickMeta?.newOwnerName ? 'text-red-200/90' : 'text-white/42'
+                  }`}
+                  title={ownerLabel}
+                >
+                  {ownerLabel}
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          {pick.tradedPickMeta?.previousOwnerName ? (
+            <span
+              className="mt-1 truncate text-[8px] text-amber-200/78"
+              title={`Traded from ${pick.tradedPickMeta.previousOwnerName}`}
+            >
               Traded from {pick.tradedPickMeta.previousOwnerName}
             </span>
-          )}
-          {pick.byeWeek != null && pick.byeWeek > 0 && (
-            <span className="text-white/40">Bye {pick.byeWeek}</span>
-          )}
-          {pick.injuryStatus && (
-            <span className="text-[9px] text-amber-300/90" title={pick.injuryStatus}>
+          ) : null}
+
+          {pick.injuryStatus ? (
+            <span className="mt-0.5 truncate text-[8px] text-amber-300/90" title={pick.injuryStatus}>
               {pick.injuryStatus}
             </span>
-          )}
-          {showNewOwnerInRed && pick.tradedPickMeta?.newOwnerName && (
-            <span className="truncate text-red-400" title={pick.tradedPickMeta.newOwnerName}>
-              → {pick.tradedPickMeta.newOwnerName}
-            </span>
-          )}
+          ) : null}
         </div>
       )}
     </div>

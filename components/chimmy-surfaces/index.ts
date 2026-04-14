@@ -192,3 +192,18 @@ export type { ChimmySavedRecommendationCardProps } from './ChimmySavedRecommenda
 
 export { default as ChimmySurfaceActionFeed } from './ChimmySurfaceActionFeed'
 export type { ChimmySurfaceActionFeedProps } from './ChimmySurfaceActionFeed'
+
+export { default as SaveRecommendationButton } from './SaveRecommendationButton'
+export type { SaveRecommendationButtonProps } from './SaveRecommendationButton'
+
+export { default as SavedRecommendationsPanel } from './SavedRecommendationsPanel'
+export type { SavedRecommendationsPanelProps, SavedRecommendationsFilterState } from './SavedRecommendationsPanel'
+
+export { default as SavedRecommendationRow } from './SavedRecommendationRow'
+export type { SavedRecommendationRowProps } from './SavedRecommendationRow'
+
+export { default as SavedRecommendationDetailModal } from './SavedRecommendationDetailModal'
+export type { SavedRecommendationDetailModalProps } from './SavedRecommendationDetailModal'
+
+export { default as SavedRecStaleCompare } from './SavedRecommendationStaleCompare'
+export type { SavedRecommendationStaleCompareProps as SavedRecStaleCompareProps } from './SavedRecommendationStaleCompare'

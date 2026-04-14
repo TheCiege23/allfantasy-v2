@@ -18,6 +18,8 @@ import {
 import { NotificationCategoryRenderer } from "@/components/notification-settings/NotificationCategoryRenderer"
 import type { SettingsProfile } from "./settings-types"
 
+const CHIMMY_SHORTCUTS_DISABLED_KEY = "af_chimmy_shortcuts_disabled"
+
 export function NotificationsSettingsSection({
   profile,
   onRefetch,
@@ -37,9 +39,19 @@ export function NotificationsSettingsSection({
   const [testing, setTesting] = useState(false)
   const [testResultMessage, setTestResultMessage] = useState<string | null>(null)
   const [testResultTone, setTestResultTone] = useState<"success" | "info" | "error" | null>(null)
+  const [chimmyShortcutsEnabled, setChimmyShortcutsEnabled] = useState(true)
   const [lastLoadedFingerprint, setLastLoadedFingerprint] = useState(
     getNotificationPreferencesFingerprint(profile?.notificationPreferences as NotificationPreferences | null)
   )
+
+  useEffect(() => {
+    try {
+      const disabled = window.localStorage.getItem(CHIMMY_SHORTCUTS_DISABLED_KEY) === "1"
+      setChimmyShortcutsEnabled(!disabled)
+    } catch {
+      setChimmyShortcutsEnabled(true)
+    }
+  }, [])
 
   const deliveryAvailability = getDeliveryMethodAvailability({
     hasEmail: !!profile?.email,
@@ -191,6 +203,19 @@ export function NotificationsSettingsSection({
     }
   }
 
+  const handleChimmyShortcutToggle = (enabled: boolean) => {
+    setChimmyShortcutsEnabled(enabled)
+    try {
+      if (enabled) {
+        window.localStorage.removeItem(CHIMMY_SHORTCUTS_DISABLED_KEY)
+      } else {
+        window.localStorage.setItem(CHIMMY_SHORTCUTS_DISABLED_KEY, "1")
+      }
+    } catch {
+      // Ignore storage failures; shell defaults to enabled behavior.
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -336,6 +361,19 @@ export function NotificationsSettingsSection({
           </p>
         </div>
         <ChimmyAlertPreferencesPanel />
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2">
+          <label className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="text-[var(--text)]">Enable Chimmy global keyboard shortcuts</span>
+            <input
+              type="checkbox"
+              checked={chimmyShortcutsEnabled}
+              onChange={(e) => handleChimmyShortcutToggle(e.target.checked)}
+              className="h-4 w-4 rounded accent-[var(--accent-cyan)]"
+              data-testid="chimmy-shortcuts-toggle"
+            />
+          </label>
+          <p className="mt-1 text-xs text-[var(--muted)]">Shortcuts: <kbd className="rounded border border-[var(--border)] px-1 py-0.5">/</kbd> and <kbd className="rounded border border-[var(--border)] px-1 py-0.5">Ctrl/Cmd+Shift+K</kbd></p>
+        </div>
       </div>
 
       {saveError && (

@@ -55,11 +55,19 @@ const AREAS = [
   },
   {
     id: "war_room",
-    description: "War room: same as draft (mock-draft ai-pick, needs, predict-board)",
+    description: "War room: mock-draft helpers + AF War Room AI routes (session, recommend, compare, outlook, queue, intel, post-draft)",
     endpoints: [
       "POST /api/mock-draft/ai-pick",
       "POST /api/mock-draft/needs",
       "POST /api/mock-draft/predict-board",
+      "POST /api/draft/live-brain",
+      "POST /api/war-room/session",
+      "POST /api/war-room/recommend",
+      "POST /api/war-room/compare",
+      "POST /api/war-room/outlook",
+      "POST /api/war-room/queue",
+      "POST /api/war-room/opponent-tendencies",
+      "POST /api/war-room/post-draft-report",
     ],
   },
 ] as const

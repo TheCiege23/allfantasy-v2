@@ -26,20 +26,31 @@ function Get-DatabaseUrl {
   return $dbLine.Split('=', 2)[1].Trim().Trim('"')
 }
 
+function To-SessionPoolerUrl([string]$url) {
+  if (-not $url) { return $null }
+  $next = $url
+  if ($next -match "pooler\.supabase\.com:6543") {
+    $next = ($next -replace ":6543", ":5432")
+  }
+  if ($next -match "db\.[A-Za-z0-9]+\.supabase\.co:5432") {
+    $next = ($next -replace "db\.[A-Za-z0-9]+\.supabase\.co:5432", "aws-0-us-west-2.pooler.supabase.com:5432")
+  }
+  return $next
+}
+
 $dbUrl = Get-DatabaseUrl
 if (-not $dbUrl) {
   Write-Error "DATABASE_URL is not set in env or .env."
 }
 
-# Prisma migrate can fail against Supabase transaction pooler (:6543) with P1017.
-# For baseline/deploy only, switch to Supabase session pooler (:5432) when needed.
-if ($dbUrl -match "pooler\.supabase\.com:6543") {
-  $env:DATABASE_URL = ($dbUrl -replace ":6543", ":5432")
-  $env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = "1"
-  Write-Host "Using Supabase session pooler (:5432) for baseline/deploy." -ForegroundColor Yellow
-} else {
-  $env:DATABASE_URL = $dbUrl
-}
+# Prisma migrate can fail against Supabase transaction pooler (:6543) and can
+# fail with P1001 when DIRECT_URL points to blocked direct hosts. For
+# baseline/deploy, force both DATABASE_URL and DIRECT_URL to session pooler.
+$sessionUrl = To-SessionPoolerUrl $dbUrl
+$env:DATABASE_URL = $sessionUrl
+$env:DIRECT_URL = $sessionUrl
+$env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = "1"
+Write-Host "Using Supabase session pooler (:5432) for baseline/deploy." -ForegroundColor Yellow
 
 $migrationsDir = Join-Path $root "prisma/migrations"
 if (-not (Test-Path $migrationsDir)) {
@@ -83,5 +94,16 @@ $deployResult = cmd /c "npx prisma migrate deploy" 2>&1
 $ErrorActionPreference = $previousErrorActionPreference
 $deployResult | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$supplementalSql = Join-Path $root "scripts/sql/platform-backend-indexes.sql"
+if (Test-Path $supplementalSql) {
+  Write-Host "Applying supplemental backend indexes..." -ForegroundColor Cyan
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $supplementalResult = cmd /c "npx prisma db execute --file \"$supplementalSql\" --schema prisma/schema.prisma" 2>&1
+  $ErrorActionPreference = $previousErrorActionPreference
+  $supplementalResult | ForEach-Object { Write-Host $_ }
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 
 Write-Host "Baseline and deploy complete." -ForegroundColor Green

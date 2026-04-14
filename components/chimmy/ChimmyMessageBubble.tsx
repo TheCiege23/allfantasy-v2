@@ -1,6 +1,8 @@
 'use client'
 
 import React from 'react'
+import { Volume2, Square, Loader2 } from 'lucide-react'
+import type { ChimmyMessageMeta } from '@/lib/chimmy-chat/types'
 import { SuggestedActionRenderer } from '@/lib/chimmy-chat/SuggestedActionRenderer'
 import {
   buildChimmyCollapsedSummary,
@@ -12,27 +14,9 @@ import {
   shouldShowConfidence,
 } from '@/lib/chimmy-interface'
 import ChimmyResponseStructure from './ChimmyResponseStructure'
+import { ChimmyOrchestrationPanel } from './ChimmyOrchestrationPanel'
 
-interface ChimmyResponseStructureMeta {
-  shortAnswer: string
-  whatDataSays?: string
-  whatItMeans?: string
-  recommendedAction?: string
-  caveats?: string[]
-}
-
-export interface ChimmyMessageMeta {
-  confidencePct?: number
-  providerStatus?: Record<string, string>
-  recommendedTool?: string
-  dataSources?: string[]
-  quantData?: Record<string, unknown>
-  trendData?: Record<string, unknown>
-  responseStructure?: ChimmyResponseStructureMeta
-  variant?: 'premium_gate' | 'error'
-  ctaLabel?: string
-  ctaHref?: string
-}
+export type { ChimmyMessageMeta } from '@/lib/chimmy-chat/types'
 
 export interface ChimmyMessageBubbleProps {
   role: 'user' | 'assistant'
@@ -49,6 +33,8 @@ export interface ChimmyMessageBubbleProps {
   voicePlaying?: boolean
   /** ElevenLabs / Chimmy TTS voice name shown on the play button */
   voiceDisplayName?: string
+  /** When true, renders the corner voice badge (only on last assistant reply) */
+  isLastAssistantMessage?: boolean
 }
 
 function renderContentWithLinks(text: string) {
@@ -93,6 +79,7 @@ export default function ChimmyMessageBubble({
   voiceLoading = false,
   voicePlaying = false,
   voiceDisplayName = 'Voice',
+  isLastAssistantMessage = false,
 }: ChimmyMessageBubbleProps) {
   const isUser = role === 'user'
   const responseStructure = !isUser ? meta?.responseStructure : undefined
@@ -119,15 +106,54 @@ export default function ChimmyMessageBubble({
       })
     : null
 
+  const mergedFollowUpChips = React.useMemo(() => {
+    const fromOrchestration =
+      meta?.orchestration?.followUps?.map((f) => ({ label: f.label, prompt: f.prompt })) ?? []
+    const fromProps = followUpChips ?? []
+    const seen = new Set<string>()
+    const out: { label: string; prompt: string }[] = []
+    for (const c of [...fromOrchestration, ...fromProps]) {
+      if (seen.has(c.prompt)) continue
+      seen.add(c.prompt)
+      out.push(c)
+      if (out.length >= 5) break
+    }
+    return out
+  }, [meta?.orchestration?.followUps, followUpChips])
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div
-        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 ${
+        className={`relative max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 ${
           isUser
             ? 'bg-cyan-500/15 border border-cyan-400/25 text-white'
-            : 'bg-white/[0.04] border border-white/10 text-white/90'
+            : 'border border-white/10 bg-[#060d1e]/95 text-white/90 shadow-[0_8px_40px_rgba(0,0,0,0.35)]'
         }`}
       >
+        {isLastAssistantMessage && showVoiceButton && onVoiceToggle && (
+          <button
+            type="button"
+            onClick={onVoiceToggle}
+            disabled={voiceLoading}
+            data-testid="chimmy-voice-badge"
+            aria-label={voicePlaying ? `Stop ${voiceDisplayName} voice` : `Play ${voiceDisplayName} voice`}
+            className={`absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full border transition ${
+              voicePlaying
+                ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.35)]'
+                : voiceLoading
+                  ? 'border-white/20 bg-white/5 text-white/40'
+                  : 'border-white/20 bg-white/5 text-white/40 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-300'
+            } disabled:cursor-not-allowed`}
+          >
+            {voiceLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : voicePlaying ? (
+              <Square className="h-3 w-3" />
+            ) : (
+              <Volume2 className="h-3 w-3" />
+            )}
+          </button>
+        )}
         {imageUrl && (
           <img
             src={imageUrl}
@@ -142,6 +168,7 @@ export default function ChimmyMessageBubble({
             whatItMeans={responseStructure.whatItMeans}
             actionPlan={responseStructure.recommendedAction}
             caveats={responseStructure.caveats}
+            sectionTitles={responseStructure.sectionTitles}
             collapsible
             className="mb-2"
           />
@@ -194,6 +221,10 @@ export default function ChimmyMessageBubble({
         )}
         {!isUser && <SuggestedActionRenderer content={content} />}
 
+        {!isUser && meta?.orchestration && (
+          <ChimmyOrchestrationPanel orchestration={meta.orchestration} />
+        )}
+
         {!isUser && showVoiceButton && onVoiceToggle && (
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
             <button
@@ -235,9 +266,9 @@ export default function ChimmyMessageBubble({
           </div>
         )}
 
-        {!isUser && followUpChips && followUpChips.length > 0 && onFollowUpClick && (
+        {!isUser && mergedFollowUpChips.length > 0 && onFollowUpClick && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {followUpChips.slice(0, 3).map((chip) => (
+            {mergedFollowUpChips.map((chip) => (
               <button
                 key={chip.prompt}
                 type="button"

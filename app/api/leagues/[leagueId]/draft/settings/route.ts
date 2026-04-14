@@ -13,11 +13,33 @@ import { getDraftVariantSettings, updateDraftVariantSettings } from '@/lib/draft
 import { validateLeagueSettings } from '@/lib/league-settings-validation'
 import { getDraftOrderModeAndLotteryConfig, setDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import { buildApiResponse, parseCommissionerAiManagers } from '@/lib/commissioner-ai-draft-manager'
+import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 import { getProviderStatus } from '@/lib/provider-config'
 import { notifyOrphanAiManagerAssigned } from '@/lib/draft-notifications'
 
 export const dynamic = 'force-dynamic'
+
+function parseSlotOrder(value: unknown): SlotOrderEntry[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+
+    const record = entry as Record<string, unknown>
+    if (typeof record.slot !== 'number' || typeof record.rosterId !== 'string' || typeof record.displayName !== 'string') {
+      return []
+    }
+
+    return [{
+      slot: record.slot,
+      rosterId: record.rosterId,
+      displayName: record.displayName,
+      platformUserId: typeof record.platformUserId === 'string' ? record.platformUserId : undefined,
+    }]
+  })
+}
 
 export async function GET(
   _req: NextRequest,
@@ -61,10 +83,15 @@ export async function GET(
     const providerStatus = getProviderStatus()
 
     let orphanStatus: { orphanRosterIds: string[]; recentActions: Array<{ action: string; createdAt: string; reason: string | null }> } | null = null
+    let commissionerAiDraft: ReturnType<typeof buildApiResponse> | null = null
     if (commissioner) {
-      const [orphanRosterIds, recentLogs] = await Promise.all([
+      const [orphanRosterIds, recentLogs, dsAi] = await Promise.all([
         getOrphanRosterIdsForLeague(leagueId),
         getRecentAuditEntries(leagueId, { limit: 10 }),
+        prisma.draftSession.findUnique({
+          where: { leagueId },
+          select: { commissionerAiManagers: true, slotOrder: true },
+        }),
       ])
       orphanStatus = {
         orphanRosterIds,
@@ -74,6 +101,12 @@ export async function GET(
           createdAt: l.createdAt.toISOString(),
           reason: l.reason,
         })),
+      }
+      if (dsAi) {
+        commissionerAiDraft = buildApiResponse(
+          parseCommissionerAiManagers(dsAi.commissionerAiManagers),
+          parseSlotOrder(dsAi.slotOrder)
+        )
       }
     }
 
@@ -98,6 +131,7 @@ export async function GET(
       lotteryConfig: orderModeAndLottery?.lotteryConfig ?? null,
       lotteryLastSeed: orderModeAndLottery?.lotteryLastSeed ?? null,
       lotteryLastRunAt: orderModeAndLottery?.lotteryLastRunAt ?? null,
+      commissionerAiDraft,
     })
     res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60')
     return res

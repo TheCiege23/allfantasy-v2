@@ -25,6 +25,12 @@ export interface ChimmyVoiceBarProps {
   onSpeechInputToggle?: () => void
   /** Container for transcript sync / highlight (future) */
   transcriptRef?: React.RefObject<HTMLDivElement>
+  /** When true, auto-play is active — show volume nudge */
+  autoPlay?: boolean
+  /** Current volume 0–1 (shown in nudge when autoPlay) */
+  volume?: number
+  /** Volume change handler for inline nudge slider */
+  onVolumeChange?: (volume: number) => void
   className?: string
 }
 
@@ -45,6 +51,9 @@ export default function ChimmyVoiceBar({
   isListening = false,
   onSpeechInputToggle,
   transcriptRef,
+  autoPlay = false,
+  volume = 0.85,
+  onVolumeChange,
   className = '',
 }: ChimmyVoiceBarProps) {
   return (
@@ -132,6 +141,28 @@ export default function ChimmyVoiceBar({
         >
           {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </button>
+      )}
+
+      {voiceEnabled && autoPlay && !ttsUnavailable && !isPlaying && !ttsLoading && (
+        <div
+          className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.07] px-2 py-1"
+          data-testid="chimmy-autoplay-volume-nudge"
+        >
+          <span className="text-[10px] uppercase tracking-wider text-cyan-300/70">Auto</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={Math.round(volume * 100)}
+            onChange={(e) => onVolumeChange?.(Number(e.target.value) / 100)}
+            className="h-1 w-16 cursor-pointer accent-cyan-400"
+            aria-label="Auto-play volume"
+            data-testid="chimmy-autoplay-volume-slider"
+          />
+          <span className="min-w-[2.5ch] text-[10px] tabular-nums text-white/55">
+            {Math.round(volume * 100)}%
+          </span>
+        </div>
       )}
 
       {ttsLoading && (
