@@ -1,9 +1,9 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { StepHeader } from './StepHelp'
-import { LeagueCreationPresetSelector } from '@/components/league-creation'
 import { useSportRules } from '@/hooks/useSportRules'
 
 export type ScoringPresetSelectorProps = {
@@ -52,6 +52,34 @@ export function ScoringPresetSelector({
 
   const variants = getVariantsForSport(sport)
   const safeValue = variants.some((v) => v.value === (value ?? '')) ? (value ?? variants[0]?.value) : (variants[0]?.value ?? 'STANDARD')
+  const [selectedPresetValues, setSelectedPresetValues] = useState<string[]>(() =>
+    safeValue ? [safeValue] : []
+  )
+
+  useEffect(() => {
+    setSelectedPresetValues(safeValue ? [safeValue] : [])
+  }, [safeValue, sport])
+
+  const valueSet = useMemo(() => new Set(selectedPresetValues), [selectedPresetValues])
+
+  const priority = ['DYNASTY_IDP', 'IDP', 'SUPERFLEX', 'HALF_PPR', 'PPR', 'STANDARD']
+  const resolvePrimaryPreset = (values: string[]): string | null => {
+    if (values.length === 0) return null
+    for (const p of priority) {
+      if (values.includes(p)) return p
+    }
+    return values[values.length - 1] ?? null
+  }
+
+  const togglePreset = (presetValue: string) => {
+    const next = valueSet.has(presetValue)
+      ? selectedPresetValues.filter((v) => v !== presetValue)
+      : [...selectedPresetValues, presetValue]
+    setSelectedPresetValues(next)
+    const primary = resolvePrimaryPreset(next)
+    onChange(primary)
+  }
+
   return (
     <div className="space-y-5">
       <StepHeader
@@ -66,17 +94,37 @@ export function ScoringPresetSelector({
       />
       <div className="space-y-1.5">
         <Label className="text-white/90">Preset</Label>
-        <LeagueCreationPresetSelector
-          sport={sport}
-          variantOptions={variants}
-          value={safeValue ?? 'STANDARD'}
-          onChange={(v) => onChange(v)}
-          showHelper
-        />
+        <div
+          className="mt-2 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Preset"
+          data-testid="league-creation-preset-selector"
+        >
+          {variants.map(({ value: presetValue, label: presetLabel }) => {
+            const selected = valueSet.has(presetValue)
+            return (
+              <button
+                key={presetValue}
+                type="button"
+                onClick={() => togglePreset(presetValue)}
+                className={`min-h-[40px] rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
+                  selected
+                    ? 'border-cyan-300 bg-cyan-400/15 text-white shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
+                    : 'border-white/15 bg-black/30 text-white/85 hover:bg-white/[0.06]'
+                }`}
+              >
+                {presetLabel}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-white/50 text-xs mt-2">
+          Toggle one or more presets. We apply the highest-priority compatible preset to creation defaults.
+        </p>
         {rules && (
           <div className="mt-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-white/65">
             <p>
-              Player pool source: <span className="text-white/90">{rules.playerPool.source}</span>
+              Player pool: <span className="text-white/90">Integrated platform player data</span>
             </p>
             <p>
               Valid positions: <span className="text-white/90">{rules.playerPool.validPositions.join(', ')}</span>

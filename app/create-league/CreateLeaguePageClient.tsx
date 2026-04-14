@@ -46,7 +46,24 @@ export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) 
             ←
           </button>
           <h1 className="text-base font-semibold tracking-tight text-white/90 sm:text-lg">New league</h1>
-          <span className="h-9 w-9" aria-hidden />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => router.push('/import?returnTo=%2Fcreate-league')}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/20"
+              aria-label="Open import page"
+            >
+              Import
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard')}
+              className="inline-flex h-9 items-center justify-center rounded-full border border-white/20 bg-black/20 px-3 text-xs font-semibold text-white/90 hover:bg-white/10"
+              aria-label="Go to dashboard home"
+            >
+              Home
+            </button>
+          </div>
         </div>
       </header>
       <CreateLeagueView userId={userId} initialStep={initialStep} />

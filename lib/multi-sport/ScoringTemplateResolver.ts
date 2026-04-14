@@ -23,17 +23,56 @@ export interface ScoringTemplateDto {
   rules: ScoringRuleDto[]
 }
 
+function isScoringTemplateSchemaCompatibilityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    /scoring_templates\.(sportType|formatType)/i.test(message) ||
+    /column .* does not exist/i.test(message) ||
+    /Invalid `prisma\.scoringTemplate\.findUnique\(\)` invocation/i.test(message) ||
+    /Unknown arg `sportType_formatType` in where\./i.test(message) ||
+    /P2021|P2022/.test(message)
+  )
+}
+
 export async function getScoringTemplate(
   sportType: SportType | string,
   formatType: string = 'standard'
 ): Promise<ScoringTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  const template = await prisma.scoringTemplate.findUnique({
-    where: {
-      sportType_formatType: { sportType: sport, formatType },
-    },
-    include: { rules: true },
-  })
+  let template: {
+    id: string
+    name: string
+    formatType: string
+    rules: Array<{
+      statKey: string
+      pointsValue: number
+      multiplier: number
+      enabled: boolean
+    }>
+  } | null = null
+  try {
+    template = await prisma.scoringTemplate.findUnique({
+      where: {
+        sportType_formatType: { sportType: sport, formatType },
+      },
+      include: { rules: true },
+    })
+  } catch (error) {
+    if (isScoringTemplateSchemaCompatibilityError(error)) {
+      console.warn(
+        `[ScoringTemplateResolver] scoring template schema mismatch for ${sport}/${formatType}; using in-memory defaults`
+      )
+      const defaultTemplate = getDefaultScoringTemplate(sport, formatType)
+      return {
+        templateId: defaultTemplate.templateId,
+        sportType: defaultTemplate.sportType as SportType,
+        name: defaultTemplate.name,
+        formatType: defaultTemplate.formatType,
+        rules: defaultTemplate.rules,
+      }
+    }
+    throw error
+  }
   if (template) {
     return {
       templateId: template.id,

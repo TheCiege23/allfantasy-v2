@@ -510,8 +510,28 @@ export function LeagueCreationWizard({
 
   const goBack = useCallback(() => {
     const idx = (WIZARD_STEP_ORDER as readonly WizardStepId[]).indexOf(state.step)
-    if (idx > 0) go(WIZARD_STEP_ORDER[idx - 1]!)
-  }, [state.step, go])
+    if (idx > 0) {
+      go(WIZARD_STEP_ORDER[idx - 1]!)
+      return
+    }
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+    }
+    setState({
+      ...initialState,
+      commissionerPreferences: { ...DEFAULT_COMMISSIONER_PREFERENCES },
+      formatOptions: { ...DEFAULT_WIZARD_FORMAT_OPTIONS },
+      draftSettings: { ...DEFAULT_DRAFT_SETTINGS },
+      waiverSettings: { ...DEFAULT_WAIVER_SETTINGS },
+      playoffSettings: { ...DEFAULT_PLAYOFF_SETTINGS },
+      scheduleSettings: { ...DEFAULT_SCHEDULE_SETTINGS },
+      aiSettings: { ...DEFAULT_AI_SETTINGS },
+      automationSettings: { ...DEFAULT_AUTOMATION_SETTINGS },
+      privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
+      step: 'sport',
+    })
+    router.push('/dashboard')
+  }, [state.step, go, router])
 
   const handleSportChange = useCallback((sport: string) => {
     setState((s) => {
@@ -1061,6 +1081,7 @@ export function LeagueCreationWizard({
                 </div>
               </div>
               <WizardStepNav
+                onBack={goBack}
                 onNext={goNext}
                 nextLabel="Next"
                 disableForward={creationPresetLoading || Boolean(stepValidationError)}

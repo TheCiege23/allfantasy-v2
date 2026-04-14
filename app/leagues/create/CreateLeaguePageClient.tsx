@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -107,6 +107,12 @@ export function CreateLeaguePageClient() {
   const [state, setState] = useState<LeagueCreateFormState>(() => buildInitialState())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const resetWizardState = useCallback(() => {
+    setStep('sport')
+    setState(buildInitialState())
+    setError(null)
+  }, [])
 
   const resolution = useMemo(
     () =>
@@ -279,8 +285,37 @@ export function CreateLeaguePageClient() {
     }
   }
 
+  function handleBack() {
+    if (currentStepIndex > 0) {
+      setStep(STEP_ORDER[Math.max(0, currentStepIndex - 1)]!)
+      return
+    }
+    resetWizardState()
+    router.push('/dashboard')
+  }
+
   return (
     <main className="min-h-screen bg-[#040915] px-4 py-8 text-white">
+      <div className="mx-auto mb-4 flex w-full max-w-6xl items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push('/import?returnTo=%2Fleagues%2Fcreate')}
+          className="border-cyan-300/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+        >
+          Import
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            resetWizardState()
+            router.push('/dashboard')
+          }}
+        >
+          Home
+        </Button>
+      </div>
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="border-white/10 bg-[#081124]">
           <CardHeader>
@@ -320,8 +355,7 @@ export function CreateLeaguePageClient() {
             <div className="flex items-center justify-between gap-3">
               <Button
                 variant="outline"
-                disabled={currentStepIndex === 0}
-                onClick={() => setStep(STEP_ORDER[Math.max(0, currentStepIndex - 1)]!)}
+                onClick={handleBack}
               >
                 Back
               </Button>

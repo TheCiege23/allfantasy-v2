@@ -2,7 +2,7 @@
 
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import SleeperImportForm from "@/components/SleeperImportForm";
@@ -17,17 +17,22 @@ const PREVIEW_PROVIDERS: ImportProvider[] = ["espn", "yahoo", "fantrax", "mfl", 
 export default function ImportPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
 
   const [loadingProvider, setLoadingProvider] = useState<ImportProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [previewInfo, setPreviewInfo] = useState<{ provider: ImportProvider; leagueName: string } | null>(null);
 
+  const returnToRaw = searchParams?.get('returnTo') ?? '';
+  const returnTo = returnToRaw.startsWith('/') ? returnToRaw : '/create-league';
+
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.replace("/login?callbackUrl=/import");
+      const callbackUrl = encodeURIComponent(`/import?returnTo=${encodeURIComponent(returnTo)}`);
+      router.replace(`/login?callbackUrl=${callbackUrl}`);
     }
-  }, [status, router]);
+  }, [status, router, returnTo]);
 
   if (status === "loading") {
     return (
@@ -80,6 +85,23 @@ export default function ImportPage() {
           .
         </p>
 
+        <div className="mb-6 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push(returnTo)}
+            className="inline-flex h-9 items-center justify-center rounded-full border border-white/20 bg-white/5 px-3 text-xs font-semibold text-white/90 hover:bg-white/10"
+          >
+            Back to Create
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            className="inline-flex h-9 items-center justify-center rounded-full border border-white/20 bg-white/5 px-3 text-xs font-semibold text-white/90 hover:bg-white/10"
+          >
+            Home
+          </button>
+        </div>
+
         <div className="mb-14">
           <SleeperImportForm />
         </div>
@@ -103,7 +125,7 @@ export default function ImportPage() {
               Continue in Create League to finish importing this league into AllFantasy, or use League Sync for ongoing sync.
             </p>
             <Link
-              href="/create-league"
+              href={returnTo}
               className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black transition-colors hover:bg-cyan-400"
             >
               Continue to Create League →

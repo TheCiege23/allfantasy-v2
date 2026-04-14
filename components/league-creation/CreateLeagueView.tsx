@@ -18,7 +18,7 @@ export function CreateLeagueView({ userId: _userId, initialStep }: CreateLeagueV
         <p className="text-sm text-white/65 leading-relaxed">
           Five steps: sport and format (including Survivor/Zombie options when selected), league details, scoring, AI and
           privacy, then review. Import from another platform anytime from the{' '}
-          <Link href="/import" className="text-cyan-300 underline-offset-2 hover:underline">
+          <Link href="/import?returnTo=%2Fcreate-league" className="text-cyan-300 underline-offset-2 hover:underline">
             import page
           </Link>
           .

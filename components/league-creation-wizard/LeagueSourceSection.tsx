@@ -148,7 +148,7 @@ export function LeagueSourceSection({
             appears in the app with live sync.
           </p>
           <Link
-            href="/import"
+            href="/import?returnTo=%2Fcreate-league"
             className="mt-2 inline-flex text-sm font-semibold text-cyan-300 underline-offset-2 hover:text-cyan-200 hover:underline"
           >
             Open import page →
