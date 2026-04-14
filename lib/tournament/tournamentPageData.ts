@@ -181,6 +181,78 @@ function mergeLegacySettings(raw: unknown): TournamentSettings {
   return merged
 }
 
+/**
+ * Last-resort payload when the full legacy graph fails (orphan relations, Prisma include errors, etc.).
+ * Any row in `LegacyTournament` should still open `/tournament/[id]` instead of 404.
+ */
+async function loadLegacyTournamentLayoutPayloadLoose(
+  tournamentId: string,
+  userId: string | null,
+): Promise<TournamentLayoutPayload | null> {
+  const t = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+  })
+  if (!t) return null
+
+  const settings = mergeLegacySettings(t.settings)
+  const participantCount = await prisma.legacyTournamentParticipant
+    .count({ where: { tournamentId: t.id } })
+    .catch(() => 0)
+  const placeholderRoundId = `${t.id}:loose-round`
+
+  const serializedShell: SerializedShell = {
+    id: t.id,
+    name: t.name,
+    sport: t.sport,
+    status: t.status,
+    maxParticipants: settings.participantPoolSize,
+    currentParticipantCount: participantCount,
+    conferenceCount: 0,
+    leaguesPerConference: 1,
+    teamsPerLeague: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
+    namingMode: settings.leagueNamingMode,
+    currentRoundNumber: 1,
+    totalRounds: 1,
+    advancersPerLeague: 1,
+    wildcardCount: 0,
+    bubbleEnabled: settings.bubbleWeekEnabled,
+    bubbleSize: 8,
+    bubbleScoringMode: 'cumulative_points',
+    scoringSystem: 'ppr',
+    draftType: settings.draftType,
+    waiverType: 'faab',
+    openingRosterSize: 15,
+    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
+    eliteRosterSize: 8,
+    faabResetOnRedraft: settings.faabResetByRound,
+    draftClockSeconds: 90,
+    simultaneousDrafts: true,
+    tiebreakerMode: 'points_for',
+    standingsVisibility: 'league_only',
+  }
+
+  return {
+    shell: serializedShell,
+    conferences: [],
+    rounds: [
+      {
+        id: placeholderRoundId,
+        roundNumber: 1,
+        roundType: 'qualification',
+        roundLabel: 'Qualification',
+        weekStart: 1,
+        weekEnd: 18,
+        status: 'pending',
+      },
+    ],
+    tournamentLeagues: [],
+    participant: null,
+    isCommissioner: Boolean(userId && t.creatorId === userId),
+    announcements: [],
+    hubKind: 'legacy',
+  }
+}
+
 async function loadLegacyTournamentLayoutPayload(
   tournamentId: string,
   userId: string | null,
@@ -192,7 +264,6 @@ async function loadLegacyTournamentLayoutPayload(
       rounds: { orderBy: { roundIndex: 'asc' } },
       leagues: {
         include: {
-          league: { include: { teams: true } },
           conference: true,
         },
         orderBy: [{ conferenceId: 'asc' }, { orderInConference: 'asc' }],
@@ -202,6 +273,26 @@ async function loadLegacyTournamentLayoutPayload(
   })
 
   if (!t) return null
+
+  const leagueIds = [...new Set(t.leagues.map((l) => l.leagueId).filter(Boolean))]
+  const leagueRows =
+    leagueIds.length > 0
+      ? await prisma.league
+          .findMany({
+            where: { id: { in: leagueIds } },
+            select: {
+              id: true,
+              name: true,
+              leagueSize: true,
+              settings: true,
+              logoUrl: true,
+              avatarUrl: true,
+              _count: { select: { teams: true } },
+            },
+          })
+          .catch(() => [])
+      : []
+  const leagueById = new Map(leagueRows.map((l) => [l.id, l]))
 
   const settings = mergeLegacySettings(t.settings)
   const dbFirstRound = t.rounds[0]
@@ -298,13 +389,14 @@ async function loadLegacyTournamentLayoutPayload(
   }
 
   const legacyFeederLeagues: LegacyFeederLeagueRow[] = t.leagues.map((tl) => {
-    const ls = (tl.league?.settings as Record<string, unknown> | null) ?? {}
+    const lg = tl.leagueId ? leagueById.get(tl.leagueId) : undefined
+    const ls = (lg?.settings as Record<string, unknown> | null) ?? {}
     const inviteCode = typeof ls.inviteCode === 'string' ? ls.inviteCode : ''
     const joinUrl = typeof ls.inviteLink === 'string' ? ls.inviteLink : ''
     return {
       tournamentLeagueId: tl.id,
       leagueId: tl.leagueId ?? '',
-      name: tl.league?.name ?? 'League',
+      name: lg?.name ?? 'League',
       inviteCode,
       joinUrl,
       conferenceName: tl.conference?.name ?? 'Conference',
@@ -404,21 +496,25 @@ async function loadLegacyTournamentLayoutPayload(
               status: 'pending',
             },
           ],
-    tournamentLeagues: t.leagues.map((tl) => ({
-      id: tl.id,
-      name: tl.league?.name ?? 'League',
-      slug: slugifySegment(tl.league?.name ?? 'league', 'league'),
-      roundId: primaryRoundId,
-      conferenceId: tl.conferenceId,
-      leagueId: tl.leagueId,
-      status: tl.phase,
-      teamSlots: tl.league?.leagueSize ?? 12,
-      currentTeamCount: tl.league?.teams?.length ?? 0,
-      draftScheduledAt: null,
-      colorHex: null,
-      logoUrl: tl.league?.logoUrl ?? tl.league?.avatarUrl ?? null,
-      advancersCount: 0,
-    })),
+    tournamentLeagues: t.leagues.map((tl) => {
+      const lg = tl.leagueId ? leagueById.get(tl.leagueId) : undefined
+      const label = lg?.name ?? 'League'
+      return {
+        id: tl.id,
+        name: label,
+        slug: slugifySegment(label, 'league'),
+        roundId: primaryRoundId,
+        conferenceId: tl.conferenceId,
+        leagueId: tl.leagueId,
+        status: tl.phase,
+        teamSlots: lg?.leagueSize ?? 12,
+        currentTeamCount: lg?._count?.teams ?? 0,
+        draftScheduledAt: null,
+        colorHex: null,
+        logoUrl: lg?.logoUrl ?? lg?.avatarUrl ?? null,
+        advancersCount: 0,
+      }
+    }),
     participant: serializedParticipant,
     isCommissioner: Boolean(userId && t.creatorId === userId),
     announcements: t.announcements.map((a) => ({
@@ -455,11 +551,13 @@ export async function loadTournamentLayoutPayload(
 
   if (!shell) {
     try {
-      return await loadLegacyTournamentLayoutPayload(tournamentId, userId)
+      const full = await loadLegacyTournamentLayoutPayload(tournamentId, userId)
+      if (full) return full
     } catch (err) {
       console.error('[loadTournamentLayoutPayload] legacy tournament payload failed', { tournamentId, err })
-      return null
     }
+    // Full graph can return null (missing row) or throw (bad relations); loose row-only load avoids 404 when the hub exists.
+    return await loadLegacyTournamentLayoutPayloadLoose(tournamentId, userId)
   }
 
   const participant = userId

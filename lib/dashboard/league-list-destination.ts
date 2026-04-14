@@ -55,16 +55,22 @@ export function resolveLeagueHomeHrefFromListRow(row: LeagueListNavInput): strin
       ? (row.settings as Record<string, unknown>)
       : {}
 
-  const fromSettings = resolveTournamentDestinationFromLeagueSettings(settings)
-  if (fromSettings) return fromSettings
-
-  const tidFromSettings = readTournamentIdFromSettings(settings)
+  const tid = readTournamentIdFromSettings(settings)
   const variant = String(row.leagueVariant ?? row.league_variant ?? '')
     .trim()
     .toLowerCase()
-  // Hub rows from `/api/league/list` always include `settings.tournamentId`; never guess `/tournament/[id]` from row id alone.
-  if (variant === 'tournament_hub' && tidFromSettings) {
-    return `/tournament/${tidFromSettings}`
+  const platform = String((row as { platform?: string }).platform ?? '')
+    .trim()
+    .toLowerCase()
+  const lt = String(settings.league_type ?? '').trim().toLowerCase()
+
+  /**
+   * Only link to `/tournament/[id]` for real hub rows from `/api/league/list` (`league_variant: tournament_hub`)
+   * or explicit AF hub JSON. Do not use generic `settings.league_type` / `tournamentId` alone — imported leagues
+   * can carry stray keys and would 404 on `/tournament/[uuid]`.
+   */
+  if (tid && (variant === 'tournament_hub' || (platform === 'allfantasy' && lt === 'tournament_hub'))) {
+    return `/tournament/${tid}`
   }
 
   const leagueId = pickCanonicalLeagueListId(row) || row.id
