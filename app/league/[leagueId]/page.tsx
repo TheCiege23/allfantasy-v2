@@ -49,6 +49,13 @@ export default async function LeaguePage({
     redirect('/dashboard')
   }
 
+  // Redirect tournament feeder leagues to tournament hub
+  const leagueSettings = league.settings && typeof league.settings === 'object' ? league.settings as Record<string, unknown> : {}
+  if (leagueSettings.league_type === 'tournament' && typeof leagueSettings.tournamentId === 'string') {
+    const tournamentId = leagueSettings.tournamentId
+    redirect(`/tournament/${tournamentId}`)
+  }
+
   const isOwner = league.userId === userId
   const userTeam = league.teams.find((t) => t.claimedByUserId === userId) ?? null
   const role = await getLeagueRole(leagueId, userId)

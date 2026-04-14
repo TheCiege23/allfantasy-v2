@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
-import { TournamentSettingsModal } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModal'
+import { TournamentSettingsModalEditable } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModalEditable'
 import { TournamentEntryIntroModal } from '@/components/tournament/TournamentEntryIntroModal'
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
@@ -365,7 +365,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       <TournamentEntryIntroModal tournamentId={tournamentId} sport={shell.sport} />
 
       {isCommissioner ? (
-        <TournamentSettingsModal
+        <TournamentSettingsModalEditable
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           tournamentId={tournamentId}

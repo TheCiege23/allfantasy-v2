@@ -232,7 +232,13 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
     })
     .filter((lg: any) => !lg.hasUnifiedRecord)
 
-  const normalizedGenericFiltered = normalizedGeneric.filter(isRealLeague)
+  const normalizedGenericFiltered = normalizedGeneric
+    .filter(isRealLeague)
+    .filter((lg: any) => {
+      // Filter out tournament feeder leagues from dashboard - they're accessed via tournament hub
+      const settings = lg.settings && typeof lg.settings === 'object' ? lg.settings as Record<string, unknown> : {}
+      return settings.league_type !== 'tournament'
+    })
   const normalizedSleeperFiltered = normalizedSleeper.filter(isRealLeague)
   const filtered = [...normalizedGenericFiltered, ...normalizedSleeperFiltered]
 
