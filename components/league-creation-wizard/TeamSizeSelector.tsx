@@ -25,18 +25,21 @@ const COMMON_TIMEZONES = [
 
 export type TeamCountSelectorProps = {
   sport: string
+  /** When set (e.g. survivor), team count options follow format rules instead of generic sport range. */
+  leagueType?: string
   teamCount: number
   onTeamCountChange: (n: number) => void
 }
 
-export function TeamCountSelector({ sport, teamCount, onTeamCountChange }: TeamCountSelectorProps) {
-  const teamCounts = getTeamCountOptionsForSport(sport)
+export function TeamCountSelector({ sport, leagueType, teamCount, onTeamCountChange }: TeamCountSelectorProps) {
+  const teamCounts = getTeamCountOptionsForSport(sport, leagueType)
   const maxTeams = getMaxTeamsForSport(sport)
-  const safeTeamCount = clampTeamCountForSport(sport, teamCount)
+  const safeTeamCount = clampTeamCountForSport(sport, teamCount, leagueType)
+  const isSurvivor = String(leagueType ?? '').toLowerCase() === 'survivor'
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-white/90">Number of teams</Label>
+      <Label className="text-white/90">{isSurvivor ? 'Cast size (teams)' : 'Number of teams'}</Label>
       <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
         <SelectTrigger
           className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
@@ -54,9 +57,11 @@ export function TeamCountSelector({ sport, teamCount, onTeamCountChange }: TeamC
         </SelectContent>
       </Select>
       <p className="mt-1 text-xs text-white/50">
-        {sport.toUpperCase() === 'NFL'
-          ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
-          : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
+        {isSurvivor
+          ? 'Survivor uses 16, 20, or 24 managers (one per team). Set on this step; tribe splits are on the next step.'
+          : sport.toUpperCase() === 'NFL'
+            ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
+            : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
       </p>
     </div>
   )
@@ -65,6 +70,7 @@ export function TeamCountSelector({ sport, teamCount, onTeamCountChange }: TeamC
 export type TeamSizeSelectorProps = {
   /** Used to cap league size (one manager per team), ESPN / Sleeper–style limits per sport. */
   sport: string
+  leagueType?: string
   name: string
   teamCount: number
   tradeReviewMode: 'none' | 'commissioner' | 'league_vote' | 'instant'
@@ -82,6 +88,7 @@ export type TeamSizeSelectorProps = {
  */
 export function TeamSizeSelector({
   sport,
+  leagueType,
   name,
   teamCount,
   tradeReviewMode,
@@ -120,7 +127,12 @@ export function TeamSizeSelector({
         </div>
 
         {showTeamCount ? (
-          <TeamCountSelector sport={sport} teamCount={teamCount} onTeamCountChange={onTeamCountChange} />
+          <TeamCountSelector
+            sport={sport}
+            leagueType={leagueType}
+            teamCount={teamCount}
+            onTeamCountChange={onTeamCountChange}
+          />
         ) : null}
 
         <div className="space-y-1.5">

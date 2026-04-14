@@ -187,6 +187,9 @@ const SCHEDULE_VARIANT_ALIASES: Record<string, string> = {
   C2C: 'MERGED_DEVY_C2C',
   MERGED_DEVY_C2C: 'MERGED_DEVY_C2C',
   NO_PLAYOFF: 'NO_PLAYOFF',
+  /** Format-engine league types use lowercase ids; schedule overlays are sport-based for specialty formats. */
+  survivor: 'STANDARD',
+  SURVIVOR: 'STANDARD',
 }
 
 export function normalizeScheduleVariant(variant?: string | null): string {

@@ -7,6 +7,7 @@ import { ChevronLeft, Trophy } from 'lucide-react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES, DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { TournamentSettings, ConferenceMode, LeagueNamingMode } from '@/lib/tournament-mode/types'
 
 function computeLeagueCount(participantPoolSize: number, initialLeagueSize: number = TOURNAMENT_TEAMS_PER_LEAGUE): number {
@@ -96,7 +97,7 @@ export function TournamentCreateWizard() {
       }
       const tournamentId = typeof data?.tournamentId === 'string' ? data.tournamentId : ''
       if (tournamentId) {
-        router.push(`/tournament/${tournamentId}?created=1`)
+        router.push(buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId }))
       } else {
         setError('Tournament created but no ID returned')
       }

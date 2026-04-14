@@ -7,15 +7,37 @@ import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import {
   DEFAULT_WIZARD_FORMAT_OPTIONS,
   type WizardFormatOptions,
-  getSurvivorTeamBounds,
   clampSurvivorTeamCount,
-  suggestedSurvivorTribeCount,
 } from '@/lib/league-creation-wizard/wizard-format-options'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
 import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import { StepHeader } from './StepHelp'
 
 const CHECKBOX_CLASS = 'mt-0.5 shrink-0 size-5 rounded border border-white/30 bg-[#020817] accent-cyan-400'
+
+function survivorSeasonPhrase(sport: string): string {
+  const u = sport.toUpperCase()
+  if (u === 'NFL' || u === 'NCAAF') return 'football season'
+  if (u === 'NBA' || u === 'NCAAB') return 'basketball season'
+  if (u === 'NHL') return 'hockey season'
+  if (u === 'MLB') return 'baseball season'
+  if (u === 'SOCCER') return 'soccer season'
+  return 'season'
+}
+
+function sportBrandLabel(sport: string): string {
+  const u = sport.toUpperCase()
+  const map: Record<string, string> = {
+    NFL: 'NFL',
+    NBA: 'NBA',
+    NHL: 'NHL',
+    MLB: 'MLB',
+    NCAAF: 'NCAA Football',
+    NCAAB: 'NCAA Basketball',
+    SOCCER: 'Soccer',
+  }
+  return map[u] ?? u
+}
 
 export type LeagueFormatOptionsPanelProps = {
   sport: string
@@ -29,7 +51,12 @@ export type LeagueFormatOptionsPanelProps = {
  */
 export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }: LeagueFormatOptionsPanelProps) {
   const v = { ...DEFAULT_WIZARD_FORMAT_OPTIONS, ...value }
-  const survivorBounds = getSurvivorTeamBounds(sport)
+  const survivorCast = clampSurvivorTeamCount(sport, v.survivorTeamCount)
+  const tribePick = (v.survivorTribeCountOverride ?? 4) as 2 | 3 | 4
+  const tribeNameLines =
+    v.survivorTribeNameMode === 'custom'
+      ? Array.from({ length: tribePick }, (_, i) => v.survivorCustomTribeNamesLines.split('\n')[i] ?? '')
+      : []
 
   const isNfl = sport.toUpperCase() === 'NFL'
   const idpActive = isNfl && v.idpEnabled
@@ -123,36 +150,28 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
 
       {leagueType === 'survivor' && (
         <div className="space-y-4 rounded-2xl border border-amber-500/25 bg-amber-950/15 p-4">
-          <h4 className="text-sm font-semibold text-amber-100">Survivor</h4>
+          <h4 className="text-sm font-semibold text-amber-100">
+            Survivor ({sportBrandLabel(sport)})
+          </h4>
           <p className="text-xs text-white/55">
-            Tribe count is capped at four; teams are grouped for tribal phases. Exile Island is provisioned after
-            create.
+            Cast size ({survivorCast} managers) was set on the previous step. Tribes split your{' '}
+            {sportBrandLabel(sport)} {survivorSeasonPhrase(sport)} into phases; you can name tribes below or let the
+            app label them. Exile Island is provisioned after create.
           </p>
-          <div className="space-y-1.5">
-            <Label className="text-white/85">Teams ({survivorBounds.min}–{survivorBounds.max} for {sport})</Label>
-            <Input
-              type="number"
-              min={survivorBounds.min}
-              max={survivorBounds.max}
-              value={v.survivorTeamCount}
-              onChange={(e) =>
-                onChange({
-                  survivorTeamCount: clampSurvivorTeamCount(sport, Number(e.target.value) || survivorBounds.min),
-                })
-              }
-              className="border-white/20 bg-[#030a20] text-white"
-            />
-          </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Number of tribes</Label>
             <Select
-              value={v.survivorTribeCountOverride == null ? 'auto' : String(v.survivorTribeCountOverride)}
-              onValueChange={(x) =>
+              value={String(tribePick)}
+              onValueChange={(x) => {
+                const n = Math.min(4, Math.max(2, Number(x))) as 2 | 3 | 4
+                const prevLines = v.survivorCustomTribeNamesLines.split('\n')
+                const nextLines = prevLines.slice(0, n)
+                while (nextLines.length < n) nextLines.push('')
                 onChange({
-                  survivorTribeCountOverride:
-                    x === 'auto' ? null : (Math.min(4, Math.max(2, Number(x))) as 2 | 3 | 4),
+                  survivorTribeCountOverride: n,
+                  survivorCustomTribeNamesLines: nextLines.join('\n'),
                 })
-              }
+              }}
             >
               <SelectTrigger
                 className="border-white/20 bg-[#030a20] text-white"
@@ -161,17 +180,12 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Auto (recommended from cast size)</SelectItem>
                 <SelectItem value="2">2 tribes</SelectItem>
                 <SelectItem value="3">3 tribes</SelectItem>
                 <SelectItem value="4">4 tribes</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-white/45">
-              {v.survivorTribeCountOverride == null
-                ? `Auto → ${suggestedSurvivorTribeCount(v.survivorTeamCount)} tribes for ${v.survivorTeamCount} teams.`
-                : `Fixed at ${v.survivorTribeCountOverride} tribes (matches /leagues/create Rules).`}
-            </p>
+            <p className="text-xs text-white/45">Defaults to 4 tribes. Matches your survivor structure at creation.</p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Tribe names</Label>
@@ -184,19 +198,33 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">Auto-generate tribe names</SelectItem>
-                <SelectItem value="custom">I will name tribes (one per line)</SelectItem>
+                <SelectItem value="custom">I will name each tribe</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {v.survivorTribeNameMode === 'custom' && (
-            <textarea
-              value={v.survivorCustomTribeNamesLines}
-              onChange={(e) => onChange({ survivorCustomTribeNamesLines: e.target.value })}
-              rows={4}
-              className="w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"
-              placeholder="Tribe One&#10;Tribe Two&#10;Tribe Three"
-              aria-label="Custom tribe names"
-            />
+            <div className="space-y-2" data-testid="wizard-survivor-tribe-names">
+              <p className="text-[11px] text-white/45">
+                One name per tribe ({tribePick} fields). Emojis are OK.
+              </p>
+              <div className="flex flex-col gap-2">
+                {tribeNameLines.map((line, i) => (
+                  <Input
+                    key={i}
+                    value={line}
+                    onChange={(e) => {
+                      const next = [...tribeNameLines]
+                      next[i] = e.target.value
+                      onChange({ survivorCustomTribeNamesLines: next.join('\n') })
+                    }}
+                    placeholder={`Tribe ${i + 1}`}
+                    className="border-white/20 bg-[#030a20] text-white"
+                    data-testid={`wizard-survivor-tribe-name-${i}`}
+                    autoComplete="off"
+                  />
+                ))}
+              </div>
+            </div>
           )}
           <div className="space-y-1.5">
             <Label className="text-white/85">Your role</Label>

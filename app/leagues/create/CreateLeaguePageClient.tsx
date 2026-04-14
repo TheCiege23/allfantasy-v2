@@ -20,6 +20,7 @@ import { RulesStep } from './steps/RulesStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
 import { readFetchJson } from '@/lib/http/readFetchJson'
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 
 const STEP_ORDER: LeagueCreateStepId[] = [
   'sport',
@@ -277,7 +278,13 @@ export function CreateLeaguePageClient() {
         throw new Error('League created but no ID returned')
       }
 
-      router.push(`/league/${data.league.id}?openChat=league&created=1`)
+      router.push(
+        buildPostCreateLeagueHomeHref({
+          leagueId: data.league.id,
+          leagueType: state.formatId,
+          allowInviteLink: state.allowInviteLink,
+        }),
+      )
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create league')
     } finally {

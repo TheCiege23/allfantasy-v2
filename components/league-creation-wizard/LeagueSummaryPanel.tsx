@@ -15,6 +15,7 @@ import {
   type WizardCommissionerPreferences,
   type WizardStepId,
 } from '@/lib/league-creation-wizard/types'
+import { DEFAULT_WIZARD_FORMAT_OPTIONS } from '@/lib/league-creation-wizard/wizard-format-options'
 
 const COMMISSIONER_PREF_LABELS: Record<keyof WizardCommissionerPreferences, string> = {
   leagueAutomation: 'League automation',
@@ -120,6 +121,12 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
   const commissionerSummary = buildCommissionerPreferencesSummary(
     state.commissionerPreferences ?? DEFAULT_COMMISSIONER_PREFERENCES,
   )
+  const formatOpts = { ...DEFAULT_WIZARD_FORMAT_OPTIONS, ...state.formatOptions }
+  const survivorTribes = formatOpts.survivorTribeCountOverride ?? 4
+  const survivorCustomNames = formatOpts.survivorCustomTribeNamesLines
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
 
   return (
     <div className="space-y-6">
@@ -139,7 +146,25 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
 
       <SummarySection title="League details" stepId="team_setup" onEditStep={onEditStep}>
         <SummaryRow label="League name" value={state.name.trim() || '—'} />
-        <SummaryRow label="Teams" value={state.teamCount} />
+        <SummaryRow
+          label={state.leagueType === 'survivor' ? 'Cast size (teams)' : 'Teams'}
+          value={state.teamCount}
+        />
+        {state.leagueType === 'survivor' ? (
+          <>
+            <SummaryRow label="Tribes" value={survivorTribes} />
+            <SummaryRow
+              label="Tribe names"
+              value={
+                formatOpts.survivorTribeNameMode === 'custom'
+                  ? survivorCustomNames.length > 0
+                    ? survivorCustomNames.join(' · ')
+                    : '—'
+                  : 'Auto-generated'
+              }
+            />
+          </>
+        ) : null}
         <SummaryRow label="Timezone" value={state.leagueTimezone ?? 'America/New_York'} />
         <SummaryRow label="Trade review" value={state.tradeReviewMode} />
       </SummarySection>

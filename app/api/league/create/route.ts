@@ -480,6 +480,25 @@ export async function POST(req: Request) {
       }
     }
 
+    // Survivor: cast size 16/20/24 only — align Prisma `leagueSize` + settings JSON (wizard may send size only under settings).
+    if (String(requestedLeagueType ?? '').toLowerCase() === 'survivor') {
+      const { clampSurvivorCastSize } = await import('@/lib/league-creation-wizard/sport-team-limits');
+      const raw =
+        typeof (initialSettings as Record<string, unknown>).league_size === 'number'
+          ? Number((initialSettings as Record<string, unknown>).league_size)
+          : typeof (initialSettings as Record<string, unknown>).survivor_creation_team_count === 'number'
+            ? Number((initialSettings as Record<string, unknown>).survivor_creation_team_count)
+            : typeof leagueSize === 'number'
+              ? leagueSize
+              : 20;
+      const cast = clampSurvivorCastSize(raw);
+      leagueSize = cast;
+      (initialSettings as Record<string, unknown>).league_size = cast;
+      (initialSettings as Record<string, unknown>).survivor_creation_team_count = cast;
+      (initialSettings as Record<string, unknown>).teamCount = cast;
+      initialSettings.roster_mode = 'redraft';
+    }
+
     const generatedInviteCode = (await import('crypto')).randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
     const resolvedInviteCode =
       typeof initialSettings.inviteCode === 'string' && initialSettings.inviteCode.trim()
@@ -592,6 +611,20 @@ export async function POST(req: Request) {
         ? String((initialSettings as Record<string, unknown>).league_timezone).trim()
         : 'America/New_York';
 
+    const isSurvivorLeague =
+      String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+      String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
+    const survivorTribeCountColumn =
+      isSurvivorLeague &&
+      typeof (initialSettings as Record<string, unknown>).survivor_suggested_tribe_count === 'number'
+        ? Math.max(2, Math.min(4, Math.round(Number((initialSettings as Record<string, unknown>).survivor_suggested_tribe_count))))
+        : 4;
+    const survivorTribeNamingColumn =
+      isSurvivorLeague &&
+      String((initialSettings as Record<string, unknown>).survivor_tribe_name_mode ?? 'auto') === 'custom'
+        ? 'custom'
+        : 'auto';
+
     const league = await (prisma as any).league.create({
       data: {
         userId: userId,
@@ -605,11 +638,21 @@ export async function POST(req: Request) {
         isDynasty: effectiveDynasty,
         sport,
         leagueVariant: resolvedVariant,
+        ...(requestedLeagueType ? { leagueType: requestedLeagueType } : {}),
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         timezone: leagueTimezone,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
         ...(effectiveDynasty ? { season: foundingSeason } : {}),
+        ...(isSurvivorLeague && typeof leagueSize === 'number'
+          ? {
+              survivorMode: true,
+              survivorPlayerCount: leagueSize,
+              survivorTribeCount: survivorTribeCountColumn,
+              survivorTribeNaming: survivorTribeNamingColumn,
+              survivorTribeSize: Math.max(1, Math.ceil(leagueSize / survivorTribeCountColumn)),
+            }
+          : {}),
       },
     });
 
@@ -760,18 +803,18 @@ export async function POST(req: Request) {
       try {
         const { upsertSurvivorConfig } = await import('@/lib/survivor/SurvivorLeagueConfig');
         const { getOrCreateExileLeague } = await import('@/lib/survivor/SurvivorExileEngine');
-        const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'redraft').toLowerCase();
-        const sw = (settingsWizard ?? {}) as Record<string, unknown>;
+        const mode = String((initialSettings as Record<string, unknown>).mode ?? settingsWizard?.mode ?? 'redraft').toLowerCase();
+        const sw = initialSettings as Record<string, unknown>;
         const suggestedTribes =
           typeof sw.survivor_suggested_tribe_count === 'number' && Number.isFinite(sw.survivor_suggested_tribe_count)
             ? Math.max(2, Math.min(4, Math.round(Number(sw.survivor_suggested_tribe_count))))
             : null;
-        const teamCount = typeof league.leagueSize === 'number' ? league.leagueSize : 18;
+        const teamCount = typeof league.leagueSize === 'number' ? league.leagueSize : 20;
         const tribeCount =
           suggestedTribes ??
           (typeof sw.tribeCount === 'number' && Number.isFinite(sw.tribeCount)
             ? Math.max(2, Math.min(4, Math.round(Number(sw.tribeCount))))
-            : 3);
+            : 4);
         const tribeSize = Math.max(1, Math.ceil(teamCount / tribeCount));
         const tribeFormation = String(sw.tribeFormation ?? 'random');
         const seasonThemeRaw = sw.survivor_season_theme_label;

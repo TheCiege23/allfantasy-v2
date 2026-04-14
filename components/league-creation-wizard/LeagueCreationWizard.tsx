@@ -32,6 +32,7 @@ import { getConceptIntroVideoUrl } from '@/lib/league-creation/concept-intro-vid
 import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
 import { readFetchJson } from '@/lib/http/readFetchJson'
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { useSportPreset } from '@/hooks/useSportPreset'
 import { useEntitlement } from '@/hooks/useEntitlement'
 import {
@@ -473,9 +474,12 @@ export function LeagueCreationWizard({
 
   useEffect(() => {
     if (state.leagueType !== 'survivor') return
-    const tc = clampSurvivorTeamCount(String(state.sport), state.formatOptions.survivorTeamCount)
-    setState((s) => (s.teamCount === tc ? s : { ...s, teamCount: tc }))
-  }, [state.leagueType, state.sport, state.formatOptions.survivorTeamCount])
+    const tc = clampTeamCountForSport(String(state.sport), state.teamCount, 'survivor')
+    setState((s) => {
+      if (s.formatOptions.survivorTeamCount === tc) return s
+      return { ...s, formatOptions: { ...s.formatOptions, survivorTeamCount: tc } }
+    })
+  }, [state.leagueType, state.sport, state.teamCount])
 
   useEffect(() => {
     if (state.leagueType !== 'tournament') return
@@ -549,7 +553,7 @@ export function LeagueCreationWizard({
           leagueType,
           requestedVariant: s.leagueVariant ?? s.scoringPreset ?? fallbackVariant,
         }).variant ?? fallbackVariant
-      const nextTeam = clampTeamCountForSport(sport, s.teamCount)
+      const nextTeam = clampTeamCountForSport(sport, s.teamCount, leagueType)
       return {
         ...s,
         sport,
@@ -558,6 +562,10 @@ export function LeagueCreationWizard({
         teamCount: nextTeam,
         leagueVariant: resolvedVariant,
         scoringPreset: resolvedVariant,
+        formatOptions:
+          leagueType === 'survivor'
+            ? { ...s.formatOptions, survivorTeamCount: nextTeam }
+            : s.formatOptions,
       }
     })
   }, [])
@@ -572,7 +580,24 @@ export function LeagueCreationWizard({
           leagueType,
           requestedVariant: s.leagueVariant ?? s.scoringPreset ?? null,
         }).variant ?? 'STANDARD'
-      return { ...s, leagueType, draftType, leagueVariant: resolvedVariant, scoringPreset: resolvedVariant }
+      const nextTeam = clampTeamCountForSport(String(s.sport), s.teamCount, leagueType)
+      const nextFormat =
+        leagueType === 'survivor'
+          ? {
+              ...s.formatOptions,
+              survivorTeamCount: nextTeam,
+              survivorTribeCountOverride: s.formatOptions.survivorTribeCountOverride ?? 4,
+            }
+          : s.formatOptions
+      return {
+        ...s,
+        leagueType,
+        draftType,
+        leagueVariant: resolvedVariant,
+        scoringPreset: resolvedVariant,
+        teamCount: nextTeam,
+        formatOptions: nextFormat,
+      }
     })
   }, [])
 
@@ -591,7 +616,11 @@ export function LeagueCreationWizard({
     setState((s) => {
       const key = `${s.sport}|${s.leagueVariant ?? s.scoringPreset ?? ''}`
       teamManualOverrideKeyRef.current = key
-      return { ...s, teamCount: clampTeamCountForSport(String(s.sport), n) }
+      const next = clampTeamCountForSport(String(s.sport), n, s.leagueType)
+      if (s.leagueType === 'survivor') {
+        return { ...s, teamCount: next, formatOptions: { ...s.formatOptions, survivorTeamCount: next } }
+      }
+      return { ...s, teamCount: next }
     })
   }, [])
   const handleTradeReviewModeChange = useCallback((mode: LeagueCreationWizardState['tradeReviewMode']) => {
@@ -712,7 +741,7 @@ export function LeagueCreationWizard({
             window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
           }
           onSuccess?.(tournamentId)
-          router.push(`/tournament/${tournamentId}?created=1`)
+          router.push(buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId }))
         } else {
           setError('Tournament created but no ID returned')
         }
@@ -721,7 +750,7 @@ export function LeagueCreationWizard({
 
       const effectiveLeagueSize =
         state.leagueType === 'survivor'
-          ? clampSurvivorTeamCount(String(state.sport), state.formatOptions.survivorTeamCount)
+          ? clampSurvivorTeamCount(String(state.sport), state.teamCount)
           : state.teamCount
 
       const isDynasty = isDynastyLeagueType(state.leagueType)
@@ -832,15 +861,13 @@ export function LeagueCreationWizard({
           window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
         }
         onSuccess?.(leagueId)
-        const q = new URLSearchParams()
-        q.set('created', '1')
-        q.set('openChat', 'league')
-        if (state.privacySettings.allowInviteLink) q.set('showInvite', '1')
-        const destination =
-          state.leagueType === 'survivor'
-            ? `/survivor/${leagueId}?created=1`
-            : `/league/${leagueId}?${q.toString()}`
-        router.push(destination)
+        router.push(
+          buildPostCreateLeagueHomeHref({
+            leagueId,
+            leagueType: state.leagueType,
+            allowInviteLink: state.privacySettings.allowInviteLink,
+          }),
+        )
       } else {
         setError('League created but no ID returned')
       }
@@ -983,9 +1010,19 @@ export function LeagueCreationWizard({
       return
     }
     if (lastTeamPresetKeyRef.current === key) return
-    setState((s) => ({ ...s, teamCount: clampTeamCountForSport(String(s.sport), defaultTeamCount) }))
+    setState((s) => ({
+      ...s,
+      teamCount: clampTeamCountForSport(String(s.sport), defaultTeamCount, s.leagueType),
+      formatOptions:
+        s.leagueType === 'survivor'
+          ? {
+              ...s.formatOptions,
+              survivorTeamCount: clampTeamCountForSport(String(s.sport), defaultTeamCount, 'survivor'),
+            }
+          : s.formatOptions,
+    }))
     lastTeamPresetKeyRef.current = key
-  }, [creationPreset?.league?.default_team_count, state.sport, state.leagueVariant, state.scoringPreset])
+  }, [creationPreset?.league?.default_team_count, state.sport, state.leagueVariant, state.scoringPreset, state.leagueType])
 
   useEffect(() => {
     const defaultLeagueName = creationPreset?.league?.default_league_name_pattern
@@ -1077,6 +1114,7 @@ export function LeagueCreationWizard({
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                   <TeamCountSelector
                     sport={String(state.sport)}
+                    leagueType={state.leagueType}
                     teamCount={state.teamCount}
                     onTeamCountChange={handleTeamCountChange}
                   />
@@ -1095,6 +1133,7 @@ export function LeagueCreationWizard({
             <>
               <TeamSizeSelector
                 sport={String(state.sport)}
+                leagueType={state.leagueType}
                 name={state.name}
                 teamCount={state.teamCount}
                 tradeReviewMode={state.tradeReviewMode}

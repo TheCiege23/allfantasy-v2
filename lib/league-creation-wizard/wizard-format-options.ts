@@ -4,6 +4,7 @@
  */
 
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { clampSurvivorCastSize } from '@/lib/league-creation-wizard/sport-team-limits'
 
 export type TournamentLeagueNamingMode = 'commissioner_custom' | 'app_generated' | 'ai_themed'
 
@@ -77,13 +78,14 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   tournamentInitialLeagueSize: 12,
   tournamentLeagueNamingMode: 'app_generated',
   tournamentCustomLeagueNamesLines: '',
-  survivorTeamCount: 18,
+  survivorTeamCount: 20,
   survivorTribeNameMode: 'auto',
   survivorCustomTribeNamesLines: '',
   survivorCommissionerRole: 'commissioner_only',
   survivorSeasonThemeLabel: '',
   survivorChallengesSystemRun: true,
-  survivorTribeCountOverride: null,
+  /** Default 4 tribes (no “auto” in UI — cast size still set on step 1). */
+  survivorTribeCountOverride: 4,
   keeperMaxKeepers: 3,
   zombieUniverseMode: false,
   zombieIntertwinedLeagueCount: 1,
@@ -108,17 +110,13 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   c2cCollegeSlots: 6,
 }
 
-/** Survivor: 16–24 teams for NFL-style seasons; tighter bounds for shorter seasons. */
-export function getSurvivorTeamBounds(sport: string): { min: number; max: number } {
-  const s = normalizeToSupportedSport(sport) ?? 'NFL'
-  if (s === 'NFL' || s === 'NCAAF') return { min: 16, max: 24 }
-  if (s === 'NBA' || s === 'NHL' || s === 'MLB' || s === 'NCAAB' || s === 'SOCCER') return { min: 12, max: 20 }
+/** Survivor cast: 16 / 20 / 24 only (all sports). */
+export function getSurvivorTeamBounds(_sport: string): { min: number; max: number } {
   return { min: 16, max: 24 }
 }
 
-export function clampSurvivorTeamCount(sport: string, n: number): number {
-  const { min, max } = getSurvivorTeamBounds(sport)
-  return Math.max(min, Math.min(max, Math.round(n)))
+export function clampSurvivorTeamCount(_sport: string, n: number): number {
+  return clampSurvivorCastSize(n)
 }
 
 /** Tribe count from team count: max 4 tribes, at least 2. */
@@ -149,7 +147,7 @@ export function formatOptionsApplyToLeagueType(
     const tribeCount =
       options.survivorTribeCountOverride != null
         ? Math.min(4, Math.max(2, options.survivorTribeCountOverride))
-        : suggestedSurvivorTribeCount(cast)
+        : Math.min(4, Math.max(2, suggestedSurvivorTribeCount(cast)))
     out.survivor_suggested_tribe_count = tribeCount
     if (options.survivorCustomTribeNamesLines.trim()) {
       out.survivor_custom_tribe_names = options.survivorCustomTribeNamesLines

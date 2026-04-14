@@ -78,6 +78,9 @@ const FOOTBALL_BASKETBALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB
 const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
 const DRAFT_TYPES_STANDARD: LeagueDraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
 
+/** Survivor: startup draft is snake or auction only (no linear/slow/mock in create flow). */
+const DRAFT_TYPES_SURVIVOR: LeagueDraftTypeId[] = ['snake', 'auction']
+
 const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
   redraft: {
     id: 'redraft',
@@ -170,7 +173,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Progressive elimination with specialty rules and weekly survival logic.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: DRAFT_TYPES_SURVIVOR,
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {

@@ -402,7 +402,7 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: guillotine+snake and survivor+linear', async () => {
+  it('supports next paths: guillotine+snake and survivor+snake', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
@@ -427,7 +427,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'survivor',
-        draftType: 'linear',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -436,8 +436,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'survivor',
               format_id: 'survivor',
-              draft_type: 'linear',
-              requested_draft_type: 'linear',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -1179,7 +1179,7 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: guillotine+linear and survivor+mock_draft', async () => {
+  it('supports next paths: guillotine+linear and survivor+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
@@ -1204,7 +1204,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'survivor',
-        draftType: 'mock_draft',
+        draftType: 'auction',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1213,10 +1213,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'survivor',
               format_id: 'survivor',
-              draft_type: 'snake',
-              requested_draft_type: 'mock_draft',
-              mock_draft_enabled: true,
-              mock_draft_type: 'mock_draft',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
             })
           )
         },
@@ -1671,5 +1669,40 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(payload.isCommissioner).toBe(true)
       cases[index]!.assert(payload)
     }
+  })
+
+  it('persists survivor wizard fields on League row and clamps cast to 16/20/24', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+    const req = new Request('http://localhost/api/league/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Survivor automation test',
+        platform: 'manual',
+        sport: 'NBA',
+        leagueType: 'survivor',
+        draftType: 'snake',
+        leagueSize: 17,
+        scoring: 'standard',
+        isDynasty: false,
+        settings: {
+          league_size: 17,
+          survivor_suggested_tribe_count: 3,
+          survivor_tribe_name_mode: 'custom',
+        },
+      }),
+    })
+    const res = await POST(req)
+    expect(res.status).toBe(200)
+    const data = leagueCreateMock.mock.calls.at(-1)?.[0]?.data as Record<string, unknown>
+    expect(data.leagueType).toBe('survivor')
+    expect(data.leagueSize).toBe(16)
+    expect(data.survivorMode).toBe(true)
+    expect(data.survivorPlayerCount).toBe(16)
+    expect(data.survivorTribeCount).toBe(3)
+    expect(data.survivorTribeNaming).toBe('custom')
+    const st = data.settings as Record<string, unknown>
+    expect(st.league_size).toBe(16)
+    expect(st.survivor_creation_team_count).toBe(16)
   })
 })
