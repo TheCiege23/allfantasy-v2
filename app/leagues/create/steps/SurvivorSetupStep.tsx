@@ -95,12 +95,12 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
             <Input
               type="number"
               min={2}
-              max={4}
+              max={5}
               value={state.survivorTribeCount}
               onChange={(e) =>
                 setState((c) => ({
                   ...c,
-                  survivorTribeCount: Math.min(4, Math.max(2, Number(e.target.value) || 4)),
+                  survivorTribeCount: Math.min(5, Math.max(2, Number(e.target.value) || 4)),
                 }))
               }
             />
