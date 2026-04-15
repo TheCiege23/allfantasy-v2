@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getLegacyTournamentAccess, canEditHubSettings } from '@/lib/tournament/legacyTournamentAccess'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -45,12 +46,14 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
+  const access = await getLegacyTournamentAccess(userId, tournamentId)
+  if (!canEditHubSettings(access)) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
+
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { creatorId: true, hubSettings: true, settings: true },
   })
   if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const bannerUrl = body.bannerUrl as string | undefined

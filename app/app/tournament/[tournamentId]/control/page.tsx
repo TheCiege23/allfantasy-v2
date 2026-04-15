@@ -19,12 +19,20 @@ export default function TournamentControlPage() {
           <ChevronLeft className="h-4 w-4" /> Tournaments
         </Link>
         {tournamentId ? (
-          <Link
-            href={`/tournament/${tournamentId}`}
-            className="inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
-          >
-            View tournament home
-          </Link>
+          <>
+            <Link
+              href={`/app/tournament/${tournamentId}/commissioner`}
+              className="inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
+            >
+              Commissioner dashboard
+            </Link>
+            <Link
+              href={`/tournament/${tournamentId}`}
+              className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white/80"
+            >
+              Tournament home
+            </Link>
+          </>
         ) : null}
       </div>
 

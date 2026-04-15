@@ -90,6 +90,8 @@ export type RightControlPanelLayoutProps = {
   onLeaguesRefresh?: () => void
   /** Optimistically drop a league from local state after successful remove-from-list */
   onLeagueRemoved?: (leagueId: string) => void
+  /** Desktop: collapse the My Leagues rail so the center workspace widens */
+  onRailCollapse?: () => void
 }
 
 export interface DashboardConnectedLeague extends UserLeague {

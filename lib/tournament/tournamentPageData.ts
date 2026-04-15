@@ -128,6 +128,63 @@ export type SerializedPendingLeagueSettingRequest = {
   proposedPatchKeys: string[]
 }
 
+/** Hub waitlist (legacy tournaments): enabled in hubSettings; capacity from feeder leagues or participant pool. */
+export type LegacyWaitlistUiPayload = {
+  waitlistEnabled: boolean
+  maxWaitlist: number
+  /** No open roster slots across feeder leagues, or at participant pool cap when there are no feeders. */
+  registrationFull: boolean
+  viewerOnWaitlist: boolean
+}
+
+function parseHubWaitlistFromJson(hubSettings: unknown): { waitlistEnabled: boolean; maxWaitlist: number } {
+  const hub =
+    typeof hubSettings === 'object' && hubSettings !== null && !Array.isArray(hubSettings)
+      ? (hubSettings as Record<string, unknown>)
+      : {}
+  const waitlistEnabled = hub.waitlistEnabled === true
+  const max =
+    typeof hub.maxWaitlist === 'number' && Number.isFinite(hub.maxWaitlist) && hub.maxWaitlist > 0
+      ? Math.floor(hub.maxWaitlist)
+      : 500
+  return { waitlistEnabled, maxWaitlist: max }
+}
+
+function computeLegacyRegistrationFull(opts: {
+  leagueRows: { leagueId: string | null }[]
+  leagueById: Map<
+    string,
+    { leagueSize: number | null; _count?: { teams: number } }
+  >
+  participantCount: number
+  participantPoolSize: number
+}): boolean {
+  const withIds = opts.leagueRows.filter((l): l is typeof l & { leagueId: string } => Boolean(l.leagueId))
+  if (withIds.length === 0) {
+    return opts.participantCount >= opts.participantPoolSize
+  }
+  const anyOpen = withIds.some((row) => {
+    const lg = opts.leagueById.get(row.leagueId)
+    if (!lg) return true
+    const cap = lg.leagueSize ?? 12
+    const filled = lg._count?.teams ?? 0
+    return filled < cap
+  })
+  return !anyOpen
+}
+
+async function loadLegacyViewerOnWaitlist(tournamentId: string, userId: string | null): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const w = await prisma.legacyTournamentWaitlistEntry.findUnique({
+      where: { tournamentId_userId: { tournamentId, userId } },
+    })
+    return Boolean(w)
+  } catch {
+    return false
+  }
+}
+
 export type TournamentLayoutPayload = {
   shell: SerializedShell
   conferences: SerializedConference[]
@@ -146,6 +203,8 @@ export type TournamentLayoutPayload = {
   legacyPendingLeagueSettingRequests?: SerializedPendingLeagueSettingRequest[]
   /** League IDs where the viewer is the assigned mini-commissioner (legacy). */
   viewerMiniCommissionerLeagueIds?: string[]
+  /** Waitlist affordances (legacy hub); omit when not applicable. */
+  legacyWaitlistUi?: LegacyWaitlistUiPayload
 }
 
 function dt(d: Date | null | undefined): string | null {
@@ -200,6 +259,11 @@ async function loadLegacyTournamentLayoutPayloadLoose(
     .catch(() => 0)
   const placeholderRoundId = `${t.id}:loose-round`
 
+  const { waitlistEnabled, maxWaitlist } = parseHubWaitlistFromJson(t.hubSettings)
+  const registrationFullLoose = participantCount >= settings.participantPoolSize
+  const viewerOnWaitlistLoose =
+    waitlistEnabled && (await loadLegacyViewerOnWaitlist(t.id, userId))
+
   const serializedShell: SerializedShell = {
     id: t.id,
     name: t.name,
@@ -250,6 +314,12 @@ async function loadLegacyTournamentLayoutPayloadLoose(
     isCommissioner: Boolean(userId && t.creatorId === userId),
     announcements: [],
     hubKind: 'legacy',
+    legacyWaitlistUi: {
+      waitlistEnabled,
+      maxWaitlist,
+      registrationFull: registrationFullLoose,
+      viewerOnWaitlist: viewerOnWaitlistLoose,
+    },
   }
 }
 
@@ -403,6 +473,15 @@ async function loadLegacyTournamentLayoutPayload(
     }
   })
 
+  const { waitlistEnabled, maxWaitlist } = parseHubWaitlistFromJson(t.hubSettings)
+  const registrationFull = computeLegacyRegistrationFull({
+    leagueRows: t.leagues,
+    leagueById,
+    participantCount,
+    participantPoolSize: settings.participantPoolSize,
+  })
+  const viewerOnWaitlist = await loadLegacyViewerOnWaitlist(t.id, userId)
+
   let legacyMiniCommissioners: SerializedMiniCommissionerAssignment[] | undefined
   let legacyPendingLeagueSettingRequests: SerializedPendingLeagueSettingRequest[] | undefined
   const viewerMiniCommissionerLeagueIds: string[] = []
@@ -532,6 +611,12 @@ async function loadLegacyTournamentLayoutPayload(
     legacyPendingLeagueSettingRequests,
     viewerMiniCommissionerLeagueIds:
       viewerMiniCommissionerLeagueIds.length > 0 ? viewerMiniCommissionerLeagueIds : undefined,
+    legacyWaitlistUi: {
+      waitlistEnabled,
+      maxWaitlist,
+      registrationFull,
+      viewerOnWaitlist,
+    },
   }
 }
 

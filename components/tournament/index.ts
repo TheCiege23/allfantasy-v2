@@ -1,5 +1,8 @@
 export { TournamentCreateWizard } from './TournamentCreateWizard'
 export { TournamentHubClient } from './TournamentHubClient'
+export { TournamentCommissionerDashboard } from './TournamentCommissionerDashboard'
+export { KingBuffaloPresentedBy, KingBuffaloPresentedByText } from './KingBuffaloPresentedBy'
+export { TournamentLeagueSettingsModalLegacy } from './TournamentLeagueSettingsModalLegacy'
 export { TournamentControlDashboard } from './TournamentControlDashboard'
 export { TournamentLeagueHome } from './TournamentLeagueHome'
 export { TournamentTeamView } from './TournamentTeamView'

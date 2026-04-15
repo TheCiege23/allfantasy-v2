@@ -137,8 +137,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
-  const action = typeof body.action === 'string' ? body.action : ''
-  const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
+  const action = typeof body.action === 'string' ? body.action.trim() : ''
+  const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   if (!action) return NextResponse.json({ error: 'action required' }, { status: 400 })
 

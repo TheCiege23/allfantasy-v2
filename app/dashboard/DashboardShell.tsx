@@ -14,6 +14,7 @@ import { RightControlPanel } from './components/RightControlPanel'
 import type { DashboardConnectedLeague, UserLeague } from './types'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
+import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 
 type DashboardShellProps = {
   userId: string
@@ -312,6 +313,7 @@ export function DashboardShell({
   const [leaguesLoading, setLeaguesLoading] = useState(() => initialLeagueList == null)
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
+  const myLeaguesRail = useMyLeaguesRailCollapse()
 
   const selectedLeague = useMemo((): UserLeague | null => {
     if (!activeLeagueId) return null
@@ -417,6 +419,9 @@ export function DashboardShell({
   return (
     <AppShell
       rootProps={{ 'data-dashboard-user-id': userId }}
+      rightRailCollapsed={myLeaguesRail.collapsed}
+      onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
+      rightRailCollapsedHint={leagues.length ? String(leagues.length) : undefined}
       leftPanel={
         <LeftChatPanel
           selectedLeague={selectedLeague}
@@ -428,6 +433,7 @@ export function DashboardShell({
           leagues={leagues}
           discordConnected={discordConnected}
           commissionerLeagues={commissionerLeagues}
+          initialOpenChat={activeLeagueId ? 'league' : null}
         />
       }
       rightPanel={
@@ -443,6 +449,7 @@ export function DashboardShell({
           onImport={handleTriggerImport}
           onLeaguesRefresh={onLeaguesRefresh}
           onLeagueRemoved={onLeagueRemoved}
+          onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
         />
       }
     >
@@ -570,6 +577,7 @@ export function DashboardShell({
                 leagues={leagues}
                 discordConnected={discordConnected}
                 commissionerLeagues={commissionerLeagues}
+                initialOpenChat={activeLeagueId ? 'league' : null}
               />
             </div>
           </div>
@@ -606,6 +614,7 @@ export function DashboardShell({
                   onSettingsNavigate={() => setMobileRightOpen(false)}
                   onLeaguesRefresh={onLeaguesRefresh}
                   onLeagueRemoved={onLeagueRemoved}
+                  onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
                 />
               </div>
             </div>

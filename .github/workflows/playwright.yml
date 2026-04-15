@@ -143,6 +143,16 @@ jobs:
       run: npm run db:foundation:apply
     - name: Install Playwright Chromium
       run: npx playwright install --with-deps chromium
+    - name: Prepare DB schema for draft-room regression
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      run: npx prisma db push --skip-generate
+    - name: Apply platform-backend foundation SQL
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      run: npm run db:foundation:apply
     - name: Run draft-room regression
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci

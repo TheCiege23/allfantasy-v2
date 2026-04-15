@@ -2587,6 +2587,8 @@ model AppUser {
   tournamentShellsCommissioned   TournamentShell[]          @relation("TournamentShellCommissioner")
   tournamentShellsCreatedBy      TournamentShell[]          @relation("TournamentShellCreator")
   tournamentsCreated             LegacyTournament[]         @relation("LegacyTournamentCreator")
+  legacyTournamentWaitlistEntries LegacyTournamentWaitlistEntry[]
+  legacyTournamentStaffRoles      LegacyTournamentStaff[]
   tradeFeedback                  Feedback[]
   tradeProfile                   TradeProfile?
   profile                        UserProfile?
@@ -4586,6 +4588,8 @@ model LegacyTournament {
   rounds                  LegacyTournamentRound[]
   miniCommissioners       LegacyTournamentMiniCommissioner[]
   leagueSettingRequests   LegacyTournamentLeagueSettingRequest[]
+  waitlistEntries         LegacyTournamentWaitlistEntry[]
+  staffMembers            LegacyTournamentStaff[]
   creator                 AppUser                        @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId])
@@ -4753,6 +4757,37 @@ model LegacyTournamentLeagueSettingRequest {
   @@index([tournamentId, status])
   @@index([requesterId])
   @@map("tournament_league_setting_requests")
+}
+
+/// Ordered waitlist when all feeder leagues are full (or user opts in). One row per user per tournament.
+model LegacyTournamentWaitlistEntry {
+  id           String           @id @default(cuid())
+  tournamentId String
+  userId       String
+  createdAt    DateTime         @default(now())
+  tournament   LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         AppUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId, createdAt])
+  @@map("legacy_tournament_waitlist_entries")
+}
+
+/// Tournament-wide co-commissioner / staff with JSON permissions (dashboard, manageLeagues, …).
+model LegacyTournamentStaff {
+  id           String           @id @default(cuid())
+  tournamentId String
+  userId       String
+  permissions  Json             @default("{}")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  tournament   LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         AppUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, userId])
+  @@index([tournamentId])
+  @@index([userId])
+  @@map("legacy_tournament_staff")
 }
 
 model TournamentShell {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Plus, Settings } from 'lucide-react'
+import { ChevronRight, Plus, Settings } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
@@ -33,6 +33,7 @@ export function RightControlPanel({
   onSettingsNavigate,
   onLeaguesRefresh,
   onLeagueRemoved,
+  onRailCollapse,
 }: RightControlPanelLayoutProps) {
   const router = useRouter()
   const { t } = useLanguage()
@@ -48,18 +49,32 @@ export function RightControlPanel({
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-2 py-2">
-          <p className="text-[16px] dashboard-header-bold header-myleagues uppercase tracking-widest">
+          <p className="min-w-0 truncate text-[16px] dashboard-header-bold header-myleagues uppercase tracking-widest">
             {t('dashboard.right.myLeagues')}
           </p>
-          <button
-            type="button"
-            onClick={onImport}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white transition hover:bg-white/[0.08]"
-            aria-label={t('dashboard.right.importLeague')}
-            title={t('dashboard.right.importLeague')}
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {onRailCollapse ? (
+              <button
+                type="button"
+                onClick={onRailCollapse}
+                className="hidden md:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/80 transition hover:bg-white/[0.08]"
+                aria-label="Collapse My Leagues"
+                title="Collapse My Leagues"
+                data-testid="myleagues-rail-collapse"
+              >
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onImport}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white transition hover:bg-white/[0.08]"
+              aria-label={t('dashboard.right.importLeague')}
+              title={t('dashboard.right.importLeague')}
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <LeagueListPanel

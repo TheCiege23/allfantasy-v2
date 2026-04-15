@@ -102,8 +102,8 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       }
       clearPersistedV2State()
       router.push(result.redirectTo ?? '/dashboard')
-    } catch {
-      setSubmitError('Something went wrong creating your league.')
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'Something went wrong creating your league.')
     } finally {
       setSubmitting(false)
     }

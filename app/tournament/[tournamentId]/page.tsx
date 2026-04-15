@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Copy } from 'lucide-react'
@@ -13,6 +13,7 @@ import { LeagueIdentityCard } from '@/app/tournament/components/LeagueIdentityCa
 import { RoundProgressBar } from '@/app/tournament/components/RoundProgressBar'
 import { ForumPostCard } from '@/app/tournament/components/ForumPostCard'
 import { MiniCommissionerHub } from '@/app/tournament/[tournamentId]/components/MiniCommissionerHub'
+import { KingBuffaloPresentedBy } from '@/components/tournament/KingBuffaloPresentedBy'
 
 function useCountdown(target: Date | null) {
   const [now, setNow] = useState(() => Date.now())
@@ -32,6 +33,7 @@ function useCountdown(target: Date | null) {
 export default function TournamentHomePage() {
   const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
+  const router = useRouter()
   const ctx = useTournamentUi()
   const {
     shell,
@@ -45,6 +47,7 @@ export default function TournamentHomePage() {
     legacyMiniCommissioners,
     legacyPendingLeagueSettingRequests,
     viewerMiniCommissionerLeagueIds,
+    legacyWaitlistUi,
   } = ctx
   const state = useTournamentParticipantState(ctx)
 
@@ -70,6 +73,47 @@ export default function TournamentHomePage() {
   const isWildcard = state.myStandingsRow?.advancementStatus === 'wildcard_eligible'
 
   const [elimOpen, setElimOpen] = useState(false)
+  const [waitlistBusy, setWaitlistBusy] = useState(false)
+
+  const showWaitlistPanel = Boolean(
+    hubKind === 'legacy' &&
+      legacyWaitlistUi?.waitlistEnabled &&
+      !participant &&
+      (legacyWaitlistUi.registrationFull || legacyWaitlistUi.viewerOnWaitlist),
+  )
+
+  const joinWaitlist = useCallback(async () => {
+    setWaitlistBusy(true)
+    try {
+      const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/waitlist`, { method: 'POST' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof j.error === 'string' ? j.error : 'Could not join waitlist')
+        return
+      }
+      toast.success(j.already ? 'You are already on the waitlist' : 'You joined the waitlist')
+      router.refresh()
+    } finally {
+      setWaitlistBusy(false)
+    }
+  }, [router, tournamentId])
+
+  const leaveWaitlist = useCallback(async () => {
+    setWaitlistBusy(true)
+    try {
+      const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/waitlist`, { method: 'DELETE' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(typeof j.error === 'string' ? j.error : 'Could not leave waitlist')
+        return
+      }
+      toast.success('Removed from waitlist')
+      router.refresh()
+    } finally {
+      setWaitlistBusy(false)
+    }
+  }, [router, tournamentId])
+
   useEffect(() => {
     if (state.status !== 'eliminated') return
     try {
@@ -186,6 +230,11 @@ export default function TournamentHomePage() {
           </div>
         </div>
         <div className="mt-4 flex flex-col items-stretch gap-2 md:mt-0 md:items-end">
+          {hubKind === 'legacy' ? (
+            <div className="w-full max-w-xs md:self-end">
+              <KingBuffaloPresentedBy variant="compact" />
+            </div>
+          ) : null}
           <span className="self-start rounded-full bg-white/10 px-4 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-cyan-200 md:self-end">
             {currentRoundMeta?.roundLabel ?? `Round ${shell.currentRoundNumber || 1}`}
           </span>
@@ -195,6 +244,51 @@ export default function TournamentHomePage() {
           </p>
         </div>
       </div>
+
+      {showWaitlistPanel && legacyWaitlistUi ? (
+        <div
+          className="rounded-2xl border border-cyan-500/25 bg-[#081226]/90 p-4 shadow-[0_0_24px_rgba(34,211,238,0.06)]"
+          data-testid="tournament-waitlist-panel"
+        >
+          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-100/90">Waitlist</p>
+          <p className="mt-2 text-[12px] leading-relaxed text-[var(--tournament-text-mid)]">
+            {legacyWaitlistUi.viewerOnWaitlist
+              ? "You're on the waitlist. The commissioner may assign you when a feeder league opens a spot."
+              : 'All feeder leagues are at capacity (or the participant pool is full). Join the waitlist for the next opening.'}
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {legacyWaitlistUi.viewerOnWaitlist ? (
+              <button
+                type="button"
+                disabled={waitlistBusy}
+                onClick={() => void leaveWaitlist()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 text-[12px] font-semibold text-white hover:bg-white/10 disabled:opacity-50"
+                data-testid="tournament-waitlist-leave"
+              >
+                {waitlistBusy ? '…' : 'Leave waitlist'}
+              </button>
+            ) : viewerUserId ? (
+              <button
+                type="button"
+                disabled={waitlistBusy}
+                onClick={() => void joinWaitlist()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-cyan-500/25 px-4 text-[12px] font-bold text-cyan-50 ring-1 ring-cyan-400/35 hover:bg-cyan-500/35 disabled:opacity-50"
+                data-testid="tournament-waitlist-join"
+              >
+                {waitlistBusy ? '…' : 'Join waitlist'}
+              </button>
+            ) : (
+              <Link
+                href={`/login?callbackUrl=${encodeURIComponent(base)}`}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-cyan-500/25 px-4 text-[12px] font-bold text-cyan-50 ring-1 ring-cyan-400/35 hover:bg-cyan-500/35"
+                data-testid="tournament-waitlist-sign-in"
+              >
+                Sign in to join
+              </Link>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {hubKind === 'legacy' && isCommissioner && legacyFeederLeagues && legacyFeederLeagues.length > 0 ? (
         <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-[#081226] to-[#0c1020] p-4 shadow-[0_0_32px_rgba(34,211,238,0.06)]">
@@ -206,6 +300,13 @@ export default function TournamentHomePage() {
                 invite only with managers assigned to that league.
               </p>
             </div>
+            <Link
+              href={`/app/tournament/${tournamentId}/commissioner`}
+              className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-[11px] font-bold text-cyan-100 hover:bg-cyan-500/25"
+              data-testid="tournament-commissioner-dashboard-link"
+            >
+              Commissioner dashboard →
+            </Link>
           </div>
           <ul className="mt-4 space-y-3">
             {legacyFeederLeagues.map((row) => (

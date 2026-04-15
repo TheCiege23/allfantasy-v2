@@ -23,7 +23,7 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
   const tid = typeof args.tournamentId === 'string' ? args.tournamentId.trim() : ''
 
   if (lt === 'tournament' && tid) {
-    return `/tournament/${tid}?created=1`
+    return `/app/tournament/${tid}/commissioner?created=1`
   }
 
   const leagueId = typeof args.leagueId === 'string' ? args.leagueId.trim() : ''

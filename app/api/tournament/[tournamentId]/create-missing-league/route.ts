@@ -9,6 +9,7 @@ import { runPostCreateInitialization } from '@/lib/league-defaults-orchestrator/
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { TOURNAMENT_LEAGUE_VARIANT } from '@/lib/tournament-mode/constants'
 import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
+import { applyTournamentFeederInviteAndDraftShell } from '@/lib/tournament-mode/TournamentCreationService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -63,6 +64,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tou
     data: { tournamentId, conferenceId, leagueId: league.id, roundIndex, phase: 'qualification', orderInConference },
   })
 
-  await logTournamentAudit(tournamentId, 'create_missing_league', { actorId: userId, metadata: { leagueId: league.id, conferenceId, roundIndex } })
-  return NextResponse.json({ ok: true, leagueId: league.id })
+  const { inviteCode, joinUrl } = await applyTournamentFeederInviteAndDraftShell(league.id)
+
+  await logTournamentAudit(tournamentId, 'create_missing_league', {
+    actorId: userId,
+    metadata: { leagueId: league.id, conferenceId, roundIndex },
+  })
+  return NextResponse.json({ ok: true, leagueId: league.id, inviteCode, joinUrl })
 }

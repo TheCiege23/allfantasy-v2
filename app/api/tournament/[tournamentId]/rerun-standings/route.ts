@@ -7,6 +7,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUniversalStandings } from '@/lib/tournament-mode/TournamentStandingsService'
 import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
+import { getLegacyTournamentAiAutomationState } from '@/lib/tournament/legacy-tournament-ai-automation'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -22,8 +23,16 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ to
   if (tournament.creatorId !== userId) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
 
   try {
+    const automation = await getLegacyTournamentAiAutomationState(tournamentId)
     const standings = await getUniversalStandings(tournamentId)
-    await logTournamentAudit(tournamentId, 'rerun_standings', { actorId: userId, metadata: { rowCount: standings.length } })
+    await logTournamentAudit(tournamentId, 'rerun_standings', {
+      actorId: userId,
+      metadata: {
+        rowCount: standings.length,
+        // Snapshot for audit; `standings` toggle is for future automated recalc jobs, not manual reruns.
+        aiAutomationStandingsEnabled: automation?.standings ?? false,
+      },
+    })
     return NextResponse.json({ ok: true, standings, rowCount: standings.length })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Failed' }, { status: 500 })

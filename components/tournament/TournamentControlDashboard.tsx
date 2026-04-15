@@ -35,7 +35,14 @@ const AI_TYPES = [
   { value: 'bracket_preview', label: 'Bracket preview' },
 ] as const
 
-export function TournamentControlDashboard({ tournamentId }: { tournamentId: string }) {
+export function TournamentControlDashboard({
+  tournamentId,
+  hideLocalBackLink = false,
+}: {
+  tournamentId: string
+  /** When embedded in Tournament Commissioner Dashboard, skip duplicate nav to tournament hub. */
+  hideLocalBackLink?: boolean
+}) {
   const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<ControlData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -118,14 +125,16 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
 
   return (
     <div className="space-y-6">
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <Link
-          href={`/tournament/${tournamentId}`}
-          className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
-        >
-          <ChevronLeft className="h-4 w-4" /> Tournament
-        </Link>
-      </div>
+      {!hideLocalBackLink ? (
+        <div className="mb-6 flex flex-wrap items-center gap-4">
+          <Link
+            href={`/tournament/${tournamentId}`}
+            className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" /> Tournament
+          </Link>
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-white">Invite links</h2>

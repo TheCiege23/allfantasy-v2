@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 
 import { requireCronAuth } from '@/app/api/cron/_auth'
+import { classifyPlayerNewsCategory } from '@/lib/news/player-news-category'
 import { fetchWithChain } from '@/lib/workers/api-chain'
+import type { NewsCategory } from '@/lib/workers/x-news-ingestion'
 import { SUPPORTED_SPORTS } from '@/lib/workers/api-config'
-import { classifyCategory } from '@/lib/workers/x-news-ingestion'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,18 +13,6 @@ export const maxDuration = 120
 
 const NEWS_LOOKBACK_MS = 20 * 60 * 1000
 const NEWS_DISPATCH_LIMIT = 20
-
-type DispatchCategory =
-  | 'injury'
-  | 'suspension'
-  | 'trade'
-  | 'signing'
-  | 'release'
-  | 'roster_move'
-  | 'team_news'
-  | 'player_news'
-  | 'game_update'
-  | 'coaching'
 
 /**
  * Shared dispatch helper for both the X Grok and NewsAPI ingestion
@@ -59,12 +48,12 @@ async function dispatchRecentPlayerNews(
   let notifications = 0
   for (const news of records) {
     if (!news.playerName || news.playerName.trim().length === 0) continue
-    const category = classifyCategory(`${news.headline} ${news.body ?? ''}`) as DispatchCategory
+    const category: NewsCategory = classifyPlayerNewsCategory(news.headline, news.body ?? '')
     const sent = await dispatchPlayerNewsNotifications(
       news.playerName,
       news.team,
       news.headline,
-      category as import('@/lib/workers/x-news-ingestion').NewsCategory,
+      category,
       news.impact as 'high' | 'medium' | 'low',
       news.sport,
     )

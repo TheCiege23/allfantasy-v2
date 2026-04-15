@@ -57,13 +57,25 @@ function parseLeaguePrompt(prompt: string): {
 } {
   const lower = prompt.toLowerCase()
 
-  // Detect sport
+  // Detect sport — college / NCAAB before NBA so phrases like "NCAA basketball" are not classified as NBA.
   let sport = 'NFL'
-  if (lower.includes('college basketball') || lower.includes('ncaab') || lower.includes('cbb')) sport = 'NCAAB'
-  else if (lower.includes('nba') || lower.includes('basketball')) sport = 'NBA'
+  if (lower.includes('college football') || lower.includes('ncaaf') || lower.includes('cfb')) sport = 'NCAAF'
+  else if (
+    lower.includes('college basketball') ||
+    lower.includes('ncaab') ||
+    lower.includes('cbb') ||
+    lower.includes('ncaa basketball') ||
+    lower.includes("ncaa women's basketball") ||
+    lower.includes('march madness')
+  )
+    sport = 'NCAAB'
   else if (lower.includes('mlb') || lower.includes('baseball')) sport = 'MLB'
   else if (lower.includes('nhl') || lower.includes('hockey')) sport = 'NHL'
-  else if (lower.includes('college football') || lower.includes('ncaaf') || lower.includes('cfb')) sport = 'NCAAF'
+  else if (
+    lower.includes('nba') ||
+    (lower.includes('basketball') && !lower.includes('ncaa') && !lower.includes('college'))
+  )
+    sport = 'NBA'
   else if (lower.includes('soccer') || lower.includes('premier league') || lower.includes('epl') || lower.includes('futbol')) sport = 'SOCCER'
 
   // Detect league type

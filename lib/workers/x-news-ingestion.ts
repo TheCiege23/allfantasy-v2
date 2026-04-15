@@ -17,18 +17,12 @@
 
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import {
+  classifyPlayerNewsCategory,
+  type PlayerNewsCategory,
+} from '@/lib/news/player-news-category'
 
-export type NewsCategory =
-  | 'injury'
-  | 'suspension'
-  | 'trade'
-  | 'signing'
-  | 'release'
-  | 'roster_move'
-  | 'team_news'
-  | 'player_news'
-  | 'game_update'
-  | 'coaching'
+export type { PlayerNewsCategory as NewsCategory } from '@/lib/news/player-news-category'
 
 export type XNewsItem = {
   headline: string
@@ -36,7 +30,7 @@ export type XNewsItem = {
   playerName: string | null
   team: string | null
   sport: string
-  category: NewsCategory
+  category: PlayerNewsCategory
   impact: 'high' | 'medium' | 'low'
   source: string
   sourceUrl: string | null
@@ -79,20 +73,6 @@ const SPORT_SEARCH_QUERIES: Record<string, string[]> = {
     '(injury OR injured OR ruled out OR doubtful) (Premier League OR La Liga OR Serie A OR Bundesliga)',
     '(transfer OR signs OR signed OR loan) (Premier League OR La Liga)',
   ],
-}
-
-// Keywords for category classification
-const CATEGORY_KEYWORDS: Record<NewsCategory, string[]> = {
-  injury: ['injury', 'injured', 'ruled out', 'questionable', 'doubtful', 'concussion', 'IL', 'IR', 'day-to-day', 'out for', 'DNP', 'limited', 'hamstring', 'knee', 'ankle', 'shoulder', 'back'],
-  suspension: ['suspended', 'suspension', 'banned', 'PED', 'conduct'],
-  trade: ['traded', 'trade', 'acquired', 'deal', 'blockbuster', 'swap'],
-  signing: ['signs', 'signed', 'contract', 'extension', 'deal', 'agrees'],
-  release: ['released', 'waived', 'cut', 'DFA', 'designated for assignment'],
-  roster_move: ['placed on IR', 'injured reserve', 'activated', 'recalled', 'promoted', 'demoted', 'roster move'],
-  team_news: ['coaching', 'hire', 'fired', 'front office', 'ownership', 'relocat'],
-  player_news: ['return', 'comeback', 'retirement', 'retire'],
-  game_update: ['postponed', 'cancelled', 'delayed', 'weather'],
-  coaching: ['head coach', 'coaching change', 'coordinator', 'fired', 'hired'],
 }
 
 // Impact classification
@@ -214,7 +194,7 @@ function parseXNewsResponse(output: unknown, sport: string): XNewsItem[] {
             playerName: obj.playerName ? String(obj.playerName) : null,
             team: obj.team ? String(obj.team) : null,
             sport: normalizeToSupportedSport(sport),
-            category: classifyCategory(String(obj.headline ?? '') + ' ' + String(obj.body ?? '')),
+            category: classifyPlayerNewsCategory(String(obj.headline ?? ''), String(obj.body ?? '')),
             impact: classifyImpact(String(obj.headline ?? '') + ' ' + String(obj.body ?? '')),
             source: 'x_grok_search',
             sourceUrl: obj.url ? String(obj.url) : null,
@@ -237,7 +217,7 @@ function parseXNewsResponse(output: unknown, sport: string): XNewsItem[] {
           playerName: playerMatch[1],
           team: null,
           sport: normalizeToSupportedSport(sport),
-          category: classifyCategory(line),
+          category: classifyPlayerNewsCategory(line, ''),
           impact: classifyImpact(line),
           source: 'x_grok_search',
           sourceUrl: null,
@@ -248,16 +228,6 @@ function parseXNewsResponse(output: unknown, sport: string): XNewsItem[] {
   }
 
   return items.slice(0, 20) // Max 20 items per query
-}
-
-export function classifyCategory(text: string): NewsCategory {
-  const lower = text.toLowerCase()
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some((kw) => lower.includes(kw))) {
-      return category as NewsCategory
-    }
-  }
-  return 'player_news'
 }
 
 function classifyImpact(text: string): 'high' | 'medium' | 'low' {

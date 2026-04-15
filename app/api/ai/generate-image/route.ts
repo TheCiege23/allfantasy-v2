@@ -8,7 +8,7 @@ import {
   generateMergedTribeLogo,
   generateEventGraphic,
 } from '@/lib/ai/imageGenerator'
-import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
   }
 
   const type = typeof body.type === 'string' ? body.type : ''
-  const sport = normalizeToSupportedSport(typeof body.sport === 'string' ? body.sport : DEFAULT_SPORT)
+  const rawSport = typeof body.sport === 'string' ? body.sport.trim() : ''
+  if (rawSport && !isSupportedSport(rawSport)) {
+    return NextResponse.json({ error: 'Invalid sport' }, { status: 400 })
+  }
+  const sport = rawSport ? normalizeToSupportedSport(rawSport) : DEFAULT_SPORT
 
   try {
     let result = null

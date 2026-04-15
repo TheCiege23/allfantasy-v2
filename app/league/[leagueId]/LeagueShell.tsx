@@ -89,6 +89,7 @@ import { ZombieHome } from '@/components/zombie/ZombieHome'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
+import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -184,6 +185,7 @@ export function LeagueShell({
   leagueDashboard,
 }: LeagueShellProps) {
   const router = useRouter()
+  const myLeaguesRail = useMyLeaguesRailCollapse()
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
   const initialOpenChat = useMemo(
@@ -563,6 +565,9 @@ export function LeagueShell({
   return (
     <>
       <AppShell
+        rightRailCollapsed={myLeaguesRail.collapsed}
+        onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
+        rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
         leftPanel={
           <LeftChatPanel
             selectedLeague={selectedLeague}
@@ -588,6 +593,7 @@ export function LeagueShell({
             userName={userName}
             userImage={userImage}
             onImport={handleImport}
+            onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
           />
         }
       >

@@ -8,6 +8,7 @@ import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES, DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
+import { KingBuffaloPresentedBy } from '@/components/tournament/KingBuffaloPresentedBy'
 import type { TournamentSettings, ConferenceMode, LeagueNamingMode } from '@/lib/tournament-mode/types'
 
 function computeLeagueCount(participantPoolSize: number, initialLeagueSize: number = TOURNAMENT_TEAMS_PER_LEAGUE): number {
@@ -128,6 +129,10 @@ export function TournamentCreateWizard() {
           <p className="text-sm text-white/60">Multi-league elimination: feeder leagues, conferences, universal standings</p>
         </div>
       </header>
+
+      <div className="mb-8">
+        <KingBuffaloPresentedBy />
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basics */}
