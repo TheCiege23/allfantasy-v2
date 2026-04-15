@@ -301,6 +301,71 @@ function runMigrateDeployWithRetries() {
 
 let result = runMigrateDeployWithRetries();
 
+/**
+ * P3005 recovery: the database schema is not empty but has no
+ * `_prisma_migrations` table. This happens in CI when a foundation SQL
+ * file (e.g. ALLFANTASY_BACKEND_FOUNDATION.sql) runs before
+ * `prisma migrate deploy`. We baseline every existing migration as
+ * already applied so deploy can continue with truly pending ones.
+ */
+function isSchemaNotEmptyError(output) {
+  return (
+    output.includes("P3005") ||
+    output.includes("The database schema is not empty")
+  );
+}
+
+function listMigrationDirs() {
+  const migrationsDir = path.join(process.cwd(), "prisma", "migrations");
+  if (!fs.existsSync(migrationsDir)) return [];
+  return fs
+    .readdirSync(migrationsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) =>
+      fs.existsSync(path.join(migrationsDir, name, "migration.sql"))
+    )
+    .sort();
+}
+
+if (
+  typeof result.status === "number" &&
+  result.status !== 0 &&
+  isSchemaNotEmptyError(readCombinedOutput(result))
+) {
+  console.warn(
+    "[db:migrate:deploy] P3005 detected — baselining existing migrations as applied (foundation SQL pre-populated schema)."
+  );
+
+  const migrationNames = listMigrationDirs();
+  let baselineFailed = false;
+
+  for (const name of migrationNames) {
+    const resolveResult = runPrisma([
+      "migrate",
+      "resolve",
+      "--applied",
+      name,
+    ]);
+    writeOutput(resolveResult);
+    if (resolveResult.status !== 0) {
+      const out = readCombinedOutput(resolveResult);
+      // Ignore "already recorded" — treat any other non-zero as fatal.
+      if (!out.includes("already recorded") && !out.includes("is already")) {
+        console.error(
+          `[db:migrate:deploy] Failed to baseline migration ${name}.`
+        );
+        baselineFailed = true;
+        break;
+      }
+    }
+  }
+
+  if (!baselineFailed) {
+    result = runMigrateDeployWithRetries();
+  }
+}
+
 function outputMentionsFailedMigration(output, migrationName) {
   return (
     output.includes(`Migration name: ${migrationName}`) ||
