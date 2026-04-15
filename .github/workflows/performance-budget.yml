@@ -55,6 +55,9 @@ jobs:
       - name: Prepare DB schema
         run: npx prisma db push --skip-generate
 
+      - name: Apply platform-backend foundation SQL
+        run: npm run db:foundation:apply
+
       - name: Apply platform-backend supplemental indexes
         run: npm run db:indexes:platform-backend
 
@@ -139,6 +142,9 @@ jobs:
 
       - name: Prepare DB schema
         run: npx prisma db push --skip-generate
+
+      - name: Apply platform-backend foundation SQL
+        run: npm run db:foundation:apply
 
       - name: Apply platform-backend supplemental indexes
         run: npm run db:indexes:platform-backend
