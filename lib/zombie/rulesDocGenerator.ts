@@ -193,7 +193,13 @@ function buildSections(
     sectionAmbush,
     sectionBashing,
     sectionMauling,
-    sectionSerums: tpl?.serumAwardDesc ?? `Serum awards: ${cfg.serumAward}. Commissioner can configure additional award triggers.`,
+    sectionSerums:
+      tpl?.serumAwardDesc ??
+      `Serum awards: ${
+        cfg.serumAwards.length > 0
+          ? cfg.serumAwards.map((a) => a.label).join(', ')
+          : 'no default awards configured'
+      }. Commissioner can configure additional award triggers.`,
     sectionWeapons: 'Weapons follow score thresholds and commissioner toggles. Top 2 scorers each week may earn weapons.',
     sectionWinnings,
     sectionUniverseMovement: 'Universe promotion/relegation follows universe commissioner settings when enabled.',

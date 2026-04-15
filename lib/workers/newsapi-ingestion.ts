@@ -116,8 +116,11 @@ async function persistArticle(
   const lower = (headline + ' ' + body).toLowerCase()
 
   // Extract player name (simple heuristic — look for capitalized two-word names)
+  // PlayerNewsRecord.playerName is a non-nullable String column, so fall back
+  // to empty string when no name is extracted. Downstream dispatch filters out
+  // empty player names before sending notifications.
   const nameMatch = headline.match(/([A-Z][a-z]+ [A-Z][a-z]+)/)
-  const playerName = nameMatch ? nameMatch[1] : null
+  const playerName = nameMatch ? nameMatch[1] ?? '' : ''
 
   // Classify impact
   let impact: 'high' | 'medium' | 'low' = 'low'

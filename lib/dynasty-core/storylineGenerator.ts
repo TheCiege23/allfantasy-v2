@@ -65,9 +65,9 @@ export async function detectTeamArc(
       leagueId,
       ownerId: roster.ownerId,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { season: { season: 'desc' } },
     take: 5,
-    select: { wins: true, losses: true, pointsFor: true, playoffSeed: true, createdAt: true },
+    select: { wins: true, losses: true, pointsFor: true, playoffSeed: true },
   })
 
   if (historicalSeasons.length < 2) {

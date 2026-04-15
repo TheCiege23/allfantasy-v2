@@ -286,12 +286,13 @@ export async function awardWeeklyExileTeamToken(
     const island = await prisma.exileIsland.findUnique({ where: { leagueId } })
     if (!island) return { ok: true }
 
+    // League has no dedicated commissionerUserId column — `userId` is the
+    // owner/commissioner on this model.
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { userId: true, commissionerUserId: true },
+      select: { userId: true },
     }).catch(() => null)
-    const commissionerUserId =
-      league?.commissionerUserId ?? league?.userId ?? null
+    const commissionerUserId = league?.userId ?? null
 
     const entries = await prisma.exileWeeklyEntry.findMany({
       where: { exileId: island.id, week: island.currentWeek },

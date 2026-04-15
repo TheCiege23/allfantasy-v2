@@ -160,7 +160,7 @@ export function getSocialDecision(
     sb.allianceFormation === 'eager' ? 'accept' as const :
     sb.allianceFormation === 'avoids' ? 'decline' as const :
     t.loyalty > 0.6 ? 'accept' as const :
-    t.betrayalLikelihood > 0.5 ? 'betray' as const :
+    sb.betrayalLikelihood > 0.5 ? 'betray' as const :
     'defer' as const
 
   return {

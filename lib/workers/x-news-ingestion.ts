@@ -153,19 +153,27 @@ export async function runXNewsIngestion(sports?: string[]): Promise<{
  */
 async function searchXForNews(query: string, sport: string): Promise<XNewsItem[]> {
   try {
-    const { xaiResponsesJson } = await import('@/lib/xai-client')
+    const { xaiResponsesJson, parseTextFromXaiResponse } = await import('@/lib/xai-client')
 
     const result = await xaiResponsesJson({
       model: 'grok-3-mini',
-      input: `Search X/Twitter for the latest fantasy sports news. Extract player names, teams, and categorize each result.\n\nSearch query: ${query}\n\nFor each result, return JSON array with objects containing: headline, playerName, team, category (injury/trade/signing/suspension/release/roster_move), impact (high/medium/low), body (brief summary).`,
+      messages: [
+        {
+          role: 'user',
+          content: `Search X/Twitter for the latest fantasy sports news. Extract player names, teams, and categorize each result.\n\nSearch query: ${query}\n\nFor each result, return JSON array with objects containing: headline, playerName, team, category (injury/trade/signing/suspension/release/roster_move), impact (high/medium/low), body (brief summary).`,
+        },
+      ],
       tools: [{ type: 'web_search' as const }],
     })
 
-    if (!result?.output) return []
+    if (!result.ok) return []
 
-    // Parse the AI response for structured news items
-    const parsed = parseXNewsResponse(result.output, sport)
-    return parsed
+    // Responses API returns structured output on result.json.output — pull the
+    // text payload via the shared helper and hand it to the parser.
+    const outputText = parseTextFromXaiResponse(result.json)
+    if (!outputText) return []
+
+    return parseXNewsResponse(outputText, sport)
   } catch (e) {
     console.warn(`[x-news] Search failed for ${sport}:`, e instanceof Error ? e.message : String(e))
     return []
@@ -282,7 +290,10 @@ async function persistNewsItem(item: XNewsItem): Promise<'new' | 'duplicate' | '
     data: {
       sport: item.sport,
       playerId: null,
-      playerName: item.playerName,
+      // PlayerNewsRecord.playerName is a non-nullable String column; coerce
+      // null items (unattributed headlines) to an empty string. Downstream
+      // notification dispatch filters these out via a trim check.
+      playerName: item.playerName ?? '',
       team: item.team,
       headline: item.headline,
       body: item.body.slice(0, 2000),
@@ -328,7 +339,7 @@ async function persistInjuryFromNews(item: XNewsItem): Promise<void> {
 
   await prisma.injuryReportRecord.upsert({
     where: {
-      sport_playerId_reportDate_status: {
+      uniq_injury_reports_player_report_status: {
         sport: item.sport,
         playerId: item.playerName, // Use name as ID fallback
         reportDate: today,
@@ -339,7 +350,7 @@ async function persistInjuryFromNews(item: XNewsItem): Promise<void> {
       sport: item.sport,
       playerId: item.playerName,
       playerName: item.playerName,
-      team: item.team,
+      team: item.team ?? 'UNKNOWN',
       status,
       bodyPart,
       notes: item.headline,
@@ -349,7 +360,7 @@ async function persistInjuryFromNews(item: XNewsItem): Promise<void> {
       status,
       bodyPart,
       notes: item.headline,
-      team: item.team,
+      team: item.team ?? 'UNKNOWN',
     },
   }).catch(() => {})
 }

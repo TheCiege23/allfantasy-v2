@@ -217,7 +217,7 @@ export async function getLeagueHealthForChimmy(leagueId: string): Promise<League
 
   // Check waiver activity
   const waiverCount = await prisma.redraftWaiverClaim?.count?.({
-    where: { leagueId, createdAt: { gte: thirtyDaysAgo } },
+    where: { leagueId, submittedAt: { gte: thirtyDaysAgo } },
   }).catch(() => 0) ?? 0
 
   const chatPerManager = totalManagers > 0 ? chatCount / totalManagers : 0

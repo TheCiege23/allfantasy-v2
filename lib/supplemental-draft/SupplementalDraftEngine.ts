@@ -144,15 +144,15 @@ export async function createSupplementalDraft(
       status: 'configuring',
       rounds: config.rounds,
       timerSeconds: config.timerSeconds,
-      metadata: {
-        isSupplemental: true,
-        orphanTeamIds: config.orphanTeamIds,
-        includeOrphanRosters: config.includeOrphanRosters,
-        includeFreeAgents: config.includeFreeAgents,
-        createdBy: commissionerId,
-      },
+      // NOTE: DraftSession has no `metadata` Json column, so supplemental-
+      // specific config (orphanTeamIds, includeOrphanRosters, includeFreeAgents,
+      // createdBy) is not persisted here. Callers that need to reconstruct the
+      // supplemental context should pass it in explicitly. `commissionerId` is
+      // currently unused by this create path — kept in the signature for when a
+      // dedicated column is added.
     },
   })
+  void commissionerId
 
   return { draftSessionId: session.id }
 }

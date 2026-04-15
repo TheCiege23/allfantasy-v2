@@ -53,8 +53,9 @@ async function importSleeperSnapshot(
   userId: string,
   leagueId: string,
 ): Promise<ExternalLeagueSnapshot | null> {
+  const provider = 'sleeper'
   try {
-    const { getLeagueInfo, getLeagueRosters, getLeagueUsers } = await import('@/lib/api-cache')
+    const { getLeagueInfo, getLeagueRosters, getLeagueUsers } = await import('@/lib/api-cache/index')
 
     const [leagueData, rostersData, usersData] = await Promise.all([
       getLeagueInfo(leagueId),
@@ -117,8 +118,12 @@ async function importSleeperSnapshot(
       importedAt: new Date(),
     }
 
-    // Cache the snapshot
-    await prisma.externalLeagueSnapshot?.upsert?.({
+    // Cache the snapshot when the optional model exists in this deployment.
+    const externalLeagueSnapshotModel = (prisma as unknown as {
+      externalLeagueSnapshot?: { upsert?: (args: unknown) => Promise<unknown> }
+    }).externalLeagueSnapshot
+
+    await externalLeagueSnapshotModel?.upsert?.({
       where: { id: snapshot.id },
       create: {
         id: snapshot.id,
@@ -133,7 +138,7 @@ async function importSleeperSnapshot(
         data: snapshot as object,
         updatedAt: new Date(),
       },
-    }).catch(() => {
+    } as unknown).catch(() => {
       // Table may not exist yet — non-fatal
     })
 

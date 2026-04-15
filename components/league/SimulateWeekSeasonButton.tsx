@@ -102,7 +102,7 @@ export function SimulateWeekSeasonButton({
             {mode === 'week' ? `Week ${currentWeek} Projection` : 'Season Simulation'}
           </p>
 
-          {mode === 'week' && result.weeklyEvents && (
+          {mode === 'week' && result.weeklyEvents != null && (
             <div className="space-y-1 text-[11px] text-white/60">
               {(result.weeklyEvents as Array<{ description?: string }>).slice(0, 8).map((e, i) => (
                 <p key={i}>{e.description ?? JSON.stringify(e)}</p>
@@ -112,12 +112,12 @@ export function SimulateWeekSeasonButton({
 
           {mode === 'season' && (
             <div className="space-y-1 text-[11px] text-white/60">
-              {result.champion && (
+              {result.champion != null && (
                 <p className="text-[13px] font-bold text-amber-300">
                   🏆 Projected Champion: {String((result.champion as { name?: string })?.name ?? 'TBD')}
                 </p>
               )}
-              {result.playoffTeams && (
+              {result.playoffTeams != null && (
                 <p>Playoff teams: {(result.playoffTeams as string[]).join(', ')}</p>
               )}
             </div>

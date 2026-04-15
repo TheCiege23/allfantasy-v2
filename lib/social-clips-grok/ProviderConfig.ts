@@ -9,6 +9,7 @@ const PLATFORM_ENV_KEYS: Record<SocialPlatform, string[]> = {
   ],
   tiktok: ["TIKTOK_PUBLISH_ACCESS_TOKEN", "SOCIAL_PUBLISH_TOKEN"],
   facebook: ["FACEBOOK_PUBLISH_ACCESS_TOKEN", "SOCIAL_PUBLISH_TOKEN", "FACEBOOK_PAGE_ID"],
+  reddit: ["REDDIT_PUBLISH_ACCESS_TOKEN", "SOCIAL_PUBLISH_TOKEN"],
 }
 
 export function isSocialProviderConfigured(platform: SocialPlatform): boolean {
@@ -25,6 +26,7 @@ export function getSocialProviderConfigStatus(): Record<SocialPlatform, boolean>
     instagram: isSocialProviderConfigured("instagram"),
     tiktok: isSocialProviderConfigured("tiktok"),
     facebook: isSocialProviderConfigured("facebook"),
+    reddit: isSocialProviderConfigured("reddit"),
   }
 }
 

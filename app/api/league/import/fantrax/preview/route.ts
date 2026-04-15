@@ -26,22 +26,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { FantraxLeagueFetchService } = await import('@/lib/league-import/fantrax/FantraxLeagueFetchService')
-    const service = new FantraxLeagueFetchService()
-    const data = await service.fetchLeague(leagueId)
+    const { fetchFantraxLeagueForImport } = await import(
+      '@/lib/league-import/fantrax/FantraxLeagueFetchService'
+    )
+    const data = await fetchFantraxLeagueForImport(session.user.id, leagueId)
 
     if (!data) {
       return NextResponse.json({ error: 'League not found on Fantrax' }, { status: 404 })
     }
 
+    const league = (data as { league?: { name?: string; sport?: string; size?: number } }).league
+    const teams = (data as { teams?: unknown[] }).teams
+
     return NextResponse.json({
       provider: 'fantrax',
       leagueId,
-      leagueName: data.leagueName ?? leagueId,
-      sport: data.sport ?? 'NFL',
-      teamCount: data.teamCount ?? 0,
-      seasonCount: data.seasonCount ?? 1,
-      managers: data.managers ?? [],
+      leagueName: league?.name ?? leagueId,
+      sport: league?.sport ?? 'NFL',
+      teamCount: league?.size ?? (Array.isArray(teams) ? teams.length : 0),
+      seasonCount: 1,
+      managers: Array.isArray(teams) ? teams : [],
       status: 'preview_ready',
     })
   } catch (e) {

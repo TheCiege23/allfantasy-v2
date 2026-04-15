@@ -4,7 +4,7 @@
  * Only data for narration and strategy advice.
  */
 
-import { buildHistoricalContextForPrompt } from '@/lib/ai/historicalContextBuilder'
+import { buildHistoricalContext } from '@/lib/ai/historicalContextBuilder'
 import { getZombieLeagueConfig } from '../ZombieLeagueConfig'
 import { getWhispererRosterId, getAllStatuses } from '../ZombieOwnerStatusService'
 import { getWeeklyBoardData } from '../ZombieWeeklyBoardService'
@@ -172,7 +172,11 @@ export async function buildZombieAIContext(args: {
       estimatedValue: f.estimatedValue,
       threshold: f.threshold,
     })),
-    historicalContext: await buildHistoricalContextForPrompt(leagueId).catch(() => null),
+    // buildHistoricalContext returns a rich HistoricalContext object; the
+    // zombie AI context only needs the summary blurb for prompt injection.
+    historicalContext: await buildHistoricalContext(leagueId)
+      .then((ctx) => ctx?.summaryText ?? null)
+      .catch(() => null),
   }
 }
 

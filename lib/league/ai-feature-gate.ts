@@ -74,14 +74,8 @@ export async function hasAfCommissionerSub(leagueId: string): Promise<boolean> {
   const settings = (league.settings ?? {}) as Record<string, unknown>
   if (settings.af_commissioner_subscription === true) return true
 
-  // Check user-level subscription
-  const user = await prisma.appUser.findUnique({
-    where: { id: league.userId },
-    select: { settings: true },
-  })
-  if (!user) return false
-  const userSettings = (user.settings ?? {}) as Record<string, unknown>
-  return userSettings.af_commissioner_subscription === true
+  // User-level subscription fallback is disabled until a canonical user subscription field is available.
+  return false
 }
 
 /**

@@ -11,13 +11,16 @@ import { ZombieOverridePanel } from '@/app/zombie/components/commissioner/Zombie
 type Tab = 'updates' | 'automation' | 'overrides' | 'audit' | 'paid'
 
 export default function ZombieSettingsPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>()
+  const leagueId = params?.leagueId ?? ''
   const [tab, setTab] = useState<Tab>('updates')
   const [isCommissioner, setIsCommissioner] = useState(false)
   const [leagueName, setLeagueName] = useState('Zombie League')
   const [isPaid, setIsPaid] = useState(false)
 
   useEffect(() => {
+    if (!leagueId) return
+
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { league?: { name?: string; isPaid?: boolean }; viewerIsCommissioner?: boolean } | null) => {
@@ -27,6 +30,10 @@ export default function ZombieSettingsPage() {
       })
       .catch(() => null)
   }, [leagueId])
+
+  if (!leagueId) {
+    return null
+  }
 
   if (!isCommissioner) {
     return (

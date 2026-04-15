@@ -16,6 +16,18 @@
 import { prisma } from '@/lib/prisma'
 import type { NewsCategory } from '@/lib/workers/x-news-ingestion'
 
+type OptionalPlayerNewsNotificationModel = {
+  findFirst?: (args: unknown) => Promise<unknown>
+  create?: (args: unknown) => Promise<unknown>
+  findMany?: (args: unknown) => Promise<unknown>
+  updateMany?: (args: unknown) => Promise<unknown>
+  count?: (args: unknown) => Promise<unknown>
+}
+
+function getPlayerNewsNotificationModel(): OptionalPlayerNewsNotificationModel | undefined {
+  return (prisma as unknown as { playerNewsNotification?: OptionalPlayerNewsNotificationModel }).playerNewsNotification
+}
+
 export type PlayerNewsNotification = {
   userId: string
   leagueId: string
@@ -66,6 +78,9 @@ export async function dispatchPlayerNewsNotifications(
   impact: 'high' | 'medium' | 'low',
   sport: string,
 ): Promise<number> {
+  const playerNewsNotification = getPlayerNewsNotificationModel()
+  if (!playerNewsNotification) return 0
+
   // Skip low-impact notifications unless injury
   if (impact === 'low' && category !== 'injury') return 0
 
@@ -104,7 +119,7 @@ export async function dispatchPlayerNewsNotifications(
     seen.add(dedupeKey)
 
     // Check for recent duplicate notification
-    const existing = await prisma.playerNewsNotification?.findFirst?.({
+    const existing = await playerNewsNotification.findFirst?.({
       where: {
         userId,
         playerName,
@@ -121,7 +136,7 @@ export async function dispatchPlayerNewsNotifications(
     const title = `${icon} ${label}: ${playerName}`
     const body = headline.slice(0, 200)
 
-    await prisma.playerNewsNotification.create({
+    await playerNewsNotification.create?.({
       data: {
         userId,
         leagueId,
@@ -160,7 +175,10 @@ export async function getUnreadNewsNotifications(
   isRead: boolean
   createdAt: Date
 }>> {
-  return prisma.playerNewsNotification.findMany({
+  const playerNewsNotification = getPlayerNewsNotificationModel()
+  if (!playerNewsNotification?.findMany) return []
+
+  return (await playerNewsNotification.findMany({
     where: { userId, isRead: false },
     orderBy: { createdAt: 'desc' },
     take: limit,
@@ -176,7 +194,18 @@ export async function getUnreadNewsNotifications(
       isRead: true,
       createdAt: true,
     },
-  })
+  }) as Array<{
+    id: string
+    playerName: string
+    headline: string
+    body: string
+    category: string
+    impact: string
+    sport: string
+    leagueId: string
+    isRead: boolean
+    createdAt: Date
+  }>)
 }
 
 /**
@@ -186,7 +215,10 @@ export async function markNotificationsRead(
   userId: string,
   notificationIds: string[],
 ): Promise<void> {
-  await prisma.playerNewsNotification.updateMany({
+  const playerNewsNotification = getPlayerNewsNotificationModel()
+  if (!playerNewsNotification?.updateMany) return
+
+  await playerNewsNotification.updateMany({
     where: { userId, id: { in: notificationIds } },
     data: { isRead: true, readAt: new Date() },
   })
@@ -196,7 +228,10 @@ export async function markNotificationsRead(
  * Mark all news notifications as read for a user.
  */
 export async function markAllNotificationsRead(userId: string): Promise<void> {
-  await prisma.playerNewsNotification.updateMany({
+  const playerNewsNotification = getPlayerNewsNotificationModel()
+  if (!playerNewsNotification?.updateMany) return
+
+  await playerNewsNotification.updateMany({
     where: { userId, isRead: false },
     data: { isRead: true, readAt: new Date() },
   })
@@ -206,7 +241,11 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
  * Get notification count badge for a user.
  */
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
-  return prisma.playerNewsNotification.count({
+  const playerNewsNotification = getPlayerNewsNotificationModel()
+  if (!playerNewsNotification?.count) return 0
+
+  const count = await playerNewsNotification.count({
     where: { userId, isRead: false },
   })
+  return typeof count === 'number' ? count : 0
 }

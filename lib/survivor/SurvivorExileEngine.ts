@@ -114,11 +114,12 @@ export async function applyBossScoringReset(
     const config = await getSurvivorConfig(leagueId)
     if (!config) return { ok: false, reset: false, error: 'Not a Survivor league' }
 
+    // League.userId is the owner/commissioner — no dedicated commissionerUserId column.
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
-      select: { userId: true, commissionerUserId: true },
+      select: { userId: true },
     })
-    const bossUserId = league?.commissionerUserId ?? league?.userId ?? null
+    const bossUserId = league?.userId ?? null
     if (!bossUserId) return { ok: true, reset: false }
 
     const island = await prisma.exileIsland.findUnique({ where: { leagueId } })

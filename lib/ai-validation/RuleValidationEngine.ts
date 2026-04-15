@@ -30,7 +30,7 @@ export type RuleValidationResult = {
 export async function validateLeagueRules(leagueId: string): Promise<RuleValidationResult> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { settings: true, teamCount: true, sport: true, isDynasty: true },
+    select: { settings: true, sport: true, isDynasty: true, _count: { select: { teams: true } } },
   })
   if (!league) return { isValid: false, issues: [{ severity: 'error', category: 'format', message: 'League not found', field: null, suggestion: null }], score: 0 }
 
@@ -39,7 +39,7 @@ export async function validateLeagueRules(leagueId: string): Promise<RuleValidat
 
   // Roster validation
   const rosterSize = Number(settings.roster_size ?? 15)
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count.teams || Number(settings.team_count ?? 12)
   if (rosterSize < 5) {
     issues.push({ severity: 'error', category: 'roster', message: 'Roster size too small (minimum 5)', field: 'roster_size', suggestion: 'Set roster size to at least 10' })
   }

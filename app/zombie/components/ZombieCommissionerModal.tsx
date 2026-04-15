@@ -134,10 +134,10 @@ export function ZombieCommissionerModal({
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'general' && <ZombieSetupPanel leagueId={leagueId} canEdit />}
             {tab === 'paid' && <ZombiePaidPanel canEdit />}
-            {tab === 'universe' && <ZombieUniversePanel leagueId={leagueId} canEdit />}
-            {tab === 'whisperer' && <ZombieWhispererPanel leagueId={leagueId} canEdit />}
-            {tab === 'combat' && <ZombieCombatPanel leagueId={leagueId} canEdit />}
-            {tab === 'items' && <ZombieItemsPanel leagueId={leagueId} canEdit />}
+            {tab === 'universe' && <ZombieUniversePanel canEdit />}
+            {tab === 'whisperer' && <ZombieWhispererPanel canEdit />}
+            {tab === 'combat' && <ZombieCombatPanel canEdit />}
+            {tab === 'items' && <ZombieItemsPanel canEdit />}
             {tab === 'updates' && <ZombieUpdatesPanel leagueId={leagueId} canEdit />}
             {tab === 'automation' && <ZombieAutomationPanel leagueId={leagueId} canEdit />}
             {tab === 'overrides' && <ZombieOverridePanel leagueId={leagueId} canEdit />}

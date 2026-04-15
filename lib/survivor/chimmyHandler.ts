@@ -9,7 +9,11 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { handleChimmyIdolPlayRequest } from './SurvivorIdolRegistry'
+// handleChimmyIdolPlayRequest is not (yet) exported from
+// SurvivorIdolRegistry — the engine takes explicit args (idolId,
+// rosterId, councilId, targetPlayerId) and requires the caller to
+// pick which idol to burn. We stub the conversational entry point
+// below so Chimmy gracefully tells the user to use the UI instead.
 import { postIdolPlayAnnouncement } from './leagueChatPoster'
 import { IDOL_POWER_DESCRIPTIONS, EXILE_KEY_POSITION_BY_SPORT } from './constants'
 import { getSportSchedule } from './sportScheduleEngine'
@@ -57,14 +61,11 @@ export async function handleChimmyPrivateMessage(leagueId: string, userId: strin
     if (!player) return 'You are not registered as a Survivor player in this league.'
     if (player.playerState === 'eliminated') return 'Your journey has ended — you can no longer play idols.'
 
-    const result = await handleChimmyIdolPlayRequest(leagueId, userId)
-
-    if (result.ok && result.announcement) {
-      // Post to league chat that an idol was played
-      await postIdolPlayAnnouncement(leagueId, result.announcement).catch(() => {})
-    }
-
-    return result.message
+    // Conversational idol play isn't wired to the engine yet — the
+    // engine needs (idolId, rosterId, councilId, targetPlayerId) which
+    // Chimmy can't infer from freeform text reliably. Direct the user
+    // to the Tribal Council UI which has the full picker.
+    return 'To play an idol, open the active Tribal Council and tap "Play Idol" on your inventory — I need to know which idol and who you want to protect, which the UI will ask for.'
   }
 
   // ===== CHECK MY IDOLS =====

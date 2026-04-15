@@ -180,6 +180,7 @@ function AuditRow({ entry: e }: { entry: AuditEntry }) {
   const [expanded, setExpanded] = useState(false)
   const icon = CATEGORY_ICONS[e.category] ?? '📋'
   const borderColor = CATEGORY_COLORS[e.category] ?? 'border-l-white/15'
+  const hasStateChange = e.previousState != null || e.newState != null
 
   return (
     <div
@@ -254,14 +255,14 @@ function AuditRow({ entry: e }: { entry: AuditEntry }) {
               </div>
             )}
           </div>
-          {(e.previousState || e.newState) && (
+          {hasStateChange && (
             <div className="mt-2">
-              {e.previousState && (
+              {e.previousState != null && (
                 <p className="text-[var(--zombie-text-dim)]">
                   Previous: <code className="text-[10px] text-white/60">{JSON.stringify(e.previousState)}</code>
                 </p>
               )}
-              {e.newState && (
+              {e.newState != null && (
                 <p className="text-[var(--zombie-text-dim)]">
                   New: <code className="text-[10px] text-white/60">{JSON.stringify(e.newState)}</code>
                 </p>

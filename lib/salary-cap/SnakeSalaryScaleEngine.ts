@@ -198,6 +198,12 @@ export async function applySnakeSalaryScaleToDraft(
   draftSessionId: string,
   config: SnakeSalaryScaleConfig,
 ): Promise<number> {
+  const salaryCapConfig = await prisma.salaryCapLeagueConfig.findUnique({
+    where: { leagueId },
+    select: { id: true },
+  })
+  if (!salaryCapConfig) return 0
+
   const picks = await prisma.draftPick.findMany({
     where: { sessionId: draftSessionId },
     orderBy: { overall: 'asc' },
@@ -208,38 +214,55 @@ export async function applySnakeSalaryScaleToDraft(
     if (!pick.rosterId || !pick.playerName) continue
 
     const { salary, contractYears } = getSalaryForPick(pick.overall, config)
+    const playerId = pick.playerId ?? `draft-${pick.id}`
+    const round = pick.round ?? Math.ceil(pick.overall / config.teamCount)
+    const salaryInt = Math.round(salary)
 
-    // Create or update the player contract
-    await prisma.playerContract.upsert({
-      where: {
-        leagueId_playerId: {
-          leagueId,
-          playerId: pick.playerId ?? `draft-${pick.id}`,
-        },
-      },
-      create: {
-        leagueId,
-        playerId: pick.playerId ?? `draft-${pick.id}`,
-        playerName: pick.playerName,
-        rosterId: pick.rosterId,
-        salary,
-        yearsRemaining: contractYears,
-        totalYears: contractYears,
-        contractSource: 'snake_draft',
-        status: 'active',
-        draftPickOverall: pick.overall,
-        draftRound: pick.round ?? Math.ceil(pick.overall / config.teamCount),
-      },
-      update: {
-        salary,
-        yearsRemaining: contractYears,
-        totalYears: contractYears,
-        contractSource: 'snake_draft',
-        status: 'active',
-        draftPickOverall: pick.overall,
-        draftRound: pick.round ?? Math.ceil(pick.overall / config.teamCount),
-      },
+    const existing = await prisma.playerContract.findFirst({
+      where: { leagueId, rosterId: pick.rosterId, playerId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
     })
+
+    if (existing) {
+      await prisma.playerContract.update({
+        where: { id: existing.id },
+        data: {
+          salary: salaryInt,
+          yearsTotal: contractYears,
+          contractYear: 1,
+          source: 'snake_draft',
+          status: 'active',
+          metadata: {
+            draftSessionId,
+            draftPickOverall: pick.overall,
+            draftRound: round,
+          },
+        },
+      })
+    } else {
+      await prisma.playerContract.create({
+        data: {
+          leagueId,
+          configId: salaryCapConfig.id,
+          rosterId: pick.rosterId,
+          playerId,
+          playerName: pick.playerName,
+          position: pick.position,
+          salary: salaryInt,
+          yearsTotal: contractYears,
+          yearSigned: new Date().getFullYear(),
+          contractYear: 1,
+          source: 'snake_draft',
+          status: 'active',
+          metadata: {
+            draftSessionId,
+            draftPickOverall: pick.overall,
+            draftRound: round,
+          },
+        },
+      })
+    }
     applied++
   }
 
@@ -247,9 +270,10 @@ export async function applySnakeSalaryScaleToDraft(
   await prisma.salaryCapEventLog.create({
     data: {
       leagueId,
+      configId: salaryCapConfig.id,
       eventType: 'snake_salary_scale_applied',
-      description: `Applied snake salary scale to ${applied} draft picks. Curve: ${config.curveType}. Cap: $${config.totalCap}.`,
       metadata: {
+        message: `Applied snake salary scale to ${applied} draft picks. Curve: ${config.curveType}. Cap: $${config.totalCap}.`,
         draftSessionId,
         curveType: config.curveType,
         totalCap: config.totalCap,

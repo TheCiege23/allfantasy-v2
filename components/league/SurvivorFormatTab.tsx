@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 
 type SurvivorFormatTabProps = {
   leagueId: string
+  hasAfCommissionerSub?: boolean
   initialIdolExpiryWeek?: number | null
   onSave?: (values: { survivorIdolExpiryWeek: number | null }) => Promise<void> | void
 }
@@ -12,7 +13,7 @@ type SurvivorFormatTabProps = {
  * Survivor format settings tab. Currently exposes the Idol Expiry Week control
  * so commissioners can override the Final-5 default.
  */
-export default function SurvivorFormatTab({
+export function SurvivorFormatTab({
   leagueId,
   initialIdolExpiryWeek,
   onSave,
@@ -92,3 +93,6 @@ export default function SurvivorFormatTab({
     </div>
   )
 }
+
+export default SurvivorFormatTab
+

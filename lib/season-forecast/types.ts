@@ -4,6 +4,8 @@
 
 export interface TeamSeasonForecast {
   teamId: string
+  /** Optional display name for the team */
+  teamName?: string
   playoffProbability: number
   firstPlaceProbability: number
   championshipProbability: number
@@ -15,6 +17,12 @@ export interface TeamSeasonForecast {
   confidenceScore: number
   /** Optional: division win probability when league has divisions */
   divisionWinProbability?: number
+  /** Optional: current season record for display */
+  wins?: number
+  losses?: number
+  ties?: number
+  /** Optional: current standing rank */
+  currentRank?: number
 }
 
 export interface SeasonForecastSnapshotPayload {

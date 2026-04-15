@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -7,78 +7,44 @@ export const dynamic = 'force-dynamic'
 
 /**
  * GET /api/league/import/status — Get import status for the current user.
- * Returns all active and recent import jobs with progress.
+ * Returns all active and recent legacy (Sleeper bulk) import jobs with
+ * per-season progress.
  */
-export async function GET(req: NextRequest) {
+export async function GET() {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get legacy import jobs (Sleeper bulk)
   const legacyJobs = await prisma.legacyImportJob.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
     take: 5,
     include: {
-      seasons: {
+      importJobSeasons: {
         orderBy: { season: 'asc' },
       },
     },
   }).catch(() => [])
 
-  type GenericImportJob = {
-    id?: string
-    provider?: string | null
-    status?: string | null
-    progress?: number | null
-    totalSeasons?: number | null
-    seasonsCompleted?: number | null
-    sleeperUsername?: string | null
-    sourceUsername?: string | null
-    leagueCount?: number | null
-    createdAt?: Date | string | null
-    updatedAt?: Date | string | null
-  }
-
-  // Get generic import jobs when the model exists on this Prisma client.
-  const importJobDelegate = (prisma as unknown as {
-    importJob?: {
-      findMany: (args: {
-        where: { userId: string }
-        orderBy: { createdAt: 'desc' }
-        take: number
-      }) => Promise<GenericImportJob[]>
-    }
-  }).importJob
-  let genericJobs: GenericImportJob[] = []
-  if (!importJobDelegate) {
-    console.warn('[league/import/status] Prisma importJob model is unavailable; returning legacy import jobs only.')
-  } else {
-    genericJobs = await importJobDelegate.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    }).catch(() => [])
-  }
-  // Calculate progress for each job
   const legacyStatusJobs = legacyJobs.map((job) => {
-    const totalSeasons = job.seasons.length
-    const completedSeasons = job.seasons.filter((s) => s.status === 'complete').length
+    const jobSeasons = job.importJobSeasons ?? []
+    const totalSeasons = jobSeasons.length
+    const completedSeasons = jobSeasons.filter((s) => s.status === 'complete').length
     const progress = totalSeasons > 0 ? Math.round((completedSeasons / totalSeasons) * 100) : 0
 
     return {
       id: job.id,
-      provider: 'sleeper',
+      provider: 'sleeper' as const,
       status: job.status,
       progress,
       totalSeasons,
       completedSeasons,
-      sleeperUsername: job.sleeperUsername,
-      leagueCount: job.leagueCount,
+      sleeperUsername: null as string | null,
+      leagueCount: job.totalLeaguesSaved,
       createdAt: job.createdAt.toISOString(),
       updatedAt: job.updatedAt.toISOString(),
-      seasons: job.seasons.map((s) => ({
+      seasons: jobSeasons.map((s) => ({
         season: s.season,
         status: s.status,
         leagueCount: s.leagueCount,
@@ -88,34 +54,7 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  const genericStatusJobs = genericJobs.map((job) => {
-    const createdAt = job.createdAt ? new Date(job.createdAt) : new Date()
-    const updatedAt = job.updatedAt ? new Date(job.updatedAt) : createdAt
-    const totalSeasons = Number(job.totalSeasons ?? 0)
-    const completedSeasons = Number(job.seasonsCompleted ?? 0)
-    const progress =
-      Number.isFinite(Number(job.progress)) && Number(job.progress) >= 0
-        ? Number(job.progress)
-        : totalSeasons > 0
-          ? Math.round((completedSeasons / totalSeasons) * 100)
-          : 0
-
-    return {
-      id: job.id ?? crypto.randomUUID(),
-      provider: (job.provider ?? 'import').toLowerCase(),
-      status: job.status ?? 'queued',
-      progress,
-      totalSeasons,
-      completedSeasons,
-      sleeperUsername: job.sleeperUsername ?? job.sourceUsername ?? null,
-      leagueCount: Number.isFinite(Number(job.leagueCount)) ? Number(job.leagueCount) : null,
-      createdAt: createdAt.toISOString(),
-      updatedAt: updatedAt.toISOString(),
-      seasons: [],
-    }
-  })
-
-  const jobs = [...legacyStatusJobs, ...genericStatusJobs].sort(
+  const jobs = legacyStatusJobs.slice().sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )
 

@@ -64,10 +64,10 @@ async function cachedFetch<T>(
   // 2. Check DB cache
   const dbEntry = await prisma.sportsDataCache?.findUnique?.({
     where: { cacheKey },
-    select: { data: true, fetchedAt: true },
+    select: { data: true, expiresAt: true },
   }).catch(() => null)
 
-  if (dbEntry?.fetchedAt && Date.now() - dbEntry.fetchedAt.getTime() < ttlMs) {
+  if (dbEntry?.expiresAt && Date.now() < dbEntry.expiresAt.getTime()) {
     const data = dbEntry.data as T
     setMemoryCache(cacheKey, data, ttlMs)
     return data
@@ -85,13 +85,11 @@ async function cachedFetch<T>(
       create: {
         cacheKey,
         data: data as object,
-        fetchedAt: new Date(),
-        sport: 'sleeper',
-        dataType: cacheKey.split(':')[0] ?? 'unknown',
+        expiresAt: new Date(Date.now() + ttlMs),
       },
       update: {
         data: data as object,
-        fetchedAt: new Date(),
+        expiresAt: new Date(Date.now() + ttlMs),
       },
     }).catch(() => {})
 

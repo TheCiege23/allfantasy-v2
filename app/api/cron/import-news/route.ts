@@ -71,7 +71,10 @@ async function dispatchRecentPlayerNews(
       source: sourceFilter,
       createdAt: { gte: new Date(Date.now() - NEWS_LOOKBACK_MS) },
       impact: { in: ['high', 'medium'] },
-      playerName: { not: null },
+      // PlayerNewsRecord.playerName is a non-nullable String column in the
+      // Prisma schema, so a { not: null } filter is both redundant and a
+      // type error. Rows with an empty-string playerName are skipped by
+      // the trim guard below.
       notificationDispatchedAt: null,
     },
     orderBy: { createdAt: 'desc' },
@@ -80,7 +83,7 @@ async function dispatchRecentPlayerNews(
 
   let notifications = 0
   for (const news of records) {
-    if (!news.playerName) continue
+    if (!news.playerName || news.playerName.trim().length === 0) continue
     const category = classifyNewsCategory(news.headline, news.body)
     const sent = await dispatchPlayerNewsNotifications(
       news.playerName,

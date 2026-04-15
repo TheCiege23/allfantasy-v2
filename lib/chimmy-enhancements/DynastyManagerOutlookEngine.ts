@@ -102,7 +102,7 @@ export async function generateManagerDynastyOutlook(
   // Get roster
   const roster = await prisma.redraftRoster.findFirst({
     where: { leagueId, ownerId: managerId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { season: { createdAt: 'desc' } },
     include: { players: true },
   }).catch(() => null)
 
@@ -192,7 +192,7 @@ export async function generateLeagueWideDynastyOutlook(
 ): Promise<ManagerDynastyOutlook[]> {
   const rosters = await prisma.redraftRoster.findMany({
     where: { leagueId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { season: { createdAt: 'desc' } },
     select: { ownerId: true },
   })
 
@@ -310,7 +310,7 @@ async function analyzeActivityPatterns(
     where: {
       leagueId,
       roster: { ownerId: managerId },
-      createdAt: { gte: thirtyDaysAgo },
+      submittedAt: { gte: thirtyDaysAgo },
     },
   }).catch(() => 0) ?? 0
 

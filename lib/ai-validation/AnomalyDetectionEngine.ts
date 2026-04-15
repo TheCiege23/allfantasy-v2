@@ -50,7 +50,7 @@ export async function detectLeagueAnomalies(leagueId: string): Promise<AnomalyAl
 
   // Check each team for anomalies
   for (const team of league.teams) {
-    const userId = team.claimedByUserId ?? team.ownerId
+    const userId = team.claimedByUserId
     if (!userId) continue
 
     // 1. Inactivity detection

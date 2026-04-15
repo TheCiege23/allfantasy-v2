@@ -93,13 +93,13 @@ export async function getCachedAIResponse(
   }
 
   // 2. Check DB cache
-  const dbEntry = await prisma.redraftAIInsight?.findFirst?.({
+  const dbEntry = await prisma.aIInsight?.findFirst?.({
     where: { id: cacheKey },
-    select: { content: true, createdAt: true },
+    select: { data: true, createdAt: true },
   }).catch(() => null)
 
   if (dbEntry?.createdAt && Date.now() - dbEntry.createdAt.getTime() < ttlMs) {
-    const content = dbEntry.content as { response?: string }
+    const content = dbEntry.data as { response?: string } | null
     if (content?.response) {
       setMemCache(cacheKey, content.response, ttlMs)
       return { response: content.response, fromCache: true, cacheKey }
@@ -116,14 +116,16 @@ export async function getCachedAIResponse(
   // 4. Call LLM
   const promise = generateFn().then(async (response) => {
     // Persist to DB
-    await prisma.redraftAIInsight?.create?.({
+    await prisma.aIInsight?.create?.({
       data: {
         id: cacheKey,
-        leagueId: (context.leagueId as string) ?? 'global',
-        seasonId: (context.seasonId as string) ?? 'current',
-        week: (context.week as number) ?? 0,
+        userId: (context.userId as string) ?? 'system',
+        leagueId: (context.leagueId as string) ?? null,
         insightType: responseType,
-        content: { response, prompt: prompt.slice(0, 200), generatedAt: new Date().toISOString() },
+        category: 'ai_cache',
+        title: responseType,
+        body: prompt.slice(0, 200),
+        data: { response, prompt: prompt.slice(0, 200), generatedAt: new Date().toISOString() },
       },
     }).catch(() => {})
 
@@ -163,7 +165,7 @@ export async function invalidateAICache(responseType: string, leagueId?: string)
 
   // Clear DB cache
   if (leagueId) {
-    await prisma.redraftAIInsight?.deleteMany?.({
+    await prisma.aIInsight?.deleteMany?.({
       where: { insightType: responseType, leagueId },
     }).catch(() => {})
   }

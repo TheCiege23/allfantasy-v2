@@ -64,16 +64,13 @@ async function generateChallengeWithAI(
   phase: string,
   validity: string,
 ): Promise<GeneratedChallenge | null> {
-  let getOpenAIRouteClient: (() => { chat: { completions: { create: (opts: Record<string, unknown>) => Promise<{ choices: Array<{ message: { content: string } }> }> } } }) | null = null
+  let client: import('openai').default
   try {
     const mod = await import('@/lib/ai/openai-route-client')
-    getOpenAIRouteClient = (mod as Record<string, unknown>).getOpenAIRouteClient as typeof getOpenAIRouteClient
+    client = mod.getOpenAIRouteClient()
   } catch {
     return null
   }
-  if (!getOpenAIRouteClient) return null
-
-  const client = getOpenAIRouteClient()
 
   const sportScheduleHint = getSportScheduleHint(sport, week)
 

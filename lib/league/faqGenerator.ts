@@ -65,7 +65,13 @@ async function upsertPinnedFaq(
 export async function generateAndPinRedraftFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: {
+      userId: true,
+      name: true,
+      sport: true,
+      settings: true,
+      _count: { select: { teams: true } },
+    },
   })
   if (!league) return
 
@@ -73,7 +79,7 @@ export async function generateAndPinRedraftFAQ(leagueId: string): Promise<void> 
   const scoringFormat = String(settings.scoring_format ?? settings.scoring ?? 'PPR').toUpperCase()
   const draftType = String(settings.draft_type ?? settings.requested_draft_type ?? 'snake')
   const waiverType = String(settings.waiver_type ?? 'FAAB').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
   const sport = (league.sport ?? 'NFL').toUpperCase()
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -133,14 +139,14 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinDynastyFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
   const settings = (league.settings ?? {}) as Record<string, unknown>
   const taxiSlots = Number(settings.taxi_slots ?? settings.taxiSlots ?? 4)
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — DYNASTY RULES FAQ
@@ -204,12 +210,12 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinGuillotineFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 17
+  const teamCount = league._count?.teams ?? 17
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — GUILLOTINE RULES FAQ
@@ -325,7 +331,7 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinKeeperFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
@@ -334,7 +340,7 @@ export async function generateAndPinKeeperFAQ(leagueId: string): Promise<void> {
   const maxKeepers = Number(ks.maxKeepers ?? settings.keeper_max_keepers ?? 3)
   const costMode = String(ks.roundCostMode ?? 'round_penalty')
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — KEEPER RULES FAQ
@@ -397,7 +403,7 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinBestBallFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true },
+    select: { userId: true, name: true, sport: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
@@ -405,7 +411,7 @@ export async function generateAndPinBestBallFAQ(leagueId: string): Promise<void>
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — BEST BALL RULES FAQ
-${sport} Best Ball League · ${league.teamCount ?? 12} Teams
+${sport} Best Ball League · ${league._count?.teams ?? 12} Teams
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📌 FORMAT
@@ -447,7 +453,7 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinSalaryCapFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
@@ -456,7 +462,7 @@ export async function generateAndPinSalaryCapFAQ(leagueId: string): Promise<void
   const totalCap = Number(sc.totalCap ?? sc.total_cap ?? 250)
   const draftMode = String(sc.draftMode ?? settings.draft_type ?? 'auction')
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — SALARY CAP RULES FAQ
@@ -532,7 +538,7 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinIdpFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
@@ -540,7 +546,7 @@ export async function generateAndPinIdpFAQ(leagueId: string): Promise<void> {
   const posMode = String(settings.idp_position_mode ?? 'standard')
   const rosterPreset = String(settings.idp_roster_preset ?? 'standard')
   const scoringPreset = String(settings.idp_scoring_preset ?? 'balanced')
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const posDescription = posMode === 'advanced'
     ? 'Advanced (DE, DT, LB, CB, S — split positions)'
@@ -622,7 +628,7 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinDevyFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
@@ -632,7 +638,7 @@ export async function generateAndPinDevyFAQ(leagueId: string): Promise<void> {
   const taxiSlots = Number(settings.taxi_slots ?? settings.taxiSlots ?? 4)
   const devyRounds = Array.isArray(devyCfg.devyRounds) ? devyCfg.devyRounds.length : 4
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — DEVY DYNASTY RULES FAQ
@@ -702,14 +708,14 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinC2CFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
   const settings = (league.settings ?? {}) as Record<string, unknown>
   const c2c = (settings.c2cConfig ?? {}) as Record<string, unknown>
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
   const isFootball = sport === 'NFL' || sport === 'NCAAF'
   const collegeSport = isFootball ? 'College Football' : 'College Basketball'
   const proSport = isFootball ? 'NFL' : 'NBA'
@@ -775,12 +781,12 @@ Questions? Ask your commissioner or @Chimmy.
 export async function generateAndPinBigBrotherFAQ(leagueId: string): Promise<void> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, name: true, sport: true, teamCount: true, settings: true },
+    select: { userId: true, name: true, sport: true, settings: true, _count: { select: { teams: true } } },
   })
   if (!league) return
 
   const sport = (league.sport ?? 'NFL').toUpperCase()
-  const teamCount = league.teamCount ?? 12
+  const teamCount = league._count?.teams ?? 12
 
   const faq = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 ${league.name ?? 'League'} — BIG BROTHER RULES FAQ
