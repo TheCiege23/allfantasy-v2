@@ -1,17 +1,12 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
+import { getGuillotineSportConfig } from '@/lib/guillotine/sportConfig'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { LeagueCreateStepProps } from '../types'
 
-const SPORT_SCHEDULE_INFO: Record<string, { weeks: number; defaultTeams: number; chopDay: string; waiverDay: string; gamePattern: string }> = {
-  NFL: { weeks: 18, defaultTeams: 17, chopDay: 'Tuesday', waiverDay: 'Wednesday', gamePattern: '1 game/team/week (Thu/Sun/Mon)' },
-  NBA: { weeks: 24, defaultTeams: 23, chopDay: 'Monday', waiverDay: 'Tuesday', gamePattern: '3-5 games/team/week (daily)' },
-  MLB: { weeks: 26, defaultTeams: 25, chopDay: 'Monday', waiverDay: 'Tuesday', gamePattern: '6-7 games/team/week (daily)' },
-  NHL: { weeks: 24, defaultTeams: 23, chopDay: 'Monday', waiverDay: 'Tuesday', gamePattern: '3-4 games/team/week (daily)' },
-  NCAAF: { weeks: 14, defaultTeams: 13, chopDay: 'Sunday', waiverDay: 'Monday', gamePattern: '1 game/team/week (mostly Saturday)' },
-  NCAAB: { weeks: 20, defaultTeams: 19, chopDay: 'Monday', waiverDay: 'Tuesday', gamePattern: '2-3 games/team/week' },
-  SOCCER: { weeks: 38, defaultTeams: 20, chopDay: 'Tuesday', waiverDay: 'Wednesday', gamePattern: '1 match/team/matchweek (Sat/Sun)' },
-}
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
+const SHORT_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 const ENDGAME_MODES = [
   { value: 'last_team_standing', label: 'Last Team Standing' },
@@ -35,7 +30,17 @@ const WAIVER_MODES = [
 
 export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) {
   const gs = state
-  const sportInfo = SPORT_SCHEDULE_INFO[state.sport] ?? SPORT_SCHEDULE_INFO.NFL!
+  const sportConfig = getGuillotineSportConfig(state.sport) ?? getGuillotineSportConfig(DEFAULT_SPORT)!
+  const sportInfo = {
+    weeks: sportConfig.regularSeasonWeeks,
+    defaultTeams: sportConfig.defaultTeamCount,
+    chopDay: DAY_NAMES[sportConfig.chopDay] ?? 'Unknown',
+    waiverDay: DAY_NAMES[sportConfig.waiverDay] ?? 'Unknown',
+    gamePattern: sportConfig.dailyGames
+      ? 'Games played throughout the week (daily slate)'
+      : `Games concentrated on ${sportConfig.primaryGameDays.map((day) => SHORT_DAY_NAMES[day] ?? 'Unknown').join('/')}`,
+    dailyGames: sportConfig.dailyGames,
+  }
   const defaultTeamsHint = sportInfo.defaultTeams === sportInfo.weeks - 1 ? `(${sportInfo.weeks} weeks - 1)` : '(capped)'
 
   return (
@@ -51,7 +56,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
         </div>
         <div className="mt-2 text-[11px] text-white/40">
           1 team is eliminated every {sportInfo.chopDay}. Waivers run every {sportInfo.waiverDay} — eliminated roster enters the player pool.
-          {sportInfo.gamePattern.includes('daily') && ' Some games may still be in progress on waiver day — waivers run regardless.'}
+          {sportInfo.dailyGames && ' Some games may still be in progress on waiver day — waivers run regardless.'}
         </div>
       </div>
 
