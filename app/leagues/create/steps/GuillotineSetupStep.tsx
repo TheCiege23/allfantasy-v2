@@ -36,6 +36,7 @@ const WAIVER_MODES = [
 export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) {
   const gs = state
   const sportInfo = SPORT_SCHEDULE_INFO[state.sport] ?? SPORT_SCHEDULE_INFO.NFL!
+  const defaultTeamsHint = sportInfo.defaultTeams === sportInfo.weeks - 1 ? `(${sportInfo.weeks} weeks - 1)` : '(capped)'
 
   return (
     <div className="space-y-5">
@@ -45,7 +46,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
         <div className="grid gap-2 sm:grid-cols-2 text-xs text-white/60">
           <div>Regular season: <span className="text-white/80">{sportInfo.weeks} weeks</span></div>
           <div>Game pattern: <span className="text-white/80">{sportInfo.gamePattern}</span></div>
-          <div>Default teams: <span className="text-white font-bold">{sportInfo.defaultTeams}</span> <span className="text-white/40">({sportInfo.weeks} weeks - 1)</span></div>
+          <div>Default teams: <span className="text-white font-bold">{sportInfo.defaultTeams}</span> <span className="text-white/40">{defaultTeamsHint}</span></div>
           <div>Chop day: <span className="text-red-300/80">{sportInfo.chopDay}</span> · Waivers: <span className="text-emerald-300/80">{sportInfo.waiverDay}</span></div>
         </div>
         <div className="mt-2 text-[11px] text-white/40">
