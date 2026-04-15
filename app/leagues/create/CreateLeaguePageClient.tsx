@@ -280,7 +280,7 @@ export function CreateLeaguePageClient() {
           requestedAt: new Date().toISOString(),
         },
         ...(state.formatId === 'survivor' && {
-          survivor_suggested_tribe_count: Math.min(5, Math.max(2, Math.round(state.survivorTribeCount))),
+          survivor_suggested_tribe_count: Math.min(4, Math.max(2, Math.round(state.survivorTribeCount))),
           survivor_season_theme_label: state.survivorSeasonTheme.trim() || undefined,
           survivor_challenges_system_run: state.survivorChallengesSystemRun,
           survivor_player_count: state.survivorPlayerCount,
