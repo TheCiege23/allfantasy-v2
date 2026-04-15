@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
     // Denormalized display fields (playerName/position/team/teamId/sport) are
     // resolved by the claim processor from the sport feed at fulfillment
-    // time, so the claim row only needs playerId + priority here.
+    // time, so the claim row only needs playerId + week + priority here.
     const priorityRaw = (body as Record<string, unknown>).priority
     const priority =
       typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)

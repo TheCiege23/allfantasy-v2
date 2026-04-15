@@ -123,7 +123,7 @@ async function runAutomation(req: NextRequest) {
       }
 
       try {
-        await processExileTeamClaims(leagueId)
+        await processExileTeamClaims(leagueId, week)
         await awardWeeklyExileTeamToken(leagueId)
       } catch (exileErr) {
         const msg = exileErr instanceof Error ? exileErr.message : String(exileErr)

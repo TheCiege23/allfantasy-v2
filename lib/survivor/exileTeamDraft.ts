@@ -16,6 +16,7 @@ type PendingClaim = {
   league_id: string
   user_id: string
   real_player_id: string
+  week: number | null
   priority: number
 }
 
@@ -29,6 +30,19 @@ type ExileRosterRow = {
 
 function quote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`
+}
+
+let ensureClaimWeekColumnPromise: Promise<void> | null = null
+
+async function ensureExileClaimWeekColumn(): Promise<void> {
+  if (!ensureClaimWeekColumnPromise) {
+    ensureClaimWeekColumnPromise = prisma.$executeRawUnsafe(
+      `ALTER TABLE exile_team_claims ADD COLUMN IF NOT EXISTS week INTEGER`,
+    )
+      .then(() => {})
+      .catch(() => {})
+  }
+  await ensureClaimWeekColumnPromise
 }
 
 /** Submit a waiver-style claim for an exile-team draft target. */
@@ -52,6 +66,7 @@ export async function submitExileTeamClaim(params: {
     return { ok: false, error: 'week must be a positive integer' }
   }
   try {
+    await ensureExileClaimWeekColumn()
     // Use parameterized $queryRaw so no user-controlled value is interpolated.
     const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
       INSERT INTO exile_team_claims (league_id, user_id, real_player_id, week, priority, status)
@@ -72,18 +87,26 @@ export async function submitExileTeamClaim(params: {
  */
 export async function processExileTeamClaims(
   leagueId: string,
+  week?: number,
 ): Promise<{ ok: boolean; processed: number; error?: string }> {
+  const normalizedWeek =
+    typeof week === 'number' && Number.isFinite(week) ? Math.trunc(week) : null
   try {
+    await ensureExileClaimWeekColumn()
     const league = await prisma.league.findUnique({
       where: { id: leagueId },
       select: { sport: true },
     })
     const keyPos = keyPositionForSport(league?.sport ?? null).code
+    const weekClause =
+      normalizedWeek != null && normalizedWeek > 0
+        ? ` AND (week IS NULL OR week = ${normalizedWeek})`
+        : ''
 
     const claims = await prisma.$queryRawUnsafe<PendingClaim[]>(
-      `SELECT id, league_id, user_id, real_player_id, priority
+      `SELECT id, league_id, user_id, real_player_id, week, priority
        FROM exile_team_claims
-       WHERE league_id = ${quote(leagueId)} AND status = 'pending'
+       WHERE league_id = ${quote(leagueId)} AND status = 'pending'${weekClause}
        ORDER BY priority ASC, submitted_at ASC`,
     )
     if (!claims || claims.length === 0) return { ok: true, processed: 0 }
@@ -163,7 +186,7 @@ export async function processExileTeamClaims(
           }
           await logSurvivorAuditEntry({
             leagueId,
-            week: null,
+            week: claim.week ?? normalizedWeek ?? null,
             category: 'exile',
             action: 'EXILE_TEAM_ANCHOR_AWARDED',
             targetUserId: claim.user_id,
