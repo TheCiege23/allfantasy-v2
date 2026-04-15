@@ -49,7 +49,7 @@ export type LeagueCreateFormState = {
   survivorCommissionerPlays: boolean
   survivorTribeFormation: 'schoolyard' | 'random' | 'manual'
   survivorTribeNaming: 'auto' | 'custom'
-  survivorMergeTrigger: 'week' | 'players_remaining'
+  survivorMergeTrigger: 'players_remaining' | 'week'
   survivorMergeWeek: number
   survivorMergeAtCount: number
   survivorJuryStart: 'post_merge_vote_1' | 'final_9' | 'final_7'

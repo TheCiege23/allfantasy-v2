@@ -307,16 +307,6 @@ export function CreateLeaguePageClient() {
         ...(state.formatId === 'zombie' && {
           zombie_whisperer_selection: state.zombieWhispererSelection,
         }),
-        ...(state.formatId === 'guillotine' && {
-          guillotine_eliminations_per_period: state.guillotineEliminationsPerPeriod,
-          guillotine_protected_week_1: state.guillotineProtectedWeek1,
-          guillotine_endgame: state.guillotineEndgame,
-          guillotine_tiebreaker: state.guillotineTiebreaker,
-          guillotine_waiver_mode: state.guillotineWaiverMode,
-          guillotine_faab_budget: state.guillotineFaabBudget,
-          guillotine_same_period_pickups: state.guillotineSamePeriodPickups,
-          guillotine_trades_enabled: state.guillotineTradesEnabled,
-        }),
       },
     }
 
