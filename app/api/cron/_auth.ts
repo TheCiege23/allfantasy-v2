@@ -18,7 +18,7 @@ export function requireCronAuth(req: NextRequest, preferredSecretEnv?: string): 
   return Boolean(
     provided &&
       ((cronSecret && provided === cronSecret) ||
-        (adminSecret && provided === adminSecret) ||
-        (importWorkerSecret && provided === importWorkerSecret))
+        (importWorkerSecret && provided === importWorkerSecret) ||
+        (adminSecret && provided === adminSecret))
   )
 }

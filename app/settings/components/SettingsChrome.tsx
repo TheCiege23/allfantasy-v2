@@ -28,8 +28,8 @@ export type SettingsTabId =
   | 'referral'
   | 'legacy'
   | 'legal'
-  | 'account'
   | 'ai'
+  | 'account'
 
 type NavDef = {
   id: SettingsTabId

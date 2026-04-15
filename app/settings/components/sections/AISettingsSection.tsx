@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 
 type SubscriptionTier = 'free' | 'af_pro' | 'af_commissioner'
@@ -49,6 +49,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
 export function AISettingsSection() {
   const [tier, setTier] = useState<SubscriptionTier>('free')
   const [toggles, setToggles] = useState<Record<string, boolean>>({})
+  const togglesRef = useRef<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -56,18 +57,19 @@ export function AISettingsSection() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { subscriptionTier?: string; aiSettings?: Record<string, boolean> } | null) => {
         if (d?.subscriptionTier) setTier(d.subscriptionTier as SubscriptionTier)
-        if (d?.aiSettings) setToggles(d.aiSettings)
+        if (d?.aiSettings) {
+          setToggles(d.aiSettings)
+          togglesRef.current = d.aiSettings
+        }
       })
       .catch(() => null)
       .finally(() => setLoading(false))
   }, [])
 
   async function handleToggle(id: string, value: boolean) {
-    let nextToggles: Record<string, boolean> = {}
-    setToggles((t) => {
-      nextToggles = { ...t, [id]: value }
-      return nextToggles
-    })
+    const nextToggles = { ...togglesRef.current, [id]: value }
+    togglesRef.current = nextToggles
+    setToggles(nextToggles)
     await fetch('/api/user/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
