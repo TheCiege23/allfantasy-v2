@@ -221,28 +221,38 @@ export async function processExileTeamClaims(
 }
 
 /**
- * List the real-world teams still available to claim in a league's exile
- * draft — any team not yet assigned to an `exile_team_rosters` row.
- * Returns a minimal stub ({ teamId, name }) since the real team list comes
- * from the sport feed at call time; callers enrich as needed.
+ * Return the set of real-world team IDs already assigned to an exile
+ * roster in a league. This is NOT a list of available teams — the
+ * authoritative team catalog lives in the sport feed, not in this
+ * service. Callers diff this "taken" set against their own catalog to
+ * render the available list. Exposed as both a Set-returning helper
+ * and a typed result for the API route.
  */
-export async function getAvailableTeamsForExile(
-  leagueId: string,
-  _week: number,
-  _sport: string,
-): Promise<{ teamId: string; name?: string }[]> {
+export async function getTakenExileTeamIds(leagueId: string): Promise<Set<string>> {
   try {
     const rows = await prisma.$queryRawUnsafe<{ real_team_id: string }[]>(
       `SELECT DISTINCT real_team_id FROM exile_team_rosters WHERE league_id = ${quote(leagueId)}`,
     )
-    const takenIds = new Set((rows ?? []).map((r) => r.real_team_id))
-    // Real team catalog isn't stored here; return a marker set the UI can
-    // diff against its own sport-team list. Callers that need the full team
-    // list should merge this "taken" set with their sport catalog.
-    return Array.from(takenIds).map((teamId) => ({ teamId, name: undefined }))
+    return new Set((rows ?? []).map((r) => r.real_team_id))
   } catch {
-    return []
+    return new Set()
   }
+}
+
+/**
+ * API-shaped result for the `available_teams` intent. Returns the
+ * `takenTeamIds` array only — the client merges this with its sport
+ * catalog to render the available list. The old name
+ * `getAvailableTeamsForExile` was misleading (it returned taken, not
+ * available) so callers should use this shape.
+ */
+export async function getExileTeamDraftStatus(
+  leagueId: string,
+  _week: number,
+  _sport: string,
+): Promise<{ takenTeamIds: string[] }> {
+  const taken = await getTakenExileTeamIds(leagueId)
+  return { takenTeamIds: Array.from(taken) }
 }
 
 /** Return all exile-team roster rows owned by a user in a league. */

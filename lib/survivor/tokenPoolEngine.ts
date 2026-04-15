@@ -33,7 +33,7 @@ export async function submitTokenPoolPick(input: TokenPoolPickInput): Promise<{ 
   const player = await (prisma as any).survivorPlayer.findFirst({
     where: { leagueId: input.leagueId, userId: input.userId },
   })
-  if (!player || player.playerState !== 'eliminated') {
+  if (!player || player.playerState !== 'exile') {
     throw new Error('Only exiled players can submit token pool picks')
   }
 

@@ -7,7 +7,7 @@ import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/leagu
 import { processReturnFromExile, scoreExileWeek } from '@/lib/survivor/exileEngine'
 import {
   submitExileTeamClaim,
-  getAvailableTeamsForExile,
+  getExileTeamDraftStatus,
 } from '@/lib/survivor/exileTeamDraft'
 
 export const dynamic = 'force-dynamic'
@@ -118,8 +118,11 @@ export async function POST(req: NextRequest) {
     const gate = await assertLeagueMember(body.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const league = await prisma.league.findUnique({ where: { id: body.leagueId }, select: { sport: true } })
-    const teams = await getAvailableTeamsForExile(body.leagueId, body.week, league?.sport ?? 'NFL')
-    return NextResponse.json({ teams })
+    // Returns { takenTeamIds } — the client diffs against its own
+    // sport catalog to render the available list. Renamed from
+    // `teams` to avoid the prior misleading shape.
+    const status = await getExileTeamDraftStatus(body.leagueId, body.week, league?.sport ?? 'NFL')
+    return NextResponse.json(status)
   }
 
   return NextResponse.json({ error: 'Invalid intent' }, { status: 400 })

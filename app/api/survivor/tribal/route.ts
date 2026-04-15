@@ -183,9 +183,12 @@ export async function POST(req: NextRequest) {
     if (!councilId || !eliminateRosterId) {
       return NextResponse.json({ error: 'councilId and eliminateRosterId required' }, { status: 400 })
     }
-    const council = await prisma.survivorTribalCouncil.findUnique({ where: { id: councilId } })
+    // Scope the lookup by { id, leagueId } so a cross-league councilId
+    // probe returns the same 404 as a nonexistent council — no leak.
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId, leagueId },
+    })
     if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
-    if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!council.isTie) return NextResponse.json({ error: 'Council is not in a tie state' }, { status: 400 })
     const tiedRosterIds = Array.isArray(council.tiePlayerIds)
       ? council.tiePlayerIds.filter((id): id is string => typeof id === 'string')
