@@ -316,6 +316,10 @@ export function VideoUploadButton({
 
     // Validate duration (2 minutes)
     const duration = await getVideoDuration(file)
+    if (!Number.isFinite(duration)) {
+      toast.error('Could not read video duration. Please try a different file.')
+      return
+    }
     if (duration > 120) {
       toast.error('Video must be 2 minutes or less')
       return
@@ -389,7 +393,10 @@ function getVideoDuration(file: File): Promise<number> {
       URL.revokeObjectURL(video.src)
       resolve(video.duration)
     }
-    video.onerror = () => resolve(0)
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src)
+      resolve(Number.NaN)
+    }
     video.src = URL.createObjectURL(file)
   })
 }
