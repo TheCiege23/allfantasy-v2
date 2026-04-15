@@ -183,16 +183,21 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
             <Input
               type="number"
               min={state.survivorMergeTrigger === 'week' ? 4 : 6}
-              max={state.survivorMergeTrigger === 'week' ? 14 : 14}
+              max={14}
               value={state.survivorMergeTrigger === 'week' ? state.survivorMergeWeek : state.survivorMergeAtCount}
-              onChange={(e) =>
-                setState((c) => ({
-                  ...c,
-                  ...(c.survivorMergeTrigger === 'week'
-                    ? { survivorMergeWeek: Number(e.target.value) || 8 }
-                    : { survivorMergeAtCount: Number(e.target.value) || 10 }),
-                }))
-              }
+              onChange={(e) => {
+                // Snapshot the trigger at event time (from the render-time
+                // state) so the write key matches what the user is
+                // actually looking at, even if a batched setState has
+                // already changed the trigger between render and flush.
+                const activeTrigger = state.survivorMergeTrigger
+                const parsed = Number(e.target.value)
+                setState((c) =>
+                  activeTrigger === 'week'
+                    ? { ...c, survivorMergeWeek: Number.isFinite(parsed) && parsed > 0 ? parsed : 8 }
+                    : { ...c, survivorMergeAtCount: Number.isFinite(parsed) && parsed > 0 ? parsed : 10 },
+                )
+              }}
             />
           </div>
         </div>

@@ -44,24 +44,13 @@ type PausedNeedsSnapshot = {
   needsWeeklyRecap: boolean
 }
 
-function isPausedNeedsSnapshot(snapshot: Partial<PausedNeedsSnapshot> | null | undefined): snapshot is PausedNeedsSnapshot {
-  if (!snapshot) return false
-  return (
-    typeof snapshot.needsChallengeLock === 'boolean' &&
-    typeof snapshot.needsTribalLock === 'boolean' &&
-    typeof snapshot.needsExileScore === 'boolean' &&
-    typeof snapshot.needsPhaseAdvance === 'boolean' &&
-    typeof snapshot.needsWeeklyRecap === 'boolean'
-  )
-}
-
-function createPauseError(notes: string, snapshot: PausedNeedsSnapshot): string {
-  return `${PAUSE_ERROR_PREFIX}${JSON.stringify({ notes, snapshot })}`
-}
-
-/** Shape-validate an arbitrary value as a PausedNeedsSnapshot. */
+/**
+ * Single source of truth for PausedNeedsSnapshot shape validation.
+ * Accepts anything, returns a typed snapshot or null. Every other
+ * parse/coerce helper in this file delegates to this.
+ */
 function coercePauseSnapshot(value: unknown): PausedNeedsSnapshot | null {
-  if (!value || typeof value !== 'object') return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const snapshot = value as Partial<PausedNeedsSnapshot>
   if (
     typeof snapshot.needsChallengeLock !== 'boolean' ||
@@ -81,6 +70,11 @@ function coercePauseSnapshot(value: unknown): PausedNeedsSnapshot | null {
   }
 }
 
+function createPauseError(notes: string, snapshot: PausedNeedsSnapshot): string {
+  return `${PAUSE_ERROR_PREFIX}${JSON.stringify({ notes, snapshot })}`
+}
+
+/** Parse the legacy `PAUSED:{json}` prefix out of survivor lastError. */
 function parsePauseSnapshot(lastError: string | null | undefined): PausedNeedsSnapshot | null {
   if (!lastError?.startsWith(PAUSE_ERROR_PREFIX)) return null
   const rawValue = lastError.slice(PAUSE_ERROR_PREFIX.length).trim()
@@ -93,17 +87,11 @@ function parsePauseSnapshot(lastError: string | null | undefined): PausedNeedsSn
   }
 }
 
-function parsePausedSnapshotColumn(snapshot: Prisma.JsonValue | null | undefined): PausedNeedsSnapshot | null {
-  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
-  const parsedSnapshot = snapshot as Partial<PausedNeedsSnapshot>
-  if (!isPausedNeedsSnapshot(parsedSnapshot)) return null
-  return {
-    needsChallengeLock: parsedSnapshot.needsChallengeLock,
-    needsTribalLock: parsedSnapshot.needsTribalLock,
-    needsExileScore: parsedSnapshot.needsExileScore,
-    needsPhaseAdvance: parsedSnapshot.needsPhaseAdvance,
-    needsWeeklyRecap: parsedSnapshot.needsWeeklyRecap,
-  }
+/** Parse the dedicated pausedSnapshot JSON column. */
+function parsePausedSnapshotColumn(
+  snapshot: Prisma.JsonValue | null | undefined,
+): PausedNeedsSnapshot | null {
+  return coercePauseSnapshot(snapshot)
 }
 
 export async function GET(req: NextRequest) {
