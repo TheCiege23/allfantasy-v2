@@ -69,12 +69,27 @@ jobs:
       run: npm run db:indexes:verify-platform-backend
     - name: Run Playwright tests (core)
       if: matrix.lane == 'core'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        NEXTAUTH_SECRET: ci-nextauth-secret
+        NEXTAUTH_URL: http://localhost:3000
       run: npm run test:e2e:core
     - name: Run Playwright tests (retention engagement)
       if: matrix.lane == 'retention-engagement'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        NEXTAUTH_SECRET: ci-nextauth-secret
+        NEXTAUTH_URL: http://localhost:3000
       run: npm run test:e2e:retention
     - name: Run Playwright tests (onboarding activation)
       if: matrix.lane == 'onboarding-activation'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        NEXTAUTH_SECRET: ci-nextauth-secret
+        NEXTAUTH_URL: http://localhost:3000
       run: npm run test:e2e:onboarding-activation
     - name: Run Playwright tests (referral growth db)
       if: matrix.lane == 'referral-growth-db'
@@ -95,6 +110,20 @@ jobs:
     name: Draft Room Regression
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: allfantasy_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d allfantasy_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -105,6 +134,11 @@ jobs:
     - name: Install Playwright Chromium
       run: npx playwright install --with-deps chromium
     - name: Run draft-room regression
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        NEXTAUTH_SECRET: ci-nextauth-secret
+        NEXTAUTH_URL: http://localhost:3000
       run: npm run test:e2e:draft-room:chromium
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
