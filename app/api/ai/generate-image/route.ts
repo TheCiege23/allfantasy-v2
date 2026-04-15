@@ -8,6 +8,7 @@ import {
   generateMergedTribeLogo,
   generateEventGraphic,
 } from '@/lib/ai/imageGenerator'
+import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   }
 
   const type = typeof body.type === 'string' ? body.type : ''
-  const sport = typeof body.sport === 'string' ? body.sport : 'NFL'
+  const sport = normalizeToSupportedSport(typeof body.sport === 'string' ? body.sport : DEFAULT_SPORT)
 
   try {
     let result = null

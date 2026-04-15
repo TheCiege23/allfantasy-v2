@@ -250,7 +250,7 @@ function parseXNewsResponse(output: unknown, sport: string): XNewsItem[] {
   return items.slice(0, 20) // Max 20 items per query
 }
 
-function classifyCategory(text: string): NewsCategory {
+export function classifyCategory(text: string): NewsCategory {
   const lower = text.toLowerCase()
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     if (keywords.some((kw) => lower.includes(kw))) {

@@ -8,6 +8,7 @@ import {
   getTokenBalance,
   type TokenPoolPickInput,
 } from '@/lib/survivor/tokenPoolEngine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,16 +46,17 @@ export async function POST(req: NextRequest) {
 
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
   const week = typeof body.week === 'number' ? body.week : 0
-  const sport = typeof body.sport === 'string' ? body.sport : ''
+  const sportInput = typeof body.sport === 'string' ? body.sport : ''
   const pickType = typeof body.pickType === 'string' ? body.pickType : ''
   const pick =
     typeof body.pick === 'object' && body.pick != null && !Array.isArray(body.pick)
       ? (body.pick as Record<string, unknown>)
       : null
 
-  if (!leagueId || !week || !sport || !pickType) {
+  if (!leagueId || !week || !sportInput || !pickType) {
     return NextResponse.json({ error: 'leagueId, week, sport, pickType required' }, { status: 400 })
   }
+  const sport = normalizeToSupportedSport(sportInput)
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 

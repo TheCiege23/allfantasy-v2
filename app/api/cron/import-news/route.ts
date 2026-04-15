@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { fetchWithChain } from '@/lib/workers/api-chain'
 import { SUPPORTED_SPORTS } from '@/lib/workers/api-config'
+import { classifyCategory } from '@/lib/workers/x-news-ingestion'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,32 +24,6 @@ type DispatchCategory =
   | 'player_news'
   | 'game_update'
   | 'coaching'
-
-/**
- * Classify a news row into a notification category by scanning the
- * headline + body for category keywords. Falls back to `player_news`
- * for anything that doesn't match. This mirrors the classifier used
- * during ingestion but runs at dispatch time so historical rows get
- * correct categorization too.
- */
-function classifyNewsCategory(headline: string, body: string | null): DispatchCategory {
-  const haystack = `${headline} ${body ?? ''}`.toLowerCase()
-  const matchers: Array<{ category: DispatchCategory; keywords: string[] }> = [
-    { category: 'injury', keywords: ['injury', 'injured', 'ruled out', 'questionable', 'doubtful', 'concussion', 'day-to-day', 'hamstring', 'knee', 'ankle', 'shoulder', 'acl', 'torn', 'fracture', 'surgery'] },
-    { category: 'suspension', keywords: ['suspended', 'suspension', 'banned', 'ped', 'conduct'] },
-    { category: 'trade', keywords: ['traded', 'trade', 'acquired', 'blockbuster', 'swap'] },
-    { category: 'signing', keywords: ['signs', 'signed', 'contract', 'extension', 'agrees'] },
-    { category: 'release', keywords: ['released', 'waived', 'cut', 'dfa', 'designated for assignment'] },
-    { category: 'roster_move', keywords: ['placed on ir', 'injured reserve', 'activated', 'recalled', 'promoted', 'demoted', 'roster move'] },
-    { category: 'coaching', keywords: ['head coach', 'coaching change', 'coordinator', 'fired', 'hired'] },
-    { category: 'team_news', keywords: ['front office', 'ownership', 'relocat'] },
-    { category: 'game_update', keywords: ['postponed', 'cancelled', 'delayed', 'weather'] },
-  ]
-  for (const { category, keywords } of matchers) {
-    if (keywords.some((k) => haystack.includes(k))) return category
-  }
-  return 'player_news'
-}
 
 /**
  * Shared dispatch helper for both the X Grok and NewsAPI ingestion
@@ -84,7 +59,7 @@ async function dispatchRecentPlayerNews(
   let notifications = 0
   for (const news of records) {
     if (!news.playerName || news.playerName.trim().length === 0) continue
-    const category = classifyNewsCategory(news.headline, news.body)
+    const category = classifyCategory(`${news.headline} ${news.body ?? ''}`) as DispatchCategory
     const sent = await dispatchPlayerNewsNotifications(
       news.playerName,
       news.team,
