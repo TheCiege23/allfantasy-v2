@@ -34,7 +34,7 @@ const WAIVER_MODES = [
 ] as const
 
 export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) {
-  const gs = (state as any)
+  const gs = state
   const sportInfo = SPORT_SCHEDULE_INFO[state.sport] ?? SPORT_SCHEDULE_INFO.NFL!
 
   return (
@@ -63,7 +63,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <Input
               type="number" min={1} max={3}
               value={gs.guillotineEliminationsPerPeriod ?? 1}
-              onChange={(e) => setState((c: any) => ({ ...c, guillotineEliminationsPerPeriod: Number(e.target.value) || 1 }))}
+              onChange={(e) => setState((c) => ({ ...c, guillotineEliminationsPerPeriod: Number(e.target.value) || 1 }))}
             />
             <div className="mt-1 text-xs text-white/40">How many teams get chopped each scoring period</div>
           </div>
@@ -74,7 +74,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
                 <input
                   type="checkbox"
                   checked={gs.guillotineProtectedWeek1 ?? false}
-                  onChange={(e) => setState((c: any) => ({ ...c, guillotineProtectedWeek1: e.target.checked }))}
+                  onChange={(e) => setState((c) => ({ ...c, guillotineProtectedWeek1: e.target.checked }))}
                   className="rounded border-white/20"
                 />
                 No elimination in Week 1
@@ -92,7 +92,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <button
               key={mode.value}
               type="button"
-              onClick={() => setState((c: any) => ({ ...c, guillotineEndgame: mode.value }))}
+              onClick={() => setState((c) => ({ ...c, guillotineEndgame: mode.value }))}
               className={`rounded-2xl border px-4 py-3 text-sm transition ${
                 (gs.guillotineEndgame ?? 'last_team_standing') === mode.value
                   ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
@@ -113,7 +113,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <button
               key={tb.value}
               type="button"
-              onClick={() => setState((c: any) => ({ ...c, guillotineTiebreaker: tb.value }))}
+              onClick={() => setState((c) => ({ ...c, guillotineTiebreaker: tb.value }))}
               className={`rounded-2xl border px-4 py-3 text-sm transition ${
                 (gs.guillotineTiebreaker ?? 'lowest_bench_points') === tb.value
                   ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
@@ -134,7 +134,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <button
               key={wm.value}
               type="button"
-              onClick={() => setState((c: any) => ({ ...c, guillotineWaiverMode: wm.value }))}
+              onClick={() => setState((c) => ({ ...c, guillotineWaiverMode: wm.value }))}
               className={`rounded-2xl border px-4 py-3 text-sm transition ${
                 (gs.guillotineWaiverMode ?? 'faab') === wm.value
                   ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
@@ -156,7 +156,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <Input
               type="number" min={0} max={1000}
               value={gs.guillotineFaabBudget ?? 100}
-              onChange={(e) => setState((c: any) => ({ ...c, guillotineFaabBudget: Number(e.target.value) || 100 }))}
+              onChange={(e) => setState((c) => ({ ...c, guillotineFaabBudget: Number(e.target.value) || 100 }))}
             />
           </div>
           <div>
@@ -164,7 +164,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
               <input
                 type="checkbox"
                 checked={gs.guillotineSamePeriodPickups ?? false}
-                onChange={(e) => setState((c: any) => ({ ...c, guillotineSamePeriodPickups: e.target.checked }))}
+                onChange={(e) => setState((c) => ({ ...c, guillotineSamePeriodPickups: e.target.checked }))}
                 className="rounded border-white/20"
               />
               Allow same-period pickups of eliminated players
@@ -176,7 +176,7 @@ export function GuillotineSetupStep({ state, setState }: LeagueCreateStepProps) 
             <input
               type="checkbox"
               checked={gs.guillotineTradesEnabled ?? false}
-              onChange={(e) => setState((c: any) => ({ ...c, guillotineTradesEnabled: e.target.checked }))}
+              onChange={(e) => setState((c) => ({ ...c, guillotineTradesEnabled: e.target.checked }))}
               className="rounded border-white/20"
             />
             Enable trades (OFF by default for guillotine)

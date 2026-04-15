@@ -66,18 +66,7 @@ export async function GET() {
   const isExpired = Date.now() > expiresAt - 5 * 60 * 1000
 
   if (isExpired && refreshToken && spotifyAccount) {
-    if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
-      return NextResponse.json(
-        {
-          error: 'Spotify integration is not configured',
-          connected: true,
-          expired: true,
-          misconfigured: true,
-        },
-        { status: 503 },
-      )
-    }
-
+    // Credentials presence already asserted at the top of the handler.
     const refreshRes = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
