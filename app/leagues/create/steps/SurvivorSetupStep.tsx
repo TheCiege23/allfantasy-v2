@@ -44,7 +44,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
             type="button"
             onClick={() => setState((c) => ({ ...c, survivorCommissionerPlays: false }))}
             className={`rounded-2xl border px-4 py-3 text-left transition ${
-              !(state as any).survivorCommissionerPlays
+              !state.survivorCommissionerPlays
                 ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
                 : 'border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20'
             }`}
@@ -56,7 +56,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
             type="button"
             onClick={() => setState((c) => ({ ...c, survivorCommissionerPlays: true }))}
             className={`rounded-2xl border px-4 py-3 text-left transition ${
-              (state as any).survivorCommissionerPlays
+              state.survivorCommissionerPlays
                 ? 'border-amber-300/60 bg-amber-300/10 text-white'
                 : 'border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20'
             }`}
