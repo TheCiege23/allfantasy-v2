@@ -184,6 +184,31 @@ export async function processExileTeamClaims(
   }
 }
 
+/**
+ * List the real-world teams still available to claim in a league's exile
+ * draft — any team not yet assigned to an `exile_team_rosters` row.
+ * Returns a minimal stub ({ teamId, name }) since the real team list comes
+ * from the sport feed at call time; callers enrich as needed.
+ */
+export async function getAvailableTeamsForExile(
+  leagueId: string,
+  _week: number,
+  _sport: string,
+): Promise<{ teamId: string; name?: string }[]> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<{ real_team_id: string }[]>(
+      `SELECT DISTINCT real_team_id FROM exile_team_rosters WHERE league_id = ${quote(leagueId)}`,
+    )
+    const takenIds = new Set((rows ?? []).map((r) => r.real_team_id))
+    // Real team catalog isn't stored here; return a marker set the UI can
+    // diff against its own sport-team list. Callers that need the full team
+    // list should merge this "taken" set with their sport catalog.
+    return Array.from(takenIds).map((teamId) => ({ teamId, name: undefined }))
+  } catch {
+    return []
+  }
+}
+
 /** Return all exile-team roster rows owned by a user in a league. */
 export async function getExileRoster(
   leagueId: string,

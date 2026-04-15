@@ -49,6 +49,12 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npx prisma db push --skip-generate
+    - name: Apply platform-backend foundation SQL
+      if: matrix.lane == 'referral-growth-db'
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+      run: npm run db:foundation:apply
     - name: Apply platform-backend supplemental indexes
       if: matrix.lane == 'referral-growth-db'
       env:

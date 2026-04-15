@@ -118,6 +118,19 @@ export async function GET() {
     })
   }
 
+  // If we reach here with an expired token but no refresh path available,
+  // don't hand back a stale token — tell the client to reconnect.
+  if (isExpired) {
+    return NextResponse.json(
+      {
+        error: 'Spotify token expired and cannot be refreshed',
+        connected: true,
+        expired: true,
+      },
+      { status: 401 },
+    )
+  }
+
   return NextResponse.json({
     token: accessToken,
     expiresIn: expiresAt > 0 ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : 3600,

@@ -5,7 +5,10 @@ import { prisma } from '@/lib/prisma'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
 import { processReturnFromExile, scoreExileWeek } from '@/lib/survivor/exileEngine'
-import { submitExileTeamClaim, getAvailableTeamsForExile } from '@/lib/survivor/exileTeamDraft'
+import {
+  submitExileTeamClaim,
+  getAvailableTeamsForExile,
+} from '@/lib/survivor/exileTeamDraft'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -96,21 +99,17 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       )
     }
-    const sport = typeof player.sport === 'string' && player.sport.trim() ? player.sport.trim() : 'NFL'
-    const result = await submitExileTeamClaim(
-      body.leagueId,
-      island.id,
+    const priorityRaw = (body as Record<string, unknown>).priority
+    const priority =
+      typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)
+        ? priorityRaw
+        : undefined
+    const result = await submitExileTeamClaim({
+      leagueId: body.leagueId,
       userId,
-      body.week,
-      {
-        playerId,
-        playerName,
-        position,
-        team,
-        teamId,
-        sport,
-      },
-    )
+      realPlayerId: playerId,
+      priority,
+    })
     return NextResponse.json(result)
   }
 
