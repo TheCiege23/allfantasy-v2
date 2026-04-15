@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
       await enrollInExile(leagueId, resolvedEliminatedRosterId, eliminatedUserId).catch(() => {})
     }
     const joinJury = await shouldJoinJury(leagueId, council.week).catch(() => false)
-    if (joinJury) {
+    if (joinJury && eliminatedUserId) {
       await enrollJuryMember(leagueId, resolvedEliminatedRosterId, council.week).catch(() => {})
     }
     return NextResponse.json({ ok: true, eliminatedRosterId: resolvedEliminatedRosterId })
