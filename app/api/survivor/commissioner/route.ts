@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { Prisma } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { requireCommissionerRole } from '@/lib/league/permissions'
@@ -325,6 +326,10 @@ export async function POST(req: NextRequest) {
         needsExileScore: false,
         needsPhaseAdvance: false,
         needsWeeklyRecap: false,
+        pausedSnapshot: pausedSnapshot as unknown as Prisma.InputJsonValue,
+        // Keep the legacy string marker as well so older resume paths
+        // that still look at lastError continue to behave, but the
+        // authoritative snapshot now lives in pausedSnapshot.
         lastError: createPauseError(notes, pausedSnapshot),
       },
     })
@@ -345,6 +350,7 @@ export async function POST(req: NextRequest) {
       where: { leagueId },
       select: {
         lastError: true,
+        pausedSnapshot: true,
         needsChallengeLock: true,
         needsTribalLock: true,
         needsExileScore: true,
@@ -352,8 +358,17 @@ export async function POST(req: NextRequest) {
         needsWeeklyRecap: true,
       },
     })
-    const pausedSnapshot = parsePauseSnapshot(currentState?.lastError)
-    const isLegacyPausedState = Boolean(currentState?.lastError?.startsWith(PAUSE_ERROR_PREFIX) && !pausedSnapshot)
+    // Authoritative source: the dedicated pausedSnapshot JSON column.
+    // Fall back to the legacy lastError-embedded snapshot only if the
+    // new column is empty (older paused seasons).
+    const dbSnapshot =
+      (currentState?.pausedSnapshot as PausedNeedsSnapshot | null) ?? null
+    const legacySnapshot = parsePauseSnapshot(currentState?.lastError)
+    const pausedSnapshot: PausedNeedsSnapshot | null = dbSnapshot ?? legacySnapshot
+    const isLegacyPausedState = Boolean(
+      !pausedSnapshot &&
+        currentState?.lastError?.startsWith(PAUSE_ERROR_PREFIX),
+    )
     await prisma.survivorGameState.update({
       where: { leagueId },
       data: {
@@ -367,6 +382,7 @@ export async function POST(req: NextRequest) {
           pausedSnapshot?.needsPhaseAdvance ?? (isLegacyPausedState ? true : currentState?.needsPhaseAdvance ?? false),
         needsWeeklyRecap:
           pausedSnapshot?.needsWeeklyRecap ?? (isLegacyPausedState ? false : currentState?.needsWeeklyRecap ?? false),
+        pausedSnapshot: Prisma.JsonNull,
         lastError: null,
       },
     })

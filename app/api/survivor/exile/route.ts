@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
       leagueId: body.leagueId,
       userId,
       realPlayerId: playerId,
+      week: body.week,
       priority,
     })
     return NextResponse.json(result)

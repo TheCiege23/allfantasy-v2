@@ -6239,6 +6239,10 @@ model SurvivorGameState {
   needsPowerRankings  Boolean   @default(false)
   lastAutomationRun   DateTime?
   lastError           String?
+  /// Snapshot of automation flags captured when the commissioner paused
+  /// the season — preserved across unrelated writes to lastError so that
+  /// resume_season can restore the pre-pause state reliably.
+  pausedSnapshot      Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)

@@ -36,6 +36,7 @@ export async function submitExileTeamClaim(params: {
   leagueId: string
   userId: string
   realPlayerId: string
+  week: number
   priority?: number
 }): Promise<{ ok: boolean; claimId?: string; error?: string }> {
   const { leagueId, userId, realPlayerId } = params
@@ -43,11 +44,18 @@ export async function submitExileTeamClaim(params: {
     typeof params.priority === 'number' && Number.isFinite(params.priority)
       ? Math.trunc(params.priority)
       : 100
+  const week =
+    Number.isInteger(params.week) && params.week >= 1
+      ? Math.trunc(params.week)
+      : null
+  if (week == null) {
+    return { ok: false, error: 'week must be a positive integer' }
+  }
   try {
     // Use parameterized $queryRaw so no user-controlled value is interpolated.
     const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
-      INSERT INTO exile_team_claims (league_id, user_id, real_player_id, priority, status)
-      VALUES (${leagueId}, ${userId}, ${realPlayerId}, ${priority}, 'pending')
+      INSERT INTO exile_team_claims (league_id, user_id, real_player_id, week, priority, status)
+      VALUES (${leagueId}, ${userId}, ${realPlayerId}, ${week}, ${priority}, 'pending')
       RETURNING id
     `)
     return { ok: true, claimId: rows?.[0]?.id }
