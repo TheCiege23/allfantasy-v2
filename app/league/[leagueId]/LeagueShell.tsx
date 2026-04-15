@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
+import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
+import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -657,6 +659,16 @@ export function LeagueShell({
                 </Link>
               </div>
             ) : null}
+
+            {/* Live scores strip */}
+            <LeagueLiveStrip sport={String(league.sport)} />
+
+            {/* League story card — shown on league tab */}
+            {activeTab === 'league' && (
+              <div className="px-4 pt-3">
+                <LeagueStoryCard leagueId={league.id} sport={String(league.sport)} />
+              </div>
+            )}
 
             {/* Renew League banner — shown to commissioner when season ends */}
             <RenewLeagueBanner

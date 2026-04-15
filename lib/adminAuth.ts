@@ -14,8 +14,14 @@ export function adminUnauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
+/** App owner emails that always have admin + super-admin access regardless of env vars. */
+const STATIC_ADMIN_EMAILS = new Set([
+  'cjabar.henson@gmail.com',
+])
+
 export function isAdminEmailAllowed(email?: string | null) {
   const e = (email || "").toLowerCase();
+  if (STATIC_ADMIN_EMAILS.has(e)) return true;
   const allow = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())

@@ -40,6 +40,7 @@ import { useEntitlement } from '@/hooks/useEntitlement'
 import {
   getAllowedLeagueTypesForSport,
   getAllowedDraftTypesForLeagueType,
+  getAllowedSportsForLeagueType,
   isDraftTypeAllowedForLeagueType,
   isDynastyLeagueType,
   isLeagueTypeAllowedForSport,
@@ -574,11 +575,9 @@ export function LeagueCreationWizard({
 
   const handleLeagueTypeChange = useCallback((leagueType: LeagueTypeId) => {
     setState((s) => {
-      const sportStr = String(s.sport).toUpperCase() as LeagueSport
-      const nextSport =
-        (leagueType === 'devy' || leagueType === 'c2c') && !COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS.includes(sportStr)
-          ? 'NFL'
-          : s.sport
+      const allowedSports = getAllowedSportsForLeagueType(leagueType)
+      const currentSportValid = allowedSports.includes(String(s.sport).toUpperCase() as LeagueSport)
+      const nextSport = currentSportValid ? s.sport : (allowedSports[0] ?? 'NFL')
       const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, nextSport)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
       const resolvedVariant =
@@ -1091,28 +1090,27 @@ export function LeagueCreationWizard({
         >
           {state.step === 'sport' && (
             <>
-              <SportSelector value={state.sport} onChange={handleSportChange} leagueType={state.leagueType} />
-              {creationPresetLoading && (
-                <p
-                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65"
-                  role="status"
-                  data-testid="league-creation-template-loader"
-                >
-                  Loading default roster, scoring, draft, and schedule templates…
-                </p>
-              )}
-              {creationPresetError && (
-                <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                  Could not load sport defaults: {creationPresetError}
-                </p>
-              )}
-              {creationPreset && <SportSummaryCard preset={creationPreset} />}
+              <LeagueTypeSelector
+                value={state.leagueType}
+                onChange={handleLeagueTypeChange}
+              />
               <div className="mt-6 space-y-6 border-t border-white/10 pt-6">
-                <LeagueTypeSelector
-                  sport={state.sport}
-                  value={state.leagueType}
-                  onChange={handleLeagueTypeChange}
-                />
+                <SportSelector value={state.sport} onChange={handleSportChange} leagueType={state.leagueType} />
+                {creationPresetLoading && (
+                  <p
+                    className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65"
+                    role="status"
+                    data-testid="league-creation-template-loader"
+                  >
+                    Loading default roster, scoring, draft, and schedule templates…
+                  </p>
+                )}
+                {creationPresetError && (
+                  <p className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                    Could not load sport defaults: {creationPresetError}
+                  </p>
+                )}
+                {creationPreset && <SportSummaryCard preset={creationPreset} />}
                 <DraftTypeSelector
                   sport={String(state.sport)}
                   leagueType={state.leagueType}

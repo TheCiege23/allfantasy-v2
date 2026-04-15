@@ -1,4 +1,5 @@
 import "server-only"
+import { cachedFetch, cacheKey } from "@/lib/api-cache"
 
 const REQUEST_BATCH_SIZE = 40
 const REQUEST_TIMEOUT_MS = 12000
@@ -46,6 +47,11 @@ async function translateBatch(texts: string[], targetLang: string): Promise<stri
 }
 
 export async function translateMissingEnglishKeysWithGoogle(entries: Record<string, string>, targetLang = 'es'): Promise<Record<string, string>> {
+  const key = cacheKey('gtranslate', targetLang, Object.keys(entries).sort().join(','))
+  return cachedFetch(key, 86400, () => _translateMissingUncached(entries, targetLang))
+}
+
+async function _translateMissingUncached(entries: Record<string, string>, targetLang: string): Promise<Record<string, string>> {
   const filtered = Object.entries(entries).filter(
     ([, value]) =>
       typeof value === "string" &&

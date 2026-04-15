@@ -1,4 +1,5 @@
 import { getXaiConfigFromEnv } from '@/lib/provider-config'
+import { cachedFetch, cacheKey } from '@/lib/api-cache'
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string }
 
 export type XaiToolXSearch = {
@@ -87,6 +88,26 @@ function getXaiRuntimeConfig():
 }
 
 export async function xaiChatJson(opts: {
+  messages: ChatMessage[]
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  tools?: XaiTool[]
+  topP?: number
+  n?: number
+  stop?: string | string[]
+  presencePenalty?: number
+  frequencyPenalty?: number
+  responseFormat?: { type: "text" | "json_object" }
+  seed?: number
+  skipCache?: boolean
+}) : Promise<XaiChatJsonResult> {
+  if (opts.skipCache) return _xaiChatJsonUncached(opts)
+  const key = cacheKey('xai-chat', opts.messages, opts.model, opts.temperature)
+  return cachedFetch(key, 1800, () => _xaiChatJsonUncached(opts))
+}
+
+async function _xaiChatJsonUncached(opts: {
   messages: ChatMessage[]
   model?: string
   temperature?: number
@@ -312,6 +333,25 @@ async function xaiResponsesJsonInternal(opts: {
 }
 
 export async function xaiResponsesJson(opts: {
+  messages: ChatMessage[]
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  tools?: XaiTool[]
+  topP?: number
+  stop?: string | string[]
+  responseFormat?: { type: "text" | "json_object" }
+  seed?: number
+  store?: boolean
+  reasoning?: { effort?: "low" | "medium" | "high"; summary?: "auto" | "concise" | "detailed" }
+  skipCache?: boolean
+}): Promise<XaiResponsesJsonResult> {
+  if (opts.skipCache) return _xaiResponsesJsonUncached(opts)
+  const key = cacheKey('xai-responses', opts.messages, opts.model, opts.temperature)
+  return cachedFetch(key, 1800, () => _xaiResponsesJsonUncached(opts))
+}
+
+async function _xaiResponsesJsonUncached(opts: {
   messages: ChatMessage[]
   model?: string
   temperature?: number

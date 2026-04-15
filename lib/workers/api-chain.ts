@@ -20,6 +20,7 @@ import { clearSportsProvider } from '@/lib/workers/providers/clearsports'
 import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insights'
 import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
 import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
+import { cfbdProvider } from '@/lib/workers/providers/cfbd'
 import { persistNormalizedSportsRows } from '@/lib/workers/sports-cache-persist'
 
 function isPopulatedResult(value: unknown): boolean {
@@ -432,6 +433,11 @@ export async function fetchWithChain(
         result && isPopulatedResult(result.data)
           ? result
           : (await tryProviderBlock(theSportsDbProvider, baseParams)) ?? result
+      // CFBD fallback for NCAAF teams/schedule/games
+      result =
+        result && isPopulatedResult(result.data)
+          ? result
+          : (await tryProviderBlock(cfbdProvider, baseParams)) ?? result
     }
 
     result =

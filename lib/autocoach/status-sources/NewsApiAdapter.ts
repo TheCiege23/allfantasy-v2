@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { NormalizedStatusHit } from './types'
+import { cachedFetch, cacheKey } from '@/lib/api-cache'
 
 function injuryQueryForSport(sport: string): string {
   const s = sport.toUpperCase()
@@ -25,6 +26,11 @@ function majorOutlet(name: string): boolean {
  * NewsAPI.org structured articles (optional; requires NEWS_API_KEY / NEWSAPI_KEY).
  */
 export async function fetchInjuryNewsArticles(sport: string, gameDate: string): Promise<NormalizedStatusHit[]> {
+  const key = cacheKey('newsapi-injuries', sport, gameDate)
+  return cachedFetch(key, 900, () => _fetchInjuryNewsUncached(sport, gameDate))
+}
+
+async function _fetchInjuryNewsUncached(sport: string, gameDate: string): Promise<NormalizedStatusHit[]> {
   const apiKey = process.env.NEWS_API_KEY?.trim() || process.env.NEWSAPI_KEY?.trim()
   if (!apiKey) {
     return []

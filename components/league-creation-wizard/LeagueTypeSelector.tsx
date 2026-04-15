@@ -4,14 +4,13 @@ import { Label } from '@/components/ui/label'
 import {
   LEAGUE_TYPE_IDS,
   LEAGUE_TYPE_LABELS,
-  getAllowedLeagueTypesForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import { StepHeader } from './StepHelp'
 
 export type LeagueTypeSelectorProps = {
-  sport: string
+  sport?: string
   value: LeagueTypeId
   onChange: (leagueType: LeagueTypeId) => void
 }
@@ -38,15 +37,9 @@ const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW'>> = {
 /**
  * League type selection (redraft, dynasty, keeper, etc.). Options filtered by sport.
  */
-export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelectorProps) {
-  const allowed = getAllowedLeagueTypesForSport(sport)
-  const visibleLeagueTypes =
-    value === 'devy' && allowed.includes('devy')
-      ? (['devy'] as LeagueTypeId[])
-      : value === 'c2c' && allowed.includes('c2c')
-        ? (['c2c'] as LeagueTypeId[])
-        : allowed
-  const safeValue = allowed.includes(value) ? value : allowed[0]!
+export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps) {
+  const visibleLeagueTypes = LEAGUE_TYPE_IDS
+  const safeValue = visibleLeagueTypes.includes(value) ? value : visibleLeagueTypes[0]!
   const selectedMedia = getLeagueTypeMedia(safeValue)
 
   return (

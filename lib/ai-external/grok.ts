@@ -1,6 +1,7 @@
 // lib/ai-external/grok.ts
 import type { GrokChatRequest, GrokChatResponse, GrokEnrichmentRequest, GrokEnrichmentResult } from "./grok-types";
 import { validateAndSanitizeGrokJson } from "./grok-safety";
+import { cachedFetch, cacheKey } from "@/lib/api-cache";
 
 function env(name: string): string | undefined {
   return process.env[name]?.trim() || undefined;
@@ -74,6 +75,14 @@ export function getGrokConfigFromEnv(): GrokClientConfig | null {
 }
 
 export async function grokEnrich(
+  request: GrokEnrichmentRequest,
+  cfg?: Partial<GrokClientConfig>
+): Promise<GrokEnrichmentResult> {
+  const key = cacheKey('grok', request.kind, request.context)
+  return cachedFetch(key, 1800, () => _grokEnrichUncached(request, cfg))
+}
+
+async function _grokEnrichUncached(
   request: GrokEnrichmentRequest,
   cfg?: Partial<GrokClientConfig>
 ): Promise<GrokEnrichmentResult> {

@@ -93,10 +93,10 @@ export function RankingsCard({
           </button>
         ) : (
           <Link
-            href="/af-rankings"
+            href="/import"
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
           >
-            {t('dashboard.rankings.getStarted')} <ArrowRight className="h-4 w-4" />
+            {t('dashboard.rankings.importNow')} <ArrowRight className="h-4 w-4" />
           </Link>
         )}
       </div>

@@ -64,14 +64,14 @@ interface SportsDataResponse {
 }
 
 const API_PRIORITY: Record<Sport, string[]> = {
-  // Rolling Insights first for all supported sports (env may disable per-sport upstream); then ClearSports → API-Sports → TheSportsDB → Sleeper (NFL only).
-  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper'],
-  NHL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  NBA: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  MLB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  NCAAB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  NCAAF: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
-  SOCCER: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb'],
+  // Rolling Insights first → middle providers → Sleeper 2nd-to-last → ESPN last.
+  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  NHL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  NBA: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  MLB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  NCAAB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  NCAAF: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  SOCCER: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {

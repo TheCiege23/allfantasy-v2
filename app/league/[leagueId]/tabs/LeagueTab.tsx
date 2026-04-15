@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Settings } from 'lucide-react'
+import { DepthChartPanel } from '@/components/sports/DepthChartPanel'
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
 import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import type { LeagueDashboardView } from '@/app/league/[leagueId]/league-dashboard-types'
@@ -173,6 +174,9 @@ export function LeagueTab({
           </div>
         )}
       </section>
+
+      {/* Depth Chart panel */}
+      <DepthChartPanel sport={String(league.sport)} team={teams[0]?.teamName ?? undefined} />
     </div>
   )
 }

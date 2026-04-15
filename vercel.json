@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/import-injuries",
-      "schedule": "0 */2 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/import-schedules",
@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/import-news",
-      "schedule": "*/30 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/cron/import-images",
@@ -223,6 +223,30 @@
     {
       "path": "/api/cron/chimmy-alerts",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/import-standings",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/import-projections",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/import-rankings",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/import-depth-charts",
+      "schedule": "0 4 * * 3"
+    },
+    {
+      "path": "/api/cron/import-scores",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/import-espn-injuries",
+      "schedule": "0 */3 * * *"
     }
   ]
 }

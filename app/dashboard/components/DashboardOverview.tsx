@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
-import { AIShortcutsGrid } from './AIShortcutsGrid'
+import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
@@ -13,6 +13,8 @@ import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
+import { StandingsWidget } from '@/components/sports/StandingsWidget'
+import { QuickCreateModal } from '@/components/league-creation/QuickCreateModal'
 import { ConnectPlatformsModal } from './ConnectPlatformsModal'
 import type { FavoriteSportsSelection } from '@/lib/dashboard/favorite-sports-storage'
 import {
@@ -98,6 +100,7 @@ export function DashboardOverview({
   const [platformModalOpen, setPlatformModalOpen] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
   const [lineupLoading, setLineupLoading] = useState(false)
 
@@ -566,6 +569,13 @@ export function DashboardOverview({
             </Link>
             <button
               type="button"
+              onClick={() => setQuickCreateOpen(true)}
+              className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
+            >
+              ✨ Quick Create
+            </button>
+            <button
+              type="button"
               onClick={handleImport}
               className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
@@ -593,7 +603,11 @@ export function DashboardOverview({
           onTradesClick={handleTradeClick}
         />
 
-        <AIShortcutsGrid leagues={leagues} />
+        <AIToolsGrid leagues={leagues} />
+
+        {leagues.length > 0 && (
+          <StandingsWidget leagueId={leagues[0].id} sport={String(leagues[0].sport)} />
+        )}
 
         <RankingsCard
           initialRankPayload={initialUserRankPayload}
@@ -633,6 +647,8 @@ export function DashboardOverview({
         loading={tradeLoading}
         hasProAccess={hasPro}
       />
+
+      <QuickCreateModal open={quickCreateOpen} onClose={() => setQuickCreateOpen(false)} />
 
       <FavoriteSportsOnboardingModal
         open={sportsModalOpen}

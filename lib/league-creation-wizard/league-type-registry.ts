@@ -105,6 +105,12 @@ export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): Leag
   return getFormatsForSport(sport).map((format) => format.id) as LeagueTypeId[]
 }
 
+/** Reverse lookup: which sports does a given league type support? */
+export function getAllowedSportsForLeagueType(leagueType: LeagueTypeId): LeagueSport[] {
+  const format = listLeagueFormats().find((f) => f.id === leagueType)
+  return format ? (format.supportedSports as LeagueSport[]) : [...SUPPORTED_SPORTS]
+}
+
 /** Guillotine: snake, linear, auction, and mock draft only (no slow_draft). 3RR applies only to snake (UI). */
 const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mock_draft']
 

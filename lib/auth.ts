@@ -396,25 +396,23 @@ export const authOptions: NextAuthOptions = {
       if (!url) {
         return `${base}/dashboard`;
       }
-      let pathname = "/";
+
+      // Extract pathname + query from full URLs (handles www vs non-www mismatches).
+      let pathAndQuery = "/";
       try {
-        pathname = new URL(url).pathname;
+        const parsed = new URL(url, base);
+        pathAndQuery = parsed.pathname + parsed.search;
       } catch {
-        pathname = (url.split("?")[0] || "/").startsWith("/")
-          ? url.split("?")[0] || "/"
-          : `/${url.split("?")[0] || ""}`;
+        pathAndQuery = url.startsWith("/") ? url : `/${url}`;
       }
+
       // After OAuth, NextAuth may resolve `callbackUrl` to `/login` or `/`; send users into the app.
+      const pathname = pathAndQuery.split("?")[0] || "/";
       if (pathname === "/login" || pathname === "/") {
         return `${base}/dashboard`;
       }
-      if (url.startsWith("/")) {
-        return `${base}${url}`;
-      }
-      if (url.startsWith(base)) {
-        return url;
-      }
-      return `${base}/dashboard`;
+
+      return `${base}${pathAndQuery}`;
     },
   },
   events: {

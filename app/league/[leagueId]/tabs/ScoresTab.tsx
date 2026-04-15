@@ -1,11 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { IDPMatchupView } from '@/app/idp/components/IDPMatchupView'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
+import { GameWeatherInline } from '@/components/sports/GameWeatherInline'
+import type { GameWeather } from '@/hooks/usePhase1Data'
 
 export type ScoresTabProps = {
   league: UserLeague
@@ -97,6 +99,18 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
   const [scoresNav, setScoresNav] = useState<'leaders' | 'matchups'>('leaders')
   const { players } = useSleeperPlayers(resolved)
 
+  // Weather data for inline display
+  const [weatherData, setWeatherData] = useState<GameWeather[]>([])
+  useEffect(() => {
+    fetch(`/api/sports/weather?sport=${encodeURIComponent(resolved)}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const items = Array.isArray(d?.weather) ? d.weather : Array.isArray(d?.data) ? d.data : []
+        setWeatherData(items)
+      })
+      .catch(() => {})
+  }, [resolved])
+
   const pills = useMemo(() => positionPillsForSport(sportU), [sportU])
 
   const weekOptions = useMemo(() => Array.from({ length: maxWeek }, (_, i) => i + 1), [maxWeek])
@@ -125,6 +139,18 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
           </span>
         </label>
       </div>
+
+      {/* Weather strip */}
+      {weatherData.length > 0 && (
+        <div className="flex flex-wrap gap-2 border-b border-white/[0.06] px-4 py-2 md:px-5">
+          {weatherData.slice(0, 8).map((w, i) => (
+            <div key={`${w.team}-${i}`} className="flex items-center gap-1.5 text-[11px] text-white/50">
+              <span className="font-medium text-white/70">{w.team}</span>
+              <GameWeatherInline weather={w} />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="border-b border-white/[0.06] px-4 pb-3 md:px-5">
         <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/40 p-3">

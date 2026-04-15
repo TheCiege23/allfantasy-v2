@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { getOpenAIConfigFromEnv } from '@/lib/provider-config'
+import { cachedFetch, cacheKey } from '@/lib/api-cache'
 
 export type OpenAIConfig = {
   apiKey: string
@@ -31,6 +32,21 @@ export function getOpenAIClient(): OpenAI {
 }
 
 export async function openaiChatJson(args: {
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  skipCache?: boolean
+}): Promise<
+  | { ok: true; json: any; model: string; baseUrl: string }
+  | { ok: false; status: number; details: string; model: string; baseUrl: string }
+> {
+  const key = cacheKey('openai-json', args.messages, args.model, args.temperature)
+  if (args.skipCache) return _openaiChatJsonUncached(args)
+  return cachedFetch(key, 1800, () => _openaiChatJsonUncached(args))
+}
+
+async function _openaiChatJsonUncached(args: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
   model?: string
   temperature?: number
@@ -75,6 +91,21 @@ export async function openaiChatJson(args: {
 }
 
 export async function openaiChatText(args: {
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  skipCache?: boolean
+}): Promise<
+  | { ok: true; text: string; model: string; baseUrl: string }
+  | { ok: false; status: number; details: string; model: string; baseUrl: string }
+> {
+  const key = cacheKey('openai-text', args.messages, args.model, args.temperature)
+  if (args.skipCache) return _openaiChatTextUncached(args)
+  return cachedFetch(key, 1800, () => _openaiChatTextUncached(args))
+}
+
+async function _openaiChatTextUncached(args: {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
   model?: string
   temperature?: number
