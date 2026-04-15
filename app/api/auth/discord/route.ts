@@ -16,7 +16,7 @@ export async function GET() {
   const cookieStore = await cookies()
   cookieStore.set('discord_oauth_state', state, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: 600,
     path: '/',

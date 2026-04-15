@@ -63,12 +63,16 @@ export function AISettingsSection() {
   }, [])
 
   async function handleToggle(id: string, value: boolean) {
-    setToggles((t) => ({ ...t, [id]: value }))
+    let nextToggles: Record<string, boolean> = {}
+    setToggles((t) => {
+      nextToggles = { ...t, [id]: value }
+      return nextToggles
+    })
     await fetch('/api/user/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ aiSettings: { ...toggles, [id]: value } }),
+      body: JSON.stringify({ aiSettings: nextToggles }),
     }).catch(() => null)
   }
 

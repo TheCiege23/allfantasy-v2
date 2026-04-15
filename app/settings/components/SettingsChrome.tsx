@@ -13,6 +13,7 @@ import {
   Link2,
   Shield,
   Sliders,
+  Sparkles,
   User,
 } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -28,6 +29,7 @@ export type SettingsTabId =
   | 'legacy'
   | 'legal'
   | 'account'
+  | 'ai'
 
 type NavDef = {
   id: SettingsTabId
@@ -37,6 +39,7 @@ type NavDef = {
 const NAV_DEFS: NavDef[] = [
   { id: 'profile', icon: User },
   { id: 'preferences', icon: Sliders },
+  { id: 'ai', icon: Sparkles },
   { id: 'security', icon: Shield },
   { id: 'notifications', icon: Bell },
   { id: 'connected', icon: Link2 },
