@@ -59,11 +59,11 @@ function parseLeaguePrompt(prompt: string): {
 
   // Detect sport
   let sport = 'NFL'
-  if ((lower.includes('nba') || lower.includes('basketball')) && !lower.includes('college basketball')) sport = 'NBA'
+  if (lower.includes('college basketball') || lower.includes('ncaab') || lower.includes('cbb')) sport = 'NCAAB'
+  else if (lower.includes('nba') || lower.includes('basketball')) sport = 'NBA'
   else if (lower.includes('mlb') || lower.includes('baseball')) sport = 'MLB'
   else if (lower.includes('nhl') || lower.includes('hockey')) sport = 'NHL'
   else if (lower.includes('college football') || lower.includes('ncaaf') || lower.includes('cfb')) sport = 'NCAAF'
-  else if (lower.includes('college basketball') || lower.includes('ncaab') || lower.includes('cbb')) sport = 'NCAAB'
   else if (lower.includes('soccer') || lower.includes('premier league') || lower.includes('epl') || lower.includes('futbol')) sport = 'SOCCER'
 
   // Detect league type
