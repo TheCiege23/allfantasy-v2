@@ -47,16 +47,19 @@ jobs:
       if: matrix.lane == 'referral-growth-db'
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npx prisma db push --skip-generate
     - name: Apply platform-backend supplemental indexes
       if: matrix.lane == 'referral-growth-db'
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npm run db:indexes:platform-backend
     - name: Verify platform-backend indexes
       if: matrix.lane == 'referral-growth-db'
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
       run: npm run db:indexes:verify-platform-backend
     - name: Run Playwright tests (core)
       if: matrix.lane == 'core'
@@ -71,6 +74,7 @@ jobs:
       if: matrix.lane == 'referral-growth-db'
       env:
         DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
+        DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/allfantasy_ci
         NEXTAUTH_SECRET: ci-nextauth-secret
         NEXTAUTH_URL: http://localhost:3000
       run: npx playwright test e2e/referral-growth-suite.spec.ts --project=chromium
