@@ -54,6 +54,8 @@ export async function assignIdolsAfterDraft(
     ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
   }
 
+  const expiresAtWeek = await resolveIdolExpiryWeek(leagueId)
+
   let assigned = 0
   for (let i = 0; i < count; i++) {
     const pair = shuffled[i]
@@ -68,6 +70,7 @@ export async function assignIdolsAfterDraft(
         playerId: pair.playerId,
         powerType,
         status: 'hidden',
+        expiresAtWeek,
       },
     })
     await prisma.survivorIdolLedgerEntry.create({
@@ -293,6 +296,88 @@ export async function getActiveIdolsForRoster(leagueId: string, rosterId: string
     select: { id: true, playerId: true, powerType: true },
   })
   return idols
+}
+
+/**
+ * Compute the default "Final 5" week: the point at which 5 rosters remain, based
+ * on current league size. Falls back to 14 when league data is unavailable.
+ */
+export async function defaultFinal5Week(
+  league: { id: string; survivorIdolExpiryWeek?: number | null; leagueSize?: number | null } | null,
+): Promise<number> {
+  try {
+    const leagueId = league?.id
+    if (!leagueId) return 14
+    const size =
+      (typeof league?.leagueSize === 'number' && league.leagueSize > 0
+        ? league.leagueSize
+        : null) ??
+      (await prisma.roster.count({ where: { leagueId } }).catch(() => 0)) ??
+      0
+    if (!size || size <= 5) return 14
+    const elimsNeeded = size - 5
+    // Approximate one elimination per tribal-council week, offset by a 2-week ramp.
+    return Math.max(5, 2 + elimsNeeded)
+  } catch {
+    return 14
+  }
+}
+
+/** Resolve per-league idol expiry week (explicit league field wins, else Final 5). */
+export async function resolveIdolExpiryWeek(leagueId: string): Promise<number | null> {
+  try {
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { id: true, survivorIdolExpiryWeek: true, leagueSize: true },
+    })
+    if (!league) return null
+    if (typeof league.survivorIdolExpiryWeek === 'number') {
+      return league.survivorIdolExpiryWeek
+    }
+    return defaultFinal5Week(league)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Mark any idols whose expiresAtWeek has passed as expired.
+ */
+export async function expireStaleIdols(
+  leagueId: string,
+  currentWeek: number,
+): Promise<{ ok: boolean; expired: number; error?: string }> {
+  try {
+    const stale = await prisma.survivorIdol.findMany({
+      where: {
+        leagueId,
+        status: { in: ['hidden', 'revealed'] },
+        expiresAtWeek: { not: null, lt: currentWeek },
+      },
+      select: { id: true, rosterId: true },
+    })
+    let expired = 0
+    for (const idol of stale) {
+      await prisma.survivorIdol.update({
+        where: { id: idol.id },
+        data: { status: 'expired', expiredAt: new Date() },
+      })
+      await prisma.survivorIdolLedgerEntry.create({
+        data: {
+          leagueId,
+          idolId: idol.id,
+          eventType: 'expired',
+          fromRosterId: idol.rosterId,
+          metadata: { reason: 'stale', week: currentWeek },
+        },
+      }).catch(() => {})
+      expired++
+    }
+    return { ok: true, expired }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, expired: 0, error: msg }
+  }
 }
 
 /**

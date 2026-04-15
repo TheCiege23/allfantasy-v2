@@ -13,6 +13,11 @@ import {
 import { lockChallengeSubmissions, tallyChallengeResults } from '@/lib/survivor/challengeEngine'
 import { processNotificationQueue } from '@/lib/survivor/notificationEngine'
 import { scoreExileWeek } from '@/lib/survivor/exileEngine'
+import { expireStaleIdols } from '@/lib/survivor/SurvivorIdolRegistry'
+import {
+  processExileTeamClaims,
+  awardWeeklyExileTeamToken,
+} from '@/lib/survivor/exileTeamDraft'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -108,6 +113,21 @@ async function runAutomation(req: NextRequest) {
           where: { leagueId },
           data: { needsExileScore: false },
         })
+      }
+
+      try {
+        await expireStaleIdols(leagueId, week)
+      } catch (idolErr) {
+        const msg = idolErr instanceof Error ? idolErr.message : String(idolErr)
+        errors.push(`${leagueId}: expireStaleIdols ${msg}`)
+      }
+
+      try {
+        await processExileTeamClaims(leagueId)
+        await awardWeeklyExileTeamToken(leagueId)
+      } catch (exileErr) {
+        const msg = exileErr instanceof Error ? exileErr.message : String(exileErr)
+        errors.push(`${leagueId}: exileTeamDraft ${msg}`)
       }
 
       await processNotificationQueue(leagueId)

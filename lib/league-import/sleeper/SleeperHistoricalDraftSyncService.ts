@@ -104,6 +104,24 @@ async function collectSleeperDraftFacts(args: {
         continue
       }
 
+      // Best-effort: fetch traded picks for this draft. Sleeper exposes
+      // /v1/draft/{draft_id}/traded_picks. 404 and network errors are
+      // swallowed so draft-pick ingestion keeps going. DraftFact schema has
+      // no metadata column today, so results are logged for future use.
+      try {
+        const tpRes = await fetch(`https://api.sleeper.app/v1/draft/${sourceDraftId}/traded_picks`)
+        if (tpRes.ok) {
+          const tradedPicks = (await tpRes.json()) as unknown
+          if (Array.isArray(tradedPicks) && tradedPicks.length > 0) {
+            console.info(
+              `[SleeperHistoricalDraftSync] draft ${sourceDraftId} traded_picks count=${tradedPicks.length}`,
+            )
+          }
+        }
+      } catch {
+        /* non-fatal */
+      }
+
       let draftProducedRows = false
       for (const [index, pick] of picks.entries()) {
         const playerId = typeof pick?.player_id === 'string' ? pick.player_id.trim() : ''

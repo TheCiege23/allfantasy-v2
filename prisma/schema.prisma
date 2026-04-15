@@ -3807,6 +3807,12 @@ model UserProfile {
   /// Auto sign-out after this many minutes of inactivity (null/0 = off). Allowed: 30, 60, 240, 720, 1440.
   sessionIdleTimeoutMinutes Int?
   chimmyTtsVoiceId          String?             @map("chimmy_tts_voice_id")
+  /// Spotify Web Playback integration.
+  spotifyAccessToken         String?
+  spotifyRefreshToken        String?
+  spotifyExpiresAt           DateTime?
+  spotifyDisplayName         String?
+  spotifyConnectedAt         DateTime?
   user                      AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([sleeperUsername])
@@ -4095,6 +4101,8 @@ model League {
   survivorTokenCap                Int?
   /// When true, failed exile_sacrifice_bet removes wagered tokens.
   survivorExileHarshTokenLoss     Boolean?                     @default(false)
+  /// Commissioner-configurable week after which unused idols expire (null = Final 5 default).
+  survivorIdolExpiryWeek          Int?
   /// Commissioner kill switch — managers cannot use Chimmy AutoCoach when false (does not grant Pro).
   autoCoachEnabled                Boolean                      @default(true)
   invites                         LeagueInvite[]

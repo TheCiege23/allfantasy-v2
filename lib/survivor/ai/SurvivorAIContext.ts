@@ -20,6 +20,7 @@ import { getCurrentlyEliminatedRosterIds } from '../SurvivorRosterState'
 import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
 import { prisma } from '@/lib/prisma'
 import type { LeagueSport } from '@prisma/client'
+import { buildHistoricalContext, type HistoricalContext } from '@/lib/ai/historicalContextBuilder'
 
 export type SurvivorAIType =
   | 'host_intro'
@@ -81,6 +82,7 @@ export interface SurvivorAIDeterministicContext {
     juryVotesRequired: number
     winnerRosterId: string | null
   } | null
+  historical?: HistoricalContext | null
 }
 
 /**
@@ -101,7 +103,7 @@ export async function buildSurvivorAIContext(args: {
   })
   const sport = (league?.sport ?? 'NFL') as LeagueSport
 
-  const [tribes, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, finaleState] = await Promise.all([
+  const [tribes, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, finaleState, historical] = await Promise.all([
     getTribesWithMembers(leagueId),
     getCouncil(leagueId, currentWeek),
     getChallengesForWeek(leagueId, currentWeek),
@@ -112,6 +114,7 @@ export async function buildSurvivorAIContext(args: {
     isMergeTriggered(leagueId, currentWeek),
     prisma.roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } }).then((r) => r?.id ?? null),
     getFinaleState(leagueId, currentWeek),
+    buildHistoricalContext(leagueId).catch(() => null),
   ])
 
   const [eliminatedRosterIds, mainLeagueRosters] = await Promise.all([
@@ -264,5 +267,6 @@ export async function buildSurvivorAIContext(args: {
             winnerRosterId: finaleState.winnerRosterId,
           }
         : null,
+    historical: historical ?? null,
   }
 }

@@ -63,3 +63,33 @@ export function parseTribeIdFromSource(source: string | null): string | null {
   if (!source || !source.startsWith('tribe_')) return null
   return source.slice(6) || null
 }
+
+/**
+ * Key-position map used to pick the "anchor" player for exile team drafts.
+ * Claiming the anchor position grants that player's full real-world team.
+ */
+export const KEY_POSITION_BY_SPORT: Record<string, { code: string; label: string }> = {
+  NFL: { code: 'QB', label: 'Quarterback' },
+  MLB: { code: 'SP', label: 'Starting Pitcher' },
+  NHL: { code: 'G', label: 'Goaltender' },
+  NBA: { code: 'C', label: 'Center' },
+  NCAAF: { code: 'QB', label: 'Quarterback' },
+  NCAAB: { code: 'C', label: 'Center' },
+  SOCCER: { code: 'GK', label: 'Goalkeeper' },
+}
+
+/** Per-sport mini-game cadence (games per week + tribal-council day). */
+export const SURVIVOR_MINI_GAME_CADENCE: Record<string, { perWeek: number; tribalDay: string }> = {
+  NFL: { perWeek: 1, tribalDay: 'tuesday' },
+  NBA: { perWeek: 3, tribalDay: 'monday' },
+  MLB: { perWeek: 3, tribalDay: 'monday' },
+  NHL: { perWeek: 2, tribalDay: 'monday' },
+  NCAAF: { perWeek: 1, tribalDay: 'sunday' },
+  NCAAB: { perWeek: 2, tribalDay: 'monday' },
+  SOCCER: { perWeek: 1, tribalDay: 'monday' },
+}
+
+export function keyPositionForSport(sport?: string | null) {
+  if (!sport) return KEY_POSITION_BY_SPORT.NFL
+  return KEY_POSITION_BY_SPORT[sport.toUpperCase()] ?? KEY_POSITION_BY_SPORT.NFL
+}
