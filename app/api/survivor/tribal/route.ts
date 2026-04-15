@@ -121,12 +121,10 @@ export async function POST(req: NextRequest) {
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
     const council = await prisma.survivorTribalCouncil.findUnique({
-      where: { id: councilId },
-      select: { leagueId: true, revealSequence: true },
+      where: { id: councilId, leagueId },
+      select: { revealSequence: true },
     })
-    if (!council || council.leagueId !== leagueId) {
-      return NextResponse.json({ error: 'Council not found' }, { status: 404 })
-    }
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
     const seq = Array.isArray(council.revealSequence) ? (council.revealSequence as unknown[]) : []
     if (seq.length === 0) return NextResponse.json({ step: null, remaining: 0 })
     const [step, ...remainingSeq] = seq
