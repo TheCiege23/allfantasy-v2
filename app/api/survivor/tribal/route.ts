@@ -71,7 +71,6 @@ export async function POST(req: NextRequest) {
     if (!councilId || !targetUserId || !voterRosterId || !targetRosterId) {
       return NextResponse.json({ error: 'councilId, targetUserId, voterRosterId, targetRosterId required' }, { status: 400 })
     }
-    // Confirm councilId belongs to the league the voter is authorized on.
     const council = await prisma.survivorTribalCouncil.findUnique({
       where: { id: councilId, leagueId },
       select: { id: true },
@@ -97,7 +96,6 @@ export async function POST(req: NextRequest) {
     const idolId = typeof body.idolId === 'string' ? body.idolId : ''
     const protectedUserId = typeof body.protectedUserId === 'string' ? body.protectedUserId : undefined
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
-    // Confirm councilId belongs to the authorized league before touching the idol.
     const council = await prisma.survivorTribalCouncil.findUnique({
       where: { id: councilId, leagueId },
       select: { id: true },
