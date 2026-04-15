@@ -109,7 +109,7 @@ function parseLeaguePrompt(prompt: string): {
 
   // Detect modifiers
   const modifiers: string[] = []
-  if (lower.includes('superflex') || lower.includes('sf') || lower.includes('2qb')) modifiers.push('superflex')
+  if (lower.includes('superflex') || /\bsf\b/.test(lower) || lower.includes('2qb')) modifiers.push('superflex')
   if (lower.includes('idp')) modifiers.push('IDP')
   if (lower.includes('te premium') || lower.includes('tep')) modifiers.push('TE premium')
 

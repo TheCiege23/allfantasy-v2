@@ -24,6 +24,13 @@ type SpotifyData = {
  * Auto-refreshes if expired. Used by the Web Playback SDK on the client.
  */
 export async function GET() {
+  if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+    return NextResponse.json(
+      { error: 'Spotify integration not configured on server' },
+      { status: 503 },
+    )
+  }
+
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
