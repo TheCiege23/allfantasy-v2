@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
     await requireCommissionerRole(g.leagueId, userId)
   } catch (err) {
     if (err instanceof Response) {
-      const body = await err.text().catch(() => '')
-      return new NextResponse(body || 'Forbidden', {
+      const responseText = await err.text().catch(() => '')
+      return new NextResponse(responseText || 'Forbidden', {
         status: err.status,
         headers: { 'content-type': err.headers.get('content-type') ?? 'text/plain' },
       })
