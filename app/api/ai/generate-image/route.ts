@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import {
   generateTribeLogo,
   generateLeagueBanner,
@@ -14,6 +15,14 @@ export const maxDuration = 30
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const profile = await prisma.userProfile.findFirst({
+    where: { userId: session.user.id },
+    select: { afCommissionerSub: true },
+  })
+  if (!profile?.afCommissionerSub) {
+    return NextResponse.json({ error: 'AF Commissioner subscription required' }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try {
