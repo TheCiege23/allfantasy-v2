@@ -140,6 +140,7 @@ export async function POST(req: NextRequest) {
   const action = typeof body.action === 'string' ? body.action : ''
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
+  if (!action) return NextResponse.json({ error: 'action required' }, { status: 400 })
 
   const guard2 = await commissionerGuard(leagueId, userId)
   if (guard2) return guard2
