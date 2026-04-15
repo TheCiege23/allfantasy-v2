@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID ?? ''
-const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET ?? ''
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
 
 type SpotifyData = {
   userId?: string | null
@@ -66,6 +66,18 @@ export async function GET() {
   const isExpired = Date.now() > expiresAt - 5 * 60 * 1000
 
   if (isExpired && refreshToken && spotifyAccount) {
+    if (!SPOTIFY_CLIENT_ID || !SPOTIFY_CLIENT_SECRET) {
+      return NextResponse.json(
+        {
+          error: 'Spotify integration is not configured',
+          connected: true,
+          expired: true,
+          misconfigured: true,
+        },
+        { status: 503 },
+      )
+    }
+
     const refreshRes = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {

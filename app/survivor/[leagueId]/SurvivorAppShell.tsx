@@ -64,6 +64,9 @@ function SurvivorAppShellInner({
     ctx.leaguePhase === 'finale' ||
     ctx.playerState === 'jury' ||
     ctx.playerState === 'finalist'
+  const hasAfCommissionerSub = Boolean(
+    (ctx.season as { hasAfCommissionerSub?: unknown } | null)?.hasAfCommissionerSub,
+  )
 
   type NavItem = {
     href: string
@@ -379,15 +382,15 @@ function SurvivorAppShellInner({
         isCommissioner={ctx.isCommissioner}
         isCoCommissioner={false}
         formatLabel="Survivor"
-        hasAfCommissionerSub={Boolean((ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub)}
+        hasAfCommissionerSub={hasAfCommissionerSub}
         leagueTabContent={
           <LeagueSettingsTab leagueId={leagueId} canEdit={ctx.isCommissioner} />
         }
         commissionerTabContent={
-          <CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={Boolean((ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub)} />
+          <CommissionerToolsTab leagueId={leagueId} hasAfCommissionerSub={hasAfCommissionerSub} />
         }
         formatTabContent={
-          <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={Boolean((ctx.season as Record<string, unknown> | null)?.hasAfCommissionerSub)} />
+          <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={hasAfCommissionerSub} />
         }
       />
     </div>
