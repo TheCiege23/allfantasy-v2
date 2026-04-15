@@ -95,7 +95,9 @@ export async function POST(req: NextRequest) {
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     const idolId = typeof body.idolId === 'string' ? body.idolId : ''
     const protectedUserId = typeof body.protectedUserId === 'string' ? body.protectedUserId : undefined
-    if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
+    if (!councilId || !idolId) {
+      return NextResponse.json({ error: 'councilId and idolId required' }, { status: 400 })
+    }
     const council = await prisma.survivorTribalCouncil.findUnique({
       where: { id: councilId, leagueId },
       select: { id: true },
