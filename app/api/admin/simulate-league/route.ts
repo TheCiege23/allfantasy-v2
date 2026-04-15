@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { resolveAdminEmail } from '@/lib/auth/admin'
 import { assertLeagueCommissioner } from '@/lib/league/league-access'
 import { simulateLeague } from '@/lib/simulation/leagueSimulator'
 
@@ -10,14 +9,11 @@ export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as {
-    user?: { id?: string; email?: string }
+    user?: { id?: string }
   } | null
   const userId = session?.user?.id
-  const email = session?.user?.email
 
-  if (!userId || !resolveAdminEmail(email ?? null)) {
-    return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-  }
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: Record<string, unknown>
   try {

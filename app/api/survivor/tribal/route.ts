@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     // Verify commissioner on the request's leagueId BEFORE any DB lookup
     // so cross-league councilId probes leak nothing about council existence.
     const gate = await assertLeagueCommissioner(leagueId, userId)
-    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
     const council = await prisma.survivorTribalCouncil.findUnique({

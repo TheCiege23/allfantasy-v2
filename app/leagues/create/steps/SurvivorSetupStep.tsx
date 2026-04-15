@@ -192,7 +192,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
             <Input
               type="number"
               min={state.survivorMergeTrigger === 'week' ? 4 : 6}
-              max={14}
+              max={state.survivorMergeTrigger === 'week' ? 14 : state.survivorPlayerCount}
               value={state.survivorMergeTrigger === 'week' ? state.survivorMergeWeek : state.survivorMergeAtCount}
               onChange={(e) =>
                 setState((c) => {
