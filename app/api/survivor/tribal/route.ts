@@ -71,6 +71,12 @@ export async function POST(req: NextRequest) {
     if (!councilId || !targetUserId || !voterRosterId || !targetRosterId) {
       return NextResponse.json({ error: 'councilId, targetUserId, voterRosterId, targetRosterId required' }, { status: 400 })
     }
+    // Confirm councilId belongs to the league the voter is authorized on.
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId, leagueId },
+      select: { id: true },
+    })
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
     try {
       const out = await submitVote(councilId, userId, targetUserId, { voterRosterId, targetRosterId })
       return NextResponse.json(out)
@@ -90,6 +96,13 @@ export async function POST(req: NextRequest) {
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     const idolId = typeof body.idolId === 'string' ? body.idolId : ''
     const protectedUserId = typeof body.protectedUserId === 'string' ? body.protectedUserId : undefined
+    if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
+    // Confirm councilId belongs to the authorized league before touching the idol.
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId, leagueId },
+      select: { id: true },
+    })
+    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
     const r = await playIdol(idolId, userId, councilId, protectedUserId)
     if (!r.ok) return NextResponse.json(r, { status: 400 })
     return NextResponse.json(r)
