@@ -50,7 +50,6 @@ function SurvivorAppShellInner({
   const [expanded, setExpanded] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const shellMedia = getLeagueTypeMedia('survivor')
 
   const base = `/survivor/${leagueId}`
   const tribalHot = ctx.season?.activeCouncil?.status === 'voting_open'
@@ -365,16 +364,6 @@ function SurvivorAppShellInner({
         <div className="mx-auto max-w-lg px-4 py-3 text-center text-[12px] text-amber-200/90">{ctx.error}</div>
       ) : null}
 
-      <SimulateLeagueButton leagueId={leagueId} />
-      <LeagueIntroVideoModal
-        leagueId={leagueId}
-        leagueType="survivor"
-        leagueName="Survivor League"
-        videoSrc={shellMedia.introVideo}
-        posterSrc={shellMedia.thumbnail}
-        onDismiss={() => {}}
-      />
-
       {/* 3-Tab Settings Modal */}
       <LeagueSettingsShell
         open={settingsOpen}
@@ -404,9 +393,20 @@ export function SurvivorAppShell({
   leagueId: string
   children: React.ReactNode
 }) {
+  const media = getLeagueTypeMedia('survivor')
+
   return (
     <SurvivorUiProvider leagueId={leagueId}>
       <SurvivorAppShellInner leagueId={leagueId}>{children}</SurvivorAppShellInner>
+      <SimulateLeagueButton leagueId={leagueId} />
+      <LeagueIntroVideoModal
+        leagueId={leagueId}
+        leagueType="survivor"
+        leagueName="Survivor League"
+        videoSrc={media.introVideo}
+        posterSrc={media.thumbnail}
+        onDismiss={() => {}}
+      />
     </SurvivorUiProvider>
   )
 }
