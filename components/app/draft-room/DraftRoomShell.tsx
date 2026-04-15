@@ -96,7 +96,16 @@ export function DraftRoomShell({
 
       {/* Desktop — premium 4-zone + bottom dock */}
       {premiumDesktop ? (
-        <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout-premium">
+        {/*
+          Both desktop layout branches use the same `draft-desktop-layout`
+          testid so e2e tests (draft-room, auction, c2c, devy, cpu-ai-drafter,
+          draft-asset-pipeline, draft-import) can scope `.getByTestId('draft-board')`
+          inside it regardless of which variant the parent picks. The premium
+          variant is picked when layout="premium" plus teamPanel/centerColumn/
+          bottomBar are all provided — otherwise we fall through to the legacy
+          2-row layout below.
+        */}
+        <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout">
           {auctionStrip && (
             <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>
           )}
