@@ -6,6 +6,7 @@
  * (fresh dev db) never takes down automation.
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { keyPositionForSport } from './constants'
 import { logSurvivorAuditEntry } from './auditEntry'
@@ -38,13 +39,17 @@ export async function submitExileTeamClaim(params: {
   priority?: number
 }): Promise<{ ok: boolean; claimId?: string; error?: string }> {
   const { leagueId, userId, realPlayerId } = params
-  const priority = Number.isFinite(params.priority) ? Number(params.priority) : 100
+  const priority =
+    typeof params.priority === 'number' && Number.isFinite(params.priority)
+      ? Math.trunc(params.priority)
+      : 100
   try {
-    const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
-      `INSERT INTO exile_team_claims (league_id, user_id, real_player_id, priority, status)
-       VALUES (${quote(leagueId)}, ${quote(userId)}, ${quote(realPlayerId)}, ${priority}, 'pending')
-       RETURNING id`,
-    )
+    // Use parameterized $queryRaw so no user-controlled value is interpolated.
+    const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      INSERT INTO exile_team_claims (league_id, user_id, real_player_id, priority, status)
+      VALUES (${leagueId}, ${userId}, ${realPlayerId}, ${priority}, 'pending')
+      RETURNING id
+    `)
     return { ok: true, claimId: rows?.[0]?.id }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

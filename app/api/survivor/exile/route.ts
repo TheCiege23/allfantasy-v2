@@ -89,16 +89,12 @@ export async function POST(req: NextRequest) {
     if (!island) return NextResponse.json({ error: 'Exile not initialized' }, { status: 400 })
     const player = body as Record<string, unknown>
     const playerId = typeof player.playerId === 'string' ? player.playerId.trim() : ''
-    const playerName = typeof player.playerName === 'string' ? player.playerName.trim() : ''
-    const position = typeof player.position === 'string' ? player.position.trim() : ''
-    const team = typeof player.team === 'string' ? player.team.trim() : ''
-    const teamId = typeof player.teamId === 'string' ? player.teamId.trim() : ''
-    if (!playerId || !playerName || !position || !team || !teamId) {
-      return NextResponse.json(
-        { error: 'playerId, playerName, position, team, and teamId are required' },
-        { status: 400 },
-      )
+    if (!playerId) {
+      return NextResponse.json({ error: 'playerId is required' }, { status: 400 })
     }
+    // Denormalized display fields (playerName/position/team/teamId/sport) are
+    // resolved by the claim processor from the sport feed at fulfillment
+    // time, so the claim row only needs playerId + priority here.
     const priorityRaw = (body as Record<string, unknown>).priority
     const priority =
       typeof priorityRaw === 'number' && Number.isFinite(priorityRaw)
