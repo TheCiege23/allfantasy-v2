@@ -47,12 +47,12 @@ export type LeagueCreateFormState = {
   // Survivor wizard-only fields (see SurvivorSetupStep)
   survivorPlayerCount: number
   survivorCommissionerPlays: boolean
-  survivorTribeFormation: 'schoolyard' | 'random' | 'manual'
-  survivorTribeNaming: 'auto' | 'custom'
-  survivorMergeTrigger: 'week' | 'players_remaining'
+  survivorTribeFormation: 'random' | 'manual' | 'draft_pattern'
+  survivorTribeNaming: 'auto' | 'ai' | 'custom'
+  survivorMergeTrigger: 'player_count' | 'week'
   survivorMergeWeek: number
   survivorMergeAtCount: number
-  survivorJuryStart: 'post_merge_vote_1' | 'final_9' | 'final_7'
+  survivorJuryStart: 'after_merge' | 'first_post_merge_vote' | 'at_player_count'
   survivorIdolsEnabled: boolean
   survivorIdolsTradable: boolean
   survivorIdolsExpireAtMerge: boolean
@@ -62,9 +62,9 @@ export type LeagueCreateFormState = {
   survivorBossResetEnabled: boolean
   survivorSelfVoteAllowed: boolean
   survivorRocksEnabled: boolean
-  survivorTieRule: 'revote_then_rocks' | 'revote_then_tiebreaker' | 'commissioner'
-  survivorRevealMode: 'dramatic_sequential' | 'simultaneous' | 'commissioner'
-  survivorChallengeMode: 'auto' | 'commissioner' | 'hybrid'
+  survivorTieRule: 'rocks' | 'fire_making' | 'score' | 'commissioner'
+  survivorRevealMode: 'dramatic' | 'full_public' | 'anonymized' | 'delayed'
+  survivorChallengeMode: 'automatic' | 'semi_automatic' | 'manual'
   // Guillotine wizard-only fields (see GuillotineSetupStep)
   guillotineEliminationsPerPeriod: number
   guillotineProtectedWeek1: boolean

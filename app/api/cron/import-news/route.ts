@@ -50,14 +50,16 @@ export async function GET(req: NextRequest) {
           source: 'x_grok_search',
           createdAt: { gte: new Date(Date.now() - 20 * 60 * 1000) }, // last 20 min
           impact: { in: ['high', 'medium'] },
+          playerName: { not: null },
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
       })
 
       for (const news of recentNews) {
+        if (!news.playerName) continue
         const sent = await dispatchPlayerNewsNotifications(
-          news.playerName ?? '',
+          news.playerName,
           news.team,
           news.headline,
           (news.impact === 'high' ? 'injury' : 'player_news') as import('@/lib/workers/x-news-ingestion').NewsCategory,
