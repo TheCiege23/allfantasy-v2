@@ -380,7 +380,13 @@ test.describe("@growth @db referral system + growth incentives", () => {
     expect(claimableReward?.id).toBeTruthy()
 
     await referrerPage.goto("/referral", { waitUntil: "domcontentloaded" })
-    await expect(referrerPage.getByRole("heading", { name: "Referral program" })).toBeVisible()
+    // ReferralDashboard renders "Grow the league, earn the upside" as the
+    // page hero h1 — the old "Referral program" heading only appears on
+    // the signed-out sign-in-prompt branch of /referral/page.tsx, so the
+    // signed-in test flow should assert the dashboard hero instead.
+    await expect(
+      referrerPage.getByRole("heading", { name: "Grow the league, earn the upside" }),
+    ).toBeVisible()
 
     // Dashboard renders `referral-claim-${id}` (not `referral-redeem-`)
     // and shows "Claimed" text after the redeem API flips status to
