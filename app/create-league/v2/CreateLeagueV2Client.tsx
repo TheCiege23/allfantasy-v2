@@ -94,14 +94,19 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   const handleSubmit = useCallback(async () => {
     setSubmitting(true)
     setSubmitError(null)
-    const result = await submitCreateLeagueV2(state)
-    if (!result.ok) {
+    try {
+      const result = await submitCreateLeagueV2(state)
+      if (!result.ok) {
+        setSubmitError(result.error ?? 'Something went wrong creating your league.')
+        return
+      }
+      clearPersistedV2State()
+      router.push(result.redirectTo ?? '/dashboard')
+    } catch {
+      setSubmitError('Something went wrong creating your league.')
+    } finally {
       setSubmitting(false)
-      setSubmitError(result.error ?? 'Something went wrong creating your league.')
-      return
     }
-    clearPersistedV2State()
-    router.push(result.redirectTo ?? '/dashboard')
   }, [state, router])
 
   const canProceed = canAdvance(currentPage, state)
