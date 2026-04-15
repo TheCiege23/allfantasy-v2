@@ -47,7 +47,10 @@ export async function POST(req: NextRequest) {
   const week = typeof body.week === 'number' ? body.week : 0
   const sport = typeof body.sport === 'string' ? body.sport : ''
   const pickType = typeof body.pickType === 'string' ? body.pickType : ''
-  const pick = typeof body.pick === 'object' && body.pick != null ? body.pick as Record<string, unknown> : {}
+  const pick =
+    typeof body.pick === 'object' && body.pick != null && !Array.isArray(body.pick)
+      ? (body.pick as Record<string, unknown>)
+      : null
 
   if (!leagueId || !week || !sport || !pickType) {
     return NextResponse.json({ error: 'leagueId, week, sport, pickType required' }, { status: 400 })
@@ -58,6 +61,29 @@ export async function POST(req: NextRequest) {
   const validTypes = ['win_pick', 'over_under', 'prop_bet', 'exact_score']
   if (!validTypes.includes(pickType)) {
     return NextResponse.json({ error: `pickType must be one of: ${validTypes.join(', ')}` }, { status: 400 })
+  }
+  if (!pick) {
+    return NextResponse.json({ error: 'pick object required' }, { status: 400 })
+  }
+
+  const hasGameReference =
+    (typeof pick.gameId === 'string' && pick.gameId.length > 0) ||
+    (typeof pick.gameKey === 'string' && pick.gameKey.length > 0)
+  if (!hasGameReference) {
+    return NextResponse.json({ error: 'pick must include gameId or gameKey' }, { status: 400 })
+  }
+  if (pickType === 'win_pick' && !(typeof pick.winner === 'string' && pick.winner.length > 0)) {
+    return NextResponse.json({ error: 'win_pick requires winner' }, { status: 400 })
+  }
+  if (pickType === 'over_under') {
+    const hasValidSelection = pick.selection === 'over' || pick.selection === 'under'
+    const hasValidLine = typeof pick.line === 'number' && Number.isFinite(pick.line)
+    if (!hasValidSelection || !hasValidLine) {
+      return NextResponse.json({ error: 'over_under requires selection (over|under) and numeric line' }, { status: 400 })
+    }
+  }
+  if (pickType === 'exact_score' && !(typeof pick.predictedScore === 'number' && Number.isFinite(pick.predictedScore))) {
+    return NextResponse.json({ error: 'exact_score requires numeric predictedScore' }, { status: 400 })
   }
 
   // Per-pickType shape validation — prevents empty/partial picks reaching the engine.
