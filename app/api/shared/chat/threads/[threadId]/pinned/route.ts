@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server"
 import { resolvePlatformUser } from "@/lib/platform/current-user"
 import { getPlatformThreadMessages } from "@/lib/platform/chat-service"
-import { isLeagueVirtualRoom } from "@/lib/chat-core"
+import { bracketMessagesToPlatform } from "@/lib/chat-core/league-message-proxy"
+import { getLeagueIdFromVirtualRoom, isLeagueVirtualRoom } from "@/lib/chat-core"
+import { canAccessLeagueDraft } from "@/lib/live-draft-engine/auth"
+import { getLeagueChatMessages } from "@/lib/league-chat/LeagueChatMessageService"
+import { prisma } from "@/lib/prisma"
 
 /**
  * GET /api/shared/chat/threads/[threadId]/pinned
  * Returns messages that are pin-type (messageType === 'pin') for the thread.
  * Pinned refs are stored as typed messages with body JSON { messageId }.
- * Virtual league rooms (league:leagueId) have no pinned storage; returns [].
  */
 export async function GET(
   _req: Request,
@@ -18,7 +21,47 @@ export async function GET(
 
   const threadId = decodeURIComponent(params.threadId)
   if (isLeagueVirtualRoom(threadId)) {
-    return NextResponse.json({ status: "ok", pinned: [] })
+    const leagueId = getLeagueIdFromVirtualRoom(threadId)
+    if (!leagueId) return NextResponse.json({ error: "Invalid league room" }, { status: 400 })
+
+    const bracketMember = await (prisma as any).bracketLeagueMember.findUnique({
+      where: { leagueId_userId: { leagueId, userId: user.appUserId } },
+      select: { id: true },
+    })
+    if (bracketMember) {
+      const rows = await (prisma as any).bracketLeagueMessage.findMany({
+        where: { leagueId, type: "pin" },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+              profile: { select: { avatarPreset: true } },
+            },
+          },
+          reactions: {
+            select: {
+              emoji: true,
+              userId: true,
+            },
+          },
+        },
+      })
+      const pinned = bracketMessagesToPlatform(rows.reverse(), threadId)
+      return NextResponse.json({ status: "ok", pinned })
+    }
+
+    const canAccessMainLeague = await canAccessLeagueDraft(leagueId, user.appUserId)
+    if (!canAccessMainLeague) return NextResponse.json({ error: "Not a member" }, { status: 403 })
+
+    const all = await getLeagueChatMessages(leagueId, { limit: 100, requestingUserId: user.appUserId })
+    const pinned = all.filter((m) => m.messageType === "pin")
+    return NextResponse.json({ status: "ok", pinned })
   }
   const all = await getPlatformThreadMessages(user.appUserId, threadId, 100)
   const pinned = all.filter((m) => m.messageType === "pin")

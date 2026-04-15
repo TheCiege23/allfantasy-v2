@@ -22,6 +22,7 @@ import { QueuePanel } from './QueuePanel'
 import { RosterPanel } from './RosterPanel'
 import { AutopickToggle } from './AutopickToggle'
 import { motion } from 'framer-motion'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type Props = {
   mode: DraftMode
@@ -87,6 +88,7 @@ export function DraftShell({
   bestBallMode = false,
   bestBallSport = null,
 }: Props) {
+  const { t } = useLanguage()
   const [state, setState] = useState<DraftStatePayload | null>(null)
   const [picks, setPicks] = useState<DraftPickRecord[]>([])
   const [queue, setQueue] = useState<DraftPlayerRow[]>([])
@@ -214,7 +216,7 @@ export function DraftShell({
   if (!state) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#0d1117] text-white/50">
-        Loading draft…
+        {t('draftRoom.legacy.loading')}
       </div>
     )
   }
@@ -236,8 +238,14 @@ export function DraftShell({
       animate={{ opacity: 1 }}
     >
       <DraftHeader
-        title={mode === 'mock' ? 'Mock draft' : 'Live draft'}
-        subtitle={leagueId ? `League ${leagueId.slice(0, 8)}…` : roomId ? `Room ${roomId.slice(0, 8)}…` : undefined}
+        title={mode === 'mock' ? t('draftRoom.legacy.mockDraft') : t('draftRoom.legacy.liveDraft')}
+        subtitle={
+          leagueId
+            ? `${t('draftRoom.legacy.leaguePrefix')} ${leagueId.slice(0, 8)}…`
+            : roomId
+              ? `${t('draftRoom.legacy.roomPrefix')} ${roomId.slice(0, 8)}…`
+              : undefined
+        }
         onOpenSettings={mode === 'mock' ? () => setSettingsOpen(true) : undefined}
         rightSlot={
           <div className="flex items-center gap-2">
@@ -260,8 +268,10 @@ export function DraftShell({
           className="border-b border-cyan-500/20 bg-[#0a1228]/90 px-3 py-2 text-[11px] text-cyan-100/85"
           data-testid="draft-bestball-banner"
         >
-          Best ball: starters auto-optimize each scoring period — build depth at every position (
-          {bestBallSport ?? 'sport'}). Use commissioner AI (AfSub) for live pick suggestions when enabled.
+          {t('draftRoom.legacy.bestBallBanner').replace(
+            '{{sport}}',
+            bestBallSport ?? '—',
+          )}
         </div>
       ) : null}
 
@@ -323,7 +333,7 @@ export function DraftShell({
                 chatTab === 'room' ? 'bg-white/10 text-white' : 'text-white/40'
               }`}
             >
-              Draft Chat
+              {t('draftRoom.legacy.draftChat')}
             </button>
             <button
               type="button"
@@ -332,7 +342,7 @@ export function DraftShell({
                 chatTab === 'chimmy' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/40'
               }`}
             >
-              Chimmy ✨
+              {t('draftRoom.legacy.chimmyChat')}
             </button>
           </div>
           <div className="min-h-0 flex-1">

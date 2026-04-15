@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import {
   refreshLegacyImportStatus,
@@ -19,6 +21,7 @@ import { resolveNoResultsState } from "@/lib/ui-state"
 import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
 
 export function LegacyImportSettingsSection() {
+  const { t } = useLanguage()
   const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -34,7 +37,7 @@ export function LegacyImportSettingsSection() {
       setLegacyStatus(data)
       setLastUpdatedAt(new Date())
     } catch {
-      setError("Could not load import status right now.")
+      setError(t("settings.legacy.loadError"))
     } finally {
       if (asRefresh) setRefreshing(false)
       else setLoading(false)
@@ -79,16 +82,14 @@ export function LegacyImportSettingsSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Legacy Import</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("settings.legacy.title")}</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Import your fantasy history for AllFantasy Legacy. Supported sports: {SUPPORTED_SPORTS.join(", ")}.
+          {interpolateTemplate(t("settings.legacy.subtitle"), { sports: SUPPORTED_SPORTS.join(", ") })}
         </p>
       </div>
       <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}>
-        <p className="font-medium" style={{ color: "var(--text)" }}>Rankings &amp; level</p>
-        <p className="mt-1">
-          Legacy import affects your rankings and level progression. If you don&apos;t import history, you start from scratch (level 1). Import from a connected provider to bring in your league history.
-        </p>
+        <p className="font-medium" style={{ color: "var(--text)" }}>{t("settings.legacy.rankingsLevel")}</p>
+        <p className="mt-1">{t("settings.legacy.rankingsBody")}</p>
       </div>
       {error && (
         <p className="text-sm" style={{ color: "var(--accent-red-strong)" }}>
@@ -96,11 +97,11 @@ export function LegacyImportSettingsSection() {
         </p>
       )}
       {loading ? (
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Loading import status…</p>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>{t("settings.legacy.loadingStatus")}</p>
       ) : (
         <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>Import providers</p>
+            <p className="text-sm font-medium" style={{ color: "var(--muted2)" }}>{t("settings.legacy.importProviders")}</p>
             <button
               type="button"
               onClick={() => void loadLegacyStatus(true)}
@@ -108,12 +109,14 @@ export function LegacyImportSettingsSection() {
               className="rounded-lg border px-3 py-1.5 text-xs font-medium"
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
-              {refreshing ? "Refreshing…" : "Refresh status"}
+              {refreshing ? t("settings.legacy.refreshing") : t("settings.legacy.refreshStatus")}
             </button>
           </div>
           {lastUpdatedAt && (
             <p className="text-xs" style={{ color: "var(--muted)" }}>
-              Last updated: {formatInTimezone(lastUpdatedAt, undefined, undefined, "en")}
+              {interpolateTemplate(t("settings.legacy.lastUpdated"), {
+                time: formatInTimezone(lastUpdatedAt, undefined, undefined, "en"),
+              })}
             </p>
           )}
           <ul className="space-y-4">
@@ -133,7 +136,11 @@ export function LegacyImportSettingsSection() {
                   <div>
                     <p className="text-sm font-medium" style={{ color: "var(--text)" }}>{name}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                      {available ? (linked ? `Linked · Import: ${importStatusLabel}` : "Not connected") : "Coming soon"}
+                      {available
+                        ? linked
+                          ? interpolateTemplate(t("settings.legacy.linkedImport"), { status: importStatusLabel })
+                          : t("settings.legacy.notConnected")
+                        : t("settings.legacy.comingSoon")}
                     </p>
                     {status?.error && (
                       <p className="text-xs mt-0.5" style={{ color: "var(--accent-red-strong)" }}>{status.error}</p>
@@ -149,7 +156,11 @@ export function LegacyImportSettingsSection() {
                         {primaryAction.label}
                       </Link>
                     ) : (
-                      !available && <span className="text-xs" style={{ color: "var(--muted)" }}>Coming soon</span>
+                      !available && (
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>
+                          {t("settings.legacy.comingSoon")}
+                        </span>
+                      )
                     )}
                     {showReconnect && (
                       <Link
@@ -157,7 +168,7 @@ export function LegacyImportSettingsSection() {
                         className="rounded-lg border px-3 py-2 text-sm font-medium"
                         style={{ borderColor: "var(--border)", color: "var(--text)" }}
                       >
-                        Reconnect
+                        {t("settings.legacy.reconnect")}
                       </Link>
                     )}
                     <Link
@@ -165,7 +176,7 @@ export function LegacyImportSettingsSection() {
                       className="rounded-lg border px-3 py-2 text-sm font-medium"
                       style={{ borderColor: "var(--border)", color: "var(--text)" }}
                     >
-                      Help
+                      {t("settings.legacy.help")}
                     </Link>
                   </div>
                 </li>
@@ -173,9 +184,7 @@ export function LegacyImportSettingsSection() {
             })}
           </ul>
           {hasActiveImport && (
-            <p className="text-xs" style={{ color: "var(--muted)" }}>
-              Active import detected. This tab refreshes automatically every 15 seconds.
-            </p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.legacy.activeImportNote")}</p>
           )}
           {!hasActiveImport && !hasLinkedProvider && !hasCompletedImport ? (
             <EmptyStateRenderer
@@ -198,21 +207,21 @@ export function LegacyImportSettingsSection() {
           className="rounded-lg border px-3 py-2 text-sm font-medium"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          Open Legacy app
+          {t("settings.legacy.openApp")}
         </Link>
         <Link
           href="/dashboard"
           className="rounded-lg border px-3 py-2 text-sm font-medium"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          Dashboard (link Sleeper)
+          {t("settings.legacy.dashboardLinkSleeper")}
         </Link>
         <Link
           href="/import"
           className="rounded-lg border px-3 py-2 text-sm font-medium"
           style={{ borderColor: "var(--border)", color: "var(--text)" }}
         >
-          Import instructions
+          {t("settings.legacy.importInstructions")}
         </Link>
       </div>
     </div>

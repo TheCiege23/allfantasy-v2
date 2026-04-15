@@ -23,6 +23,7 @@ import {
 import type { ImportPreviewResponse } from '@/lib/league-import/ImportedLeaguePreviewBuilder';
 import type { ImportProvider } from '@/lib/league-import/types';
 import { fetchImportPreview, submitImportCreation } from '@/lib/league-import/LeagueCreationImportSubmissionService';
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation';
 
 function leagueOptionToSport(opt: LeagueSportOption): 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER' {
   return opt as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER';
@@ -111,7 +112,9 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
     toast.success('League imported! Redirecting...');
     const leagueId = (result.data as { league?: { id?: string } })?.league?.id;
     setTimeout(() => {
-      window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
+      window.location.href = leagueId
+        ? buildPostCreateLeagueHomeHref({ leagueId, leagueType: format })
+        : '/af-legacy';
     }, 1500);
   };
 
@@ -151,7 +154,9 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
       toast.success('Dynasty league created! Redirecting...');
       const leagueId = data?.league?.id;
       setTimeout(() => {
-        window.location.href = leagueId ? `/leagues/${leagueId}` : '/af-legacy';
+        window.location.href = leagueId
+          ? buildPostCreateLeagueHomeHref({ leagueId, leagueType: format })
+          : '/af-legacy';
       }, 1500);
     } catch {
       toast.error('Something went wrong. Please try again.');

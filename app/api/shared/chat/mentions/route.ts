@@ -3,6 +3,7 @@ import { resolvePlatformUser } from '@/lib/platform/current-user'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import { prisma } from '@/lib/prisma'
 import { getLeagueIdFromVirtualRoom, isLeagueVirtualRoom } from '@/lib/chat-core'
+import { getLeagueMemberUserIds } from '@/lib/league-chat/leagueMemberIds'
 
 export async function GET() {
   return NextResponse.json({ status: 'ok', mentions: [] })
@@ -31,6 +32,13 @@ export async function POST(req: NextRequest) {
   if (!threadId || !messageId || mentionedUsernames.length === 0) {
     return NextResponse.json({ status: 'ok' })
   }
+
+  const lowerMentioned = mentionedUsernames.map((u) => u.toLowerCase())
+  const hasAllMention = lowerMentioned.includes('all')
+  const userMentionTokens = mentionedUsernames.filter((u) => {
+    const lower = u.toLowerCase()
+    return lower !== 'all' && lower !== 'global' && lower !== 'chimmy'
+  })
 
   if (isLeagueVirtualRoom(threadId)) {
     const leagueId = getLeagueIdFromVirtualRoom(threadId)
@@ -63,18 +71,58 @@ export async function POST(req: NextRequest) {
   })
   const senderName = sender?.displayName || sender?.username || sender?.email || 'Someone'
 
-  const users = await (prisma as any).appUser.findMany({
-    where: {
-      OR: mentionedUsernames.map((username) => ({
-        username: { equals: username, mode: 'insensitive' as const },
-      })),
-      id: { not: user.appUserId },
-    },
-    select: { id: true },
-  })
+  const userIds = new Set<string>()
 
-  const userIds = users.map((u: { id: string }) => u.id)
-  if (userIds.length > 0) {
+  if (userMentionTokens.length > 0) {
+    const users = await (prisma as any).appUser.findMany({
+      where: {
+        OR: userMentionTokens.map((username) => ({
+          username: { equals: username, mode: 'insensitive' as const },
+        })),
+        id: { not: user.appUserId },
+      },
+      select: { id: true },
+    })
+    for (const row of users as Array<{ id: string }>) {
+      userIds.add(row.id)
+    }
+  }
+
+  if (hasAllMention) {
+    if (isLeagueVirtualRoom(threadId)) {
+      const leagueId = getLeagueIdFromVirtualRoom(threadId)
+      if (!leagueId) return NextResponse.json({ error: 'Invalid league room' }, { status: 400 })
+      const bracketMember = await (prisma as any).bracketLeagueMember.findUnique({
+        where: { leagueId_userId: { leagueId, userId: user.appUserId } },
+        select: { id: true },
+      })
+      if (bracketMember) {
+        const rows = await (prisma as any).bracketLeagueMember.findMany({
+          where: { leagueId },
+          select: { userId: true },
+        })
+        for (const row of rows as Array<{ userId: string }>) {
+          if (row.userId !== user.appUserId) userIds.add(row.userId)
+        }
+      } else {
+        const ids = await getLeagueMemberUserIds(leagueId)
+        for (const id of ids) {
+          if (id !== user.appUserId) userIds.add(id)
+        }
+      }
+    } else {
+      const rows = await (prisma as any).platformChatThreadMember.findMany({
+        where: { threadId, isBlocked: false },
+        select: { userId: true },
+      })
+      for (const row of rows as Array<{ userId: string }>) {
+        if (row.userId !== user.appUserId) userIds.add(row.userId)
+      }
+    }
+  }
+
+  const targetIds = Array.from(userIds)
+  if (targetIds.length > 0) {
     const isLeague = isLeagueVirtualRoom(threadId)
     const leagueId = isLeague ? getLeagueIdFromVirtualRoom(threadId) : null
     const actionHref = isLeague && leagueId
@@ -84,7 +132,7 @@ export async function POST(req: NextRequest) {
       ? `${senderName} mentioned you in a league chat.`
       : `${senderName} mentioned you in a chat.`
     await dispatchNotification({
-      userIds,
+      userIds: targetIds,
       category: 'chat_mentions',
       productType: 'app',
       type: 'mention',
@@ -97,5 +145,5 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ status: 'ok', notified: userIds.length })
+  return NextResponse.json({ status: 'ok', notified: targetIds.length })
 }

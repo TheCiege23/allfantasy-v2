@@ -19,10 +19,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') ?? 'NFL')
-  const leagueType = (req.nextUrl.searchParams.get('leagueType') ?? 'redraft').toLowerCase()
-  const formatKey = (req.nextUrl.searchParams.get('formatKey') ?? 'default').toLowerCase()
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '300', 10), 500)
+  const sport = normalizeToSupportedSport(req.nextUrl.searchParams?.get('sport') ?? 'NFL')
+  const leagueType = (req.nextUrl.searchParams?.get('leagueType') ?? 'redraft').toLowerCase()
+  const formatKey = (req.nextUrl.searchParams?.get('formatKey') ?? 'default').toLowerCase()
+  const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') ?? '300', 10), 500)
 
   const result = await getAiAdp(sport, leagueType, formatKey)
   if (!result) {
@@ -50,3 +50,4 @@ export async function GET(req: NextRequest) {
       : null,
   })
 }
+

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const url = req.nextUrl
-  const leagueId = url.searchParams.get('leagueId')?.trim()
+  const leagueId = url.searchParams?.get('leagueId')?.trim()
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, userId)
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const cfg = await prisma.iDPCapConfig.findUnique({ where: { leagueId } })
   const defaultSeason = cfg?.season ?? new Date().getFullYear()
 
-  const type = url.searchParams.get('type')?.trim()
+  const type = url.searchParams?.get('type')?.trim()
 
   if (type === 'league_cap_overview') {
     const rosters = await prisma.redraftRoster.findMany({
@@ -69,10 +69,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ season: defaultSeason, teams: summaries })
   }
 
-  const rosterId = url.searchParams.get('rosterId')?.trim()
+  const rosterId = url.searchParams?.get('rosterId')?.trim()
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
-  const season = parseSeason(url.searchParams.get('season'), defaultSeason)
+  const season = parseSeason(url.searchParams?.get('season'), defaultSeason)
 
   if (!type || type === 'summary') {
     try {
@@ -246,3 +246,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
+

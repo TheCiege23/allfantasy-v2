@@ -1,5 +1,8 @@
 import type { SupportedSport } from '@/lib/sport-scope'
 
+/** Optimizer templates may extend beyond Prisma `LeagueSport` (e.g. Golf, NASCAR). */
+export type LineupOptimizerSportKey = SupportedSport | 'GOLF' | 'NASCAR'
+
 export interface OptimizerPlayerInput {
   id?: string
   name: string
@@ -34,7 +37,7 @@ export interface OptimizedStarter {
 }
 
 export interface LineupOptimizerResult {
-  sport: SupportedSport
+  sport: LineupOptimizerSportKey
   totalProjectedPoints: number
   starters: OptimizedStarter[]
   bench: Array<{

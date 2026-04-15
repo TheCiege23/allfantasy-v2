@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { isAllowedSessionIdleMinutes } from "@/lib/auth/session-idle-constants"
 import { SUPPORTED_SPORTS, isSupportedSport } from "@/lib/sport-scope"
+import { isSelectableChimmyTtsVoiceId } from "@/lib/tts/voices"
 import type { ProfileUpdatePayload } from "./types"
 
 /**
@@ -13,6 +14,13 @@ export async function updateUserProfile(
   userId: string,
   payload: ProfileUpdatePayload
 ): Promise<{ ok: boolean; error?: string }> {
+  if (payload.chimmyTtsVoiceId !== undefined) {
+    const v = payload.chimmyTtsVoiceId
+    if (v !== null && v !== "" && !isSelectableChimmyTtsVoiceId(v)) {
+      return { ok: false, error: "Invalid Chimmy voice selection" }
+    }
+  }
+
   if (payload.username !== undefined && payload.username !== null) {
     const normalized = String(payload.username).trim().toLowerCase()
     if (!USERNAME_RE.test(normalized)) {
@@ -79,6 +87,11 @@ export async function updateUserProfile(
     } else {
       return { ok: false, error: "Invalid session timeout value" }
     }
+  }
+  if (payload.chimmyTtsVoiceId !== undefined) {
+    const v = payload.chimmyTtsVoiceId
+    updateProfile.chimmyTtsVoiceId =
+      v === null || v === "" ? null : String(v).trim() || null
   }
 
   try {

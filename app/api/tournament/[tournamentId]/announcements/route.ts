@@ -1,43 +1,25 @@
-import { NextResponse } from 'next/server'
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/announcements/route.ts
+ * GET: List tournament announcements.
+ * POST: Create a new announcement (commissioner only).
+ * Supports Legacy tournaments.
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { z } from 'zod'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
 
-const createAnnouncementSchema = z.object({
-  title: z.string().max(200).optional(),
-  body: z.string().min(1),
-  type: z.enum(['general', 'round_start', 'round_end', 'redraft', 'league_disband', 'champion_story']).optional(),
-  metadata: z.record(z.unknown()).optional(),
-  pinned: z.boolean().optional(),
-})
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-/** GET: list announcements. POST: create (commissioner only). */
 export async function GET(
-  _req: Request,
+  _req: NextRequest,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   const { tournamentId } = await params
-  const tournament = await prisma.legacyTournament.findUnique({
-    where: { id: tournamentId },
-    select: { id: true, creatorId: true, hubSettings: true },
-  })
-  if (!tournament) {
-    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
-  }
-
-  const hubSettings = (tournament.hubSettings as Record<string, unknown>) ?? {}
-  const visibility = (hubSettings.visibility as string) ?? 'unlisted'
-  const isCreator = tournament.creatorId === userId
-  if (visibility === 'private' && !isCreator) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
   const announcements = await prisma.legacyTournamentAnnouncement.findMany({
     where: { tournamentId },
@@ -45,54 +27,68 @@ export async function GET(
     take: 100,
   })
 
-  return NextResponse.json({ announcements })
+  return NextResponse.json({
+    announcements: announcements.map((a) => ({
+      id: a.id,
+      title: a.title,
+      body: a.body,
+      type: a.type,
+      pinned: a.pinned,
+      createdAt: a.createdAt.toISOString(),
+    })),
+  })
 }
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
+
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
     select: { creatorId: true },
   })
-  if (!tournament || tournament.creatorId !== userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner access required' }, { status: 403 })
   }
 
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
+  const body = await req.json().catch(() => ({}))
+  const title = (body.title as string) ?? null
+  const announcementBody = body.body as string
+  const type = (body.type as string) ?? 'general'
+  const pinned = body.pinned === true
+
+  if (!announcementBody || typeof announcementBody !== 'string' || announcementBody.trim().length === 0) {
+    return NextResponse.json({ error: 'Announcement body is required' }, { status: 400 })
   }
 
-  const parsed = createAnnouncementSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? 'Invalid input' },
-      { status: 400 }
-    )
-  }
-
-  const created = await prisma.legacyTournamentAnnouncement.create({
+  const announcement = await prisma.legacyTournamentAnnouncement.create({
     data: {
       tournamentId,
-      authorId: userId,
-      title: parsed.data.title ?? null,
-      body: parsed.data.body,
-      type: parsed.data.type ?? 'general',
-      metadata: (parsed.data.metadata as Record<string, unknown>) ?? undefined,
-      pinned: parsed.data.pinned ?? false,
+      title: title?.trim() || null,
+      body: announcementBody.trim(),
+      type,
+      pinned,
     },
   })
 
-  return NextResponse.json({ announcement: created })
+  await logTournamentAudit(tournamentId, 'post_announcement', {
+    actorId: userId,
+    metadata: { announcementId: announcement.id, type },
+  })
+
+  return NextResponse.json({
+    id: announcement.id,
+    title: announcement.title,
+    body: announcement.body,
+    type: announcement.type,
+    pinned: announcement.pinned,
+    createdAt: announcement.createdAt.toISOString(),
+  })
 }

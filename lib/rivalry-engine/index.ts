@@ -1,12 +1,2 @@
-/**
- * Rivalry Engine — public API.
- */
-
-export * from './types'
-export * from './SportRivalryResolver'
-export * from './RivalryTierResolver'
-export * from './RivalryScoreCalculator'
-export * from './HeadToHeadAggregator'
-export * from './RivalryTimelineBuilder'
-export * from './RivalryQueryService'
-export * from './RivalryEngine'
+export { analyzeRivalries, RivalryInputSchema, RivalryModeEnum } from './rivalry-engine'
+export type { RivalryInput, RivalryResult, RivalryPair, RivalryType, HistoricalMatchup, TradeInteraction } from './rivalry-engine'

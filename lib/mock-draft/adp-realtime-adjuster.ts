@@ -38,7 +38,7 @@ async function fetchRecentSportsSignals() {
 
   const espnNews: Array<{ playerName?: string | null; title: string; content?: string | null; source: string }> = []
   try {
-    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=40', {
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/news?limit=40', { // db-first-exception: short-term mock draft sentiment feed
       cache: 'no-store',
       signal: AbortSignal.timeout(4000),
     })

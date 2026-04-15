@@ -10,8 +10,8 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/badges", tool: "LegacyB
   }
 
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
-  const showAll = searchParams.get('all') === 'true'
+  const username = searchParams?.get('username')
+  const showAll = searchParams?.get('all') === 'true'
 
   if (!username) {
     return NextResponse.json({ error: 'Username required' }, { status: 400 })
@@ -58,3 +58,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/badges", tool: "LegacyB
     return NextResponse.json({ error: 'Failed to fetch badges' }, { status: 500 })
   }
 })
+

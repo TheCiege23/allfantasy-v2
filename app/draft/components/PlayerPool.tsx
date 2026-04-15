@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import type { DraftPlayerRow } from '../types'
 
 const POS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'] as const
@@ -14,6 +15,7 @@ type Props = {
 }
 
 export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
+  const { t } = useLanguage()
   const [players, setPlayers] = useState<DraftPlayerRow[]>([])
   const [pos, setPos] = useState<string>('ALL')
   const [search, setSearch] = useState('')
@@ -84,7 +86,7 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
         <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-white/50">
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={hideDrafted} onChange={(e) => setHideDrafted(e.target.checked)} />
-            Hide drafted
+            {t('draftRoom.playerPool.hideDrafted')}
           </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={watchOnly} onChange={toggleWatch} />
@@ -92,7 +94,7 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
           </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={rookiesOnly} onChange={(e) => setRookiesOnly(e.target.checked)} />
-            Rookies only
+            {t('draftRoom.playerPool.rookiesOnly')}
           </label>
         </div>
       </div>
@@ -101,9 +103,9 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
           <thead className="sticky top-0 bg-[#0d1117] text-white/40">
             <tr>
               <th className="px-2 py-1">#</th>
-              <th className="px-2 py-1">Player</th>
-              <th className="px-2 py-1">Pos</th>
-              <th className="px-2 py-1">ADP</th>
+              <th className="px-2 py-1">{t('draftRoom.playerPool.colPlayer')}</th>
+              <th className="px-2 py-1">{t('draftRoom.playerPool.colPos')}</th>
+              <th className="px-2 py-1">{t('draftRoom.playerPool.colAdp')}</th>
               <th className="px-2 py-1" />
             </tr>
           </thead>
@@ -133,7 +135,7 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
                         : 'cursor-not-allowed bg-white/10 text-white/30',
                     )}
                   >
-                    DRAFT
+                    {t('draftRoom.playerPool.draft')}
                   </button>
                 </td>
               </tr>

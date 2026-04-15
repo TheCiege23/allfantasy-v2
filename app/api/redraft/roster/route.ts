@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const rosterId = req.nextUrl.searchParams.get('rosterId')?.trim()
-  const week = Number(req.nextUrl.searchParams.get('week') ?? '1')
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
+  const week = Number(req.nextUrl.searchParams?.get('week') ?? '1')
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
   const roster = await prisma.redraftRoster.findFirst({
@@ -62,3 +62,4 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ roster: updated })
 }
+

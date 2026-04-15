@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { getDeepSeekConfigFromEnv } from '@/lib/provider-config'
+import { cachedFetch, cacheKey } from '@/lib/api-cache'
 
 let deepseekClient: OpenAI | null = null
 
@@ -31,6 +32,13 @@ export interface DeepSeekResult {
 }
 
 export async function deepseekChat(
+  options: DeepSeekChatOptions
+): Promise<DeepSeekResult> {
+  const key = cacheKey('deepseek', options.prompt, options.systemPrompt, options.model)
+  return cachedFetch(key, 1800, () => _deepseekChatUncached(options))
+}
+
+async function _deepseekChatUncached(
   options: DeepSeekChatOptions
 ): Promise<DeepSeekResult> {
   const {

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown, MessageSquare } from "lucide-react"
+import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown, MessageSquare, GitCompare } from "lucide-react"
 import { toast } from "sonner"
 import WaiverFilters from "@/components/waiver-wire/WaiverFilters"
 import WaiverPlayerRow from "@/components/waiver-wire/WaiverPlayerRow"
@@ -29,6 +29,8 @@ import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
 import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
+import { usePlayerComparisonUIOptional } from "@/components/player-comparison-ui"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 
 type WaiverSettings = {
   leagueId?: string
@@ -145,6 +147,7 @@ function getFallbackNeedPositionsForSport(sport: string | null | undefined): str
 }
 
 export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
+  const compareUi = usePlayerComparisonUIOptional()
   const defaultFilterState = getDefaultWaiverFilterState()
   const { formatInTimezone } = useUserTimezone()
   const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
@@ -629,6 +632,34 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           >
             Trending players
           </Link>
+          {compareUi ? (
+            <button
+              type="button"
+              onClick={() =>
+                compareUi.openComparison({
+                  playerA: "",
+                  playerB: "",
+                  sport: normalizeToSupportedSport(settings?.sport ?? DEFAULT_SPORT) ?? DEFAULT_SPORT,
+                  leagueId,
+                  source: "waiver",
+                })
+              }
+              data-testid="waiver-open-player-compare"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 sm:text-sm"
+            >
+              <GitCompare className="h-3.5 w-3.5" />
+              Compare players
+            </button>
+          ) : (
+            <Link
+              href={`/player-compare?leagueId=${encodeURIComponent(leagueId)}&sport=${encodeURIComponent(settings?.sport ?? DEFAULT_SPORT)}`}
+              data-testid="waiver-open-player-compare-fallback"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 sm:text-sm"
+            >
+              <GitCompare className="h-3.5 w-3.5" />
+              Compare players
+            </Link>
+          )}
         </div>
       </div>
 

@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
-  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!, 10) : undefined
-  const sport = searchParams.get('sport') ?? undefined
+  const limit = searchParams?.get('limit') ? parseInt(searchParams?.get('limit')!, 10) : undefined
+  const sport = searchParams?.get('sport') ?? undefined
 
   const items = await getTrendingPlayers({
     limit: limit && limit > 0 ? Math.min(limit, 50) : 20,
@@ -18,3 +18,4 @@ export async function GET(req: Request) {
     sport: sport ?? 'nfl',
   })
 }
+

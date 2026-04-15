@@ -1,0 +1,44 @@
+name: DB-First API Weekly Audit
+
+on:
+  schedule:
+    - cron: '0 14 * * 1'
+  workflow_dispatch:
+
+jobs:
+  db-first-weekly-audit:
+    name: DB-First Weekly Full Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full DB-first audit (warning mode)
+        id: db_first_audit
+        shell: bash
+        run: |
+          set +e
+          npm run guard:db-first-api > db-first-weekly-audit.log 2>&1
+          CODE=$?
+          echo "exit_code=$CODE" >> "$GITHUB_OUTPUT"
+          if [ "$CODE" -ne 0 ]; then
+            echo "::warning::DB-first weekly full scan found violations. See uploaded audit log artifact."
+          else
+            echo "DB-first weekly full scan passed with zero violations."
+          fi
+          exit 0
+
+      - name: Upload audit log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-first-weekly-audit-log
+          path: db-first-weekly-audit.log
+          retention-days: 14

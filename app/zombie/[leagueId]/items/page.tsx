@@ -46,7 +46,7 @@ function chatPrefill(leagueId: string, text: string) {
 }
 
 export default function ZombieItemsPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const { leagueId  } = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const [data, setData] = useState<InvPayload | null>(null)
   const [showRules, setShowRules] = useState(false)
   const [showHistory, setShowHistory] = useState(false)

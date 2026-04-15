@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { sleeperAvatarUrl } from "@/lib/sleeper-avatar";
 import { onMatchupCommentary } from "@/lib/commentary-engine";
 import { normalizeToSupportedSport } from "@/lib/sport-scope";
+import { getLeagueMatchups, getLeagueRosters, getLeagueUsers } from "@/lib/sleeper-client";
 
 const weekImportLimit = pLimit(4);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -410,7 +411,18 @@ export async function processLeague(
   const platformLeagueId = leagueData.league_id?.toString();
   if (!platformLeagueId) return null;
 
-  const leaguePayload = buildLeagueUpdateData(leagueData, season, sportLabel);
+  const leaguePayload = {
+    ...buildLeagueUpdateData(leagueData, season, sportLabel),
+    /** Full Sleeper hub sync supersedes ranking-only snapshot rows (`legacy_summary` / `ranking_only`). */
+    leagueVariant: null,
+    importWins: null,
+    importLosses: null,
+    importTies: null,
+    importMadePlayoffs: null,
+    importWonChampionship: null,
+    importFinalStanding: null,
+    importPointsFor: null,
+  };
 
   const league = await prisma.league.upsert({
     where: {
@@ -444,14 +456,8 @@ export async function processLeague(
   });
 
   const [users, rosters] = await Promise.all([
-    cachedSleeperFetch<SleeperUser[]>(
-      `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/users`,
-      `sleeper:users:${platformLeagueId}`
-    ),
-    cachedSleeperFetch<SleeperRoster[]>(
-      `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/rosters`,
-      `sleeper:rosters:${platformLeagueId}`
-    ),
+    getLeagueUsers(platformLeagueId) as Promise<SleeperUser[]>,
+    getLeagueRosters(platformLeagueId) as Promise<SleeperRoster[]>,
   ]);
 
   if (!Array.isArray(users) || !Array.isArray(rosters)) {
@@ -562,21 +568,18 @@ export async function processLeague(
   await Promise.all(
     Array.from({ length: maxWeek }, (_, index) => index + 1).map((week) =>
       weekImportLimit(async () => {
-        const matchups = await cachedSleeperFetch<SleeperMatchup[]>(
-          `https://api.sleeper.app/v1/league/${encodeURIComponent(platformLeagueId)}/matchups/${week}`,
-          `sleeper:matchup:${platformLeagueId}:w${week}`
-        );
+        const safeMatchups = await getLeagueMatchups(platformLeagueId, week) as unknown as SleeperMatchup[];
 
-        if (!Array.isArray(matchups)) {
+        if (!Array.isArray(safeMatchups)) {
           return;
         }
 
         if (week === currentWeek) {
-          currentWeekMatchups = buildLiveMatchupScores(matchups);
+          currentWeekMatchups = buildLiveMatchupScores(safeMatchups);
         }
 
         await Promise.all(
-          matchups.map(async (matchup) => {
+          safeMatchups.map(async (matchup) => {
             const teamId = teamsByExternalId.get(matchup.roster_id?.toString() || "");
 
             if (!teamId || matchup.points == null) {

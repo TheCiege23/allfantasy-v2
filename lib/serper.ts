@@ -1,3 +1,5 @@
+import { cachedFetch, cacheKey } from '@/lib/api-cache';
+
 const SERPER_BASE = 'https://google.serper.dev';
 const DEFAULT_TIMEOUT = 8000;
 
@@ -155,6 +157,20 @@ export async function serperSearch(
     page?: number;
   } = {}
 ): Promise<SerperSearchResponse & { error?: string }> {
+  const key = cacheKey('serper-search', query, options)
+  return cachedFetch(key, 300, () => _serperSearchUncached(query, options))
+}
+
+async function _serperSearchUncached(
+  query: string,
+  options: {
+    num?: number;
+    gl?: string;
+    hl?: string;
+    tbs?: string;
+    page?: number;
+  } = {}
+): Promise<SerperSearchResponse & { error?: string }> {
   const apiKey = getApiKey();
   if (!apiKey) {
     return {
@@ -223,6 +239,19 @@ export async function serperSearch(
 }
 
 export async function serperNews(
+  query: string,
+  options: {
+    num?: number;
+    gl?: string;
+    hl?: string;
+    tbs?: string;
+  } = {}
+): Promise<SerperNewsResponse & { error?: string }> {
+  const key = cacheKey('serper-news', query, options)
+  return cachedFetch(key, 300, () => _serperNewsUncached(query, options))
+}
+
+async function _serperNewsUncached(
   query: string,
   options: {
     num?: number;

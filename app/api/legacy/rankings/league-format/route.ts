@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { fetchFantasyCalcValues, type FantasyCalcPlayer } from '@/lib/fantasycalc'
+import { getAllPlayers, getLeagueInfo, getLeagueRosters, getLeagueUsers } from '@/lib/sleeper-client'
 
 interface PositionData {
   position: string
@@ -36,21 +37,14 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/league-format
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const [leagueRes, rostersRes, playersRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${league_id}`),
-      fetch(`https://api.sleeper.app/v1/league/${league_id}/rosters`),
-      fetch('https://api.sleeper.app/v1/players/nfl', { next: { revalidate: 0 } }),
+    const [leagueData, rosters, playersData] = await Promise.all([
+      getLeagueInfo(league_id),
+      getLeagueRosters(league_id),
+      getAllPlayers(),
     ])
 
-    if (!leagueRes.ok || !rostersRes.ok) {
+    if (!leagueData || !Array.isArray(rosters) || rosters.length === 0) {
       return NextResponse.json({ error: 'Failed to fetch league data' }, { status: 500 })
-    }
-
-    const leagueData = await leagueRes.json()
-    const rosters = await rostersRes.json()
-    let playersData: Record<string, any> = {}
-    if (playersRes.ok) {
-      try { playersData = await playersRes.json() } catch { /* fallback */ }
     }
 
     const settings = leagueData.scoring_settings || {}
@@ -96,8 +90,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/league-format
       fcByNameMap.set(p.player.name.toLowerCase(), p)
     }
 
-    const usersRes = await fetch(`https://api.sleeper.app/v1/league/${league_id}/users`)
-    const usersData = usersRes.ok ? await usersRes.json() : []
+    const usersData = await getLeagueUsers(league_id)
     const userMap = new Map(usersData.map((u: any) => [u.user_id, u]))
 
     const rosteredPlayerIds = new Set<string>()

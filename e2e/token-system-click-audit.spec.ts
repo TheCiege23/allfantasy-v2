@@ -153,7 +153,7 @@ test.describe('@token-system click audit', () => {
     await waitForTokensReady(page)
     await expect(page.getByTestId('tokens-balance-display')).toContainText('12')
     await expect(page.getByTestId('monetization-fancred-link')).toBeVisible()
-    await expect(page.getByTestId('monetization-fancred-link')).toHaveAttribute('href', /fancred\.com/)
+    await expect(page.getByTestId('monetization-fancred-link')).toHaveAttribute('href', /fancred\.app/)
     await page.getByTestId('tokens-buy-cta-af_tokens_5').click()
     await page.waitForURL('**/e2e/token-checkout-success')
 

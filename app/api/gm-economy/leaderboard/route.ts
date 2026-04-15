@@ -19,12 +19,12 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const orderBy = (url.searchParams.get('orderBy') === 'gmPrestigeScore'
+    const orderBy = (url.searchParams?.get('orderBy') === 'gmPrestigeScore'
       ? 'gmPrestigeScore'
       : 'franchiseValue') as 'franchiseValue' | 'gmPrestigeScore'
-    const limitParam = url.searchParams.get('limit')
-    const offsetParam = url.searchParams.get('offset')
-    const rawSport = url.searchParams.get('sport')
+    const limitParam = url.searchParams?.get('limit')
+    const offsetParam = url.searchParams?.get('offset')
+    const rawSport = url.searchParams?.get('sport')
     const sport = rawSport
       ? isSupportedGMCareerSport(rawSport)
         ? normalizeSportForGMCareer(rawSport)
@@ -46,3 +46,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

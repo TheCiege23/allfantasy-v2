@@ -20,6 +20,53 @@ import {
 export type TradeAiMode = "openai" | "grok" | "both" | "off";
 export type TradeAiPrimary = "openai" | "grok";
 
+/**
+ * Strict JSON contract injected into every dual-brain trade analysis call.
+ * Both OpenAI and Grok MUST return this exact shape.
+ */
+export const DUAL_BRAIN_JSON_CONTRACT = `
+You MUST return ONLY valid JSON matching this exact schema — no markdown, no commentary:
+
+{
+  "winner": "Team A" | "Team B" | "Even" | "Slight edge to Team A" | "Slight edge to Team B",
+  "confidence": <number 0-100>,
+  "reasoning": "<2-4 sentence explanation grounding your verdict in the provided data>",
+  "key_factors": ["<factor 1>", "<factor 2>", ...],
+  "risk_flags": ["<risk 1>", ...],
+  "counter_suggestions": ["<counter trade idea 1>", ...],
+  "news_impact": ["<news item affecting this trade>", ...],
+  "confidence_breakdown": {
+    "data_quality": <0-100>,
+    "market_alignment": <0-100>,
+    "risk_weighting": <0-100>
+  }
+}
+
+ANTI-HALLUCINATION RULES (CRITICAL):
+1. You MUST NOT invent stats, player values, ADP numbers, or trade volumes.
+2. You may ONLY use data explicitly provided in the structured trade payload.
+3. If information is missing, say so in risk_flags and REDUCE confidence accordingly.
+4. news_impact MUST be empty ([]) unless you have verified real-time data with confidence >70%.
+5. Every key_factor MUST reference specific data from the payload (values, ages, positions, roster needs).
+6. counter_suggestions MUST only reference players/picks that exist in the provided roster/league data.
+7. DO NOT override or contradict the deterministic fairness score — only interpret and explain it.
+`;
+
+/**
+ * Grok-specific addendum granting web/X search for news_impact.
+ */
+export const GROK_NEWS_ADDENDUM = `
+NEWS ENRICHMENT (Grok only):
+- You have access to web_search and x_search tools.
+- The NEWS INTELLIGENCE block in the context contains pre-scored, time-decayed news with value adjustments.
+- Use web/X search to VERIFY those items and find any BREAKING news missed by the cache (last 2 hours).
+- Populate news_impact with verified items. Include source and date for each.
+- Only include news items if your confidence in the overall analysis is >70%.
+- If confidence is ≤70%, set news_impact to an empty array.
+- If you find breaking news that contradicts a cached item, note the conflict in risk_flags.
+- NEWS VALUE ADJUSTMENTS in the intelligence block are AUTHORITATIVE — do not override them, only interpret.
+`;
+
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 export interface DualBrainRequest {
@@ -319,14 +366,20 @@ export async function runDualBrainTradeAnalysis(
   const primary = resolvePrimary(req.primary);
   const timeoutMs = resolveTimeout(req.timeoutMs);
   const temperature = req.temperature ?? 0.45;
-  const maxTokens = req.maxTokens ?? 1500;
+  const maxTokens = req.maxTokens ?? 2000;
 
   if (mode === "off") {
     return null;
   }
 
-  const messages: ChatMessage[] = [
-    { role: "system", content: req.systemPrompt },
+  // Build provider-specific message arrays with the JSON contract injected
+  const openaiMessages: ChatMessage[] = [
+    { role: "system", content: `${req.systemPrompt}\n\n${DUAL_BRAIN_JSON_CONTRACT}` },
+    { role: "user", content: req.userPrompt },
+  ];
+
+  const grokMessages: ChatMessage[] = [
+    { role: "system", content: `${req.systemPrompt}\n\n${DUAL_BRAIN_JSON_CONTRACT}\n\n${GROK_NEWS_ADDENDUM}` },
     { role: "user", content: req.userPrompt },
   ];
 
@@ -334,8 +387,8 @@ export async function runDualBrainTradeAnalysis(
 
   if (mode === "both") {
     const [openaiResult, grokResult] = await Promise.allSettled([
-      callOpenAI(messages, temperature, maxTokens, timeoutMs),
-      callGrok(messages, temperature, maxTokens, timeoutMs),
+      callOpenAI(openaiMessages, temperature, maxTokens, timeoutMs),
+      callGrok(grokMessages, temperature, maxTokens, timeoutMs),
     ]);
 
     if (openaiResult.status === "fulfilled") results.push(openaiResult.value);
@@ -362,21 +415,21 @@ export async function runDualBrainTradeAnalysis(
         confidenceScore: 0,
       });
   } else if (mode === "openai") {
-    const result = await callOpenAI(messages, temperature, maxTokens, timeoutMs);
+    const result = await callOpenAI(openaiMessages, temperature, maxTokens, timeoutMs);
     results.push(result);
 
     if (!result.analysis) {
       console.warn("[dual-brain] OpenAI failed, attempting Grok fallback");
-      const fallback = await callGrok(messages, temperature, maxTokens, timeoutMs);
+      const fallback = await callGrok(grokMessages, temperature, maxTokens, timeoutMs);
       results.push(fallback);
     }
   } else if (mode === "grok") {
-    const result = await callGrok(messages, temperature, maxTokens, timeoutMs);
+    const result = await callGrok(grokMessages, temperature, maxTokens, timeoutMs);
     results.push(result);
 
     if (!result.analysis) {
       console.warn("[dual-brain] Grok failed, attempting OpenAI fallback");
-      const fallback = await callOpenAI(messages, temperature, maxTokens, timeoutMs);
+      const fallback = await callOpenAI(openaiMessages, temperature, maxTokens, timeoutMs);
       results.push(fallback);
     }
   }

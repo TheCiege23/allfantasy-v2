@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const shareId = searchParams.get('shareId');
+  const shareId = searchParams?.get('shareId');
   const origin = process.env.NEXTAUTH_URL ?? req.headers.get('x-forwarded-host') ?? '';
 
   if (shareId) {
@@ -66,17 +66,18 @@ export async function GET(req: Request) {
     });
   }
 
-  const shareType = searchParams.get('shareType') as AchievementShareType | null;
+  const shareType = searchParams?.get('shareType') as AchievementShareType | null;
   const context: AchievementShareContext = {
-    leagueName: searchParams.get('leagueName') ?? undefined,
-    teamName: searchParams.get('teamName') ?? undefined,
-    opponentName: searchParams.get('opponentName') ?? undefined,
-    week: searchParams.get('week') ? parseInt(searchParams.get('week')!, 10) : undefined,
-    score: searchParams.get('score') ? parseInt(searchParams.get('score')!, 10) : undefined,
-    sport: searchParams.get('sport') ?? undefined,
+    leagueName: searchParams?.get('leagueName') ?? undefined,
+    teamName: searchParams?.get('teamName') ?? undefined,
+    opponentName: searchParams?.get('opponentName') ?? undefined,
+    week: searchParams?.get('week') ? parseInt(searchParams?.get('week')!, 10) : undefined,
+    score: searchParams?.get('score') ? parseInt(searchParams?.get('score')!, 10) : undefined,
+    sport: searchParams?.get('sport') ?? undefined,
   };
   const type = shareType && ACHIEVEMENT_SHARE_TYPES.includes(shareType) ? shareType : 'winning_matchup';
   const copy = getTemplateShareCopy(type, context);
   const payload = resolveSharePreview(type, context, copy, undefined, origin.startsWith('http') ? origin : `https://${origin}`);
   return NextResponse.json(payload);
 }
+

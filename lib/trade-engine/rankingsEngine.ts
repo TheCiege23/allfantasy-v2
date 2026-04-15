@@ -3,6 +3,7 @@
 
 import { Asset, ManagerProfile, LeagueSettings } from './types'
 import { computeLeagueIdpScarcity, adjustIdpValue } from './idpTuning'
+import { getScarcityMultiplier } from './sport-tuning-registry'
 
 export type TeamRanking = {
   rosterId: number
@@ -27,11 +28,12 @@ function computeScarcityMultiplier(
   pos: string,
   settings: LeagueSettings
 ): number {
-  if (pos === 'QB' && settings.isSF) return 1.3
-  if (pos === 'TE' && settings.isTEP) return 1.2
-  if (pos === 'RB') return 1.1
-  if (pos === 'WR') return 1.0
-  return 0.9
+  // Use sport-aware scarcity from the registry (defaults to NFL if sport not set)
+  const sport = settings.sport ?? 'NFL'
+  return getScarcityMultiplier(sport, pos, {
+    isSF: settings.isSF,
+    isTEP: settings.isTEP,
+  })
 }
 
 export function computeTeamScore(

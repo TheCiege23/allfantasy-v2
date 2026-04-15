@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useLanguage } from '@/components/i18n/LanguageProviderClient';
+import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import type { PowerRankingTeam } from '@/lib/league-power-rankings/types';
 import { MovementIndicators } from './MovementIndicators';
 import { getLeagueRosterTabHref } from '@/lib/league-power-rankings/rosterLinkResolver';
@@ -11,6 +13,7 @@ export interface RankingTableProps {
 }
 
 export function RankingTable({ leagueId, teams }: RankingTableProps) {
+  const { t } = useLanguage();
   return (
     <div
       className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]"
@@ -20,22 +23,25 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
       <table className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-white/10">
-            <th className="p-3 font-medium text-white/80">Rank</th>
-            <th className="p-3 font-medium text-white/80">Team</th>
-            <th className="p-3 font-medium text-white/80">Record</th>
-            <th className="p-3 font-medium text-white/80">PF</th>
-            <th className="p-3 font-medium text-white/80">PA</th>
-            <th className="p-3 font-medium text-white/80">SOS</th>
-            <th className="p-3 font-medium text-white/80">Recent</th>
-            <th className="p-3 font-medium text-white/80">Roster</th>
-            <th className="p-3 font-medium text-white/80">Projection</th>
-            <th className="p-3 font-medium text-white/80">Power</th>
-            <th className="p-3 font-medium text-white/80">Movement</th>
+            <th className="p-3 font-medium text-white/80">{t('powerRankingsPage.col.rank')}</th>
+            <th className="p-3 font-medium text-white/80">{t('powerRankingsPage.col.team')}</th>
+            <th className="p-3 font-medium text-white/80">{t('powerRankingsPage.col.record')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.pf')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.pa')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.sos')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.recent')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.rosterCol')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.projection')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.power')}</th>
+            <th className="p-3 font-medium text-white/80">{t('leaguePowerRankings.table.movement')}</th>
           </tr>
         </thead>
         <tbody>
           {teams.map((team) => {
-            const name = team.displayName || team.username || `Team ${team.rosterId}`;
+            const name =
+              team.displayName ||
+              team.username ||
+              interpolateTemplate(t('leaguePowerRankings.teamFallback'), { id: team.rosterId });
             const r = team.record;
             const rosterHref = getLeagueRosterTabHref(leagueId, team.rosterId);
             return (

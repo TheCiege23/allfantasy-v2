@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/prisma'
+import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
+import { deriveImportStatsFromNormalized } from '@/lib/rank/deriveImportStatsFromNormalized'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { ImportProvider, NormalizedImportResult } from './types'
 
@@ -138,11 +140,17 @@ export async function persistImportedLeagueFromNormalization(
 ): Promise<PersistImportedLeagueResult> {
   const { userId, provider, normalized, allowUpdateExisting = false } = options
   const platformLeagueId = normalized.source.source_league_id
+  const seasonYear =
+    typeof normalized.league.season === 'number' && Number.isFinite(normalized.league.season)
+      ? normalized.league.season
+      : new Date().getFullYear()
+
   const existing = await (prisma as any).league.findFirst({
     where: {
       userId,
       platform: provider,
       platformLeagueId,
+      season: seasonYear,
     },
   })
 
@@ -152,6 +160,20 @@ export async function persistImportedLeagueFromNormalization(
 
   const resolvedSport = resolveImportedLeagueSport(normalized)
   const resolvedVariant = resolveImportedLeagueVariant(normalized)
+  const derivedImport = deriveImportStatsFromNormalized(normalized)
+  const importStatsPatch = derivedImport
+    ? {
+        importWins: derivedImport.importWins,
+        importLosses: derivedImport.importLosses,
+        importTies: derivedImport.importTies,
+        importMadePlayoffs: derivedImport.importMadePlayoffs,
+        importWonChampionship: derivedImport.importWonChampionship,
+        importFinalStanding: derivedImport.importFinalStanding,
+        importPointsFor: derivedImport.importPointsFor,
+        importPointsAgainst: derivedImport.importPointsAgainst,
+      }
+    : {}
+
   const leaguePayload = {
     name: normalized.league.name,
     platform: provider,
@@ -160,7 +182,7 @@ export async function persistImportedLeagueFromNormalization(
     scoring: normalized.league.scoring ?? undefined,
     isDynasty: normalized.league.isDynasty,
     sport: resolvedSport,
-    season: normalized.league.season ?? undefined,
+    season: seasonYear,
     rosterSize: normalized.league.rosterSize ?? undefined,
     starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
     avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
@@ -169,6 +191,7 @@ export async function persistImportedLeagueFromNormalization(
     leagueVariant: resolvedVariant,
     importBatchId: normalized.source.import_batch_id ?? undefined,
     importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
+    ...importStatsPatch,
   }
 
   const league = existing
@@ -215,6 +238,12 @@ export async function persistImportedLeagueFromNormalization(
     })
   } catch (err) {
     console.warn(`[ImportedLeagueCommitService] Historical ${provider} backfill non-fatal:`, err)
+  }
+
+  try {
+    await calculateAndSaveRank(userId)
+  } catch (err) {
+    console.warn('[ImportedLeagueCommitService] calculateAndSaveRank non-fatal:', err)
   }
 
   return {

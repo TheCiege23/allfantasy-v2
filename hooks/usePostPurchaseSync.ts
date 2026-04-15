@@ -32,7 +32,13 @@ const FAILURE_VALUES = ['failed', 'failure', 'error'] as const
 const SYNC_RETRY_MS = 1200
 const AUTO_SYNC_MAX_ATTEMPTS = 4
 
-type SearchParamsLike = Pick<URLSearchParams, 'get' | 'has'>
+type SearchParamsLike = Pick<URLSearchParams, 'get' | 'has' | 'toString'>
+
+const EMPTY_SEARCH_PARAMS: SearchParamsLike = {
+  get: () => null,
+  has: () => false,
+  toString: () => '',
+}
 
 type PurchaseReturnIntent = 'none' | 'success' | 'cancelled' | 'failed'
 
@@ -194,7 +200,7 @@ export type UsePostPurchaseSyncResult = {
  * Idempotent: clearing params prevents double-toast on re-render.
  */
 export function usePostPurchaseSync(options: UsePostPurchaseSyncOptions = {}): UsePostPurchaseSyncResult {
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams() ?? EMPTY_SEARCH_PARAMS
   const { refetch: refetchEntitlement } = useEntitlement()
   const { refetch: refetchTokens } = useTokenBalance()
   const {
@@ -467,6 +473,6 @@ export function usePostPurchaseSync(options: UsePostPurchaseSyncOptions = {}): U
  * Returns true if current URL has success params (for showing a success banner).
  */
 export function useIsPurchaseSuccess(): boolean {
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams() ?? EMPTY_SEARCH_PARAMS
   return isSuccess(searchParams)
 }

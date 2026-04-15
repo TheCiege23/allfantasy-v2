@@ -1,9 +1,11 @@
 'use client'
 
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Search, User, Plus } from 'lucide-react'
-import { applyDraftFilters, DRAFT_ROOM_MESSAGES, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
+import { Search, User, Plus, GitCompare } from 'lucide-react'
+import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 
@@ -69,6 +71,8 @@ export type PlayerPanelProps = {
   formatType?: string
   /** Optional external selection target (e.g. from helper recommendation click). */
   selectedPlayerTarget?: { name: string; position: string; team?: string | null } | null
+  /** League context for premium comparison (coach lens when API supports it). */
+  leagueId?: string
 }
 
 type SortKey = 'adp' | 'name'
@@ -84,6 +88,8 @@ function PlayerListVirtualized({
   onNominateRequest,
   onPlayerSelect,
   scrollRef,
+  compareAnchor,
+  onCompareTap,
 }: {
   filtered: PlayerEntry[]
   draftedNames: Set<string>
@@ -95,6 +101,8 @@ function PlayerListVirtualized({
   onNominateRequest?: (player: PlayerEntry) => void
   onPlayerSelect: (player: PlayerEntry) => void
   scrollRef: React.RefObject<HTMLDivElement | null>
+  compareAnchor: PlayerEntry | null
+  onCompareTap: (player: PlayerEntry) => void
 }) {
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -145,6 +153,26 @@ function PlayerListVirtualized({
               poolType={p.poolType}
               testId={`draft-player-card-${virtualRow.index}`}
               onSelect={() => onPlayerSelect(p)}
+              compareAction={
+                <button
+                  type="button"
+                  onClick={() => onCompareTap(p)}
+                  data-testid={`draft-compare-player-${virtualRow.index}`}
+                  className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 inline-flex items-center justify-center rounded-lg border px-2 touch-manipulation ${
+                    compareAnchor?.name === p.name
+                      ? 'border-amber-400/55 bg-amber-500/15 text-amber-100'
+                      : 'border-white/15 bg-black/20 text-white/70 hover:bg-white/10'
+                  }`}
+                  aria-label={
+                    compareAnchor?.name === p.name
+                      ? 'Clear compare selection'
+                      : 'Select player for head-to-head compare'
+                  }
+                  title="Compare: pick a second player"
+                >
+                  <GitCompare className="h-4 w-4" />
+                </button>
+              }
               primaryAction={
                 canNominate && onNominateRequest ? (
                   <button
@@ -207,7 +235,11 @@ function PlayerPanelInner({
   currentRound,
   formatType,
   selectedPlayerTarget = null,
+  leagueId,
 }: PlayerPanelProps) {
+  const { t } = useLanguage()
+  const compareUi = usePlayerComparisonUIOptional()
+  const [compareAnchor, setCompareAnchor] = useState<PlayerEntry | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [positionFilter, setPositionFilter] = useState('All')
   const [teamFilter, setTeamFilter] = useState('All')
@@ -298,6 +330,39 @@ function PlayerPanelInner({
     setSelectedPlayer(match)
     setSearchQuery(match.name)
   }, [selectedPlayerTarget?.name, selectedPlayerTarget?.position, players])
+
+  const onCompareTap = useCallback(
+    (p: PlayerEntry) => {
+      if (!compareAnchor) {
+        setCompareAnchor(p)
+        return
+      }
+      if (compareAnchor.name === p.name) {
+        setCompareAnchor(null)
+        return
+      }
+      const payload = {
+        playerA: compareAnchor.name,
+        playerB: p.name,
+        sport,
+        leagueId: leagueId ?? null,
+        source: 'draft' as const,
+      }
+      if (compareUi) {
+        compareUi.openComparison(payload)
+      } else if (typeof window !== 'undefined') {
+        const q = new URLSearchParams({
+          playerA: payload.playerA,
+          playerB: payload.playerB,
+          sport: payload.sport,
+        })
+        if (leagueId) q.set('leagueId', leagueId)
+        window.location.href = `/player-compare?${q.toString()}`
+      }
+      setCompareAnchor(null)
+    },
+    [compareAnchor, compareUi, leagueId, sport]
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -461,6 +526,24 @@ function PlayerPanelInner({
           Clear filters
         </button>
       </div>
+      {compareAnchor && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-400/25 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-100"
+          data-testid="draft-compare-anchor-hint"
+        >
+          <span>
+            Compare: <span className="font-semibold text-white">{compareAnchor.name}</span> — tap another player, or tap
+            again to cancel.
+          </span>
+          <button
+            type="button"
+            onClick={() => setCompareAnchor(null)}
+            className="shrink-0 rounded border border-amber-400/35 bg-black/20 px-2 py-1 text-[10px] text-amber-50 hover:bg-black/35"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
       {selectedPlayer && (
         <div className="border-b border-white/8 bg-cyan-500/8 px-2.5 py-2 text-[11px]" data-testid="draft-selected-player-panel">
           <div className="flex items-center justify-between gap-2">
@@ -499,11 +582,11 @@ function PlayerPanelInner({
       )}
       <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain p-2.5">
         {loading ? (
-          <p className="py-4 text-center text-xs text-white/50">{DRAFT_ROOM_MESSAGES.playerPoolLoading}</p>
+          <p className="py-4 text-center text-xs text-white/50">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
         ) : showRosterView ? (
           <ul className="space-y-1">
             {currentRoster.length === 0 ? (
-              <li className="text-[10px] text-white/50">No picks yet.</li>
+              <li className="text-[10px] text-white/50">{t('draftRoom.playerPanel.noPicksYet')}</li>
             ) : (
               currentRoster.map((p, i) => (
                 <li
@@ -528,6 +611,8 @@ function PlayerPanelInner({
             onNominateRequest={(player) => setPendingPick({ mode: 'nominate', player })}
             onPlayerSelect={setSelectedPlayer}
             scrollRef={scrollRef}
+            compareAnchor={compareAnchor}
+            onCompareTap={onCompareTap}
           />
         )}
       </div>

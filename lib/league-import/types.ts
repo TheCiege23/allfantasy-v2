@@ -135,6 +135,11 @@ export type ImportCoverageKey = keyof ImportCoverage
 export interface NormalizedImportResult {
   source: SourceTracking
   league: NormalizedLeagueSettings
+  /**
+   * When set, the importing user's team in this league (matches `NormalizedRoster.source_team_id`).
+   * Used to populate `League.import_*` rank fields for non-Sleeper providers.
+   */
+  viewer_source_team_id?: string | null
   rosters: NormalizedRoster[]
   scoring: NormalizedScoring | null
   schedule: NormalizedMatchup[]

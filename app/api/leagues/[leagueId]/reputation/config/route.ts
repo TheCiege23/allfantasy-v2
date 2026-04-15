@@ -17,8 +17,8 @@ export async function GET(
     const { leagueId } = await ctx.params
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
     const url = new URL(req.url)
-    const sport = url.searchParams.get('sport') ?? undefined
-    const seasonRaw = url.searchParams.get('season')
+    const sport = url.searchParams?.get('sport') ?? undefined
+    const seasonRaw = url.searchParams?.get('season')
     const seasonParsed = seasonRaw != null ? parseInt(seasonRaw, 10) : NaN
     const season =
       Number.isFinite(seasonParsed) && !Number.isNaN(seasonParsed) ? seasonParsed : undefined

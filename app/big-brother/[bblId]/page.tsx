@@ -8,7 +8,8 @@ import { BBChimmyCard } from '@/app/big-brother/components/BBChimmyCard'
  * Big Brother dedicated @Chimmy surface (bblId = main app league id).
  */
 export default function BigBrotherChimmyPage() {
-  const { bblId } = useParams<{ bblId: string }>()
+  const params = useParams<{ bblId: string }>() ?? ({} as { bblId: string })
+  const bblId = params?.bblId
   if (!bblId) return null
 
   return (

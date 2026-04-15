@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const managerId = session.user.id
 
     const url = new URL(req.url)
-    const includeHistory = url.searchParams.get("history") === "1"
+    const includeHistory = url.searchParams?.get("history") === "1"
 
     const [inventory, history] = await Promise.all([
       getInventory(managerId),
@@ -32,3 +32,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

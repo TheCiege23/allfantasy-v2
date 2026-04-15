@@ -141,6 +141,29 @@ export async function GET(
   const eliminatedCount = eliminatedRosterIds.length
   const remainingCount = totalRosterCount - eliminatedCount
 
+  // Build finalists list for JuryCenter when finale is reached
+  const finaleSize = config.finaleFormat === 'final_3' ? 3 : 2
+  let finalists: Array<{ rosterId: string; stats?: { hohWins?: number; vetoWins?: number; timesNominated?: number } }> = []
+  if (remainingCount > 0 && remainingCount <= finaleSize) {
+    const activeRosters = await prisma.roster.findMany({
+      where: { leagueId, id: { notIn: eliminatedRosterIds } },
+      select: { id: true },
+    })
+    // Compute game stats for each finalist from cycle history
+    const allCycles = await prisma.bigBrotherCycle.findMany({
+      where: { leagueId },
+      select: { hohRosterId: true, vetoWinnerRosterId: true, nominee1RosterId: true, nominee2RosterId: true, replacementNomineeRosterId: true },
+    })
+    finalists = activeRosters.map((r) => {
+      const hohWins = allCycles.filter((c) => c.hohRosterId === r.id).length
+      const vetoWins = allCycles.filter((c) => c.vetoWinnerRosterId === r.id).length
+      const timesNominated = allCycles.filter((c) =>
+        c.nominee1RosterId === r.id || c.nominee2RosterId === r.id || c.replacementNomineeRosterId === r.id
+      ).length
+      return { rosterId: r.id, stats: { hohWins, vetoWins, timesNominated } }
+    })
+  }
+
   const sportCalendar = await getBigBrotherSportCalendarContext(config.sport)
 
   return NextResponse.json({
@@ -169,6 +192,7 @@ export async function GET(
         }
       : null,
     jury,
+    finalists,
     ballot,
     myRosterId,
     myStatus,

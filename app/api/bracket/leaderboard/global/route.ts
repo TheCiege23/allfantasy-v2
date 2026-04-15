@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic"
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const tournamentId = searchParams.get("tournamentId")
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
-    const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get("limit") || "50", 10)))
-    const aroundEntryId = searchParams.get("aroundEntryId") || null
+    const tournamentId = searchParams?.get("tournamentId")
+    const page = Math.max(1, parseInt(searchParams?.get("page") || "1", 10))
+    const pageSize = Math.min(100, Math.max(10, parseInt(searchParams?.get("limit") || "50", 10)))
+    const aroundEntryId = searchParams?.get("aroundEntryId") || null
 
     if (!tournamentId) {
       return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
@@ -131,4 +131,5 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
 

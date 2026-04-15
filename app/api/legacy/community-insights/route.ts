@@ -13,7 +13,7 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/community-insights", to
   }
 
   const { searchParams } = new URL(request.url)
-  const summarize = searchParams.get('summarize') === 'true'
+  const summarize = searchParams?.get('summarize') === 'true'
 
   const sourcesUsed: string[] = []
   const missingSources: string[] = []
@@ -148,3 +148,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/community-insights", to
     }, { status: 500 })
   }
 })
+

@@ -1,5 +1,7 @@
 'use client'
 
+import React from 'react'
+
 import type { MentionSuggestion } from '@/lib/chat-core/useMentionAutocomplete'
 
 type Props = {

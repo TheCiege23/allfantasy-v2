@@ -19,10 +19,10 @@ export async function GET(request: NextRequest) {
     const viewerTier = await resolveUserCareerTier(prisma as any, session?.user?.id, 1)
 
     const { searchParams } = new URL(request.url)
-    const tournamentId = searchParams.get("tournamentId")
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
-    const limit = Math.min(50, Math.max(5, parseInt(searchParams.get("limit") || "20", 10)))
-    const scoringMode = searchParams.get("scoringMode")
+    const tournamentId = searchParams?.get("tournamentId")
+    const page = Math.max(1, parseInt(searchParams?.get("page") || "1", 10))
+    const limit = Math.min(50, Math.max(5, parseInt(searchParams?.get("limit") || "20", 10)))
+    const scoringMode = searchParams?.get("scoringMode")
 
     if (!tournamentId) {
       return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
@@ -100,3 +100,4 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+

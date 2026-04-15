@@ -11,25 +11,26 @@ type SessionWithUser = { user?: { id?: string } } | null
 /** GET: list managers/rosters. DELETE: remove manager. PATCH: assign user to roster (orphan adoption). */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { leagueId: string } }
+  { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const session = (await getServerSession(authOptions as any)) as SessionWithUser
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { leagueId } = await params
 
   try {
-    await assertCommissioner(params.leagueId, userId)
+    await assertCommissioner(leagueId, userId)
   } catch {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const [teams, rosters] = await Promise.all([
     prisma.leagueTeam.findMany({
-      where: { leagueId: params.leagueId },
+      where: { leagueId },
       select: { id: true, externalId: true, ownerName: true, teamName: true, avatarUrl: true },
     }),
     prisma.roster.findMany({
-      where: { leagueId: params.leagueId },
+      where: { leagueId },
       select: { id: true, platformUserId: true },
     }),
   ])
@@ -64,23 +65,24 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { leagueId: string } }
+  { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const session = (await getServerSession(authOptions as any)) as SessionWithUser
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { leagueId } = await params
 
   try {
-    await assertCommissioner(params.leagueId, userId)
+    await assertCommissioner(leagueId, userId)
   } catch {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const rosterId = req.nextUrl.searchParams.get('rosterId') ?? (await req.json().catch(() => ({}))).rosterId
+  const rosterId = req.nextUrl.searchParams?.get('rosterId') ?? (await req.json().catch(() => ({}))).rosterId
   if (!rosterId) return NextResponse.json({ error: 'rosterId required' }, { status: 400 })
 
   const roster = await (prisma as any).roster.findFirst({
-    where: { id: rosterId, leagueId: params.leagueId },
+    where: { id: rosterId, leagueId },
     select: { id: true, platformUserId: true },
   })
   if (!roster) {
@@ -95,7 +97,7 @@ export async function DELETE(
   })
   await prisma.leagueTeam.updateMany({
     where: {
-      leagueId: params.leagueId,
+      leagueId,
       OR: [{ externalId: roster.id }, { externalId: roster.platformUserId }],
     },
     data: {

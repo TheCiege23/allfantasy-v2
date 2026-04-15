@@ -11,7 +11,7 @@ export function useChimmyPromptFromUrl(): string {
   const searchParams = useSearchParams()
   const initial = useRef<string | null>(null)
 
-  const promptParam = searchParams.get('prompt')
+  const promptParam = searchParams?.get('prompt') ?? null
   if (promptParam != null && initial.current === null) {
     try {
       initial.current = decodeURIComponent(promptParam).slice(0, 500)

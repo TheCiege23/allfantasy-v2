@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getFanCredBoundaryDisclosure } from "@/lib/legal/FanCredBoundaryDisclosure";
+import { getFanCredPublicUrl } from "@/lib/legal/fancredPublicUrl";
 
 type FanCredDisclosureVariant = "compact" | "detailed";
 
@@ -25,7 +26,7 @@ export function FanCredDisclosure({
   className?: string;
 }) {
   const disclosure = getFanCredBoundaryDisclosure();
-  const href = ctaHref || process.env.NEXT_PUBLIC_FANCRED_URL || "https://fancred.com";
+  const href = ctaHref || getFanCredPublicUrl();
 
   return (
     <section

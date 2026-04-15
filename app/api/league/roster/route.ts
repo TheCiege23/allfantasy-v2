@@ -5,8 +5,10 @@ import { prisma } from '@/lib/prisma'
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { getCachedSleeperUserId, setCachedSleeperUserId } from '@/lib/league/sleeper-user-cache'
+import { expandStarterSlots } from '@/lib/league/lineup-expand-template'
+import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 
-const SLEEPER = 'https://api.sleeper.app/v1'
+const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant, fetch calls use template literals
 const CACHE = { next: { revalidate: 300 } } as const
 
 type SleeperUser = {
@@ -35,6 +37,18 @@ type SleeperRoster = {
   }
 }
 
+function weekFromLeagueSettings(settings: unknown): number {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return 1
+  const o = settings as Record<string, unknown>
+  const w = o.currentWeek ?? o.current_week ?? o.week
+  if (typeof w === 'number' && Number.isFinite(w)) return Math.max(1, w)
+  if (typeof w === 'string') {
+    const n = parseInt(w, 10)
+    return Number.isFinite(n) ? Math.max(1, n) : 1
+  }
+  return 1
+}
+
 function teamNameFromMetadata(metadata: SleeperUser['metadata']): string | null {
   if (!metadata || typeof metadata !== 'object') return null
   const tn = (metadata as { team_name?: string }).team_name
@@ -52,8 +66,8 @@ export async function GET(req: NextRequest) {
 
   const sessionUserId = sessionUser.id
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
-  const requestedUserId = searchParams.get('userId')
+  const leagueId = searchParams?.get('leagueId')
+  const requestedUserId = searchParams?.get('userId')
 
   if (!leagueId) {
     return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
@@ -100,6 +114,7 @@ export async function GET(req: NextRequest) {
     let slotLimits: Record<'starters' | 'bench' | 'ir' | 'taxi' | 'devy', number> | null = null
     let starterAllowedPositions: string[] = []
     let rosterTemplateId: string | null = null
+    let starterSlots: ReturnType<typeof expandStarterSlots> = []
     try {
       const template = await getRosterTemplateForLeague(
         leagueSport as never,
@@ -107,6 +122,7 @@ export async function GET(req: NextRequest) {
         leagueId,
       )
       rosterTemplateId = template.templateId
+      starterSlots = expandStarterSlots(template)
       slotLimits = {
         starters: template.slots.reduce((sum, slot) => sum + (slot.starterCount ?? 0), 0),
         bench: template.slots.reduce((sum, slot) => sum + (slot.benchCount ?? 0), 0),
@@ -125,6 +141,14 @@ export async function GET(req: NextRequest) {
       // Template hydration failure should not block base roster rendering.
     }
 
+    const leagueWeek = weekFromLeagueSettings(league.settings)
+    const lock = evaluateLineupLock({
+      sport: leagueSport,
+      now: new Date(),
+      leagueWeek,
+      editingWeek: leagueWeek,
+    })
+
     return NextResponse.json({
       source: 'db' as const,
       rosterId: roster.id,
@@ -137,6 +161,12 @@ export async function GET(req: NextRequest) {
       slotLimits,
       starterAllowedPositions,
       rosterTemplateId,
+      leagueWeek,
+      maxWeek: 18,
+      starterSlots,
+      lineupLock: lock,
+      canEditLineup: !lock.locked,
+      lineupLockHelp: lock.reason,
     })
   }
 
@@ -258,6 +288,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const leagueWeekEarly = weekFromLeagueSettings(league.settings)
+  const lockEarly = evaluateLineupLock({
+    sport: String(league.sport ?? 'NFL'),
+    now: new Date(),
+    leagueWeek: leagueWeekEarly,
+    editingWeek: leagueWeekEarly,
+  })
+
   if (!matched) {
     return NextResponse.json({
       source: 'sleeper' as const,
@@ -266,8 +304,17 @@ export async function GET(req: NextRequest) {
       users,
       rosterPositions,
       allRosters: rosterList,
+      leagueWeek: leagueWeekEarly,
+      maxWeek: 18,
+      lineupLock: lockEarly,
+      canEditLineup: false,
+      lineupLockHelp:
+        'Lineups for Sleeper leagues are managed in the Sleeper app. This view is read-only in AllFantasy.',
     })
   }
+
+  const leagueWeek = leagueWeekEarly
+  const lock = lockEarly
 
   const s = matched.settings ?? {}
   const rosterPayload = {
@@ -294,5 +341,12 @@ export async function GET(req: NextRequest) {
     ownerId: String(matched.owner_id ?? sleeperOwnerId ?? ''),
     users,
     rosterPositions,
+    leagueWeek,
+    maxWeek: 18,
+    lineupLock: lock,
+    canEditLineup: false,
+    lineupLockHelp:
+      'Lineups for Sleeper leagues are managed in the Sleeper app. This view is read-only in AllFantasy.',
   })
 }
+

@@ -25,8 +25,8 @@ export async function GET(
   ])
   if (!leagueAsOwner && !rosterAsMember) return NextResponse.json({ error: "League not found" }, { status: 404 })
 
-  const type = req.nextUrl.searchParams.get("type") || "pending"
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || "50")))
+  const type = req.nextUrl.searchParams?.get("type") || "pending"
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || "50")))
 
   if (type === "history") {
     const { claims, transactions } = await getProcessedClaimsAndTransactions(leagueId, limit)

@@ -5,24 +5,38 @@ import {
   TokenSpendService,
   TokenSpendRuleNotFoundError,
 } from "@/lib/tokens/TokenSpendService"
+import {
+  buildDevAdminTokenSpendPreview,
+  isSubscriptionEntitlementBypassUserId,
+} from "@/lib/dev-admin/access"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const url = new URL(req.url)
-    const ruleCode = String(url.searchParams.get("ruleCode") ?? "").trim()
+    const ruleCode = String(url.searchParams?.get("ruleCode") ?? "").trim()
     if (!ruleCode) {
       return NextResponse.json({ error: "Missing ruleCode" }, { status: 400 })
     }
 
+    if (isSubscriptionEntitlementBypassUserId(session.user.id, session.user.email)) {
+      const preview = buildDevAdminTokenSpendPreview(ruleCode)
+      return NextResponse.json({
+        preview,
+        message: `This action costs ${preview.tokenCost} token${preview.tokenCost === 1 ? "" : "s"}.`,
+      })
+    }
+
     const service = new TokenSpendService()
-    const preview = await service.previewSpend(session.user.id, ruleCode)
+    const preview = await service.previewSpend(session.user.id, ruleCode, session.user.email)
     return NextResponse.json({
       preview,
       message: preview.canSpend
@@ -37,3 +51,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to preview token spend" }, { status: 500 })
   }
 }
+

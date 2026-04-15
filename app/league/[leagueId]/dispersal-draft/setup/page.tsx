@@ -71,7 +71,7 @@ function SortableParticipant({
 }
 
 export default function DispersalDraftSetupPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const router = useRouter()
   const leagueId = params.leagueId
 

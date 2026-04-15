@@ -48,6 +48,7 @@ export interface BigBrotherSummary {
     eliminatedRosterIds: string[]
   } | null
   jury: { rosterId: string; evictedWeek: number }[]
+  finalists: { rosterId: string; stats?: { hohWins?: number; vetoWins?: number; timesNominated?: number } }[]
   ballot: { canVote: boolean; voteDeadlineAt: string | null; closed: boolean } | null
   myRosterId: string | null
   myStatus: BigBrotherUserStatus | null

@@ -222,6 +222,15 @@ function runPrismaWithInput(prismaArgs, input) {
   });
 }
 
+function runExternal(commandName, commandArgs) {
+  return spawnSync(commandName, commandArgs, {
+    stdio: "pipe",
+    encoding: "utf8",
+    env: process.env,
+    shell: process.platform === "win32",
+  });
+}
+
 function writeOutput(result) {
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
@@ -450,6 +459,41 @@ while (resolvePass < maxRecoverableResolvePasses) {
   }
 
   result = runMigrateDeployWithRetries();
+}
+
+if (result.status === 0) {
+  const supplementalSqlPath = path.join(
+    process.cwd(),
+    "scripts",
+    "sql",
+    "platform-backend-indexes.sql"
+  );
+
+  if (fs.existsSync(supplementalSqlPath)) {
+    console.log("[db:migrate:deploy] Applying supplemental platform-backend indexes.");
+    const supplementalResult = runPrisma([
+      "db",
+      "execute",
+      "--file",
+      supplementalSqlPath,
+      "--schema",
+      "prisma/schema.prisma",
+    ]);
+    writeOutput(supplementalResult);
+    if (supplementalResult.status !== 0) {
+      process.exit(typeof supplementalResult.status === "number" ? supplementalResult.status : 1);
+    }
+
+    console.log("[db:migrate:deploy] Verifying supplemental platform-backend indexes.");
+    const verifyResult = runExternal("npx", [
+      "tsx",
+      "scripts/verify-platform-backend-indexes.ts",
+    ]);
+    writeOutput(verifyResult);
+    if (verifyResult.status !== 0) {
+      process.exit(typeof verifyResult.status === "number" ? verifyResult.status : 1);
+    }
+  }
 }
 
 if (typeof result.status === "number") {

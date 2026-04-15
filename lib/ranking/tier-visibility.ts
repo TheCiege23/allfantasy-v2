@@ -1,5 +1,7 @@
-import { TIERS, XP_PER_LEVEL, tierFromLevel } from "@/lib/ranking/config"
+import { RANK_LEVELS, getLevelFromXp } from "@/lib/rank/levels"
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
+
+const MAX_TIER = RANK_LEVELS.length
 
 export interface ResolvedCareerTierProfile {
   userId: string | null
@@ -12,8 +14,8 @@ export interface ResolvedCareerTierProfile {
 
 export function clampCareerTier(value: unknown, fallback = 1): number {
   const n = Number(value)
-  if (!Number.isFinite(n)) return Math.max(1, Math.floor(fallback))
-  return Math.max(1, Math.floor(n))
+  if (!Number.isFinite(n)) return Math.max(1, Math.min(MAX_TIER, Math.floor(fallback)))
+  return Math.max(1, Math.min(MAX_TIER, Math.floor(n)))
 }
 
 function readTierCandidate(raw: Record<string, unknown>): unknown {
@@ -43,19 +45,20 @@ export function isLeagueVisibleForCareerTier(userTier: number, leagueTier: numbe
 
 export function getCareerTierFromTotalXP(totalXP: number): number {
   const safeXP = Math.max(0, Math.floor(Number.isFinite(totalXP) ? totalXP : 0))
-  const level = Math.floor(safeXP / XP_PER_LEVEL)
-  return clampCareerTier(tierFromLevel(level).tier, 1)
+  const resolved = getLevelFromXp(safeXP)
+  return clampCareerTier(resolved.level, 1)
 }
 
 export function getCareerTierName(tier: number): string {
   const safeTier = clampCareerTier(tier, 1)
-  return TIERS.find((entry) => entry.tier === safeTier)?.name ?? TIERS[0]?.name ?? "Practice Squad"
+  const row = RANK_LEVELS.find((r) => r.level === safeTier)
+  return row?.name ?? RANK_LEVELS[0]?.name ?? "Undrafted"
 }
 
 export function getMinimumXPForCareerTier(tier: number): number {
   const safeTier = clampCareerTier(tier, 1)
-  const config = TIERS.find((entry) => entry.tier === safeTier) ?? TIERS[0]
-  return Math.max(0, Math.floor((config?.minLevel ?? 0) * XP_PER_LEVEL))
+  const row = RANK_LEVELS.find((r) => r.level === safeTier) ?? RANK_LEVELS[0]
+  return row?.minXp ?? 0
 }
 
 export async function ensureUserCareerTier(

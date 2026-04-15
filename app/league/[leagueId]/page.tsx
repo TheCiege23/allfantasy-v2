@@ -3,9 +3,12 @@ import { redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueRole } from '@/lib/league/permissions'
-import { getLeagueDrafts, getLeagueInfo, getLeagueUsers } from '@/lib/sleeper-client'
 import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-avatar'
 import { LeagueShell } from './LeagueShell'
+import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
+import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
+import type { LeagueDashboardView } from './league-dashboard-types'
+import { resolveTournamentDestinationFromLeagueSettings } from '@/lib/dashboard/league-list-destination'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,28 +33,90 @@ export default async function LeaguePage({
 
   const userId = session.user.id
 
-  const league = await prisma.league.findFirst({
-    where: { id: leagueId },
-    include: {
-      teams: { orderBy: { externalId: 'asc' } },
-      invites: {
-        where: { isActive: true },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
-    },
-  })
+  const defaultLeagueDashboardView: LeagueDashboardView = {
+    settingsRows: [],
+    standings: { mode: 'standard' },
+    scoring: null,
+  }
 
+  let league = await prisma.league
+    .findFirst({
+      where: { id: leagueId },
+      include: {
+        teams: { orderBy: { externalId: 'asc' } },
+        rosters: { select: { platformUserId: true, faabRemaining: true, waiverPriority: true } },
+        invites: {
+          where: { isActive: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    })
+    .catch((err) => {
+      console.error('[league page] league lookup failed', { leagueId, err })
+      return null
+    })
+
+  // My Leagues may use `SleeperLeague.id` when no unified `League` row exists yet — resolve to canonical League.
   if (!league) {
+    const sleeperOnly = await prisma.sleeperLeague
+      .findFirst({
+        where: { id: leagueId, userId },
+        select: { sleeperLeagueId: true },
+      })
+      .catch((err) => {
+        console.error('[league page] sleeperLeague lookup failed', { leagueId, err })
+        return null
+      })
+    if (sleeperOnly?.sleeperLeagueId) {
+      const unified = await prisma.league
+        .findFirst({
+          where: {
+            platform: 'sleeper',
+            platformLeagueId: sleeperOnly.sleeperLeagueId,
+            userId,
+          },
+          orderBy: { season: 'desc' },
+          select: { id: true },
+        })
+        .catch((err) => {
+          console.error('[league page] unified league resolve failed', { leagueId, err })
+          return null
+        })
+      if (unified?.id && unified.id !== leagueId) {
+        redirect(`/league/${unified.id}`)
+      }
+    }
     redirect('/dashboard')
   }
 
-  // Redirect specialty leagues to their dedicated app shells
-  if (league.survivorMode) {
-    redirect(`/survivor/${leagueId}`)
+  // Redirect tournament hub / feeder leagues to tournament home (same rules as My Leagues list links)
+  const leagueSettings = league.settings && typeof league.settings === 'object' ? league.settings as Record<string, unknown> : {}
+  const tournamentHref = resolveTournamentDestinationFromLeagueSettings(leagueSettings)
+  if (tournamentHref) {
+    redirect(tournamentHref)
   }
-  if (league.leagueVariant === 'zombie') {
-    redirect(`/zombie/${leagueId}`)
+
+  const sleeperCommissionerId =
+    league.platform === 'sleeper' && typeof leagueSettings.commissioner_id === 'string'
+      ? leagueSettings.commissioner_id
+      : null
+
+  let draftDateIso: string | null = null
+  const draftDateCandidate =
+    leagueSettings.draftDate ??
+    leagueSettings.draft_date ??
+    leagueSettings.draft_at ??
+    leagueSettings.draft_start_time ??
+    null
+  if (typeof draftDateCandidate === 'string' && draftDateCandidate.trim()) {
+    const parsed = Date.parse(draftDateCandidate)
+    if (Number.isFinite(parsed)) {
+      draftDateIso = new Date(parsed).toISOString()
+    }
+  } else if (typeof draftDateCandidate === 'number' && Number.isFinite(draftDateCandidate)) {
+    const ms = draftDateCandidate > 9_999_999_999 ? draftDateCandidate : draftDateCandidate * 1000
+    draftDateIso = new Date(ms).toISOString()
   }
 
   const isOwner = league.userId === userId
@@ -60,69 +125,71 @@ export default async function LeaguePage({
     redirect('/dashboard')
   }
 
-  const role = await getLeagueRole(leagueId, userId)
+  const seasonYear = league.season ?? new Date().getFullYear()
+
+  const [role, allLeagues, dbUser, userProfile, leagueSeasonRow, leagueDashboard] = await Promise.all([
+    getLeagueRole(leagueId, userId).catch((err) => {
+      console.error('[league page] getLeagueRole failed', { leagueId, userId, err })
+      return isOwner ? 'commissioner' : 'member'
+    }),
+    prisma.league
+      .findMany({
+        where: {
+          OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      })
+      .catch((err) => {
+        console.error('[league page] allLeagues query failed', { userId, err })
+        return []
+      }),
+    prisma.appUser
+      .findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true },
+      })
+      .catch((err) => {
+        console.error('[league page] appUser query failed', { userId, err })
+        return null
+      }),
+    prisma.userProfile
+      .findUnique({
+        where: { userId },
+        select: { sleeperUserId: true, discordUserId: true },
+      })
+      .catch((err) => {
+        console.error('[league page] userProfile query failed', { userId, err })
+        return null
+      }),
+    prisma.leagueSeason
+      .findUnique({
+        where: { leagueId_season: { leagueId, season: seasonYear } },
+        select: { championTeamId: true, teamRecords: true, status: true },
+      })
+      .catch((err) => {
+        console.error('[league page] leagueSeason query failed', { leagueId, seasonYear, err })
+        return null
+      }),
+    buildLeagueDashboardView(league).catch((err) => {
+      console.error('[league page] buildLeagueDashboardView failed', { leagueId, err })
+      return defaultLeagueDashboardView
+    }),
+  ])
+
   const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
   const isHeadCommissioner = role === 'commissioner'
-
-  const allLeagues = await prisma.league.findMany({
-    where: {
-      OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
-    },
-    orderBy: { updatedAt: 'desc' },
-    take: 50,
-  })
-
-  const dbUser = await prisma.appUser.findUnique({
-    where: { id: userId },
-    select: { avatarUrl: true },
-  })
   const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
-
-  const userProfile = await prisma.userProfile.findUnique({
-    where: { userId },
-    select: { sleeperUserId: true, discordUserId: true },
-  })
   const currentSleeperUserId = userProfile?.sleeperUserId ?? null
+  const sleeperUsersByPlatformId: Record<string, { display_name: string; avatar: string | null }> = {}
 
-  let sleeperCommissionerId: string | null = null
-  let sleeperUsersByPlatformId: Record<string, { display_name: string; avatar: string | null }> = {}
-
-  let draftDateIso: string | null = null
-  if (league.platform === 'sleeper' && league.platformLeagueId) {
-    type SleeperDraftSummary = { start_time?: number | null }
-    const [drafts, sleeperLeague, sleeperUsers] = await Promise.all([
-      getLeagueDrafts(league.platformLeagueId).catch(() => []) as Promise<SleeperDraftSummary[]>,
-      getLeagueInfo(league.platformLeagueId),
-      getLeagueUsers(league.platformLeagueId),
-    ])
-    const draft = drafts[0] ?? null
-    if (draft?.start_time != null && Number.isFinite(draft.start_time)) {
-      draftDateIso = new Date(draft.start_time).toISOString()
-    }
-    const comm = sleeperLeague as { commissioner_id?: string } | null
-    if (comm?.commissioner_id) {
-      sleeperCommissionerId = String(comm.commissioner_id)
-    }
-    for (const u of sleeperUsers) {
-      if (u?.user_id) {
-        sleeperUsersByPlatformId[u.user_id] = {
-          display_name: u.display_name || u.username || 'Manager',
-          avatar: u.avatar ?? null,
-        }
+  const seasonSnapshot: LeagueSeasonSnapshot | null = leagueSeasonRow
+    ? {
+        championTeamId: leagueSeasonRow.championTeamId,
+        teamRecords: leagueSeasonRow.teamRecords,
+        status: leagueSeasonRow.status,
       }
-    }
-  }
-
-  const activeDraft =
-    (await prisma.dispersalDraft
-      .findFirst({
-        where: {
-          leagueId,
-          status: { in: ['pending', 'configuring', 'in_progress'] },
-        },
-        select: { id: true, status: true },
-      })
-      .catch(() => null)) ?? null
+    : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -142,7 +209,9 @@ export default async function LeaguePage({
         currentSleeperUserId={currentSleeperUserId}
         discordConnected={Boolean(userProfile?.discordUserId)}
         zombieChimmyPrefill={zombieChimmyPrefill}
-        dispersalDraftInProgress={activeDraft ? { draftId: activeDraft.id, status: activeDraft.status } : null}
+        dispersalDraftInProgress={null}
+        seasonSnapshot={seasonSnapshot}
+        leagueDashboard={leagueDashboard}
       />
     </div>
   )

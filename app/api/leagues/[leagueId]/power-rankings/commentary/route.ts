@@ -21,8 +21,10 @@ async function buildCommentary(leagueId: string, week: number | undefined) {
 }
 
 async function resolveSessionUserId() {
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null;
-  return session?.user?.id ?? null;
+  const session = (await getServerSession(authOptions as never)) as {
+    user?: { id?: string; email?: string | null };
+  } | null;
+  return { userId: session?.user?.id ?? null, userEmail: session?.user?.email ?? null };
 }
 
 export async function GET(
@@ -30,7 +32,7 @@ export async function GET(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const { leagueId } = await params;
-  const weekParam = req.nextUrl.searchParams.get('week');
+  const weekParam = req.nextUrl.searchParams?.get('week');
   const week = weekParam ? parseInt(weekParam, 10) : undefined;
 
   if (!leagueId) {
@@ -38,7 +40,7 @@ export async function GET(
   }
 
   try {
-    const userId = await resolveSessionUserId();
+    const { userId, userEmail } = await resolveSessionUserId();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -50,6 +52,7 @@ export async function GET(
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail,
       featureId: 'league_rankings',
     });
     if (!gate.ok) {
@@ -70,7 +73,7 @@ export async function POST(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   const { leagueId } = await params;
-  const weekParam = req.nextUrl.searchParams.get('week');
+  const weekParam = req.nextUrl.searchParams?.get('week');
   const week = weekParam ? parseInt(weekParam, 10) : undefined;
 
   if (!leagueId) {
@@ -78,7 +81,7 @@ export async function POST(
   }
 
   try {
-    const userId = await resolveSessionUserId();
+    const { userId, userEmail } = await resolveSessionUserId();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -90,6 +93,7 @@ export async function POST(
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail,
       featureId: 'league_rankings',
       allowTokenFallback: true,
       confirmTokenSpend: true,

@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getSleeperPlayersDict, sleeperAvatarUrl } from '@/lib/sleeper/players-cache'
-
-async function fetchSleeper(url: string): Promise<any> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-  if (!res.ok) throw new Error(`Sleeper API error: ${res.status} ${res.statusText}`)
-  return res.json()
-}
+import {
+  getLeagueDrafts,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueUsers,
+  getTradedDraftPicks,
+} from '@/lib/sleeper-client'
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,11 +25,15 @@ export async function POST(req: NextRequest) {
     }
 
     const [leagueData, rostersData, usersData, tradedPicksData] = await Promise.all([
-      fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}`),
-      fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}/rosters`),
-      fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}/users`),
-      fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}/traded_picks`),
+      getLeagueInfo(league_id),
+      getLeagueRosters(league_id),
+      getLeagueUsers(league_id),
+      getTradedDraftPicks(league_id),
     ])
+
+    if (!leagueData) {
+      return NextResponse.json({ error: 'League not found or inaccessible' }, { status: 404 })
+    }
 
     const allPlayerIds = new Set<string>()
     for (const roster of rostersData) {
@@ -57,7 +62,7 @@ export async function POST(req: NextRequest) {
     let draftOrder: number[] = []
     let draftMeta: { draftId: string | null; type: string | null; status: string | null; startTime: number | null; pickTimerSec: number | null } = { draftId: null, type: null, status: null, startTime: null, pickTimerSec: null }
     try {
-      const draftsData = await fetchSleeper(`https://api.sleeper.app/v1/league/${league_id}/drafts`)
+      const draftsData = await getLeagueDrafts(league_id)
       if (Array.isArray(draftsData) && draftsData.length > 0) {
         const latestDraft = draftsData[0]
         draftMeta = {

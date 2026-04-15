@@ -1,3 +1,29 @@
+// TEST HELPERS FOR THREADED CHAT
+/**
+ * Create a message for testing (wrapper for createLeagueChatMessage)
+ */
+export async function createMessage({ threadId, body, senderId, parentMessageId, ...options }: { threadId: string, body: string, senderId: string, parentMessageId?: string, isPrivate?: boolean, visibleToUserId?: string | null, messageSubtype?: string | null, mentionedUserIds?: string[], globalBroadcastId?: string | null, imageUrl?: string | null, metadata?: Record<string, unknown>, type?: string, source?: string | null, discordMessageId?: string | null, sourceDiscord?: boolean }) {
+  // threadId format: league:leagueId
+  const leagueId = threadId.replace(/^league:/, "")
+  return createLeagueChatMessage(leagueId, senderId, body, { parentMessageId, ...options })
+}
+
+/**
+ * Get all messages in a thread (wrapper for getLeagueChatMessages)
+ */
+export async function getMessagesByThread(threadId: string, requestingUserId?: string, source?: string | null) {
+  const leagueId = threadId.replace(/^league:/, "")
+  return getLeagueChatMessages(leagueId, { limit: 100, requestingUserId, source })
+}
+
+/**
+ * Get replies for a message (filter by parentMessageId)
+ */
+export async function getRepliesForMessage(parentMessageId: string) {
+  // Find all messages in all leagues (for test, just get a lot)
+  const all = await prisma.leagueChatMessage.findMany({ take: 200 })
+  return all.filter((m) => m.parentMessageId === parentMessageId)
+}
 /**
  * League chat messages for main app League (LeagueChatMessage).
  * Used by shared chat when threadId = league:leagueId and league is main League (not BracketLeague).
@@ -102,6 +128,13 @@ export async function getLeagueChatMessages(
     }
     const meta = Object.keys(withPresence).length > 0 ? withPresence : undefined
     return meta ? { ...base, metadata: meta } : base
+  }).map((message) => {
+    const metadata =
+      'metadata' in message
+        ? (message.metadata as Record<string, unknown> | undefined)
+        : undefined
+    const deleted = Boolean(metadata?.deletedAt)
+    return deleted ? { ...message, body: '[message deleted]' } : message
   })
 }
 
@@ -121,6 +154,7 @@ export async function createLeagueChatMessage(
     messageSubtype?: string | null
     mentionedUserIds?: string[]
     globalBroadcastId?: string | null
+    parentMessageId?: string | null
   }
 ): Promise<PlatformChatMessage | null> {
   const source =
@@ -145,6 +179,7 @@ export async function createLeagueChatMessage(
       messageSubtype: options.messageSubtype ?? null,
       mentionedUserIds: options.mentionedUserIds ?? [],
       globalBroadcastId: options.globalBroadcastId ?? null,
+      parentMessageId: options.parentMessageId ?? null,
     },
     include: includeUser,
   })
@@ -165,6 +200,7 @@ export async function createLeagueChatMessage(
   const out: PlatformChatMessage = {
     id: created.id,
     threadId: `league:${leagueId}`,
+    parentMessageId: created.parentMessageId ?? null,
     senderUserId: withUser.user?.id ?? created.userId,
     senderName: inboundName || withUser.user?.displayName || withUser.user?.email || 'User',
     senderUsername: withUser.user?.username ?? null,

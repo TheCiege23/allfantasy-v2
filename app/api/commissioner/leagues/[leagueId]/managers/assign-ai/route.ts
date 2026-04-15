@@ -6,7 +6,7 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { updateDraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
 
-type SessionWithUser = { user?: { id?: string } } | null
+type SessionWithUser = { user?: { id?: string; email?: string | null } } | null
 
 /**
  * POST: assign AI manager to a roster by orphaning roster ownership
@@ -29,6 +29,7 @@ export async function POST(
 
   const gate = await requireFeatureEntitlement({
     userId,
+    userEmail: session?.user?.email,
     featureId: 'ai_team_managers',
   })
   if (!gate.ok) return gate.response

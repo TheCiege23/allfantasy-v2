@@ -184,7 +184,7 @@ async function processPowerRankingsJob(
     case "refresh-rankings": {
       await job.updateProgress(10);
 
-      const sleeperLeagueUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(
+      const sleeperLeagueUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent( // db-first-exception: background ranking refresh worker pending DB snapshot source
         leagueId
       )}`;
       const sleeperRostersUrl = `${sleeperLeagueUrl}/rosters`;

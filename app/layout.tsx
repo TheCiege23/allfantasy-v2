@@ -1,20 +1,25 @@
 import type { Metadata } from 'next';
+import type { Session } from 'next-auth';
 import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import { cookies } from 'next/headers';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { GlobalModeToggle } from '@/components/theme/GlobalModeToggle';
 import SessionAppProvider from '@/components/providers/SessionAppProvider';
 import { BackToTop } from '@/components/BackToTop';
+import { SpotifyMiniPlayer } from '@/components/spotify/SpotifyMiniPlayer';
 import { LanguageProviderClient } from '@/components/i18n/LanguageProviderClient';
 import { DefaultJsonLd } from '@/components/seo/JsonLd';
 import SyncProfilePreferences from '@/components/auth/SyncProfilePreferences';
 import SessionIdleMonitor from '@/components/auth/SessionIdleMonitor';
 import { ReferralTracker } from '@/components/referral/ReferralTracker';
 import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryClient';
+import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
 import { ErrorTrackingInit } from '@/components/error-handling/ErrorTrackingInit';
 import WebVitalsTracker from '@/components/performance/WebVitalsTracker';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
+import { shouldRegisterServiceWorker } from '@/lib/pwa/shouldRegisterServiceWorker';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
 import {
@@ -36,6 +41,11 @@ export const viewport = {
   viewportFit: 'cover' as const,
 };
 
+const useExperimentalManifest = process.env.NEXT_PUBLIC_PWA_EXPERIMENTAL_MANIFEST === '1';
+const metadataManifestPath = useExperimentalManifest
+  ? '/manifest.experimental.webmanifest'
+  : '/manifest.webmanifest';
+
 export const metadata: Metadata = {
   ...buildSeoMeta({
     title: 'AllFantasy – AI Powered Fantasy Sports Tools',
@@ -56,7 +66,7 @@ export const metadata: Metadata = {
     ],
     apple: '/af-crest.png',
   },
-  manifest: '/manifest.webmanifest',
+  manifest: metadataManifestPath,
   robots: {
     index: true,
     follow: true,
@@ -75,6 +85,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const htmlLang = cookieLang === 'es' ? 'es' : 'en';
   const cookieMode = cookieStore.get('af_mode')?.value;
   const htmlMode = resolveEffectiveDataMode(cookieMode);
+  let initialSession: Session | null = null;
+
+  if (process.env.PLAYWRIGHT_E2E === '1') {
+    try {
+      const [{ getServerSession }, { authOptions }] = await Promise.all([
+        import('next-auth'),
+        import('@/lib/auth'),
+      ]);
+      initialSession = (await getServerSession(authOptions as never)) as Session | null;
+    } catch (error) {
+      console.warn('[layout] failed to preload session for Playwright E2E:', error);
+    }
+  }
+
   const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
   const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
   const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
@@ -94,6 +118,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Script id="af-init-lang" strategy="beforeInteractive">
           {buildLanguageInitScript(htmlLang)}
         </Script>
+
+        {shouldRegisterServiceWorker() && (
+          <Script id="af-register-sw" strategy="beforeInteractive">
+            {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
+          </Script>
+        )}
 
         {gaMeasurementId && (
           <>
@@ -204,7 +234,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           crossOrigin="anonymous"
         />
 
-        <SessionAppProvider>
+        <SessionAppProvider session={initialSession}>
           <ThemeProvider>
             <LanguageProviderClient>
               <ErrorTrackingInit />
@@ -214,10 +244,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <SyncProfilePreferences />
               <SessionIdleMonitor />
               <ErrorBoundaryClient>
-                {children}
+                <PlayerComparisonUIProvider>{children}</PlayerComparisonUIProvider>
               </ErrorBoundaryClient>
+              <GlobalModeToggle />
               <Toaster position="top-center" richColors closeButton />
               <BackToTop />
+              <SpotifyMiniPlayer />
             </LanguageProviderClient>
           </ThemeProvider>
         </SessionAppProvider>

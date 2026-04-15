@@ -19,7 +19,7 @@ export default function TournamentStandingsHubPage() {
     if (ctx.rounds.some((r) => r.roundNumber === c)) return c
     return ctx.rounds[0]?.roundNumber ?? 1
   })
-  const [tab, setTab] = useState<Tab>('league')
+  const [tab, setTab] = useState<Tab>(() => (ctx.isCommissioner ? 'global' : 'league'))
   const [weeklyWeek, setWeeklyWeek] = useState<number | null>(null)
   const [q, setQ] = useState('')
 
@@ -93,14 +93,19 @@ export default function TournamentStandingsHubPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'league', label: 'My League' },
     { id: 'conference', label: 'Conference' },
-    { id: 'global', label: 'Global' },
+    { id: 'global', label: 'Overall' },
     { id: 'weekly', label: 'Weekly' },
   ]
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <h1 className="text-[18px] font-bold text-white">Standings</h1>
+        <div>
+          <h1 className="text-[18px] font-bold text-white">Standings</h1>
+          <p className="mt-1 text-[11px] text-[var(--tournament-text-dim)]">
+            Overall board aggregates all feeder leagues and refreshes as weekly scores post.
+          </p>
+        </div>
         {roundsSorted.length > 0 ? (
           <label className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--tournament-text-mid)]">
             <span className="font-semibold text-white/80">Tournament round</span>

@@ -16,17 +16,19 @@ import type { TrendDirection } from '@/lib/player-trend'
 import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 import { SUPPORTED_SPORTS, isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const playerId = searchParams.get('playerId')
-    const sportParam = searchParams.get('sport')
+    const playerId = searchParams?.get('playerId')
+    const sportParam = searchParams?.get('sport')
     const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-    const list = searchParams.get('list') ?? 'hottest'
-    const direction = searchParams.get('direction') as TrendDirection | null
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10) || 50))
-    const minScore = searchParams.get('minScore') != null ? parseFloat(searchParams.get('minScore')!) : undefined
-    const timeframeFilter = normalizeTimeframe(searchParams.get('timeframe'))
+    const list = searchParams?.get('list') ?? 'hottest'
+    const direction = searchParams?.get('direction') as TrendDirection | null
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams?.get('limit') ?? '50', 10) || 50))
+    const minScore = searchParams?.get('minScore') != null ? parseFloat(searchParams?.get('minScore')!) : undefined
+    const timeframeFilter = normalizeTimeframe(searchParams?.get('timeframe'))
 
     if (sportParam && !isSupportedSport(sportParam)) {
       return NextResponse.json(
@@ -95,3 +97,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch trend data' }, { status: 500 })
   }
 }
+

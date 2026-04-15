@@ -17,17 +17,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const action = req.nextUrl.searchParams.get('action') || 'live'
-    const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') || '300'), 500)
+    const action = req.nextUrl.searchParams?.get('action') || 'live'
+    const limit = Math.min(parseInt(req.nextUrl.searchParams?.get('limit') || '300'), 500)
 
     if (action === 'ffc') {
       const validFormats: FFCScoringFormat[] = ['standard', 'ppr', 'half-ppr', '2qb', 'dynasty', 'rookie']
-      const formatParam = req.nextUrl.searchParams.get('format') || 'standard'
+      const formatParam = req.nextUrl.searchParams?.get('format') || 'standard'
       if (!validFormats.includes(formatParam as FFCScoringFormat)) {
         return NextResponse.json({ error: `Invalid format. Must be one of: ${validFormats.join(', ')}` }, { status: 400 })
       }
       const format = formatParam as FFCScoringFormat
-      const teams = parseInt(req.nextUrl.searchParams.get('teams') || '12')
+      const teams = parseInt(req.nextUrl.searchParams?.get('teams') || '12')
       const { players, meta } = await fetchFFCADP(format, teams)
       return NextResponse.json({
         entries: players.slice(0, limit),
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (action === 'ffc-all') {
-      const teams = parseInt(req.nextUrl.searchParams.get('teams') || '12')
+      const teams = parseInt(req.nextUrl.searchParams?.get('teams') || '12')
       const allFormats = await fetchAllFFCFormats(teams)
       const summary: Record<string, { count: number; meta: any }> = {}
       for (const [format, data] of Object.entries(allFormats)) {
@@ -50,9 +50,9 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    const type = (req.nextUrl.searchParams.get('type') || 'redraft') as 'dynasty' | 'redraft'
-    const pool = req.nextUrl.searchParams.get('pool') || 'all'
-    const sport = normalizeToSupportedSport(req.nextUrl.searchParams.get('sport') || DEFAULT_SPORT)
+    const type = (req.nextUrl.searchParams?.get('type') || 'redraft') as 'dynasty' | 'redraft'
+    const pool = req.nextUrl.searchParams?.get('pool') || 'all'
+    const sport = normalizeToSupportedSport(req.nextUrl.searchParams?.get('sport') || DEFAULT_SPORT)
 
     if (sport !== 'NFL') {
       const players = await loadSportAwareDraftPlayerPool({ sport, limit })
@@ -215,3 +215,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err.message || 'Failed to fetch ADP' }, { status: 500 })
   }
 }
+

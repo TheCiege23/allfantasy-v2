@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const contestId = req.nextUrl.searchParams.get('contestId')?.trim()
-  const week = Number(req.nextUrl.searchParams.get('week'))
+  const contestId = req.nextUrl.searchParams?.get('contestId')?.trim()
+  const week = Number(req.nextUrl.searchParams?.get('week'))
   if (!contestId || !Number.isFinite(week)) {
     return NextResponse.json({
       ok: true,
@@ -45,3 +45,4 @@ export async function POST(req: NextRequest) {
   const winners = await resolveWeeklyWinners(body.contestId, body.week)
   return NextResponse.json({ winners })
 }
+

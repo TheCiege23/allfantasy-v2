@@ -684,16 +684,61 @@ export class DraftWorker {
 
     const rankings = await this.getADP(draftId, state.adpSource)
     const availableById = new Map(state.availablePlayers.map((player) => [player.playerId, player]))
-    const top = rankings.find((entry) => availableById.has(entry.playerId))
-    const fallback = top
-      ? availableById.get(top.playerId)
-      : state.availablePlayers[0]
+
+    // IDP-aware autopick: check if league has IDP and balance offense/defense needs
+    let fallback: typeof state.availablePlayers[0] | undefined
+    const context = await this.getContext(draftId)
+    const idpConfig = await prisma.idpLeagueConfig.findUnique({
+      where: { leagueId: context.leagueId },
+      select: { positionMode: true, rosterPreset: true, slotOverrides: true },
+    }).catch(() => null)
+
+    if (idpConfig) {
+      // Count how many IDP players this team already has
+      const teamPicks = state.picks.filter((p: { rosterId?: string }) => p.rosterId === teamId)
+      const idpPositionSet = new Set(['DE', 'DT', 'DL', 'LB', 'CB', 'S', 'DB', 'ILB', 'OLB', 'SS', 'FS'])
+      const idpPicked = teamPicks.filter((p: { position?: string }) => idpPositionSet.has((p.position ?? '').toUpperCase())).length
+      const offensePicked = teamPicks.length - idpPicked
+
+      // Estimate IDP starter needs (rough: beginner~6, standard~8, advanced~12)
+      const presetSlots: Record<string, number> = { beginner: 6, standard: 8, advanced: 12, custom: 8 }
+      const idpSlotsNeeded = presetSlots[idpConfig.rosterPreset ?? 'standard'] ?? 8
+      const offenseSlotsNeeded = 9 // standard NFL offense (QB, 2RB, 2WR, TE, FLEX, K, DEF)
+      const idpDeficit = Math.max(0, idpSlotsNeeded - idpPicked)
+      const offenseDeficit = Math.max(0, offenseSlotsNeeded - offensePicked)
+
+      // Prioritize whichever side has a larger deficit relative to need
+      const idpPriority = idpDeficit > 0 && (offenseDeficit === 0 || idpDeficit / idpSlotsNeeded > offenseDeficit / offenseSlotsNeeded)
+
+      if (idpPriority) {
+        // Find highest-ranked IDP player
+        const idpCandidate = rankings.find((entry) => {
+          const player = availableById.get(entry.playerId)
+          return player && idpPositionSet.has((player.position ?? '').toUpperCase())
+        })
+        if (idpCandidate) fallback = availableById.get(idpCandidate.playerId)
+      }
+
+      if (!fallback) {
+        // Find highest-ranked offensive player
+        const offCandidate = rankings.find((entry) => {
+          const player = availableById.get(entry.playerId)
+          return player && !idpPositionSet.has((player.position ?? '').toUpperCase())
+        })
+        if (offCandidate) fallback = availableById.get(offCandidate.playerId)
+      }
+    }
+
+    // Non-IDP fallback: pure BPA
+    if (!fallback) {
+      const top = rankings.find((entry) => availableById.has(entry.playerId))
+      fallback = top ? availableById.get(top.playerId) : state.availablePlayers[0]
+    }
 
     if (!fallback) {
       throw new Error('Auto-pick candidate unavailable')
     }
 
-    const context = await this.getContext(draftId)
     const result = await submitPick({
       leagueId: context.leagueId,
       playerName: fallback.name,

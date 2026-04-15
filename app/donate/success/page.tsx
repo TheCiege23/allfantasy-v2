@@ -7,7 +7,7 @@ import { useTokenBalance } from "@/hooks/useTokenBalance"
 
 function getMode(searchParams: URLSearchParams | null): "donate" | "lab" {
   if (!searchParams) return "donate"
-  return searchParams.get("mode") === "lab" ? "lab" : "donate"
+  return searchParams?.get("mode") === "lab" ? "lab" : "donate"
 }
 
 function DonateSuccessContent() {
@@ -75,3 +75,4 @@ export default function DonateSuccessPage() {
     </Suspense>
   )
 }
+

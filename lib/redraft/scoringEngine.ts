@@ -127,20 +127,26 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
   })
   if (!m || !m.homeRoster || !m.awayRosterId) return
 
-  if (await leagueUsesC2CEngine(m.leagueId)) {
+  const leagueId = m.leagueId
+  const week = m.week
+  const homeRosterId = m.homeRosterId
+  const awayRosterId = m.awayRosterId
+  const seasonRowId = m.seasonId
+
+  if (await leagueUsesC2CEngine(leagueId)) {
     await updateC2CMatchupScores(matchupId)
     return
   }
 
-  const week = m.week
-  const season = await prisma.redraftSeason.findFirst({ where: { id: m.seasonId } })
+  const season = await prisma.redraftSeason.findFirst({ where: { id: seasonRowId } })
   if (!season) return
+  const seasonYear = season.season
 
-  const useDevyEngine = await leagueUsesDevyEngine(m.leagueId)
+  const useDevyEngine = await leagueUsesDevyEngine(leagueId)
 
   async function sumStarters(rosterId: string): Promise<number> {
     if (useDevyEngine) {
-      const r = await calculateOfficialTeamScore(m.leagueId, rosterId, week, season.season)
+      const r = await calculateOfficialTeamScore(leagueId, rosterId, week, seasonYear)
       return r.officialScore
     }
     const starters = await prisma.redraftRosterPlayer.findMany({
@@ -157,7 +163,7 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
           playerId_week_season_sport: {
             playerId: p.playerId,
             week,
-            season: season.season,
+            season: seasonYear,
             sport: p.sport,
           },
         },
@@ -167,8 +173,8 @@ export async function updateMatchupScores(matchupId: string): Promise<void> {
     return pts
   }
 
-  const homePts = await sumStarters(m.homeRosterId)
-  const awayPts = await sumStarters(m.awayRosterId)
+  const homePts = await sumStarters(homeRosterId)
+  const awayPts = await sumStarters(awayRosterId)
 
   await prisma.redraftMatchup.update({
     where: { id: matchupId },

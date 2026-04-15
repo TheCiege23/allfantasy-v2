@@ -20,8 +20,6 @@ export type WizardStepId =
   | 'privacy'
   /** Combined draft + draft AI + automation + privacy (streamlined 5-step flow). */
   | 'draft_privacy'
-  /** Survivor-specific settings (tribes, idols, exile, merge). Only shown for survivor leagues. */
-  | 'format_settings'
   | 'review'
 
 /** Where the user is drawing inspiration from at league setup. */
@@ -42,6 +40,7 @@ export type LeagueTypeId =
   | 'c2c'
   | 'zombie'
   | 'salary_cap'
+  | 'big_brother'
 
 export type DraftTypeId =
   | 'snake'
@@ -204,179 +203,13 @@ export interface LeagueCreationWizardState {
   /** AF Commissioner-tier AI (gated in UI unless subscribed). */
   commissionerPreferences: WizardCommissionerPreferences
   privacySettings: WizardPrivacySettings
-  /** Survivor-specific settings (only used when leagueType === 'survivor'). */
-  survivorSettings: WizardSurvivorSettings
-  /** Guillotine-specific settings (only used when leagueType === 'guillotine'). */
-  guillotineSettings: WizardGuillotineSettings
-  /** Zombie-specific settings (only used when leagueType === 'zombie'). */
-  zombieSettings: WizardZombieSettings
-  /** Tournament-specific settings (only used when leagueType === 'tournament'). */
-  tournamentSettings: WizardTournamentSettings
-  /** Salary cap settings (only used when leagueType === 'salary_cap'). */
-  salaryCapSettings: WizardSalaryCapSettings
-  /** IDP settings (only used when sport === 'NFL' and IDP variant is selected). */
-  idpSettings: WizardIdpSettings
+  /** Per–league-type fields (tournament hub, survivor tribes, keeper count, etc.). */
+  formatOptions: import('@/lib/league-creation-wizard/wizard-format-options').WizardFormatOptions
   /**
    * Optional full settings snapshot from a saved template.
    * These keys are merged into League.settings on create before wizard-level overrides.
    */
   templateSettingsOverrides?: Record<string, unknown>
-}
-
-export interface WizardSurvivorSettings {
-  commissionerPlays: boolean
-  tribeCount: number
-  tribeFormation: 'random' | 'manual' | 'draft_pattern'
-  tribeNaming: 'auto' | 'ai' | 'custom'
-  mergeTrigger: 'player_count' | 'week'
-  mergeWeek: number
-  mergeAtCount: number
-  juryStart: string
-  idolsEnabled: boolean
-  idolCount: number
-  exileEnabled: boolean
-  rocksEnabled: boolean
-  tieRule: string
-  revealMode: string
-  challengeMode: string
-}
-
-export interface WizardGuillotineSettings {
-  eliminationsPerPeriod: number
-  protectedWeek1: boolean
-  endgame: string
-  tiebreaker: string
-  samePeriodPickups: boolean
-  faabBudget: number
-  tradesEnabled: boolean
-}
-
-export const DEFAULT_SURVIVOR_SETTINGS: WizardSurvivorSettings = {
-  commissionerPlays: false,
-  tribeCount: 4,
-  tribeFormation: 'random',
-  tribeNaming: 'auto',
-  mergeTrigger: 'player_count',
-  mergeWeek: 8,
-  mergeAtCount: 10,
-  juryStart: 'after_merge',
-  idolsEnabled: true,
-  idolCount: 9,
-  exileEnabled: true,
-  rocksEnabled: true,
-  tieRule: 'rocks',
-  revealMode: 'dramatic',
-  challengeMode: 'automatic',
-}
-
-export interface WizardZombieSettings {
-  whispererSelection: 'random' | 'veteran_priority'
-  infectionLossToWhisperer: boolean
-  infectionLossToZombie: boolean
-  serumReviveCount: number
-  ambushCountPerWeek: number
-  zombieTradeBlocked: boolean
-  isPaid: boolean
-  buyInAmount: number
-}
-
-export const DEFAULT_ZOMBIE_SETTINGS: WizardZombieSettings = {
-  whispererSelection: 'random',
-  infectionLossToWhisperer: true,
-  infectionLossToZombie: true,
-  serumReviveCount: 2,
-  ambushCountPerWeek: 1,
-  zombieTradeBlocked: true,
-  isPaid: false,
-  buyInAmount: 0,
-}
-
-export interface WizardTournamentSettings {
-  participantCount: number
-  conferenceCount: number
-  leaguesPerConference: number
-  teamsPerLeague: number
-  namingMode: 'ai_generated' | 'commissioner_custom' | 'hybrid'
-  totalRounds: number
-  qualificationWeeks: number
-  bubbleEnabled: boolean
-  bubbleSize: number
-  redraftBetweenRounds: boolean
-  tradesEnabled: boolean
-  advancersPerLeague: number
-}
-
-export const DEFAULT_TOURNAMENT_SETTINGS: WizardTournamentSettings = {
-  participantCount: 120,
-  conferenceCount: 2,
-  leaguesPerConference: 5,
-  teamsPerLeague: 12,
-  namingMode: 'ai_generated',
-  totalRounds: 4,
-  qualificationWeeks: 9,
-  bubbleEnabled: true,
-  bubbleSize: 4,
-  redraftBetweenRounds: true,
-  tradesEnabled: false,
-  advancersPerLeague: 4,
-}
-
-export interface WizardSalaryCapSettings {
-  totalCap: number
-  draftMode: 'auction' | 'snake_salary' | 'hybrid'
-  salaryCurve: 'linear' | 'steep' | 'exponential' | 'flat'
-  minSalary: number
-  maxSalary: number
-  defaultContractYears: number
-  maxContractYears: number
-  franchiseTagEnabled: boolean
-  capRolloverEnabled: boolean
-  capFloorEnabled: boolean
-  deadMoneyEnabled: boolean
-}
-
-export const DEFAULT_SALARY_CAP_SETTINGS: WizardSalaryCapSettings = {
-  totalCap: 250,
-  draftMode: 'auction',
-  salaryCurve: 'steep',
-  minSalary: 1,
-  maxSalary: 45,
-  defaultContractYears: 2,
-  maxContractYears: 5,
-  franchiseTagEnabled: true,
-  capRolloverEnabled: false,
-  capFloorEnabled: false,
-  deadMoneyEnabled: true,
-}
-
-export interface WizardIdpSettings {
-  positionMode: 'standard' | 'advanced' | 'hybrid'
-  rosterPreset: 'beginner' | 'standard' | 'advanced' | 'custom'
-  scoringPreset: 'balanced' | 'tackle_heavy' | 'big_play_heavy'
-  dlSlots: number
-  lbSlots: number
-  dbSlots: number
-  idpFlexSlots: number
-}
-
-export const DEFAULT_IDP_SETTINGS: WizardIdpSettings = {
-  positionMode: 'standard',
-  rosterPreset: 'standard',
-  scoringPreset: 'balanced',
-  dlSlots: 2,
-  lbSlots: 2,
-  dbSlots: 2,
-  idpFlexSlots: 1,
-}
-
-export const DEFAULT_GUILLOTINE_SETTINGS: WizardGuillotineSettings = {
-  eliminationsPerPeriod: 1,
-  protectedWeek1: false,
-  endgame: 'last_team_standing',
-  tiebreaker: 'lowest_bench_points',
-  samePeriodPickups: false,
-  faabBudget: 100,
-  tradesEnabled: false,
 }
 
 /** Five-step flow: setup → identity → scoring → draft/privacy/AI → review. */

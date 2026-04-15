@@ -17,12 +17,34 @@ if (Test-Path $envPath) {
   }
 }
 
-if ($dbUrl -and $dbUrl -match "pooler\.supabase\.com:6543") {
-  $env:DATABASE_URL = ($dbUrl -replace ":6543", ":5432")
+function To-SessionPoolerUrl([string]$url) {
+  if (-not $url) { return $null }
+  $next = $url
+  if ($next -match "pooler\.supabase\.com:6543") {
+    $next = ($next -replace ":6543", ":5432")
+  }
+  if ($next -match "db\.[A-Za-z0-9]+\.supabase\.co:5432") {
+    $next = ($next -replace "db\.[A-Za-z0-9]+\.supabase\.co:5432", "aws-0-us-west-2.pooler.supabase.com:5432")
+  }
+  return $next
+}
+
+if ($dbUrl) {
+  $sessionUrl = To-SessionPoolerUrl $dbUrl
+  $env:DATABASE_URL = $sessionUrl
+  $env:DIRECT_URL = $sessionUrl
   $env:PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = "1"
   Write-Host "Using Supabase session pooler (:5432) for migration deploy." -ForegroundColor Yellow
 }
 
 npx prisma migrate deploy
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$supplementalSql = Join-Path $root "scripts/sql/platform-backend-indexes.sql"
+if (Test-Path $supplementalSql) {
+  Write-Host "Applying supplemental backend indexes..." -ForegroundColor Cyan
+  npx prisma db execute --file "$supplementalSql" --schema prisma/schema.prisma
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
 Write-Host "Migrations applied." -ForegroundColor Green

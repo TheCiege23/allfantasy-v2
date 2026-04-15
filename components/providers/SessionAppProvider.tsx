@@ -1,18 +1,29 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import type { Session } from 'next-auth'
 import { usePathname } from 'next/navigation'
 import { SessionProvider } from 'next-auth/react'
 
-export default function SessionAppProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname()
+export default function SessionAppProvider({
+  children,
+  session,
+}: {
+  children: ReactNode
+  session?: Session | null
+}) {
+  const pathname = usePathname() ?? ""
   // E2E harness routes should not require auth/session fetches.
   if (pathname?.startsWith('/e2e')) {
     return (
-      <SessionProvider session={null} refetchInterval={0} refetchOnWindowFocus={false}>
+      <SessionProvider
+        session={session ?? null}
+        refetchInterval={0}
+        refetchOnWindowFocus={false}
+      >
         {children}
       </SessionProvider>
     )
   }
-  return <SessionProvider>{children}</SessionProvider>
+  return <SessionProvider session={session}>{children}</SessionProvider>
 }

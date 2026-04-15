@@ -94,13 +94,19 @@ export function LeagueHubCard({ league, onClick }: LeagueHubCardProps) {
   const seasonLabel =
     league.season !== undefined && league.season !== null ? String(league.season) : '—'
   const scoringLabel = league.scoring || 'Standard'
+  const settings = league.settings && typeof league.settings === 'object' ? league.settings as Record<string, unknown> : {}
+  const tournamentId =
+    settings.league_type === 'tournament_hub' && typeof settings.tournamentId === 'string'
+      ? settings.tournamentId
+      : null
+  const destinationHref = tournamentId ? `/tournament/${tournamentId}` : `/league/${league.id}`
 
   return (
     <button
       type="button"
       onClick={() => {
         onClick()
-        router.push(`/league/${league.id}`)
+        router.push(destinationHref)
       }}
       className="w-full rounded-2xl border border-white/[0.07] bg-[#0c0c1e] p-4 text-left transition-colors hover:border-white/15"
     >

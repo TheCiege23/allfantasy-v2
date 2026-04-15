@@ -15,10 +15,10 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const mediaType = searchParams.get("mediaType") ?? undefined
-  const sport = searchParams.get("sport") ?? undefined
-  const leagueId = searchParams.get("leagueId") ?? undefined
-  const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : 50
+  const mediaType = searchParams?.get("mediaType") ?? undefined
+  const sport = searchParams?.get("sport") ?? undefined
+  const leagueId = searchParams?.get("leagueId") ?? undefined
+  const limit = searchParams?.get("limit") ? parseInt(searchParams?.get("limit")!, 10) : 50
 
   const rows = await listEpisodes({
     userId: session.user.id,
@@ -43,3 +43,4 @@ export async function GET(req: Request) {
 
   return NextResponse.json({ episodes })
 }
+

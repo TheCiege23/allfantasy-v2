@@ -8,7 +8,7 @@ import type { WaiverDashboardResponse, WaiverDrop, WaiverLeagueRec, WaiverPickup
 
 export const dynamic = 'force-dynamic'
 
-const SLEEPER = 'https://api.sleeper.app/v1'
+const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant for dashboard fan-out calls
 
 type SleeperRoster = {
   roster_id?: number
@@ -84,6 +84,8 @@ export async function GET() {
   })
   const sleeperUserId = profile?.sleeperUserId?.trim() || null
 
+  const sinceInjury = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
   const leagues = await prisma.league.findMany({
     where: {
       platform: 'sleeper',
@@ -105,6 +107,36 @@ export async function GET() {
   })
 
   const recommendations: WaiverLeagueRec[] = []
+  const sportsInLeagues = Array.from(new Set(leagues.map((l) => String(l.sport))))
+
+  const injuryPulse =
+    sportsInLeagues.length > 0
+      ? await prisma.injuryReportRecord
+          .findMany({
+            where: {
+              sport: { in: sportsInLeagues },
+              reportDate: { gte: sinceInjury },
+            },
+            orderBy: { reportDate: 'desc' },
+            take: 40,
+            select: {
+              sport: true,
+              playerName: true,
+              team: true,
+              status: true,
+              reportDate: true,
+            },
+          })
+          .then((rows) =>
+            rows.map((r) => ({
+              sport: r.sport,
+              playerName: r.playerName,
+              team: r.team,
+              status: r.status,
+              reportDate: r.reportDate.toISOString(),
+            }))
+          )
+      : []
 
   for (const league of leagues) {
     if (!league.platformLeagueId) continue
@@ -233,6 +265,7 @@ export async function GET() {
   const body: WaiverDashboardResponse = {
     totalLeagues: recommendations.length,
     recommendations,
+    ...(injuryPulse.length > 0 ? { injuryPulse } : {}),
   }
 
   return NextResponse.json(body)

@@ -18,7 +18,7 @@ export function CapRoomClient({ leagueId }: { leagueId: string }) {
   const { data: session } = useSession()
   const userId = session?.user?.id
   const searchParams = useSearchParams()
-  const qpRoster = searchParams.get('rosterId')
+  const qpRoster = searchParams?.get('rosterId')
   const { rosterId: fetchedRoster } = useRedraftRosterId(leagueId)
   const rosterId = qpRoster ?? fetchedRoster
 

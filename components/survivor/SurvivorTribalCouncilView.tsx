@@ -1,10 +1,9 @@
 'use client'
 
-import { Clock, Vote, Shield, Skull } from 'lucide-react'
+import { Clock, ScrollText, Shield, Skull, Vote } from 'lucide-react'
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
-import { SurvivorScrollReveal, type RevealStep } from './SurvivorScrollReveal'
-import { SurvivorRocksReveal } from './SurvivorRocksReveal'
+import { SurvivorScrollReveal } from './SurvivorScrollReveal'
 
 export interface SurvivorTribalCouncilViewProps {
   leagueId: string
@@ -62,6 +61,26 @@ export function SurvivorTribalCouncilView({ summary, names }: SurvivorTribalCoun
         <SurvivorCommandHelp compact />
       </section>
 
+      {/* Vote scroll (sequence from server when council closes / votes tallied) */}
+      {council &&
+        Array.isArray(council.revealSequence) &&
+        (council.revealSequence as unknown[]).length > 0 && (
+          <section className="rounded-2xl border border-amber-500/20 bg-[#0a1228]/80 p-4 sm:p-6">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-amber-100">
+              <ScrollText className="h-5 w-5 text-amber-400" />
+              Tribal scroll
+            </h2>
+            <p className="mb-4 text-sm text-white/55">
+              Votes are read in scroll order — same sequence the host uses when the council closes.
+            </p>
+            <SurvivorScrollReveal
+              councilWeek={council.week}
+              revealSequence={council.revealSequence}
+              autoPlayMs={1400}
+            />
+          </section>
+        )}
+
       {/* Immunity markers (placeholder – backend can expose who has immunity) */}
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-2 flex items-center gap-2 text-lg font-semibold text-white">
@@ -71,29 +90,7 @@ export function SurvivorTribalCouncilView({ summary, names }: SurvivorTribalCoun
         <p className="text-sm text-white/50">Individual immunity (from challenges) and tribe immunity are shown on the Tribe Board when active.</p>
       </section>
 
-      {/* Active scroll reveal (when council has reveal sequence) */}
-      {council?.revealSequence && isClosed && !council.isRevealed && (
-        <section className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-4 sm:p-6">
-          <SurvivorScrollReveal
-            sequence={council.revealSequence as RevealStep[]}
-            eliminatedName={eliminated ? (names[eliminated] ?? eliminated) : undefined}
-            mode={(council as Record<string, unknown>).revealMode as 'dramatic' | undefined}
-            autoPlay
-          />
-        </section>
-      )}
-
-      {/* Rocks reveal (when council is in rocks state) */}
-      {council?.isTie && council.tiePhase === 'rocks_resolved' && (council as Record<string, unknown>).rockDrawOrder && (
-        <section className="rounded-2xl border border-purple-500/20 bg-purple-950/10 p-4 sm:p-6">
-          <SurvivorRocksReveal
-            drawOrder={(council as Record<string, unknown>).rockDrawOrder as Array<{ rosterId: string; displayName: string; drewPurpleRock: boolean }>}
-            eliminatedName={eliminated ? (names[eliminated] ?? eliminated) : 'Unknown'}
-          />
-        </section>
-      )}
-
-      {/* Voted-out history */}
+      {/* Voted-out history (scroll reveal) */}
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Skull className="h-5 w-5 text-rose-400" />

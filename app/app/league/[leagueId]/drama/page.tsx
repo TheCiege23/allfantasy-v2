@@ -21,14 +21,14 @@ type DramaRow = {
 const PAGE_LIMIT = 10
 
 export default function LeagueDramaDashboardPage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId ?? ''
-  const sportFromQuery = searchParams.get('sport')
-  const seasonFromQuery = searchParams.get('season')
-  const dramaTypeFromQuery = searchParams.get('dramaType')
-  const minScoreFromQuery = searchParams.get('minScore')
-  const relatedManagerFromQuery = searchParams.get('relatedManagerId')
+  const sportFromQuery = searchParams?.get('sport')
+  const seasonFromQuery = searchParams?.get('season')
+  const dramaTypeFromQuery = searchParams?.get('dramaType')
+  const minScoreFromQuery = searchParams?.get('minScore')
+  const relatedManagerFromQuery = searchParams?.get('relatedManagerId')
   const currentYear = new Date().getFullYear()
   const [sportFilter, setSportFilter] = useState<string>(sportFromQuery ?? 'ALL')
   const [seasonFilter, setSeasonFilter] = useState<string>(seasonFromQuery ?? String(currentYear))

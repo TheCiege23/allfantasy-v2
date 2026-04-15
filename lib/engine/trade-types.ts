@@ -286,4 +286,33 @@ export interface TradeEngineResponse {
       weeklyVolatility: number | null;
     }
   >;
+  /** Enhanced pipeline output (UTV + multi-factor + risk + team context + log fairness) */
+  enhanced?: {
+    sideA: Array<{
+      name: string; type: string; position?: string
+      rawValue: number; riskScore: number; riskAdjustedValue: number
+      contextAdjustedValue: number; utv: number; riskLabel: string
+      warnings: string[]; confidence: string
+    }>
+    sideB: Array<{
+      name: string; type: string; position?: string
+      rawValue: number; riskScore: number; riskAdjustedValue: number
+      contextAdjustedValue: number; utv: number; riskLabel: string
+      warnings: string[]; confidence: string
+    }>
+    totalA: number
+    totalB: number
+    fairness: {
+      score: number
+      tier: 'balanced' | 'slight_edge' | 'moderate_edge' | 'lopsided'
+      favoredSide: 'A' | 'B' | 'even'
+      delta: number
+      impactDelta: number
+      explanations: string[]
+    }
+    teamContextA: { window: string; needs: string[]; winPct: number; pointsDiff: number; benchStrength: number } | null
+    teamContextB: { window: string; needs: string[]; winPct: number; pointsDiff: number; benchStrength: number } | null
+    sport: string
+    executionMs: number
+  } | null
 }

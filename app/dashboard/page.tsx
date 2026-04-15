@@ -10,6 +10,8 @@ import {
   getDashboardRuntimeIssue,
 } from '@/lib/dashboard/runtime-issues'
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
+import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -55,7 +57,7 @@ export default async function DashboardPage() {
   const userId = rawUserId
 
   try {
-    const [dbUser, userProfile] = await Promise.all([
+    const [dbUser, userProfile, initialLeagueList, initialUserRankPayload] = await Promise.all([
       prisma.appUser
         .findUnique({
           where: { id: userId },
@@ -74,6 +76,14 @@ export default async function DashboardPage() {
           console.error('[dashboard] userProfile lookup failed:', err)
           return null
         }),
+      getDashboardLeagueListForUser(userId).catch((err: unknown) => {
+        console.error('[dashboard] league list prefetch failed:', err)
+        return null
+      }),
+      fetchUserRankJsonForDashboardSSR().catch((err: unknown) => {
+        console.error('[dashboard] user rank prefetch failed:', err)
+        return null
+      }),
     ])
 
     const userImage = resolveDashboardAvatarUrl(sessionUser.image, dbUser?.avatarUrl ?? undefined)
@@ -84,6 +94,8 @@ export default async function DashboardPage() {
         userName={sessionUser.name ?? sessionUser.email ?? 'Manager'}
         userImage={userImage}
         discordConnected={Boolean(userProfile?.discordUserId)}
+        initialLeagueList={initialLeagueList ?? undefined}
+        initialUserRankPayload={initialUserRankPayload ?? undefined}
       />
     )
   } catch (error) {

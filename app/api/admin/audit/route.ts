@@ -13,12 +13,12 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return gate.res
 
   const { searchParams } = new URL(req.url)
-  const limitParam = searchParams.get("limit")
+  const limitParam = searchParams?.get("limit")
   const limit = Math.min(
     Math.max(parseInt(limitParam ?? "100", 10) || 100, 1),
     500
   )
-  const sinceParam = searchParams.get("since")
+  const sinceParam = searchParams?.get("since")
   const since = sinceParam ? new Date(sinceParam) : undefined
   if (sinceParam && Number.isNaN(since!.getTime())) {
     return NextResponse.json({ error: "Invalid since date" }, { status: 400 })
@@ -32,3 +32,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load audit log" }, { status: 500 })
   }
 }
+

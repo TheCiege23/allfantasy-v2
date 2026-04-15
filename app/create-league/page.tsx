@@ -22,7 +22,6 @@ export default async function CreateLeaguePage({
 }) {
   const sp =
     searchParams instanceof Promise ? await searchParams : searchParams ?? {}
-  const initialTemplateId = firstStringParam(sp.template)
   const e2eAuth = firstStringParam(sp.e2eAuth)
   const allowE2EBypass = process.env.NODE_ENV !== 'production' && e2eAuth === '1'
 
@@ -37,7 +36,5 @@ export default async function CreateLeaguePage({
     redirect('/login?callbackUrl=/create-league')
   }
 
-  return (
-    <CreateLeaguePageClient userId={userId} initialTemplateId={initialTemplateId} />
-  )
+  return <CreateLeaguePageClient userId={userId} />
 }

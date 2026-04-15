@@ -1,6 +1,7 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizeTeamAbbrev, normalizePosition } from '@/lib/team-abbrev'
+import { getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,30 +51,17 @@ const playersCache: Record<
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 0 } })
-  const text = await res.text()
-  let json: any = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    // ignore
-  }
-  return { ok: res.ok, status: res.status, json, text }
-}
-
 async function getSleeperPlayers(sport: Sport) {
   const now = Date.now()
   const cached = playersCache[sport]
   if (cached.data && now - cached.at < CACHE_TTL_MS) return cached.data
 
-  const url = `https://api.sleeper.app/v1/players/${sport}`
-  const r = await fetchJson(url)
-  if (!r.ok || !r.json) {
-    throw new Error(`Failed to fetch Sleeper players (${sport}). status=${r.status}`)
+  const dict = await getPlayersBySport(sport)
+  if (!dict || Object.keys(dict).length === 0) {
+    throw new Error(`Failed to fetch Sleeper players (${sport}).`)
   }
 
-  playersCache[sport] = { at: now, data: r.json as Record<string, SleeperPlayer> }
+  playersCache[sport] = { at: now, data: dict as Record<string, SleeperPlayer> }
   return playersCache[sport].data!
 }
 
@@ -91,26 +79,24 @@ function isIdpPos(pos?: string) {
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trade/roster", tool: "LegacyTradeRoster" })(async (req: NextRequest) => {
   try {
-    const leagueId = String(req.nextUrl.searchParams.get('league_id') || '').trim()
-    const sleeperUsername = String(req.nextUrl.searchParams.get('sleeper_username') || '').trim()
-    const sleeperUserId = String(req.nextUrl.searchParams.get('sleeper_user_id') || '').trim()
-    const sportRaw = String(req.nextUrl.searchParams.get('sport') || 'nfl').trim().toLowerCase()
+    const leagueId = String(req.nextUrl.searchParams?.get('league_id') || '').trim()
+    const sleeperUsername = String(req.nextUrl.searchParams?.get('sleeper_username') || '').trim()
+    const sleeperUserId = String(req.nextUrl.searchParams?.get('sleeper_user_id') || '').trim()
+    const sportRaw = String(req.nextUrl.searchParams?.get('sport') || 'nfl').trim().toLowerCase()
 
     if (!leagueId) return NextResponse.json({ error: 'Missing league_id' }, { status: 400 })
     if (!sleeperUsername && !sleeperUserId) return NextResponse.json({ error: 'Missing sleeper_username or sleeper_user_id' }, { status: 400 })
 
     const sport: Sport = sportRaw === 'nba' ? 'nba' : 'nfl'
 
-    const usersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`
-    const usersRes = await fetchJson(usersUrl)
-    if (!usersRes.ok || !Array.isArray(usersRes.json)) {
+    const users = await getLeagueUsers(leagueId) as unknown as SleeperUser[]
+    if (!Array.isArray(users) || users.length === 0) {
       return NextResponse.json(
         { error: 'Failed to load league users from Sleeper' },
         { status: 502 }
       )
     }
 
-    const users = usersRes.json as SleeperUser[]
     let user: SleeperUser | undefined
 
     if (sleeperUserId) {
@@ -132,16 +118,14 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/roster", tool: "L
     }
 
     // 2) Get rosters, find roster for user_id
-    const rostersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`
-    const rostersRes = await fetchJson(rostersUrl)
-    if (!rostersRes.ok || !Array.isArray(rostersRes.json)) {
+    const rosters = await getLeagueRosters(leagueId) as unknown as SleeperRoster[]
+    if (!Array.isArray(rosters) || rosters.length === 0) {
       return NextResponse.json(
         { error: 'Failed to load league rosters from Sleeper' },
         { status: 502 }
       )
     }
 
-    const rosters = rostersRes.json as SleeperRoster[]
     const uid = String(user.user_id)
     const roster =
       rosters.find((r) => String(r.owner_id || '') === uid) ||
@@ -213,3 +197,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/roster", tool: "L
     return NextResponse.json({ error: 'Failed to load roster', details: String(e) }, { status: 500 })
   }
 })
+

@@ -7,7 +7,7 @@ export const maxDuration = 60
 
 async function run(req: NextRequest) {
   const dryRun =
-    req.nextUrl.searchParams.get('dryRun') === '1' || req.nextUrl.searchParams.get('dryRun') === 'true'
+    req.nextUrl.searchParams?.get('dryRun') === '1' || req.nextUrl.searchParams?.get('dryRun') === 'true'
   const result = await runBbReminderSweep({ dryRun })
   return NextResponse.json(result)
 }
@@ -25,3 +25,4 @@ export async function POST(req: NextRequest) {
   }
   return run(req)
 }
+

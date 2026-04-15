@@ -39,8 +39,8 @@ export async function GET(
   const isC2C = await isC2CLeague(leagueId)
   if (!isC2C) return NextResponse.json({ error: 'Not a C2C league' }, { status: 404 })
 
-  const rosterId = req.nextUrl.searchParams.get('rosterId') ?? undefined
-  const seasonYear = parseInt(req.nextUrl.searchParams.get('seasonYear') ?? String(getSeasonYear()), 10)
+  const rosterId = req.nextUrl.searchParams?.get('rosterId') ?? undefined
+  const seasonYear = parseInt(req.nextUrl.searchParams?.get('seasonYear') ?? String(getSeasonYear()), 10)
 
   const where: { leagueId: string; state: { in: string[] }; rosterId?: string } = {
     leagueId,

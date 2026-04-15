@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRulesForSport, isSportSupported } from '@/lib/sport-rules-engine'
 
+export const dynamic = 'force-dynamic'
+
 const LEAGUE_SPORT_VALUES = ['NFL', 'NHL', 'MLB', 'NBA', 'NCAAF', 'NCAAB', 'SOCCER'] as const
 const SPORT_RULES_CACHE_CONTROL = 'public, max-age=300, s-maxage=300, stale-while-revalidate=900'
 const SPORT_RULES_SERVER_TIMING_METRIC = 'sport_rules'
@@ -28,8 +30,8 @@ export async function GET(request: NextRequest) {
   const startedAtMs = Date.now()
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport') ?? 'NFL'
-    const formatParam = searchParams.get('format') ?? searchParams.get('variant') ?? null
+    const sportParam = searchParams?.get('sport') ?? 'NFL'
+    const formatParam = searchParams?.get('format') ?? searchParams?.get('variant') ?? null
 
     if (!isSportSupported(sportParam)) {
       return NextResponse.json(
@@ -49,3 +51,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load sport rules' }, { status: 500 })
   }
 }
+

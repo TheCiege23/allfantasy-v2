@@ -24,6 +24,7 @@ import { analyzeUserTradingProfile } from '@/lib/smart-trade-recommendations'
 import { buildLeagueDecisionContext, summarizeLeagueDecisionContext } from '@/lib/league-decision-context'
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 
@@ -287,14 +288,66 @@ async function fetchSleeperPlayersForSport(sport: ApiSport): Promise<Record<stri
     return getAllPlayers()
   }
 
-  try {
-    const response = await fetch(`https://api.sleeper.app/v1/players/${sport}`)
-    if (!response.ok) return {}
-    const data = (await response.json()) as Record<string, SleeperPlayer>
-    return data
-  } catch {
+  const dbSportMap: Record<ApiSport, string> = {
+    nfl: 'NFL',
+    nba: 'NBA',
+    nhl: 'NHL',
+    mlb: 'MLB',
+    ncaaf: 'NCAAF',
+    ncaab: 'NCAAB',
+    soccer: 'SOCCER',
+  }
+
+  const dbSport = dbSportMap[sport]
+  const rows = await prisma.sportsPlayerRecord.findMany({
+    where: { sport: dbSport },
+    select: {
+      id: true,
+      name: true,
+      position: true,
+      team: true,
+      injuryStatus: true,
+      stats: true,
+    },
+    take: 8000,
+    orderBy: { lastUpdated: 'desc' },
+  })
+
+  if (!rows.length) {
     return {}
   }
+
+  const out: Record<string, SleeperPlayer> = {}
+  for (const row of rows) {
+    const fullName = row.name?.trim() || row.id
+    const parts = fullName.split(/\s+/)
+    const firstName = parts[0] || fullName
+    const lastName = parts.slice(1).join(' ') || ''
+    const stats = row.stats && typeof row.stats === 'object' && !Array.isArray(row.stats)
+      ? (row.stats as Record<string, unknown>)
+      : null
+    const ageValue = stats?.age
+    const age = typeof ageValue === 'number' ? ageValue : typeof ageValue === 'string' ? Number(ageValue) || undefined : undefined
+
+    const player: SleeperPlayer = {
+      player_id: row.id,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: fullName,
+      position: row.position || 'FLEX',
+      team: row.team || null,
+      status: row.injuryStatus || 'active',
+      ...(typeof age === 'number' && Number.isFinite(age) ? { age } : {}),
+    }
+
+    out[row.id] = player
+    const fallbackId = row.id.includes(':') ? row.id.split(':').pop() || row.id : row.id
+    if (!out[fallbackId]) {
+      out[fallbackId] = { ...player, player_id: fallbackId }
+    }
+  }
+
+  return out
 }
 
 function formatRecord(roster: SleeperRoster): string {

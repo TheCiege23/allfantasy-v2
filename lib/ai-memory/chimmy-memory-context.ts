@@ -6,6 +6,7 @@
 import { getFullAIContext, buildMemoryPromptSection } from '@/lib/ai-memory'
 import { listAiMemoryByUser } from './ai-memory-store'
 import { getRecentChatHistory } from './chat-history-store'
+import { buildUnifiedMemoryPromptSection } from './unified-memory-system'
 
 export interface ChimmyMemoryContextInput {
   userId: string
@@ -18,6 +19,7 @@ export interface ChimmyMemoryContextResult {
   /** Prompt section to inject into Chimmy (memory + chat + profile/league). */
   promptSection: string
   conversationId: string | null
+  memoryItemsUsedCount: number
 }
 
 /**
@@ -42,7 +44,15 @@ export async function getChimmyMemoryContext(
 
   const aiMemories = await listAiMemoryByUser(userId, {
     leagueId,
-    scopes: ['user_preferences', 'favorite_teams', 'league_history', 'past_trades', 'coaching_notes'],
+    scopes: [
+      'user_preferences',
+      'favorite_teams',
+      'league_history',
+      'past_trades',
+      'coaching_notes',
+      'chimmy_strategy_profile',
+      'war_room_draft',
+    ],
   })
   if (aiMemories.length > 0) {
     sections.push(`
@@ -53,6 +63,15 @@ ${aiMemories
 
 Use this to personalize responses and avoid repeating yourself.
 `)
+  }
+
+  const unifiedSection = await buildUnifiedMemoryPromptSection({
+    userId,
+    leagueId,
+    includePlatform: true,
+  })
+  if (unifiedSection.trim()) {
+    sections.push(unifiedSection)
   }
 
   if (conversationId) {
@@ -66,8 +85,17 @@ ${recentChat.map((m) => `${m.role}: ${m.content.slice(0, 400)}${m.content.length
   }
 
   const promptSection = sections.length ? sections.join('\n') : ''
+  const memoryItemsUsedCount =
+    aiMemories.length +
+    fullContext.recentEvents.length +
+    fullContext.teamSnapshots.length +
+    fullContext.patterns.length +
+    (fullContext.userProfile ? 1 : 0) +
+    (fullContext.leagueContext ? 1 : 0)
+
   return {
     promptSection,
     conversationId: conversationId ?? null,
+    memoryItemsUsedCount,
   }
 }

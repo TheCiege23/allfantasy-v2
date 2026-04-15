@@ -14,7 +14,7 @@ export async function GET(
     const { draftId } = await ctx.params
     await requireLiveDraftAccess(draftId, userId)
 
-    const source = (req.nextUrl.searchParams.get('source') ?? 'blended') as ADPSource
+    const source = (req.nextUrl.searchParams?.get('source') ?? 'blended') as ADPSource
     const worker = new DraftWorker({ viewerUserId: userId })
     const rankings = await worker.getADP(draftId, source)
     return NextResponse.json({ ok: true, source, rankings })

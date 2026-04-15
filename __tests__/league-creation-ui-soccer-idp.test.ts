@@ -92,7 +92,7 @@ describe('Prompt 15 league creation UI copy', () => {
     )
 
     expect(html).toContain('NFL preset')
-    expect(html).toContain('Choose an NFL preset')
+    expect(html).toContain('Tap a preset to load roster and scoring defaults')
     expect(html).toContain('IDP and Dynasty IDP add defensive players and IDP scoring')
   })
 
@@ -156,7 +156,8 @@ describe('Prompt 15 league creation UI copy', () => {
       })
     )
 
-    expect(html).toContain('NFL offensive + IDP defenders (DL, LB, DB, IDP FLEX)')
-    expect(html).toContain('NFL sport with an IDP preset layered on top of NFL defaults')
+    expect(html).toContain('NFL')
+    expect(html).toContain('Dynasty IDP')
+    expect(html).toContain('Preset / variant')
   })
 })

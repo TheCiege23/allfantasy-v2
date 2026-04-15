@@ -23,6 +23,7 @@ const VALID_TYPES: BigBrotherAIPromptType[] = [
   'game_theory',
   'social_strategy',
   'finale_moderator',
+  'rule_explain',
 ]
 
 export async function GET(

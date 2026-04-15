@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { loadTournamentLayoutPayload } from '@/lib/tournament/tournamentPageData'
 import { TournamentUiProvider } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { TournamentChrome } from '@/app/tournament/[tournamentId]/TournamentChrome'
@@ -15,7 +16,18 @@ export default async function TournamentLayout({
   const { tournamentId } = await params
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const data = await loadTournamentLayoutPayload(tournamentId, session?.user?.id ?? null)
-  if (!data) notFound()
+  if (!data) {
+    const leagueOnly = await prisma.league
+      .findFirst({
+        where: { id: tournamentId },
+        select: { id: true },
+      })
+      .catch(() => null)
+    if (leagueOnly) {
+      redirect(`/league/${leagueOnly.id}`)
+    }
+    notFound()
+  }
 
   return (
     <TournamentUiProvider value={{ ...data, viewerUserId: session?.user?.id ?? null }}>

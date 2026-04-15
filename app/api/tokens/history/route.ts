@@ -13,8 +13,8 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const limit = Number.parseInt(url.searchParams.get("limit") ?? "30", 10)
-    const offset = Number.parseInt(url.searchParams.get("offset") ?? "0", 10)
+    const limit = Number.parseInt(url.searchParams?.get("limit") ?? "30", 10)
+    const offset = Number.parseInt(url.searchParams?.get("offset") ?? "0", 10)
     const service = new TokenSpendService()
     const entries = await service.listUsageHistory(session.user.id, { limit, offset })
 
@@ -28,3 +28,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load token usage history" }, { status: 500 })
   }
 }
+

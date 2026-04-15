@@ -282,6 +282,25 @@ export async function lockChallengeSubmissions(challengeId: string): Promise<voi
   }
 }
 
+/**
+ * Creates one system challenge for the week when `challengesSystemRun` is on and none exists.
+ * Avoids commissioner-authored props (reduces collusion when the commissioner plays).
+ */
+export async function ensureSystemWeeklyChallenge(leagueId: string, week: number): Promise<void> {
+  const cfg = await prisma.survivorLeagueConfig.findUnique({
+    where: { leagueId },
+    select: { challengesSystemRun: true },
+  })
+  if (!cfg?.challengesSystemRun) return
+  const existing = await prisma.survivorChallenge.findFirst({ where: { leagueId, week } })
+  if (existing) return
+  try {
+    await createWeeklyChallenge(leagueId, week, 'auto')
+  } catch (e) {
+    console.warn('[Survivor] ensureSystemWeeklyChallenge', e)
+  }
+}
+
 export async function tallyChallengeResults(challengeId: string): Promise<ChallengeResult> {
   const ch = await prisma.survivorChallenge.findUnique({ where: { id: challengeId } })
   if (!ch) throw new Error('Not found')

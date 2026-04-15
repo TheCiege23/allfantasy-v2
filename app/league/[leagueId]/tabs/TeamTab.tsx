@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Settings } from 'lucide-react'
+import { ArrowLeftRight, ClipboardList, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
@@ -20,6 +21,30 @@ import { IDPTeamDashboard } from '@/app/idp/components/IDPTeamDashboard'
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
 import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
 import { placeholderBaselineProjection } from '@/components/weather/placeholderBaseline'
+import type { ExpandedStarterSlot } from '@/lib/league/lineup-expand-template'
+import { evaluateLineupLock } from '@/lib/league/lineup-lock'
+import { TeamLineupSwapModal } from '@/components/league/TeamLineupSwapModal'
+import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
+import {
+  applyLineupPick,
+  buildPlayerRow,
+  buildReserveSwapCandidates,
+  buildSwapCandidates,
+  initOrSyncLineupLists,
+  swapPlayersInLists,
+  type RosterLineupLists,
+} from '@/app/league/[leagueId]/tabs/team-tab-roster-helpers'
+
+type DbLineupSwapCtx =
+  | { kind: 'starter'; index: number; slot: ExpandedStarterSlot }
+  | { kind: 'reserve'; section: 'bench' | 'ir' | 'taxi' | 'devy'; playerId: string }
+
+const RESERVE_SWAP_TITLE: Record<'bench' | 'ir' | 'taxi' | 'devy', string> = {
+  bench: 'Bench',
+  ir: 'IR',
+  taxi: 'Taxi',
+  devy: 'Devy',
+}
 
 export type TeamTabProps = {
   league: UserLeague
@@ -32,13 +57,21 @@ export type TeamTabProps = {
   idpLeagueUi?: boolean
   idpViewMode?: 'offense' | 'defense' | 'full'
   idpPositionMode?: string
+  /** Opens user account settings (defaults to `/settings`). */
+  onUserSettingsClick?: () => void
 }
 
 type DbRosterPayload = {
   source?: 'db'
   roster: unknown
+  rosterId?: string
   faabRemaining?: number
   slotLimits?: { starters: number; bench: number; ir: number; taxi: number; devy: number } | null
+  leagueWeek?: number
+  maxWeek?: number
+  starterSlots?: ExpandedStarterSlot[]
+  canEditLineup?: boolean
+  lineupLockHelp?: string | null
 }
 
 type SleeperRosterBody = {
@@ -185,11 +218,18 @@ function managerInitials(name: string): string {
 
 function slotBadgeClass(slot: string): string {
   const u = slot.toUpperCase()
+  if (u === 'BN' || u === 'BENCH') return 'border-slate-400/30 bg-slate-500/20 text-slate-200'
+  if (u === 'IR') return 'border-white/15 bg-black/55 text-white'
+  if (u === 'TX' || u === 'TAXI') return 'border-white/15 bg-black/55 text-white'
+  if (u === 'DV' || u === 'DEVY') return 'border-white/15 bg-black/55 text-white'
+  if (u.includes('DL') || u === 'DE' || u === 'DT') return 'border-rose-400/35 bg-rose-500/20 text-rose-200'
+  if (u.includes('LB')) return 'border-indigo-400/35 bg-indigo-500/20 text-indigo-200'
+  if (u.includes('DB') || u === 'CB' || u === 'S') return 'border-fuchsia-400/35 bg-fuchsia-500/20 text-fuchsia-200'
   if (u.includes('QB')) return 'border-red-500/35 bg-red-500/25 text-red-400'
   if (u.includes('RB')) return 'border-emerald-500/35 bg-emerald-500/25 text-emerald-400'
   if (u.includes('WR')) return 'border-blue-500/35 bg-blue-500/25 text-blue-400'
   if (u.includes('TE')) return 'border-orange-500/35 bg-orange-500/25 text-orange-400'
-  if (u.includes('FLEX') || u.includes('SF') || u.includes('SUPER')) return 'border-cyan-500/35 bg-cyan-500/25 text-cyan-400'
+  if (u.includes('FLEX') || u.includes('SF') || u.includes('SUPER') || u.includes('WRT')) return 'border-cyan-500/35 bg-cyan-500/25 text-cyan-400'
   if (u.includes('K')) return 'border-gray-500/35 bg-gray-500/25 text-gray-400'
   if (u.includes('DEF') || u.includes('DST')) return 'border-purple-500/35 bg-purple-500/25 text-purple-400'
   return 'border-white/15 bg-white/10 text-white/60'
@@ -204,6 +244,8 @@ function RosterRow({
   slotLabel,
   week,
   season,
+  onSlotClick,
+  emptyLabel,
 }: {
   playerId: string
   sport: string
@@ -213,7 +255,30 @@ function RosterRow({
   slotLabel?: string
   week: number
   season: number
+  /** Position badge opens lineup swap (Team tab). */
+  onSlotClick?: () => void
+  emptyLabel?: string
 }) {
+  const leftBadgeEarly = slotLabel ?? '—'
+  const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('—')
+  if (!playerId || playerId.trim() === '') {
+    return (
+      <div className="flex w-full items-center gap-2 rounded-lg border border-dashed border-white/[0.08] px-2 py-2 text-left">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onSlotClick?.()
+          }}
+          className={`inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${badgeClassEarly}`}
+        >
+          {leftBadgeEarly}
+        </button>
+        <span className="text-xs text-white/35">{emptyLabel ?? 'Empty'}</span>
+      </div>
+    )
+  }
+
   const resolved = resolvePlayerName(playerId, players)
   const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
   const pos = resolved.position || '—'
@@ -223,6 +288,7 @@ function RosterRow({
   const baseline = placeholderBaselineProjection(playerId)
   const crestSport = sport
   const showCrest = isWeatherSensitiveSport(crestSport)
+
   return (
     <button
       type="button"
@@ -231,7 +297,19 @@ function RosterRow({
       data-testid={`roster-row-${playerId}`}
     >
       <span
-        className={`inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass}`}
+        role={onSlotClick ? 'button' : undefined}
+        onClick={
+          onSlotClick
+            ? (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onSlotClick()
+              }
+            : undefined
+        }
+        className={`inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${badgeClass} ${
+          onSlotClick ? 'cursor-pointer hover:brightness-110' : ''
+        }`}
       >
         {leftBadge}
       </span>
@@ -330,11 +408,26 @@ export function TeamTab({
   idpLeagueUi = false,
   idpViewMode = 'full',
   idpPositionMode = 'standard',
+  onUserSettingsClick,
 }: TeamTabProps) {
+  const router = useRouter()
   const resolvedSport = sport ?? league.sport
   const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
   const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
+  const [weekMenuOpen, setWeekMenuOpen] = useState(false)
+  const [dbRosterMeta, setDbRosterMeta] = useState<{
+    rosterId: string
+    leagueWeek: number
+    maxWeek: number
+    starterSlots: ExpandedStarterSlot[]
+    canEditLineup: boolean
+    lineupLockHelp?: string | null
+  } | null>(null)
+  const [lineupLists, setLineupLists] = useState<RosterLineupLists | null>(null)
+  const [savingLineup, setSavingLineup] = useState(false)
+  const [swapOpen, setSwapOpen] = useState(false)
+  const [swapCtx, setSwapCtx] = useState<DbLineupSwapCtx | null>(null)
   const seasonYear = new Date().getFullYear()
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
@@ -430,11 +523,31 @@ export function TeamTab({
       }
 
       if (data.source === 'sleeper') {
+        setDbRosterMeta(null)
+        setLineupLists(null)
         setPayload(data as unknown as SleeperApiPayload)
         return
       }
 
-      setPayload(data as unknown as DbRosterPayload)
+      const d = data as unknown as DbRosterPayload
+      setPayload(d)
+      const slots = d.starterSlots ?? []
+      const rid = typeof d.rosterId === 'string' ? d.rosterId : ''
+      if (rid && slots.length > 0) {
+        setDbRosterMeta({
+          rosterId: rid,
+          leagueWeek: d.leagueWeek ?? 1,
+          maxWeek: d.maxWeek ?? 18,
+          starterSlots: slots,
+          canEditLineup: d.canEditLineup !== false,
+          lineupLockHelp: d.lineupLockHelp ?? null,
+        })
+        setWeek(d.leagueWeek ?? 1)
+        setLineupLists(initOrSyncLineupLists(d.roster, slots))
+      } else {
+        setDbRosterMeta(null)
+        setLineupLists(null)
+      }
     } catch {
       setError('Could not load roster.')
       setPayload(null)
@@ -473,6 +586,72 @@ export function TeamTab({
   const showTaxiSectionDb =
     league.isDynasty === true &&
     ((dbParts?.taxi.length ?? 0) > 0 || ((payload as DbRosterPayload)?.slotLimits?.taxi ?? 0) > 0)
+  const showDevySectionDb = ((payload as DbRosterPayload)?.slotLimits?.devy ?? 0) > 0
+
+  const maxWeekMenu = useMemo(() => {
+    if (dbRosterMeta?.maxWeek && dbRosterMeta.maxWeek > 0) return dbRosterMeta.maxWeek
+    if (payload && typeof payload === 'object' && 'maxWeek' in payload) {
+      const m = (payload as { maxWeek?: number }).maxWeek
+      if (typeof m === 'number' && m > 0) return m
+    }
+    return 18
+  }, [dbRosterMeta, payload])
+
+  const weekLock = useMemo(() => {
+    if (!dbRosterMeta) return null
+    return evaluateLineupLock({
+      sport: resolvedSport,
+      now: new Date(),
+      leagueWeek: dbRosterMeta.leagueWeek,
+      editingWeek: week,
+    })
+  }, [dbRosterMeta, resolvedSport, week])
+
+  const lineupEditable =
+    !isSleeper &&
+    Boolean(dbRosterMeta) &&
+    dbRosterMeta?.canEditLineup !== false &&
+    Boolean(weekLock) &&
+    !weekLock!.locked
+
+  const saveLineup = useCallback(
+    async (next: RosterLineupLists) => {
+      if (!dbRosterMeta?.rosterId || !lineupEditable) return
+      setSavingLineup(true)
+      try {
+        const roster = {
+          starters: next.starters
+            .map((id) => (id ? buildPlayerRow(id, players) : null))
+            .filter((x): x is Record<string, unknown> => x != null),
+          bench: next.bench.map((id) => buildPlayerRow(id, players)),
+          ir: next.ir.map((id) => buildPlayerRow(id, players)),
+          taxi: next.taxi.map((id) => buildPlayerRow(id, players)),
+          devy: next.devy.map((id) => buildPlayerRow(id, players)),
+        }
+        const res = await fetch('/api/leagues/roster/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leagueId: league.id,
+            rosterId: dbRosterMeta.rosterId,
+            week,
+            roster,
+          }),
+        })
+        const json = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) {
+          toast.error(typeof json.error === 'string' ? json.error : 'Could not save lineup')
+          return
+        }
+        toast.success('Lineup saved')
+        setLineupLists(next)
+        await load()
+      } finally {
+        setSavingLineup(false)
+      }
+    },
+    [dbRosterMeta, lineupEditable, players, league.id, week, load],
+  )
 
   if (!isSleeper && !userTeam) {
     const href = inviteToken ? `/join/${inviteToken}` : '/dashboard'
@@ -537,7 +716,7 @@ export function TeamTab({
     !loading &&
     !error &&
     ((payload?.source === 'sleeper' && sleeperParts) ||
-      (payload && payload.source !== 'sleeper' && dbParts))
+      (payload && payload.source !== 'sleeper' && dbParts && !lineupLists))
 
   return (
     <div className="space-y-4 p-5">
@@ -564,33 +743,105 @@ export function TeamTab({
             <button
               type="button"
               className="rounded-lg p-1 text-white/40 hover:bg-white/10 hover:text-white/70"
-              aria-label="Team settings"
+              aria-label="User settings"
+              data-testid="team-tab-user-settings"
+              onClick={() => (onUserSettingsClick ? onUserSettingsClick() : router.push('/settings'))}
             >
               <Settings className="h-4 w-4" />
             </button>
           </div>
           <p className="mt-1 text-[11px] text-white/35">{waiverLine}</p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-2 py-1">
-          <button
-            type="button"
-            className="px-2 text-white/50 hover:text-white"
-            onClick={() => setWeek((w) => Math.max(1, w - 1))}
-            aria-label="Previous week"
-          >
-            ←
-          </button>
-          <span className="min-w-[4rem] text-center text-xs font-semibold text-white/80">Wk {week}</span>
-          <button
-            type="button"
-            className="px-2 text-white/50 hover:text-white"
-            onClick={() => setWeek((w) => w + 1)}
-            aria-label="Next week"
-          >
-            →
-          </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex items-center gap-1">
+            <Link
+              href={`/waiver-ai?leagueId=${encodeURIComponent(league.id)}`}
+              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#121826] px-2.5 text-[9px] font-bold uppercase tracking-wide text-white/80 transition hover:border-cyan-500/30 hover:text-cyan-200"
+              data-testid="team-tab-waiver"
+            >
+              <ClipboardList className="mb-0.5 h-4 w-4 text-cyan-300/90" strokeWidth={2} />
+              Waiver
+            </Link>
+            <Link
+              href={`/league/${encodeURIComponent(league.id)}?view=trades`}
+              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#121826] px-2.5 text-[9px] font-bold uppercase tracking-wide text-white/80 transition hover:border-cyan-500/30 hover:text-cyan-200"
+              data-testid="team-tab-trade"
+            >
+              <ArrowLeftRight className="mb-0.5 h-4 w-4 text-cyan-300/90" strokeWidth={2} />
+              Trade
+            </Link>
+          </div>
+          <div className="relative flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-2 py-1">
+            <button
+              type="button"
+              className="px-2 text-white/50 hover:text-white"
+              onClick={() => setWeek((w) => Math.max(1, w - 1))}
+              aria-label="Previous week"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className="min-w-[4rem] text-center text-xs font-semibold text-white/80"
+              aria-haspopup="listbox"
+              aria-expanded={weekMenuOpen}
+              onClick={() => setWeekMenuOpen((o) => !o)}
+              data-testid="team-tab-week-trigger"
+            >
+              Wk {week}
+            </button>
+            <button
+              type="button"
+              className="px-2 text-white/50 hover:text-white"
+              onClick={() => setWeek((w) => Math.min(maxWeekMenu, w + 1))}
+              aria-label="Next week"
+            >
+              →
+            </button>
+            {weekMenuOpen ? (
+              <div
+                className="absolute right-0 top-[calc(100%+6px)] z-50 w-52 rounded-xl border border-white/[0.1] bg-[#0a1228] p-2 shadow-xl"
+                role="listbox"
+                data-testid="team-tab-week-menu"
+              >
+                <div className="grid grid-cols-3 gap-1">
+                  {Array.from({ length: maxWeekMenu }, (_, i) => i + 1).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      className={`rounded-lg px-2 py-1.5 text-center text-[11px] font-bold ${
+                        w === week ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/[0.06]'
+                      }`}
+                      onClick={() => {
+                        setWeek(w)
+                        setWeekMenuOpen(false)
+                      }}
+                    >
+                      Week {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
+
+      {payload?.source === 'sleeper' && 'lineupLockHelp' in (payload as object) ? (
+        <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90">
+          {(payload as { lineupLockHelp?: string }).lineupLockHelp}
+        </p>
+      ) : null}
+
+      {!isSleeper && weekLock?.locked ? (
+        <p className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90">
+          {weekLock.reason ?? 'Lineup is locked for this week.'}
+        </p>
+      ) : null}
+
+      {savingLineup ? (
+        <p className="text-[11px] text-cyan-200/80">Saving lineup…</p>
+      ) : null}
 
       <div className="rounded-xl border border-white/[0.08] p-4">
         <div className="flex items-center justify-between gap-4">
@@ -648,6 +899,20 @@ export function TeamTab({
             />
           )}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-cyan-500/15 bg-[#0a1228]/50 p-4 backdrop-blur-sm">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/45">Start A vs B</p>
+        <p className="mb-3 text-xs text-white/45">
+          Compare two players with deterministic projections first; AI explains the math (Pro). Supports all league sports.
+        </p>
+        <StartVsComparisonLauncher
+          leagueId={league.id}
+          teamId={dbRosterMeta?.rosterId ?? userTeam?.id ?? null}
+          sport={resolvedSport}
+          weekOrPeriod={`Week ${week}`}
+          showNameInputs
+        />
       </div>
 
       {localAutoCoachGate && !gateOptional ? (
@@ -797,7 +1062,225 @@ export function TeamTab({
         </>
       ) : null}
 
-      {!loading && !error && !showIdpDashboard && payload && payload.source !== 'sleeper' && dbParts ? (
+      {!loading && !error && !showIdpDashboard && payload && payload.source !== 'sleeper' && dbRosterMeta && lineupLists ? (
+        <>
+          <section>
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Starters</p>
+                <p className="text-[11px] text-white/35">
+                  {lineupEditable
+                    ? 'Tap a position badge (starters, bench, IR, taxi, devy) to swap. Lineup saves automatically.'
+                    : 'Lineup changes are locked for this view or scoring period.'}
+                </p>
+              </div>
+              <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wide text-white/35">
+                <span className="w-10 text-right">OWN%</span>
+                <span className="w-10 text-right">START%</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {dbRosterMeta.starterSlots.map((slot, i) => (
+                <RosterRow
+                  key={`slot-${slot.index}-${i}`}
+                  playerId={lineupLists.starters[i] ?? ''}
+                  sport={resolvedSport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                  slotLabel={slot.label}
+                  week={week}
+                  season={seasonYear}
+                  onSlotClick={
+                    lineupEditable
+                      ? () => {
+                          setSwapCtx({ kind: 'starter', index: i, slot })
+                          setSwapOpen(true)
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Bench</p>
+            <div className="space-y-1">
+              {lineupLists.bench.map((id) => (
+                <RosterRow
+                  key={id}
+                  playerId={id}
+                  sport={resolvedSport}
+                  players={players}
+                  playersLoading={playersLoading}
+                  onPlayerClick={onPlayerClick}
+                  slotLabel="BN"
+                  week={week}
+                  season={seasonYear}
+                  onSlotClick={
+                    lineupEditable
+                      ? () => {
+                          setSwapCtx({ kind: 'reserve', section: 'bench', playerId: id })
+                          setSwapOpen(true)
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+            </div>
+          </section>
+
+          {showIrSectionDb ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Injured reserve</p>
+              <div className="space-y-1">
+                {lineupLists.ir.length > 0 ? (
+                  lineupLists.ir.map((id) => (
+                    <RosterRow
+                      key={id}
+                      playerId={id}
+                      sport={resolvedSport}
+                      players={players}
+                      playersLoading={playersLoading}
+                      onPlayerClick={onPlayerClick}
+                      slotLabel="IR"
+                      week={week}
+                      season={seasonYear}
+                      onSlotClick={
+                        lineupEditable
+                          ? () => {
+                              setSwapCtx({ kind: 'reserve', section: 'ir', playerId: id })
+                              setSwapOpen(true)
+                            }
+                          : undefined
+                      }
+                    />
+                  ))
+                ) : (
+                  <p className="text-xs text-white/35">No players on IR</p>
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {showTaxiSectionDb ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Taxi</p>
+              <div className="space-y-1">
+                {lineupLists.taxi.length > 0 ? (
+                  lineupLists.taxi.map((id) => (
+                    <RosterRow
+                      key={id}
+                      playerId={id}
+                      sport={resolvedSport}
+                      players={players}
+                      playersLoading={playersLoading}
+                      onPlayerClick={onPlayerClick}
+                      slotLabel="TX"
+                      week={week}
+                      season={seasonYear}
+                      onSlotClick={
+                        lineupEditable
+                          ? () => {
+                              setSwapCtx({ kind: 'reserve', section: 'taxi', playerId: id })
+                              setSwapOpen(true)
+                            }
+                          : undefined
+                      }
+                    />
+                  ))
+                ) : (
+                  <p className="text-xs text-white/35">No taxi squad players</p>
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {showDevySectionDb ? (
+            <section>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-white/35">Devy</p>
+              <div className="space-y-1">
+                {lineupLists.devy.length > 0 ? (
+                  lineupLists.devy.map((id) => (
+                    <RosterRow
+                      key={id}
+                      playerId={id}
+                      sport={resolvedSport}
+                      players={players}
+                      playersLoading={playersLoading}
+                      onPlayerClick={onPlayerClick}
+                      slotLabel="DV"
+                      week={week}
+                      season={seasonYear}
+                      onSlotClick={
+                        lineupEditable
+                          ? () => {
+                              setSwapCtx({ kind: 'reserve', section: 'devy', playerId: id })
+                              setSwapOpen(true)
+                            }
+                          : undefined
+                      }
+                    />
+                  ))
+                ) : (
+                  <p className="text-xs text-white/35">No devy players</p>
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          <TeamLineupSwapModal
+            open={swapOpen && swapCtx != null && lineupLists != null}
+            onClose={() => {
+              setSwapOpen(false)
+              setSwapCtx(null)
+            }}
+            slotLabel={
+              swapCtx?.kind === 'starter'
+                ? swapCtx.slot.label
+                : swapCtx?.kind === 'reserve'
+                  ? RESERVE_SWAP_TITLE[swapCtx.section]
+                  : ''
+            }
+            candidates={
+              swapCtx && lineupLists
+                ? swapCtx.kind === 'starter'
+                  ? buildSwapCandidates({
+                      lists: lineupLists,
+                      slot: swapCtx.slot,
+                      slotIndex: swapCtx.index,
+                      players,
+                    })
+                  : buildReserveSwapCandidates({
+                      lists: lineupLists,
+                      sourcePlayerId: swapCtx.playerId,
+                      players,
+                    })
+                : []
+            }
+            sport={resolvedSport}
+            locked={!lineupEditable || savingLineup}
+            lockMessage={weekLock?.reason ?? dbRosterMeta.lineupLockHelp ?? null}
+            onPick={(incomingId) => {
+              if (!swapCtx || !lineupLists) return
+              if (swapCtx.kind === 'starter') {
+                const next = applyLineupPick({
+                  lists: lineupLists,
+                  slotIndex: swapCtx.index,
+                  incomingId,
+                })
+                void saveLineup(next)
+                return
+              }
+              const next = swapPlayersInLists(lineupLists, swapCtx.playerId, incomingId)
+              void saveLineup(next)
+            }}
+          />
+        </>
+      ) : null}
+
+      {!loading && !error && !showIdpDashboard && payload && payload.source !== 'sleeper' && dbParts && !lineupLists ? (
         <>
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">

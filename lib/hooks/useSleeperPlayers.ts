@@ -9,6 +9,7 @@ export type SlimPlayer = {
   team: string
   espn_id?: string
   nba_id?: string
+  years_exp?: number
 }
 export type PlayerMap = Record<string, SlimPlayer>
 

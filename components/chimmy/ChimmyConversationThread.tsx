@@ -84,6 +84,13 @@ export default function ChimmyConversationThread({
           voiceLoading={voiceLoadingId === msg.id}
           voicePlaying={voicePlayingId === msg.id}
           voiceDisplayName={voiceDisplayName}
+            isLastAssistantMessage={
+              msg.role === 'assistant' &&
+              i === messages.length - 1 &&
+              !isTyping &&
+              msg.meta?.variant !== 'premium_gate' &&
+              msg.meta?.variant !== 'error'
+            }
         />
       ))}
 

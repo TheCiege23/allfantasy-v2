@@ -9,8 +9,8 @@ export type TokenBalanceSnapshot = {
 }
 
 export class TokenBalanceResolver {
-  async resolveForUser(userId: string): Promise<TokenBalanceSnapshot> {
+  async resolveForUser(userId: string, userEmail?: string | null): Promise<TokenBalanceSnapshot> {
     const service = new TokenSpendService()
-    return service.getBalance(userId)
+    return service.getBalance(userId, userEmail)
   }
 }

@@ -19,7 +19,6 @@ import {
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry';
 import { z } from 'zod';
-import { checkCreateLeagueRateLimit } from '@/lib/league/rate-limit';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -63,18 +62,9 @@ export async function POST(req: Request) {
     user?: { id?: string };
   } | null;
 
-  if (!session?.user?.id) {
+  const userId = session?.user?.id;
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const userId = session.user.id;
-
-  // Rate limit: 5 leagues per hour per user
-  const rateLimit = checkCreateLeagueRateLimit(userId);
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: `Rate limit exceeded. Try again in ${rateLimit.retryAfterSeconds ?? 60} seconds.` },
-      { status: 429 }
-    );
   }
 
   let body: any;
@@ -236,26 +226,25 @@ export async function POST(req: Request) {
   }
   if (isDevyRequested) {
     const devySport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(devySport)) {
+    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
+    if (!['NFL', 'NBA'].includes(devySport)) {
       return NextResponse.json(
-        { error: 'Devy leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
+        { error: 'Devy leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
         { status: 400 }
       );
     }
   }
   if (isC2CRequested) {
     const c2cSport = (sportInput ?? 'NFL').toString().toUpperCase();
-    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(c2cSport)) {
+    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
+    if (!['NFL', 'NBA'].includes(c2cSport)) {
       return NextResponse.json(
-        { error: 'C2C leagues are only supported for football and basketball ecosystems. Please select NFL, NCAAF, NBA, or NCAAB.' },
+        { error: 'C2C leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
         { status: 400 }
       );
     }
   }
-  // Sanitize league name — strip HTML/script tags, trim whitespace
-  let name = nameInput
-    ? nameInput.replace(/<[^>]*>/g, '').replace(/[<>"'`]/g, '').trim().slice(0, 100)
-    : nameInput;
+  let name = nameInput;
   let leagueSize = leagueSizeInput;
   let rosterSize = rosterSizeInput;
   let scoring = scoringInput;
@@ -338,7 +327,7 @@ export async function POST(req: Request) {
     if (platformLeagueId && platform !== 'manual') {
       const existing = await (prisma as any).league.findFirst({
         where: {
-          userId: session.user.id,
+          userId,
           platform,
           platformLeagueId,
         },
@@ -493,6 +482,25 @@ export async function POST(req: Request) {
       }
     }
 
+    // Survivor: cast size 16/20/24 only — align Prisma `leagueSize` + settings JSON (wizard may send size only under settings).
+    if (String(requestedLeagueType ?? '').toLowerCase() === 'survivor') {
+      const { clampSurvivorCastSize } = await import('@/lib/league-creation-wizard/sport-team-limits');
+      const raw =
+        typeof (initialSettings as Record<string, unknown>).league_size === 'number'
+          ? Number((initialSettings as Record<string, unknown>).league_size)
+          : typeof (initialSettings as Record<string, unknown>).survivor_creation_team_count === 'number'
+            ? Number((initialSettings as Record<string, unknown>).survivor_creation_team_count)
+            : typeof leagueSize === 'number'
+              ? leagueSize
+              : 20;
+      const cast = clampSurvivorCastSize(raw);
+      leagueSize = cast;
+      (initialSettings as Record<string, unknown>).league_size = cast;
+      (initialSettings as Record<string, unknown>).survivor_creation_team_count = cast;
+      (initialSettings as Record<string, unknown>).teamCount = cast;
+      initialSettings.roster_mode = 'redraft';
+    }
+
     const generatedInviteCode = (await import('crypto')).randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
     const resolvedInviteCode =
       typeof initialSettings.inviteCode === 'string' && initialSettings.inviteCode.trim()
@@ -519,6 +527,62 @@ export async function POST(req: Request) {
       (initialSettings as Record<string, unknown>).roster_mode = normalizedRosterMode;
       if (normalizedRosterMode === 'best_ball') (initialSettings as Record<string, unknown>).best_ball = true;
     }
+    // Devy: validator expects `devy_slots` and non-empty `devy_rounds`; align aliases from the wizard payload.
+    {
+      const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
+      const isDevyCreate =
+        lt === 'devy' || String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty';
+      if (isDevyCreate) {
+        const s = initialSettings as Record<string, unknown>;
+        const fromCollege =
+          typeof s.devy_college_slots_creation === 'number' && Number.isFinite(s.devy_college_slots_creation)
+            ? s.devy_college_slots_creation
+            : null;
+        const existing =
+          typeof s.devy_slots === 'number' && Number.isFinite(s.devy_slots)
+            ? s.devy_slots
+            : typeof s.devySlots === 'number' && Number.isFinite(s.devySlots)
+              ? s.devySlots
+              : null;
+        const resolved = existing ?? fromCollege;
+        if (resolved != null && resolved > 0) {
+          s.devy_slots = Math.max(1, Math.floor(resolved));
+        }
+        const dr = s.devy_rounds ?? s.devyRounds;
+        if (!Array.isArray(dr) || dr.length === 0) {
+          s.devy_rounds = [1];
+        }
+      }
+    }
+
+    // C2C: validator needs college rounds + pool size; align wizard `*_creation` aliases.
+    {
+      const lt = String(initialSettings.league_type ?? (initialSettings as Record<string, unknown>).leagueType ?? '').toLowerCase();
+      const isC2cCreate =
+        lt === 'c2c' || String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c';
+      if (isC2cCreate) {
+        const s = initialSettings as Record<string, unknown>;
+        const fromCreation =
+          typeof s.c2c_college_slots_creation === 'number' && Number.isFinite(s.c2c_college_slots_creation)
+            ? s.c2c_college_slots_creation
+            : null;
+        const existing =
+          typeof s.c2c_college_roster_size === 'number' && Number.isFinite(s.c2c_college_roster_size)
+            ? s.c2c_college_roster_size
+            : typeof s.c2cCollegeRosterSize === 'number' && Number.isFinite(s.c2cCollegeRosterSize)
+              ? s.c2cCollegeRosterSize
+              : null;
+        const resolved = existing ?? fromCreation;
+        if (resolved != null && resolved > 0) {
+          s.c2c_college_roster_size = Math.max(1, Math.floor(resolved));
+        }
+        const cr = s.c2c_college_rounds ?? s.c2cCollegeRounds;
+        if (!Array.isArray(cr) || cr.length === 0) {
+          s.c2c_college_rounds = [1];
+        }
+      }
+    }
+
     const { validateLeagueSettings } = await import('@/lib/league-settings-validation');
     const validation = validateLeagueSettings(initialSettings);
     if (!validation.valid) {
@@ -572,12 +636,8 @@ export async function POST(req: Request) {
     const isZombie =
       String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
       String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
-    const isTournament =
-      String(leagueVariantInput ?? '').toLowerCase() === 'tournament' ||
-      String(leagueVariantInput ?? '').toLowerCase() === 'tournament_mode' ||
-      String(requestedLeagueType ?? '').toLowerCase() === 'tournament';
-    const effectiveDynasty = isGuillotine || isTournament ? false : (isDevy || isC2C ? true : isDynasty);
-    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isTournament ? 'tournament_mode' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
+    const effectiveDynasty = isGuillotine ? false : (isDevy || isC2C ? true : isDynasty);
+    const resolvedVariant = isGuillotine ? 'guillotine' : isSalaryCap ? 'salary_cap' : isSurvivor ? 'survivor' : isC2C ? 'merged_devy_c2c' : isDevy ? 'devy_dynasty' : isBigBrother ? 'big_brother' : isZombie ? 'zombie' : isIdpRequested ? (effectiveDynasty ? 'DYNASTY_IDP' : 'IDP') : (leagueVariantInput ?? null);
     // Canonical cross-module keys used by multi-sport services and downstream UIs.
     initialSettings.sport_type = sport;
     initialSettings.league_variant = resolvedVariant ?? null;
@@ -609,9 +669,24 @@ export async function POST(req: Request) {
         ? String((initialSettings as Record<string, unknown>).league_timezone).trim()
         : 'America/New_York';
 
+    const isSurvivorLeague =
+      String(leagueVariantInput ?? '').toLowerCase() === 'survivor' ||
+      String(requestedLeagueType ?? '').toLowerCase() === 'survivor';
+    const survivorTribeCountColumn =
+      isSurvivorLeague &&
+      typeof (initialSettings as Record<string, unknown>).survivor_suggested_tribe_count === 'number'
+        ? Math.max(2, Math.min(4, Math.round(Number((initialSettings as Record<string, unknown>).survivor_suggested_tribe_count))))
+        : 4;
+    const survivorTribeNamingColumn =
+      isSurvivorLeague &&
+      String((initialSettings as Record<string, unknown>).survivor_tribe_name_mode ?? 'auto') === 'custom'
+        ? 'custom'
+        : 'auto';
+
     const league = await (prisma as any).league.create({
       data: {
-        userId: session.user.id,
+        userId: userId,
+        isCommissioner: true,
         name,
         platform,
         platformLeagueId: platformLeagueId || `manual-${Date.now()}`,
@@ -621,11 +696,21 @@ export async function POST(req: Request) {
         isDynasty: effectiveDynasty,
         sport,
         leagueVariant: resolvedVariant,
+        ...(requestedLeagueType ? { leagueType: requestedLeagueType } : {}),
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         timezone: leagueTimezone,
         settings: initialSettings,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
         ...(effectiveDynasty ? { season: foundingSeason } : {}),
+        ...(isSurvivorLeague && typeof leagueSize === 'number'
+          ? {
+              survivorMode: true,
+              survivorPlayerCount: leagueSize,
+              survivorTribeCount: survivorTribeCountColumn,
+              survivorTribeNaming: survivorTribeNamingColumn,
+              survivorTribeSize: Math.max(1, Math.ceil(leagueSize / survivorTribeCountColumn)),
+            }
+          : {}),
       },
     });
 
@@ -634,6 +719,57 @@ export async function POST(req: Request) {
       await runPostCreateInitialization(league.id, sport as string, resolvedVariant ?? leagueVariantInput ?? undefined);
     } catch (err) {
       console.warn('[league/create] Bootstrap non-fatal:', err);
+    }
+
+    if (platform === 'manual') {
+      try {
+        const profile = await prisma.userProfile.findUnique({
+          where: { userId: userId },
+          select: { displayName: true, sleeperUsername: true },
+        });
+        const displayName =
+          profile?.displayName?.trim() ||
+          profile?.sleeperUsername?.trim() ||
+          'Commissioner';
+        await prisma.$transaction(async (tx) => {
+          const existingRoster = await tx.roster.findUnique({
+            where: {
+              leagueId_platformUserId: { leagueId: league.id, platformUserId: userId },
+            },
+          });
+          let rosterId = existingRoster?.id;
+          if (!rosterId) {
+            const r = await tx.roster.create({
+              data: {
+                leagueId: league.id,
+                platformUserId: userId,
+                playerData: { draftPicks: [] },
+              },
+            });
+            rosterId = r.id;
+          }
+          const hasTeam = await tx.leagueTeam.findFirst({
+            where: { leagueId: league.id, claimedByUserId: userId },
+          });
+          if (!hasTeam) {
+            const leagueName = String(name ?? 'League').trim();
+            await tx.leagueTeam.create({
+              data: {
+                leagueId: league.id,
+                externalId: rosterId,
+                ownerName: displayName,
+                teamName: `${displayName}'s ${leagueName}`,
+                claimedByUserId: userId,
+                platformUserId: userId,
+                isCommissioner: true,
+                role: 'commissioner',
+              },
+            });
+          }
+        });
+      } catch (err) {
+        console.warn('[league/create] Commissioner team attach non-fatal:', err);
+      }
     }
     try {
       const { generateLeagueConstitutionArtifact } = await import('@/lib/league/format-artifact-service');
@@ -693,48 +829,7 @@ export async function POST(req: Request) {
     if (isGuillotine) {
       try {
         const { upsertGuillotineConfig } = await import('@/lib/guillotine/GuillotineLeagueConfig');
-        const gc = (settingsWizard as Record<string, unknown>)?.guillotine as Record<string, unknown> | undefined;
-        await upsertGuillotineConfig(league.id, {
-          ...(gc?.eliminationsPerPeriod != null && { teamsPerChop: Number(gc.eliminationsPerPeriod) }),
-        });
-        // Set guillotineMode + all guillotine fields from wizard
-        const updatedLeague = await (prisma as any).league.update({
-          where: { id: league.id },
-          data: {
-            guillotineMode: true,
-            ...(gc?.endgame != null && { guillotineEndgame: String(gc.endgame) }),
-            ...(gc?.eliminationsPerPeriod != null && { guillotineEliminationsPerPeriod: Number(gc.eliminationsPerPeriod) }),
-            ...(gc?.protectedWeek1 != null && { guillotineProtectedWeek1: Boolean(gc.protectedWeek1) }),
-            ...(gc?.tiebreaker != null && { guillotineTiebreaker: String(gc.tiebreaker) }),
-            ...(gc?.samePeriodPickups != null && { guillotineSamePeriodPickups: Boolean(gc.samePeriodPickups) }),
-            ...(typeof gc?.tradesEnabled === 'boolean' && { draftPickTrading: gc.tradesEnabled }),
-          },
-          select: {
-            sport: true,
-            season: true,
-            leagueSize: true,
-          },
-        });
-        const linkedRedraftSeason = await (prisma as any).redraftSeason.findFirst({
-          where: { leagueId: league.id },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true },
-        }).catch(() => null);
-        // Auto-create GuillotineSeason
-        await (prisma as any).guillotineSeason.create({
-          data: {
-            leagueId: league.id,
-            ...(linkedRedraftSeason?.id ? { redraftSeasonId: linkedRedraftSeason.id } : {}),
-            sport: updatedLeague.sport ?? 'NFL',
-            season: updatedLeague.season ?? new Date().getFullYear(),
-            status: 'active',
-            totalTeamsStarted: updatedLeague.leagueSize ?? 12,
-            currentTeamsActive: updatedLeague.leagueSize ?? 12,
-            currentScoringPeriod: 0,
-          },
-        }).catch((err: unknown) => {
-          console.warn('[league/create] GuillotineSeason bootstrap non-fatal:', err);
-        });
+        await upsertGuillotineConfig(league.id, {});
       } catch (err) {
         console.warn('[league/create] Guillotine config bootstrap non-fatal:', err);
       }
@@ -743,11 +838,19 @@ export async function POST(req: Request) {
     if (isSalaryCap) {
       try {
         const { upsertSalaryCapConfig } = await import('@/lib/salary-cap/SalaryCapLeagueConfig');
-        const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'dynasty').toLowerCase();
+        const sc = (settingsWizard ?? {}) as Record<string, unknown>;
+        const modeRaw = String(sc.salary_cap_mode ?? sc.mode ?? initialSettings.mode ?? 'dynasty').toLowerCase();
+        const mode = modeRaw === 'bestball' || modeRaw === 'best_ball' ? 'bestball' : 'dynasty';
+        const startupFromWizard =
+          typeof sc.salary_cap_startup_cap === 'number' && Number.isFinite(sc.salary_cap_startup_cap)
+            ? sc.salary_cap_startup_cap
+            : typeof sc.startupCap === 'number' && Number.isFinite(sc.startupCap)
+              ? sc.startupCap
+              : undefined;
         await upsertSalaryCapConfig(league.id, {
-          mode: mode === 'bestball' ? 'bestball' : 'dynasty',
-          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.startupCap != null && { startupCap: Number((settingsWizard as Record<string, unknown>).startupCap) }),
-          ...(typeof (settingsWizard ?? {}) === 'object' && (settingsWizard as Record<string, unknown>)?.futureDraftType != null && { futureDraftType: String((settingsWizard as Record<string, unknown>).futureDraftType) }),
+          mode,
+          ...(startupFromWizard != null ? { startupCap: startupFromWizard } : {}),
+          ...(sc.futureDraftType != null && { futureDraftType: String(sc.futureDraftType) }),
         });
       } catch (err) {
         console.warn('[league/create] Salary cap config bootstrap non-fatal:', err);
@@ -758,89 +861,49 @@ export async function POST(req: Request) {
       try {
         const { upsertSurvivorConfig } = await import('@/lib/survivor/SurvivorLeagueConfig');
         const { getOrCreateExileLeague } = await import('@/lib/survivor/SurvivorExileEngine');
-        const mode = String(settingsWizard?.mode ?? initialSettings.mode ?? 'redraft').toLowerCase();
-        const sv = (settingsWizard as Record<string, unknown>)?.survivor as Record<string, unknown> | undefined;
-        const survivorPlayerCount = sv?.playerCount != null ? Number(sv.playerCount) : 20;
-        const survivorTribeCount = sv?.tribeCount != null ? Number(sv.tribeCount) : 4;
-        const survivorTribeSize =
-          sv?.tribeSize != null
-            ? Number(sv.tribeSize)
-            : survivorTribeCount > 0
-              ? Math.floor(survivorPlayerCount / survivorTribeCount)
-              : 5;
+        const mode = String((initialSettings as Record<string, unknown>).mode ?? settingsWizard?.mode ?? 'redraft').toLowerCase();
+        const sw = initialSettings as Record<string, unknown>;
+        const suggestedTribes =
+          typeof sw.survivor_suggested_tribe_count === 'number' && Number.isFinite(sw.survivor_suggested_tribe_count)
+            ? Math.max(2, Math.min(4, Math.round(Number(sw.survivor_suggested_tribe_count))))
+            : null;
+        const teamCount = typeof league.leagueSize === 'number' ? league.leagueSize : 20;
+        const tribeCount =
+          suggestedTribes ??
+          (typeof sw.tribeCount === 'number' && Number.isFinite(sw.tribeCount)
+            ? Math.max(2, Math.min(4, Math.round(Number(sw.tribeCount))))
+            : 4);
+        const tribeSize = Math.max(1, Math.ceil(teamCount / tribeCount));
+        const tribeFormation = String(sw.tribeFormation ?? 'random');
+        const seasonThemeRaw = sw.survivor_season_theme_label;
+        const seasonThemeLabel =
+          typeof seasonThemeRaw === 'string' && seasonThemeRaw.trim().length > 0
+            ? String(seasonThemeRaw).trim()
+            : null;
+        const challengesSystemRun = sw.survivor_challenges_system_run !== false;
         await upsertSurvivorConfig(league.id, {
           mode: mode === 'bestball' ? 'bestball' : 'redraft',
-          tribeCount: survivorTribeCount,
-          tribeSize: survivorTribeSize,
-          ...(sv?.tribeFormation != null && { tribeFormation: String(sv.tribeFormation) }),
-          ...(sv?.mergeTrigger != null && { mergeTrigger: String(sv.mergeTrigger) }),
-          ...(sv?.mergeWeek != null && { mergeWeek: Number(sv.mergeWeek) }),
-          ...(sv?.mergeAtCount != null && { mergePlayerCount: Number(sv.mergeAtCount) }),
-          ...(sv?.juryStart != null && { juryStartAfterMerge: sv.juryStart === 'after_merge' ? 1 : 0 }),
-          ...(sv?.exileEnabled != null && { exileReturnEnabled: Boolean(sv.exileEnabled) }),
-          ...(sv?.idolsEnabled != null && { idolCount: sv.idolsEnabled ? Number(sv.idolCount ?? 9) : 0 }),
-          ...(sv?.challengeMode != null && { minigameFrequency: String(sv.challengeMode) }),
-          ...(sv?.selfVoteAllowed != null && { selfVoteDisallowed: !Boolean(sv.selfVoteAllowed) }),
+          tribeCount,
+          tribeSize,
+          tribeFormation,
+          seasonThemeLabel,
+          challengesSystemRun,
         });
-        // Update league-level survivor fields (non-fatal — league already created)
-        await prisma.league.update({
-          where: { id: league.id },
-          data: {
-            survivorMode: true,
-            survivorPlayerCount,
-            survivorTribeCount,
-            survivorTribeSize,
-            survivorTribeNaming: sv?.tribeNaming != null ? String(sv.tribeNaming) : 'auto',
-            survivorMergeTrigger: sv?.mergeTrigger != null ? String(sv.mergeTrigger) : 'player_count',
-            survivorMergeWeek: sv?.mergeWeek != null ? Number(sv.mergeWeek) : 8,
-            survivorMergeAtCount: sv?.mergeAtCount != null ? Number(sv.mergeAtCount) : 10,
-            survivorJuryStart: sv?.juryStart != null ? String(sv.juryStart) : 'after_merge',
-            survivorExileEnabled: sv?.exileEnabled != null ? Boolean(sv.exileEnabled) : true,
-            survivorIdolsEnabled: sv?.idolsEnabled != null ? Boolean(sv.idolsEnabled) : true,
-            survivorIdolCount: sv?.idolCount != null ? Number(sv.idolCount) : 9,
-            survivorIdolsTradable: sv?.idolsTradable != null ? Boolean(sv.idolsTradable) : false,
-            survivorIdolsExpireAtMerge: sv?.idolsExpireAtMerge != null ? Boolean(sv.idolsExpireAtMerge) : true,
-            survivorSelfVoteAllowed: sv?.selfVoteAllowed != null ? Boolean(sv.selfVoteAllowed) : false,
-            survivorRocksEnabled: sv?.rocksEnabled != null ? Boolean(sv.rocksEnabled) : true,
-            survivorTieRule: sv?.tieRule != null ? String(sv.tieRule) : 'rocks',
-            survivorRevealMode: sv?.revealMode != null ? String(sv.revealMode) : 'dramatic',
-            survivorChallengeMode: sv?.challengeMode != null ? String(sv.challengeMode) : 'automatic',
-            survivorTokenEnabled: sv?.tokenEnabled != null ? Boolean(sv.tokenEnabled) : true,
-            survivorBossResetEnabled: sv?.bossResetEnabled != null ? Boolean(sv.bossResetEnabled) : true,
-          },
-        }).catch((updateErr) => {
-          console.warn('[league/create] Survivor league field update non-fatal:', updateErr);
+        await getOrCreateExileLeague(league.id).catch((err) => {
+          console.warn('[league/create] Survivor exile bootstrap non-fatal:', err);
         });
-        // Store commissionerPlays in settings JSON (not a Prisma column)
-        if (sv?.commissionerPlays != null) {
-          const latestLeague = await (prisma as any).league.findUnique({
-            where: { id: league.id },
-            select: { settings: true },
+        try {
+          const { seedSurvivorFaqToLeagueChat } = await import('@/lib/survivor/survivorFaq');
+          const faqResult = await seedSurvivorFaqToLeagueChat({
+            leagueId: league.id,
+            commissionerUserId: userId,
           });
-          const latestSettings =
-            latestLeague?.settings && typeof latestLeague.settings === 'object'
-              ? (latestLeague.settings as Record<string, unknown>)
-              : {};
-          await (prisma as any).league.update({
-            where: { id: league.id },
-            data: {
-              settings: {
-                ...latestSettings,
-                survivorCommissionerPlays: Boolean(sv.commissionerPlays),
-              },
-            },
-          }).catch(() => {});
+          if (!faqResult.ok) {
+            console.warn('[league/create] Survivor FAQ not seeded:', faqResult.error);
+          }
+        } catch (faqErr) {
+          console.warn('[league/create] Survivor FAQ seed non-fatal:', faqErr);
         }
-        if (sv?.exileEnabled !== false) {
-          await getOrCreateExileLeague(league.id).catch((err) => {
-            console.warn('[league/create] Survivor exile bootstrap non-fatal:', err);
-          });
-        }
-        // Full bootstrap: GameState, chat channels, player records, sport schedule
-        const { runSurvivorLeagueBootstrap } = await import('@/lib/survivor/survivorLeagueBootstrap');
-        await runSurvivorLeagueBootstrap(league.id).catch((err) => {
-          console.warn('[league/create] Survivor full bootstrap non-fatal:', err);
-        });
       } catch (err) {
         console.warn('[league/create] Survivor config bootstrap non-fatal:', err);
       }
@@ -849,66 +912,12 @@ export async function POST(req: Request) {
     if (isZombie) {
       try {
         const { upsertZombieLeagueConfig } = await import('@/lib/zombie/ZombieLeagueConfig');
-        const zc = (settingsWizard as Record<string, unknown>)?.zombie as Record<string, unknown> | undefined;
-        await upsertZombieLeagueConfig(league.id, {
-          ...(zc?.whispererSelection != null && { whispererSelection: String(zc.whispererSelection) }),
-          ...(zc?.infectionLossToWhisperer != null && { infectionLossToWhisperer: Boolean(zc.infectionLossToWhisperer) }),
-          ...(zc?.infectionLossToZombie != null && { infectionLossToZombie: Boolean(zc.infectionLossToZombie) }),
-          ...(zc?.serumReviveCount != null && { serumReviveCount: Number(zc.serumReviveCount) }),
-          ...(zc?.ambushCountPerWeek != null && { ambushCountDefault: Number(zc.ambushCountPerWeek) }),
-          ...(zc?.zombieTradeBlocked != null && { zombieTradeBlocked: Boolean(zc.zombieTradeBlocked) }),
-        });
+        const zw = (settingsWizard ?? {}) as Record<string, unknown>;
+        const whispererSelection =
+          zw.zombie_whisperer_selection === 'veteran_priority' ? 'veteran_priority' : 'random';
+        await upsertZombieLeagueConfig(league.id, { whispererSelection });
       } catch (err) {
         console.warn('[league/create] Zombie config bootstrap non-fatal:', err);
-      }
-    }
-
-    if (isTournament) {
-      try {
-        const ts = (settingsWizard as Record<string, unknown>)?.tournament as Record<string, unknown> | undefined;
-        // Create tournament shell with config
-        const tournamentShell = await (prisma as any).tournamentShell?.create?.({
-          data: {
-            name: league.name ?? 'Tournament',
-            sport: league.sport ?? 'NFL',
-            maxParticipants: ts?.participantCount != null ? Number(ts.participantCount) : 120,
-            conferenceCount: ts?.conferenceCount != null ? Number(ts.conferenceCount) : 2,
-            leaguesPerConference: ts?.leaguesPerConference != null ? Number(ts.leaguesPerConference) : 5,
-            teamsPerLeague: ts?.teamsPerLeague != null ? Number(ts.teamsPerLeague) : 12,
-            namingMode: ts?.namingMode != null ? String(ts.namingMode) : 'ai_generated',
-            totalRounds: ts?.totalRounds != null ? Number(ts.totalRounds) : 4,
-            creatorId: userId,
-            settings: {
-              bubbleEnabled: ts?.bubbleEnabled !== false,
-              bubbleSize: ts?.bubbleSize ?? 4,
-              redraftBetweenRounds: ts?.redraftBetweenRounds !== false,
-              tradesEnabled: ts?.tradesEnabled ?? false,
-              advancersPerLeague: ts?.advancersPerLeague ?? 4,
-              qualificationWeeks: ts?.qualificationWeeks ?? 9,
-            },
-          },
-        }).catch(() => null);
-        if (tournamentShell?.id) {
-          const latestLeague = await (prisma as any).league.findUnique({
-            where: { id: league.id },
-            select: { settings: true },
-          }).catch(() => null);
-          const latestSettings =
-            latestLeague?.settings && typeof latestLeague.settings === 'object'
-              ? (latestLeague.settings as Record<string, unknown>)
-              : {};
-          await (prisma as any).league.update({
-            where: { id: league.id },
-            data: {
-              settings: {
-                ...latestSettings,
-                tournamentShellId: tournamentShell.id,
-              },
-            },
-          }).catch(() => {});
-        }
-      } catch (err) {
-        console.warn('[league/create] Tournament bootstrap non-fatal:', err);
       }
     }
 
@@ -916,10 +925,22 @@ export async function POST(req: Request) {
       try {
         const { upsertDevyConfig } = await import('@/lib/devy/DevyLeagueConfig');
         const s = settingsWizard as Record<string, unknown> | undefined;
+        const devyCollege =
+          typeof s?.devy_college_slots_creation === 'number' && Number.isFinite(s.devy_college_slots_creation)
+            ? s.devy_college_slots_creation
+            : typeof s?.devy_slot_count === 'number'
+              ? s.devy_slot_count
+              : undefined;
+        const devyTaxi =
+          typeof s?.devy_taxi_slots_creation === 'number' && Number.isFinite(s.devy_taxi_slots_creation)
+            ? s.devy_taxi_slots_creation
+            : typeof s?.devy_taxi_slots === 'number'
+              ? s.devy_taxi_slots
+              : undefined;
         await upsertDevyConfig(league.id, {
-          devySlotCount: typeof s?.devy_slot_count === 'number' ? s.devy_slot_count : undefined,
+          devySlotCount: devyCollege,
           devyIRSlots: typeof s?.devy_ir_slots === 'number' ? s.devy_ir_slots : undefined,
-          taxiSize: typeof s?.devy_taxi_slots === 'number' ? s.devy_taxi_slots : undefined,
+          taxiSize: devyTaxi,
           collegeSports: Array.isArray(s?.devy_college_sports)
             ? (s?.devy_college_sports as string[]).filter(Boolean)
             : undefined,
@@ -942,6 +963,16 @@ export async function POST(req: Request) {
       try {
         const { upsertC2CConfig } = await import('@/lib/merged-devy-c2c/C2CLeagueConfig');
         const s = settingsWizard as Record<string, unknown> | undefined;
+        const c2cCollegeRoster =
+          typeof s?.c2c_college_slots_creation === 'number' && Number.isFinite(s.c2c_college_slots_creation)
+            ? s.c2c_college_slots_creation
+            : typeof s?.c2c_college_roster_size === 'number'
+              ? s.c2c_college_roster_size
+              : 20;
+        const c2cTaxi =
+          typeof s?.c2c_taxi_slots_creation === 'number' && Number.isFinite(s.c2c_taxi_slots_creation)
+            ? s.c2c_taxi_slots_creation
+            : undefined;
         await upsertC2CConfig(league.id, {
           startupFormat: (s?.c2c_startup_mode as string) ?? 'merged',
           mergedStartupDraft: (s?.c2c_startup_mode as string) !== 'separate',
@@ -954,7 +985,8 @@ export async function POST(req: Request) {
           mixProPlayers: s?.c2c_mix_pro_players !== false,
           bestBallPro: s?.c2c_best_ball_pro !== false,
           bestBallCollege: Boolean(s?.c2c_best_ball_college),
-          collegeRosterSize: typeof s?.c2c_college_roster_size === 'number' ? s.c2c_college_roster_size : 20,
+          taxiSize: c2cTaxi,
+          collegeRosterSize: c2cCollegeRoster,
           rookieDraftRounds: typeof s?.c2c_rookie_draft_rounds === 'number' ? s.c2c_rookie_draft_rounds : 4,
           collegeDraftRounds: typeof s?.c2c_college_draft_rounds === 'number' ? s.c2c_college_draft_rounds : 6,
         });
@@ -966,7 +998,14 @@ export async function POST(req: Request) {
     if (effectiveDynasty) {
       try {
         const { upsertDynastyConfig } = await import('@/lib/dynasty-core/DynastySettingsService');
-        await upsertDynastyConfig(league.id, {});
+        const s = settingsWizard as Record<string, unknown> | undefined;
+        const taxiFromCreate =
+          typeof s?.dynasty_taxi_slots_creation === 'number' && Number.isFinite(s.dynasty_taxi_slots_creation)
+            ? s.dynasty_taxi_slots_creation
+            : undefined;
+        await upsertDynastyConfig(league.id, {
+          ...(taxiFromCreate != null ? { taxiSlots: taxiFromCreate } : {}),
+        });
       } catch (err) {
         console.warn('[league/create] Dynasty config bootstrap non-fatal:', err);
       }
@@ -987,155 +1026,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // Bootstrap RedraftSeason for standard redraft/best_ball leagues
-    // Dynasty, Guillotine, Survivor, Zombie, Tournament, Devy, C2C, SalaryCap each have their own bootstrap above.
-    const isStandardRedraft =
-      !effectiveDynasty &&
-      !isGuillotine &&
-      !isSurvivor &&
-      !isZombie &&
-      !isTournament &&
-      !isDevyRequested &&
-      !isC2CRequested &&
-      !isSalaryCap &&
-      !isBigBrother;
-    if (isStandardRedraft) {
-      try {
-        const { leagueSportToConfigSport } = await import('@/lib/redraft/sportKey');
-        const { tryGetSportConfig } = await import('@/lib/sportConfig');
-        const { generateSchedule } = await import('@/lib/redraft/scheduleEngine');
-        const sportKeyForRedraft = leagueSportToConfigSport(String(league.sport));
-        const sportCfg = tryGetSportConfig(sportKeyForRedraft);
-        const seasonYear = league.season ?? new Date().getFullYear();
-        const totalWeeks = sportCfg?.defaultSeasonWeeks ?? 17;
-        const playoffStartWeek = sportCfg?.defaultPlayoffStartWeek ?? 15;
-
-        await prisma.$transaction(async (tx) => {
-          const rs = await tx.redraftSeason.create({
-            data: {
-              leagueId: league.id,
-              sport: sportKeyForRedraft,
-              season: seasonYear,
-              status: 'setup',
-              totalWeeks,
-              playoffStartWeek,
-              currentWeek: 0,
-              medianGame: false,
-            },
-          });
-
-          const teams = await tx.leagueTeam.findMany({ where: { leagueId: league.id } });
-          const rosters: { id: string }[] = [];
-          for (const t of teams) {
-            const ownerId = t.claimedByUserId ?? league.userId;
-            const r = await tx.redraftRoster.create({
-              data: {
-                seasonId: rs.id,
-                leagueId: league.id,
-                ownerId,
-                ownerName: t.ownerName,
-                teamName: t.teamName,
-                avatarUrl: t.avatarUrl,
-              },
-            });
-            rosters.push({ id: r.id });
-          }
-
-          if (rosters.length >= 2) {
-            const slots = generateSchedule(rosters, totalWeeks, playoffStartWeek, sportKeyForRedraft, { medianGame: false });
-            for (const s of slots) {
-              if (s.type === 'median') continue;
-              await tx.redraftMatchup.create({
-                data: {
-                  seasonId: rs.id,
-                  leagueId: league.id,
-                  week: s.week,
-                  type: 'regular',
-                  homeRosterId: s.home,
-                  awayRosterId: s.away,
-                  isMedianMatchup: false,
-                },
-              });
-            }
-          }
-        });
-      } catch (err) {
-        console.warn('[league/create] RedraftSeason bootstrap non-fatal:', err);
-      }
-    }
-
-    // Pin FAQ document in league chat based on league type
-    try {
-      const {
-        generateAndPinRedraftFAQ,
-        generateAndPinDynastyFAQ,
-        generateAndPinGuillotineFAQ,
-        generateAndPinTournamentFAQ,
-        generateAndPinBestBallFAQ,
-        generateAndPinKeeperFAQ,
-        generateAndPinSalaryCapFAQ,
-        generateAndPinIdpFAQ,
-        generateAndPinDevyFAQ,
-        generateAndPinC2CFAQ,
-        generateAndPinBigBrotherFAQ,
-      } = await import('@/lib/league/faqGenerator');
-
-      const lt = String(requestedLeagueType ?? '').toLowerCase();
-      // Big Brother, C2C, and Devy get their own FAQs (before dynasty check)
-      if (isBigBrother) {
-        await generateAndPinBigBrotherFAQ(league.id);
-      } else if (isC2CRequested || lt === 'c2c') {
-        await generateAndPinC2CFAQ(league.id);
-      } else if (isDevyRequested || lt === 'devy') {
-        await generateAndPinDevyFAQ(league.id);
-      } else if (isIdpRequested && isSalaryCap) {
-        await generateAndPinIdpFAQ(league.id);
-        await generateAndPinSalaryCapFAQ(league.id);
-      } else if (isIdpRequested) {
-        await generateAndPinIdpFAQ(league.id);
-      } else if (lt === 'salary_cap') {
-        await generateAndPinSalaryCapFAQ(league.id);
-      } else if (lt === 'best_ball') {
-        await generateAndPinBestBallFAQ(league.id);
-      } else if (lt === 'keeper') {
-        await generateAndPinKeeperFAQ(league.id);
-      } else if (isGuillotine) {
-        await generateAndPinGuillotineFAQ(league.id);
-      } else if (isTournament) {
-        await generateAndPinTournamentFAQ(league.id);
-      } else if (effectiveDynasty) {
-        await generateAndPinDynastyFAQ(league.id);
-      } else if (isStandardRedraft) {
-        await generateAndPinRedraftFAQ(league.id);
-      }
-      // Survivor and Zombie FAQs are handled by their own bootstrap functions above.
-    } catch (err) {
-      console.warn('[league/create] FAQ pin non-fatal:', err);
-    }
-
-    // Sync to Klipy CRM (non-fatal)
-    try {
-      const { logLeagueCreation, syncLeagueToKlipy, isKlipyConfigured } = await import('@/lib/klipy');
-      if (isKlipyConfigured()) {
-        const user = await prisma.appUser.findUnique({ where: { id: userId }, select: { email: true } });
-        if (user?.email) {
-          await logLeagueCreation(user.email, league.name ?? 'League', league.sport ?? 'NFL', requestedLeagueType ?? 'redraft');
-        }
-        await syncLeagueToKlipy({
-          id: league.id,
-          name: league.name ?? 'League',
-          sport: league.sport ?? 'NFL',
-          teamCount: league.teamCount ?? 12,
-          leagueType: requestedLeagueType ?? 'redraft',
-        });
-      }
-    } catch (err) {
-      console.warn('[league/create] Klipy sync non-fatal:', err);
-    }
-
     return NextResponse.json({ league: { id: league.id, name: league.name, sport: league.sport } });
   } catch (err) {
-    console.error('[league/create] Error:', err);
-    return NextResponse.json({ error: 'Failed to create league' }, { status: 500 });
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const errStack = err instanceof Error ? err.stack : undefined;
+    console.error('[league/create] Error:', errMsg, errStack);
+    return NextResponse.json({ error: `Failed to create league: ${errMsg}` }, { status: 500 });
   }
 }

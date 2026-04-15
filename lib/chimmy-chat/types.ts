@@ -1,4 +1,5 @@
 import type { SupportedSport } from "@/lib/sport-scope"
+import type { ChimmyOrchestrationMeta } from "@/lib/chimmy-orchestration/types"
 
 export type AIInsightType = "matchup" | "playoff" | "dynasty" | "trade" | "waiver" | "draft"
 
@@ -49,18 +50,31 @@ export type AIChatContext = {
 
 export type ChimmyProviderStatus = Record<string, string> | undefined
 
+/** Optional UI labels for structured Chimmy cards (default: evidence-style copy). */
+export type ChimmyResponseSectionTitles = {
+  shortAnswer?: string
+  whatDataSays?: string
+  whatItMeans?: string
+  recommendedAction?: string
+  caveats?: string
+}
+
 export type ChimmyResponseStructure = {
   shortAnswer: string
   whatDataSays?: string
   whatItMeans?: string
   recommendedAction?: string
   caveats?: string[]
+  /** When set (e.g. orchestration-shaped replies), overrides section headings. */
+  sectionTitles?: ChimmyResponseSectionTitles
 }
 
 export type ChimmyMessageMeta = {
   confidencePct?: number
   providerStatus?: ChimmyProviderStatus
   recommendedTool?: string
+  /** Central routing + tool launches from Chimmy orchestration brain */
+  orchestration?: ChimmyOrchestrationMeta | null
   dataSources?: string[]
   quantData?: Record<string, unknown>
   trendData?: Record<string, unknown>

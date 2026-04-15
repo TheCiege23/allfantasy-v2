@@ -123,7 +123,10 @@ test.describe("@db @security security-contact settings click audit", () => {
     await expect(page.getByText("updated.security@example.com")).toBeVisible()
     await page.getByRole("button", { name: "Send verification" }).click()
     await expect(page.getByText("Check your email for the verification link.")).toBeVisible()
-    await expect(page.getByRole("link", { name: "Verify / change" })).toHaveAttribute("href", "/verify?method=email")
+    await expect(page.getByRole("link", { name: "Verify / change" })).toHaveAttribute(
+      "href",
+      /\/verify\?method=email(?:&returnTo=.*)?/
+    )
 
     // Email cancel path
     await page.getByRole("button", { name: "Edit email" }).click()

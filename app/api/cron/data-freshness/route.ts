@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const REFRESH_DATA_TYPES = ['players', 'teams', 'injuries', 'news', 'schedule', 'standings'] as const
+const REFRESH_DATA_TYPES = ['players', 'teams', 'injuries', 'news', 'schedule', 'standings', 'projections', 'rankings'] as const
 
 export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {

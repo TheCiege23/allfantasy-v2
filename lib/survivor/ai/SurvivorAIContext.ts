@@ -3,7 +3,6 @@
  * PROMPT 348: Elimination, vote count, idol validity, immunity, exile return are rules-driven only.
  */
 
-import { buildHistoricalContextForPrompt } from '@/lib/ai/historicalContextBuilder'
 import { getSurvivorConfig } from '../SurvivorLeagueConfig'
 import { getActiveEffectsForRoster } from '../SurvivorEffectEngine'
 import { getTribesWithMembers } from '../SurvivorTribeService'
@@ -21,6 +20,7 @@ import { getCurrentlyEliminatedRosterIds } from '../SurvivorRosterState'
 import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
 import { prisma } from '@/lib/prisma'
 import type { LeagueSport } from '@prisma/client'
+import { buildHistoricalContext, type HistoricalContext } from '@/lib/ai/historicalContextBuilder'
 
 export type SurvivorAIType =
   | 'host_intro'
@@ -82,8 +82,7 @@ export interface SurvivorAIDeterministicContext {
     juryVotesRequired: number
     winnerRosterId: string | null
   } | null
-  /** Historical league context for AI rankings and narrative (past seasons, manager profiles, rivalries) */
-  historicalContext: string | null
+  historical?: HistoricalContext | null
 }
 
 /**
@@ -104,7 +103,7 @@ export async function buildSurvivorAIContext(args: {
   })
   const sport = (league?.sport ?? 'NFL') as LeagueSport
 
-  const [tribes, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, finaleState] = await Promise.all([
+  const [tribes, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, finaleState, historical] = await Promise.all([
     getTribesWithMembers(leagueId),
     getCouncil(leagueId, currentWeek),
     getChallengesForWeek(leagueId, currentWeek),
@@ -115,6 +114,7 @@ export async function buildSurvivorAIContext(args: {
     isMergeTriggered(leagueId, currentWeek),
     prisma.roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } }).then((r) => r?.id ?? null),
     getFinaleState(leagueId, currentWeek),
+    buildHistoricalContext(leagueId).catch(() => null),
   ])
 
   const [eliminatedRosterIds, mainLeagueRosters] = await Promise.all([
@@ -267,6 +267,6 @@ export async function buildSurvivorAIContext(args: {
             winnerRosterId: finaleState.winnerRosterId,
           }
         : null,
-    historicalContext: await buildHistoricalContextForPrompt(leagueId).catch(() => null),
+    historical: historical ?? null,
   }
 }

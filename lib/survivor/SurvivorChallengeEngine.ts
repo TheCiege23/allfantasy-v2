@@ -7,7 +7,14 @@ import { getSurvivorConfig } from './SurvivorLeagueConfig'
 import { appendSurvivorAudit } from './SurvivorAuditLog'
 import { applyChallengeRewards } from './SurvivorEffectEngine'
 import { getMinigameDef } from './SurvivorMiniGameRegistry'
+import { SURVIVOR_MINI_GAME_CADENCE } from './constants'
 import type { SurvivorChallengeType } from './types'
+
+/** Resolve per-sport mini-game cadence (games per week + tribal-council day). */
+export function getMiniGameCadence(sport?: string | null): { perWeek: number; tribalDay: string } {
+  if (!sport) return SURVIVOR_MINI_GAME_CADENCE.NFL
+  return SURVIVOR_MINI_GAME_CADENCE[sport.toUpperCase()] ?? SURVIVOR_MINI_GAME_CADENCE.NFL
+}
 
 /**
  * Create a challenge for the week.

@@ -264,7 +264,9 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
       )
     }
 
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -355,12 +357,13 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     ]
 
     const streamRequested =
-      request.nextUrl.searchParams.get('stream') === '1' ||
+      request.nextUrl.searchParams?.get('stream') === '1' ||
       (typeof (body as Record<string, unknown>).stream === 'boolean' &&
         (body as Record<string, unknown>).stream === true)
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail: session?.user?.email,
       featureId: 'ai_chat',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean((body as Record<string, unknown>).confirmTokenSpend),
@@ -566,3 +569,4 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     return NextResponse.json({ error: 'Failed to process chat', details: String(error) }, { status: 500 })
   }
 })
+

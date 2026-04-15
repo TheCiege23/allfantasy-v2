@@ -3,6 +3,7 @@ import { getZombieRulesForSport } from '@/lib/zombie/zombieRules'
 import { notifyCommissioner } from '@/lib/zombie/commissionerNotificationService'
 import { appendZombieAudit } from '@/lib/zombie/ZombieAuditLog'
 import { applyAmbush } from '@/lib/zombie/whispererEngine'
+import { queueAnimation } from '@/lib/zombie/animationEngine'
 
 function parseAmbush(raw: string): { type: string; targetUserId?: string } | null {
   const lower = raw.toLowerCase()
@@ -184,6 +185,11 @@ export async function processAmbushFromChimmy(
     eventType: 'ambush_use',
     metadata: { week, ambushType: parsed.type, actionId: action.id },
   })
+
+  await queueAnimation(leagueId, week, 'ambush_triggered', whispererUserId, {
+    ambushType: parsed.type,
+    ambushActionId: action.id,
+  }).catch(() => {})
 
   return prisma.zombieChimmyAction.findUniqueOrThrow({ where: { id: log.id } })
 }

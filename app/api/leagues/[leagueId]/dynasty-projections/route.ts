@@ -519,9 +519,9 @@ export async function GET(
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
-  const sportQuery = req.nextUrl.searchParams.get('sport') ?? undefined
-  const refresh = toBool(req.nextUrl.searchParams.get('refresh'))
-  const teamId = req.nextUrl.searchParams.get('teamId') ?? undefined
+  const sportQuery = req.nextUrl.searchParams?.get('sport') ?? undefined
+  const refresh = toBool(req.nextUrl.searchParams?.get('refresh'))
+  const teamId = req.nextUrl.searchParams?.get('teamId') ?? undefined
 
   try {
     const league = await resolveLeagueByAnyId(leagueId)

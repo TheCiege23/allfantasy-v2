@@ -394,6 +394,41 @@ async function main() {
     { statKey: 'walk_allowed', pointsValue: -1 },
   ]
   await upsertScoringTemplate('MLB', 'standard', 'MLB_POINTS_DEFAULT', mlbRules)
+
+  // Additional MLB scoring presets (AF Default, ESPN, Yahoo)
+  const mlbAfRules: ScoringRuleRow[] = [
+    { statKey: 'runs', pointsValue: 1 }, { statKey: 'singles', pointsValue: 1 }, { statKey: 'doubles', pointsValue: 2 },
+    { statKey: 'triples', pointsValue: 3 }, { statKey: 'home_runs', pointsValue: 4 }, { statKey: 'rbis', pointsValue: 1 },
+    { statKey: 'walks', pointsValue: 1 }, { statKey: 'hit_by_pitch', pointsValue: 1 }, { statKey: 'stolen_bases', pointsValue: 2 },
+    { statKey: 'caught_stealing', pointsValue: -1 }, { statKey: 'strikeouts', pointsValue: -1 },
+    { statKey: 'cycle_bonus', pointsValue: 5 }, { statKey: 'grand_slam_bonus', pointsValue: 1 },
+    { statKey: 'innings_pitched', pointsValue: 3 }, { statKey: 'pitch_strikeouts', pointsValue: 1 },
+    { statKey: 'wins', pointsValue: 5 }, { statKey: 'losses', pointsValue: -5 }, { statKey: 'saves', pointsValue: 5 },
+    { statKey: 'holds', pointsValue: 3 }, { statKey: 'earned_runs', pointsValue: -2 }, { statKey: 'hits_allowed', pointsValue: -1 },
+    { statKey: 'walks_allowed', pointsValue: -1 }, { statKey: 'hit_batters', pointsValue: -1 },
+    { statKey: 'complete_games', pointsValue: 3 }, { statKey: 'complete_game_shutouts', pointsValue: 5 },
+    { statKey: 'no_hitters', pointsValue: 10 }, { statKey: 'quality_starts', pointsValue: 3 }, { statKey: 'blown_saves', pointsValue: -2 },
+  ]
+  await upsertScoringTemplate('MLB', 'af_default', 'MLB_AF_DEFAULT', mlbAfRules)
+  const mlbEspnRules: ScoringRuleRow[] = [
+    { statKey: 'total_bases', pointsValue: 1 }, { statKey: 'runs', pointsValue: 1 }, { statKey: 'rbis', pointsValue: 1 },
+    { statKey: 'walks', pointsValue: 1 }, { statKey: 'stolen_bases', pointsValue: 1 }, { statKey: 'strikeouts', pointsValue: -1 },
+    { statKey: 'innings_pitched', pointsValue: 3 }, { statKey: 'wins', pointsValue: 5 }, { statKey: 'losses', pointsValue: -5 },
+    { statKey: 'saves', pointsValue: 5 }, { statKey: 'pitch_strikeouts', pointsValue: 1 }, { statKey: 'earned_runs', pointsValue: -2 },
+    { statKey: 'hits_allowed', pointsValue: -1 }, { statKey: 'walks_allowed', pointsValue: -1 },
+  ]
+  await upsertScoringTemplate('MLB', 'espn_default', 'MLB_ESPN_DEFAULT', mlbEspnRules)
+  const mlbYahooRules: ScoringRuleRow[] = [
+    { statKey: 'runs', pointsValue: 1 }, { statKey: 'singles', pointsValue: 1 }, { statKey: 'doubles', pointsValue: 2 },
+    { statKey: 'triples', pointsValue: 3 }, { statKey: 'home_runs', pointsValue: 4 }, { statKey: 'rbis', pointsValue: 1 },
+    { statKey: 'walks', pointsValue: 1 }, { statKey: 'hit_by_pitch', pointsValue: 1 }, { statKey: 'stolen_bases', pointsValue: 2 },
+    { statKey: 'strikeouts', pointsValue: -0.5 }, { statKey: 'innings_pitched', pointsValue: 3 },
+    { statKey: 'pitch_strikeouts', pointsValue: 1 }, { statKey: 'wins', pointsValue: 5 }, { statKey: 'saves', pointsValue: 5 },
+    { statKey: 'holds', pointsValue: 2 }, { statKey: 'earned_runs', pointsValue: -2 }, { statKey: 'hits_allowed', pointsValue: -1 },
+    { statKey: 'walks_allowed', pointsValue: -1 }, { statKey: 'losses', pointsValue: -3 }, { statKey: 'blown_saves', pointsValue: -1 },
+  ]
+  await upsertScoringTemplate('MLB', 'yahoo_default', 'MLB_YAHOO_DEFAULT', mlbYahooRules)
+
   const mlbSlots: RosterSlotRow[] = [
     { slotName: 'C', allowedPositions: ['C'], starterCount: 1, benchCount: 0, reserveCount: 0, taxiCount: 0, devyCount: 0, isFlexibleSlot: false, slotOrder: 0 },
     { slotName: '1B', allowedPositions: ['1B'], starterCount: 1, benchCount: 0, reserveCount: 0, taxiCount: 0, devyCount: 0, isFlexibleSlot: false, slotOrder: 1 },
@@ -519,6 +554,48 @@ async function main() {
     { statKey: 'turnovers', pointsValue: -1 },
   ]
   await upsertScoringTemplate('NBA', 'points', 'NBA_POINTS_DEFAULT', nbaRules)
+
+  // Additional NBA scoring presets (AF Default, ESPN, Yahoo)
+  const nbaAfDefaultRules: ScoringRuleRow[] = [
+    { statKey: 'points_scored', pointsValue: 0.5 },
+    { statKey: 'rebound', pointsValue: 1 },
+    { statKey: 'assist', pointsValue: 1 },
+    { statKey: 'steal', pointsValue: 2 },
+    { statKey: 'block', pointsValue: 2 },
+    { statKey: 'turnover', pointsValue: -1 },
+    { statKey: 'double_double', pointsValue: 1 },
+    { statKey: 'triple_double', pointsValue: 2 },
+    { statKey: 'technical_foul', pointsValue: -2 },
+    { statKey: 'flagrant_foul', pointsValue: -2 },
+    { statKey: 'three_point_made', pointsValue: 0.5 },
+    { statKey: 'forty_plus_points_bonus', pointsValue: 2 },
+    { statKey: 'fifty_plus_points_bonus', pointsValue: 2 },
+  ]
+  await upsertScoringTemplate('NBA', 'af_default', 'NBA_AF_DEFAULT', nbaAfDefaultRules)
+  const nbaEspnRules: ScoringRuleRow[] = [
+    { statKey: 'points_scored', pointsValue: 1 },
+    { statKey: 'three_point_made', pointsValue: 1 },
+    { statKey: 'field_goals_attempted', pointsValue: -1 },
+    { statKey: 'field_goals_made', pointsValue: 2 },
+    { statKey: 'free_throws_attempted', pointsValue: -1 },
+    { statKey: 'free_throws_made', pointsValue: 1 },
+    { statKey: 'rebound', pointsValue: 1 },
+    { statKey: 'assist', pointsValue: 2 },
+    { statKey: 'steal', pointsValue: 4 },
+    { statKey: 'block', pointsValue: 4 },
+    { statKey: 'turnover', pointsValue: -2 },
+  ]
+  await upsertScoringTemplate('NBA', 'espn_default', 'NBA_ESPN_DEFAULT', nbaEspnRules)
+  const nbaYahooRules: ScoringRuleRow[] = [
+    { statKey: 'points_scored', pointsValue: 1 },
+    { statKey: 'rebound', pointsValue: 1.2 },
+    { statKey: 'assist', pointsValue: 1.5 },
+    { statKey: 'block', pointsValue: 3 },
+    { statKey: 'steal', pointsValue: 3 },
+    { statKey: 'turnover', pointsValue: -1 },
+  ]
+  await upsertScoringTemplate('NBA', 'yahoo_default', 'NBA_YAHOO_DEFAULT', nbaYahooRules)
+
   const nbaSlots: RosterSlotRow[] = [
     { slotName: 'PG', allowedPositions: ['PG'], starterCount: 1, benchCount: 0, reserveCount: 0, taxiCount: 0, devyCount: 0, isFlexibleSlot: false, slotOrder: 0 },
     { slotName: 'SG', allowedPositions: ['SG'], starterCount: 1, benchCount: 0, reserveCount: 0, taxiCount: 0, devyCount: 0, isFlexibleSlot: false, slotOrder: 1 },

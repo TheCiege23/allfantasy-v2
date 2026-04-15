@@ -5,8 +5,8 @@ import Link from 'next/link'
 import { Sparkles, MessageSquare, HelpCircle, Loader2, AlertCircle } from 'lucide-react'
 import type { SurvivorSummary } from './types'
 import { SurvivorCommandHelp } from './SurvivorCommandHelp'
-import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { useAfSubGate } from '@/hooks/useAfSubGate'
+import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 
 type SurvivorAIPanelType =
   | 'host_intro'
@@ -51,6 +51,17 @@ const HELPER_TYPES: SurvivorAIPanelType[] = [
   'bestball_help',
 ]
 
+/** Matches `/api/.../survivor/ai` — intro, scroll, and idol advice are not subscription-gated. */
+const UNGATED_SURVIVOR_AI_TYPES: SurvivorAIPanelType[] = ['host_intro', 'host_scroll', 'idol_help']
+
+function subscriptionFeatureForSurvivorAiType(t: SurvivorAIPanelType): SubscriptionFeatureId | null {
+  if (UNGATED_SURVIVOR_AI_TYPES.includes(t)) return null
+  if (['host_challenge', 'host_merge', 'host_council', 'host_jury'].includes(t)) {
+    return 'commissioner_ai_narration'
+  }
+  return 'ai_chat'
+}
+
 export interface SurvivorAIPanelProps {
   leagueId: string
   summary: SurvivorSummary
@@ -69,11 +80,13 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
     narrative: string
     type: string
   } | null>(null)
-  const { handleApiResponse } = useAfSubGate('commissioner_ai_narration')
+  const { handleApiResponse } = useAfSubGate('ai_chat')
 
   const chatHref = summary.myTribeSource
     ? `/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
     : `/league/${leagueId}?tab=Chat`
+
+  const aiSubFeature = subscriptionFeatureForSurvivorAiType(type)
 
   const runAI = useCallback(async () => {
     setLoading(true)
@@ -85,7 +98,20 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, week: summary.currentWeek }),
       })
-      if (!(await handleApiResponse(res))) return
+      const subFeature = subscriptionFeatureForSurvivorAiType(type)
+      if (subFeature) {
+        if (!(await handleApiResponse(res, subFeature))) return
+      } else if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        setError(
+          typeof errBody.message === 'string'
+            ? errBody.message
+            : typeof errBody.error === 'string'
+              ? errBody.error
+              : `Error ${res.status}`,
+        )
+        return
+      }
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setError(data.message ?? data.error ?? `Error ${res.status}`)
@@ -138,18 +164,24 @@ export function SurvivorAIPanel({ leagueId, summary }: SurvivorAIPanelProps) {
           </select>
         </div>
 
-        <FeatureGate featureId="survivor_ai" featureNameOverride="Survivor AI" className="mb-3">
-          <button
-            type="button"
-            onClick={runAI}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
-            data-testid="survivor-ai-generate-button"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Generate
-          </button>
-        </FeatureGate>
+        <p className="mb-3 text-[11px] leading-relaxed text-white/45">
+          {aiSubFeature === null
+            ? 'Intro, scroll, and idol coaching are included for all managers. The game engine still decides votes, idols, and elimination.'
+            : aiSubFeature === 'commissioner_ai_narration'
+              ? 'Host narration for commissioners uses Commissioner AI. Co-commissioners can use it too.'
+              : 'Strategy helpers use your AllFantasy AI (Chimmy) subscription.'}
+        </p>
+
+        <button
+          type="button"
+          onClick={runAI}
+          disabled={loading}
+          className="mb-3 inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
+          data-testid="survivor-ai-generate-button"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          Generate
+        </button>
 
         {error && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2 text-sm text-rose-200">

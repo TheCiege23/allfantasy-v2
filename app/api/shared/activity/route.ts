@@ -8,8 +8,8 @@ import { getPlaceholderActivity } from "@/lib/activity/placeholder"
  * Placeholder implementation: returns placeholder data until real activity source is wired.
  */
 export async function GET(req: NextRequest) {
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit") || "50")))
-  const leagueId = req.nextUrl.searchParams.get("leagueId") || undefined
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || "50")))
+  const leagueId = req.nextUrl.searchParams?.get("leagueId") || undefined
 
   // TODO: resolve user and fetch real activity from DB/events
   const items = getPlaceholderActivity()
@@ -18,3 +18,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ status: "ok", items: sliced })
 }
+

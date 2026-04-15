@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { signOut } from "next-auth/react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 export function AccountSettingsSection({
   accountCreatedAt,
@@ -10,6 +12,7 @@ export function AccountSettingsSection({
   accountCreatedAt: string | null
   planLabel: string | null
 }) {
+  const { t } = useLanguage()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState("")
 
@@ -21,7 +24,7 @@ export function AccountSettingsSection({
       })
     : null
 
-  const planDisplay = planLabel?.trim() || "Free"
+  const planDisplay = planLabel?.trim() || t("settings.account.planFree")
 
   const deletionMailto = `mailto:support@allfantasy.ai?subject=${encodeURIComponent(
     "Account deletion request"
@@ -32,9 +35,9 @@ export function AccountSettingsSection({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Account</h2>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("settings.account.title")}</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Plan, member since, sign out, and account deletion.
+          {t("settings.account.subtitle")}
         </p>
       </div>
 
@@ -43,7 +46,7 @@ export function AccountSettingsSection({
         style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-medium" style={{ color: "var(--text)" }}>Plan</span>
+          <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.account.plan")}</span>
           <span
             className="rounded-full border px-3 py-0.5 text-xs font-semibold"
             style={{ borderColor: "var(--accent-cyan)", color: "var(--accent-cyan)" }}
@@ -53,7 +56,7 @@ export function AccountSettingsSection({
         </div>
         {createdLabel && (
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            Member since {createdLabel}
+            {interpolateTemplate(t("settings.account.memberSince"), { date: createdLabel })}
           </p>
         )}
       </div>
@@ -71,11 +74,10 @@ export function AccountSettingsSection({
       </div>
 
       <div className="rounded-xl border border-red-500/30 p-4 space-y-3" style={{ background: "var(--panel2)" }}>
-        <p className="text-sm font-medium" style={{ color: "var(--accent-red-strong)" }}>Delete account</p>
-        <p className="text-xs" style={{ color: "var(--muted)" }}>
-          This is permanent. To proceed, open the confirmation and type DELETE exactly, then contact support to complete
-          verification.
+        <p className="text-sm font-medium" style={{ color: "var(--accent-red-strong)" }}>
+          {t("settings.account.deleteHeading")}
         </p>
+        <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.account.deleteIntro")}</p>
         <button
           type="button"
           onClick={() => {
@@ -89,7 +91,7 @@ export function AccountSettingsSection({
           }}
           data-testid="settings-account-delete-open"
         >
-          Start account deletion
+          {t("settings.account.startDeletion")}
         </button>
       </div>
 
@@ -105,11 +107,12 @@ export function AccountSettingsSection({
             style={{ borderColor: "var(--border)", background: "var(--panel)" }}
           >
             <h3 id="delete-account-title" className="text-lg font-semibold" style={{ color: "var(--text)" }}>
-              Confirm account deletion
+              {t("settings.account.confirmDeletionTitle")}
             </h3>
             <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-              Type <span className="font-mono font-semibold text-white">DELETE</span> to unlock the support email. We
-              will verify ownership before removing data.
+              {t("settings.account.confirmDeletionBeforeWord")}{" "}
+              <span className="font-mono font-semibold text-white">DELETE</span>{" "}
+              {t("settings.account.confirmDeletionAfterWord")}
             </p>
             <input
               type="text"
@@ -117,7 +120,7 @@ export function AccountSettingsSection({
               onChange={(e) => setDeleteConfirm(e.target.value)}
               className="mt-3 w-full rounded-lg border px-3 py-2 text-sm outline-none"
               style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-              placeholder="DELETE"
+              placeholder={t("settings.account.deletePlaceholder")}
               autoComplete="off"
               data-testid="settings-account-delete-confirm-input"
             />
@@ -132,7 +135,7 @@ export function AccountSettingsSection({
                   }}
                   data-testid="settings-account-delete-email"
                 >
-                  Email support to delete
+                  {t("settings.account.emailSupportDelete")}
                 </a>
               ) : (
                 <span
@@ -142,7 +145,7 @@ export function AccountSettingsSection({
                     color: "var(--accent-red-strong)",
                   }}
                 >
-                  Email support to delete
+                  {t("settings.account.emailSupportDelete")}
                 </span>
               )}
               <button
@@ -151,16 +154,14 @@ export function AccountSettingsSection({
                 className="rounded-xl border px-4 py-2 text-sm font-semibold"
                 style={{ borderColor: "var(--border)", color: "var(--text)" }}
               >
-                Cancel
+                {t("settings.actions.cancel")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <p className="text-xs" style={{ color: "var(--muted)" }}>
-        Final deletion is completed by support after identity checks.
-      </p>
+      <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.account.deletionFooter")}</p>
     </div>
   )
 }

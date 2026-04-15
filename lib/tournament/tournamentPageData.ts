@@ -5,6 +5,9 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
+import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
+import type { TournamentSettings } from '@/lib/tournament-mode/types'
+import { getQualificationAdvancementTotal } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 
 export type SerializedConference = {
   id: string
@@ -99,6 +102,32 @@ export type SerializedShell = {
   standingsVisibility: string
 }
 
+export type LegacyFeederLeagueRow = {
+  tournamentLeagueId: string
+  leagueId: string
+  name: string
+  inviteCode: string
+  joinUrl: string
+  conferenceName: string
+}
+
+export type SerializedMiniCommissionerAssignment = {
+  leagueId: string
+  leagueName: string
+  userId: string
+  displayName: string
+  username: string | null
+}
+
+export type SerializedPendingLeagueSettingRequest = {
+  id: string
+  leagueId: string
+  leagueName: string
+  requesterDisplayName: string
+  createdAt: string
+  proposedPatchKeys: string[]
+}
+
 export type TournamentLayoutPayload = {
   shell: SerializedShell
   conferences: SerializedConference[]
@@ -107,10 +136,403 @@ export type TournamentLayoutPayload = {
   participant: SerializedParticipant | null
   isCommissioner: boolean
   announcements: SerializedAnnouncement[]
+  /** Wizard-created (`LegacyTournament`) vs `TournamentShell` hub. */
+  hubKind: 'shell' | 'legacy'
+  /** Feeder leagues + invite links (legacy tournaments; commissioner hub). */
+  legacyFeederLeagues?: LegacyFeederLeagueRow[]
+  /** Deputy commissioners (legacy; main commissioner view). */
+  legacyMiniCommissioners?: SerializedMiniCommissionerAssignment[]
+  /** Pending `league.settings` proposals (legacy; main commissioner). */
+  legacyPendingLeagueSettingRequests?: SerializedPendingLeagueSettingRequest[]
+  /** League IDs where the viewer is the assigned mini-commissioner (legacy). */
+  viewerMiniCommissionerLeagueIds?: string[]
 }
 
 function dt(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null
+}
+
+function slugifySegment(s: string, fallback: string): string {
+  const x = s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48)
+  return x || fallback
+}
+
+function mergeLegacySettings(raw: unknown): TournamentSettings {
+  const patch =
+    typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+      ? (raw as Partial<TournamentSettings>)
+      : {}
+  const merged = { ...DEFAULT_TOURNAMENT_SETTINGS, ...patch }
+  const dt = String(merged.draftType ?? 'snake').toLowerCase()
+  if (dt === 'linear') {
+    merged.draftType = 'snake'
+  }
+  const ilsRaw = merged.initialLeagueSize as unknown
+  if (ilsRaw === 'auto' || typeof ilsRaw !== 'number' || !Number.isFinite(ilsRaw)) {
+    merged.initialLeagueSize = 12
+  }
+  if (merged.eliminationAdvancementPerLeague == null || typeof merged.eliminationAdvancementPerLeague !== 'number') {
+    merged.eliminationAdvancementPerLeague = DEFAULT_TOURNAMENT_SETTINGS.eliminationAdvancementPerLeague
+  }
+  return merged
+}
+
+/**
+ * Last-resort payload when the full legacy graph fails (orphan relations, Prisma include errors, etc.).
+ * Any row in `LegacyTournament` should still open `/tournament/[id]` instead of 404.
+ */
+async function loadLegacyTournamentLayoutPayloadLoose(
+  tournamentId: string,
+  userId: string | null,
+): Promise<TournamentLayoutPayload | null> {
+  const t = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+  })
+  if (!t) return null
+
+  const settings = mergeLegacySettings(t.settings)
+  const participantCount = await prisma.legacyTournamentParticipant
+    .count({ where: { tournamentId: t.id } })
+    .catch(() => 0)
+  const placeholderRoundId = `${t.id}:loose-round`
+
+  const serializedShell: SerializedShell = {
+    id: t.id,
+    name: t.name,
+    sport: t.sport,
+    status: t.status,
+    maxParticipants: settings.participantPoolSize,
+    currentParticipantCount: participantCount,
+    conferenceCount: 0,
+    leaguesPerConference: 1,
+    teamsPerLeague: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
+    namingMode: settings.leagueNamingMode,
+    currentRoundNumber: 1,
+    totalRounds: 1,
+    advancersPerLeague: 1,
+    wildcardCount: 0,
+    bubbleEnabled: settings.bubbleWeekEnabled,
+    bubbleSize: 8,
+    bubbleScoringMode: 'cumulative_points',
+    scoringSystem: 'ppr',
+    draftType: settings.draftType,
+    waiverType: 'faab',
+    openingRosterSize: 15,
+    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
+    eliteRosterSize: 8,
+    faabResetOnRedraft: settings.faabResetByRound,
+    draftClockSeconds: 90,
+    simultaneousDrafts: true,
+    tiebreakerMode: 'points_for',
+    standingsVisibility: 'league_only',
+  }
+
+  return {
+    shell: serializedShell,
+    conferences: [],
+    rounds: [
+      {
+        id: placeholderRoundId,
+        roundNumber: 1,
+        roundType: 'qualification',
+        roundLabel: 'Qualification',
+        weekStart: 1,
+        weekEnd: 18,
+        status: 'pending',
+      },
+    ],
+    tournamentLeagues: [],
+    participant: null,
+    isCommissioner: Boolean(userId && t.creatorId === userId),
+    announcements: [],
+    hubKind: 'legacy',
+  }
+}
+
+async function loadLegacyTournamentLayoutPayload(
+  tournamentId: string,
+  userId: string | null,
+): Promise<TournamentLayoutPayload | null> {
+  const t = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      conferences: { orderBy: { orderIndex: 'asc' } },
+      rounds: { orderBy: { roundIndex: 'asc' } },
+      leagues: {
+        include: {
+          conference: true,
+        },
+        orderBy: [{ conferenceId: 'asc' }, { orderInConference: 'asc' }],
+      },
+      announcements: { orderBy: { createdAt: 'desc' }, take: 24 },
+    },
+  })
+
+  if (!t) return null
+
+  const leagueIds = [...new Set(t.leagues.map((l) => l.leagueId).filter(Boolean))]
+  const leagueRows =
+    leagueIds.length > 0
+      ? await prisma.league
+          .findMany({
+            where: { id: { in: leagueIds } },
+            select: {
+              id: true,
+              name: true,
+              leagueSize: true,
+              settings: true,
+              logoUrl: true,
+              avatarUrl: true,
+              _count: { select: { teams: true } },
+            },
+          })
+          .catch(() => [])
+      : []
+  const leagueById = new Map(leagueRows.map((l) => [l.id, l]))
+
+  const settings = mergeLegacySettings(t.settings)
+  const dbFirstRound = t.rounds[0]
+  const primaryRoundId = dbFirstRound?.id ?? `${t.id}:legacy-round-placeholder`
+  const primaryRoundIndex = dbFirstRound?.roundIndex ?? 0
+
+  const participantCount = await prisma.legacyTournamentParticipant.count({
+    where: { tournamentId: t.id },
+  })
+
+  const feederLeagueCount = Math.max(1, t.leagues.length)
+  const advancementTotal =
+    settings.qualificationAdvancementTotal ??
+    getQualificationAdvancementTotal(String(t.sport), settings.participantPoolSize)
+  const advancersPerLeagueDisplay = Math.max(1, Math.floor(advancementTotal / feederLeagueCount))
+
+  const serializedShell: SerializedShell = {
+    id: t.id,
+    name: t.name,
+    sport: t.sport,
+    status: t.status,
+    maxParticipants: settings.participantPoolSize,
+    currentParticipantCount: participantCount,
+    conferenceCount: t.conferences.length,
+    leaguesPerConference: Math.max(1, Math.ceil(t.leagues.length / Math.max(1, t.conferences.length))),
+    teamsPerLeague: typeof settings.initialLeagueSize === 'number' ? settings.initialLeagueSize : 12,
+    namingMode: settings.leagueNamingMode,
+    currentRoundNumber: primaryRoundIndex + 1,
+    totalRounds: Math.max(t.rounds.length, 1),
+    advancersPerLeague: advancersPerLeagueDisplay,
+    wildcardCount: 0,
+    bubbleEnabled: settings.bubbleWeekEnabled,
+    bubbleSize: 8,
+    bubbleScoringMode: 'cumulative_points',
+    scoringSystem: 'ppr',
+    draftType: settings.draftType,
+    waiverType: 'faab',
+    openingRosterSize: 15,
+    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
+    eliteRosterSize: 8,
+    faabResetOnRedraft: settings.faabResetByRound,
+    draftClockSeconds: 90,
+    simultaneousDrafts: true,
+    tiebreakerMode: Array.isArray(settings.qualificationTiebreakers)
+      ? String(settings.qualificationTiebreakers[0] ?? 'points_for')
+      : 'points_for',
+    standingsVisibility:
+      settings.universalPageVisibility === 'public'
+        ? 'all'
+        : settings.universalPageVisibility === 'private'
+          ? 'commissioner_only'
+          : 'league_only',
+  }
+
+  const lp =
+    userId != null
+      ? await prisma.legacyTournamentParticipant.findUnique({
+          where: { tournamentId_userId: { tournamentId: t.id, userId } },
+        })
+      : null
+
+  let serializedParticipant: SerializedParticipant | null = null
+  if (lp) {
+    const appUser = await prisma.appUser.findUnique({
+      where: { id: lp.userId },
+      select: { displayName: true, username: true, email: true, avatarUrl: true },
+    })
+    const displayName =
+      appUser?.displayName?.trim() ||
+      appUser?.username?.trim() ||
+      appUser?.email?.trim() ||
+      'Manager'
+    const leagueKey = lp.currentLeagueId ?? lp.qualificationLeagueId
+    const tlForParticipant = leagueKey
+      ? t.leagues.find((row) => row.leagueId === leagueKey)
+      : null
+
+    serializedParticipant = {
+      id: lp.id,
+      userId: lp.userId,
+      displayName,
+      avatarUrl: appUser?.avatarUrl ?? null,
+      status: lp.status,
+      currentRoundNumber: lp.advancedAtRoundIndex + 1,
+      furthestRoundReached: lp.advancedAtRoundIndex + 1,
+      currentConferenceId: lp.conferenceId,
+      currentLeagueId: tlForParticipant?.id ?? null,
+      careerWins: lp.qualificationWins,
+      careerLosses: lp.qualificationLosses,
+      careerPointsFor: lp.qualificationPointsFor,
+      careerPointsAgainst: lp.qualificationPointsAgainst,
+      advancementHistory: null,
+    }
+  }
+
+  const legacyFeederLeagues: LegacyFeederLeagueRow[] = t.leagues.map((tl) => {
+    const lg = tl.leagueId ? leagueById.get(tl.leagueId) : undefined
+    const ls = (lg?.settings as Record<string, unknown> | null) ?? {}
+    const inviteCode = typeof ls.inviteCode === 'string' ? ls.inviteCode : ''
+    const joinUrl = typeof ls.inviteLink === 'string' ? ls.inviteLink : ''
+    return {
+      tournamentLeagueId: tl.id,
+      leagueId: tl.leagueId ?? '',
+      name: lg?.name ?? 'League',
+      inviteCode,
+      joinUrl,
+      conferenceName: tl.conference?.name ?? 'Conference',
+    }
+  })
+
+  let legacyMiniCommissioners: SerializedMiniCommissionerAssignment[] | undefined
+  let legacyPendingLeagueSettingRequests: SerializedPendingLeagueSettingRequest[] | undefined
+  const viewerMiniCommissionerLeagueIds: string[] = []
+
+  if (userId) {
+    const mine = await prisma.legacyTournamentMiniCommissioner.findMany({
+      where: { tournamentId: t.id, userId },
+      select: { leagueId: true },
+    })
+    viewerMiniCommissionerLeagueIds.push(...mine.map((m) => m.leagueId))
+  }
+
+  if (userId && t.creatorId === userId) {
+    const [miniRows, pendingRows] = await Promise.all([
+      prisma.legacyTournamentMiniCommissioner.findMany({
+        where: { tournamentId: t.id },
+        include: {
+          user: { select: { id: true, username: true, displayName: true } },
+          league: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.legacyTournamentLeagueSettingRequest.findMany({
+        where: { tournamentId: t.id, status: 'pending' },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          league: { select: { name: true } },
+          requester: { select: { displayName: true, username: true } },
+        },
+      }),
+    ])
+
+    legacyMiniCommissioners = miniRows.map((m) => ({
+      leagueId: m.leagueId,
+      leagueName: m.league?.name ?? 'League',
+      userId: m.userId,
+      displayName:
+        m.user.displayName?.trim() || m.user.username?.trim() || m.user.id,
+      username: m.user.username,
+    }))
+
+    legacyPendingLeagueSettingRequests = pendingRows.map((r) => {
+      const patch = r.proposedPatch
+      const keys =
+        typeof patch === 'object' && patch !== null && !Array.isArray(patch)
+          ? Object.keys(patch as Record<string, unknown>)
+          : []
+      const requesterDisplayName =
+        r.requester.displayName?.trim() ||
+        r.requester.username?.trim() ||
+        r.requesterId
+      return {
+        id: r.id,
+        leagueId: r.leagueId,
+        leagueName: r.league?.name ?? 'League',
+        requesterDisplayName,
+        createdAt: r.createdAt.toISOString(),
+        proposedPatchKeys: keys,
+      }
+    })
+  }
+
+  return {
+    shell: serializedShell,
+    conferences: t.conferences.map((c, i) => ({
+      id: c.id,
+      name: c.name,
+      slug: slugifySegment(c.name, `conf-${i}`),
+      theme: c.theme,
+      colorHex: null,
+      conferenceNumber: c.orderIndex,
+    })),
+    rounds:
+      t.rounds.length > 0
+        ? t.rounds.map((r) => ({
+            id: r.id,
+            roundNumber: r.roundIndex + 1,
+            roundType: r.phase,
+            roundLabel: r.name ?? `Round ${r.roundIndex + 1}`,
+            weekStart: r.startWeek ?? 1,
+            weekEnd: r.endWeek ?? 18,
+            status: r.status,
+          }))
+        : [
+            {
+              id: primaryRoundId,
+              roundNumber: 1,
+              roundType: 'qualification',
+              roundLabel: 'Qualification',
+              weekStart: 1,
+              weekEnd: 18,
+              status: 'pending',
+            },
+          ],
+    tournamentLeagues: t.leagues.map((tl) => {
+      const lg = tl.leagueId ? leagueById.get(tl.leagueId) : undefined
+      const label = lg?.name ?? 'League'
+      return {
+        id: tl.id,
+        name: label,
+        slug: slugifySegment(label, 'league'),
+        roundId: primaryRoundId,
+        conferenceId: tl.conferenceId,
+        leagueId: tl.leagueId,
+        status: tl.phase,
+        teamSlots: lg?.leagueSize ?? 12,
+        currentTeamCount: lg?._count?.teams ?? 0,
+        draftScheduledAt: null,
+        colorHex: null,
+        logoUrl: lg?.logoUrl ?? lg?.avatarUrl ?? null,
+        advancersCount: 0,
+      }
+    }),
+    participant: serializedParticipant,
+    isCommissioner: Boolean(userId && t.creatorId === userId),
+    announcements: t.announcements.map((a) => ({
+      id: a.id,
+      type: a.type,
+      title: a.title ?? '',
+      content: a.body,
+      roundNumber: null,
+      createdAt: a.createdAt.toISOString(),
+      isPosted: true,
+    })),
+    hubKind: 'legacy',
+    legacyFeederLeagues,
+    legacyMiniCommissioners,
+    legacyPendingLeagueSettingRequests,
+    viewerMiniCommissionerLeagueIds:
+      viewerMiniCommissionerLeagueIds.length > 0 ? viewerMiniCommissionerLeagueIds : undefined,
+  }
 }
 
 export async function loadTournamentLayoutPayload(
@@ -127,7 +549,16 @@ export async function loadTournamentLayoutPayload(
     },
   })
 
-  if (!shell) return null
+  if (!shell) {
+    try {
+      const full = await loadLegacyTournamentLayoutPayload(tournamentId, userId)
+      if (full) return full
+    } catch (err) {
+      console.error('[loadTournamentLayoutPayload] legacy tournament payload failed', { tournamentId, err })
+    }
+    // Full graph can return null (missing row) or throw (bad relations); loose row-only load avoids 404 when the hub exists.
+    return await loadLegacyTournamentLayoutPayloadLoose(tournamentId, userId)
+  }
 
   const participant = userId
     ? await prisma.tournamentParticipant.findUnique({
@@ -228,5 +659,6 @@ export async function loadTournamentLayoutPayload(
       createdAt: a.createdAt.toISOString(),
       isPosted: a.isPosted,
     })),
+    hubKind: 'shell',
   }
 }

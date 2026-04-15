@@ -11,7 +11,7 @@ import { normalizeTimeframe } from '@/lib/global-meta-engine/timeframe'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const sportParam = searchParams.get('sport')
+    const sportParam = searchParams?.get('sport')
     if (sportParam && !isSupportedSport(sportParam)) {
       return NextResponse.json(
         { error: 'Invalid sport', supported: SUPPORTED_SPORTS },
@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       )
     }
     const sport = sportParam ? normalizeToSupportedSport(sportParam) : undefined
-    const leagueFormat = searchParams.get('leagueFormat') ?? undefined
-    const timeframeFilter = normalizeTimeframe(searchParams.get('timeframe'))
+    const leagueFormat = searchParams?.get('leagueFormat') ?? undefined
+    const timeframeFilter = normalizeTimeframe(searchParams?.get('timeframe'))
     const data = await getStrategyMetaReports({ sport, leagueFormat, timeframe: timeframeFilter })
     return NextResponse.json(
       { data },
@@ -64,3 +64,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to generate strategy meta' }, { status: 500 })
   }
 }
+

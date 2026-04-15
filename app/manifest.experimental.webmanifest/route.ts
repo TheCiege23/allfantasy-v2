@@ -1,0 +1,182 @@
+export async function GET() {
+  const manifest = {
+    id: 'https://allfantasy.ai/app',
+    name: 'AllFantasy.ai',
+    short_name: 'AllFantasy',
+    description: 'AI-powered fantasy sports — trade analyzer, draft assistant, waiver AI, and more.',
+    start_url: '/app',
+    scope: '/',
+    display: 'standalone',
+    display_override: ['window-controls-overlay', 'tabbed', 'standalone', 'minimal-ui', 'browser'],
+    dir: 'ltr',
+    orientation: 'portrait',
+    background_color: '#020617',
+    theme_color: '#06b6d4',
+    iarc_rating_id: 'e1f4d9f6-9f8f-4a4a-9d7f-0b3f8d5e9b40',
+    categories: ['sports', 'games', 'productivity'],
+    lang: 'en',
+    prefer_related_applications: false,
+    related_applications: [
+      {
+        platform: 'play',
+        id: 'ai.allfantasy.app',
+        url: 'https://play.google.com/store/apps/details?id=ai.allfantasy.app',
+      },
+    ],
+    scope_extensions: [
+      {
+        origin: 'https://allfantasy.ai',
+      },
+    ],
+    protocol_handlers: [
+      {
+        protocol: 'web+allfantasy',
+        url: '/app?protocol=%s',
+      },
+    ],
+    file_handlers: [
+      {
+        action: '/import',
+        accept: {
+          'application/json': ['.json'],
+          'text/csv': ['.csv'],
+        },
+      },
+    ],
+    share_target: {
+      action: '/share',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        title: 'title',
+        text: 'text',
+        url: 'url',
+        files: [
+          {
+            name: 'files',
+            accept: ['text/plain', 'application/json', 'image/*'],
+          },
+        ],
+      },
+    },
+    edge_side_panel: {
+      preferred_width: 420,
+    },
+    launch_handler: {
+      client_mode: 'navigate-existing',
+    },
+    icons: [
+      {
+        src: '/icons/icon-72.png',
+        sizes: '72x72',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-96.png',
+        sizes: '96x96',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-128.png',
+        sizes: '128x128',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-144.png',
+        sizes: '144x144',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-152.png',
+        sizes: '152x152',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-384.png',
+        sizes: '384x384',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+    screenshots: [
+      {
+        src: '/branding/allfantasy-ai-for-fantasy-sports-logo.png',
+        sizes: '1024x682',
+        type: 'image/jpeg',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+    shortcuts: [
+      {
+        name: 'My Leagues',
+        url: '/app/home',
+        icons: [
+          {
+            src: '/icons/icon-96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any',
+          },
+        ],
+      },
+      {
+        name: 'Trade Analyzer',
+        url: '/trade-analyzer',
+        icons: [
+          {
+            src: '/icons/icon-96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any',
+          },
+        ],
+      },
+      {
+        name: 'Waiver Wire AI',
+        url: '/waiver-wire',
+        icons: [
+          {
+            src: '/icons/icon-96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any',
+          },
+        ],
+      },
+    ],
+  };
+
+  return new Response(JSON.stringify(manifest), {
+    headers: {
+      'Content-Type': 'application/manifest+json',
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+}

@@ -12,13 +12,16 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return new Response('Unauthorized', { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')
   if (!leagueId) return new Response('leagueId required', { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return new Response('Forbidden', { status: 403 })
 
-  const onlyOpen = req.nextUrl.searchParams.get('isDelivered') === 'false'
+  const onlyOpen = req.nextUrl.searchParams?.get('isDelivered') === 'false'
+  const sinceRaw = req.nextUrl.searchParams.get('since')
+  const sinceDate = sinceRaw ? new Date(sinceRaw) : null
+  const sinceValid = sinceDate && !Number.isNaN(sinceDate.getTime()) ? sinceDate : null
 
   const stream = new ReadableStream({
     start(controller) {
@@ -33,6 +36,7 @@ export async function GET(req: NextRequest) {
         const rows = await prisma.zombieEventAnimation.findMany({
           where: {
             leagueId,
+            ...(sinceValid ? { createdAt: { gte: sinceValid } } : {}),
             ...(onlyOpen ? { isDelivered: false } : {}),
           },
           orderBy: { createdAt: 'asc' },
@@ -79,3 +83,4 @@ export async function GET(req: NextRequest) {
     },
   })
 }
+

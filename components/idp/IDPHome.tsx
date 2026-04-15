@@ -41,6 +41,7 @@ function pickFirstIdpPlayer(
  */
 export default function IDPHome({ leagueId, onOpenChimmy }: { leagueId: string; onOpenChimmy?: () => void }) {
   const [storyModalOpen, setStoryModalOpen] = useState(false)
+  const [playerModalOpen, setPlayerModalOpen] = useState(false)
   const [idpConfig, setIdpConfig] = useState<{ scoringPreset: string; positionMode?: string; rosterPreset?: string } | null>(null)
   const [idpConfigLoading, setIdpConfigLoading] = useState(true)
   const { data, loading, error, reload } = useLeagueSectionData<Record<string, unknown>>(leagueId, 'overview')

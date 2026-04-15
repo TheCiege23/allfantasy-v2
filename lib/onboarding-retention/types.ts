@@ -7,6 +7,9 @@ export type OnboardingChecklistTaskId =
   | "choose_tools"
   | "join_or_create_league"
   | "first_ai_action"
+  | "connect_platforms"
+  | "visit_ai_tools"
+  | "share_invite_link"
   | "referral_share"
 
 export interface OnboardingChecklistTask {

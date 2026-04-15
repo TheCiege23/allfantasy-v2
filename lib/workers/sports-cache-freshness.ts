@@ -34,8 +34,6 @@ export async function runSportsDataFreshnessSweep(): Promise<{
         const cacheKey = defaultSportsCacheKey(sport, dataType)
         const fresh = await prisma.sportsDataCache.findFirst({
           where: {
-            sport,
-            dataType,
             cacheKey,
             expiresAt: { gt: new Date() },
           },

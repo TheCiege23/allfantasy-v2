@@ -6,13 +6,13 @@ import type { LeagueScoringSettings } from '@/lib/player-comparison-lab/types';
 import { FeatureGateService } from '@/lib/subscription/FeatureGateService';
 
 export async function GET(req: NextRequest) {
-  const playerA = req.nextUrl.searchParams.get('playerA')?.trim();
-  const playerB = req.nextUrl.searchParams.get('playerB')?.trim();
-  const sport = req.nextUrl.searchParams.get('sport');
-  const scoringFormatRaw = req.nextUrl.searchParams.get('scoringFormat');
+  const playerA = req.nextUrl.searchParams?.get('playerA')?.trim();
+  const playerB = req.nextUrl.searchParams?.get('playerB')?.trim();
+  const sport = req.nextUrl.searchParams?.get('sport');
+  const scoringFormatRaw = req.nextUrl.searchParams?.get('scoringFormat');
   let includeAIExplanation =
-    req.nextUrl.searchParams.get('includeAIExplanation') === 'true' ||
-    req.nextUrl.searchParams.get('includeAiExplanation') === 'true';
+    req.nextUrl.searchParams?.get('includeAIExplanation') === 'true' ||
+    req.nextUrl.searchParams?.get('includeAiExplanation') === 'true';
   let explanationGate: {
     requiredPlan: string | null;
     message: string;
@@ -33,7 +33,9 @@ export async function GET(req: NextRequest) {
 
   try {
     if (includeAIExplanation) {
-      const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+      const session = (await getServerSession(authOptions as any)) as {
+        user?: { id?: string; email?: string | null };
+      } | null;
       if (!session?.user?.id) {
         includeAIExplanation = false;
         explanationGate = {
@@ -43,7 +45,11 @@ export async function GET(req: NextRequest) {
         };
       } else {
         const gate = new FeatureGateService();
-        const decision = await gate.evaluateUserFeatureAccess(session.user.id, 'player_comparison_explanations');
+        const decision = await gate.evaluateUserFeatureAccess(
+          session.user.id,
+          'player_comparison_explanations',
+          session.user.email
+        );
         if (!decision.allowed) {
           includeAIExplanation = false;
           explanationGate = {
@@ -131,7 +137,9 @@ export async function POST(req: NextRequest) {
 
   try {
     if (includeAIExplanation) {
-      const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
+      const session = (await getServerSession(authOptions as any)) as {
+        user?: { id?: string; email?: string | null };
+      } | null;
       if (!session?.user?.id) {
         includeAIExplanation = false;
         explanationGate = {
@@ -141,7 +149,11 @@ export async function POST(req: NextRequest) {
         };
       } else {
         const gate = new FeatureGateService();
-        const decision = await gate.evaluateUserFeatureAccess(session.user.id, 'player_comparison_explanations');
+        const decision = await gate.evaluateUserFeatureAccess(
+          session.user.id,
+          'player_comparison_explanations',
+          session.user.email
+        );
         if (!decision.allowed) {
           includeAIExplanation = false;
           explanationGate = {
@@ -222,3 +234,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

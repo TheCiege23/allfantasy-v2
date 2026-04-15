@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getUserLeagues } from '@/lib/sleeper-client';
 
 export async function POST(req: NextRequest) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null;
@@ -14,10 +15,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/user/${sleeperUsername}/leagues/nfl/2025`);
-    if (!res.ok) throw new Error('Failed to fetch user leagues');
-
-    const leagues = await res.json();
+    const leagues = await getUserLeagues(String(sleeperUsername), 'nfl', '2025');
 
     return NextResponse.json({
       success: true,

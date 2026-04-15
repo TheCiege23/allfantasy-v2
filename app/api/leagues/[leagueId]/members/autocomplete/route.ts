@@ -20,7 +20,7 @@ export async function GET(
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const q = (req.nextUrl.searchParams.get('q') ?? '').trim().toLowerCase()
+  const q = (req.nextUrl.searchParams?.get('q') ?? '').trim().toLowerCase()
   if (q.length < 1) return NextResponse.json([])
 
   const teams = await prisma.leagueTeam.findMany({

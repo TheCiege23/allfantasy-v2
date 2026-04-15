@@ -27,9 +27,19 @@ export type WaiverLeagueRec = {
   waiverDeadline: string | null
 }
 
+/** DB-first injury rows (importers / Rolling Insights chain); optional context for waiver UI. */
+export type InjuryPulseRow = {
+  sport: string
+  playerName: string
+  team: string
+  status: string
+  reportDate: string
+}
+
 export type WaiverDashboardResponse = {
   totalLeagues: number
   recommendations: WaiverLeagueRec[]
+  injuryPulse?: InjuryPulseRow[]
 }
 
 export type TradeAsset = {

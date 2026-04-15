@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { fetchFantasyCalcValues, type FantasyCalcPlayer } from '@/lib/fantasycalc'
+import { type FantasyCalcPlayer } from '@/lib/fantasycalc'
+import { readFantasyCalcValuesFromDb } from '@/lib/fantasycalc-db'
 import { prisma } from '@/lib/prisma'
 import { computeAllDevyIntelMetrics } from '@/lib/devy-intel'
 import { getCFBPlayerStats } from '@/lib/cfb-player-data'
@@ -269,9 +270,9 @@ Only return the JSON array, no other text.`
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
-  const filter = url.searchParams.get('filter') || 'all'
-  const position = url.searchParams.get('position') || 'all'
-  const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50'))
+  const filter = url.searchParams?.get('filter') || 'all'
+  const position = url.searchParams?.get('position') || 'all'
+  const limit = Math.min(100, parseInt(url.searchParams?.get('limit') || '50'))
 
   try {
     const alerts: MarketAlert[] = []
@@ -293,12 +294,13 @@ export async function GET(req: Request) {
     } catch { /* trending data is optional */ }
 
     if (filter === 'all' || filter === 'nfl') {
-      const fcPlayers = await fetchFantasyCalcValues({
+      const cached = await readFantasyCalcValuesFromDb({
         isDynasty: true,
         numQbs: 2,
         numTeams: 12,
         ppr: 1,
-      })
+      }, { allowStale: true })
+      const fcPlayers = cached.players
 
       for (const p of fcPlayers) {
         if (position !== 'all' && p.player.position !== position.toUpperCase()) continue
@@ -480,3 +482,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Failed to generate market alerts', details: error?.message }, { status: 500 })
   }
 }
+

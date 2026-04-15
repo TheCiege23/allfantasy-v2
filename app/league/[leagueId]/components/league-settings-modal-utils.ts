@@ -45,11 +45,112 @@ export function detectScoringFlavor(scoringSettings: Record<string, number>): 'P
   return 'Standard'
 }
 
+/** Human-readable label for a flat `scoring_settings` key (Sleeper-style). */
+export function humanizeScoringKey(key: string): string {
+  const t = key.trim()
+  if (!t) return key
+  return t
+    .replace(/_/g, ' ')
+    .split(/\s+/)
+    .map((w) => (w.length ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .join(' ')
+}
+
+/**
+ * Best-effort daily waiver / clear schedule lines from synced league JSON.
+ * Shape varies by platform; may return empty when not present.
+ */
+export function extractWaiverScheduleLines(settings: unknown): { daily: string[]; clearWaivers?: string } {
+  const b = getSleeperLikeBundle(settings)
+  const daily: string[] = []
+
+  const dw = b.daily_waivers
+  if (dw && typeof dw === 'object' && !Array.isArray(dw)) {
+    const order = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    const keys = Object.keys(dw as Record<string, unknown>)
+    const sorted = [...keys].sort((a, b) => order.indexOf(a.toLowerCase()) - order.indexOf(b.toLowerCase()))
+    for (const k of sorted.length ? sorted : keys) {
+      const v = (dw as Record<string, unknown>)[k]
+      if (v == null) continue
+      const label = typeof v === 'object' ? JSON.stringify(v) : String(v)
+      daily.push(`${k.charAt(0).toUpperCase()}${k.slice(1)}: ${label}`)
+    }
+  }
+
+  const cw =
+    b.clear_waiver_day ??
+    b.clear_waivers_day ??
+    b.waiver_clear_day ??
+    (typeof b.settings === 'object' && b.settings && !Array.isArray(b.settings)
+      ? (b.settings as Record<string, unknown>).clear_waiver_day
+      : undefined)
+  const clearWaivers =
+    cw != null && String(cw).trim() ? `Clear waivers: ${String(cw)}` : undefined
+
+  return { daily, clearWaivers }
+}
+
 export function waiverTypeLabel(waiverType: unknown): string {
   if (waiverType === 0 || waiverType === '0') return 'FAAB (waiver budget)'
   if (waiverType === 1 || waiverType === '1') return 'Rolling waivers'
   if (waiverType === 2 || waiverType === '2') return 'Reverse standings'
   return typeof waiverType === 'string' || typeof waiverType === 'number' ? String(waiverType) : '—'
+}
+
+/** Best-effort division count from synced league JSON (host shapes vary). */
+export function getDivisionCount(settings: unknown): number | null {
+  const b = getSleeperLikeBundle(settings)
+  const s = getSettingsRecord(settings)
+  const nested =
+    typeof b.settings === 'object' && b.settings && !Array.isArray(b.settings)
+      ? (b.settings as Record<string, unknown>)
+      : null
+  const raw =
+    b.divisions ??
+    s.divisions ??
+    b.num_divisions ??
+    s.num_divisions ??
+    nested?.divisions ??
+    nested?.num_divisions
+  if (Array.isArray(raw)) return raw.length
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && raw.trim() && !Number.isNaN(Number(raw))) return Number(raw)
+  return null
+}
+
+/** Count each slot type from a Sleeper-style `roster_positions` array. */
+export function groupRosterSlotCounts(rosterPositions: string[]): { slot: string; count: number }[] {
+  const m = new Map<string, number>()
+  for (const p of rosterPositions) {
+    const k = String(p).trim()
+    if (!k) continue
+    m.set(k, (m.get(k) ?? 0) + 1)
+  }
+  const entries = [...m.entries()]
+  const order = [
+    'QB',
+    'RB',
+    'WR',
+    'TE',
+    'FLEX',
+    'REC_FLEX',
+    'WRRB_FLEX',
+    'WRT_FLEX',
+    'SUPER_FLEX',
+    'K',
+    'DEF',
+    'DL',
+    'LB',
+    'DB',
+    'IDP_FLEX',
+    'BN',
+  ]
+  const rank = (slot: string) => {
+    const i = order.indexOf(slot)
+    return i === -1 ? 500 + slot.charCodeAt(0) : i
+  }
+  entries.sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]))
+  return entries.map(([slot, count]) => ({ slot, count }))
 }
 
 export function sleeperAvatarUrl(avatar: string | null | undefined): string | null {
@@ -73,14 +174,15 @@ export function initialsFromName(name: string): string {
 
 export const SETTINGS_TAB_STORAGE_PREFIX = 'af-league-settings-tab-'
 
-export type SettingsTabKey = 'general' | 'commish' | 'ai' | 'idp'
+export type SettingsTabKey = 'user' | 'general' | 'commish' | 'ai' | 'idp'
 
 export function readStoredTab(leagueId: string, isCommissioner: boolean): SettingsTabKey {
   if (typeof window === 'undefined') return 'general'
   try {
     const v = window.localStorage.getItem(`${SETTINGS_TAB_STORAGE_PREFIX}${leagueId}`) as SettingsTabKey | null
-    if (v === 'ai' || v === 'general') return v
-    if (v === 'commish' && isCommissioner) return 'commish'
+    if (v === 'ai' || v === 'general' || v === 'user') return v
+    /** Legacy COMMISH tab merged into commissioner settings hub. */
+    if (v === 'commish') return 'general'
     if (v === 'idp') return 'idp'
   } catch {
     /* ignore */

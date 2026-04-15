@@ -38,9 +38,9 @@ export async function GET(req: NextRequest) {
   if (!gate.ok) return gate.res
 
   const { searchParams } = new URL(req.url)
-  const bucketType = (searchParams.get("bucketType") ?? "day") as "hour" | "day" | "week" | "month"
-  const days = Math.min(Math.max(parseInt(searchParams.get("days") ?? "7", 10) || 7, 1), 90)
-  const topN = Math.min(Math.max(parseInt(searchParams.get("topN") ?? "20", 10) || 20, 1), 100)
+  const bucketType = (searchParams?.get("bucketType") ?? "day") as "hour" | "day" | "week" | "month"
+  const days = Math.min(Math.max(parseInt(searchParams?.get("days") ?? "7", 10) || 7, 1), 90)
+  const topN = Math.min(Math.max(parseInt(searchParams?.get("topN") ?? "20", 10) || 20, 1), 100)
 
   const since = new Date(Date.now() - days * 24 * 3600 * 1000)
 
@@ -100,3 +100,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load AI usage" }, { status: 500 })
   }
 }
+

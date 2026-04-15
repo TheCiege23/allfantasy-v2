@@ -75,7 +75,7 @@ export default function TournamentListPage() {
           {tournaments.map((t) => (
             <li key={t.id}>
               <Link
-                href={`/app/tournament/${t.id}`}
+                href={`/tournament/${t.id}`}
                 className="block rounded-2xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">

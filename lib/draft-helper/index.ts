@@ -1,2 +1,10 @@
-export { computeDraftRecommendation } from './RecommendationEngine'
-export type { RecommendationInput, RecommendationResult, RecommendationPlayer } from './RecommendationEngine'
+export {
+  computeDraftRecommendation,
+  computeDraftPlayerRankings,
+} from './RecommendationEngine'
+export type {
+  RecommendationInput,
+  RecommendationResult,
+  RecommendationPlayer,
+  DraftPlayerRankingRow,
+} from './RecommendationEngine'

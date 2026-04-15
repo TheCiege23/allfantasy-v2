@@ -1,76 +1,84 @@
 /**
- * GET /api/tournament/[tournamentId]/champion-path — Inspect champion path history (or any participant).
+ * [UPDATED] GET: Champion path history — shows the full journey of the champion (or all finalists).
  */
-
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ tournamentId: string }> }
-) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
   const { tournamentId } = await params
+
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, creatorId: true, championUserId: true, hubSettings: true },
+    select: { name: true, status: true, settings: true },
   })
-  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const hubSettings = (tournament.hubSettings as Record<string, unknown>) ?? {}
-  const visibility = (hubSettings.visibility as string) ?? 'unlisted'
-  const isCreator = tournament.creatorId === userId
-  if (visibility === 'private' && !isCreator) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const settings = (tournament.settings as Record<string, unknown>) ?? {}
+  const championUserId = settings.championUserId as string | null
 
-  const participantUserId = req.nextUrl.searchParams.get('userId') ?? tournament.championUserId ?? null
-  if (!participantUserId) {
-    return NextResponse.json({
-      championUserId: null,
-      championPath: null,
-      message: 'No champion set and no userId requested.',
+  // Get all rounds
+  const rounds = await prisma.legacyTournamentRound.findMany({
+    where: { tournamentId },
+    orderBy: { roundIndex: 'asc' },
+  })
+
+  // Get champion's participant record
+  let champion = null
+  if (championUserId) {
+    champion = await prisma.legacyTournamentParticipant.findUnique({
+      where: { tournamentId_userId: { tournamentId, userId: championUserId } },
     })
   }
 
-  const participant = await prisma.legacyTournamentParticipant.findUnique({
-    where: { tournamentId_userId: { tournamentId, userId: participantUserId } },
-    select: {
-      userId: true,
-      status: true,
-      qualificationLeagueId: true,
-      qualificationRankInConference: true,
-      currentLeagueId: true,
-      advancedAtRoundIndex: true,
-      eliminatedAtRoundIndex: true,
-      bubbleAdvanced: true,
-      bracketLabel: true,
-    },
-  })
-  if (!participant) {
-    return NextResponse.json({ error: 'Participant not found' }, { status: 404 })
+  // Build champion path: which leagues they were in per round
+  const path: Array<{ roundIndex: number; roundName: string | null; leagueId: string | null; leagueName: string | null; phase: string }> = []
+  if (championUserId) {
+    for (const round of rounds) {
+      const tl = await prisma.legacyTournamentLeague.findFirst({
+        where: { tournamentId, roundIndex: round.roundIndex },
+        include: { league: { select: { id: true, name: true } } },
+      })
+      // Check if champion had a roster in any league this round
+      if (tl) {
+        const roster = await prisma.roster.findFirst({
+          where: { leagueId: tl.leagueId, platformUserId: championUserId },
+          select: { id: true },
+        })
+        if (roster) {
+          path.push({
+            roundIndex: round.roundIndex,
+            roundName: round.name,
+            leagueId: tl.leagueId,
+            leagueName: tl.league.name,
+            phase: round.phase,
+          })
+        }
+      }
+    }
   }
 
-  const path = {
-    userId: participant.userId,
-    status: participant.status,
-    qualificationLeagueId: participant.qualificationLeagueId,
-    qualificationRankInConference: participant.qualificationRankInConference,
-    currentLeagueId: participant.currentLeagueId,
-    advancedAtRoundIndex: participant.advancedAtRoundIndex,
-    eliminatedAtRoundIndex: participant.eliminatedAtRoundIndex,
-    bubbleAdvanced: participant.bubbleAdvanced,
-    bracketLabel: participant.bracketLabel,
-    isChampion: tournament.championUserId === participantUserId,
+  // Get all finalists (active in the last round)
+  const lastRound = rounds[rounds.length - 1]
+  let finalists: Array<{ userId: string; status: string; bracketLabel: string | null }> = []
+  if (lastRound) {
+    const participants = await prisma.legacyTournamentParticipant.findMany({
+      where: { tournamentId, advancedAtRoundIndex: { gte: lastRound.roundIndex - 1 } },
+      select: { userId: true, status: true, bracketLabel: true },
+    })
+    finalists = participants
   }
 
   return NextResponse.json({
-    championUserId: tournament.championUserId,
-    championPath: path,
+    tournamentName: tournament.name,
+    status: tournament.status,
+    championUserId,
+    championTeamName: settings.championTeamName ?? null,
+    champion: champion ? { wins: champion.qualificationWins, losses: champion.qualificationLosses, pointsFor: champion.qualificationPointsFor } : null,
+    path,
+    finalists,
+    rounds: rounds.map((r) => ({ roundIndex: r.roundIndex, name: r.name, phase: r.phase, status: r.status })),
   })
 }

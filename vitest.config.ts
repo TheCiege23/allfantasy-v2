@@ -3,10 +3,10 @@ import path from 'path'
 
 export default defineConfig({
   test: {
-    environment: 'node',
+    environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
-    include: ['__tests__/**/*.test.ts', 'tests/**/*.test.ts', 'lib/**/__tests__/**/*.test.ts'],
+    include: ['__tests__/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}', 'lib/**/__tests__/**/*.test.{ts,tsx}'],
     testTimeout: 30000,
   },
   resolve: {

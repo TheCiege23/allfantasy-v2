@@ -5,13 +5,22 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Trophy } from 'lucide-react'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
-import {
-  TOURNAMENT_PARTICIPANT_POOL_SIZES,
-  TOURNAMENT_LEAGUE_SIZES,
-  DEFAULT_TOURNAMENT_SETTINGS,
-} from '@/lib/tournament-mode/constants'
+import { TOURNAMENT_PARTICIPANT_POOL_SIZES, DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
+import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { TournamentSettings, ConferenceMode, LeagueNamingMode } from '@/lib/tournament-mode/types'
-import { computeLeagueCount } from '@/lib/tournament-mode/TournamentCreationService'
+
+function computeLeagueCount(participantPoolSize: number, initialLeagueSize: number = TOURNAMENT_TEAMS_PER_LEAGUE): number {
+  const poolKey = participantPoolSize as keyof typeof FEEDER_LEAGUES_BY_POOL
+  if (
+    initialLeagueSize === TOURNAMENT_TEAMS_PER_LEAGUE &&
+    Object.prototype.hasOwnProperty.call(FEEDER_LEAGUES_BY_POOL, poolKey)
+  ) {
+    return FEEDER_LEAGUES_BY_POOL[poolKey]
+  }
+  const size = Math.max(4, Math.floor(Number(initialLeagueSize)))
+  return Math.max(2, Math.floor(participantPoolSize / size))
+}
 
 export function TournamentCreateWizard() {
   const router = useRouter()
@@ -26,9 +35,8 @@ export function TournamentCreateWizard() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const participantPool = settings.participantPoolSize ?? 120
-  const leagueSize = settings.initialLeagueSize ?? 12
-  const leagueCount = computeLeagueCount(participantPool, leagueSize)
+  const participantPool = settings.participantPoolSize ?? DEFAULT_TOURNAMENT_SETTINGS.participantPoolSize
+  const leagueCount = computeLeagueCount(participantPool, TOURNAMENT_TEAMS_PER_LEAGUE)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +67,7 @@ export function TournamentCreateWizard() {
             participantPoolSize: participantPool,
             conferenceMode: settings.conferenceMode ?? 'black_vs_gold',
             leagueNamingMode: leagueNamesMode,
-            initialLeagueSize: leagueSize,
+            initialLeagueSize: TOURNAMENT_TEAMS_PER_LEAGUE,
             qualificationWeeks: settings.qualificationWeeks ?? 9,
             qualificationTiebreakers: settings.qualificationTiebreakers ?? ['wins', 'points_for'],
             bubbleWeekEnabled: settings.bubbleWeekEnabled ?? false,
@@ -78,7 +86,8 @@ export function TournamentCreateWizard() {
           },
           conferenceNames:
             (settings.conferenceMode === 'commissioner_custom' && conferenceNames) || undefined,
-          leagueNames: leagueNames && leagueNames.length >= leagueCount ? leagueNames.slice(0, leagueCount) : undefined,
+          leagueNames:
+            leagueNames && leagueNames.length >= leagueCount ? leagueNames.slice(0, leagueCount) : undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -86,7 +95,12 @@ export function TournamentCreateWizard() {
         setError(data.error ?? 'Failed to create tournament')
         return
       }
-      router.push(`/app/tournament/${data.tournamentId}/control`)
+      const tournamentId = typeof data?.tournamentId === 'string' ? data.tournamentId : ''
+      if (tournamentId) {
+        router.push(buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId }))
+      } else {
+        setError('Tournament created but no ID returned')
+      }
     } catch (err) {
       setError('Something went wrong')
     } finally {
@@ -153,45 +167,36 @@ export function TournamentCreateWizard() {
             <div>
               <label className="mb-1 block text-sm text-white/70">Draft type</label>
               <select
-                value={settings.draftType ?? 'snake'}
-                onChange={(e) => setSettings((s) => ({ ...s, draftType: e.target.value as 'snake' | 'linear' | 'auction' }))}
+                value={settings.draftType === 'auction' ? 'auction' : 'snake'}
+                onChange={(e) => setSettings((s) => ({ ...s, draftType: e.target.value as 'snake' | 'auction' }))}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
               >
                 <option value="snake">Snake</option>
-                <option value="linear">Linear</option>
                 <option value="auction">Auction</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-white/70">Participant pool size</label>
+              <label className="mb-1 block text-sm text-white/70">Participant pool</label>
               <select
                 value={participantPool}
                 onChange={(e) => setSettings((s) => ({ ...s, participantPoolSize: Number(e.target.value) }))}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
               >
                 {TOURNAMENT_PARTICIPANT_POOL_SIZES.map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                  <option key={n} value={n}>
+                    {n} managers → {FEEDER_LEAGUES_BY_POOL[n]} leagues × {TOURNAMENT_TEAMS_PER_LEAGUE} teams
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-sm text-white/70">Initial league size</label>
-              <select
-                value={leagueSize === 'auto' ? 'auto' : leagueSize}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setSettings((s) => ({ ...s, initialLeagueSize: v === 'auto' ? 'auto' : Number(v) }))
-                }}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
-              >
-                <option value="auto">Auto-balance by pool</option>
-                {TOURNAMENT_LEAGUE_SIZES.map((n) => (
-                  <option key={n} value={n}>{n} teams</option>
-                ))}
-              </select>
+              <label className="mb-1 block text-sm text-white/70">Teams per feeder league</label>
+              <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80">
+                Fixed at {TOURNAMENT_TEAMS_PER_LEAGUE} (new league auto-created every 12 managers)
+              </div>
             </div>
             <div className="flex items-end text-sm text-white/50">
-              → {leagueCount} feeder leagues will be created
+              → {leagueCount} feeder leagues · {participantPool} managers total
             </div>
           </div>
         </section>
@@ -201,13 +206,14 @@ export function TournamentCreateWizard() {
           <h2 className="mb-4 text-lg font-semibold text-white">Conference &amp; league naming</h2>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm text-white/70">Conference mode</label>
+              <label className="mb-1 block text-sm text-white/70">Conference style (optional)</label>
+              <p className="mb-2 text-[11px] text-white/45">Naming only — does not change pool or league math.</p>
               <select
                 value={settings.conferenceMode ?? 'black_vs_gold'}
                 onChange={(e) => setSettings((s) => ({ ...s, conferenceMode: e.target.value as ConferenceMode }))}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
               >
-                <option value="black_vs_gold">Black vs Gold (fixed)</option>
+                <option value="black_vs_gold">Black vs Gold (default)</option>
                 <option value="random_themed">Random themed 2-conference</option>
                 <option value="commissioner_custom">Commissioner custom names</option>
               </select>
@@ -305,6 +311,32 @@ export function TournamentCreateWizard() {
                 className="rounded border-white/20"
               />
               <label htmlFor="faabReset" className="text-sm text-white/80">FAAB reset by round</label>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm text-white/70">FAAB budget</label>
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                value={settings.faabBudgetDefault ?? 100}
+                onChange={(e) => setSettings((s) => ({ ...s, faabBudgetDefault: Number(e.target.value) || 100 }))}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm text-white/70">Tiebreakers</label>
+              <select
+                value={(settings.qualificationTiebreakers ?? ['wins', 'points_for']).join(',')}
+                onChange={(e) => setSettings((s) => ({ ...s, qualificationTiebreakers: e.target.value.split(',') }))}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-white"
+              >
+                <option value="wins,points_for">W-L then Points For</option>
+                <option value="wins,points_for,head_to_head">W-L then PF then H2H</option>
+                <option value="wins,head_to_head,points_for">W-L then H2H then PF</option>
+                <option value="points_for,wins">Points For then W-L</option>
+              </select>
             </div>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

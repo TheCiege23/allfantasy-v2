@@ -6,6 +6,7 @@ import { getLiveADP } from '@/lib/adp-data'
 import { applyRealtimeAdpAdjustments } from '@/lib/mock-draft/adp-realtime-adjuster'
 import { buildManagerDNAFromLeague } from '@/lib/mock-draft/manager-dna'
 import { sleeperAvatarUrl } from '@/lib/sleeper/players-cache'
+import { getLeagueUsers } from '@/lib/sleeper-client'
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,16 +57,10 @@ export async function POST(req: NextRequest) {
     let avatarMap: Record<string, string> = {}
     try {
       if (league.platformLeagueId) {
-        const usersRes = await fetch(
-          `https://api.sleeper.app/v1/league/${league.platformLeagueId}/users`,
-          { signal: AbortSignal.timeout(8000) }
-        )
-        if (usersRes.ok) {
-          const users: Array<{ user_id?: string; avatar?: string; display_name?: string }> = await usersRes.json()
-          for (const u of users) {
-            if (u.user_id && u.avatar) {
-              avatarMap[u.user_id] = sleeperAvatarUrl(u.avatar)
-            }
+        const users = await getLeagueUsers(league.platformLeagueId)
+        for (const u of users) {
+          if (u.user_id && u.avatar) {
+            avatarMap[u.user_id] = sleeperAvatarUrl(u.avatar)
           }
         }
       }

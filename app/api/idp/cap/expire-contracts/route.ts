@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const newSeasonRaw = req.nextUrl.searchParams.get('newSeason')
+  const newSeasonRaw = req.nextUrl.searchParams?.get('newSeason')
   const newSeason = newSeasonRaw ? Number(newSeasonRaw) : new Date().getFullYear()
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
 
   if (!Number.isFinite(newSeason)) {
     return NextResponse.json({ error: 'newSeason invalid' }, { status: 400 })
@@ -78,3 +78,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Expire run failed' }, { status: 500 })
   }
 }
+

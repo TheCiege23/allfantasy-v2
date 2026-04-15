@@ -1,43 +1,20 @@
--- =============================================================================
--- supabase_ensure_manager_profiles.sql
--- Aggregated per-manager historical stats for AI context and UI display.
--- Rebuilt after each import/backfill.
--- =============================================================================
-
-CREATE TABLE IF NOT EXISTS "league_manager_profiles" (
-  "id" TEXT NOT NULL,
-  "leagueId" TEXT NOT NULL,
-  "managerId" TEXT NOT NULL,
-  "managerName" TEXT,
-  "managerAvatar" TEXT,
-  "platformUserId" TEXT,
-  "platform" TEXT DEFAULT 'sleeper',
-  "totalSeasons" INTEGER DEFAULT 0,
-  "totalWins" INTEGER DEFAULT 0,
-  "totalLosses" INTEGER DEFAULT 0,
-  "totalTies" INTEGER DEFAULT 0,
-  "totalPointsFor" DOUBLE PRECISION DEFAULT 0,
-  "totalPointsAgainst" DOUBLE PRECISION DEFAULT 0,
-  "championships" INTEGER DEFAULT 0,
-  "runnerUps" INTEGER DEFAULT 0,
-  "playoffAppearances" INTEGER DEFAULT 0,
-  "avgFinish" DOUBLE PRECISION,
-  "bestFinish" INTEGER,
-  "worstFinish" INTEGER,
-  "winPct" DOUBLE PRECISION DEFAULT 0,
-  "avgPointsPerSeason" DOUBLE PRECISION DEFAULT 0,
-  "draftStyle" JSONB DEFAULT '{}',
-  "tradeFrequency" DOUBLE PRECISION DEFAULT 0,
-  "tradesPerSeason" DOUBLE PRECISION DEFAULT 0,
-  "favoritePositions" JSONB DEFAULT '[]',
-  "firstRoundHistory" JSONB DEFAULT '[]',
-  "headToHeadRecords" JSONB DEFAULT '{}',
-  "seasonHistory" JSONB DEFAULT '[]',
-  "lastUpdatedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "league_manager_profiles_pkey" PRIMARY KEY ("id")
+CREATE TABLE IF NOT EXISTS league_manager_profiles (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  league_id TEXT NOT NULL,
+  manager_id TEXT NOT NULL,
+  manager_name TEXT,
+  manager_avatar TEXT,
+  total_seasons INTEGER NOT NULL DEFAULT 0,
+  total_wins INTEGER NOT NULL DEFAULT 0,
+  total_losses INTEGER NOT NULL DEFAULT 0,
+  total_ties INTEGER NOT NULL DEFAULT 0,
+  total_points_for NUMERIC NOT NULL DEFAULT 0,
+  championships INTEGER NOT NULL DEFAULT 0,
+  playoff_appearances INTEGER NOT NULL DEFAULT 0,
+  avg_finish NUMERIC,
+  draft_style JSONB NOT NULL DEFAULT '{}'::jsonb,
+  trade_frequency NUMERIC,
+  favorite_positions JSONB NOT NULL DEFAULT '[]'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "league_manager_profiles_league_manager_key"
-  ON "league_manager_profiles" ("leagueId", "managerId");
-CREATE INDEX IF NOT EXISTS "league_manager_profiles_leagueId_idx"
-  ON "league_manager_profiles" ("leagueId");
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mgr_profiles_unique ON league_manager_profiles(league_id, manager_id);

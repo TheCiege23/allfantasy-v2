@@ -8,7 +8,7 @@ export const GET = withApiUsage({
 })(async (req: Request, ctx: { params: { leagueId: string } }) => {
   const { leagueId } = ctx.params
   const url = new URL(req.url)
-  const season = url.searchParams.get("season") ?? undefined
+  const season = url.searchParams?.get("season") ?? undefined
 
   const rows = await listWeightsSnapshots({ leagueId, season, limit: 25 })
   return NextResponse.json({ leagueId, rows, default: defaultWeights() })

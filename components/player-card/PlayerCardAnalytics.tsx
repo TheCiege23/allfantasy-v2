@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Sparkles, TrendingUp, Target, LineChart } from 'lucide-react'
 import type {
   PlayerCardAnalyticsPayload,
@@ -8,6 +9,7 @@ import type {
 } from '@/lib/player-card-analytics/types'
 import { usePlayerCardAnalytics } from '@/hooks/usePlayerCardAnalytics'
 import { ProjectionDisplay } from '@/components/weather/ProjectionDisplay'
+import { buildAiPlayerCompareToolUrl } from '@/lib/chimmy-actions/aiPlayerComparisonBridge'
 
 export interface PlayerCardAnalyticsProps {
   playerId?: string | null
@@ -47,6 +49,11 @@ export default function PlayerCardAnalytics({
     (data?.aiInsights || data?.metaTrends || data?.matchupPrediction || data?.careerProjection) &&
     !loading &&
     !error
+
+  const compareHref = buildAiPlayerCompareToolUrl({
+    sport: sport ?? undefined,
+    playerA: playerName.trim(),
+  })
 
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
@@ -107,6 +114,15 @@ export default function PlayerCardAnalytics({
           )}
         </div>
       )}
+      <div className="mt-3 border-t border-white/10 pt-3">
+        <Link
+          href={compareHref}
+          className="text-xs font-medium text-cyan-300/90 hover:text-cyan-100"
+          data-testid="player-card-open-compare-tool"
+        >
+          Open in Start A vs B decision tool →
+        </Link>
+      </div>
     </div>
   )
 }

@@ -268,7 +268,28 @@ function computeNeeds(
   return needs
 }
 
-export function computeDraftRecommendation(input: RecommendationInput): RecommendationResult {
+export type DraftPlayerRankingRow = {
+  player: RecommendationPlayer
+  totalScore: number
+  needScore: number
+  adpEdge: number
+  adp: number
+  confidence: number
+}
+
+/**
+ * Deterministic ranked pool for Live Draft Brain and other consumers.
+ * Same ranking rules as {@link computeDraftRecommendation} (BPA vs needs, ADP edge, format boosts).
+ */
+export function computeDraftPlayerRankings(input: RecommendationInput): {
+  normalizedSport: string
+  overall: number
+  needs: Record<string, number>
+  scored: DraftPlayerRankingRow[]
+  caveats: string[]
+  playerKey: (p: RecommendationPlayer) => string
+  withAdpCount: number
+} | null {
   const {
     available,
     teamRoster,
@@ -277,31 +298,14 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     pick,
     totalTeams,
     sport,
-    isDynasty = false,
     isSF = false,
     mode = 'needs',
     aiAdpByKey,
-    byeByKey,
   } = input
+  if (available.length === 0) return null
+
   const caveats: string[] = []
   if (available.length < 10) caveats.push('Player pool is small; recommendation may be limited.')
-  if (available.length === 0) {
-    return {
-      recommendation: null,
-      alternatives: [],
-      reachWarning: null,
-      valueWarning: null,
-      scarcityInsight: null,
-      stackInsight: null,
-      correlationInsight: null,
-      formatInsight: null,
-      byeNote: null,
-      explanation: 'No available players in pool.',
-      evidence: [],
-      caveats: ['No players available.'],
-      uncertainty: 'High uncertainty: no available players in the deterministic pool.',
-    }
-  }
 
   const normalizedSport = normalizeToSupportedSport(sport)
   const needs = computeNeeds(teamRoster, rosterSlots, isSF, available, normalizedSport)
@@ -317,7 +321,7 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     caveats.push('Limited ADP coverage in this pool; confidence is reduced.')
   }
 
-  const scored = available.slice(0, 80).map((p) => {
+  const scored: DraftPlayerRankingRow[] = available.slice(0, 80).map((p) => {
     const pos = normalizeSlot(p.position, normalizedSport)
     const needScore = needs[pos] ?? 20
     const key = playerKey(p)
@@ -340,6 +344,74 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
   })
 
   scored.sort((a, b) => b.totalScore - a.totalScore)
+
+  return {
+    normalizedSport,
+    overall,
+    needs,
+    scored,
+    caveats,
+    playerKey,
+    withAdpCount,
+  }
+}
+
+export function computeDraftRecommendation(input: RecommendationInput): RecommendationResult {
+  const {
+    available,
+    teamRoster,
+    rosterSlots = [],
+    round,
+    pick,
+    totalTeams,
+    sport,
+    isDynasty = false,
+    isSF = false,
+    byeByKey,
+  } = input
+  const caveats: string[] = []
+  if (available.length === 0) {
+    return {
+      recommendation: null,
+      alternatives: [],
+      reachWarning: null,
+      valueWarning: null,
+      scarcityInsight: null,
+      stackInsight: null,
+      correlationInsight: null,
+      formatInsight: null,
+      byeNote: null,
+      explanation: 'No available players in pool.',
+      evidence: [],
+      caveats: ['No players available.'],
+      uncertainty: 'High uncertainty: no available players in the deterministic pool.',
+    }
+  }
+
+  const rankings = computeDraftPlayerRankings(input)
+  if (!rankings) {
+    return {
+      recommendation: null,
+      alternatives: [],
+      reachWarning: null,
+      valueWarning: null,
+      scarcityInsight: null,
+      stackInsight: null,
+      correlationInsight: null,
+      formatInsight: null,
+      byeNote: null,
+      explanation: 'No available players in pool.',
+      evidence: [],
+      caveats: ['No players available.'],
+      uncertainty: 'High uncertainty: no available players in the deterministic pool.',
+    }
+  }
+
+  const { normalizedSport, overall, needs, scored, caveats: rankingCaveats, playerKey, withAdpCount } = rankings
+  for (const c of rankingCaveats) {
+    if (!caveats.includes(c)) caveats.push(c)
+  }
+
   const best = scored[0]
   if (!best) {
     return {

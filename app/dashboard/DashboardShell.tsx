@@ -7,10 +7,13 @@ import { Bot, LayoutGrid, Menu, MessageSquare, X } from 'lucide-react'
 import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import AppShell from '@/app/components/AppShell'
+import type { DashboardLeagueListPayload } from '@/lib/dashboard/get-dashboard-league-list'
 import { DashboardOverview } from './components/DashboardOverview'
 import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
 import type { DashboardConnectedLeague, UserLeague } from './types'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import LanguageToggle from '@/components/i18n/LanguageToggle'
 
 type DashboardShellProps = {
   userId: string
@@ -20,6 +23,10 @@ type DashboardShellProps = {
   /** When set (e.g. /league/[id]), shell highlights this league in left + right panels */
   activeLeagueId?: string | null
   discordConnected?: boolean
+  /** From dashboard RSC — My Leagues hydrates immediately (no client waterfall). */
+  initialLeagueList?: DashboardLeagueListPayload | null
+  /** From dashboard RSC — rankings card + tier badge hydrate from same payload as `/api/user/rank`. */
+  initialUserRankPayload?: Record<string, unknown> | null
 }
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -50,56 +57,74 @@ function parseSeasonValue(raw: unknown): number | string {
   return new Date().getFullYear()
 }
 
-function DashboardLegacyRankBadge() {
-  const [state, setState] = useState<'loading' | 'ranked' | 'empty'>('loading')
-  const [rank, setRank] = useState<{ label: string; name: string; bg: string; fg: string } | null>(null)
+type LegacyTierBadgeData = {
+  imported?: boolean
+  tier?: string | null
+  tierName?: string | null
+  level?: number | null
+  levelName?: string | null
+  color?: string | null
+  bgColor?: string | null
+  rank?: { careerTier: number; careerTierName: string; careerLevel?: number }
+}
+
+function legacyBadgeFromRankApi(data: LegacyTierBadgeData | null): {
+  state: 'ranked' | 'empty'
+  rank: { label: string; name: string; bg: string; fg: string } | null
+} {
+  if (!data) {
+    return { state: 'empty', rank: null }
+  }
+  const tierCode = data.tier?.trim()
+  if (data.imported && (typeof data.level === 'number' || tierCode || data.rank)) {
+    const label =
+      typeof data.level === 'number' && data.levelName?.trim()
+        ? `L${data.level}`
+        : tierCode ?? `L${data.rank?.careerLevel ?? data.rank?.careerTier ?? 1}`
+    const name =
+      data.levelName?.trim() ||
+      data.tierName?.trim() ||
+      data.rank?.careerTierName ||
+      (tierCode ? String(tierCode) : 'Ranked')
+    const bg = data.bgColor?.trim() || 'rgba(255,255,255,0.08)'
+    const fg = data.color?.trim() || 'rgba(255,255,255,0.9)'
+    return { state: 'ranked', rank: { label, name, bg, fg } }
+  }
+  return { state: 'empty', rank: null }
+}
+
+function DashboardLegacyRankBadge({
+  initialUserRankPayload,
+}: {
+  initialUserRankPayload?: Record<string, unknown> | null
+}) {
+  const fromSsr =
+    initialUserRankPayload != null ? legacyBadgeFromRankApi(initialUserRankPayload as LegacyTierBadgeData) : null
+  const [state, setState] = useState<'loading' | 'ranked' | 'empty'>(() =>
+    fromSsr ? fromSsr.state : 'loading'
+  )
+  const [rank, setRank] = useState<{ label: string; name: string; bg: string; fg: string } | null>(
+    () => fromSsr?.rank ?? null
+  )
 
   useEffect(() => {
+    if (initialUserRankPayload != null) return
     let active = true
     fetch('/api/user/rank', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (data: {
-          imported?: boolean
-          tier?: string | null
-          tierName?: string | null
-          level?: number | null
-          levelName?: string | null
-          color?: string | null
-          bgColor?: string | null
-          rank?: { careerTier: number; careerTierName: string; careerLevel?: number }
-        } | null) => {
-          if (!active || !data) {
-            setState('empty')
-            return
-          }
-          const tierCode = data.tier?.trim()
-          if (data.imported && (typeof data.level === 'number' || tierCode || data.rank)) {
-            const label =
-              typeof data.level === 'number' && data.levelName?.trim()
-                ? `L${data.level}`
-                : tierCode ?? `L${data.rank?.careerLevel ?? data.rank?.careerTier ?? 1}`
-            const name =
-              data.levelName?.trim() ||
-              data.tierName?.trim() ||
-              data.rank?.careerTierName ||
-              (tierCode ? String(tierCode) : 'Ranked')
-            const bg = data.bgColor?.trim() || 'rgba(255,255,255,0.08)'
-            const fg = data.color?.trim() || 'rgba(255,255,255,0.9)'
-            setRank({ label, name, bg, fg })
-            setState('ranked')
-            return
-          }
-          setState('empty')
-        },
-      )
+      .then((data: LegacyTierBadgeData | null) => {
+        if (!active) return
+        const parsed = legacyBadgeFromRankApi(data)
+        setRank(parsed.rank)
+        setState(parsed.state)
+      })
       .catch(() => {
         if (active) setState('empty')
       })
     return () => {
       active = false
     }
-  }, [])
+  }, [initialUserRankPayload])
 
   if (state === 'loading') {
     return (
@@ -125,7 +150,7 @@ function DashboardLegacyRankBadge() {
 
   return (
     <Link
-      href="/dashboard/rankings"
+      href="/af-rankings"
       className="inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-opacity hover:opacity-95"
       style={{
         background: rank.bg,
@@ -219,30 +244,48 @@ function LeagueCenterContent({
   league: UserLeague | null
   leaguesLoading: boolean
 }) {
+  const { t } = useLanguage()
   if (leaguesLoading) {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#07071a] px-6">
-        <p className="text-sm text-white/50">Loading league…</p>
+      <div
+        className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto px-6"
+        style={{ background: 'var(--bg)' }}
+      >
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          {t('dashboard.shell.loadingLeague')}
+        </p>
       </div>
     )
   }
 
   if (!league) {
     return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto bg-[#07071a] px-6 text-center">
-        <p className="text-sm font-semibold text-white/70">League not found</p>
-        <p className="mt-2 text-xs text-white/35">No league with id &quot;{leagueId}&quot; in your connected list.</p>
+      <div
+        className="flex h-full min-h-0 flex-col items-center justify-center overflow-y-auto px-6 text-center"
+        style={{ background: 'var(--bg)' }}
+      >
+        <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+          {t('dashboard.shell.leagueNotFound')}
+        </p>
+        <p className="mt-2 text-xs" style={{ color: 'var(--muted2)' }}>
+          {t('dashboard.shell.leagueNotInList')}
+        </p>
+        <p className="mt-1 font-mono text-[10px] text-white/25">{leagueId}</p>
       </div>
     )
   }
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto bg-[#07071a] [scrollbar-gutter:stable]">
+    <div className="h-full min-h-0 overflow-y-auto [scrollbar-gutter:stable]" style={{ background: 'var(--bg)' }}>
       <div className="mx-auto w-full max-w-3xl space-y-4 px-6 py-6">
-        <p className="text-[10px] uppercase tracking-widest text-white/30">League workspace</p>
-        <h1 className="text-2xl font-black text-white">{league.name}</h1>
-        <p className="text-sm text-white/45">
-          Draft, Team, League, Players, Trend, Trades, and Scores tabs will appear here (LEAGUE_PAGE_TASK).
+        <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--muted2)' }}>
+          {t('dashboard.shell.leagueWorkspace')}
+        </p>
+        <h1 className="text-2xl font-black" style={{ color: 'var(--text)' }}>
+          {league.name}
+        </h1>
+        <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          {t('dashboard.shell.leagueTabsPlaceholder')}
         </p>
       </div>
     </div>
@@ -255,10 +298,18 @@ export function DashboardShell({
   userImage = null,
   activeLeagueId = null,
   discordConnected = false,
+  initialLeagueList = null,
+  initialUserRankPayload = null,
 }: DashboardShellProps) {
+  const { t } = useLanguage()
   const router = useRouter()
-  const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>([])
-  const [leaguesLoading, setLeaguesLoading] = useState(true)
+  const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>(() => {
+    if (initialLeagueList == null) return []
+    return initialLeagueList.leagues
+      .map((league) => mapLeague(league))
+      .filter((league): league is DashboardConnectedLeague => Boolean(league))
+  })
+  const [leaguesLoading, setLeaguesLoading] = useState(() => initialLeagueList == null)
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
 
@@ -276,16 +327,12 @@ export function DashboardShell({
     [leagues]
   )
 
-  const handleSelectLeague = useCallback(
-    (league: UserLeague | null) => {
-      if (league) {
-        router.push(`/league/${league.id}`)
-      } else {
-        router.push('/dashboard')
-      }
-    },
-    [router]
-  )
+  /** My Leagues rows use `<Link href={getLeagueListDestinationHref}>` — do not `router.push` here or it overrides tournament (and other) URLs. */
+  const handleSelectLeague = useCallback((league: UserLeague | null) => {
+    if (!league) {
+      router.push('/dashboard')
+    }
+  }, [router])
 
   useEffect(() => {
     const openMobileLeft = () => {
@@ -308,6 +355,7 @@ export function DashboardShell({
   }, [])
 
   useEffect(() => {
+    if (initialLeagueList != null) return
     let active = true
     setLeaguesLoading(true)
     fetch('/api/league/list', { cache: 'no-store' })
@@ -328,7 +376,7 @@ export function DashboardShell({
     return () => {
       active = false
     }
-  }, [applyLeaguesPayload])
+  }, [applyLeaguesPayload, initialLeagueList])
 
   const onLeaguesRefresh = useCallback(() => {
     fetch('/api/league/list', { cache: 'no-store' })
@@ -338,6 +386,16 @@ export function DashboardShell({
       })
       .catch(() => {})
   }, [applyLeaguesPayload])
+
+  const onLeagueRemoved = useCallback(
+    (leagueId: string) => {
+      setLeagues((prev) => prev.filter((l) => l.id !== leagueId))
+      if (activeLeagueId === leagueId) {
+        router.push('/dashboard')
+      }
+    },
+    [activeLeagueId, router]
+  )
 
   const handleTriggerImport = () => {
     if (typeof window === 'undefined') return
@@ -384,6 +442,7 @@ export function DashboardShell({
           userImage={userImage}
           onImport={handleTriggerImport}
           onLeaguesRefresh={onLeaguesRefresh}
+          onLeagueRemoved={onLeagueRemoved}
         />
       }
     >
@@ -393,47 +452,60 @@ export function DashboardShell({
             className="shrink-0 border-b border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-center text-[11px] leading-snug text-amber-100 sm:text-xs md:px-6"
             role="status"
           >
-            <span className="font-semibold">Availability ({geo.stateName ?? geo.stateCode}):</span> Paid subscriptions and paid
-            leagues are not available from your location.{' '}
+            <span className="font-semibold">
+              {t('dashboard.shell.geoAvailability')} ({geo.stateName ?? geo.stateCode}):
+            </span>{' '}
+            {t('dashboard.shell.geoPaidBlocked')}{' '}
             <Link href={`/paid-restricted?state=${encodeURIComponent(geo.stateCode)}`} className="font-medium text-cyan-300 underline">
-              Learn more
+              {t('dashboard.shell.learnMore')}
             </Link>
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="border-b border-white/[0.07] bg-[#0a0a1f] px-4 py-3 md:hidden">
-            <div className="flex items-center justify-between gap-3">
+          <div className="border-b border-[var(--border)] px-4 py-3 md:hidden" style={{ background: 'var(--panel)' }}>
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => setMobileLeftOpen(true)}
                 className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-                aria-label="Open chat"
+                aria-label={t('dashboard.shell.openChat')}
               >
                 <Menu className="h-5 w-5" />
               </button>
               <div className="min-w-0 flex-1 text-center">
                 <p className="truncate text-sm font-semibold text-white/85">
-                  {isLeagueRoute ? selectedLeague?.name ?? 'League' : 'Dashboard'}
+                  {isLeagueRoute ? selectedLeague?.name ?? t('dashboard.shell.leagueFallback') : t('dashboard.shell.title')}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setMobileRightOpen(true)}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-                aria-label="Open AF Chat and leagues"
-              >
-                <MessageSquare className="h-5 w-5" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1">
+                <LanguageToggle />
+                <button
+                  type="button"
+                  onClick={() => setMobileRightOpen(true)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
+                  aria-label={t('dashboard.shell.openAfChat')}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             {!isLeagueRoute ? (
               <div className="mt-2 flex justify-center">
-                <DashboardLegacyRankBadge />
+                <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
               </div>
             ) : null}
           </div>
 
-          <div className="hidden border-b border-white/[0.07] bg-[#0a0a1f] px-6 py-2.5 md:flex md:items-center md:justify-end">
-            {!isLeagueRoute ? <DashboardLegacyRankBadge /> : null}
+          <div
+            className="hidden border-b border-[var(--border)] px-6 py-2.5 md:flex md:items-center md:justify-end md:gap-3"
+            style={{ background: 'var(--panel)' }}
+          >
+            <div className="hidden md:block">
+              <LanguageToggle />
+            </div>
+            {!isLeagueRoute ? (
+              <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
+            ) : null}
           </div>
 
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -449,6 +521,7 @@ export function DashboardShell({
               leagues={leagues}
               onTriggerImport={handleTriggerImport}
               onOpenChimmy={handleOpenChimmy}
+              initialUserRankPayload={initialUserRankPayload}
             />
           )}
         </div>
@@ -458,7 +531,7 @@ export function DashboardShell({
         type="button"
         onClick={() => setMobileLeftOpen(true)}
         className="fixed bottom-4 left-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.08] text-white shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:hidden"
-        aria-label="Open chat"
+        aria-label={t('dashboard.shell.openChat')}
       >
         <LayoutGrid className="h-5 w-5" />
       </button>
@@ -467,7 +540,7 @@ export function DashboardShell({
         type="button"
         onClick={() => setMobileRightOpen(true)}
         className="fixed bottom-4 right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-cyan-500 text-black shadow-[0_10px_30px_rgba(6,182,212,0.35)] md:hidden"
-        aria-label="Open AF Chat and leagues"
+        aria-label={t('dashboard.shell.openAfChat')}
       >
         <Bot className="h-5 w-5" />
       </button>
@@ -476,12 +549,12 @@ export function DashboardShell({
         <div className="fixed inset-0 z-50 bg-black/60 md:hidden">
           <div className="absolute inset-x-0 bottom-0 flex h-[80vh] flex-col overflow-hidden rounded-t-[24px] border-t border-white/[0.07] bg-[#0a0a1f]">
             <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">Chat</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">{t('dashboard.shell.chat')}</p>
               <button
                 type="button"
                 onClick={() => setMobileLeftOpen(false)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-                aria-label="Close chat"
+                aria-label={t('dashboard.shell.closeChat')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -507,12 +580,12 @@ export function DashboardShell({
         <div className="fixed inset-0 z-50 bg-black/60 md:hidden">
           <div className="absolute inset-x-0 bottom-0 flex h-[85vh] flex-col overflow-hidden rounded-t-[24px] border-t border-white/[0.07] bg-[#0a0a1f]">
             <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">AF Chat &amp; Leagues</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">{t('dashboard.shell.afChatLeagues')}</p>
               <button
                 type="button"
                 onClick={() => setMobileRightOpen(false)}
                 className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-                aria-label="Close panel"
+                aria-label={t('dashboard.shell.closePanel')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -532,6 +605,7 @@ export function DashboardShell({
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
                   onSettingsNavigate={() => setMobileRightOpen(false)}
                   onLeaguesRefresh={onLeaguesRefresh}
+                  onLeagueRemoved={onLeagueRemoved}
                 />
               </div>
             </div>
@@ -541,8 +615,11 @@ export function DashboardShell({
 
       {leaguesLoading ? (
         <div className="pointer-events-none fixed inset-x-0 top-0 z-30 flex justify-center py-2">
-          <div className="rounded-full border border-white/[0.07] bg-[#0c0c1e] px-3 py-1 text-xs text-white/60">
-            Loading leagues...
+          <div
+            className="rounded-full border border-[var(--border)] px-3 py-1 text-xs"
+            style={{ background: 'var(--panel)', color: 'var(--muted)' }}
+          >
+            {t('dashboard.shell.loadingLeagues')}
           </div>
         </div>
       ) : null}

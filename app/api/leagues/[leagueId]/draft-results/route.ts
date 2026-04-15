@@ -37,7 +37,7 @@ export async function GET(
     }
     const url = new URL(req.url)
     const aiExplain = ['1', 'true', 'yes', 'on'].includes(
-      (url.searchParams.get('aiExplain') ?? '').toLowerCase()
+      (url.searchParams?.get('aiExplain') ?? '').toLowerCase()
     )
     const responsePayload = await maybeEnhanceDraftResultsWithAi(payload, aiExplain)
     return NextResponse.json(responsePayload)

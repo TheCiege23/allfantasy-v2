@@ -9,7 +9,7 @@ export const GET = withApiUsage({
 })(async (req: Request, ctx: { params: { leagueId: string } }) => {
   const { leagueId } = ctx.params
   const url = new URL(req.url)
-  const week = Number(url.searchParams.get("week") ?? 0)
+  const week = Number(url.searchParams?.get("week") ?? 0)
 
   if (!leagueId || !week) {
     return NextResponse.json({ error: "Missing leagueId or week" }, { status: 400 })

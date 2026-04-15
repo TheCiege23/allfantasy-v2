@@ -2,10 +2,11 @@
 
 import type { HTMLAttributes, MouseEvent } from 'react'
 import Link from 'next/link'
-import { Star } from 'lucide-react'
+import { Star, Trash2 } from 'lucide-react'
 import { LeagueAvatar } from '@/app/dashboard/components/LeagueAvatar'
 import { buildLeagueFormatLabel, buildStatusConfig } from '@/lib/leagues/leagueFormatLabel'
 import type { UserLeague } from '@/app/dashboard/types'
+import { getLeagueListDestinationHref } from '@/lib/dashboard/league-list-destination'
 
 export type LeagueSidebarCardProps = {
   league: UserLeague
@@ -20,6 +21,9 @@ export type LeagueSidebarCardProps = {
   isRefreshing?: boolean
   isRefreshed?: boolean
   onRefresh?: (e: MouseEvent, leagueId: string) => void
+  /** Remove from My Leagues (AllFantasy row only) */
+  onDelete?: (e: MouseEvent, leagueId: string) => void
+  isDeleting?: boolean
   /** Tighter layout for right-rail / compact panels */
   compact?: boolean
 }
@@ -37,6 +41,8 @@ export function LeagueSidebarCard({
   isRefreshing = false,
   isRefreshed = false,
   onRefresh,
+  onDelete,
+  isDeleting = false,
   compact = false,
 }: LeagueSidebarCardProps) {
   const formatLabel = buildLeagueFormatLabel({
@@ -51,6 +57,7 @@ export function LeagueSidebarCard({
   const status = buildStatusConfig(league.status)
   const sportLabel = (league.sport || 'NFL').toString().toUpperCase()
   const platformLabel = getPlatformLabel(league.platform)
+  const destinationHref = getLeagueListDestinationHref(league)
 
   return (
     <div
@@ -62,30 +69,55 @@ export function LeagueSidebarCard({
         .filter(Boolean)
         .join(' ')}
     >
-      {showRefreshButton ? (
-        <button
-          type="button"
-          onClick={(e) => onRefresh?.(e, league.id)}
-          title="Refresh from Sleeper"
-          className={[
-            'absolute top-1.5 right-8 z-20 flex h-5 w-5 items-center justify-center',
-            'rounded-full text-[10px] transition-all',
-            isRefreshing
-              ? 'cursor-wait bg-cyan-500/20 text-cyan-400'
-              : isRefreshed
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-white/[0.06] text-white/35 opacity-0 hover:bg-white/[0.12] hover:text-white group-hover:opacity-100',
-          ].join(' ')}
-          aria-label="Refresh league from Sleeper"
-        >
-          {isRefreshing ? (
-            <span className="h-2.5 w-2.5 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
-          ) : isRefreshed ? (
-            '✓'
-          ) : (
-            '↻'
-          )}
-        </button>
+      {showRefreshButton || onDelete ? (
+        <div className="absolute right-1.5 top-1.5 z-20 flex items-center gap-0.5">
+          {showRefreshButton ? (
+            <button
+              type="button"
+              onClick={(e) => onRefresh?.(e, league.id)}
+              title="Refresh from Sleeper"
+              className={[
+                'flex h-5 w-5 items-center justify-center rounded-full text-[10px] transition-all',
+                isRefreshing
+                  ? 'cursor-wait bg-cyan-500/20 text-cyan-400'
+                  : isRefreshed
+                    ? 'bg-green-500/20 text-green-400'
+                    : 'bg-white/[0.06] text-white/35 opacity-0 hover:bg-white/[0.12] hover:text-white group-hover:opacity-100',
+              ].join(' ')}
+              aria-label="Refresh league from Sleeper"
+            >
+              {isRefreshing ? (
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border border-cyan-400 border-t-transparent" />
+              ) : isRefreshed ? (
+                '✓'
+              ) : (
+                '↻'
+              )}
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              data-testid="dashboard-league-delete"
+              onClick={(e) => onDelete(e, league.id)}
+              disabled={isDeleting}
+              title="Remove from My Leagues"
+              className={[
+                'flex h-5 w-5 items-center justify-center rounded-full border border-transparent text-white/35 transition-all',
+                'hover:border-red-500/35 hover:bg-red-500/15 hover:text-red-300',
+                'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                isDeleting ? 'cursor-wait opacity-100' : '',
+              ].join(' ')}
+              aria-label="Remove league from My Leagues"
+            >
+              {isDeleting ? (
+                <span className="h-2.5 w-2.5 animate-spin rounded-full border border-red-400 border-t-transparent" />
+              ) : (
+                <Trash2 className="h-3 w-3" strokeWidth={2} />
+              )}
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="flex w-full min-w-0 items-stretch gap-1.5">
@@ -108,7 +140,7 @@ export function LeagueSidebarCard({
         ) : null}
 
         <Link
-          href={`/league/${league.id}`}
+          href={destinationHref}
           aria-label={`${league.name} — ${status.label}`}
           onClick={() => onSelect?.(league)}
           className={[

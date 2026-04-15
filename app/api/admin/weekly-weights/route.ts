@@ -32,7 +32,7 @@ export const POST = withApiUsage({ endpoint: "/api/admin/weekly-weights", tool: 
 
 export const GET = withApiUsage({ endpoint: "/api/admin/weekly-weights", tool: "AdminWeeklyWeights" })(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
-  const segment = sp.get('segment')
+  const segment = sp?.get('segment')
 
   if (segment) {
     const [active, history] = await Promise.all([
@@ -48,3 +48,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/weekly-weights", tool: "
   }
   return NextResponse.json({ segments: allActive })
 })
+

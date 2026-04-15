@@ -15,6 +15,7 @@ import {
 import type { UserLeague } from '@/app/dashboard/types'
 import type { ManagerAllTime } from '@/lib/league/history-aggregates'
 import type { LeagueSeason } from '@prisma/client'
+import { SeasonDetailView } from '@/components/league/SeasonDetailView'
 
 export type HistoryTabProps = {
   league: UserLeague
@@ -36,6 +37,7 @@ export function HistoryTab({ league }: HistoryTabProps) {
   const [sortKey, setSortKey] = useState<SortKey>('championships')
   const [syncing, setSyncing] = useState(false)
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const [detailExpanded, setDetailExpanded] = useState<Record<number, boolean>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -297,13 +299,27 @@ export function HistoryTab({ league }: HistoryTabProps) {
                   </p>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => setExpanded((prev) => ({ ...prev, [s.season]: !open }))}
-                  className="mt-3 text-[11px] font-semibold text-cyan-400/80 hover:text-cyan-300"
-                >
-                  Standings {open ? '▲' : '▼'}
-                </button>
+                <div className="mt-3 flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((prev) => ({ ...prev, [s.season]: !open }))}
+                    className="text-[11px] font-semibold text-cyan-400/80 hover:text-cyan-300"
+                  >
+                    Standings {open ? '▲' : '▼'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDetailExpanded((prev) => ({ ...prev, [s.season]: !(prev[s.season] ?? false) }))
+                    }
+                    className="text-[11px] font-semibold text-indigo-300/80 hover:text-indigo-200"
+                  >
+                    {detailExpanded[s.season] ? 'Hide Details ▲' : 'Full Details ▼'}
+                  </button>
+                </div>
+                {detailExpanded[s.season] ? (
+                  <SeasonDetailView leagueId={league.id} season={s.season} />
+                ) : null}
                 {open ? (
                   <ul className="mt-2 space-y-1 border-t border-white/[0.06] pt-2 text-[11px] text-white/70">
                     {sorted.map((row, idx) => (

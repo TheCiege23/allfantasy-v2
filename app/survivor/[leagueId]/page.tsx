@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
+import { SURVIVOR_ISLAND_TAGLINE } from '@/lib/survivor/survivorIslandContent'
 import { useSurvivorUi } from '@/lib/survivor/SurvivorUiContext'
 import { TribeCard } from '@/app/survivor/components/TribeCard'
 import { SurvivorStatusBadge } from '@/app/survivor/components/SurvivorStatusBadge'
@@ -122,7 +124,9 @@ export default function SurvivorIslandHomePage() {
                 : 'safe'
 
   return (
-    <div className="px-3 py-4 md:px-6 md:py-6">
+    <>
+      {leagueId ? <LeagueClipOverlayHost leagueId={leagueId} variant="survivor" enabled /> : null}
+      <div className="px-3 py-4 md:px-6 md:py-6">
       {/* Header */}
       <div
         className="survivor-panel relative overflow-hidden rounded-2xl p-4 md:p-6"
@@ -173,6 +177,7 @@ export default function SurvivorIslandHomePage() {
             {heroTitle}
           </p>
           <p className="mt-2 text-[13px] leading-relaxed text-[var(--survivor-text-medium)]">{heroSubtext}</p>
+          <p className="mt-3 text-[11px] leading-relaxed text-white/45">{SURVIVOR_ISLAND_TAGLINE}</p>
         </div>
         <div className="relative mt-4 rounded-xl border border-white/[0.08] bg-black/30 p-4 md:col-span-2 md:mt-0">
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Your status</p>
@@ -341,5 +346,6 @@ export default function SurvivorIslandHomePage() {
         <div className="pointer-events-none fixed inset-0 z-0 bg-gradient-to-b from-amber-500/5 to-transparent" />
       ) : null}
     </div>
+    </>
   )
 }

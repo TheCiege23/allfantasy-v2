@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
 import { validateRosterSectionsAgainstTemplate } from '@/lib/roster/LineupTemplateValidation'
+import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { validateAiActionExecution } from '@/lib/ai/action-validation'
 
 // Guillotine: chopped (eliminated) rosters cannot change lineup/roster.
@@ -93,6 +94,18 @@ function buildPersistedRosterData(
   }
 }
 
+function weekFromLeagueSettings(settings: unknown): number {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return 1
+  const o = settings as Record<string, unknown>
+  const w = o.currentWeek ?? o.current_week ?? o.week
+  if (typeof w === 'number' && Number.isFinite(w)) return Math.max(1, w)
+  if (typeof w === 'string') {
+    const n = parseInt(w, 10)
+    return Number.isFinite(n) ? Math.max(1, n) : 1
+  }
+  return 1
+}
+
 function extractStarterIds(body: unknown, playerData: unknown): string[] {
   const bodyObj = body && typeof body === 'object' ? (body as Record<string, unknown>) : {}
   const pdObj =
@@ -149,10 +162,29 @@ export async function POST(req: NextRequest) {
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, userId: true, leagueVariant: true, sport: true },
+    select: { id: true, userId: true, leagueVariant: true, sport: true, settings: true },
   })
   if (!league) {
     return NextResponse.json({ error: 'League not found' }, { status: 404 })
+  }
+
+  const editingWeekRaw = (body as Record<string, unknown>)?.week
+  const editingWeek =
+    typeof editingWeekRaw === 'number' && Number.isFinite(editingWeekRaw)
+      ? Math.max(1, Math.floor(editingWeekRaw))
+      : weekFromLeagueSettings(league.settings)
+  const leagueWeek = weekFromLeagueSettings(league.settings)
+  const lock = evaluateLineupLock({
+    sport: String(league.sport ?? 'NFL'),
+    now: new Date(),
+    leagueWeek,
+    editingWeek,
+  })
+  if (lock.locked) {
+    return NextResponse.json(
+      { error: lock.reason ?? 'Lineup is locked for this period.' },
+      { status: 403 },
+    )
   }
 
   const memberRoster = await (prisma as any).roster.findFirst({

@@ -17,7 +17,9 @@ import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as {
+    user?: { id?: string; email?: string | null }
+  } | null
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
@@ -49,6 +51,7 @@ export async function POST(req: NextRequest) {
   if (includeAIExplanation) {
     const gate = await requireFeatureEntitlement({
       userId: session.user.id,
+      userEmail: session.user.email,
       featureId: 'draft_prep',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean(body.confirmTokenSpend),

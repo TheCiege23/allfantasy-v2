@@ -18,12 +18,12 @@ export const dynamic = 'force-dynamic';
 export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNews" })(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const team = searchParams.get('team');
-    const category = searchParams.get('category');
-    const source = searchParams.get('source');
-    const sentiment = searchParams.get('sentiment');
-    const player = searchParams.get('player');
-    const refresh = searchParams.get('refresh') === 'true';
+    const team = searchParams?.get('team');
+    const category = searchParams?.get('category');
+    const source = searchParams?.get('source');
+    const sentiment = searchParams?.get('sentiment');
+    const player = searchParams?.get('player');
+    const refresh = searchParams?.get('refresh') === 'true';
 
     const { limit, cursor } = parseCursorPageParams(request, 100);
 
@@ -150,3 +150,4 @@ export const GET = withApiUsage({ endpoint: "/api/sports/news", tool: "SportsNew
     );
   }
 })
+

@@ -181,9 +181,42 @@ export async function syncSleeperHistoricalSeasonStateAfterImport(args: {
         if (user.user_id) {
           ownerNameById.set(user.user_id, user.display_name || user.username || user.user_id)
           if (user.avatar) {
-            ownerAvatarById.set(user.user_id, `https://sleepercdn.com/avatars/thumbs/${user.avatar}`)
+            ownerAvatarById.set(user.user_id, user.avatar)
           }
         }
+      }
+
+      // Backfill managerAvatar on existing LeagueSeason.teamRecords so the
+      // historical UI always has avatar ids available (null-safe: skips if
+      // no row exists or teamRecords is missing).
+      try {
+        const existingSeason = await prisma.leagueSeason.findFirst({
+          where: { leagueId: league.id, season: seasonState.season },
+          select: { id: true, teamRecords: true },
+        })
+        if (existingSeason?.teamRecords) {
+          const recs = existingSeason.teamRecords as unknown as Array<Record<string, unknown>>
+          let mutated = false
+          const updated = recs.map((rec) => {
+            const ownerId = rec?.ownerId as string | undefined
+            if (!ownerId) return rec
+            const avatar = ownerAvatarById.get(ownerId) ?? null
+            if (avatar && rec.managerAvatar !== avatar) {
+              mutated = true
+              return { ...rec, managerAvatar: avatar }
+            }
+            return rec
+          })
+          if (mutated) {
+            await prisma.leagueSeason.update({
+              where: { id: existingSeason.id },
+              data: { teamRecords: updated as unknown as Prisma.InputJsonValue },
+            })
+          }
+        }
+      } catch (avatarErr) {
+        // Non-fatal: avatar backfill should never break the main sync
+        console.warn('[SleeperHistoricalSeasonStateSync] avatar backfill failed', avatarErr)
       }
 
       await persistDynastySeason(

@@ -30,7 +30,7 @@ export function StepHelp({ title, children, className }: StepHelpProps) {
           title={title}
           aria-label={title ? `Help: ${title}` : 'Help'}
           className={cn(
-            'inline-flex size-6 shrink-0 rounded-full border border-white/15 bg-white/5 text-white/55 hover:text-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/50',
+            'inline-flex size-5 shrink-0 items-center justify-center text-white/40 hover:text-cyan-300 focus:outline-none',
             className
           )}
           onClick={(e) => {

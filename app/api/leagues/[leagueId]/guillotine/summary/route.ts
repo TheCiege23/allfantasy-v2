@@ -30,7 +30,7 @@ export async function GET(
   const isGuillotine = await isGuillotineLeague(leagueId)
   if (!isGuillotine) return NextResponse.json({ error: 'Not a guillotine league' }, { status: 404 })
 
-  const weekParam = req.nextUrl.searchParams.get('week')
+  const weekParam = req.nextUrl.searchParams?.get('week')
   const weekOrPeriod = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : 1
 
   const [summary, config] = await Promise.all([

@@ -77,9 +77,9 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/feedback", tool: 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50', 10)
-    const minRating = parseInt(req.nextUrl.searchParams.get('min_rating') || '0', 10)
-    const maxRating = parseInt(req.nextUrl.searchParams.get('max_rating') || '5', 10)
+    const limit = parseInt(req.nextUrl.searchParams?.get('limit') || '50', 10)
+    const minRating = parseInt(req.nextUrl.searchParams?.get('min_rating') || '0', 10)
+    const maxRating = parseInt(req.nextUrl.searchParams?.get('max_rating') || '5', 10)
 
     const feedback = await prisma.tradeFeedback.findMany({
       where: {
@@ -109,3 +109,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/feedback", tool: 
     return NextResponse.json({ error: 'Failed to get feedback' }, { status: 500 })
   }
 })
+

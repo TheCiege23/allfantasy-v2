@@ -3,12 +3,14 @@ import crypto from 'crypto'
 
 type PrismaLike = typeof appPrisma
 
-export type CacheTier = 'news_context' | 'rolling_insights' | 'enrichment_aggregate'
+export type CacheTier = 'news_context' | 'rolling_insights' | 'enrichment_aggregate' | 'news_intelligence' | 'player_outlook'
 
 const TTL_MINUTES: Record<CacheTier, number> = {
   news_context: 15,
   rolling_insights: 10,
   enrichment_aggregate: 5,
+  news_intelligence: 20,
+  player_outlook: 60,
 }
 
 function stableStringify(value: unknown): string {

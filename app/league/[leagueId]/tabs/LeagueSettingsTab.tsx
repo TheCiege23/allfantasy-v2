@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatInTimeZone } from 'date-fns-tz'
 import { toast } from 'sonner'
+import { ChimmyAlertPreferencesPanel } from '@/components/chimmy-surfaces'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import { IntegritySettingsPanel } from '@/components/commissioner/IntegritySettingsPanel'
@@ -19,6 +20,7 @@ import { COMMON_TIMEZONES, formatInTz, isValidIanaTimeZone, toUtc } from '@/lib/
 import { DraftOrderList } from './settings/DraftOrderList'
 import { KeeperModal } from './settings/KeeperModal'
 import { ResetDraftModal } from './settings/ResetDraftModal'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import {
   DangerButton,
   Input,
@@ -115,7 +117,16 @@ function humanDuration(sec: number): string {
   return `${Math.round(sec / 86400)} days`
 }
 
-export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
+export function LeagueSettingsTab({
+  leagueId,
+  isCommissioner: isCommissionerShell,
+  isHeadCommissioner: isHeadCommissionerShell,
+}: {
+  leagueId: string
+  /** From shell while settings API loads; API role wins once loaded */
+  isCommissioner?: boolean
+  isHeadCommissioner?: boolean
+}) {
   const [data, setData] = useState<LeagueSettingsApi | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [slotRows, setSlotRows] = useState<DraftOrderSlotRow[]>([])
@@ -141,12 +152,13 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   const [localSubGate, setLocalSubGate] = useState<SubscriptionFeatureId | null>(null)
   const gateOptional = useSubscriptionGateOptional()
   const integrityEnt = useEntitlement('commissioner_integrity_monitoring')
+  const { t } = useLanguage()
 
   const refresh = useCallback(async () => {
     setLoadError(null)
     const res = await fetch(`/api/league/settings?leagueId=${encodeURIComponent(leagueId)}`)
     if (!res.ok) {
-      setLoadError('Could not load settings.')
+      setLoadError('league.draftSettings.error.load')
       return
     }
     const json = (await res.json()) as LeagueSettingsApi
@@ -397,7 +409,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   if (loadError || (!data && !loadError)) {
     return (
       <div className="h-full overflow-y-auto px-4 py-4">
-        <p className="text-[13px] text-white/50">{loadError ?? 'Loading…'}</p>
+        <p className="text-[13px] text-white/50">
+          {loadError ? t(loadError) : t('common.loading')}
+        </p>
       </div>
     )
   }
@@ -405,8 +419,12 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   if (!data || !league) return null
 
   const userRole = data.userRole ?? null
-  const canEdit = userRole === 'commissioner' || userRole === 'co_commissioner'
-  const isHeadCommissioner = userRole === 'commissioner'
+  const canEdit =
+    userRole != null
+      ? userRole === 'commissioner' || userRole === 'co_commissioner'
+      : Boolean(isCommissionerShell)
+  const isHeadCommissioner =
+    userRole != null ? userRole === 'commissioner' : Boolean(isHeadCommissionerShell)
 
   const isBestBall = isBestBallLeague(league.leagueVariant ?? null, league.bestBallMode ?? null)
 
@@ -443,18 +461,19 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
   return (
     <div className="h-full space-y-5 overflow-y-auto px-4 py-4">
       {!canEdit && userRole !== null ? (
-        <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+        <div
+          className="mb-4 flex items-center gap-2.5 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3"
+          data-testid="league-settings-view-only-banner"
+        >
           <span className="text-[16px] text-amber-400" aria-hidden>
             🔒
           </span>
-          <p className="text-[12px] text-amber-300/80">
-            You are viewing league settings as a member. Only the commissioner and co-commissioners can make changes.
-          </p>
+          <p className="text-[12px] text-amber-300/80">{t('league.draftSettings.viewOnlyBanner')}</p>
         </div>
       ) : null}
-      <div className={!canEdit ? 'pointer-events-none select-none opacity-[0.88]' : ''}>
+      <div>
       <LeagueSettingsHeader isDirty={dirty} onSaveAll={() => void saveAll()} canEdit={canEdit} />
-      <SettingsNav />
+      <SettingsNav canEdit={canEdit} />
 
       {localSubGate && !gateOptional ? (
         <SubscriptionGateModal
@@ -476,10 +495,20 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           control={
             <div className="flex max-w-xs flex-col gap-2">
               <div className="flex gap-2">
-                <Input type="date" value={localDate} onChange={(e) => { setLocalDate(e.target.value); setDirty(true) }} />
-                <Input type="time" value={localTime} onChange={(e) => { setLocalTime(e.target.value); setDirty(true) }} />
+                <Input
+                  type="date"
+                  value={localDate}
+                  disabled={!canEdit}
+                  onChange={(e) => { setLocalDate(e.target.value); setDirty(true) }}
+                />
+                <Input
+                  type="time"
+                  value={localTime}
+                  disabled={!canEdit}
+                  onChange={(e) => { setLocalTime(e.target.value); setDirty(true) }}
+                />
               </div>
-              <Select value={tzDraft} onChange={(v) => { setTzDraft(v); setDirty(true) }}>
+              <Select value={tzDraft} disabled={!canEdit} onChange={(v) => { setTzDraft(v); setDirty(true) }}>
                 {COMMON_TIMEZONES.map((z) => (
                   <option key={z.value} value={z.value}>
                     {z.label}
@@ -488,8 +517,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
               </Select>
               <button
                 type="button"
+                disabled={!canEdit}
                 onClick={() => void saveDraftTime()}
-                className="rounded-xl bg-cyan-500 px-3 py-2 text-[12px] font-bold text-black hover:bg-cyan-400"
+                className="rounded-xl bg-cyan-500 px-3 py-2 text-[12px] font-bold text-black hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Save Draft Time
               </button>
@@ -503,7 +533,8 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         />
       </SettingsSection>
 
-      <SettingsSection
+      {canEdit ? (
+        <SettingsSection
         id="automation"
         title="Automation"
         description="Control how the draft handles timers, pauses, and auto-picks."
@@ -567,14 +598,19 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
             </div>
           }
         />
-      </SettingsSection>
+        </SettingsSection>
+      ) : null}
 
       <SettingsSection id="draft-format" title="Draft Format">
         <SettingsRow
           label="Draft Type"
           faqText="Snake: order reverses each round. Linear: same order every round. 3rd Round Reversal: snake until round 3, then reverses again. Auction: bidding."
           control={
-            <Select value={draftType} onChange={(v) => void patch({ draftType: v })}>
+            <Select
+              value={draftType}
+              disabled={!canEdit}
+              onChange={(v) => void patch({ draftType: v })}
+            >
               <option value="snake">Snake</option>
               <option value="linear">Linear (Non-Snake)</option>
               <option value="3rd_reversal">3rd Round Reversal</option>
@@ -589,6 +625,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
             <div className="flex max-w-sm flex-col gap-2">
               <Select
                 value={preset}
+                disabled={!canEdit}
                 onChange={(v) => {
                   setPreset(v)
                   setDirty(true)
@@ -615,6 +652,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
                     min={10}
                     max={604800}
                     value={customValue}
+                    disabled={!canEdit}
                     onChange={(e) => {
                       setCustomValue(e.target.value)
                       setDirty(true)
@@ -622,6 +660,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
                   />
                   <Select
                     value={customUnit}
+                    disabled={!canEdit}
                     onChange={(v) => {
                       setCustomUnit(v as 'seconds' | 'minutes' | 'hours')
                       setDirty(true)
@@ -645,8 +684,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
               <p className="text-[11px] text-cyan-400/70">Each manager will have {humanDuration(totalSecondsPick)} to make a pick.</p>
               <button
                 type="button"
+                disabled={!canEdit}
                 onClick={() => void savePickTimer()}
-                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20"
+                className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1.5 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Save pick clock
               </button>
@@ -658,7 +698,11 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           faqText="Number of rounds = players each team drafts. Should typically match roster slots."
           control={
             <div className="flex flex-col gap-1.5">
-              <Select value={rounds} onChange={(v) => void patch({ rounds: Number(v) })}>
+              <Select
+                value={rounds}
+                disabled={!canEdit}
+                onChange={(v) => void patch({ rounds: Number(v) })}
+              >
                 {Array.from({ length: 30 }, (_, i) => (
                   <option key={i + 1} value={i + 1}>
                     {i + 1} rounds
@@ -688,7 +732,11 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           faqText="How the draft order is determined. Manual: assign slots. Randomized: system shuffles."
           control={
             <div>
-              <Select value={method} onChange={(v) => void handleMethodChange(v)}>
+              <Select
+                value={method}
+                disabled={!canEdit}
+                onChange={(v) => void handleMethodChange(v)}
+              >
                 <option value="manual">Manual Assignment</option>
                 <option value="randomized">Randomized</option>
                 <option value="prev_standings">Previous Season Standings</option>
@@ -714,10 +762,11 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
                     <button
                       key={n}
                       type="button"
+                      disabled={!canEdit}
                       onClick={() => setRandomizeCount(n)}
                       className={`h-9 w-9 rounded-lg text-[13px] font-bold transition ${
                         randomizeCount === n ? 'bg-cyan-500 text-black' : 'bg-white/[0.07] text-white hover:bg-white/[0.12]'
-                      }`}
+                      } disabled:cursor-not-allowed disabled:opacity-40`}
                     >
                       {n}
                     </button>
@@ -729,6 +778,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
                     placeholder="Custom"
                     className="w-20 text-center"
                     value={randomizeCount > 5 ? randomizeCount : ''}
+                    disabled={!canEdit}
                     onChange={(e) => setRandomizeCount(Number(e.target.value) || 1)}
                   />
                 </div>
@@ -736,8 +786,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
               </div>
               <button
                 type="button"
+                disabled={!canEdit}
                 onClick={() => void handleRandomize()}
-                className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400"
+                className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 🎲 Randomize
               </button>
@@ -759,8 +810,9 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
             {maxPfWarning ? <p className="mt-2 text-[11px] text-amber-400">{maxPfWarning}</p> : null}
             <button
               type="button"
+              disabled={!canEdit}
               onClick={() => void loadMaxPfOrder()}
-              className="mt-3 text-[12px] text-cyan-400 underline hover:text-cyan-300"
+              className="mt-3 text-[12px] text-cyan-400 underline hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Calculate order from last season →
             </button>
@@ -885,6 +937,8 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         </div>
       ) : null}
 
+      {canEdit ? (
+        <>
       <SettingsSection
         id="keepers"
         title="Keepers & Dynasty"
@@ -1028,6 +1082,8 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           control={<Toggle checked={Boolean(s?.aiRiskUpsideNotes ?? true)} onChange={(v) => void patch({ aiRiskUpsideNotes: v })} />}
         />
       </SettingsSection>
+        </>
+      ) : null}
 
       {isHeadCommissioner ? (
         isBestBall ? (
@@ -1054,8 +1110,7 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
               </div>
               <button
                 type="button"
-                role="switch"
-                aria-checked={league.autoCoachEnabled ?? true}
+                aria-label="Toggle AutoCoach AI for this league"
                 onClick={() => void handleAutoCoachLeagueToggle()}
                 className={[
                   'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
@@ -1085,6 +1140,18 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
           hasAccess={integrityEnt.hasAccess('commissioner_integrity_monitoring')}
           upgradeUrl={getUpgradeUrlWithHighlightForFeature('commissioner_integrity_monitoring')}
         />
+      ) : null}
+
+      {canEdit ? (
+        <SettingsSection
+          id="chimmy-alerts"
+          title="Chimmy Commissioner Alerts"
+          description="Tune Chimmy alert frequency, channels, muted categories, and commissioner-only alert rules for your account while managing this league."
+        >
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <ChimmyAlertPreferencesPanel role="commissioner" />
+          </div>
+        </SettingsSection>
       ) : null}
 
       {isHeadCommissioner ? (
@@ -1126,25 +1193,27 @@ export function LeagueSettingsTab({ leagueId }: { leagueId: string }) {
         </SettingsSection>
       ) : null}
 
-      <SettingsSection id="reset" title="Safety & Reset">
-        {isHeadCommissioner ? (
-          <div className="rounded-xl border border-red-500/15 bg-red-500/[0.06] p-4">
-            <div className="flex items-start gap-3">
-              <span className="text-[20px]">⚠️</span>
-              <div>
-                <p className="mb-1 text-[14px] font-bold text-red-400">Reset Draft</p>
-                <p className="mb-4 text-[12px] text-white/50">
-                  This will clear all picks and return the draft to pre-draft state. Draft settings are preserved. This cannot be
-                  undone.
-                </p>
-                <DangerButton onClick={() => setResetOpen(true)}>Reset Draft</DangerButton>
+      {canEdit ? (
+        <SettingsSection id="reset" title="Safety & Reset">
+          {isHeadCommissioner ? (
+            <div className="rounded-xl border border-red-500/15 bg-red-500/[0.06] p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-[20px]">⚠️</span>
+                <div>
+                  <p className="mb-1 text-[14px] font-bold text-red-400">Reset Draft</p>
+                  <p className="mb-4 text-[12px] text-white/50">
+                    This will clear all picks and return the draft to pre-draft state. Draft settings are preserved. This cannot be
+                    undone.
+                  </p>
+                  <DangerButton onClick={() => setResetOpen(true)}>Reset Draft</DangerButton>
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <p className="text-[12px] text-white/40">Only the head commissioner can reset the draft.</p>
-        )}
-      </SettingsSection>
+          ) : (
+            <p className="text-[12px] text-white/40">Only the head commissioner can reset the draft.</p>
+          )}
+        </SettingsSection>
+      ) : null}
 
       <ResetDraftModal
         open={resetOpen}

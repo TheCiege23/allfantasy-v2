@@ -18,19 +18,19 @@ export async function GET(
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport')
+    const sportRaw = url.searchParams?.get('sport')
     const sport = sportRaw ? (normalizeSportForDrama(sportRaw) ?? undefined) : undefined
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : undefined
-    const dramaType = url.searchParams.get('dramaType') ?? undefined
-    const relatedManagerId = url.searchParams.get('relatedManagerId') ?? undefined
-    const relatedTeamId = url.searchParams.get('relatedTeamId') ?? undefined
-    const relatedMatchupId = url.searchParams.get('relatedMatchupId') ?? undefined
-    const minScoreParam = url.searchParams.get('minScore')
+    const dramaType = url.searchParams?.get('dramaType') ?? undefined
+    const relatedManagerId = url.searchParams?.get('relatedManagerId') ?? undefined
+    const relatedTeamId = url.searchParams?.get('relatedTeamId') ?? undefined
+    const relatedMatchupId = url.searchParams?.get('relatedMatchupId') ?? undefined
+    const minScoreParam = url.searchParams?.get('minScore')
     const minScore = minScoreParam != null ? Number(minScoreParam) : undefined
-    const limitParam = url.searchParams.get('limit')
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 100) : 50
-    const offsetParam = url.searchParams.get('offset')
+    const offsetParam = url.searchParams?.get('offset')
     const offset = offsetParam != null ? Math.max(0, parseInt(offsetParam, 10) || 0) : 0
 
     const timeline = await buildTimelineForLeague(leagueId, {

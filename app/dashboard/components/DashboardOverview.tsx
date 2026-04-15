@@ -1,19 +1,30 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
-import { AIShortcutsGrid } from './AIShortcutsGrid'
+import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
 import { TodayStrip } from './TodayStrip'
-import { LegacyImportProgressWidget } from './LegacyImportProgressWidget'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
+import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
+import { StandingsWidget } from '@/components/sports/StandingsWidget'
+import { QuickCreateModal } from '@/components/league-creation/QuickCreateModal'
+import { ConnectPlatformsModal } from './ConnectPlatformsModal'
+import type { FavoriteSportsSelection } from '@/lib/dashboard/favorite-sports-storage'
+import {
+  hasAnyFavoriteSport,
+  readFavoriteSportsSelection,
+  writeFavoriteSportsSelection,
+} from '@/lib/dashboard/favorite-sports-storage'
+import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { interpolateTemplate } from '@/lib/i18n/interpolate'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -26,40 +37,13 @@ type OnboardingState = {
   step5: boolean
 }
 
-type RankPayload = {
-  imported: boolean
-  rank: {
-    careerTier: number
-    careerTierName: string
-    careerLevel: number
-    careerXp: string
-    aiReportGrade: string
-    aiScore: number
-    aiInsight: string
-    winRate: number
-    playoffRate: number
-    championshipCount: number
-    seasonsPlayed: number
-    totalWins?: number
-    totalLosses?: number
-    totalTies?: number
-    playoffAppearances?: number
-    importedAt: string | null
-  } | null
-  overviewProfile?: {
-    lanes?: Array<{
-      wins: number
-      losses: number
-      ties: number
-    }>
-  } | null
-}
-
 type DashboardOverviewProps = {
   userName: string
   leagues: UserLeague[]
   onTriggerImport: () => void
   onOpenChimmy: () => void
+  /** SSR snapshot of `/api/user/rank` — rankings card renders without a client fetch round-trip. */
+  initialUserRankPayload?: Record<string, unknown> | null
 }
 
 function getDefaultOnboardingState(): OnboardingState {
@@ -100,199 +84,23 @@ function writeOnboardingState(value: OnboardingState) {
   } catch {}
 }
 
-function getPlatformBadge(platform: string) {
-  switch (platform.toLowerCase()) {
-    case 'sleeper':
-      return '🌙'
-    case 'yahoo':
-      return '🏈'
-    case 'mfl':
-      return '🏆'
-    case 'fantrax':
-      return '📊'
-    case 'espn':
-      return '🔴'
-    default:
-      return '🏈'
-  }
-}
-
-function buildReferralUrl(userName: string) {
-  if (typeof window === 'undefined') return ''
-  const encodedRef = encodeURIComponent(userName.trim().toLowerCase().replace(/\s+/g, '-'))
-  return `${window.location.origin}/signup?ref=${encodedRef}`
-}
-
-function RankingWidget({
-  leagues,
-  onTriggerImport,
-}: {
-  leagues: UserLeague[]
-  onTriggerImport: () => void
-}) {
-  const [loading, setLoading] = useState(true)
-  const [payload, setPayload] = useState<RankPayload | null>(null)
-
-  useEffect(() => {
-    let active = true
-
-    fetch('/api/user/rank', { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load ranking'))))
-      .then((data: RankPayload) => {
-        if (!active) return
-        setPayload(data)
-      })
-      .catch(() => {
-        if (!active) return
-        setPayload({ imported: false, rank: null, overviewProfile: null })
-      })
-      .finally(() => {
-        if (!active) return
-        setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const connectedPlatforms = useMemo(() => {
-    return Array.from(new Set(leagues.map((league) => league.platform.toLowerCase()))).slice(0, 5)
-  }, [leagues])
-
-  if (loading) {
-    return <div className="h-[188px] rounded-2xl border-l-2 border-cyan-500 bg-white/5 animate-pulse" />
-  }
-
-  if (!payload?.imported || !payload.rank) {
-    return (
-      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-        <div className="text-2xl">🏆</div>
-        <p className="mt-3 text-sm font-semibold text-white">Complete your import to unlock your ranking</p>
-        <button
-          type="button"
-          onClick={onTriggerImport}
-          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-        >
-          Import Now
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
-    )
-  }
-
-  const xp = Number(payload.rank.careerXp)
-  const currentTierIndex = Math.max(0, Math.min(9, payload.rank.careerTier - 1))
-  const currentThreshold = currentTierIndex * 1500
-  const nextThreshold = Math.min(15000, currentThreshold + 1500)
-  const progress =
-    nextThreshold > currentThreshold
-      ? Math.min(100, Math.max(0, ((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100))
-      : 100
-
-  const totals =
-    payload.overviewProfile?.lanes?.reduce(
-      (acc, lane) => ({
-        wins: acc.wins + Number(lane.wins || 0),
-        losses: acc.losses + Number(lane.losses || 0),
-        ties: acc.ties + Number(lane.ties || 0),
-      }),
-      { wins: 0, losses: 0, ties: 0 }
-    ) ?? { wins: 0, losses: 0, ties: 0 }
-
-  const record = `${totals.wins}-${totals.losses}${totals.ties ? `-${totals.ties}` : ''}`
-  const careerRecord =
-    payload.rank.totalWins != null && payload.rank.totalLosses != null
-      ? `${payload.rank.totalWins}-${payload.rank.totalLosses}${
-          (payload.rank.totalTies ?? 0) > 0 ? `-${payload.rank.totalTies}` : ''
-        }`
-      : record
-
-  return (
-    <>
-      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="bg-gradient-to-r from-cyan-400 via-sky-300 to-violet-400 bg-clip-text text-5xl font-black text-transparent">
-              {payload.rank.careerTier}
-            </div>
-            <p className="mt-2 text-sm font-semibold text-white/80">{payload.rank.careerTierName}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {connectedPlatforms.map((platform) => (
-                <span
-                  key={platform}
-                  className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px]"
-                >
-                  {getPlatformBadge(platform)}
-                </span>
-              ))}
-            </div>
-          </div>
-          {/* AI GRADE BADGE */}
-          <div className="flex shrink-0 flex-col items-center gap-0.5">
-            <div className="min-w-[56px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-              <div className="text-2xl font-black leading-none text-violet-300">{payload.rank.aiReportGrade}</div>
-              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">AI Grade</div>
-            </div>
-            <div className="text-center">
-              <span className="text-sm font-bold text-white/80">{payload.rank.aiScore}</span>
-              <span className="text-[10px] text-white/30">/100</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-1 flex items-center justify-between text-[11px] text-white/45">
-            <span>{xp.toLocaleString()} / {nextThreshold.toLocaleString()} XP</span>
-            <span>Level {payload.rank.careerLevel}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-violet-500"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-2 text-[11px] text-white/60">
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Record</span>
-            {careerRecord}
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Titles</span>
-            {payload.rank.championshipCount}
-          </div>
-          <div className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-wide text-white/35">Seasons</span>
-            {payload.rank.seasonsPlayed}
-          </div>
-        </div>
-
-        <Link
-          href="/dashboard/rankings"
-          className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-cyan-300"
-        >
-          View full rankings
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-      <LegacyImportProgressWidget />
-    </>
-  )
-}
-
 export function DashboardOverview({
   userName,
   leagues,
   onTriggerImport,
-  onOpenChimmy,
+  onOpenChimmy: _onOpenChimmy,
+  initialUserRankPayload = null,
 }: DashboardOverviewProps) {
+  const { t } = useLanguage()
   const { hasPro } = useEntitlements()
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
+  const [sportsModalOpen, setSportsModalOpen] = useState(false)
+  const [platformModalOpen, setPlatformModalOpen] = useState(false)
+  const [inviteCopied, setInviteCopied] = useState(false)
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
   const [lineupLoading, setLineupLoading] = useState(false)
 
@@ -304,64 +112,156 @@ export function DashboardOverview({
   const [tradeData, setTradeData] = useState<TradesDashboardResponse | null>(null)
   const [tradeLoading, setTradeLoading] = useState(false)
 
+  /** Increment after legacy rankings import so rank widgets refetch `/api/user/rank`. */
+  const [rankRefreshKey, setRankRefreshKey] = useState(0)
+
   const lineupFetchedAt = useRef<number | null>(null)
   const waiverFetchedAt = useRef<number | null>(null)
   const tradeFetchedAt = useRef<number | null>(null)
 
+  useEffect(() => {
+    if (leagues.length === 0) return
+    void fetch('/api/dashboard/waivers', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: WaiverDashboardResponse | null) => {
+        if (d) {
+          setWaiverData(d)
+          waiverFetchedAt.current = Date.now()
+        }
+      })
+      .catch(() => {})
+  }, [leagues.length])
 
   useEffect(() => {
     setOnboarding(readOnboardingState())
   }, [])
 
-  const updateOnboardingStep = (step: keyof OnboardingState, value = true) => {
-    setOnboarding((current) => {
-      const next = { ...current, [step]: value }
+  useEffect(() => {
+    let cancelled = false
+    void fetch('/api/user/dashboard-onboarding', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          data: {
+            checklist?: Partial<OnboardingState>
+            favoriteSports?: FavoriteSportsSelection
+          } | null
+        ) => {
+          if (!data || cancelled) return
+          if (data.checklist) {
+            const s = data.checklist
+            setOnboarding((prev) => {
+              const next: OnboardingState = {
+                step1: prev.step1 || s.step1 === true,
+                step2: prev.step2 || s.step2 === true,
+                step3: prev.step3 || s.step3 === true,
+                step4: prev.step4 || s.step4 === true,
+                step5: prev.step5 || s.step5 === true,
+              }
+              writeOnboardingState(next)
+              return next
+            })
+          }
+          if (data.favoriteSports && (data.favoriteSports.supported?.length || data.favoriteSports.custom?.length)) {
+            writeFavoriteSportsSelection(data.favoriteSports)
+          }
+        }
+      )
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const fav = readFavoriteSportsSelection()
+    if (!hasAnyFavoriteSport(fav)) return
+    setOnboarding((prev) => {
+      if (prev.step1) return prev
+      const next = { ...prev, step1: true }
       writeOnboardingState(next)
       return next
     })
-  }
+  }, [])
+
+  const patchChecklistOnServer = useCallback(async (partial: Partial<OnboardingState>) => {
+    try {
+      await fetch('/api/user/dashboard-onboarding', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: partial }),
+      })
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    if (leagues.length === 0) return
+    setOnboarding((prev) => {
+      if (prev.step2 && prev.step3) return prev
+      const next = {
+        ...prev,
+        step2: true,
+        step3: true,
+      }
+      writeOnboardingState(next)
+      void patchChecklistOnServer({ step2: true, step3: true })
+      return next
+    })
+  }, [leagues.length, patchChecklistOnServer])
+
+  const updateOnboardingStep = useCallback(
+    (step: keyof OnboardingState, value = true) => {
+      setOnboarding((current) => {
+        const next = { ...current, [step]: value }
+        writeOnboardingState(next)
+        return next
+      })
+      void patchChecklistOnServer({ [step]: value })
+    },
+    [patchChecklistOnServer]
+  )
 
   const checklistSteps = useMemo<ChecklistStep[]>(
     () => [
       {
         id: 'step1',
-        label: 'Select favorite sports',
-        description: 'Tell AllFantasy which sports you care about most.',
+        label: t('dashboard.onboarding.step1.label'),
+        description: t('dashboard.onboarding.step1.desc'),
         done: onboarding.step1,
-        ctaHref: '/settings?tab=sports',
-        ctaLabel: 'Open',
+        ctaLabel: t('dashboard.onboarding.step1.cta'),
       },
       {
         id: 'step2',
-        label: 'Connect a platform',
-        description: 'Import your history and unlock your dashboard ranking.',
+        label: t('dashboard.onboarding.step2.label'),
+        description: t('dashboard.onboarding.step2.desc'),
         done: onboarding.step2,
-        ctaLabel: 'Import',
+        ctaLabel: t('dashboard.onboarding.step2.cta'),
       },
       {
         id: 'step3',
-        label: 'Join or create a league',
-        description: 'Get into a league so the shell can open league mode.',
+        label: t('dashboard.onboarding.step3.label'),
+        description: t('dashboard.onboarding.step3.desc'),
         done: onboarding.step3,
-        ctaHref: '/dashboard/rankings',
-        ctaLabel: 'Explore',
+        ctaHref: '/af-rankings',
+        ctaLabel: t('dashboard.onboarding.step3.cta'),
       },
       {
         id: 'step4',
-        label: 'Try an AI action',
-        description: 'Open Chimmy and ask for your first piece of guidance.',
+        label: t('dashboard.onboarding.step4.label'),
+        description: t('dashboard.onboarding.step4.desc'),
         done: onboarding.step4,
-        ctaLabel: 'Open',
+        ctaHref: '/ai/tools',
+        ctaLabel: t('dashboard.onboarding.step4.cta'),
       },
       {
         id: 'step5',
-        label: 'Invite a friend',
-        description: 'Share your AllFantasy invite link with another manager.',
+        label: t('dashboard.onboarding.step5.label'),
+        description: t('dashboard.onboarding.step5.desc'),
         done: onboarding.step5,
-        ctaLabel: 'Copy',
+        ctaLabel: inviteCopied ? t('dashboard.onboarding.step5.ctaCopied') : t('dashboard.onboarding.step5.ctaCopy'),
       },
     ],
-    [onboarding]
+    [onboarding, inviteCopied, t]
   )
 
   const completedCount = checklistSteps.filter((step) => step.done).length
@@ -372,18 +272,25 @@ export function DashboardOverview({
     onTriggerImport()
   }
 
-  const handleOpenChimmy = () => {
-    updateOnboardingStep('step4')
-    onOpenChimmy()
-  }
-
   const handleCopyReferral = async () => {
-    const referralUrl = buildReferralUrl(userName)
-    if (!referralUrl) return
+    let inviteUrl = ''
+    try {
+      const res = await fetch('/api/user/landing-invite', { cache: 'no-store' })
+      if (res.ok) {
+        const data = (await res.json()) as { landingUrl?: string }
+        if (typeof data.landingUrl === 'string' && data.landingUrl.startsWith('http')) {
+          inviteUrl = data.landingUrl
+        }
+      }
+    } catch {}
+    if (!inviteUrl) inviteUrl = buildLandingInviteUrl()
+    if (!inviteUrl) return
 
     try {
-      await navigator.clipboard.writeText(referralUrl)
+      await navigator.clipboard.writeText(inviteUrl)
       updateOnboardingStep('step5')
+      setInviteCopied(true)
+      window.setTimeout(() => setInviteCopied(false), 2500)
     } catch {}
   }
 
@@ -502,6 +409,8 @@ export function DashboardOverview({
     return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
   }, [waiverData])
 
+  const injuryPulseCount = useMemo(() => waiverData?.injuryPulse?.length ?? 0, [waiverData])
+
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
   const handleAiShortcut = useCallback((_prompt: string) => {
@@ -514,9 +423,7 @@ export function DashboardOverview({
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         {allDone ? (
-          <p className="text-xs text-cyan-400/95">
-            ✓ All set! You&apos;re ready to get the most out of AllFantasy.
-          </p>
+          <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
           <section className="overflow-hidden rounded-2xl border border-white/8 bg-[#0c0c1e]">
             <button
@@ -525,8 +432,10 @@ export function DashboardOverview({
               className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
             >
               <div>
-                <p className="text-sm font-bold text-white">Get Started</p>
-                <p className="mt-1 text-xs text-white/40">{completedCount} of 5 complete</p>
+                <p className="text-sm font-bold text-white">{t('dashboard.overview.getStarted')}</p>
+                <p className="mt-1 text-xs text-white/40">
+                  {interpolateTemplate(t('dashboard.overview.checklistProgress'), { done: completedCount })}
+                </p>
               </div>
               <span
                 className="inline-block text-lg leading-none text-white/40 transition-transform duration-200"
@@ -556,25 +465,37 @@ export function DashboardOverview({
                     </div>
 
                     {!step.done ? (
-                      step.id === 'step2' ? (
+                      step.id === 'step1' ? (
                         <button
                           type="button"
-                          onClick={handleImport}
+                          data-testid="get-started-sports-cta"
+                          onClick={() => setSportsModalOpen(true)}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
                           {step.ctaLabel}
                         </button>
-                      ) : step.id === 'step4' ? (
+                      ) : step.id === 'step2' ? (
                         <button
                           type="button"
-                          onClick={handleOpenChimmy}
+                          data-testid="get-started-connect-cta"
+                          onClick={() => setPlatformModalOpen(true)}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
                           {step.ctaLabel}
                         </button>
+                      ) : step.id === 'step4' && step.ctaHref ? (
+                        <Link
+                          href={step.ctaHref}
+                          data-testid="get-started-af-ai-tools-cta"
+                          onClick={() => updateOnboardingStep('step4')}
+                          className="text-xs font-semibold text-cyan-400 hover:underline"
+                        >
+                          {step.ctaLabel}
+                        </Link>
                       ) : step.id === 'step5' ? (
                         <button
                           type="button"
+                          data-testid="get-started-invite-copy"
                           onClick={() => void handleCopyReferral()}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
                         >
@@ -584,7 +505,6 @@ export function DashboardOverview({
                         <Link
                           href={step.ctaHref}
                           onClick={() => {
-                            if (step.id === 'step1') updateOnboardingStep('step1')
                             if (step.id === 'step3') updateOnboardingStep('step3')
                           }}
                           className="text-xs font-semibold text-cyan-400 hover:underline"
@@ -592,6 +512,22 @@ export function DashboardOverview({
                           {step.ctaLabel}
                         </Link>
                       ) : null
+                    ) : step.id === 'step1' ? (
+                      <button
+                        type="button"
+                        onClick={() => setSportsModalOpen(true)}
+                        className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
+                      >
+                        {t('dashboard.onboarding.edit')}
+                      </button>
+                    ) : step.id === 'step2' ? (
+                      <button
+                        type="button"
+                        onClick={() => setPlatformModalOpen(true)}
+                        className="text-xs font-semibold text-white/40 hover:text-cyan-400 hover:underline"
+                      >
+                        {t('dashboard.onboarding.add')}
+                      </button>
                     ) : null}
                   </div>
                 ))}
@@ -604,7 +540,7 @@ export function DashboardOverview({
             className="flex h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/50 transition hover:bg-white/[0.06]"
           >
             <span>
-              Setup · <span className="text-white/80">{completedCount}/5</span> complete
+              {interpolateTemplate(t('dashboard.overview.setupCollapsed'), { done: completedCount })}
             </span>
             <span
               className="text-white/40 transition-transform"
@@ -616,9 +552,12 @@ export function DashboardOverview({
         )}
 
         <section className="border-b border-white/[0.07] pb-5">
-          <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">Dashboard Overview</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
+            {t('dashboard.overview.sectionTitle')}
+          </p>
           <h1 className="mt-2 text-[22px] font-black leading-tight text-white">
-            Welcome back, <span className="font-bold text-cyan-400">{userName}</span>
+            {t('dashboard.overview.welcomeBack')}{' '}
+            <span className="font-bold text-cyan-400">{userName}</span>
           </h1>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -626,20 +565,27 @@ export function DashboardOverview({
               href="/create-league"
               className="rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-semibold text-black"
             >
-              + Create League
+              {t('dashboard.overview.createLeague')}
             </Link>
+            <button
+              type="button"
+              onClick={() => setQuickCreateOpen(true)}
+              className="rounded-xl border border-purple-500/30 bg-purple-500/10 px-4 py-2 text-sm font-semibold text-purple-300 transition hover:bg-purple-500/20"
+            >
+              ✨ Quick Create
+            </button>
             <button
               type="button"
               onClick={handleImport}
               className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
-              Import
+              {t('dashboard.overview.import')}
             </button>
             <Link
               href="/find-league"
               className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
             >
-              Find League
+              {t('dashboard.overview.findLeague')}
             </Link>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>
@@ -652,13 +598,21 @@ export function DashboardOverview({
           onLineupIssuesClick={handleLineupIssuesClick}
           waiverCount={waiverChipCount}
           onWaiverClick={handleWaiverClick}
+          injuryPulseCount={injuryPulseCount}
           pendingTradeCount={pendingTradeChipCount}
           onTradesClick={handleTradeClick}
         />
 
-        <AIShortcutsGrid leagueName={leagues[0]?.name} onShortcut={handleAiShortcut} />
+        <AIToolsGrid leagues={leagues} />
+
+        {leagues.length > 0 && (
+          <StandingsWidget leagueId={leagues[0].id} sport={String(leagues[0].sport)} />
+        )}
 
         <RankingsCard
+          initialRankPayload={initialUserRankPayload}
+          onImportNow={handleImport}
+          rankRefreshKey={rankRefreshKey}
           onAskChimmy={() => {
             handleAiShortcut('Show me how player rankings work for my leagues.')
             window.dispatchEvent(
@@ -668,10 +622,6 @@ export function DashboardOverview({
             )
           }}
         />
-
-        <section>
-          <RankingWidget leagues={leagues} onTriggerImport={handleImport} />
-        </section>
       </div>
 
       <LineupIssuesModal
@@ -696,6 +646,33 @@ export function DashboardOverview({
         data={tradeData}
         loading={tradeLoading}
         hasProAccess={hasPro}
+      />
+
+      <QuickCreateModal open={quickCreateOpen} onClose={() => setQuickCreateOpen(false)} />
+
+      <FavoriteSportsOnboardingModal
+        open={sportsModalOpen}
+        onClose={() => setSportsModalOpen(false)}
+        onSaved={(selection) => {
+          setOnboarding((c) => {
+            const next = { ...c, step1: true }
+            writeOnboardingState(next)
+            return next
+          })
+          void fetch('/api/user/dashboard-onboarding', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              checklist: { step1: true },
+              favoriteSports: selection,
+            }),
+          }).catch(() => {})
+        }}
+      />
+      <ConnectPlatformsModal
+        open={platformModalOpen}
+        onClose={() => setPlatformModalOpen(false)}
+        onMarkConnectIntent={() => updateOnboardingStep('step2')}
       />
     </div>
   )

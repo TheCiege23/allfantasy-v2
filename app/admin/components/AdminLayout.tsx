@@ -179,7 +179,7 @@ export default function AdminLayout({
   activeTab: AdminTab;
   children: ReactNode;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const router = useRouter();
 

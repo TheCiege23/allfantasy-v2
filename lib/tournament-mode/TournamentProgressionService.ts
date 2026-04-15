@@ -6,12 +6,8 @@
 import { prisma } from '@/lib/prisma'
 import { runPostCreateInitialization } from '@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator'
 import { getUniversalStandingsRaw, applyConferenceRankingAndCutLine } from './TournamentStandingsService'
-import {
-  getAdvancementSlotsPerConference,
-  getBubbleSlotsPerConference,
-  getEliminationLeagueCountPerConference,
-  ELIMINATION_LEAGUE_SIZE,
-} from './advancement-rules'
+import { getBubbleSlotsPerConference, getEliminationLeagueCountPerConference, ELIMINATION_LEAGUE_SIZE } from './advancement-rules'
+import { getQualificationCutSlotsPerConference } from './tournament-sport-cutoffs'
 import { LATER_ROUND_NAMES, TOURNAMENT_LEAGUE_VARIANT } from './constants'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -118,10 +114,15 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
   })
   if (existingRound1) throw new Error('Elimination round already created; advancement already run.')
   const settings = (tournament.settings as Record<string, unknown>) ?? {}
-  const poolSize = Number(settings.participantPoolSize) || 120
+  const poolSize = Number(settings.participantPoolSize) || 72
   const bubbleEnabled = Boolean(settings.bubbleWeekEnabled)
   const sport = normalizeToSupportedSport(tournament.sport)
-  const advancementPerConf = getAdvancementSlotsPerConference(poolSize)
+  const advancementPerConf = getQualificationCutSlotsPerConference(
+    String(tournament.sport ?? 'NFL'),
+    poolSize,
+    typeof settings.qualificationAdvancementTotal === 'number' ? settings.qualificationAdvancementTotal : undefined,
+    tournament.conferences.length
+  )
   const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
   const leaguesPerConf = getEliminationLeagueCountPerConference(advancementPerConf)
 
@@ -167,6 +168,7 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
           sport,
           leagueVariant: TOURNAMENT_LEAGUE_VARIANT,
           settings: {
+            league_type: 'tournament',
             tournamentId,
             tournamentName: tournament.name,
             conferenceName: conf.name,

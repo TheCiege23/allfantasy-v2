@@ -32,7 +32,7 @@ function getStatusKey(s: string): string {
 }
 
 export default function ZombieStandingsPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const { leagueId  } = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const [rows, setRows] = useState<Row[]>([])
   const [filter, setFilter] = useState<Filter>('all')
   const [week, setWeek] = useState(1)

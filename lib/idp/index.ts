@@ -76,3 +76,9 @@ export {
   matchesIdpPositionFilter,
   type ParsedIdpRosterRow,
 } from './idpRouteHelpers'
+export {
+  optimizeIdpBestBallLineup,
+  optimizeForLeagueRoster,
+  type PlayerScore,
+  type OptimalLineup,
+} from './IdpBestBallOptimizer'

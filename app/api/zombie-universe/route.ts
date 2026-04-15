@@ -29,10 +29,29 @@ export async function GET() {
 
   const zombieLeagues = await prisma.zombieLeague.findMany({
     where: { leagueId: { in: [...myLeagueIds] } },
-    select: { universeId: true, universe: { select: { id: true, name: true, sport: true } } },
+    select: {
+      universeId: true,
+      universe: {
+        select: {
+          id: true,
+          name: true,
+          sport: true,
+          tierCount: true,
+          status: true,
+          leagues: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
+    },
   })
 
-  const byUniverse = new Map<string, { id: string; name: string; sport: string }>()
+  const byUniverse = new Map<
+    string,
+    { id: string; name: string; sport: string; tierCount: number; status: string; leagueCount: number }
+  >()
   for (const zl of zombieLeagues) {
     const uid = zl.universeId
     if (uid && zl.universe && !byUniverse.has(uid)) {
@@ -40,6 +59,9 @@ export async function GET() {
         id: zl.universe.id,
         name: zl.universe.name,
         sport: zl.universe.sport,
+        tierCount: zl.universe.tierCount,
+        status: zl.universe.status,
+        leagueCount: zl.universe.leagues.length,
       })
     }
   }

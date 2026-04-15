@@ -104,4 +104,6 @@ export interface YahooImportPayload {
     season: string
     sourceLeagueId: string
   }>
+  /** Yahoo team_key for the OAuth user when `managerGuid` matches logged-in guid. */
+  viewerTeamKey?: string | null
 }

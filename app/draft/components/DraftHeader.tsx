@@ -1,6 +1,7 @@
 'use client'
 
 import { Settings } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type Props = {
   title: string
@@ -10,6 +11,8 @@ type Props = {
 }
 
 export function DraftHeader({ title, subtitle, onOpenSettings, rightSlot }: Props) {
+  const { t } = useLanguage()
+
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] bg-[#0d1117] px-3 py-2">
       <div className="min-w-0">
@@ -23,7 +26,7 @@ export function DraftHeader({ title, subtitle, onOpenSettings, rightSlot }: Prop
             type="button"
             onClick={onOpenSettings}
             className="rounded-lg border border-white/[0.08] p-2 text-white/60 hover:bg-white/[0.06]"
-            aria-label="Draft settings"
+            aria-label={t('draftRoom.header.aria.settings')}
           >
             <Settings className="h-4 w-4" />
           </button>

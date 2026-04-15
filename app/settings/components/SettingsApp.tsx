@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { signOut } from "next-auth/react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ReferralSection } from "@/components/settings/ReferralSection"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { ErrorStateRenderer, LoadingStateRenderer } from "@/components/ui-states"
@@ -31,9 +33,10 @@ export default function SettingsApp({
   accountCreatedAt,
   planLabel,
 }: SettingsAppProps) {
+  const { t } = useLanguage()
   const searchParams = useSearchParams()
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const tabFromQuery = searchParams?.get("tab")
   const initialTab = isSettingsTabId(tabFromQuery) ? tabFromQuery : "profile"
   const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab)
@@ -56,7 +59,7 @@ export default function SettingsApp({
   if (loading && !profile) {
     return (
       <div className="min-h-[100dvh] bg-[#0d1117] px-4 py-8">
-        <LoadingStateRenderer label="Loading settings..." testId="settings-loading-state" />
+        <LoadingStateRenderer label={t("settings.loading")} testId="settings-loading-state" />
       </div>
     )
   }
@@ -65,14 +68,17 @@ export default function SettingsApp({
     return (
       <div className="min-h-[100dvh] bg-[#0d1117] px-4 py-8">
         <ErrorStateRenderer
-          title="Unable to load settings"
-          message={error ?? "Settings are currently unavailable. Retry to recover your profile state."}
+          title={t("settings.errorTitle")}
+          message={error ?? t("settings.errorMessage")}
           onRetry={() => void fetchProfile()}
-          actions={resolveRecoveryActions("settings").map((action) => ({
-            id: action.id,
-            label: action.label,
-            href: action.href,
-          }))}
+          actions={[
+            ...resolveRecoveryActions("settings").map((action) => ({
+              id: action.id,
+              label: action.label,
+              href: action.href,
+            })),
+            { id: "sign-out", label: "Sign out", href: "/logout" },
+          ]}
           testId="settings-error-state"
         />
       </div>
@@ -85,7 +91,7 @@ export default function SettingsApp({
         <div className="mb-4">
           <ErrorStateRenderer
             compact
-            title="Some settings did not refresh"
+            title={t("settings.inlineErrorTitle")}
             message={error}
             onRetry={() => void fetchProfile()}
             testId="settings-inline-error-state"

@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url)
   const season = Number(
-    url.searchParams.get("season") || new Date().getUTCFullYear()
+    url.searchParams?.get("season") || new Date().getUTCFullYear()
   )
 
   const apiKey = process.env.THESPORTSDB_API_KEY || "3"
@@ -110,3 +110,4 @@ export async function GET(req: Request) {
     note: "Read-only probe. Does not write to DB.",
   })
 }
+

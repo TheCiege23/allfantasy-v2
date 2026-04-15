@@ -93,8 +93,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/email-preferences", to
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/email-preferences", tool: "LegacyEmailPreferences" })(async (req: NextRequest) => {
   try {
-    const email = req.nextUrl.searchParams.get('email')
-    const sleeperUsername = req.nextUrl.searchParams.get('sleeper_username')
+    const email = req.nextUrl.searchParams?.get('email')
+    const sleeperUsername = req.nextUrl.searchParams?.get('sleeper_username')
 
     if (!email && !sleeperUsername) {
       return NextResponse.json({ error: 'Email or sleeper_username required' }, { status: 400 })
@@ -125,3 +125,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/email-preferences", too
     return NextResponse.json({ error: 'Failed to get preferences' }, { status: 500 })
   }
 })
+

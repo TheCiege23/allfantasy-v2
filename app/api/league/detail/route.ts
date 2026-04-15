@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
@@ -113,6 +113,7 @@ export async function GET(req: NextRequest) {
       teamName: team.teamName,
       ownerName: team.ownerName,
       avatarUrl: team.avatarUrl,
+      platformUserId: team.platformUserId ?? null,
       role: team.role,
       isOrphan: team.isOrphan,
       claimedByUserId: team.claimedByUserId,
@@ -121,6 +122,12 @@ export async function GET(req: NextRequest) {
       losses: team.losses,
       ties: team.ties,
       pointsFor: team.pointsFor,
+      pointsAgainst: team.pointsAgainst,
+      currentRank: team.currentRank ?? null,
+      faabRemaining: null,
+      waiverPriority: null,
+      divisionId: team.divisionId ?? null,
     })),
   })
 }
+

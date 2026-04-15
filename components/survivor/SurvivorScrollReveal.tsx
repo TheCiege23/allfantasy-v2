@@ -1,169 +1,172 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronRight, ScrollText } from 'lucide-react'
+import type { SurvivorScrollRevealStep } from './types'
 
-export interface RevealStep {
-  type: 'vote' | 'does_not_count' | 'pause'
-  voterName?: string
-  targetName?: string
+function parseSequence(raw: unknown): SurvivorScrollRevealStep[] {
+  if (!Array.isArray(raw)) return []
+  const out: SurvivorScrollRevealStep[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const t = (item as { type?: string }).type
+    if (t === 'pause') {
+      out.push({ type: 'pause' })
+      continue
+    }
+    if (t === 'vote' && 'voterName' in item && 'targetName' in item) {
+      out.push({
+        type: 'vote',
+        voterName: String((item as { voterName?: string }).voterName ?? ''),
+        targetName: String((item as { targetName?: string }).targetName ?? ''),
+      })
+      continue
+    }
+    if (t === 'does_not_count' && 'voterName' in item) {
+      out.push({
+        type: 'does_not_count',
+        voterName: String((item as { voterName?: string }).voterName ?? ''),
+      })
+      continue
+    }
+    if (t === 'elimination' && 'userName' in item) {
+      out.push({
+        type: 'elimination',
+        userName: String((item as { userName?: string }).userName ?? ''),
+      })
+      continue
+    }
+    if (t === 'idol_play' && 'powerLabel' in item) {
+      out.push({
+        type: 'idol_play',
+        powerLabel: String((item as { powerLabel?: string }).powerLabel ?? ''),
+      })
+    }
+  }
+  return out
 }
 
-interface SurvivorScrollRevealProps {
-  sequence: RevealStep[]
-  eliminatedName?: string
-  mode?: 'dramatic' | 'full_public' | 'anonymized' | 'delayed'
-  autoPlay?: boolean
-  onComplete?: () => void
+function stepLabel(step: SurvivorScrollRevealStep): string {
+  switch (step.type) {
+    case 'vote':
+      return `${step.voterName} voted for ${step.targetName}`
+    case 'does_not_count':
+      return `${step.voterName}'s vote does not count`
+    case 'pause':
+      return '…'
+    case 'elimination':
+      return `${step.userName} is voted out`
+    case 'idol_play':
+      return `Idol played: ${step.powerLabel}`
+    default:
+      return ''
+  }
 }
 
-const VOTE_DELAY_MS = 2800
-const PAUSE_DELAY_MS = 1800
-const FINAL_DELAY_MS = 3500
+export interface SurvivorScrollRevealProps {
+  councilWeek: number
+  revealSequence: unknown
+  autoPlayMs?: number
+}
 
-export function SurvivorScrollReveal({
-  sequence,
-  eliminatedName,
-  mode = 'dramatic',
-  autoPlay = true,
-  onComplete,
-}: SurvivorScrollRevealProps) {
-  const [currentIndex, setCurrentIndex] = useState(-1)
-  const [showElimination, setShowElimination] = useState(false)
-  const [voteCounts, setVoteCounts] = useState<Record<string, number>>({})
-  const [isPlaying, setIsPlaying] = useState(autoPlay)
-
-  const advance = useCallback(() => {
-    setCurrentIndex((prev) => {
-      const next = prev + 1
-      if (next >= sequence.length) return prev
-      const step = sequence[next]
-      if (step?.type === 'vote' && step.targetName) {
-        setVoteCounts((counts) => ({
-          ...counts,
-          [step.targetName!]: (counts[step.targetName!] ?? 0) + 1,
-        }))
-      }
-      return next
-    })
-  }, [sequence])
+/**
+ * Parchment-style step-through for vote reads when the council has a persisted `revealSequence`.
+ */
+export function SurvivorScrollReveal({ councilWeek, revealSequence, autoPlayMs = 0 }: SurvivorScrollRevealProps) {
+  const steps = useMemo(() => parseSequence(revealSequence), [revealSequence])
+  const [idx, setIdx] = useState(0)
+  const [playing, setPlaying] = useState(false)
 
   useEffect(() => {
-    if (!isPlaying) return
-    if (currentIndex >= sequence.length - 1) {
-      const timer = setTimeout(() => {
-        setShowElimination(true)
-        setTimeout(() => onComplete?.(), FINAL_DELAY_MS)
-      }, VOTE_DELAY_MS)
-      return () => clearTimeout(timer)
-    }
-    const step = sequence[currentIndex + 1]
-    const delay = step?.type === 'pause' ? PAUSE_DELAY_MS : VOTE_DELAY_MS
-    const timer = setTimeout(advance, currentIndex === -1 ? 1200 : delay)
-    return () => clearTimeout(timer)
-  }, [currentIndex, isPlaying, sequence, advance, onComplete])
+    setIdx(0)
+    setPlaying(false)
+  }, [revealSequence])
 
-  // Vote count leaderboard (sorted descending)
-  const sortedTargets = Object.entries(voteCounts).sort(([, a], [, b]) => b - a)
+  const atEnd = idx >= steps.length
+  const current = !atEnd ? steps[idx] : null
+
+  useEffect(() => {
+    if (!playing || autoPlayMs <= 0 || steps.length === 0) return
+    if (idx >= steps.length) {
+      setPlaying(false)
+      return
+    }
+    const t = window.setTimeout(() => {
+      setIdx((i) => i + 1)
+    }, autoPlayMs)
+    return () => window.clearTimeout(t)
+  }, [playing, autoPlayMs, idx, steps.length])
+
+  const next = useCallback(() => {
+    setIdx((i) => Math.min(i + 1, steps.length))
+  }, [steps.length])
+
+  const restart = useCallback(() => {
+    setIdx(0)
+    setPlaying(false)
+  }, [])
+
+  if (steps.length === 0) {
+    return (
+      <p className="text-sm text-white/45" data-testid="survivor-scroll-empty">
+        Scroll sequence not available yet for this council.
+      </p>
+    )
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold text-amber-300">The votes are in...</div>
-        {!autoPlay && (
+    <div className="space-y-4" data-testid="survivor-scroll-reveal">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-600/25 bg-gradient-to-b from-amber-950/40 to-[#0a1228] p-5 shadow-inner">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
+        <div className="mb-3 flex items-center gap-2 text-amber-200/95">
+          <ScrollText className="h-5 w-5 shrink-0 text-amber-400/90" />
+          <span className="text-sm font-semibold tracking-wide">The scroll · Week {councilWeek}</span>
+        </div>
+        <div
+          className="min-h-[5rem] font-serif text-lg leading-relaxed text-amber-50/95 md:text-xl"
+          role="status"
+          aria-live="polite"
+        >
+          {current ? (
+            <span className="block animate-in fade-in duration-300">{stepLabel(current)}</span>
+          ) : (
+            <span className="text-amber-100/70">End of the scroll.</span>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-white/40">
+          Step {Math.min(idx + 1, steps.length)} of {steps.length}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!atEnd && (
           <button
-            onClick={() => setIsPlaying((p) => !p)}
-            className="rounded-lg border border-white/10 px-3 py-1 text-xs text-white/60 hover:border-white/20"
+            type="button"
+            onClick={next}
+            className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/35 bg-cyan-950/30 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-950/50"
+            data-testid="survivor-scroll-next"
           >
-            {isPlaying ? 'Pause' : 'Play'}
+            <ChevronRight className="h-4 w-4" /> Next line
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={restart}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
+          data-testid="survivor-scroll-restart"
+        >
+          Restart
+        </button>
+        {autoPlayMs > 0 && (
+          <button
+            type="button"
+            onClick={() => setPlaying((p) => !p)}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
+            data-testid="survivor-scroll-autoplay"
+          >
+            {playing ? 'Pause auto' : 'Auto-play'}
           </button>
         )}
       </div>
-
-      {/* Vote count tracker */}
-      {sortedTargets.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-          <div className="mb-2 text-xs uppercase tracking-wide text-white/40">Vote Count</div>
-          <div className="space-y-1.5">
-            {sortedTargets.map(([name, count]) => (
-              <div key={name} className="flex items-center gap-2">
-                <div className="flex-1 text-sm text-white/80">{name}</div>
-                <div className="flex gap-0.5">
-                  {Array.from({ length: count }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-3 w-3 rounded-sm bg-red-500/80 transition-all duration-500"
-                    />
-                  ))}
-                </div>
-                <div className="w-6 text-right text-xs font-bold text-red-300">{count}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Reveal sequence */}
-      <div className="space-y-1.5">
-        {sequence.map((step, index) => {
-          if (step.type === 'pause') return null
-          const isRevealed = index <= currentIndex
-          const isCurrent = index === currentIndex
-          const isAnonymized = mode === 'anonymized'
-
-          if (!isRevealed) {
-            return (
-              <div
-                key={index}
-                className="rounded-lg border border-white/5 bg-white/[0.01] px-4 py-2.5 text-sm text-white/20"
-              >
-                ...
-              </div>
-            )
-          }
-
-          if (step.type === 'does_not_count') {
-            return (
-              <div
-                key={index}
-                className={`rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-2.5 text-sm text-yellow-200/60 transition-all duration-700 ${
-                  isCurrent ? 'scale-[1.02] ring-1 ring-yellow-400/30' : ''
-                }`}
-              >
-                {isAnonymized ? 'A vote' : step.voterName}&apos;s vote... <span className="italic">Does Not Count</span>
-              </div>
-            )
-          }
-
-          return (
-            <div
-              key={index}
-              className={`rounded-lg border px-4 py-2.5 text-sm transition-all duration-700 ${
-                isCurrent
-                  ? 'scale-[1.02] border-red-400/40 bg-red-500/10 text-white ring-1 ring-red-400/20'
-                  : 'border-white/10 bg-white/[0.03] text-white/75'
-              }`}
-            >
-              {isAnonymized ? (
-                <span>Vote for <span className="font-semibold text-red-300">{step.targetName}</span></span>
-              ) : (
-                <span>
-                  {step.voterName} voted for{' '}
-                  <span className="font-semibold text-red-300">{step.targetName}</span>
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Elimination announcement */}
-      {showElimination && eliminatedName && (
-        <div className="animate-pulse rounded-2xl border border-red-500/40 bg-red-500/10 px-6 py-5 text-center">
-          <div className="text-xs uppercase tracking-widest text-red-300/50">The tribe has spoken</div>
-          <div className="mt-2 text-xl font-bold text-red-100">{eliminatedName}</div>
-          <div className="mt-1 text-sm text-red-300/60">has been voted out</div>
-        </div>
-      )}
     </div>
   )
 }

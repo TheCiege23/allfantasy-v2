@@ -16,7 +16,7 @@ export type Step3DraftTypeProps = {
 }
 
 export function Step3DraftType({ state, onDraftTypeChange, onBack, onNext }: Step3DraftTypeProps) {
-  const allowed = getAllowedDraftTypesForLeagueType(state.leagueType)
+  const allowed = getAllowedDraftTypesForLeagueType(state.leagueType, state.sport)
   const value = allowed.includes(state.draftType) ? state.draftType : allowed[0]
   return (
     <section className="space-y-6">

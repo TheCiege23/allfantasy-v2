@@ -7,10 +7,10 @@ export const dynamic = "force-dynamic"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const tournamentId = searchParams.get("tournamentId")
-    const nodeId = searchParams.get("nodeId")
-    const leagueId = searchParams.get("leagueId")
-    const scopeParam = searchParams.get("scope") || "global"
+    const tournamentId = searchParams?.get("tournamentId")
+    const nodeId = searchParams?.get("nodeId")
+    const leagueId = searchParams?.get("leagueId")
+    const scopeParam = searchParams?.get("scope") || "global"
 
     if (!tournamentId || !nodeId) {
       return NextResponse.json(
@@ -68,4 +68,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
 

@@ -1,53 +1,78 @@
-import { NextResponse } from 'next/server'
+/**
+ * [UPDATED] app/api/tournament/[tournamentId]/standings/route.ts
+ * GET: Universal standings for a tournament.
+ * Supports Legacy tournaments via TournamentStandingsService.
+ * ?bubble=true returns only bubble-zone rows.
+ */
+
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUniversalStandings } from '@/lib/tournament-mode/TournamentStandingsService'
-import { getAdvancementSlotsPerConference } from '@/lib/tournament-mode/advancement-rules'
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
 
   const { tournamentId } = await params
-  const tournament = await prisma.legacyTournament.findUnique({
-    where: { id: tournamentId },
-    select: { id: true, creatorId: true, hubSettings: true },
-  })
-  if (!tournament) {
-    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
+  if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
+
+  const bubbleOnly = req.nextUrl.searchParams?.get('bubble') === 'true'
+
+  // Try Shell model first
+  const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } }).catch(() => null)
+  if (shell) {
+    // Shell standings are stored in conference standingsCache
+    const conferences = await prisma.tournamentConference.findMany({
+      where: { tournamentId },
+      select: { id: true, name: true, standingsCache: true },
+    })
+    return NextResponse.json({
+      standings: conferences.flatMap((c) => {
+        const cache = c.standingsCache as Array<Record<string, unknown>> | null
+        return (cache ?? []).map((row) => ({ ...row, conferenceName: c.name }))
+      }),
+    })
   }
 
-  const hubSettings = (tournament.hubSettings as Record<string, unknown>) ?? {}
-  const visibility = (hubSettings.visibility as string) ?? 'unlisted'
-  const isCreator = tournament.creatorId === userId
-  if (visibility === 'private' && !isCreator) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  // Legacy tournament: use the real standings service
+  const legacy = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { id: true, creatorId: true },
+  })
+  if (!legacy) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
-    const [rows, tournamentWithSettings] = await Promise.all([
-      getUniversalStandings(tournamentId),
-      prisma.legacyTournament.findUnique({
-        where: { id: tournamentId },
-        select: { settings: true },
-      }),
-    ])
-    const settings = (tournamentWithSettings?.settings as Record<string, unknown>) ?? {}
-    const poolSize = Number(settings.participantPoolSize) || 120
-    const cutLine = getAdvancementSlotsPerConference(poolSize)
-    return NextResponse.json({ standings: rows, cutLine })
-  } catch (err) {
-    console.error('[tournament/standings] Error:', err)
-    return NextResponse.json(
-      { error: 'Failed to load standings' },
-      { status: 500 }
-    )
+    let rows = await getUniversalStandings(tournamentId)
+
+    // Enrich with user display names
+    const userIds = [...new Set(rows.map((r) => r.userId).filter(Boolean))] as string[]
+    if (userIds.length > 0) {
+      const profiles = await prisma.userProfile.findMany({
+        where: { userId: { in: userIds } },
+        select: { userId: true, displayName: true },
+      })
+      const nameMap = new Map(profiles.map((p) => [p.userId, p.displayName]))
+      rows = rows.map((r) => ({
+        ...r,
+        teamName: r.teamName ?? (r.userId ? nameMap.get(r.userId) ?? null : null),
+      }))
+    }
+
+    if (bubbleOnly) {
+      rows = rows.filter((r) => r.advancementStatus === 'bubble' || r.onBubble)
+    }
+
+    return NextResponse.json({ standings: rows, rows })
+  } catch (e) {
+    console.error('[tournament/standings]', e)
+    return NextResponse.json({ error: 'Failed to compute standings' }, { status: 500 })
   }
 }

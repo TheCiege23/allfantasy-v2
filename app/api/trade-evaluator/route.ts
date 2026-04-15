@@ -349,7 +349,9 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       )
     }
 
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     userId = session?.user?.id ?? null
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -394,6 +396,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail: session?.user?.email,
       featureId: 'trade_analyzer',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean(data.confirmTokenSpend),

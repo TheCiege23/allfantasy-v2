@@ -11,9 +11,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const sport = req.nextUrl.searchParams.get('sport')?.trim() || 'NFL'
-  const _draftId = req.nextUrl.searchParams.get('draftId')?.trim()
-  const take = Math.min(600, Number(req.nextUrl.searchParams.get('limit')) || 400)
+  const sport = req.nextUrl.searchParams?.get('sport')?.trim() || 'NFL'
+  const _draftId = req.nextUrl.searchParams?.get('draftId')?.trim()
+  const take = Math.min(600, Number(req.nextUrl.searchParams?.get('limit')) || 400)
 
   const rows = await prisma.sportsPlayer.findMany({
     where: { sport },
@@ -52,3 +52,4 @@ export async function GET(req: NextRequest) {
     })),
   })
 }
+

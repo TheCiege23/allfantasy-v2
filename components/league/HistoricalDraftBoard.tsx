@@ -1,90 +1,133 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-interface DraftPick {
-  pick: number
+type Pick = {
+  draftId: string
+  season: number | null
   round: number
-  managerId: string
+  pickNumber: number
   playerId: string
+  managerId: string | null
 }
 
-interface Manager {
-  id: string
-  name: string
-  avatar: string | null
+type ApiResponse = {
+  seasons: { year: number; picks: Pick[] }[]
 }
 
-interface HistoricalDraftBoardProps {
+export type HistoricalDraftBoardProps = {
   leagueId: string
   season: number
 }
 
 export function HistoricalDraftBoard({ leagueId, season }: HistoricalDraftBoardProps) {
-  const [data, setData] = useState<{
-    managers: Manager[]
-    roundsData: DraftPick[][]
-    totalPicks: number
-    teamCount: number
-  } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [picks, setPicks] = useState<Pick[]>([])
 
   useEffect(() => {
-    fetch(`/api/league/${leagueId}/draft-history?season=${season}`)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    fetch(`/api/league/${encodeURIComponent(leagueId)}/draft-history?season=${season}`)
+      .then(async (res) => {
+        const data = (await res.json()) as ApiResponse | { error?: string }
+        if (!res.ok) throw new Error(('error' in data && data.error) || 'Failed to load draft')
+        if (cancelled) return
+        const seasonEntry = (data as ApiResponse).seasons?.find((s) => s.year === season)
+        setPicks(seasonEntry?.picks ?? [])
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Load failed')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [leagueId, season])
 
-  if (loading) return <div className="text-sm text-white/40">Loading draft...</div>
-  if (!data || data.totalPicks === 0) return <div className="text-sm text-white/40">No draft data for {season}.</div>
+  const { rounds, columns, grid } = useMemo(() => {
+    if (!picks.length) return { rounds: [] as number[], columns: [] as string[], grid: new Map<string, Pick>() }
+    const rSet = new Set<number>()
+    const cSet = new Set<string>()
+    const g = new Map<string, Pick>()
+    const sorted = [...picks].sort((a, b) => a.round - b.round || a.pickNumber - b.pickNumber)
+    const maxPicksPerRound = sorted.reduce((max, p) => {
+      const rp = sorted.filter((x) => x.round === p.round).length
+      return Math.max(max, rp)
+    }, 0)
+    for (const p of sorted) {
+      rSet.add(p.round)
+      const slot = ((p.pickNumber - 1) % Math.max(1, maxPicksPerRound)) + 1
+      const colKey = String(slot)
+      cSet.add(colKey)
+      g.set(`${p.round}:${colKey}`, p)
+    }
+    return {
+      rounds: Array.from(rSet).sort((a, b) => a - b),
+      columns: Array.from(cSet).sort((a, b) => Number(a) - Number(b)),
+      grid: g,
+    }
+  }, [picks])
 
-  const managerMap = new Map(data.managers.map((m) => [m.id, m]))
+  if (loading) {
+    return (
+      <div className="space-y-2 p-3">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-10 animate-pulse rounded-lg bg-white/[0.06]" />
+        ))}
+      </div>
+    )
+  }
+
+  if (error) {
+    return <div className="p-3 text-xs text-rose-300/90">{error}</div>
+  }
+
+  if (!picks.length) {
+    return <div className="p-3 text-xs text-white/40">No draft picks recorded for {season}.</div>
+  }
 
   return (
-    <div className="space-y-3">
-      <div className="text-sm font-semibold text-white/70">{season} Draft ({data.totalPicks} picks)</div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs border-collapse">
-          <thead>
-            <tr className="bg-white/5">
-              <th className="px-2 py-1.5 text-left text-white/40 font-medium">Rd</th>
-              {data.managers.map((m) => (
-                <th key={m.id} className="px-2 py-1.5 text-center text-white/60 font-medium min-w-[100px]">
-                  <div className="flex flex-col items-center gap-0.5">
-                    {m.avatar && (
-                      <img src={m.avatar} alt="" className="h-5 w-5 rounded-full" />
-                    )}
-                    <span className="truncate max-w-[90px]">{m.name}</span>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.roundsData.map((round, rIdx) => (
-              <tr key={rIdx} className="border-t border-white/5">
-                <td className="px-2 py-1.5 text-white/30 font-bold">{rIdx + 1}</td>
-                {data.managers.map((m) => {
-                  const pick = round.find((p) => p.managerId === m.id)
-                  return (
-                    <td key={m.id} className="px-2 py-1.5 text-center">
-                      {pick ? (
-                        <span className="rounded bg-white/5 px-1.5 py-0.5 text-white/70">
-                          {pick.playerId ?? `Pick ${pick.pick}`}
-                        </span>
-                      ) : (
-                        <span className="text-white/15">—</span>
-                      )}
-                    </td>
-                  )
-                })}
-              </tr>
+    <div className="overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.03] p-2">
+      <table className="min-w-full text-[11px]">
+        <thead>
+          <tr className="text-white/40">
+            <th className="px-2 py-1 text-left font-medium">Rd</th>
+            {columns.map((c) => (
+              <th key={c} className="px-2 py-1 text-left font-medium">
+                T{c}
+              </th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {rounds.map((r) => (
+            <tr key={r} className="border-t border-white/[0.05]">
+              <td className="px-2 py-1 font-semibold text-white/60">{r}</td>
+              {columns.map((c) => {
+                const p = grid.get(`${r}:${c}`)
+                return (
+                  <td key={c} className="px-2 py-1 text-white/75">
+                    {p ? (
+                      <div className="flex flex-col">
+                        <span className="text-white/80">#{p.pickNumber}</span>
+                        <span className="truncate text-[10px] text-white/45">{p.playerId}</span>
+                      </div>
+                    ) : (
+                      <span className="text-white/20">—</span>
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
+
+export default HistoricalDraftBoard

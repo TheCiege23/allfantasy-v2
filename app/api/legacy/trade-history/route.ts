@@ -10,6 +10,7 @@ import {
   resolveSleeperUser,
 } from '@/lib/sleeper-client'
 import { pricePlayer, pricePick, ValuationContext } from '@/lib/hybrid-valuation'
+import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
 
 const openai = getOpenAIRouteClient()
 
@@ -77,13 +78,19 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-history", tool: 
   try {
     const body = await req.json()
     const { leagueId, userId, action, trade } = body
+    const normalizedLeagueId = String(leagueId || '').trim()
 
-    if (!leagueId || !userId) {
+    if (!normalizedLeagueId || !userId) {
       return NextResponse.json({ error: 'Missing leagueId or userId' }, { status: 400 })
     }
 
+    const boundary = await assertSleeperBoundaryForLeagueId(normalizedLeagueId)
+    if (!boundary.ok) {
+      return NextResponse.json({ error: boundary.message }, { status: boundary.status })
+    }
+
     if (action === 'fetch') {
-      const { tradesByYear, totalCount, managers, allSeasons, waiverActivity, waiverMVP } = await fetchAllLeagueTrades(leagueId, userId)
+      const { tradesByYear, totalCount, managers, allSeasons, waiverActivity, waiverMVP } = await fetchAllLeagueTrades(normalizedLeagueId, userId)
       return NextResponse.json({ tradesByYear, total: totalCount, managers, allSeasons, waiverActivity, waiverMVP })
     }
 

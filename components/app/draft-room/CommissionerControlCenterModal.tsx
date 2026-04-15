@@ -17,6 +17,7 @@ import {
   Shield,
 } from 'lucide-react'
 import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { DEFAULT_TRADE_RULES } from '@/lib/commissioner-ai-draft-manager/types'
 import { DraftImportFlow } from './DraftImportFlow'
 
 const TIMER_MODE_OPTIONS: Array<{ value: TimerMode; label: string }> = [
@@ -55,6 +56,21 @@ export type CommissionerControlCenterModalProps = {
   onBroadcast?: () => void
   onResync: () => void
   loading?: boolean
+  commissionerAiDraft?: {
+    assignedAiTeams: Array<{ teamId: string; teamName: string; aiStyle: string; tradeAggression: string; active: boolean }>
+    tradeRules: {
+      allowOutbound: boolean
+      allowInbound: boolean
+      blockAiToAi: boolean
+      proposalCooldownSeconds: number
+      maxProposalsPerRound: number
+      acceptConfidenceMin: number
+    }
+  } | null
+  onSaveCommissionerAiDraft?: (payload: {
+    assignedAiTeams: Array<{ teamId: string; aiStyle: string; tradeAggression: string; active: boolean }>
+    tradeRules: Record<string, unknown>
+  }) => Promise<{ ok?: boolean; error?: string } | void>
 }
 
 export function CommissionerControlCenterModal({
@@ -83,6 +99,8 @@ export function CommissionerControlCenterModal({
   onBroadcast,
   onResync,
   loading = false,
+  commissionerAiDraft = null,
+  onSaveCommissionerAiDraft,
 }: CommissionerControlCenterModalProps) {
   const [timerInput, setTimerInput] = useState(String(timerSeconds ?? 90))
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -96,6 +114,30 @@ export function CommissionerControlCenterModal({
   const [c2cRoundsInput, setC2CRoundsInput] = useState((c2cConfig?.collegeRounds ?? []).join(', '))
   const [c2cSaving, setC2CSaving] = useState(false)
   const [c2cMessage, setC2CMessage] = useState<string | null>(null)
+  const [aiMgrSaving, setAiMgrSaving] = useState(false)
+  const [aiMgrMessage, setAiMgrMessage] = useState<string | null>(null)
+  const [aiTradeRules, setAiTradeRules] = useState(() => ({ ...DEFAULT_TRADE_RULES }))
+  const [aiRowState, setAiRowState] = useState<
+    Record<string, { aiStyle: string; tradeAggression: string; active: boolean }>
+  >({})
+
+  useEffect(() => {
+    if (commissionerAiDraft?.tradeRules) {
+      setAiTradeRules({ ...DEFAULT_TRADE_RULES, ...commissionerAiDraft.tradeRules })
+    } else {
+      setAiTradeRules({ ...DEFAULT_TRADE_RULES })
+    }
+    const next: Record<string, { aiStyle: string; tradeAggression: string; active: boolean }> = {}
+    for (const rid of (orphanStatus?.orphanRosterIds ?? []).slice(0, 4)) {
+      const ex = commissionerAiDraft?.assignedAiTeams?.find((t) => t.teamId === rid)
+      next[rid] = {
+        aiStyle: ex?.aiStyle ?? 'BALANCED',
+        tradeAggression: ex?.tradeAggression ?? 'medium',
+        active: ex?.active ?? true,
+      }
+    }
+    setAiRowState(next)
+  }, [commissionerAiDraft, orphanStatus?.orphanRosterIds])
 
   const ui = draftUISettings ?? ({} as Partial<DraftUISettings>)
   const isPreDraft = draftStatus === 'pre_draft'
@@ -510,6 +552,165 @@ export function CommissionerControlCenterModal({
                 </button>
               )}
             </div>
+            {onSaveCommissionerAiDraft && (
+              <div
+                className="rounded-lg border border-emerald-400/20 bg-emerald-500/8 px-3 py-2 text-xs"
+                data-testid="draft-commissioner-ai-managers-panel"
+              >
+                <p className="font-medium text-emerald-100/95">Commissioner AI managers (max 4 orphan teams)</p>
+                <p className="mt-1 text-[11px] text-white/55">
+                  Only orphan (unassigned) rosters. AI↔AI trades respect “Block AI ↔ AI”.
+                </p>
+                <div className="mt-2 space-y-1.5">
+                  {(
+                    [
+                      ['allowOutbound', 'AI outbound proposals'],
+                      ['allowInbound', 'AI auto-respond to humans'],
+                      ['blockAiToAi', 'Block AI ↔ AI trades'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label key={key} className="flex items-center justify-between gap-2 text-[11px] text-white/80">
+                      <span>{label}</span>
+                      <input
+                        type="checkbox"
+                        className="rounded border-white/20"
+                        checked={Boolean(aiTradeRules[key])}
+                        onChange={(e) => setAiTradeRules((r) => ({ ...r, [key]: e.target.checked }))}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-white/60">
+                  <label className="flex items-center gap-1">
+                    Cooldown (s)
+                    <input
+                      type="number"
+                      min={0}
+                      max={600}
+                      className="w-14 rounded border border-white/15 bg-black/40 px-1 py-0.5 text-white"
+                      value={aiTradeRules.proposalCooldownSeconds}
+                      onChange={(e) =>
+                        setAiTradeRules((r) => ({ ...r, proposalCooldownSeconds: Number(e.target.value) || 0 }))
+                      }
+                    />
+                  </label>
+                  <label className="flex items-center gap-1">
+                    Max proposals / round
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      className="w-12 rounded border border-white/15 bg-black/40 px-1 py-0.5 text-white"
+                      value={aiTradeRules.maxProposalsPerRound}
+                      onChange={(e) =>
+                        setAiTradeRules((r) => ({ ...r, maxProposalsPerRound: Number(e.target.value) || 0 }))
+                      }
+                    />
+                  </label>
+                  <label className="flex items-center gap-1" title="Minimum confidence for AI to accept a trade">
+                    Min accept (0–1)
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      className="w-14 rounded border border-white/15 bg-black/40 px-1 py-0.5 text-white"
+                      value={aiTradeRules.acceptConfidenceMin}
+                      onChange={(e) =>
+                        setAiTradeRules((r) => ({
+                          ...r,
+                          acceptConfidenceMin: Math.min(1, Math.max(0, Number(e.target.value) || 0)),
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {(orphanStatus?.orphanRosterIds ?? []).slice(0, 4).map((rid) => {
+                    const row = aiRowState[rid] ?? { aiStyle: 'BALANCED', tradeAggression: 'medium', active: true }
+                    return (
+                      <div key={rid} className="flex flex-wrap items-center gap-2 rounded border border-white/10 bg-black/30 px-2 py-1.5">
+                        <label className="flex items-center gap-1 text-[10px] text-white/70">
+                          <input
+                            type="checkbox"
+                            checked={row.active}
+                            onChange={(e) =>
+                              setAiRowState((s) => ({
+                                ...s,
+                                [rid]: { ...row, active: e.target.checked },
+                              }))
+                            }
+                          />
+                          <span className="font-mono">{rid.slice(0, 8)}…</span>
+                        </label>
+                        <select
+                          className="rounded border border-white/15 bg-black/40 px-1 py-0.5 text-[10px] text-white"
+                          value={row.aiStyle}
+                          data-testid={`draft-commissioner-ai-style-${rid}`}
+                          onChange={(e) =>
+                            setAiRowState((s) => ({ ...s, [rid]: { ...row, aiStyle: e.target.value } }))
+                          }
+                        >
+                          {['BPA', 'NEEDS', 'BALANCED', 'UPSIDE', 'SAFE', 'YOUTH', 'STARS_AND_SCRUBS'].map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          className="rounded border border-white/15 bg-black/40 px-1 py-0.5 text-[10px] text-white"
+                          value={row.tradeAggression}
+                          data-testid={`draft-commissioner-ai-agg-${rid}`}
+                          onChange={(e) =>
+                            setAiRowState((s) => ({ ...s, [rid]: { ...row, tradeAggression: e.target.value } }))
+                          }
+                        >
+                          {['none', 'low', 'medium', 'high'].map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
+                </div>
+                <button
+                  type="button"
+                  disabled={aiMgrSaving || !orphanStatus?.orphanRosterIds?.length}
+                  className="mt-2 rounded border border-emerald-400/35 bg-emerald-500/15 px-2.5 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/25 disabled:opacity-50"
+                  data-testid="draft-commissioner-ai-managers-save"
+                  onClick={async () => {
+                    if (!onSaveCommissionerAiDraft) return
+                    setAiMgrSaving(true)
+                    setAiMgrMessage(null)
+                    try {
+                      const assignedAiTeams = (orphanStatus?.orphanRosterIds ?? []).slice(0, 4).map((rid) => {
+                        const row = aiRowState[rid] ?? { aiStyle: 'BALANCED', tradeAggression: 'medium', active: true }
+                        return {
+                          teamId: rid,
+                          aiStyle: row.aiStyle,
+                          tradeAggression: row.tradeAggression,
+                          active: row.active,
+                        }
+                      })
+                      const res = await onSaveCommissionerAiDraft({ assignedAiTeams, tradeRules: aiTradeRules })
+                      if (res && typeof res === 'object' && 'error' in res && res.error) {
+                        setAiMgrMessage(String(res.error))
+                      } else {
+                        setAiMgrMessage('Saved.')
+                        void onResync()
+                      }
+                    } finally {
+                      setAiMgrSaving(false)
+                    }
+                  }}
+                >
+                  {aiMgrSaving ? 'Saving…' : 'Save AI assignments'}
+                </button>
+                {aiMgrMessage ? <p className="mt-1 text-[11px] text-white/60">{aiMgrMessage}</p> : null}
+              </div>
+            )}
             <label className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2">
               <span className="text-white/90">Traded pick color mode</span>
               <button

@@ -1,9 +1,10 @@
 /**
- * POST /api/tournament/[tournamentId]/ai — Tournament AI overlay (explanations, announcements, recaps).
- * All outcomes are deterministic; AI only explains, narrates, summarizes. PROMPT 4.
+ * [UPDATED] app/api/tournament/[tournamentId]/ai/route.ts
+ * POST: Generate tournament AI content (recaps, standings analysis, bubble watch, etc.)
+ * Uses deterministic context only — AI never decides outcomes.
  */
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -11,7 +12,22 @@ import { generateTournamentAI } from '@/lib/tournament-mode/ai/TournamentAIServi
 import { buildTournamentAIContext } from '@/lib/tournament-mode/ai/TournamentAIContext'
 import type { TournamentAIType } from '@/lib/tournament-mode/ai/TournamentAIPrompts'
 
-const VALID_TYPES: TournamentAIType[] = [
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+const AI_TYPE_TO_PURPOSE: Record<string, 'commissioner' | 'announcement' | 'recap' | 'standings' | 'bracket' | 'draft_prep'> = {
+  commissioner_assistant: 'commissioner',
+  round_announcement: 'announcement',
+  weekly_recap: 'recap',
+  bubble_watch: 'standings',
+  finals_hype: 'bracket',
+  champion_story: 'recap',
+  draft_prep: 'draft_prep',
+  standings_analysis: 'standings',
+  bracket_preview: 'bracket',
+}
+
+const VALID_AI_TYPES = new Set<string>([
   'commissioner_assistant',
   'round_announcement',
   'weekly_recap',
@@ -21,66 +37,67 @@ const VALID_TYPES: TournamentAIType[] = [
   'draft_prep',
   'standings_analysis',
   'bracket_preview',
-]
+])
 
 export async function POST(
-  req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { tournamentId } = await params
+
+  // Verify tournament exists and user has access
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, creatorId: true, hubSettings: true },
+    select: { id: true, creatorId: true },
   })
-  if (!tournament) {
-    return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
-  }
+  if (!tournament) return NextResponse.json({ error: 'Tournament not found' }, { status: 404 })
 
-  const hubSettings = (tournament.hubSettings as Record<string, unknown>) ?? {}
-  const visibility = (hubSettings.visibility as string) ?? 'unlisted'
-  const isCreator = tournament.creatorId === userId
-  if (visibility === 'private' && !isCreator) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  let body: { type?: string; announcementType?: string; roundIndex?: number }
-  try {
-    body = await req.json()
-  } catch {
-    body = {}
-  }
-
-  const type = (body.type ?? 'standings_analysis') as TournamentAIType
-  if (!VALID_TYPES.includes(type)) {
-    return NextResponse.json({ error: 'Invalid type' }, { status: 400 })
-  }
-
-  const purpose =
-    type === 'commissioner_assistant' ? 'commissioner' :
-    type === 'round_announcement' || type === 'finals_hype' || type === 'champion_story' ? 'announcement' :
-    type === 'weekly_recap' || type === 'bubble_watch' ? 'recap' :
-    type === 'standings_analysis' ? 'standings' :
-    type === 'bracket_preview' ? 'bracket' :
-    type === 'draft_prep' ? 'draft_prep' : 'standings'
-
-  const context = await buildTournamentAIContext(tournamentId, purpose)
-  const result = await generateTournamentAI(type, context, {
-    roundIndex: body.roundIndex,
-    announcementType: body.announcementType,
-  })
-
-  if (!result.ok) {
+  const body = await req.json().catch(() => ({}))
+  const aiType = body.type as string
+  if (!aiType || !VALID_AI_TYPES.has(aiType)) {
     return NextResponse.json(
-      { error: result.error ?? 'AI generation failed' },
-      { status: 500 }
+      { error: `Invalid AI type. Valid types: ${[...VALID_AI_TYPES].join(', ')}` },
+      { status: 400 }
     )
   }
 
-  return NextResponse.json({ text: result.text, ok: true })
+  // Commissioner-only types
+  const commissionerOnlyTypes = new Set(['commissioner_assistant'])
+  if (commissionerOnlyTypes.has(aiType) && tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner access required for this AI type' }, { status: 403 })
+  }
+
+  try {
+    const purpose = AI_TYPE_TO_PURPOSE[aiType] ?? 'recap'
+    const context = await buildTournamentAIContext(tournamentId, purpose)
+
+    if (!context) {
+      return NextResponse.json({ error: 'Could not build tournament context' }, { status: 500 })
+    }
+
+    const result = await generateTournamentAI(
+      aiType as TournamentAIType,
+      context,
+      {
+        roundIndex: typeof body.roundIndex === 'number' ? body.roundIndex : undefined,
+        announcementType: typeof body.announcementType === 'string' ? body.announcementType : undefined,
+      }
+    )
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? 'AI generation failed' }, { status: 500 })
+    }
+
+    return NextResponse.json({ text: result.text, model: result.model })
+  } catch (e) {
+    console.error('[tournament/ai] Error:', e)
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'AI generation failed' },
+      { status: 500 }
+    )
+  }
 }

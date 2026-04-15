@@ -39,14 +39,16 @@ function parseRuleCodes(url: URL): string[] {
 
 export async function GET(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     const userId = session?.user?.id
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const url = new URL(req.url)
-    const rawFeature = String(url.searchParams.get("feature") ?? "").trim()
+    const rawFeature = String(url.searchParams?.get("feature") ?? "").trim()
     if (rawFeature && !isSubscriptionFeatureId(rawFeature)) {
       return NextResponse.json({ error: "Invalid feature id" }, { status: 400 })
     }
@@ -59,7 +61,9 @@ export async function GET(req: Request) {
     const tokenSpendService = new TokenSpendService()
 
     const [entitlementResult, tokenBalance] = await Promise.all([
-      entitlementResolver.resolveForUser(userId, featureId ?? undefined).catch((error) => {
+      entitlementResolver
+        .resolveForUser(userId, featureId ?? undefined, session?.user?.email)
+        .catch((error) => {
         console.error(
           "[monetization/context GET] entitlement fallback",
           error instanceof Error ? error.message : error
@@ -75,7 +79,7 @@ export async function GET(req: Request) {
           message: "Upgrade to access this feature.",
         }
       }),
-      tokenBalanceResolver.resolveForUser(userId).catch((error) => {
+      tokenBalanceResolver.resolveForUser(userId, session?.user?.email).catch((error) => {
         console.error(
           "[monetization/context GET] token balance fallback",
           error instanceof Error ? error.message : error
@@ -98,6 +102,7 @@ export async function GET(req: Request) {
             ruleCode,
             entitlement: entitlementResult.entitlement,
             currentBalance: Number(tokenBalance.balance || 0),
+            userEmail: session?.user?.email,
           })
           return { ruleCode, preview, error: null }
         } catch (error) {
@@ -144,4 +149,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Failed to load monetization context" }, { status: 500 })
   }
 }
+
 

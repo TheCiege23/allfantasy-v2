@@ -9,7 +9,7 @@ for (let y = 2017; y <= 2025; y++) YEARS.push(y)
 async function main() {
   const leagues = []
   for (const year of YEARS) {
-    const url = `https://api.sleeper.app/v1/user/${SLEEPER_USER_ID}/leagues/nfl/${year}`
+    const url = `https://api.sleeper.app/v1/user/${SLEEPER_USER_ID}/leagues/nfl/${year}` // db-first-exception: local simulation script for rank what-if analysis
     const res = await fetch(url, { headers: { "User-Agent": "AllFantasy/1.0" } })
     const data = res.ok ? await res.json() : []
     const arr = Array.isArray(data) ? data : []

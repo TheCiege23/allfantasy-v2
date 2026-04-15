@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const rosterId = req.nextUrl.searchParams.get('rosterId')?.trim()
-  const week = Number(req.nextUrl.searchParams.get('week'))
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
+  const week = Number(req.nextUrl.searchParams?.get('week'))
   if (!seasonId || !rosterId || !Number.isFinite(week)) {
     return NextResponse.json({ error: 'seasonId, rosterId, week required' }, { status: 400 })
   }
@@ -94,3 +94,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ error: 'rosterId or entryId required' }, { status: 400 })
 }
+

@@ -115,6 +115,67 @@ interface OverviewPayload {
   actionLogs: ActionLogView[]
 }
 
+type UnifiedActionKey =
+  | 'enable_ai_alerts'
+  | 'enable_collusion_monitoring'
+  | 'tighten_trade_review_window'
+  | 'set_playoff_defaults'
+  | 'promote_commissioner_notifications'
+  | 'run_commissioner_cycle'
+
+interface UnifiedActionProposalView {
+  key: UnifiedActionKey
+  title: string
+  summary: string
+  requiresSubscription: boolean
+  requiresConfirmation: boolean
+  suggestedPayload?: Record<string, unknown>
+}
+
+interface UnifiedAssessmentPayload {
+  leagueId: string
+  sport: SupportedSport
+  season: number
+  entitlement: {
+    afCommissionerSub: boolean
+    lockedFeatures: string[]
+  }
+  setupAssistant: {
+    score: number
+    checks: Array<{ key: string; label: string; status: 'ok' | 'warn' | 'needs_action'; detail: string }>
+  }
+  healthMonitor: {
+    score: number
+    band: 'excellent' | 'good' | 'watch' | 'critical'
+  }
+  integrityReview: {
+    riskBand: 'low' | 'medium' | 'high'
+    summary: string
+  }
+  conflictResolution: {
+    openDisputeAlerts: number
+    recommendation: string
+    workflow: {
+      stage: 'monitor' | 'collect_evidence' | 'manager_response' | 'decision' | 'closed'
+      suggestedSlaHours: number
+      checklist: string[]
+      recentOpenDisputes: Array<{ alertId: string; headline: string; createdAt: string }>
+    }
+  }
+  memoryProfile: {
+    recentActionCount: number
+    automationActionsLast30d: number
+    disputeActionsLast30d: number
+    dominantMode: 'balanced' | 'automation_first' | 'manual_first'
+    confidence: 'low' | 'medium' | 'high'
+    notes: string[]
+  }
+  scheduleAndPlayoffs: {
+    recommendation: string
+  }
+  proposedActions: UnifiedActionProposalView[]
+}
+
 type PendingCommissionerAction = 'run_cycle' | 'ask_question'
 
 function sportLabel(sport: SupportedSport): string {
@@ -155,6 +216,10 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
   const [chatTokenCost, setChatTokenCost] = useState<number | null>(null)
   const [tokenModalPreview, setTokenModalPreview] = useState<TokenSpendClientPreview | null>(null)
   const [pendingAction, setPendingAction] = useState<PendingCommissionerAction | null>(null)
+  const [unifiedLoading, setUnifiedLoading] = useState(false)
+  const [unifiedError, setUnifiedError] = useState<string | null>(null)
+  const [unifiedAssessment, setUnifiedAssessment] = useState<UnifiedAssessmentPayload | null>(null)
+  const [unifiedActioning, setUnifiedActioning] = useState<UnifiedActionKey | null>(null)
 
   const canRun = !loading && !running && !savingConfig
   const hasOpenAlerts = (payload?.alerts ?? []).some((alert) => alert.status === 'open')
@@ -209,6 +274,29 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
     }
   }, [leagueId, season, sport])
 
+  const loadUnified = useCallback(async () => {
+    setUnifiedLoading(true)
+    setUnifiedError(null)
+    try {
+      const res = await fetch(
+        `/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/unified`,
+        { cache: 'no-store' }
+      )
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        assessment?: UnifiedAssessmentPayload
+      }
+      if (!res.ok || !data.assessment) {
+        throw new Error(data.error || 'Failed to load unified commissioner assessment')
+      }
+      setUnifiedAssessment(data.assessment)
+    } catch (e: any) {
+      setUnifiedError(e?.message || 'Failed to load unified commissioner assessment')
+    } finally {
+      setUnifiedLoading(false)
+    }
+  }, [leagueId])
+
   useEffect(() => {
     void load()
   }, [load])
@@ -216,6 +304,10 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
   useEffect(() => {
     void loadInsights()
   }, [loadInsights])
+
+  useEffect(() => {
+    void loadUnified()
+  }, [loadUnified])
 
   useEffect(() => {
     let cancelled = false
@@ -243,7 +335,8 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
   const refreshAll = useCallback(async () => {
     await load()
     await loadInsights()
-  }, [load, loadInsights])
+    await loadUnified()
+  }, [load, loadInsights, loadUnified])
 
   const saveConfig = useCallback(async () => {
     if (!draft) return
@@ -419,6 +512,46 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
       }
     },
     []
+  )
+
+  const applyUnifiedAction = useCallback(
+    async (action: UnifiedActionProposalView) => {
+      if (action.requiresSubscription && !unifiedAssessment?.entitlement.afCommissionerSub) {
+        toast.error('AF Commissioner subscription required for this action')
+        return
+      }
+      const accepted = window.confirm(`Apply action: ${action.title}?`)
+      if (!accepted) return
+
+      setUnifiedActioning(action.key)
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/ai-commissioner/unified`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actionKey: action.key,
+            confirmed: true,
+            payload:
+              action.key === 'run_commissioner_cycle'
+                ? {
+                    ...(action.suggestedPayload ?? {}),
+                    sport,
+                    season: season.trim() ? Number.parseInt(season.trim(), 10) : undefined,
+                  }
+                : action.suggestedPayload,
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
+        if (!res.ok) throw new Error(data.error || 'Failed to apply unified action')
+        toast.success(data.message || 'Commissioner action applied')
+        await refreshAll()
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to apply unified action')
+      } finally {
+        setUnifiedActioning(null)
+      }
+    },
+    [leagueId, refreshAll, season, sport, unifiedAssessment?.entitlement.afCommissionerSub]
   )
 
   const runCycle = useCallback(async () => {
@@ -656,6 +789,7 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
             <div>
               <Label className="text-[11px] text-white/65">Notification mode</Label>
               <select
+                aria-label="AI commissioner notification mode"
                 value={draft.commissionerNotificationMode}
                 onChange={(event) =>
                   setDraft((prev) =>
@@ -835,6 +969,130 @@ export default function AICommissionerPanel({ leagueId }: { leagueId: string }) 
             </p>
           ) : null}
         </div>
+      </div>
+
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-white">Unified commissioner tools</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void loadUnified()}
+            disabled={unifiedLoading}
+            data-testid="ai-commissioner-unified-refresh"
+          >
+            {unifiedLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Refresh unified'}
+          </Button>
+        </div>
+
+        {unifiedError ? (
+          <p className="rounded-md border border-red-500/40 bg-red-500/10 px-2 py-1.5 text-xs text-red-100">
+            {unifiedError}
+          </p>
+        ) : null}
+
+        {unifiedAssessment ? (
+          <>
+            <div className="grid gap-2 md:grid-cols-4">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-white/50">Setup score</p>
+                <p className="text-sm font-semibold text-white">{unifiedAssessment.setupAssistant.score}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-white/50">Health</p>
+                <p className="text-sm font-semibold text-white">
+                  {unifiedAssessment.healthMonitor.score} ({unifiedAssessment.healthMonitor.band})
+                </p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-white/50">Integrity risk</p>
+                <p className="text-sm font-semibold text-white">{unifiedAssessment.integrityReview.riskBand}</p>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] text-white/50">Dispute stage</p>
+                <p className="text-sm font-semibold text-white">{unifiedAssessment.conflictResolution.workflow.stage}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Commissioner memory profile</p>
+                <p className="mt-1 text-[11px] text-white/70">
+                  Mode: {unifiedAssessment.memoryProfile.dominantMode} • confidence {unifiedAssessment.memoryProfile.confidence}
+                </p>
+                <p className="text-[11px] text-white/70">
+                  Actions (30d): {unifiedAssessment.memoryProfile.recentActionCount} total, automation {unifiedAssessment.memoryProfile.automationActionsLast30d}, dispute {unifiedAssessment.memoryProfile.disputeActionsLast30d}
+                </p>
+                <div className="mt-1 space-y-1">
+                  {unifiedAssessment.memoryProfile.notes.map((note) => (
+                    <p key={note} className="text-[11px] text-white/65">
+                      - {note}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Advanced dispute workflow</p>
+                <p className="mt-1 text-[11px] text-white/70">
+                  SLA target: {unifiedAssessment.conflictResolution.workflow.suggestedSlaHours}h
+                </p>
+                <div className="mt-1 space-y-1">
+                  {unifiedAssessment.conflictResolution.workflow.checklist.map((row) => (
+                    <p key={row} className="text-[11px] text-white/65">
+                      - {row}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {unifiedAssessment.conflictResolution.workflow.recentOpenDisputes.length > 0 ? (
+              <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                <p className="text-[11px] font-semibold text-white/90">Recent open disputes</p>
+                <div className="mt-1 space-y-1">
+                  {unifiedAssessment.conflictResolution.workflow.recentOpenDisputes.map((item) => (
+                    <p key={item.alertId} className="text-[11px] text-white/70">
+                      {item.headline} • {formatInTimezone(item.createdAt)}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="rounded-lg border border-white/10 bg-black/20 p-2 space-y-2">
+              <p className="text-[11px] font-semibold text-white/90">Proposed actions</p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {unifiedAssessment.proposedActions.map((action) => {
+                  const locked = action.requiresSubscription && !unifiedAssessment.entitlement.afCommissionerSub
+                  const busy = unifiedActioning === action.key
+                  return (
+                    <div key={action.key} className="rounded-md border border-white/10 bg-black/25 p-2">
+                      <p className="text-xs font-medium text-white">{action.title}</p>
+                      <p className="mt-0.5 text-[11px] text-white/70">{action.summary}</p>
+                      {locked ? (
+                        <p className="mt-1 text-[11px] text-amber-200">AF Commissioner subscription required.</p>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        disabled={locked || busy}
+                        onClick={() => void applyUnifiedAction(action)}
+                        data-testid={`ai-commissioner-unified-action-${action.key}`}
+                      >
+                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Apply with confirmation'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-white/60">{unifiedAssessment.scheduleAndPlayoffs.recommendation}</p>
+          </>
+        ) : (
+          <p className="text-xs text-white/55">Loading unified commissioner assessment...</p>
+        )}
       </div>
 
       {error ? (

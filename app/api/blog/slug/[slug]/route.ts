@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { slug } = await params
     const u = new URL(req.url)
-    const preview = u.searchParams.get("preview") === "1"
+    const preview = u.searchParams?.get("preview") === "1"
     const article = await prisma.blogArticle.findUnique({
       where: { slug },
     })

@@ -8,10 +8,17 @@ export const nhlAdapter: SportAdapter = {
     return {
       g: raw.g ?? 0,
       a: raw.a ?? 0,
+      plusminus: raw.plusminus ?? 0,
       ppp: raw.ppp ?? 0,
+      shp: raw.shp ?? 0,
       sog: raw.sog ?? 0,
       hits: raw.hits ?? 0,
       blks: raw.blks ?? 0,
+      pim: raw.pim ?? 0,
+      g_win: raw.g_win ?? 0,
+      g_sv: raw.g_sv ?? 0,
+      g_so: raw.g_so ?? 0,
+      g_ga: raw.g_ga ?? 0,
     }
   },
   getLineupLockTime(_sport: string, gameTimeIso: string): Date {

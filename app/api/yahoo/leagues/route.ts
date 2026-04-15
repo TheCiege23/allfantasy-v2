@@ -2,14 +2,31 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireVerifiedUser } from '@/lib/auth-guard'
+import { decrypt, encrypt } from '@/lib/league-auth-crypto'
 
 const YAHOO_CLIENT_ID = process.env.YAHOO_CLIENT_ID
 const YAHOO_CLIENT_SECRET = process.env.YAHOO_CLIENT_SECRET
+
+function decryptTokenOrRaw(value: string | null | undefined): string {
+  if (!value) return ''
+  try {
+    return decrypt(value)
+  } catch {
+    // Backward compatibility for previously stored plaintext tokens.
+    return value
+  }
+}
 
 async function refreshAccessToken(connection: any) {
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
     throw new Error("Yahoo integration is not configured")
   }
+
+  const refreshToken = decryptTokenOrRaw(connection.refreshToken)
+  if (!refreshToken) {
+    throw new Error('Yahoo refresh token unavailable; please reconnect your Yahoo account')
+  }
+
   const response = await fetch('https://api.login.yahoo.com/oauth2/get_token', {
     method: 'POST',
     headers: {
@@ -18,7 +35,7 @@ async function refreshAccessToken(connection: any) {
     },
     body: new URLSearchParams({
       grant_type: 'refresh_token',
-      refresh_token: connection.refreshToken,
+      refresh_token: refreshToken,
     }),
   })
   
@@ -32,8 +49,8 @@ async function refreshAccessToken(connection: any) {
   await prisma.yahooConnection.update({
     where: { id: connection.id },
     data: {
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || connection.refreshToken,
+      accessToken: encrypt(tokens.access_token),
+      refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : connection.refreshToken,
       tokenExpiresAt,
     },
   })
@@ -47,7 +64,9 @@ export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLe
     return auth.response
   }
 
+  const requesterUserId = auth.userId
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
+  const ownerUserId = request.cookies.get('yahoo_owner_user_id')?.value
 
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
     console.error("[YahooLeagues] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
@@ -55,6 +74,9 @@ export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLe
   }
   if (!yahooUserId) {
     return NextResponse.json({ error: 'Not connected to Yahoo' }, { status: 401 })
+  }
+  if (!ownerUserId || ownerUserId !== requesterUserId) {
+    return NextResponse.json({ error: 'Yahoo connection belongs to a different account' }, { status: 403 })
   }
   
   try {
@@ -67,13 +89,13 @@ export const GET = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooLe
       return NextResponse.json({ error: 'Yahoo connection not found' }, { status: 404 })
     }
     
-    let accessToken = connection.accessToken
+    let accessToken = decryptTokenOrRaw(connection.accessToken)
     if (new Date() >= connection.tokenExpiresAt) {
       accessToken = await refreshAccessToken(connection)
     }
     
     const leaguesResponse = await fetch(
-      'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl,nba/leagues?format=json',
+      'https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl,nba/leagues?format=json', // db-first-exception: user-delegated OAuth import, requires live accessToken
       {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }
@@ -156,7 +178,9 @@ export const POST = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooL
     return auth.response
   }
 
+  const requesterUserId = auth.userId
   const yahooUserId = request.cookies.get('yahoo_user_id')?.value
+  const ownerUserId = request.cookies.get('yahoo_owner_user_id')?.value
 
   if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
     console.error("[YahooLeagues] Missing YAHOO_CLIENT_ID or YAHOO_CLIENT_SECRET")
@@ -164,6 +188,9 @@ export const POST = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooL
   }
   if (!yahooUserId) {
     return NextResponse.json({ error: 'Not connected to Yahoo' }, { status: 401 })
+  }
+  if (!ownerUserId || ownerUserId !== requesterUserId) {
+    return NextResponse.json({ error: 'Yahoo connection belongs to a different account' }, { status: 403 })
   }
   
   try {
@@ -181,13 +208,13 @@ export const POST = withApiUsage({ endpoint: "/api/yahoo/leagues", tool: "YahooL
       return NextResponse.json({ error: 'Yahoo connection not found' }, { status: 404 })
     }
     
-    let accessToken = connection.accessToken
+    let accessToken = decryptTokenOrRaw(connection.accessToken)
     if (new Date() >= connection.tokenExpiresAt) {
       accessToken = await refreshAccessToken(connection)
     }
     
     const teamsResponse = await fetch(
-      `https://fantasysports.yahooapis.com/fantasy/v2/league/${leagueKey}/teams?format=json`,
+      `https://fantasysports.yahooapis.com/fantasy/v2/league/${leagueKey}/teams?format=json`, // db-first-exception: user-delegated OAuth import, requires live accessToken
       {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       }

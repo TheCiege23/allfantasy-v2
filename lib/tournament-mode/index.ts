@@ -1,8 +1,9 @@
 /**
- * Tournament Mode — multi-league elimination factory.
+ * [UPDATED] Tournament Mode — multi-league elimination factory barrel exports.
  */
 
 export * from './types'
+export * from './tournament-sport-cutoffs'
 export {
   DEFAULT_TOURNAMENT_SETTINGS,
   TOURNAMENT_LEAGUE_VARIANT,
@@ -24,4 +25,6 @@ export * from './TournamentRedraftService'
 export * from './TournamentEliminationEngine'
 export * from './TournamentExportService'
 export * from './TournamentAuditService'
+export { crownChampion } from './TournamentChampionService'
+export { emitTournamentNotification, notifyEliminated } from './TournamentNotificationEmitter'
 export * from './safety'

@@ -39,6 +39,9 @@ export interface UserLeague {
   entryFee?: number | null
 }
 
+/** First tab to show in `LeftChatPanel` (from `?openChat=` on `/league/[id]`). */
+export type LeftChatInitialTab = 'league' | 'chimmy' | 'af_huddle' | 'dms'
+
 /** Props contract for `LeftChatPanel` (shared with /dashboard and /league/[id]) */
 export type LeftChatPanelLayoutProps = {
   selectedLeague: UserLeague | null
@@ -55,6 +58,11 @@ export type LeftChatPanelLayoutProps = {
   discordConnected?: boolean
   /** `?zombieChimmy=` deep link → league chat composer */
   zombieChimmyPrefill?: string | null
+  /**
+   * Which left-rail tab is active on first paint (`?openChat=league|chimmy|dms|af_huddle`).
+   * When omitted: league chat if `selectedLeague` is set, otherwise Chimmy.
+   */
+  initialOpenChat?: LeftChatInitialTab | null
   /** Leagues the user commissions — for @global broadcast modal */
   commissionerLeagues?: { id: string; name: string; teamCount: number }[]
 }
@@ -80,6 +88,8 @@ export type RightControlPanelLayoutProps = {
   onSettingsNavigate?: () => void
   /** Refetch league list (e.g. after Sleeper refresh) */
   onLeaguesRefresh?: () => void
+  /** Optimistically drop a league from local state after successful remove-from-list */
+  onLeagueRemoved?: (leagueId: string) => void
 }
 
 export interface DashboardConnectedLeague extends UserLeague {
@@ -104,6 +114,14 @@ export interface LeagueTeamSlot {
   losses: number
   ties: number
   pointsFor: number
+  pointsAgainst: number
+  /** Platform standing / finish rank when synced (lower is better). */
+  currentRank: number | null
+  /** Remaining FAAB — from linked `Roster` when available. */
+  faabRemaining: number | null
+  waiverPriority: number | null
+  /** AF `LeagueDivision.id` when assigned */
+  divisionId: string | null
 }
 
 /** League team row for tab UIs (draft, league, trades) */

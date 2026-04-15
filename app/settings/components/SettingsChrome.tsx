@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AlertTriangle,
@@ -14,8 +14,8 @@ import {
   Shield,
   Sliders,
   User,
-  Sparkles,
 } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 export type SettingsTabId =
   | 'profile'
@@ -28,32 +28,30 @@ export type SettingsTabId =
   | 'legacy'
   | 'legal'
   | 'account'
-  | 'ai'
 
-type NavItem = {
+type NavDef = {
   id: SettingsTabId
-  label: string
-  icon: React.ComponentType<{ className?: string }>
+  icon: ComponentType<{ className?: string }>
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'preferences', label: 'Preferences', icon: Sliders },
-  { id: 'security', label: 'Security', icon: Shield },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'connected', label: 'Connected Accounts', icon: Link2 },
-  { id: 'billing', label: 'Subscription & Billing', icon: CreditCard },
-  { id: 'referral', label: 'Referrals', icon: Gift },
-  { id: 'legacy', label: 'Legacy Import', icon: Archive },
-  { id: 'legal', label: 'Legal & Agreements', icon: FileText },
-  { id: 'ai', label: 'AI Features', icon: Sparkles },
-  { id: 'account', label: 'Account', icon: AlertTriangle },
+const NAV_DEFS: NavDef[] = [
+  { id: 'profile', icon: User },
+  { id: 'preferences', icon: Sliders },
+  { id: 'security', icon: Shield },
+  { id: 'notifications', icon: Bell },
+  { id: 'connected', icon: Link2 },
+  { id: 'billing', icon: CreditCard },
+  { id: 'referral', icon: Gift },
+  { id: 'legacy', icon: Archive },
+  { id: 'legal', icon: FileText },
+  { id: 'account', icon: AlertTriangle },
 ]
 
-export const SETTINGS_NAV = NAV_ITEMS
+/** Tab definitions (id + icon). Labels come from `settings.nav.*` via `useLanguage`. */
+export const SETTINGS_NAV = NAV_DEFS
 
 export function isSettingsTabId(value: string | null | undefined): value is SettingsTabId {
-  return SETTINGS_NAV.some((n) => n.id === value)
+  return NAV_DEFS.some((n) => n.id === value)
 }
 
 export function SettingsChrome({
@@ -66,10 +64,12 @@ export function SettingsChrome({
   children: ReactNode
 }) {
   const router = useRouter()
+  const { t } = useLanguage()
 
-  const NavButton = ({ tab, mobile }: { tab: NavItem; mobile?: boolean }) => {
+  const NavButton = ({ tab, mobile }: { tab: NavDef; mobile?: boolean }) => {
     const Icon = tab.icon
     const active = activeTab === tab.id
+    const label = t(`settings.nav.${tab.id}`)
     return (
       <button
         type="button"
@@ -83,7 +83,7 @@ export function SettingsChrome({
         }`}
       >
         <Icon className="h-4 w-4 shrink-0 text-cyan-400/80" />
-        {tab.label}
+        {label}
       </button>
     )
   }
@@ -98,15 +98,15 @@ export function SettingsChrome({
           data-testid="settings-home"
         >
           <Home className="h-5 w-5 text-cyan-400/90" strokeWidth={2} />
-          Home
+          {t('settings.home')}
         </button>
-        <h1 className="text-lg font-bold tracking-tight text-white">Settings</h1>
+        <h1 className="text-lg font-bold tracking-tight text-white">{t('settings.title')}</h1>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <nav
           className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-white/[0.08] px-2 py-2 md:hidden"
-          aria-label="Settings sections"
+          aria-label={t('settings.aria.sections')}
         >
           {SETTINGS_NAV.map((tab) => (
             <NavButton key={tab.id} tab={tab} mobile />
@@ -115,7 +115,7 @@ export function SettingsChrome({
 
         <aside
           className="hidden w-60 shrink-0 flex-col border-r border-white/[0.08] bg-[#0a0e1a] p-3 md:flex"
-          aria-label="Settings navigation"
+          aria-label={t('settings.aria.navigation')}
         >
           <div className="rounded-xl border border-white/[0.06] bg-[#1a1f3a]/50 p-2">
             {SETTINGS_NAV.map((tab) => (

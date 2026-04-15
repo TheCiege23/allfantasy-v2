@@ -22,7 +22,9 @@ export const dynamic = "force-dynamic"
 
 export async function POST(req: Request) {
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
     const service = new TokenSpendService()
     const ledger = await service.spendTokensForRule({
       userId: session.user.id,
+      userEmail: session.user.email,
       ruleCode,
       confirmed: Boolean(body.confirmed),
       sourceType: String(body.sourceType ?? "manual_token_spend"),

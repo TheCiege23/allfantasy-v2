@@ -13,6 +13,10 @@ import { bootstrapLeagueDraftConfig } from '@/lib/draft-defaults/LeagueDraftBoot
 import { bootstrapLeagueWaiverSettings } from '@/lib/waiver-defaults/LeagueWaiverBootstrapService'
 import { bootstrapLeaguePlayoffConfig } from '@/lib/playoff-defaults/LeaguePlayoffBootstrapService'
 import { bootstrapLeagueScheduleConfig } from '@/lib/schedule-defaults/LeagueScheduleBootstrapService'
+import { getDefaultScheduleConfig, type ScheduleSport } from '@/lib/fantasy-schedule/types'
+import { updateScheduleConfigForLeague } from '@/lib/fantasy-schedule/ScheduleConfigService'
+import { createDefaultLeagueRosterConfig, getRosterEngineRegistry, type SupportedRosterSport } from '@/lib/roster-engine'
+import { warmLeagueSportsDataAfterCreate } from '@/lib/league-creation/warmLeagueSportsData'
 
 export interface BootstrapResult {
   roster: { templateId: string }
@@ -93,6 +97,71 @@ export async function runLeagueBootstrap(
     variant: null,
   }))
 
+  // Apply fantasy-schedule defaults (volume thresholds, dynamic low-volume days, etc.)
+  // These are sport-specific and power the scheduling intelligence layer for specialty leagues.
+  try {
+    const sportKey = String(leagueSport).toUpperCase() as ScheduleSport
+    const fantasyScheduleDefaults = getDefaultScheduleConfig(sportKey)
+    await updateScheduleConfigForLeague(leagueId, fantasyScheduleDefaults)
+  } catch {
+    // Non-fatal — league still works with runtime defaults from getDefaultScheduleConfig()
+  }
+
+  // Apply sport-specific scoring preset defaults
+  if (leagueSport === 'NBA') {
+    try {
+      const { applyDefaultNbaScoringOnCreate } = await import('@/lib/nba-scoring')
+      await applyDefaultNbaScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'MLB') {
+    try {
+      const { applyDefaultMlbScoringOnCreate } = await import('@/lib/mlb-scoring')
+      await applyDefaultMlbScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NHL') {
+    try {
+      const { applyDefaultNhlScoringOnCreate } = await import('@/lib/nhl-scoring')
+      await applyDefaultNhlScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NFL') {
+    try {
+      const { applyDefaultNflScoringOnCreate } = await import('@/lib/nfl-scoring')
+      await applyDefaultNflScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NCAAF') {
+    try {
+      const { applyDefaultNcaafScoringOnCreate } = await import('@/lib/ncaaf-scoring')
+      await applyDefaultNcaafScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'NCAAB') {
+    try {
+      const { applyDefaultNcaabScoringOnCreate } = await import('@/lib/ncaab-scoring')
+      await applyDefaultNcaabScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+  if (leagueSport === 'SOCCER') {
+    try {
+      const { applyDefaultSoccerScoringOnCreate } = await import('@/lib/soccer-scoring')
+      await applyDefaultSoccerScoringOnCreate(leagueId)
+    } catch { /* non-fatal */ }
+  }
+
+  // Apply unified roster defaults (one-league one-config) through the shared roster engine.
+  const leagueType = (settings.league_type as string) ?? (settings.leagueType as string) ?? 'redraft'
+  const rosterRegistry = getRosterEngineRegistry()
+  if (rosterRegistry.isSupported(String(leagueSport))) {
+    try {
+      await createDefaultLeagueRosterConfig(leagueId, leagueSport as SupportedRosterSport, leagueType)
+    } catch {
+      // non-fatal
+    }
+  }
+
   const waiverResult = await bootstrapLeagueWaiverSettings(leagueId).catch(() => ({
     leagueId,
     waiverSettingsApplied: false,
@@ -108,6 +177,10 @@ export async function runLeagueBootstrap(
       // non-fatal; league still works with in-memory IDP defaults
     }
   }
+
+  void warmLeagueSportsDataAfterCreate(leagueSport).catch(() => {
+    // non-fatal — chain warms on first read if this fails
+  })
 
   return {
     roster: rosterResult,

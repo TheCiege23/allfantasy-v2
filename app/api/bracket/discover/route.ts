@@ -16,14 +16,14 @@ export async function GET(req: NextRequest) {
     const viewerTier = await resolveUserCareerTier(prisma as any, session?.user?.id, 1)
 
     const sp = req.nextUrl.searchParams
-    const query = sp.get("q") ?? sp.get("query") ?? null
-    const sport = sp.get("sport") ?? null
-    const leagueType = sp.get("leagueType") ?? sp.get("scoringMode") ?? null
-    const entryFee = sp.get("entryFee") ?? null
-    const visibility = sp.get("visibility") ?? null
-    const difficulty = sp.get("difficulty") ?? null
-    const page = sp.get("page") ?? "1"
-    const limit = sp.get("limit") ?? "20"
+    const query = sp?.get("q") ?? sp?.get("query") ?? null
+    const sport = sp?.get("sport") ?? null
+    const leagueType = sp?.get("leagueType") ?? sp?.get("scoringMode") ?? null
+    const entryFee = sp?.get("entryFee") ?? null
+    const visibility = sp?.get("visibility") ?? null
+    const difficulty = sp?.get("difficulty") ?? null
+    const page = sp?.get("page") ?? "1"
+    const limit = sp?.get("limit") ?? "20"
 
     const result = await discoverLeagues({
       query,
@@ -48,3 +48,4 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+

@@ -144,6 +144,18 @@ function SurvivorAppShellInner({
         </div>
       </header>
 
+      {ctx.survivorFairPlayActive ? (
+        <div
+          role="status"
+          data-testid="survivor-fair-play-banner"
+          className="border-b border-amber-500/25 bg-amber-950/35 px-3 py-2.5 text-[11px] leading-snug text-amber-100/90 md:pl-[72px]"
+        >
+          <span className="font-semibold text-amber-50">Fair play mode.</span>{' '}
+          As a playing commissioner, cross-tribe roster intel and elimination history are limited for you in APIs. Your
+          tribe view is unchanged. Use a non-playing co-commissioner account for full host visibility.
+        </div>
+      ) : null}
+
       <div className="flex flex-1">
         {/* Desktop sidebar */}
         <aside

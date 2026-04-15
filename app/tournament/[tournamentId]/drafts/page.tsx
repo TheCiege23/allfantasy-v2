@@ -1,14 +1,11 @@
 'use client'
 
-import { useParams } from 'next/navigation'
 import { useMemo, useState } from 'react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { DraftTransitionCard, RoundResetExplainer } from '@/app/tournament/components/DraftTransitionCard'
 
 export default function TournamentDraftsPage() {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
   const ctx = useTournamentUi()
   const state = useTournamentParticipantState(ctx)
   const { shell, rounds, tournamentLeagues, conferences } = ctx

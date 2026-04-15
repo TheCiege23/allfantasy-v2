@@ -25,6 +25,13 @@ import { getCurrentlyEliminatedRosterIds } from '@/lib/survivor/SurvivorRosterSt
 import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
 import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
 import { prisma } from '@/lib/prisma'
+import { getLeagueRole } from '@/lib/league/permissions'
+import {
+  parseSurvivorFairPlayFromLeagueSettings,
+  redactSurvivorSummaryPayloadForFairPlay,
+  shouldApplySurvivorFairPlayRedaction,
+} from '@/lib/survivor/survivorFairPlay'
+import { seasonWeekBoundsForSport } from '@/lib/survivor/survivorSeasonCalendar'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,11 +52,11 @@ export async function GET(
   const isSurvivor = await isSurvivorLeague(leagueId)
   if (!isSurvivor) return NextResponse.json({ error: 'Not a survivor league' }, { status: 404 })
 
-  const weekParam = req.nextUrl.searchParams.get('week')
+  const weekParam = req.nextUrl.searchParams?.get('week')
   const requestedWeek = weekParam ? Math.max(1, parseInt(weekParam, 10)) || 1 : null
   const currentWeek = await resolveSurvivorCurrentWeek(leagueId, requestedWeek)
 
-  const [config, tribesRaw, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, eliminatedRosterIds, mainLeagueRosters, finaleState] = await Promise.all([
+  const [config, tribesRaw, council, challenges, jury, exileLeagueId, tokenStates, audit, merged, myRosterId, eliminatedRosterIds, mainLeagueRosters, finaleState, leagueSettingsRow] = await Promise.all([
     getSurvivorConfig(leagueId),
     getTribesWithMembers(leagueId),
     getCouncil(leagueId, currentWeek),
@@ -66,9 +73,16 @@ export async function GET(
       select: { id: true, platformUserId: true },
     }),
     getFinaleState(leagueId, currentWeek),
+    prisma.league.findUnique({ where: { id: leagueId }, select: { settings: true } }),
   ])
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 500 })
+
+  const leagueMeta = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true, name: true },
+  })
+  const seasonCalendar = seasonWeekBoundsForSport(leagueMeta?.sport, config.regularSeasonEndWeek ?? null)
 
   const votedOutHistory = audit
     .filter((e) => e.eventType === 'eliminated')
@@ -198,7 +212,16 @@ export async function GET(
       })()
     : null
 
-  return NextResponse.json({
+  const leagueSettingsJson =
+    leagueSettingsRow?.settings && typeof leagueSettingsRow.settings === 'object' && !Array.isArray(leagueSettingsRow.settings)
+      ? (leagueSettingsRow.settings as Record<string, unknown>)
+      : {}
+  const { fairPlayLimited } = parseSurvivorFairPlayFromLeagueSettings(leagueSettingsJson)
+  const leagueRole = await getLeagueRole(leagueId, userId)
+  const isComm = leagueRole === 'commissioner' || leagueRole === 'co_commissioner'
+  const fairPlayRedact = shouldApplySurvivorFairPlayRedaction(fairPlayLimited, isComm, Boolean(myRosterId))
+
+  const body = {
     config: {
       mode: config.mode,
       tribeCount: config.tribeCount,
@@ -221,7 +244,12 @@ export async function GET(
       tribalCouncilDayOfWeek: config.tribalCouncilDayOfWeek,
       tribalCouncilTimeUtc: config.tribalCouncilTimeUtc,
       minigameFrequency: config.minigameFrequency,
+      seasonThemeLabel: config.seasonThemeLabel,
+      challengesSystemRun: config.challengesSystemRun,
+      regularSeasonEndWeek: config.regularSeasonEndWeek,
+      faqSeededAt: config.faqSeededAt,
     },
+    seasonCalendar,
     currentWeek,
     tribes: tribes.map((t) => ({
       id: t.id,
@@ -238,6 +266,8 @@ export async function GET(
           voteDeadlineAt: council.voteDeadlineAt,
           closedAt: council.closedAt,
           eliminatedRosterId: council.eliminatedRosterId,
+          revealSequence: council.revealSequence ?? null,
+          isRevealed: council.isRevealed,
         }
       : null,
     challenges: challenges.map((c) => ({
@@ -286,5 +316,11 @@ export async function GET(
           }
         : null,
     rosterDisplayNames,
-  })
+  }
+
+  if (fairPlayRedact) {
+    return NextResponse.json(redactSurvivorSummaryPayloadForFairPlay(body))
+  }
+
+  return NextResponse.json(body)
 }

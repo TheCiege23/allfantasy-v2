@@ -105,6 +105,12 @@ export function getAllowedLeagueTypesForSport(sport: LeagueSport | string): Leag
   return getFormatsForSport(sport).map((format) => format.id) as LeagueTypeId[]
 }
 
+/** Reverse lookup: which sports does a given league type support? */
+export function getAllowedSportsForLeagueType(leagueType: LeagueTypeId): LeagueSport[] {
+  const format = listLeagueFormats().find((f) => f.id === leagueType)
+  return format ? (format.supportedSports as LeagueSport[]) : [...SUPPORTED_SPORTS]
+}
+
 /** Guillotine: snake, linear, auction, and mock draft only (no slow_draft). 3RR applies only to snake (UI). */
 const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mock_draft']
 
@@ -113,9 +119,15 @@ const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mo
  * Mock draft stays available across league types as a practice engine mode.
  * Guillotine supports snake/linear/auction and mock draft only.
  */
-export function getAllowedDraftTypesForLeagueType(leagueType: LeagueTypeId): DraftTypeId[] {
+export function getAllowedDraftTypesForLeagueType(
+  leagueType: LeagueTypeId,
+  sport: LeagueSport | string = 'NFL'
+): DraftTypeId[] {
   if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
-  return getAllowedDraftTypesForFormat('NFL', leagueType) as DraftTypeId[]
+  if (leagueType === 'survivor') return ['snake', 'auction']
+  if (leagueType === 'devy') return ['devy_snake', 'devy_auction']
+  if (leagueType === 'c2c') return ['c2c_snake', 'c2c_auction']
+  return getAllowedDraftTypesForFormat(sport, leagueType) as DraftTypeId[]
 }
 
 /** Roster modes allowed for Guillotine (redraft / best_ball only). */
@@ -135,8 +147,12 @@ export function isLeagueTypeAllowedForSport(leagueType: LeagueTypeId, sport: Lea
 /**
  * Validate draft type for league type.
  */
-export function isDraftTypeAllowedForLeagueType(draftType: DraftTypeId, leagueType: LeagueTypeId): boolean {
-  return isDraftTypeAllowedForFormat('NFL', leagueType, draftType)
+export function isDraftTypeAllowedForLeagueType(
+  draftType: DraftTypeId,
+  leagueType: LeagueTypeId,
+  sport: LeagueSport | string = 'NFL'
+): boolean {
+  return isDraftTypeAllowedForFormat(sport, leagueType, draftType)
 }
 
 /**

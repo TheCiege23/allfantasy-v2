@@ -72,7 +72,6 @@ export function ActiveLeaguesSection() {
           groups={groups}
           maxPerGroup={3}
           emptyLeagueLabel={t('dashboard.unnamedLeague')}
-          renderLeagueHref={(league) => `/leagues/${league.id}`}
         />
       </div>
     </section>

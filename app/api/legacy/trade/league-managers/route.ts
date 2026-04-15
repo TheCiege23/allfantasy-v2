@@ -1,6 +1,14 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { ensureArray, ensureNumber } from '@/lib/engine/response-guard'
+import {
+  getAllPlayers,
+  getLeagueDrafts,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueUsers,
+  getTradedDraftPicks,
+} from '@/lib/sleeper-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,37 +95,25 @@ const playersCache: Record<Sport, { at: number; data: Record<string, SleeperPlay
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 
-async function fetchJson(url: string) {
-  const res = await fetch(url, { next: { revalidate: 0 } })
-  const text = await res.text()
-  let json: any = null
-  try {
-    json = text ? JSON.parse(text) : null
-  } catch {
-    // ignore
-  }
-  return { ok: res.ok, status: res.status, json, text }
-}
-
 async function getSleeperPlayers(sport: Sport) {
   const now = Date.now()
   const cached = playersCache[sport]
   if (cached.data && now - cached.at < CACHE_TTL_MS) return cached.data
 
-  const url = `https://api.sleeper.app/v1/players/${sport}`
-  const r = await fetchJson(url)
-  if (!r.ok || !r.json) {
-    throw new Error(`Failed to fetch Sleeper players (${sport}). status=${r.status}`)
+  if (sport !== 'nfl') {
+    playersCache[sport] = { at: now, data: {} }
+    return playersCache[sport].data!
   }
 
-  playersCache[sport] = { at: now, data: r.json as Record<string, SleeperPlayer> }
+  const players = await getAllPlayers()
+  playersCache[sport] = { at: now, data: players as Record<string, SleeperPlayer> }
   return playersCache[sport].data!
 }
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trade/league-managers", tool: "LegacyTradeLeagueManagers" })(async (req: NextRequest) => {
   try {
-    const leagueId = String(req.nextUrl.searchParams.get('league_id') || '').trim()
-    const sportRaw = String(req.nextUrl.searchParams.get('sport') || 'nfl').trim().toLowerCase()
+    const leagueId = String(req.nextUrl.searchParams?.get('league_id') || '').trim()
+    const sportRaw = String(req.nextUrl.searchParams?.get('sport') || 'nfl').trim().toLowerCase()
 
     if (!leagueId) {
       return NextResponse.json({ error: 'Missing league_id' }, { status: 400 })
@@ -126,41 +122,27 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/league-managers",
     const sport: Sport = sportRaw === 'nba' ? 'nba' : 'nfl'
 
     // 1) Get league info for FAAB budget
-    const leagueUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}`
-    const leagueRes = await fetchJson(leagueUrl)
-    const leagueData = leagueRes.json as SleeperLeague | null
+    const leagueData = await getLeagueInfo(leagueId) as SleeperLeague | null
     const totalFaabBudget = leagueData?.settings?.waiver_budget || 100
     const rosterPositions = leagueData?.roster_positions || []
 
     // 2) Get all users in the league
-    const usersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/users`
-    const usersRes = await fetchJson(usersUrl)
-    if (!usersRes.ok || !Array.isArray(usersRes.json)) {
+    const users = await getLeagueUsers(leagueId) as SleeperUser[]
+    if (!Array.isArray(users)) {
       return NextResponse.json({ error: 'Failed to load league users from Sleeper' }, { status: 502 })
     }
-    const users = usersRes.json as SleeperUser[]
 
     // 3) Get all rosters
-    const rostersUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/rosters`
-    const rostersRes = await fetchJson(rostersUrl)
-    if (!rostersRes.ok || !Array.isArray(rostersRes.json)) {
+    const rosters = await getLeagueRosters(leagueId) as SleeperRoster[]
+    if (!Array.isArray(rosters)) {
       return NextResponse.json({ error: 'Failed to load league rosters from Sleeper' }, { status: 502 })
     }
-    const rosters = rostersRes.json as SleeperRoster[]
 
     // 4) Get traded draft picks
-    const picksUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/traded_picks`
-    const picksRes = await fetchJson(picksUrl)
-    const tradedPicks = (picksRes.ok && Array.isArray(picksRes.json)) 
-      ? (picksRes.json as SleeperDraftPick[]) 
-      : []
+    const tradedPicks = await getTradedDraftPicks(leagueId) as SleeperDraftPick[]
 
     // 4b) Get drafts to determine pick slots
-    const draftsUrl = `https://api.sleeper.app/v1/league/${encodeURIComponent(leagueId)}/drafts`
-    const draftsRes = await fetchJson(draftsUrl)
-    const drafts = (draftsRes.ok && Array.isArray(draftsRes.json)) 
-      ? (draftsRes.json as SleeperDraft[])
-      : []
+    const drafts = await getLeagueDrafts(leagueId) as SleeperDraft[]
     
     // Build user_id to roster_id map for draft order conversion
     const userToRoster = new Map<string, number>()
@@ -441,3 +423,4 @@ export const GET = withApiUsage({ endpoint: "/api/legacy/trade/league-managers",
     return NextResponse.json({ error: 'Failed to load league managers', details: String(e) }, { status: 500 })
   }
 })
+

@@ -1,13 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useCallback } from 'react'
-import clsx from 'clsx'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Biohazard,
+  Crosshair,
+  FlaskConical,
+  Shield,
+  Skull,
+  Sparkles,
+  Swords,
+  Trophy,
+} from 'lucide-react'
 import { ZombieStatusBadge } from '@/app/zombie/components/ZombieStatusBadge'
 import { ZombieEventFeed } from '@/app/zombie/components/ZombieEventFeed'
 import { ZombieHordeBar } from '@/app/zombie/components/ZombieHordeBar'
 import { ZombieWhispererCard } from '@/app/zombie/components/ZombieWhispererCard'
-import { ZOMBIE_ITEM_ICON } from '@/lib/zombie/iconSystem'
+import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
 
 type TeamRow = {
   rosterId: string
@@ -17,10 +28,8 @@ type TeamRow = {
   pointsFor: number
   fantasyTeamName: string | null
   displayName: string | null
-  isWhisperer?: boolean
-  weekBecameZombie?: number | null
-  serumsHeld?: number
-  weaponsHeld?: number
+  riskScore?: number | null
+  weeklyScore?: number | null
 }
 
 type Pack = {
@@ -31,8 +40,20 @@ type Pack = {
     potTotal: number
     whispererIsPublic: boolean
     universeId: string | null
-    sport: string | null
-    tierLabel: string | null
+    status?: string | null
+    level?: {
+      name?: string | null
+      rankOrder?: number | null
+    } | null
+    counts?: {
+      survivor?: number
+      zombie?: number
+      whisperer?: number
+      revived?: number
+      alive?: number
+      total?: number
+      horde?: number
+    } | null
     teams: TeamRow[]
     whispererRecord: {
       displayName: string
@@ -47,39 +68,96 @@ type Pack = {
       week: number | null
       createdAt: string
     }>
+    latestResolution?: {
+      status?: string | null
+      resolvedAt?: string | null
+    } | null
+    topPerformers?: TeamRow[]
+    dangerZone?: TeamRow[]
   }
   hordeSize: number
   survivorCount: number
   myTeam: TeamRow | null
-  dangerMatchups?: Array<{ opponentName: string; opponentStatus: string; riskLevel: string }>
-  topPerformers?: Array<{ name: string; score: number; status: string }>
+  myActiveItemCount?: number
+  myPendingItemCount?: number
+  myResources?: {
+    serums?: number
+    weapons?: number
+    activeItems?: number
+    pendingItems?: number
+  } | null
+  recentInfections?: Array<{ id: string }>
+  recentBashings?: Array<{ id: string }>
+  recentMaulings?: Array<{ id: string }>
 }
 
-type AnimRow = { id: string; animationType: string; week: number; metadata: unknown; createdAt: string }
-
-const STATUS_EMOJI: Record<string, string> = {
-  survivor: '🧍',
-  zombie: '🧟',
-  whisperer: '🎭',
-  revived: '⚡',
-  eliminated: '💀',
+type FeedAnimation = {
+  id: string
+  animationType: string
+  week: number
+  metadata: unknown
+  createdAt: string
 }
 
-function getStatusKey(s: string): string {
-  const lower = s.toLowerCase()
-  if (lower.includes('whisperer')) return 'whisperer'
-  if (lower.includes('zombie')) return 'zombie'
-  if (lower.includes('revived')) return 'revived'
-  if (lower.includes('eliminat')) return 'eliminated'
-  return 'survivor'
+function teamName(team: TeamRow | null | undefined) {
+  if (!team) return 'Unknown team'
+  return team.fantasyTeamName || team.displayName || team.rosterId
+}
+
+function toDangerLevel(score?: number | null): 'stable' | 'exposed' | 'critical' | 'doomed' {
+  if ((score ?? 0) >= 80) return 'doomed'
+  if ((score ?? 0) >= 55) return 'critical'
+  if ((score ?? 0) >= 30) return 'exposed'
+  return 'stable'
+}
+
+function summaryLine(data: Pack['league'], pack: Pack) {
+  const infections = pack.recentInfections?.length ?? 0
+  const bashings = pack.recentBashings?.length ?? 0
+  const maulings = pack.recentMaulings?.length ?? 0
+  const living = data.counts?.alive ?? pack.survivorCount
+  const horde = data.counts?.horde ?? pack.hordeSize
+
+  return `${living} alive, ${horde} in the horde, ${infections} new infections, ${bashings} bashings, ${maulings} maulings.`
+}
+
+function StatCard({
+  label,
+  value,
+  tone,
+  icon,
+  hint,
+}: {
+  label: string
+  value: string
+  tone: 'emerald' | 'rose' | 'amber' | 'sky'
+  icon: ReactNode
+  hint: string
+}) {
+  const toneClasses =
+    tone === 'emerald'
+      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-100'
+      : tone === 'amber'
+        ? 'border-amber-500/20 bg-amber-500/10 text-amber-100'
+        : tone === 'sky'
+          ? 'border-sky-500/20 bg-sky-500/10 text-sky-100'
+          : 'border-rose-500/20 bg-rose-500/10 text-rose-100'
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClasses}`}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">{label}</p>
+        <div className="text-white/80">{icon}</div>
+      </div>
+      <p className="mt-3 text-2xl font-black">{value}</p>
+      <p className="mt-1 text-xs text-white/60">{hint}</p>
+    </div>
+  )
 }
 
 export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string; userId: string | null }) {
   const [data, setData] = useState<Pack | null>(null)
-  const [anims, setAnims] = useState<AnimRow[]>([])
-  const [newAnimCount, setNewAnimCount] = useState(0)
-  const [lastAnimId, setLastAnimId] = useState<string | null>(null)
-  const [pulseActive, setPulseActive] = useState(false)
+  const [anims, setAnims] = useState<FeedAnimation[]>([])
 
   useEffect(() => {
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
@@ -88,325 +166,362 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
       .catch(() => setData(null))
   }, [leagueId])
 
-  const pollEvents = useCallback(async () => {
-    const r = await fetch(`/api/zombie/event-feed?leagueId=${encodeURIComponent(leagueId)}`, {
-      credentials: 'include',
-    }).catch(() => null)
-    if (!r?.ok) return
-    const j = (await r.json()) as { animations?: AnimRow[] }
-    if (j.animations) {
-      setAnims(j.animations)
-      if (j.animations[0] && j.animations[0].id !== lastAnimId) {
-        setNewAnimCount((c) => c + 1)
-        setLastAnimId(j.animations[0].id)
-        setPulseActive(true)
-        setTimeout(() => setPulseActive(false), 2000)
-      }
-    }
-  }, [leagueId, lastAnimId])
-
   useEffect(() => {
-    void pollEvents()
-    const iv = setInterval(pollEvents, 12_000)
-    return () => clearInterval(iv)
-  }, [pollEvents])
+    let cancelled = false
+    const tick = async () => {
+      const r = await fetch(`/api/zombie/event-feed?leagueId=${encodeURIComponent(leagueId)}`, {
+        credentials: 'include',
+      }).catch(() => null)
+      if (!r?.ok || cancelled) return
+      const j = (await r.json()) as { animations?: FeedAnimation[] }
+      if (j.animations) setAnims(j.animations)
+    }
+    void tick()
+    const iv = setInterval(tick, 20_000)
+    return () => {
+      cancelled = true
+      clearInterval(iv)
+    }
+  }, [leagueId])
+
+  const topPerformers = useMemo(() => {
+    if (!data?.league?.topPerformers?.length) return []
+    return data.league.topPerformers.slice(0, 3)
+  }, [data])
 
   if (!data?.league) {
-    return (
-      <div className="flex min-h-[300px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--zombie-crimson)] border-t-transparent" />
-          <p className="text-[13px] text-[var(--zombie-text-dim)]">Entering the island...</p>
-        </div>
-      </div>
-    )
+    return <p className="text-[13px] text-[var(--zombie-text-dim)]">Loading island...</p>
   }
 
   const z = data.league
   const my = data.myTeam
-  const displayName = my?.fantasyTeamName || my?.displayName || 'Your team'
+  const displayName = teamName(my)
   const whispererRevealed = z.whispererIsPublic && (z.whispererRecord?.isPubliclyRevealed ?? true)
   const lastUpdate = z.announcements.find((a) => a.type === 'weekly_update' || a.type === 'weekly_recap')
-  const recentInfections = anims.filter((a) =>
-    a.animationType === 'zombie_turn' || a.animationType === 'infection',
-  ).slice(0, 3)
-  const statusKey = my ? getStatusKey(my.status) : 'survivor'
-  const total = data.hordeSize + data.survivorCount
-  const hordePct = total > 0 ? Math.round((data.hordeSize / total) * 100) : 0
-
-  // Top performers from sorted teams
-  const topPerformers = [...(z.teams || [])].sort((a, b) => b.pointsFor - a.pointsFor).slice(0, 3)
+  const hordeCount = z.counts?.horde ?? data.hordeSize
+  const survivorCount = z.counts?.alive ?? data.survivorCount
+  const leagueTier = z.level?.name ?? `Tier ${z.level?.rankOrder ?? 1}`
+  const myDanger = toDangerLevel(my?.riskScore)
+  const hasUrgentRisk = myDanger === 'critical' || myDanger === 'doomed'
+  const inventory = data.myResources ?? {}
+  const quickActions = [
+    {
+      href: `/zombie/${leagueId}/matchups`,
+      label: hasUrgentRisk ? 'Check Risk Matchup' : 'Open Matchups',
+      tone: 'bg-rose-600/20 text-rose-100 border-rose-500/25',
+    },
+    {
+      href: `/zombie/${leagueId}/items`,
+      label: (inventory.serums ?? 0) > 0 ? 'Use Serum or Weapon' : 'Open Inventory',
+      tone: 'bg-sky-600/20 text-sky-100 border-sky-500/25',
+    },
+    {
+      href: `/zombie/${leagueId}/chat`,
+      label: 'Open Chat + @Chimmy',
+      tone: 'bg-amber-600/20 text-amber-100 border-amber-500/25',
+    },
+  ]
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-3">
-      {/* League header bar */}
-      <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-[var(--zombie-crimson)]/10 via-transparent to-[var(--zombie-purple)]/10 px-4 py-2">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--zombie-text-dim)]">
-            {z.tierLabel ?? 'Zombie League'} · Week {z.currentWeek}
-          </p>
-          <p className="text-[14px] font-bold text-[var(--zombie-text-full)]">{z.name ?? 'Zombie League'}</p>
-        </div>
-        <div className="flex gap-3 text-[11px]">
-          <span className="text-[var(--zombie-green)]">🧍 {data.survivorCount}</span>
-          <span className="text-[var(--zombie-purple)]">🧟 {data.hordeSize}</span>
-          <span className="text-[var(--zombie-text-dim)]">{hordePct}%</span>
-        </div>
-      </div>
-
-      {/* YOUR STATUS — Hero card */}
-      <section
-        className={clsx(
-          'overflow-hidden rounded-2xl border bg-[var(--zombie-panel)]',
-          statusKey === 'zombie' && 'border-[var(--zombie-purple)]/40',
-          statusKey === 'whisperer' && 'border-[var(--zombie-crimson)]/40',
-          statusKey === 'revived' && 'border-[var(--zombie-gold)]/40',
-          statusKey === 'survivor' && 'border-[var(--zombie-green)]/30',
-          statusKey === 'eliminated' && 'border-[var(--zombie-gray)]/30',
-        )}
-      >
-        <div
-          className={clsx(
-            'p-5',
-            statusKey === 'zombie' && 'bg-gradient-to-br from-[var(--zombie-purple)]/8 to-transparent',
-            statusKey === 'whisperer' && 'bg-gradient-to-br from-[var(--zombie-crimson)]/8 to-transparent',
-            statusKey === 'revived' && 'bg-gradient-to-br from-[var(--zombie-gold)]/8 to-transparent',
-            statusKey === 'survivor' && 'bg-gradient-to-br from-[var(--zombie-green)]/5 to-transparent',
-          )}
-        >
-          {userId && my ? (
-            <>
-              <div className="flex items-center gap-4">
-                <div
-                  className={clsx(
-                    'flex h-[76px] w-[76px] items-center justify-center rounded-full text-4xl ring-3 ring-offset-2 ring-offset-[var(--zombie-panel)]',
-                    statusKey === 'zombie' && 'ring-[var(--zombie-purple)] bg-[var(--zombie-purple)]/10',
-                    statusKey === 'whisperer' && 'ring-[var(--zombie-crimson)] bg-[var(--zombie-crimson)]/10 animate-pulse',
-                    statusKey === 'revived' && 'ring-[var(--zombie-gold)] bg-[var(--zombie-gold)]/10',
-                    statusKey === 'survivor' && 'ring-[var(--zombie-green)] bg-[var(--zombie-green)]/10',
-                    statusKey === 'eliminated' && 'ring-[var(--zombie-gray)] bg-white/5',
-                  )}
+    <>
+      <LeagueClipOverlayHost leagueId={leagueId} variant="zombie" enabled={Boolean(userId)} />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(239,68,68,0.22),transparent_30%),radial-gradient(circle_at_top_right,rgba(250,204,21,0.08),transparent_32%),linear-gradient(180deg,rgba(14,15,20,0.98),rgba(10,11,15,0.98))] p-5 shadow-[0_18px_80px_rgba(0,0,0,0.35)] sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-rose-500/25 bg-rose-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.24em] text-rose-100">
+                Zombie Mode
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                {leagueTier}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                Week {z.currentWeek}
+              </span>
+            </div>
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">{z.name ?? 'Zombie League'}</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/72">
+              Live outbreak control room for standings, danger, items, the Whisperer, and every major event this week.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`inline-flex min-h-[44px] items-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition hover:brightness-110 ${action.tone}`}
                 >
-                  {STATUS_EMOJI[statusKey] ?? '🧍'}
+                  {action.label}
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid min-w-full grid-cols-2 gap-3 sm:min-w-[360px] sm:grid-cols-4 lg:max-w-[420px]">
+            <StatCard
+              label="Survivors"
+              value={String(survivorCount)}
+              tone="emerald"
+              icon={<Shield className="h-4 w-4" />}
+              hint="Still alive"
+            />
+            <StatCard
+              label="Horde"
+              value={String(hordeCount)}
+              tone="rose"
+              icon={<Biohazard className="h-4 w-4" />}
+              hint="Infected teams"
+            />
+            <StatCard
+              label="Whisperer"
+              value={String(z.counts?.whisperer ?? 0)}
+              tone="amber"
+              icon={<Sparkles className="h-4 w-4" />}
+              hint="Shadow role active"
+            />
+            <StatCard
+              label={z.isPaid ? 'Weekly Pot' : 'In Play'}
+              value={z.isPaid ? `$${(z.potTotal ?? 0).toFixed(0)}` : `${(z.potTotal ?? 0).toFixed(0)}`}
+              tone="sky"
+              icon={<Trophy className="h-4 w-4" />}
+              hint={z.isPaid ? 'Cash on the line' : 'Points economy'}
+            />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+        <section className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+            <section className="rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(18,20,27,0.96),rgba(10,11,15,0.98))] p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Your Status</p>
+                  <h2 className="mt-2 text-2xl font-black text-white">{displayName}</h2>
                 </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--zombie-text-dim)]">
-                    Your Status
+                {my ? <ZombieStatusBadge status={my.status} dangerLevel={myDanger} /> : null}
+              </div>
+
+              {my ? (
+                <>
+                  <p className="mt-4 text-sm text-white/70">
+                    Record {my.wins}-{my.losses} with {my.pointsFor.toFixed(1)} season points.
                   </p>
-                  <p className="text-xl font-black text-white">{displayName}</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <ZombieStatusBadge status={my.status} />
-                    <span className="text-[12px] text-[var(--zombie-text-mid)]">
-                      {my.wins}-{my.losses} · {my.pointsFor.toFixed(1)} PF
-                    </span>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Danger</p>
+                      <p className={`mt-2 text-sm font-bold ${hasUrgentRisk ? 'text-rose-200' : 'text-emerald-200'}`}>
+                        {myDanger === 'stable' ? 'Stable' : myDanger === 'exposed' ? 'Exposed' : myDanger === 'critical' ? 'Critical' : 'Doomed'}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Serums</p>
+                      <p className="mt-2 text-sm font-bold text-sky-100">{inventory.serums ?? 0}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Weapons</p>
+                      <p className="mt-2 text-sm font-bold text-amber-100">{inventory.weapons ?? 0}</p>
+                    </div>
+                  </div>
+                  <div className={`mt-4 rounded-2xl border p-4 ${hasUrgentRisk ? 'border-rose-500/25 bg-rose-500/10' : 'border-emerald-500/20 bg-emerald-500/8'}`}>
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${hasUrgentRisk ? 'text-rose-200' : 'text-emerald-200'}`} />
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {hasUrgentRisk ? 'You are at real infection risk this week.' : 'You are not in the hottest danger pocket right now.'}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-white/65">
+                          {hasUrgentRisk
+                            ? 'Open Matchups and Chat before lock. The UI is treating your status as urgent based on current team risk and outbreak pressure.'
+                            : 'Keep watching the feed, inventory, and Whisperer activity. The danger board updates as events land.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-4 text-sm text-white/65">Join this league to unlock your personal survival card, danger tracking, and inventory actions.</p>
+              )}
+            </section>
+
+            <div className="space-y-4">
+              <ZombieWhispererCard
+                revealed={whispererRevealed}
+                displayName={z.whispererRecord?.displayName}
+                ambushesRemaining={z.whispererRecord?.ambushesRemaining ?? 0}
+                hordeSize={hordeCount}
+              />
+              <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Inventory Snapshot</p>
+                  <FlaskConical className="h-4 w-4 text-sky-200" />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Active</p>
+                    <p className="mt-2 text-lg font-black text-white">{inventory.activeItems ?? data.myActiveItemCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Pending</p>
+                    <p className="mt-2 text-lg font-black text-white">{inventory.pendingItems ?? data.myPendingItemCount ?? 0}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Quick inventory bar */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {my.serumsHeld ? (
-                  <Link
-                    href={`/zombie/${leagueId}/items`}
-                    className="flex items-center gap-1.5 rounded-lg bg-teal-500/12 px-3 py-1.5 text-[11px] font-semibold text-teal-300 transition hover:bg-teal-500/20"
-                  >
-                    {ZOMBIE_ITEM_ICON.serum_antidote} {my.serumsHeld} serum{my.serumsHeld > 1 ? 's' : ''}
-                  </Link>
-                ) : null}
-                {my.weaponsHeld ? (
-                  <Link
-                    href={`/zombie/${leagueId}/items`}
-                    className="flex items-center gap-1.5 rounded-lg bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 transition hover:bg-white/[0.08]"
-                  >
-                    ⚔️ {my.weaponsHeld} weapon{my.weaponsHeld > 1 ? 's' : ''}
-                  </Link>
-                ) : null}
-                {statusKey === 'zombie' && (
-                  <span className="flex items-center gap-1 rounded-lg bg-[var(--zombie-purple)]/12 px-3 py-1.5 text-[11px] font-semibold text-[var(--zombie-purple)]">
-                    🧟 INFECTED — Week {my.weekBecameZombie ?? '?'}
-                  </span>
-                )}
-              </div>
-            </>
-          ) : (
-            <p className="text-[13px] text-[var(--zombie-text-mid)]">
-              Join this league to see your survivor card here.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* Whisperer spotlight */}
-      <ZombieWhispererCard
-        revealed={whispererRevealed}
-        displayName={z.whispererRecord?.displayName}
-        ambushesRemaining={z.whispererRecord?.ambushesRemaining ?? 0}
-        hordeSize={data.hordeSize}
-      />
-
-      {/* Horde growth tracker */}
-      <ZombieHordeBar hordeCount={data.hordeSize} survivorCount={data.survivorCount} />
-
-      {/* Danger zone + at-risk indicator */}
-      {data.dangerMatchups && data.dangerMatchups.length > 0 ? (
-        <section className="rounded-xl border border-[var(--zombie-red)]/30 bg-[var(--zombie-red)]/[0.04] p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--zombie-red)]">
-            Danger Zone — You Are At Risk
-          </p>
-          <div className="mt-2 space-y-1.5">
-            {data.dangerMatchups.map((d, i) => (
-              <div key={i} className="flex items-center gap-2 text-[12px]">
-                <span className="text-[var(--zombie-red)]">⚠️</span>
-                <span className="text-[var(--zombie-text-mid)]">
-                  vs <span className="font-semibold text-white">{d.opponentName}</span>
-                </span>
-                <ZombieStatusBadge status={d.opponentStatus} compact />
-                <span
-                  className={clsx(
-                    'rounded px-1.5 py-0.5 text-[9px] font-bold',
-                    d.riskLevel === 'critical' && 'animate-pulse bg-red-500/30 text-red-100',
-                    d.riskLevel === 'high' && 'bg-red-500/20 text-red-200',
-                    d.riskLevel === 'medium' && 'bg-amber-500/20 text-amber-200',
-                    d.riskLevel === 'low' && 'bg-green-500/20 text-green-200',
-                  )}
+                <Link
+                  href={`/zombie/${leagueId}/items`}
+                  className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
                 >
-                  {d.riskLevel?.toUpperCase()}
-                </span>
+                  Open inventory
+                  <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </section>
+            </div>
+          </div>
+
+          <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Horde Growth Tracker</p>
+                <h2 className="mt-2 text-lg font-bold text-white">Outbreak pressure</h2>
               </div>
-            ))}
-          </div>
-        </section>
-      ) : (
-        <section className="rounded-xl border border-[var(--zombie-border)] bg-black/20 p-4">
-          <p className="text-[11px] font-semibold text-[var(--zombie-red)]">Danger Zone</p>
-          <p className="mt-1 text-[12px] text-[var(--zombie-text-mid)]">
-            Survivors facing Zombies or the Whisperer are at infection risk. See{' '}
-            <Link href={`/zombie/${leagueId}/matchups`} className="text-sky-400 underline">
-              Matchups
-            </Link>.
-          </p>
-        </section>
-      )}
+              <Skull className="h-5 w-5 text-rose-200" />
+            </div>
+            <div className="mt-4">
+              <ZombieHordeBar hordeCount={hordeCount} survivorCount={survivorCount} />
+            </div>
+            <p className="mt-4 text-sm text-white/65">{summaryLine(z, data)}</p>
+          </section>
 
-      {/* Recent infections alert */}
-      {recentInfections.length > 0 && (
-        <section
-          className={clsx(
-            'rounded-xl border border-[var(--zombie-purple)]/30 bg-[var(--zombie-purple)]/[0.04] p-4',
-            pulseActive && 'zombie-turn-anim',
-          )}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--zombie-purple)]">
-            Recent Infections
-          </p>
-          <div className="mt-2 space-y-1.5">
-            {recentInfections.map((a) => {
-              const meta = (a.metadata ?? {}) as Record<string, unknown>
-              return (
-                <p key={a.id} className="text-[12px] text-[var(--zombie-text-mid)]">
-                  🧟 {typeof meta.victimName === 'string' ? meta.victimName : 'A survivor'} was turned
-                  {typeof meta.infectorName === 'string' ? ` by ${meta.infectorName}` : ''}
-                  {a.week ? ` · Wk ${a.week}` : ''}
-                </p>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* Event feed */}
-      <section>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-[12px] font-bold uppercase tracking-wide text-[var(--zombie-text-dim)]">
-            Event Feed
-          </h2>
-          {newAnimCount > 0 && (
-            <span className="rounded-full bg-[var(--zombie-crimson)]/20 px-2 py-0.5 text-[10px] font-bold text-[var(--zombie-crimson)]">
-              {newAnimCount} new
-            </span>
-          )}
-        </div>
-        <ZombieEventFeed
-          animations={anims}
-          announcements={z.announcements}
-          maxItems={4}
-          compact
-          leagueId={leagueId}
-          leagueName={z.name}
-          animate
-        />
-      </section>
-
-      {/* Top performers */}
-      {topPerformers.length > 0 && (
-        <section className="rounded-xl border border-[var(--zombie-border)] bg-[var(--zombie-panel)] p-4">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--zombie-text-dim)]">
-            Top Performers
-          </p>
-          <div className="mt-2 space-y-1.5">
-            {topPerformers.map((t, i) => (
-              <div key={t.rosterId} className="flex items-center justify-between text-[12px]">
-                <div className="flex items-center gap-2">
-                  <span className="text-[var(--zombie-text-dim)]">#{i + 1}</span>
-                  <span className="font-medium text-[var(--zombie-text-full)]">
-                    {t.fantasyTeamName || t.displayName || t.rosterId}
-                  </span>
-                  <ZombieStatusBadge status={t.status} compact />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Danger Zone</p>
+                  <h2 className="mt-2 text-lg font-bold text-white">Managers under pressure</h2>
                 </div>
-                <span className="font-mono text-[var(--zombie-text-mid)]">{t.pointsFor.toFixed(1)}</span>
+                <Crosshair className="h-5 w-5 text-rose-200" />
               </div>
-            ))}
+              <div className="mt-4 space-y-3">
+                {(z.dangerZone?.length ? z.dangerZone : z.teams).slice(0, 4).map((team, index) => (
+                  <div key={team.rosterId} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Hot Seat {index + 1}</p>
+                      <p className="truncate text-sm font-semibold text-white">{teamName(team)}</p>
+                    </div>
+                    <ZombieStatusBadge status={team.status} dangerLevel={toDangerLevel(team.riskScore)} />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Weekly Update</p>
+                  <h2 className="mt-2 text-lg font-bold text-white">Command summary</h2>
+                </div>
+                <Sparkles className="h-5 w-5 text-amber-200" />
+              </div>
+              {lastUpdate ? (
+                <>
+                  <p className="mt-4 text-sm font-semibold text-white">Week {lastUpdate.week ?? z.currentWeek}</p>
+                  <p className="mt-2 line-clamp-6 whitespace-pre-wrap text-sm leading-6 text-white/70">{lastUpdate.content}</p>
+                </>
+              ) : (
+                <p className="mt-4 text-sm text-white/60">No weekly recap has been posted yet. The home screen is still tracking live events below.</p>
+              )}
+              {z.latestResolution?.status ? (
+                <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs text-white/60">
+                  Latest resolution status: <span className="capitalize text-white/85">{z.latestResolution.status}</span>
+                </div>
+              ) : null}
+            </section>
           </div>
         </section>
-      )}
 
-      {/* Economy snapshot */}
-      <section className="rounded-xl border border-[var(--zombie-border)] bg-[var(--zombie-panel)] p-4">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--zombie-text-dim)]">
-          {z.isPaid ? 'Weekly Pot' : 'Points Economy'}
-        </p>
-        <p className="mt-1 text-xl font-black text-white">
-          {z.isPaid ? `$${(z.potTotal ?? 0).toFixed(2)}` : `${(z.potTotal ?? 0).toFixed(1)} pts`}
-        </p>
-      </section>
+        <aside className="space-y-4">
+          <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Recent Events Feed</p>
+                <h2 className="mt-2 text-lg font-bold text-white">Outbreak timeline</h2>
+              </div>
+              <Swords className="h-5 w-5 text-rose-200" />
+            </div>
+            <div className="mt-4">
+              <ZombieEventFeed
+                animations={anims}
+                announcements={z.announcements}
+                maxItems={5}
+                compact
+                leagueId={leagueId}
+                leagueName={z.name}
+              />
+            </div>
+            <Link
+              href={`/zombie/${leagueId}/history`}
+              className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
+            >
+              Open full history
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </section>
 
-      {/* Latest weekly update */}
-      {lastUpdate ? (
-        <section className="rounded-xl border border-[var(--zombie-border)] bg-[var(--zombie-panel)] p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--zombie-text-dim)]">
-              Latest Update · Week {lastUpdate.week ?? '?'}
-            </p>
-            <span className="text-[10px] text-[var(--zombie-text-dim)]">
-              {new Date(lastUpdate.createdAt).toLocaleDateString()}
-            </span>
-          </div>
-          <p className="mt-2 line-clamp-5 whitespace-pre-wrap text-[12px] text-[var(--zombie-text-mid)]">
-            {lastUpdate.content}
-          </p>
-        </section>
-      ) : null}
+          <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Top Performers</p>
+                <h2 className="mt-2 text-lg font-bold text-white">Leaders this week</h2>
+              </div>
+              <Trophy className="h-5 w-5 text-amber-200" />
+            </div>
+            <div className="mt-4 space-y-3">
+              {(topPerformers.length ? topPerformers : z.teams.slice(0, 3)).map((team, index) => (
+                <div key={team.rosterId} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Performer {index + 1}</p>
+                      <p className="truncate text-sm font-semibold text-white">{teamName(team)}</p>
+                    </div>
+                    <ZombieStatusBadge status={team.status} />
+                  </div>
+                  <p className="mt-2 text-xs text-white/60">
+                    Season points {team.pointsFor.toFixed(1)}
+                    {typeof team.weeklyScore === 'number' ? ` | Week score ${team.weeklyScore.toFixed(1)}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
 
-      {/* Quick action nav */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-        {[
-          { href: `/zombie/${leagueId}/chat`, label: 'Chat', icon: '💬' },
-          { href: `/zombie/${leagueId}/standings`, label: 'Standings', icon: '📊' },
-          { href: `/zombie/${leagueId}/matchups`, label: 'Matchups', icon: '🎯' },
-          { href: `/zombie/${leagueId}/items`, label: 'Items', icon: '🎒' },
-          { href: `/zombie/${leagueId}/rules`, label: 'Rules', icon: '📜' },
-          ...(z.universeId ? [{ href: `/zombie/universe/${z.universeId}`, label: 'Universe', icon: '🌍' }] : []),
-        ].map((n) => (
-          <Link
-            key={n.href}
-            href={n.href}
-            className="flex flex-col items-center gap-1 rounded-xl border border-[var(--zombie-border)] bg-[var(--zombie-panel)] p-3 text-center transition hover:bg-white/[0.03]"
-          >
-            <span className="text-lg">{n.icon}</span>
-            <span className="text-[10px] font-semibold text-[var(--zombie-text-mid)]">{n.label}</span>
-          </Link>
-        ))}
+          <section className="rounded-3xl border border-white/10 bg-[var(--zombie-panel)] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/45">Navigation</p>
+                <h2 className="mt-2 text-lg font-bold text-white">Jump to live surfaces</h2>
+              </div>
+              <ArrowUpRight className="h-5 w-5 text-sky-200" />
+            </div>
+            <div className="mt-4 grid gap-2">
+              <Link href={`/zombie/${leagueId}/standings`} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]">
+                Standings and status map
+              </Link>
+              <Link href={`/zombie/${leagueId}/matchups`} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]">
+                Matchups and infection risk
+              </Link>
+              <Link href={`/zombie/${leagueId}/chat`} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]">
+                League chat and @Chimmy
+              </Link>
+              {z.universeId ? (
+                <Link href={`/app/zombie-universe/${z.universeId}`} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]">
+                  Universe war room
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
+    </>
   )
 }

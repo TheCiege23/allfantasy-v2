@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveDatabaseUrl } from '@/lib/env/database-url'
+import { getDatabaseUrlOrThrow, resolveDatabaseUrl } from '@/lib/env/database-url'
 
 describe('resolveDatabaseUrl', () => {
   it('adds pgbouncer-safe params for Supabase transaction pooler URLs', () => {
@@ -26,5 +26,13 @@ describe('resolveDatabaseUrl', () => {
       POSTGRES_URL: input,
     })
     expect(url).toBe(input)
+  })
+
+  it('getDatabaseUrlOrThrow explains invalid schemes when no postgres URL is available', () => {
+    expect(() =>
+      getDatabaseUrlOrThrow({
+        DATABASE_URL: 'prisma://accelerate.example.net/?api_key=secret',
+      })
+    ).toThrow(/Invalid database URL/)
   })
 })

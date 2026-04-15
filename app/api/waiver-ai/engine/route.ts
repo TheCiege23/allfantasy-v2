@@ -139,7 +139,9 @@ export const POST = withApiUsage({
   let userId: string | null = null
   let tokenFallbackLedgerId: string | null = null
   try {
-    const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+    const session = (await getServerSession(authOptions as any)) as {
+      user?: { id?: string; email?: string | null }
+    } | null
     userId = session?.user?.id ?? null
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -171,6 +173,7 @@ export const POST = withApiUsage({
 
     const gate = await requireFeatureEntitlement({
       userId,
+      userEmail: session?.user?.email,
       featureId: 'ai_waivers',
       allowTokenFallback: true,
       confirmTokenSpend: Boolean(input.confirmTokenSpend),

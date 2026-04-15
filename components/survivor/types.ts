@@ -33,6 +33,26 @@ export interface SurvivorSummaryConfig {
   tribalCouncilDayOfWeek?: number | null
   tribalCouncilTimeUtc?: string | null
   minigameFrequency?: string
+  /** Commissioner headline (e.g. Heroes vs Villains); not a default tribe split. */
+  seasonThemeLabel?: string | null
+  challengesSystemRun?: boolean
+  regularSeasonEndWeek?: number | null
+  faqSeededAt?: string | null
+}
+
+/** Matches `ScrollRevealStep` from `lib/survivor/votingEngine.ts` (JSON on council). */
+export type SurvivorScrollRevealStep =
+  | { type: 'vote'; voterName: string; targetName: string }
+  | { type: 'pause' }
+  | { type: 'does_not_count'; voterName: string }
+  | { type: 'elimination'; userName: string }
+  | { type: 'idol_play'; powerLabel: string }
+
+export interface SurvivorSeasonCalendar {
+  firstWeek: number
+  lastWeek: number
+  sport: string
+  sportsSupported: readonly string[] | string[]
 }
 
 export interface SurvivorSummaryTribe {
@@ -50,6 +70,8 @@ export interface SurvivorSummaryCouncil {
   voteDeadlineAt: string
   closedAt: string | null
   eliminatedRosterId: string | null
+  revealSequence?: SurvivorScrollRevealStep[] | null
+  isRevealed?: boolean
 }
 
 export interface SurvivorSummaryChallenge {
@@ -64,6 +86,8 @@ export interface SurvivorSummaryChallenge {
 
 export interface SurvivorSummary {
   config: SurvivorSummaryConfig
+  /** Regular-season week window for main island + exile (no playoffs). */
+  seasonCalendar?: SurvivorSeasonCalendar
   currentWeek: number
   tribes: SurvivorSummaryTribe[]
   council: SurvivorSummaryCouncil | null

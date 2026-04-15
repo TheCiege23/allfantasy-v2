@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const scope = req.nextUrl.searchParams.get('scope') ?? 'auto'
-  const forceRefresh = parseBoolean(req.nextUrl.searchParams.get('force'))
+  const scope = req.nextUrl.searchParams?.get('scope') ?? 'auto'
+  const forceRefresh = parseBoolean(req.nextUrl.searchParams?.get('force'))
   const includeTeamLogos =
     scope === 'all' || scope === 'teams' || (scope === 'auto' && shouldRunMonthlyTeamLogoRefresh())
   const includePlayerHeadshots = scope !== 'teams'
@@ -41,3 +41,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Image import failed' }, { status: 500 })
   }
 }
+

@@ -19,7 +19,8 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url)
-  const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") || "20", 10)))
+  const limit = Math.min(50, Math.max(1, parseInt(url.searchParams?.get("limit") || "20", 10)))
   const episodes = await listEpisodes(session.user.id, limit)
   return NextResponse.json({ episodes })
 }
+

@@ -59,6 +59,10 @@ export function OnboardingChecklist({
 
   if (!state || state.tasks.length === 0) return null
 
+  // Platform connect status (example: show connected platforms)
+  const platformTask = state.tasks.find((t) => t.id === 'connect_platforms')
+  const inviteTask = state.tasks.find((t) => t.id === 'share_invite_link')
+
   return (
     <div
       data-testid="onboarding-checklist"
@@ -104,12 +108,33 @@ export function OnboardingChecklist({
                   {task.label}
                 </p>
                 <p className="text-xs text-white/50 mt-0.5">{task.description}</p>
+                {/* Platform connect status */}
+                {task.id === 'connect_platforms' && (
+                  <span className="block text-xs mt-1 text-cyan-300">View and connect all platforms in your settings or dashboard.</span>
+                )}
+                {/* Invite link display */}
+                {task.id === 'share_invite_link' && (
+                  <span className="block text-xs mt-1 text-cyan-300">Your invite link is available on the referral page.</span>
+                )}
               </div>
               <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
             </Link>
           </li>
         ))}
       </ul>
+      {/* Optionally, show direct status for platforms and invite link below checklist */}
+      {platformTask && (
+        <div className="mt-4 p-3 rounded-xl bg-cyan-900/10 border border-cyan-400/20">
+          <span className="text-xs text-cyan-200 font-semibold">Platform Connect Status:</span>
+          <span className="block text-xs text-white/80 mt-1">Check your dashboard or settings to view all connected platforms.</span>
+        </div>
+      )}
+      {inviteTask && (
+        <div className="mt-3 p-3 rounded-xl bg-cyan-900/10 border border-cyan-400/20">
+          <span className="text-xs text-cyan-200 font-semibold">Invite Link:</span>
+          <span className="block text-xs text-white/80 mt-1">Generate and share your invite link from the referral page.</span>
+        </div>
+      )}
       {state.isFullyComplete && (
         <p data-testid="onboarding-checklist-complete" className="mt-3 text-xs text-emerald-400/80">
           All set! You’re ready to get the most out of AllFantasy.

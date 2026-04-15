@@ -152,9 +152,16 @@ export async function getScheduleTemplate(
   formatType: string = 'DEFAULT'
 ): Promise<ScheduleTemplateDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType) as SportType
-  const row = await prisma.scheduleTemplate.findUnique({
-    where: { uniq_schedule_template_sport_format: { sportType: sport, formatType } },
-  })
+  let row: Awaited<ReturnType<typeof prisma.scheduleTemplate.findUnique>>
+  try {
+    row = await prisma.scheduleTemplate.findUnique({
+      where: { sportType_formatType: { sportType: sport, formatType } },
+    })
+  } catch (err) {
+    // Production DBs may lag migrations (e.g. missing `sportType` column) — never fail league create.
+    console.warn('[getScheduleTemplate] DB lookup failed; using in-memory template', { sport, formatType, err })
+    row = null
+  }
   if (row) {
     return {
       templateId: row.id,

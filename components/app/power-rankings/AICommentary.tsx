@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { Loader2, MessageCircle } from 'lucide-react';
+import { useLanguage } from '@/components/i18n/LanguageProviderClient';
+import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver';
@@ -34,6 +36,7 @@ export function AICommentary({
   teams,
   initialCommentary = null,
 }: AICommentaryProps) {
+  const { t } = useLanguage();
   const [commentary, setCommentary] = useState(initialCommentary);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,18 +77,18 @@ export function AICommentary({
   return (
     <Card className="border-white/10 bg-white/5" data-audit="ai-commentary">
       <CardHeader>
-        <CardTitle className="text-lg text-white">AI commentary</CardTitle>
+        <CardTitle className="text-lg text-white">{t('leaguePowerRankings.ai.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {!commentary && !loading && (
           <Button onClick={fetchCommentary} className="gap-2" size="sm" data-testid="power-rankings-generate-commentary">
-            Generate commentary
+            {t('leaguePowerRankings.ai.generate')}
           </Button>
         )}
         {loading && (
           <div className="flex items-center gap-2 text-sm text-white/60">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Generating…
+            {t('leaguePowerRankings.ai.generating')}
           </div>
         )}
         {error && (
@@ -96,13 +99,13 @@ export function AICommentary({
                 href={upgradePath || '/commissioner-upgrade?feature=league_rankings'}
                 className="inline-flex rounded border border-amber-400/35 bg-amber-500/10 px-2 py-1 text-amber-100 hover:bg-amber-500/20"
               >
-                View plans
+                {t('leaguePowerRankings.ai.viewPlans')}
               </a>
               <a
                 href="/tokens?ruleCode=ai_league_rankings_explanation"
                 className="inline-flex rounded border border-cyan-400/35 bg-cyan-500/10 px-2 py-1 text-cyan-100 hover:bg-cyan-500/20"
               >
-                Buy tokens
+                {t('leaguePowerRankings.ai.buyTokens')}
               </a>
             </div>
           </div>
@@ -110,17 +113,33 @@ export function AICommentary({
         {showSummary && commentary && (
           <div className="space-y-3 text-sm text-white/85">
             {commentary.rankingSummary && (
-              <p><strong>Summary:</strong> {commentary.rankingSummary}</p>
+              <p>
+                <strong>{t('leaguePowerRankings.ai.summaryLabel')}</strong> {commentary.rankingSummary}
+              </p>
             )}
             {commentary.narrativeExplanation && (
-              <p><strong>Narrative:</strong> {commentary.narrativeExplanation}</p>
+              <p>
+                <strong>{t('leaguePowerRankings.ai.narrativeLabel')}</strong> {commentary.narrativeExplanation}
+              </p>
             )}
             {commentary.formulaExplanation && (
-              <p><strong>Formula:</strong> {commentary.formulaExplanation}</p>
+              <p>
+                <strong>{t('leaguePowerRankings.ai.formulaLabel')}</strong> {commentary.formulaExplanation}
+              </p>
             )}
             {commentary.providerStatus && (
               <p className="text-xs text-white/60" data-testid="power-rankings-provider-status">
-                Providers - DeepSeek: {commentary.providerStatus.deepseek ? 'on' : 'off'}, Grok: {commentary.providerStatus.grok ? 'on' : 'off'}, OpenAI: {commentary.providerStatus.openai ? 'on' : 'off'}
+                {interpolateTemplate(t('leaguePowerRankings.ai.providers'), {
+                  ds: commentary.providerStatus.deepseek
+                    ? t('leaguePowerRankings.ai.toggleOn')
+                    : t('leaguePowerRankings.ai.toggleOff'),
+                  gk: commentary.providerStatus.grok
+                    ? t('leaguePowerRankings.ai.toggleOn')
+                    : t('leaguePowerRankings.ai.toggleOff'),
+                  oa: commentary.providerStatus.openai
+                    ? t('leaguePowerRankings.ai.toggleOn')
+                    : t('leaguePowerRankings.ai.toggleOff'),
+                })}
               </p>
             )}
           </div>
@@ -137,7 +156,7 @@ export function AICommentary({
             data-testid="power-rankings-chimmy-explanation-link"
           >
             <MessageCircle className="h-4 w-4" />
-            Chimmy explanation
+            {t('leaguePowerRankings.ai.chimmyExplanation')}
           </a>
         </Button>
       </CardContent>

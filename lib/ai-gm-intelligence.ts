@@ -13,6 +13,7 @@ import {
   AssetTier,
 } from './dynasty-tiers';
 import { getComprehensiveLearningContext } from './comprehensive-trade-learning';
+import { getLeagueRosters, getLeagueUsers as getSleeperLeagueUsers } from './sleeper-client';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
@@ -350,9 +351,8 @@ interface RosterStanding {
 
 async function fetchLeagueRosterStandings(leagueId: string): Promise<RosterStanding[]> {
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`);
-    if (!res.ok) return [];
-    const rosters = await res.json();
+    const rosters = await getLeagueRosters(leagueId);
+    if (!Array.isArray(rosters) || rosters.length === 0) return [];
     
     const standings: RosterStanding[] = rosters
       .filter((r: { owner_id?: string }) => r.owner_id)
@@ -375,9 +375,8 @@ async function fetchLeagueRosterStandings(leagueId: string): Promise<RosterStand
 
 async function fetchLeagueUsers(leagueId: string): Promise<Map<string, string>> {
   try {
-    const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`);
-    if (!res.ok) return new Map();
-    const users = await res.json();
+    const users = await getSleeperLeagueUsers(leagueId);
+    if (!Array.isArray(users) || users.length === 0) return new Map();
     
     const userMap = new Map<string, string>();
     for (const u of users) {

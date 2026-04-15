@@ -18,6 +18,8 @@ type LeagueListPanelProps = {
   loading?: boolean
   /** Refetch dashboard league list after a successful Sleeper refresh */
   onLeaguesRefresh?: () => void
+  /** Remove a league from parent state after successful DELETE (My Leagues list) */
+  onLeagueRemoved?: (leagueId: string) => void
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -75,6 +77,7 @@ export function LeagueListPanel({
   compact = false,
   loading = false,
   onLeaguesRefresh,
+  onLeagueRemoved,
 }: LeagueListPanelProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -86,6 +89,8 @@ export function LeagueListPanel({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const draggedLeagueIdRef = useRef<string | null>(null)
   const refreshInFlightRef = useRef<Set<string>>(new Set())
+  const deleteInFlightRef = useRef<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const syncFromStorage = () => {
@@ -226,6 +231,52 @@ export function LeagueListPanel({
     [onLeaguesRefresh]
   )
 
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent, leagueId: string) => {
+      e.stopPropagation()
+      e.preventDefault()
+      if (deleteInFlightRef.current.has(leagueId)) return
+      if (
+        !window.confirm(
+          'Remove this league from your AllFantasy list? This does not delete the league on Sleeper or other platforms.'
+        )
+      ) {
+        return
+      }
+      deleteInFlightRef.current.add(leagueId)
+      setDeleting((prev) => ({ ...prev, [leagueId]: true }))
+      try {
+        const res = await fetch(`/api/league/${encodeURIComponent(leagueId)}`, {
+          method: 'DELETE',
+          credentials: 'include',
+        })
+        if (res.ok) {
+          onLeagueRemoved?.(leagueId)
+          persistFavoriteIds(favoriteIds.filter((id) => id !== leagueId))
+          persistOrderedIds(orderedIds.filter((id) => id !== leagueId))
+          onLeaguesRefresh?.()
+        } else {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          window.alert(data.error ?? 'Could not remove league')
+        }
+      } catch (err) {
+        console.error('delete league failed', err)
+        window.alert('Could not remove league')
+      } finally {
+        deleteInFlightRef.current.delete(leagueId)
+        setDeleting((prev) => ({ ...prev, [leagueId]: false }))
+      }
+    },
+    [
+      favoriteIds,
+      onLeagueRemoved,
+      onLeaguesRefresh,
+      orderedIds,
+      persistFavoriteIds,
+      persistOrderedIds,
+    ]
+  )
+
   return (
     <div className="flex h-full min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#0a0a1f]">
       {!compact ? (
@@ -304,6 +355,8 @@ export function LeagueListPanel({
                     isRefreshing={refreshing[league.id] ?? false}
                     isRefreshed={refreshed[league.id] ?? false}
                     onRefresh={handleRefresh}
+                    onDelete={handleDelete}
+                    isDeleting={deleting[league.id] ?? false}
                   />
                 </div>
               )

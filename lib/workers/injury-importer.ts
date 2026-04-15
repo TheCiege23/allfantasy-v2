@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { apiChain } from '@/lib/workers/api-chain'
+import { ingest, injuryAlert } from '@/lib/notification-engine'
 
 const UPSERT_BATCH_SIZE = 100
 
@@ -131,6 +132,19 @@ export async function runInjuryImporter(options?: {
         )
       )
       imported += batch.length
+
+      // Fire notifications for high-severity injuries (out, IR, suspended)
+      const highSeverity = batch.filter((r) =>
+        ['out', 'ir', 'injured reserve', 'suspended'].includes(r.status.toLowerCase())
+      )
+      for (const row of highSeverity.slice(0, 5)) {
+        void ingest(injuryAlert({
+          playerName: row.playerName,
+          team: row.team,
+          status: row.status,
+          sport: row.sport,
+        }))
+      }
     }
   }
 

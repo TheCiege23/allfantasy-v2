@@ -4,7 +4,7 @@ import {
   buildDevAdminSpendLedgerEntry,
   buildDevAdminTokenBalanceSnapshot,
   buildDevAdminTokenSpendPreview,
-  isDevAdminUserId,
+  isSubscriptionEntitlementBypassUserId,
 } from "@/lib/dev-admin/access"
 import {
   TOKEN_ENTRY_TYPES,
@@ -291,8 +291,8 @@ export class TokenSpendService {
     }
   }
 
-  async getBalance(userId: string): Promise<TokenBalanceSnapshot> {
-    if (isDevAdminUserId(userId)) {
+  async getBalance(userId: string, userEmail?: string | null): Promise<TokenBalanceSnapshot> {
+    if (isSubscriptionEntitlementBypassUserId(userId, userEmail)) {
       return buildDevAdminTokenBalanceSnapshot()
     }
 
@@ -322,6 +322,8 @@ export class TokenSpendService {
   async getSpendRules(options?: {
     activeOnly?: boolean
     userId?: string | null
+    /** When resolving per-user pricing, include session email so ADMIN_EMAILS bypass matches entitlements. */
+    userEmail?: string | null
   }): Promise<TokenSpendRuleView[]> {
     await syncSeedDataIfNeeded()
     const activeOnly = options?.activeOnly ?? true
@@ -342,7 +344,7 @@ export class TokenSpendService {
 
     let entitlement: EntitlementSnapshot | null = null
     if (userId) {
-      entitlement = await new EntitlementResolver().resolveSnapshot(userId)
+      entitlement = await new EntitlementResolver().resolveSnapshot(userId, options?.userEmail)
     }
 
     return rows.map((row: any) => ({
@@ -382,16 +384,20 @@ export class TokenSpendService {
     }))
   }
 
-  async previewSpend(userId: string, ruleCode: TokenSpendRuleCode | string): Promise<TokenSpendPreview> {
-    if (isDevAdminUserId(userId)) {
+  async previewSpend(
+    userId: string,
+    ruleCode: TokenSpendRuleCode | string,
+    userEmail?: string | null
+  ): Promise<TokenSpendPreview> {
+    if (isSubscriptionEntitlementBypassUserId(userId, userEmail)) {
       return buildDevAdminTokenSpendPreview(String(ruleCode))
     }
 
     await syncSeedDataIfNeeded()
     const [rule, balance, entitlement] = await Promise.all([
       this.getActiveRule(String(ruleCode)),
-      this.getBalance(userId),
-      new EntitlementResolver().resolveSnapshot(userId),
+      this.getBalance(userId, userEmail),
+      new EntitlementResolver().resolveSnapshot(userId, userEmail),
     ])
     return this.buildPreviewFromContext({
       rule,
@@ -405,8 +411,9 @@ export class TokenSpendService {
     ruleCode: TokenSpendRuleCode | string
     entitlement: EntitlementSnapshot
     currentBalance?: number
+    userEmail?: string | null
   }): Promise<TokenSpendPreview> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId, input.userEmail)) {
       return buildDevAdminTokenSpendPreview(String(input.ruleCode))
     }
 
@@ -415,7 +422,7 @@ export class TokenSpendService {
     const currentBalance =
       typeof input.currentBalance === "number"
         ? Number(input.currentBalance)
-        : Number((await this.getBalance(input.userId)).balance || 0)
+        : Number((await this.getBalance(input.userId, input.userEmail)).balance || 0)
 
     return this.buildPreviewFromContext({
       rule,
@@ -559,8 +566,10 @@ export class TokenSpendService {
     description?: string | null
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
+    /** Session email — enables ADMIN_EMAILS platform-admin bypass for token charges. */
+    userEmail?: string | null
   }): Promise<TokenLedgerEntryView> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId, input.userEmail)) {
       return buildDevAdminSpendLedgerEntry({
         ruleCode: String(input.ruleCode),
         sourceType: input.sourceType,
@@ -688,8 +697,9 @@ export class TokenSpendService {
     description?: string | null
     metadata?: Record<string, unknown> | null
     idempotencyKey?: string | null
+    userEmail?: string | null
   }): Promise<TokenLedgerEntryView> {
-    if (isDevAdminUserId(input.userId)) {
+    if (isSubscriptionEntitlementBypassUserId(input.userId, input.userEmail)) {
       return buildDevAdminRefundLedgerEntry({
         refundRuleCode: String(input.refundRuleCode),
         sourceType: input.sourceType ?? "refund_for_spend",

@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
@@ -125,3 +125,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ error: 'Invalid intent' }, { status: 400 })
 }
+

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { computeKeeperEligibility } from './eligibilityEngine'
 import { openKeeperSelectionPhase } from './selectionEngine'
+import { checkAndTriggerRatingIfOffseason } from '@/lib/commissioner/CommissionerRatingTrigger'
 
 export async function triggerKeeperOffseason(
   leagueId: string,
@@ -17,6 +18,9 @@ export async function triggerKeeperOffseason(
   })
 
   await computeKeeperEligibility(leagueId, completedSeasonId)
+
+  // Trigger commissioner rating prompt in league chat
+  await checkAndTriggerRatingIfOffseason(leagueId).catch(() => {})
 
   const incoming = await prisma.redraftSeason.findFirst({
     where: { leagueId, NOT: { id: completedSeasonId } },

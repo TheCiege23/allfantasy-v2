@@ -22,7 +22,7 @@ export function MobileNavigationDrawer({
   isAdmin = false,
   onOpenSearch,
 }: MobileNavigationDrawerProps) {
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
   const router = useRouter()
   const chimmyEntry = getPrimaryChimmyEntry({ source: "top_bar" })
 

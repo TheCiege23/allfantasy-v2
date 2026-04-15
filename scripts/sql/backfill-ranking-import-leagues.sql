@@ -1,0 +1,34 @@
+-- Reference only: manual backfill for ranking-import Sleeper rows.
+-- Prefer: npx tsx scripts/backfill-ranking-import-variant.ts [--dry-run] [--user-id=<uuid>] [--apply-case-b]
+--
+-- Case A (safe when import_* columns are populated): restore variant only
+-- UPDATE leagues
+-- SET league_variant = 'legacy_summary', updated_at = NOW()
+-- WHERE platform = 'sleeper'
+--   AND league_variant IS NULL
+--   AND status IS NOT NULL
+--   AND (
+--     import_wins IS NOT NULL
+--     OR import_losses IS NOT NULL
+--     OR import_final_standing IS NOT NULL
+--   );
+--
+-- Case B (user-scoped; hides league from My Leagues — confirm platform_league_id first):
+-- UPDATE leagues
+-- SET
+--   league_variant = 'legacy_summary',
+--   status = 'ranking_only',
+--   settings = COALESCE(settings, '{}'::jsonb) || jsonb_build_object(
+--     'rankImportOnly', true,
+--     'backfillRankingArtifact', true,
+--     'backfilledAt', to_jsonb(NOW()::text)
+--   ),
+--   updated_at = NOW()
+-- WHERE user_id = '<APP_USER_UUID>'
+--   AND platform = 'sleeper'
+--   AND league_variant IS NULL
+--   AND import_wins IS NULL
+--   AND import_losses IS NULL
+--   AND import_final_standing IS NULL
+--   AND status IS NOT NULL
+--   AND COALESCE(settings->>'rankImportOnly', '') <> 'true';

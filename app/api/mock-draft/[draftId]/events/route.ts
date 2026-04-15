@@ -16,7 +16,7 @@ export async function GET(
   const { draftId } = await ctx.params
   if (!draftId) return NextResponse.json({ error: 'Missing draftId' }, { status: 400 })
 
-  const since = req.nextUrl.searchParams.get('since')
+  const since = req.nextUrl.searchParams?.get('since')
   const events = await getMockDraftEvents(draftId, userId, since)
   if (!events.draft && !events.changed) {
     return NextResponse.json({ changed: false, serverTime: events.serverTime })

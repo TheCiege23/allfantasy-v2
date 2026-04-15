@@ -46,6 +46,8 @@ export function SurvivorCommandHelp({ compact }: SurvivorCommandHelpProps) {
       </h3>
       <p className="mb-4 text-sm text-white/60">
         Use these commands in league or tribe chat. Chimmy will process votes, idol plays, and challenge submissions.
+        When your host runs prop or tribe challenges, they may take the first locked submission only — confirm deadlines with
+        your commissioner.
       </p>
       <ul className="space-y-3">
         {commands.map((c) => (

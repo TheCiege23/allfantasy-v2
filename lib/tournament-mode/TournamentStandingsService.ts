@@ -5,11 +5,8 @@
  */
 
 import { prisma } from '@/lib/prisma'
-import { compareByTiebreakers } from './advancement-rules'
-import {
-  getAdvancementSlotsPerConference,
-  getBubbleSlotsPerConference,
-} from './advancement-rules'
+import { compareByTiebreakers, getBubbleSlotsPerConference } from './advancement-rules'
+import { getQualificationCutSlotsPerConference } from './tournament-sport-cutoffs'
 
 export interface UniversalStandingsRow {
   leagueId: string
@@ -101,6 +98,7 @@ export async function getUniversalStandingsRaw(tournamentId: string): Promise<Un
       const losses = Math.max(0, games - wins - ties)
       return {
         roster: r,
+        rosterId: r.id,
         wins,
         losses,
         ties,
@@ -108,7 +106,12 @@ export async function getUniversalStandingsRaw(tournamentId: string): Promise<Un
         pointsAgainst: paMap.get(r.id) ?? 0,
       }
     })
-    withStats.sort((a, b) => compareByTiebreakers(a, b))
+    const matchupData = matchups.map((m) => ({
+      teamA: m.teamA,
+      teamB: m.teamB,
+      winnerTeamId: m.winnerTeamId,
+    }))
+    withStats.sort((a, b) => compareByTiebreakers(a, b, undefined, matchupData))
     withStats.forEach((s, idx) => {
       qualificationRank++
       rows.push({
@@ -139,12 +142,18 @@ export async function applyConferenceRankingAndCutLine(
 ): Promise<UniversalStandingsRow[]> {
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { settings: true },
+    select: { settings: true, sport: true, conferences: { select: { id: true } } },
   })
   const settings = (tournament?.settings as Record<string, unknown>) ?? {}
-  const poolSize = Number(settings.participantPoolSize) || 120
+  const poolSize = Number(settings.participantPoolSize) || 72
   const bubbleEnabled = Boolean(settings.bubbleWeekEnabled)
-  const advancementPerConf = getAdvancementSlotsPerConference(poolSize)
+  const confCount = tournament?.conferences.length ?? 2
+  const advancementPerConf = getQualificationCutSlotsPerConference(
+    String(tournament?.sport ?? 'NFL'),
+    poolSize,
+    typeof settings.qualificationAdvancementTotal === 'number' ? settings.qualificationAdvancementTotal : undefined,
+    confCount
+  )
   const bubbleSlots = getBubbleSlotsPerConference(advancementPerConf, bubbleEnabled)
 
   const byConference = new Map<string, UniversalStandingsRow[]>()
@@ -155,14 +164,30 @@ export async function applyConferenceRankingAndCutLine(
   }
 
   const tiebreakerOrder = (settings.qualificationTiebreakers as string[]) ?? ['wins', 'points_for']
+
+  // Load all matchup facts for H2H tiebreaker support
+  const allLeagueIds = [...new Set(rows.map((r) => r.leagueId))]
+  const allMatchups = tiebreakerOrder.includes('head_to_head')
+    ? await prisma.matchupFact.findMany({
+        where: { leagueId: { in: allLeagueIds } },
+        select: { teamA: true, teamB: true, winnerTeamId: true },
+      })
+    : []
+  const matchupData = allMatchups.map((m) => ({
+    teamA: m.teamA,
+    teamB: m.teamB,
+    winnerTeamId: m.winnerTeamId,
+  }))
+
   const result: UniversalStandingsRow[] = []
   let qualificationRank = 0
 
   for (const [, list] of byConference) {
     list.sort((a, b) => compareByTiebreakers(
-      { wins: a.wins, losses: a.losses, pointsFor: a.pointsFor, pointsAgainst: a.pointsAgainst },
-      { wins: b.wins, losses: b.losses, pointsFor: b.pointsFor, pointsAgainst: b.pointsAgainst },
-      tiebreakerOrder
+      { rosterId: a.rosterId, wins: a.wins, losses: a.losses, pointsFor: a.pointsFor, pointsAgainst: a.pointsAgainst },
+      { rosterId: b.rosterId, wins: b.wins, losses: b.losses, pointsFor: b.pointsFor, pointsAgainst: b.pointsAgainst },
+      tiebreakerOrder,
+      matchupData
     ))
     const cutLine = advancementPerConf
     const bubbleStart = cutLine + 1

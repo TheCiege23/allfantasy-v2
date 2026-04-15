@@ -31,7 +31,7 @@ export const POST = withApiUsage({ endpoint: "/api/admin/trade-learning", tool: 
 
 export const GET = withApiUsage({ endpoint: "/api/admin/trade-learning", tool: "AdminTradeLearning" })(async (request: NextRequest) => {
   try {
-    const season = parseInt(request.nextUrl.searchParams.get('season') || '2025');
+    const season = parseInt(request.nextUrl.searchParams?.get('season') || '2025');
     
     const stats = await prisma.tradeLearningStats.findUnique({
       where: { season },
@@ -63,3 +63,4 @@ export const GET = withApiUsage({ endpoint: "/api/admin/trade-learning", tool: "
     );
   }
 })
+

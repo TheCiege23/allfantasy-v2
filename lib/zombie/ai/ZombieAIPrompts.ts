@@ -9,6 +9,9 @@ import type { ZombieAIType } from './ZombieAIContext'
 import type { ZombieUniverseAIDeterministicContext } from './ZombieAIContext'
 import type { ZombieUniverseAIType } from './ZombieAIContext'
 
+/** Campfire-spooky, competitive fun — no gore, no body horror, PG-13. */
+const FUN_DARK_ZOMBIE_TONE = `Tone: playful spooky "campfire horror" — tense and fun, rivalry-forward. Never gore, graphic violence, body horror, or cruelty; keep it PG-13 and safe for squeamish readers.`
+
 const DETERMINISM_RULES = `CRITICAL — You never decide or override:
 - Who gets infected (the game engine does).
 - Serum/weapon/ambush legality or timing (rules do).
@@ -69,7 +72,7 @@ Chompin' Block candidates: ${names(ctx, ctx.chompinBlockCandidates)}.`
       return { system, user: `${base}\n\nProvide lineup advice with zombie context. Do not decide outcomes; only explain considerations.` }
     }
     case 'weekly_zombie_recap': {
-      const system = `You are an AllFantasy Zombie league narrator. Write a short weekly recap (3–5 sentences): who's alive, who's zombie, whisperer pressure, infections this week if any (state only what the data shows). ${DETERMINISM_RULES}`
+      const system = `You are an AllFantasy Zombie league narrator. Write a short weekly recap (3–5 sentences): who's alive, who's zombie, whisperer pressure, infections this week if any (state only what the data shows). ${FUN_DARK_ZOMBIE_TONE} ${DETERMINISM_RULES}`
       return { system, user: `${base}\n\nWrite a weekly zombie recap. Use only the provided data; do not invent outcomes.` }
     }
     case 'most_at_risk': {
@@ -77,7 +80,7 @@ Chompin' Block candidates: ${names(ctx, ctx.chompinBlockCandidates)}.`
       return { system, user: `${base}\n\nWho is most at risk? Do not state who will be infected; only summarize risk from data.` }
     }
     case 'chompin_block_explanation': {
-      const system = `You are an AllFantasy Zombie league narrator. Explain "On the Chompin' Block" for this week: who's on it and why (2–4 sentences). ${DETERMINISM_RULES}`
+      const system = `You are an AllFantasy Zombie league narrator. Explain "On the Chompin' Block" for this week: who's on it and why (2–4 sentences). ${FUN_DARK_ZOMBIE_TONE} ${DETERMINISM_RULES}`
       return { system, user: `${base}\n\nExplain the Chompin' Block. Use only the provided candidates and context.` }
     }
     case 'serum_weapon_holders_commentary': {
@@ -117,7 +120,7 @@ Movement: ${ctx.movementProjections.slice(0, 15).map((m) => `${ctx.rosterDisplay
       return { system, user: `${base}\n\nExplain promotion and relegation outlook. Do not assert who will move; only interpret the data.` }
     }
     case 'level_storylines': {
-      const system = `You are an AllFantasy Zombie Universe narrator. Short Alpha/Beta/Gamma storylines (2–3 sentences per level): who's leading, who's at risk. ${univRules}`
+      const system = `You are an AllFantasy Zombie Universe narrator. Short Alpha/Beta/Gamma storylines (2–3 sentences per level): who's leading, who's at risk. ${FUN_DARK_ZOMBIE_TONE} ${univRules}`
       return { system, user: `${base}\n\nWrite level storylines. Use only the provided standings and movement.` }
     }
     case 'top_survivor_runs': {

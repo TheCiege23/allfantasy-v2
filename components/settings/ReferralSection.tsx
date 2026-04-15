@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Copy, Check, Share2, Users, UserPlus, Gift, Loader2 } from "lucide-react"
-import { buildInviteShareUrl } from "@/lib/invite-engine/shareUrls"
+import { Copy, Check, Users, UserPlus, Gift, Loader2 } from "lucide-react"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ReferralShareBar } from "@/components/referral/ReferralShareBar"
 
 type Stats = { clicks: number; signups: number; pendingRewards: number; redeemedRewards: number }
@@ -19,6 +19,7 @@ type Reward = {
 }
 
 export function ReferralSection() {
+  const { t } = useLanguage()
   const [code, setCode] = useState<string | null>(null)
   const [link, setLink] = useState<string | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
@@ -115,10 +116,10 @@ export function ReferralSection() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
-          Refer friends
+          {t("settings.referral.title")}
         </h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          Share your link. When friends sign up, you earn rewards.
+          {t("settings.referral.subtitle")}
         </p>
       </div>
 
@@ -127,7 +128,7 @@ export function ReferralSection() {
           {code && (
             <>
               <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>
-                Your referral code
+                {t("settings.referral.yourCode")}
               </label>
               <div className="mt-2 flex flex-wrap items-center gap-2 mb-4">
                 <input
@@ -145,13 +146,13 @@ export function ReferralSection() {
                   style={{ borderColor: "var(--border)", color: "var(--text)" }}
                 >
                   {copiedCode ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copiedCode ? "Copied" : "Copy code"}
+                  {copiedCode ? t("settings.referral.copied") : t("settings.referral.copyCode")}
                 </button>
               </div>
             </>
           )}
           <label className="text-xs font-medium" style={{ color: "var(--muted)" }}>
-            Your referral link
+            {t("settings.referral.yourLink")}
           </label>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input
@@ -169,7 +170,7 @@ export function ReferralSection() {
               style={{ borderColor: "var(--border)", color: "var(--text)" }}
             >
               {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copiedLink ? "Copied" : "Copy link"}
+              {copiedLink ? t("settings.referral.copied") : t("settings.referral.copyLink")}
             </button>
           </div>
           {link && (
@@ -185,26 +186,26 @@ export function ReferralSection() {
           <div data-testid="referral-stat-clicks" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Users className="h-5 w-5" style={{ color: "var(--muted)" }} />
-              <span className="text-sm" style={{ color: "var(--muted)" }}>Clicks</span>
+              <span className="text-sm" style={{ color: "var(--muted)" }}>{t("settings.referral.statClicks")}</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.clicks}</p>
           </div>
           <div data-testid="referral-stat-signups" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" style={{ color: "var(--muted)" }} />
-              <span className="text-sm" style={{ color: "var(--muted)" }}>Signups</span>
+              <span className="text-sm" style={{ color: "var(--muted)" }}>{t("settings.referral.statSignups")}</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.signups}</p>
           </div>
           <div data-testid="referral-stat-pending-rewards" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
             <div className="flex items-center gap-2">
               <Gift className="h-5 w-5" style={{ color: "var(--muted)" }} />
-              <span className="text-sm" style={{ color: "var(--muted)" }}>Pending rewards</span>
+              <span className="text-sm" style={{ color: "var(--muted)" }}>{t("settings.referral.statPendingRewards")}</span>
             </div>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.pendingRewards}</p>
           </div>
           <div data-testid="referral-stat-redeemed-rewards" className="rounded-xl border p-4" style={{ borderColor: "var(--border)" }}>
-            <span className="text-sm" style={{ color: "var(--muted)" }}>Redeemed</span>
+            <span className="text-sm" style={{ color: "var(--muted)" }}>{t("settings.referral.statRedeemed")}</span>
             <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--text)" }}>{stats.redeemedRewards}</p>
           </div>
         </div>
@@ -213,7 +214,7 @@ export function ReferralSection() {
       {rewards.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-            Rewards
+            {t("settings.referral.rewardsHeading")}
           </h3>
           <ul className="space-y-2">
             {rewards.map((r) => (
@@ -225,7 +226,7 @@ export function ReferralSection() {
                 <div>
                   <span className="font-medium" style={{ color: "var(--text)" }}>{r.label}</span>
                   <span className="ml-2 text-xs" style={{ color: "var(--muted)" }}>
-                    {r.status === "redeemed" ? "Claimed" : r.status === "claimable" ? "Ready to claim" : "Pending"}
+                    {r.status === "redeemed" ? t("settings.referral.statusClaimed") : r.status === "claimable" ? t("settings.referral.statusReady") : t("settings.referral.statusPending")}
                   </span>
                   {r.helperText ? (
                     <p className="mt-1 text-xs" style={{ color: "var(--muted)" }}>
@@ -242,7 +243,7 @@ export function ReferralSection() {
                     className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                     style={{ borderColor: "var(--accent)", color: "var(--accent)" }}
                   >
-                    {redeemingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : r.claimLabel ?? "Claim"}
+                    {redeemingId === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : r.claimLabel ?? t("settings.referral.claim")}
                   </button>
                 )}
               </li>
@@ -253,7 +254,9 @@ export function ReferralSection() {
 
       {!link && !code && !loading && (
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Could not load referral link. <Link href="/referral" className="underline">Open referral dashboard</Link> or try refreshing.
+          {t("settings.referral.loadFailed")}{" "}
+          <Link href="/referral" className="underline">{t("settings.referral.openDashboard")}</Link>{" "}
+          {t("settings.referral.tryRefresh")}
         </p>
       )}
     </div>

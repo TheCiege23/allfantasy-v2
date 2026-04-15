@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const shareId = searchParams.get('shareId');
+  const shareId = searchParams?.get('shareId');
   if (!shareId) return NextResponse.json({ error: 'shareId required' }, { status: 400 });
 
   const logs = await getSharePublishLogs(shareId, session.user.id);
@@ -51,3 +51,4 @@ export async function POST(req: Request) {
   const logs = await getSharePublishLogs(shareId, session.user.id);
   return NextResponse.json({ ...result, logs });
 }
+

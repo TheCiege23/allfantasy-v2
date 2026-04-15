@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { computeWeeklyPointsByTlpId } from '@/lib/tournament/computeTournamentWeeklyPoints'
+import { getLegacyTournamentStandingsPayload } from '@/lib/tournament/legacyTournamentStandings'
 import { canViewStandings } from '@/lib/tournament/shellAccess'
 
 export const dynamic = 'force-dynamic'
@@ -12,15 +13,44 @@ export async function GET(req: NextRequest) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id ?? null
 
-  const tournamentId = req.nextUrl.searchParams.get('tournamentId')?.trim()
+  const tournamentId = req.nextUrl.searchParams?.get('tournamentId')?.trim()
   if (!tournamentId) return NextResponse.json({ error: 'tournamentId required' }, { status: 400 })
 
-  const roundNumber = req.nextUrl.searchParams.get('roundNumber')
-  const conferenceId = req.nextUrl.searchParams.get('conferenceId')?.trim()
-  const participantId = req.nextUrl.searchParams.get('participantId')?.trim()
+  const roundNumber = req.nextUrl.searchParams?.get('roundNumber')
+  const conferenceId = req.nextUrl.searchParams?.get('conferenceId')?.trim()
+  const participantId = req.nextUrl.searchParams?.get('participantId')?.trim()
 
   const shell = await prisma.tournamentShell.findUnique({ where: { id: tournamentId } })
-  if (!shell) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!shell) {
+    if (participantId || conferenceId) {
+      return NextResponse.json(
+        { error: 'participantId and conferenceId filters are only supported for shell tournaments' },
+        { status: 400 },
+      )
+    }
+    const rn = roundNumber ? parseInt(roundNumber, 10) : null
+    const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
+    const week = weekRaw != null && weekRaw !== '' ? parseInt(weekRaw, 10) : null
+    const legacy = await getLegacyTournamentStandingsPayload(
+      tournamentId,
+      userId,
+      rn != null && Number.isFinite(rn) ? rn : null,
+      week != null && Number.isFinite(week) ? week : null,
+    )
+    if ('error' in legacy && legacy.status === 404) {
+      return NextResponse.json({ error: legacy.error }, { status: 404 })
+    }
+    if ('error' in legacy && legacy.status === 403) {
+      return NextResponse.json({ error: legacy.error }, { status: 403 })
+    }
+    if ('error' in legacy && legacy.status === 400) {
+      return NextResponse.json({ error: legacy.error }, { status: 400 })
+    }
+    if ('round' in legacy) {
+      return NextResponse.json(legacy)
+    }
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const allowed = await canViewStandings(tournamentId, userId, shell.standingsVisibility)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -65,7 +95,7 @@ export async function GET(req: NextRequest) {
     },
   })
 
-  const weekRaw = req.nextUrl.searchParams.get('week')?.trim()
+  const weekRaw = req.nextUrl.searchParams?.get('week')?.trim()
   if (weekRaw != null && weekRaw !== '') {
     const w = parseInt(weekRaw, 10)
     if (!Number.isFinite(w)) {
@@ -96,3 +126,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ round, leagues })
 }
+

@@ -4,12 +4,8 @@ import { useState, useEffect } from "react"
 import ChimmyVoiceSettingsCard from "@/components/settings/ChimmyVoiceSettingsCard"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import {
-  DEFAULT_THEME,
-  getThemeDisplayName,
-  normalizeStoredTheme,
-  type ThemeId,
-} from "@/lib/theme"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
+import { DEFAULT_THEME, normalizeStoredTheme, type ThemeId } from "@/lib/theme"
 import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
 import { SIGNUP_TIMEZONES } from "@/lib/signup/timezones"
 import {
@@ -32,7 +28,7 @@ export function PreferencesSettingsSection({
   onSave: SettingsOnSave
 }) {
   const { setMode } = useThemeMode()
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage, t } = useLanguage()
   const [timezone, setTimezone] = useState(profile?.timezone ?? "")
   const [lang, setLang] = useState<"en" | "es">(profile?.preferredLanguage ?? language)
   const [theme, setTheme] = useState<ThemeId>(() =>
@@ -92,15 +88,18 @@ export function PreferencesSettingsSection({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white">Preferences</h2>
-        <p className="mt-1 text-sm text-white/55">
-          Language, timezone, theme, and default sport. Synced across devices when signed in.
-        </p>
+        <h2 className="text-lg font-semibold text-white">{t("settings.preferences.title")}</h2>
+        <p className="mt-1 text-sm text-white/55">{t("settings.preferences.subtitle")}</p>
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">Language</label>
-        <div className="flex gap-2" data-testid="settings-language-toggle" role="radiogroup" aria-label="Language toggle">
+        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.language")}</label>
+        <div
+          className="flex gap-2"
+          data-testid="settings-language-toggle"
+          role="radiogroup"
+          aria-label={t("settings.preferences.languageToggleAria")}
+        >
           {(["en", "es"] as const).map((l) => (
             <button
               key={l}
@@ -114,33 +113,35 @@ export function PreferencesSettingsSection({
               role="radio"
               aria-checked={lang === l}
             >
-              {l === "en" ? "English" : "Español"}
+              {l === "en" ? t("common.english") : t("common.spanish")}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">Timezone</label>
+        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.timezone")}</label>
         <select
           value={timezone}
           onChange={(e) => setTimezone(e.target.value)}
           className="w-full max-w-md rounded-xl border border-white/[0.12] bg-[#0d1117] px-3 py-2 text-sm text-white outline-none"
         >
-          <option value="">Select timezone</option>
+          <option value="">{t("settings.preferences.timezonePlaceholder")}</option>
           {SIGNUP_TIMEZONES.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
           ))}
         </select>
         {timezone && (
           <p className="mt-1.5 text-xs text-white/45">
-            Your local time: {formatInTimezone(new Date(), timezone, undefined, lang)}
+            {interpolateTemplate(t("settings.preferences.localTime"), {
+              time: formatInTimezone(new Date(), timezone, undefined, lang),
+            })}
           </p>
         )}
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">Default sport</label>
+        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.defaultSport")}</label>
         <select
           value={defaultSport}
           onChange={(e) => setDefaultSport(normalizeToSupportedSport(e.target.value))}
@@ -153,27 +154,25 @@ export function PreferencesSettingsSection({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/60">Theme</label>
+        <label className="mb-1 block text-sm font-medium text-white/60">{t("settings.preferences.theme")}</label>
         <div className="flex flex-wrap gap-2">
-          {themeOptions.map((t) => (
+          {themeOptions.map((themeId) => (
             <button
-              key={t}
+              key={themeId}
               type="button"
-              onClick={() => setTheme(t)}
+              onClick={() => setTheme(themeId)}
               className={`rounded-xl border px-4 py-2 text-sm font-medium ${
-                theme === t
+                theme === themeId
                   ? "border-cyan-400/80 bg-cyan-500/15 text-white"
                   : "border-white/[0.12] bg-[#1a1f3a] text-white/80 hover:bg-white/[0.06]"
               }`}
             >
-              {getThemeDisplayName(t)}
+              {t(`theme.${themeId}`)}
             </button>
           ))}
         </div>
         {theme === "system" && (
-          <p className="mt-1.5 text-xs text-white/45">
-            Uses your system light or dark appearance.
-          </p>
+          <p className="mt-1.5 text-xs text-white/45">{t("settings.preferences.systemThemeHint")}</p>
         )}
       </div>
 
@@ -185,14 +184,14 @@ export function PreferencesSettingsSection({
           disabled={saving}
           className="rounded-xl bg-gradient-to-r from-cyan-500/90 to-violet-600/90 px-4 py-2 text-sm font-semibold text-white shadow-lg disabled:opacity-60"
         >
-          {saving ? "Saving…" : "Save preferences"}
+          {saving ? t("settings.actions.saving") : t("settings.preferences.save")}
         </button>
         <button
           type="button"
           onClick={resetDraft}
           className="rounded-xl border border-white/[0.12] px-4 py-2 text-sm font-medium text-white/90 hover:bg-white/[0.06]"
         >
-          Cancel changes
+          {t("settings.actions.cancelChanges")}
         </button>
       </div>
     </form>

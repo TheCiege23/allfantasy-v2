@@ -65,7 +65,7 @@ async function buildSimEntries(leagueId: string, tournamentId: string) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const leagueId = searchParams.get("leagueId")
+  const leagueId = searchParams?.get("leagueId")
 
   if (!leagueId) {
     return new Response("Missing leagueId", { status: 400 })
@@ -157,3 +157,4 @@ export async function GET(request: NextRequest) {
     },
   })
 }
+

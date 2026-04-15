@@ -7,9 +7,10 @@ import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 
 /**
  * App routes that must have a valid NextAuth session (JWT).
- * Matches: /dashboard/rankings, /dashboard/rankings/*, /league/*
+ * Matches: /af-rankings, /dashboard/rankings (redirect), /league/*
  */
 function requiresSessionAuth(pathname: string): boolean {
+  if (pathname.startsWith("/af-rankings")) return true
   if (pathname.startsWith("/dashboard/rankings")) return true
   if (pathname.startsWith("/league/")) return true
   return false
@@ -92,6 +93,29 @@ function redirectDeprecatedAppRoutes(request: NextRequest): NextResponse | null 
   return null
 }
 
+/**
+ * Permanent app-owner / developer accounts that bypass geo-restrictions.
+ * Mirror of STATIC_ADMIN_USER_IDS in lib/dev-admin/access.ts.
+ * Keep in sync manually — this lives here to stay Edge-runtime-safe.
+ */
+const MIDDLEWARE_ADMIN_USER_IDS = new Set<string>([
+  '944bb9f1-7a25-455b-8ef2-66146dbf3553', // theciege24 — app owner
+])
+
+function parseMiddlewareAdminIds(rawValue: string | undefined): Set<string> {
+  if (!rawValue) return new Set()
+  return new Set(
+    rawValue.split(/[\n\r,;]+/).map((v) => v.trim()).filter(Boolean)
+  )
+}
+
+function isMiddlewareAdmin(userId: string | null | undefined): boolean {
+  const id = String(userId ?? '').trim()
+  if (!id) return false
+  if (MIDDLEWARE_ADMIN_USER_IDS.has(id)) return true
+  return parseMiddlewareAdminIds(process.env.DEV_ADMIN_USER_IDS).has(id)
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -105,6 +129,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const authSecret = resolveAuthSecret()
+  let tokenUserId: string | null = null
   if (authSecret && requiresSessionAuth(pathname)) {
     const token = await getToken({ req: request, secret: authSecret })
     if (!token) {
@@ -116,13 +141,14 @@ export async function middleware(request: NextRequest) {
       login.searchParams.set("callbackUrl", `${pathname}${request.nextUrl.search}`)
       return NextResponse.redirect(login)
     }
+    tokenUserId = typeof token.sub === 'string' ? token.sub : null
   }
 
   const country = request.headers.get("x-vercel-ip-country")
   const region = request.headers.get("x-vercel-ip-country-region")
   const ip = request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
 
-  if (country === "US" && region) {
+  if (country === "US" && region && !isMiddlewareAdmin(tokenUserId)) {
     const stateCode = region.toUpperCase()
 
     if (isFullyBlocked(stateCode)) {

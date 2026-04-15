@@ -22,7 +22,7 @@ export async function POST(
   if (!league) return NextResponse.json({ error: "League not found" }, { status: 404 })
 
   if (league.userId !== userId) {
-    const cronSecret = req.headers.get("x-cron-secret") ?? req.nextUrl.searchParams.get("cronSecret")
+    const cronSecret = req.headers.get("x-cron-secret") ?? req.nextUrl.searchParams?.get("cronSecret")
     if (cronSecret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }

@@ -13,9 +13,9 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim()
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const rosterId = req.nextUrl.searchParams.get('rosterId')?.trim()
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
   if (!leagueId || !seasonId || !rosterId) {
     return NextResponse.json({ error: 'leagueId, seasonId, rosterId required' }, { status: 400 })
   }
@@ -147,3 +147,4 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ record: rec })
 }
+

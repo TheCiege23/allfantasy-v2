@@ -15,6 +15,18 @@ import { GuillotineAIPanel } from './GuillotineAIPanel'
 
 const GUILLOTINE_IMAGE = '/guillotine/Guillotine.png'
 
+function leagueQueryPath(leagueId: string, params: Record<string, string>) {
+  const q = new URLSearchParams(params)
+  return `/league/${encodeURIComponent(leagueId)}?${q.toString()}`
+}
+
+/** Deep-link target that exists in `LeagueShell` `view` / `tab` handling. */
+function intelligenceViewForSport(sport: string): string {
+  const s = sport.trim().toUpperCase()
+  if (s === 'NFL' || s === 'NCAAF') return 'trend'
+  return 'players'
+}
+
 type Summary = {
   leagueId: string
   weekOrPeriod: number
@@ -35,9 +47,12 @@ type Summary = {
 
 export interface GuillotineHomeProps {
   leagueId: string
+  /** Used for AI / intelligence deep links (tab availability varies by sport). */
+  sport: string
+  leagueName?: string | null
 }
 
-export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
+export function GuillotineHome({ leagueId, sport, leagueName }: GuillotineHomeProps) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -116,6 +131,9 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
         />
         <div>
           <h1 className="text-xl font-bold text-white sm:text-2xl">Guillotine League</h1>
+          {leagueName ? (
+            <p className="text-sm font-medium text-white/80">{leagueName}</p>
+          ) : null}
           <p className="text-sm text-white/60">Survival standings · Chop Zone · Danger tier</p>
         </div>
       </header>
@@ -123,33 +141,41 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
       {/* Quick links: Chat, Settings, AI, Waivers */}
       <div className="flex flex-wrap gap-2">
         <Link
-          href={`/league/${leagueId}?tab=Chat`}
+          href={leagueQueryPath(leagueId, { openChat: 'league' })}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          data-testid="guillotine-quick-chat"
         >
           <MessageSquare className="h-4 w-4" /> Chat
         </Link>
         <Link
-          href={`/league/${leagueId}?tab=Settings`}
+          href={leagueQueryPath(leagueId, { view: 'settings' })}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
+          title="League settings — everyone can view; only commissioner & co-commissioners can edit"
+          data-testid="guillotine-quick-settings"
         >
           <Settings className="h-4 w-4" /> Settings
         </Link>
         <Link
-          href={`/league/${leagueId}?tab=Intelligence`}
+          href={leagueQueryPath(leagueId, { view: intelligenceViewForSport(sport) })}
           className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-950/50"
+          data-testid="guillotine-quick-ai"
         >
           <Sparkles className="h-4 w-4" /> AI Tools
         </Link>
         <Link
-          href={`/league/${leagueId}?tab=Waivers`}
+          href={leagueQueryPath(leagueId, { view: 'players' })}
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50"
+          data-testid="guillotine-quick-waivers"
         >
           <Zap className="h-4 w-4" /> Waivers
         </Link>
       </div>
 
       {/* Survival Board */}
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+      <section
+        id="guillotine-board"
+        className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6"
+      >
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Shield className="h-5 w-5 text-cyan-400" />
           Survival Board
@@ -210,7 +236,7 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
       </section>
 
       {/* Chopped History */}
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+      <section id="guillotine-history" className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Skull className="h-5 w-5 text-rose-400" />
           Chopped History
@@ -242,7 +268,7 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
       </section>
 
       {/* Waiver Fallout / Next release */}
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+      <section id="guillotine-waivers" className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Zap className="h-5 w-5 text-amber-400" />
           Waiver & FAAB
@@ -256,14 +282,16 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
           </p>
         )}
         <Link
-          href={`/league/${leagueId}?tab=Waivers`}
+          href={leagueQueryPath(leagueId, { view: 'players' })}
           className="mt-3 inline-block text-sm text-cyan-400 hover:underline"
+          data-testid="guillotine-open-waivers"
         >
           Open Waivers →
         </Link>
       </section>
 
       {/* Guillotine AI Panel: deterministic data first, then gated AI strategy */}
+      <div id="guillotine-ai">
       <GuillotineAIPanel
         leagueId={leagueId}
         weekOrPeriod={summary?.weekOrPeriod ?? week}
@@ -279,12 +307,14 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
         }
         defaultType="survival"
       />
+      </div>
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <Link
-          href={`/league/${leagueId}?tab=Intelligence`}
+          href={leagueQueryPath(leagueId, { view: intelligenceViewForSport(sport) })}
           className="text-sm text-cyan-400 hover:underline"
+          data-testid="guillotine-more-ai-tools"
         >
-          More AI tools (Intelligence tab) →
+          More research &amp; AI tools →
         </Link>
       </section>
 
@@ -306,8 +336,9 @@ export function GuillotineHome({ leagueId }: GuillotineHomeProps) {
           <p className="text-sm text-white/50">No config loaded.</p>
         )}
         <Link
-          href={`/league/${leagueId}?tab=Settings`}
+          href={leagueQueryPath(leagueId, { view: 'settings' })}
           className="mt-3 inline-block text-sm text-cyan-400 hover:underline"
+          data-testid="guillotine-league-settings"
         >
           League Settings
         </Link>

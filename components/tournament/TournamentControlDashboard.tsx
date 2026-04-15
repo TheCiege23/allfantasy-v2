@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Copy, ChevronLeft, RefreshCw, MessageSquare, Sparkles, Lock, Palette, Scale, FileText, ChevronDown } from 'lucide-react'
+import { Copy, ChevronLeft, RefreshCw, MessageSquare, Sparkles, Lock, Palette, Scale, FileText, ChevronDown, Trophy, ArrowRight, AlertTriangle } from 'lucide-react'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
+import { BubbleResolutionModal } from '@/components/tournament/BubbleResolutionModal'
 
 interface LeagueRow {
   tournamentLeagueId: string
@@ -53,6 +54,11 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
   const [themePack, setThemePack] = useState('default')
   const [themeSaving, setThemeSaving] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [bubbleOpen, setBubbleOpen] = useState(false)
+  const [condensing, setCondensing] = useState(false)
+  const [condenseResult, setCondenseResult] = useState<string | null>(null)
+  const [crowning, setCrowning] = useState(false)
+  const [crownResult, setCrownResult] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -114,10 +120,10 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
     <div className="space-y-6">
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Link
-          href={`/app/tournament/${tournamentId}`}
+          href={`/tournament/${tournamentId}`}
           className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
         >
-          <ChevronLeft className="h-4 w-4" /> Hub
+          <ChevronLeft className="h-4 w-4" /> Tournament
         </Link>
       </div>
 
@@ -202,7 +208,7 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
           <Sparkles className="h-4 w-4" /> Generate with AI
         </button>
         <Link
-          href={`/app/tournament/${tournamentId}#announcements`}
+          href={`/tournament/${tournamentId}`}
           className="ml-3 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/80 hover:bg-white/10"
         >
           View hub announcements
@@ -435,7 +441,7 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
             <li><Link href={`/app/tournament/${tournamentId}/control?action=force-advance`} className="hover:text-amber-400">Force advance participant</Link> (API: POST /api/tournament/[id]/force-advance)</li>
             <li><Link href={`/app/tournament/${tournamentId}/control?action=tie-resolution`} className="hover:text-amber-400">Manual tie resolution</Link> (API: POST /api/tournament/[id]/tie-resolution)</li>
             <li><Link href={`/app/tournament/${tournamentId}/control?action=archive-round`} className="hover:text-amber-400">Archive round</Link> (API: POST /api/tournament/[id]/archive-round)</li>
-            <li><Link href={`/app/tournament/${tournamentId}?tab=champion-path`} className="hover:text-amber-400">Champion path</Link> (API: GET /api/tournament/[id]/champion-path)</li>
+            <li><Link href={`/tournament/${tournamentId}`} className="hover:text-amber-400">Champion path</Link> (API: GET /api/tournament/[id]/champion-path)</li>
             <li><Link href={`/app/tournament/${tournamentId}/control?action=resolve-state`} className="hover:text-amber-400">Resolve invalid state</Link> (API: POST /api/tournament/[id]/resolve-state)</li>
             <li>Redraft regenerate (API: POST /api/tournament/[id]/redraft/regenerate)</li>
             <li>Draft reopen (API: POST /api/tournament/[id]/draft/reopen)</li>
@@ -444,6 +450,108 @@ export function TournamentControlDashboard({ tournamentId }: { tournamentId: str
           </ul>
         )}
       </div>
+
+      {/* Round progression controls */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-white">
+          <ArrowRight className="h-5 w-5 text-cyan-400" /> Round Progression
+        </h2>
+        <p className="mb-4 text-sm text-white/60">
+          Advance the tournament to the next round. This condenses surviving teams into fewer leagues, triggers a redraft, resets FAAB, and adjusts bench spots.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setBubbleOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-950/40"
+          >
+            <AlertTriangle className="h-4 w-4" /> Resolve bubble
+          </button>
+
+          <button
+            type="button"
+            disabled={condensing}
+            onClick={async () => {
+              const perLeague = prompt('How many teams advance per league this round?', '4')
+              if (!perLeague) return
+              const count = parseInt(perLeague, 10)
+              if (isNaN(count) || count < 1) { alert('Invalid number'); return }
+              if (!confirm(`Advance top ${count} per league to the next round? This creates new leagues and schedules redrafts.`)) return
+              setCondensing(true)
+              setCondenseResult(null)
+              try {
+                const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/advance`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ advancementPerLeague: count }),
+                })
+                const json = await res.json()
+                if (res.ok) {
+                  setCondenseResult(`Round ${json.newRoundIndex} created (${json.phase}). ${json.advanced} advanced, ${json.eliminated} eliminated. ${json.leagueIds?.length ?? 0} new league(s).`)
+                  load()
+                } else {
+                  setCondenseResult(`Error: ${json.error ?? 'Failed'}`)
+                }
+              } catch (e) {
+                setCondenseResult(`Error: ${e instanceof Error ? e.message : 'Request failed'}`)
+              } finally {
+                setCondensing(false)
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-950/20 px-4 py-2.5 text-sm font-medium text-cyan-200 hover:bg-cyan-950/40 disabled:opacity-50"
+          >
+            {condensing ? 'Advancing...' : <><ArrowRight className="h-4 w-4" /> Advance round</>}
+          </button>
+
+          <button
+            type="button"
+            disabled={crowning}
+            onClick={async () => {
+              if (!confirm('Crown the champion? This locks the tournament permanently. Only do this when the championship league season is complete.')) return
+              setCrowning(true)
+              setCrownResult(null)
+              try {
+                const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/crown`, {
+                  method: 'POST',
+                })
+                const json = await res.json()
+                if (res.ok) {
+                  setCrownResult(`${json.championTeamName} is the champion of ${json.tournamentName}!`)
+                  load()
+                } else {
+                  setCrownResult(`Error: ${json.error ?? 'Failed'}`)
+                }
+              } catch (e) {
+                setCrownResult(`Error: ${e instanceof Error ? e.message : 'Request failed'}`)
+              } finally {
+                setCrowning(false)
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-yellow-500/40 bg-yellow-950/20 px-4 py-2.5 text-sm font-medium text-yellow-200 hover:bg-yellow-950/40 disabled:opacity-50"
+          >
+            {crowning ? 'Crowning...' : <><Trophy className="h-4 w-4" /> Crown champion</>}
+          </button>
+        </div>
+
+        {condenseResult && (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${condenseResult.startsWith('Error') ? 'border-red-500/20 bg-red-950/30 text-red-300' : 'border-emerald-500/20 bg-emerald-950/30 text-emerald-300'}`}>
+            {condenseResult}
+          </div>
+        )}
+        {crownResult && (
+          <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${crownResult.startsWith('Error') ? 'border-red-500/20 bg-red-950/30 text-red-300' : 'border-yellow-500/20 bg-yellow-950/30 text-yellow-200'}`}>
+            {crownResult.startsWith('Error') ? crownResult : `🏆 ${crownResult}`}
+          </div>
+        )}
+      </div>
+
+      <BubbleResolutionModal
+        tournamentId={tournamentId}
+        open={bubbleOpen}
+        onClose={() => setBubbleOpen(false)}
+        onResolved={() => load()}
+      />
     </div>
   )
 }

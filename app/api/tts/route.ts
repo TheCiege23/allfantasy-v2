@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { DEFAULT_VOICE_ID, getAllowedElevenLabsVoiceIds } from "@/lib/tts/voices";
+import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 // Supported ElevenLabs models — turbo is lowest latency
 const ELEVENLABS_MODEL = "eleven_turbo_v2_5"; // latest turbo, best quality+speed
+
+// In-memory TTS cache (audio is binary, can't use JSON DB cache)
+const TTS_CACHE = new Map<string, { buffer: ArrayBuffer; expires: number }>();
+const TTS_CACHE_TTL = 30 * 60 * 1000; // 30 min
+const TTS_CACHE_MAX = 200;
+
+function ttsCacheKey(text: string, voiceId: string): string {
+  return createHash('sha256').update(`${voiceId}:${text}`).digest('hex').slice(0, 48);
+}
 
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as {
@@ -49,6 +59,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Text is required" }, { status: 400 });
   }
 
+  // Check in-memory cache first
+  const cacheId = ttsCacheKey(text, voiceId);
+  const cached = TTS_CACHE.get(cacheId);
+  if (cached && cached.expires > Date.now()) {
+    return new Response(cached.buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "private, max-age=1800",
+        "Content-Length": String(cached.buffer.byteLength),
+        "X-Cache": "HIT",
+      },
+    });
+  }
+
   try {
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
       method: "POST",
@@ -78,15 +103,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `TTS service error: ${response.status}` }, { status: 502 });
     }
 
-    // Stream the audio back directly
     const audioBuffer = await response.arrayBuffer();
+
+    // Save to in-memory cache
+    if (TTS_CACHE.size >= TTS_CACHE_MAX) {
+      const oldest = TTS_CACHE.keys().next().value;
+      if (oldest) TTS_CACHE.delete(oldest);
+    }
+    TTS_CACHE.set(cacheId, { buffer: audioBuffer, expires: Date.now() + TTS_CACHE_TTL });
 
     return new Response(audioBuffer, {
       status: 200,
       headers: {
         "Content-Type": "audio/mpeg",
-        "Cache-Control": "no-store",
+        "Cache-Control": "private, max-age=1800",
         "Content-Length": String(audioBuffer.byteLength),
+        "X-Cache": "MISS",
       },
     });
   } catch (err: unknown) {

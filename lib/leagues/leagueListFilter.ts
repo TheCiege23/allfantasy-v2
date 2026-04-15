@@ -11,6 +11,8 @@ export type LeagueFilterRecord = {
   teamCount?: number | null
   totalTeams?: number | null
   status?: string | null
+  platform?: string | null
+  settings?: unknown
 }
 
 export const EXCLUDED_VARIANTS = new Set([
@@ -29,9 +31,16 @@ export const EXCLUDED_STATUSES = new Set([
   "career_data",
 ])
 
+function settingsFlagRankImportOnly(settings: unknown): boolean {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return false
+  return (settings as { rankImportOnly?: unknown }).rankImportOnly === true
+}
+
 export function isRealLeague(record: LeagueFilterRecord): boolean {
   const name = record.name?.trim()
   if (!name) return false
+
+  if (settingsFlagRankImportOnly(record.settings)) return false
 
   const teamCount =
     record.leagueSize ??
@@ -45,6 +54,13 @@ export function isRealLeague(record: LeagueFilterRecord): boolean {
 
   const status = (record.status ?? "").toLowerCase().trim()
   if (status && EXCLUDED_STATUSES.has(status)) return false
+
+  // Ranking-import-only leagues: created by legacy career import, never by an active league
+  // import. Real Sleeper active imports always write `status` from the Sleeper API (e.g.
+  // "pre_draft", "in_season", "complete"). A null status on a Sleeper league means it was
+  // created only by the ranking import and should be hidden from My Leagues.
+  const platform = (record.platform ?? "").toLowerCase().trim()
+  if (platform === 'sleeper' && !variant && !status) return false
 
   return true
 }

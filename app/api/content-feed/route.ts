@@ -37,16 +37,16 @@ export async function GET(req: NextRequest) {
     const userId = session?.user?.id ?? null
 
     const url = new URL(req.url)
-    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get("limit") || "30", 10)))
-    const tabParam = url.searchParams.get("tab") ?? "for_you"
+    const limit = Math.min(50, Math.max(1, parseInt(url.searchParams?.get("limit") || "30", 10)))
+    const tabParam = url.searchParams?.get("tab") ?? "for_you"
     const tab: FeedMode = FEED_TABS.includes(tabParam as FeedMode) ? (tabParam as FeedMode) : "for_you"
-    const sportParam = url.searchParams.get("sport") ?? null
+    const sportParam = url.searchParams?.get("sport") ?? null
     const sport = sportParam && isSupportedSport(sportParam) ? sportParam : null
-    const contentTypeParam = url.searchParams.get("contentType") ?? null
+    const contentTypeParam = url.searchParams?.get("contentType") ?? null
     const contentType = contentTypeParam && FEED_ITEM_TYPES.includes(contentTypeParam as FeedItemType)
       ? (contentTypeParam as FeedItemType)
       : null
-    const trackEvent = url.searchParams.get("track") ?? null
+    const trackEvent = url.searchParams?.get("track") ?? null
 
     if (trackEvent === "feed_view" || trackEvent === "feed_refresh") {
       try {
@@ -112,3 +112,4 @@ async function trackFeedEvent(
     },
   })
 }
+

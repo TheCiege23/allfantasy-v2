@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { UnifiedRelationshipInsightsPanel } from "@/components/app/league-intelligence/UnifiedRelationshipInsightsPanel";
 
 export default function RelationshipInsightsPage() {
-  const params = useParams<{ leagueId: string }>();
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string });
   const leagueId = params?.leagueId ?? "";
 
   return (

@@ -32,6 +32,8 @@ export type DraftPlayerCardProps = {
   primaryAction?: React.ReactNode
   /** Optional: secondary action (e.g. Add to queue) */
   secondaryAction?: React.ReactNode
+  /** Optional: compare / vs action (shown before secondary in row layout) */
+  compareAction?: React.ReactNode
   /** Loading state */
   loading?: boolean
   /** Error state (e.g. failed to load asset) */
@@ -136,6 +138,7 @@ function DraftPlayerCardInner({
   variant = 'row',
   primaryAction,
   secondaryAction,
+  compareAction,
   loading = false,
   error = null,
   onSelect,
@@ -257,12 +260,13 @@ function DraftPlayerCardInner({
               )}
             </div>
           </div>
-          {(primaryAction || secondaryAction) && (
+          {(compareAction || primaryAction || secondaryAction) && (
             <div
               className="flex shrink-0 gap-1"
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => event.stopPropagation()}
             >
+              {compareAction}
               {secondaryAction}
               {primaryAction}
             </div>
@@ -337,6 +341,7 @@ function DraftPlayerCardInner({
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
+        {compareAction}
         {secondaryAction}
         {primaryAction}
       </div>

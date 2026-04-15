@@ -13,7 +13,7 @@ type DownsizeGet = {
 }
 
 export default function LeagueDownsizePage() {
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const router = useRouter()
   const leagueId = params.leagueId
 

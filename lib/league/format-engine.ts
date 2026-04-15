@@ -20,6 +20,7 @@ export type LeagueFormatId =
   | 'c2c'
   | 'zombie'
   | 'salary_cap'
+  | 'big_brother'
 
 export type LeagueDraftTypeId =
   | 'snake'
@@ -76,6 +77,9 @@ const ALL_SPORTS = [...SUPPORTED_SPORTS]
 const FOOTBALL_BASKETBALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
 const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 const DRAFT_TYPES_STANDARD: LeagueDraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
+
+/** Survivor: startup draft is snake or auction only (no linear/slow/mock in create flow). */
+const DRAFT_TYPES_SURVIVOR: LeagueDraftTypeId[] = ['snake', 'auction']
 
 const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
   redraft: {
@@ -169,7 +173,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Progressive elimination with specialty rules and weekly survival logic.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: DRAFT_TYPES_SURVIVOR,
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {
@@ -201,9 +205,10 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'devy',
     label: 'Devy',
     description: 'Dynasty leagues with a separate college asset pool and future rights.',
-    supportedSports: FOOTBALL_BASKETBALL_SPORTS,
+    /** Create flow: NFL or NBA primary only (college pairs NCAAF / NCAAB via defaults). */
+    supportedSports: ['NFL', 'NBA'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['devy_snake', 'devy_auction', 'snake', 'auction', 'slow_draft', 'mock_draft'],
+    draftTypes: ['devy_snake', 'devy_auction'],
     defaultModifiers: ['devy', 'taxi'],
     supportedModifiers: ['devy', 'taxi', 'superflex', 'te_premium'],
     capabilities: {
@@ -218,9 +223,10 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'c2c',
     label: 'Campus To Canton',
     description: 'Two-track college and pro ecosystem with campus scoring and future pipelines.',
-    supportedSports: FOOTBALL_BASKETBALL_SPORTS,
+    /** Create flow: NFL or NBA primary only (college pools pair NCAAF / NCAAB via defaults). */
+    supportedSports: ['NFL', 'NBA'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['c2c_snake', 'c2c_auction', 'snake', 'auction', 'slow_draft', 'mock_draft'],
+    draftTypes: ['c2c_snake', 'c2c_auction'],
     defaultModifiers: ['c2c', 'taxi'],
     supportedModifiers: ['c2c', 'taxi', 'superflex', 'te_premium'],
     capabilities: {
@@ -263,6 +269,23 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
       weeklyAutomation: true,
       introVideoEnabled: true,
       importReviewEnabled: true,
+    },
+  },
+  big_brother: {
+    id: 'big_brother',
+    label: 'Big Brother',
+    description: 'Social-strategy elimination: HOH nominations, Veto competitions, private eviction voting, and jury finale.',
+    supportedSports: ALL_SPORTS,
+    defaultRosterMode: 'redraft',
+    draftTypes: DRAFT_TYPES_STANDARD,
+    defaultModifiers: [],
+    supportedModifiers: ['superflex', 'te_premium'],
+    capabilities: {
+      deterministicFeatures: ['hoh_assignment', 'nominations', 'veto_draw', 'veto_challenge', 'eviction_vote', 'jury_enrollment', 'finale_vote', 'roster_release'],
+      aiOptionalFeatures: ['challenge_themes', 'ceremony_announcements', 'weekly_recap', 'chimmy_host'],
+      weeklyAutomation: true,
+      introVideoEnabled: true,
+      importReviewEnabled: false,
     },
   },
 }

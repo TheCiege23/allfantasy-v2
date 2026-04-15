@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { FlaskConical, Search, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope';
+import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope';
 import type {
   MultiPlayerComparisonResult,
   ScoringFormat,
@@ -65,6 +66,7 @@ type ComparisonApiResponse = MultiPlayerComparisonResult & {
 };
 
 export function PlayerComparisonPage() {
+  const searchParams = useSearchParams();
   const [sport, setSport] = useState<string>(SUPPORTED_SPORTS[0]);
   const [scoringFormat, setScoringFormat] = useState<ScoringFormat>('ppr');
   const [playerSlots, setPlayerSlots] = useState<{ query: string; selected: SearchHit | null }[]>([
@@ -77,6 +79,24 @@ export function PlayerComparisonPage() {
   const [initialInsight, setInitialInsight] = useState<ComparisonAIInsight | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    const pa = searchParams.get('playerA')?.trim();
+    const pb = searchParams.get('playerB')?.trim();
+    const sp = searchParams.get('sport')?.trim();
+    if (sp) {
+      setSport(normalizeToSupportedSport(sp));
+    }
+    if (pa || pb) {
+      setPlayerSlots((prev) => {
+        const next = [...prev];
+        if (pa) next[0] = { query: pa, selected: { name: pa } };
+        if (pb) next[1] = { query: pb, selected: { name: pb } };
+        return next;
+      });
+    }
+  }, [searchParams]);
 
   const leagueScoringSettings = useMemo<LeagueScoringSettings>(() => {
     const ppr = scoringFormat === 'non_ppr' ? 0 : scoringFormat === 'half_ppr' ? 0.5 : 1;

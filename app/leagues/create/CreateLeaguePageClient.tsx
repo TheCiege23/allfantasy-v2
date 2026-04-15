@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,47 +17,31 @@ import { DraftStep } from './steps/DraftStep'
 import { RosterStep } from './steps/RosterStep'
 import { ScoringStep } from './steps/ScoringStep'
 import { RulesStep } from './steps/RulesStep'
-import { SurvivorSetupStep } from './steps/SurvivorSetupStep'
-import { GuillotineSetupStep } from './steps/GuillotineSetupStep'
 import { InviteStep } from './steps/InviteStep'
 import type { LeagueCreateFormState, LeagueCreateStepId } from './types'
+import { readFetchJson } from '@/lib/http/readFetchJson'
+import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 
-/**
- * Streamlined 4-5 step wizard:
- * 1. League — sport + format + name (what are we playing?)
- * 2. Setup — draft + teams + roster + modifiers (how is it configured?)
- * 3. Rules — scoring + trades + playoffs (what are the rules?)
- * 4. [Format] — survivor/guillotine specific (only for specialty formats)
- * 5. Launch — visibility + invite (go live!)
- */
-const BASE_STEP_ORDER: LeagueCreateStepId[] = [
-  'sport',    // Step 1: League (sport + format combined)
-  'draft',    // Step 2: Setup (draft + roster + modifiers combined)
-  'rules',    // Step 3: Rules (scoring + rules combined)
-  'invite',   // Step 4: Launch
+const STEP_ORDER: LeagueCreateStepId[] = [
+  'sport',
+  'format',
+  'modifiers',
+  'draft',
+  'roster',
+  'scoring',
+  'rules',
+  'invite',
 ]
 
-function getStepOrder(formatId: string): LeagueCreateStepId[] {
-  if (formatId === 'survivor') {
-    return ['sport', 'draft', 'rules', 'survivor_setup', 'invite']
-  }
-  if (formatId === 'guillotine') {
-    return ['sport', 'draft', 'rules', 'guillotine_setup', 'invite']
-  }
-  return BASE_STEP_ORDER
-}
-
 const STEP_LABELS: Record<LeagueCreateStepId, string> = {
-  sport: 'League',
-  format: 'League',
-  modifiers: 'Setup',
-  draft: 'Setup',
-  roster: 'Setup',
-  scoring: 'Rules',
+  sport: 'Sport',
+  format: 'Format',
+  modifiers: 'Modifiers',
+  draft: 'Draft',
+  roster: 'Roster',
+  scoring: 'Scoring',
   rules: 'Rules',
-  survivor_setup: 'Survivor',
-  guillotine_setup: 'Guillotine',
-  invite: 'Launch',
+  invite: 'Invite',
 }
 
 function deriveVariant(state: LeagueCreateFormState): string | null {
@@ -104,37 +88,10 @@ function buildInitialState(): LeagueCreateFormState {
     visibility: 'private',
     allowInviteLink: true,
     inviteEmails: '',
-    // Survivor defaults
-    survivorPlayerCount: 20,
-    survivorTribeCount: 4,
-    survivorTribeFormation: 'random',
-    survivorTribeNaming: 'auto',
-    survivorMergeTrigger: 'player_count',
-    survivorMergeWeek: 8,
-    survivorMergeAtCount: 10,
-    survivorJuryStart: 'after_merge',
-    survivorExileEnabled: true,
-    survivorIdolsEnabled: true,
-    survivorIdolCount: 9,
-    survivorIdolsTradable: false,
-    survivorIdolsExpireAtMerge: true,
-    survivorChallengeMode: 'automatic',
-    survivorSelfVoteAllowed: false,
-    survivorRocksEnabled: true,
-    survivorTieRule: 'rocks',
-    survivorRevealMode: 'dramatic',
-    survivorTokenEnabled: true,
-    survivorBossResetEnabled: true,
-    survivorCommissionerPlays: false,
-    // Guillotine defaults
-    guillotineEndgame: 'last_team_standing',
-    guillotineEliminationsPerPeriod: 1,
-    guillotineProtectedWeek1: false,
-    guillotineTiebreaker: 'lowest_bench_points',
-    guillotineSamePeriodPickups: false,
-    guillotineWaiverMode: 'faab',
-    guillotineFaabBudget: 100,
-    guillotineTradesEnabled: false,
+    survivorTribeCount: 3,
+    survivorSeasonTheme: '',
+    survivorChallengesSystemRun: true,
+    zombieWhispererSelection: 'random',
   }
 }
 
@@ -151,6 +108,12 @@ export function CreateLeaguePageClient() {
   const [state, setState] = useState<LeagueCreateFormState>(() => buildInitialState())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const resetWizardState = useCallback(() => {
+    setStep('sport')
+    setState(buildInitialState())
+    setError(null)
+  }, [])
 
   const resolution = useMemo(
     () =>
@@ -193,15 +156,6 @@ export function CreateLeaguePageClient() {
     })
   }, [resolution, state.draftType, state.formatId, state.modifiers, state.sport])
 
-  const STEP_ORDER = useMemo(() => getStepOrder(state.formatId), [state.formatId])
-
-  // Reset step if current step is no longer in the order (e.g., leaving survivor format)
-  useEffect(() => {
-    if (!STEP_ORDER.includes(step)) {
-      setStep('rules')
-    }
-  }, [STEP_ORDER, step])
-
   const currentStepIndex = STEP_ORDER.indexOf(step)
   const intro = getFormatIntroMetadata({
     sport: state.sport,
@@ -210,68 +164,14 @@ export function CreateLeaguePageClient() {
     requestedModifiers: state.modifiers,
   })
 
-  // Combined step content — fewer steps, more per screen
   const stepContent = {
-    // Step 1: League — sport + format + league name
-    sport: (
-      <div className="space-y-6">
-        <div>
-          <div className="mb-2 text-sm font-medium text-white/80">What sport?</div>
-          <SportStep state={state} setState={setState} />
-        </div>
-        <div>
-          <div className="mb-2 text-sm font-medium text-white/80">What format?</div>
-          <FormatStep state={state} setState={setState} />
-        </div>
-        <div>
-          <label className="mb-2 block text-xs font-medium text-white/60">League Name</label>
-          <input
-            className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder-white/30 focus:border-cyan-400/40 focus:outline-none"
-            placeholder={`${state.sport} ${resolution.format.label} League`}
-            value={state.leagueName}
-            onChange={(e) => setState((c) => ({ ...c, leagueName: e.target.value }))}
-          />
-        </div>
-      </div>
-    ),
-
-    // Step 2: Setup — draft type + teams + roster + modifiers (conditional)
-    draft: (
-      <div className="space-y-6">
-        <DraftStep state={state} setState={setState} />
-        <div className="border-t border-white/10 pt-4">
-          <RosterStep state={state} setState={setState} />
-        </div>
-        {resolution.format.supportedModifiers.length > 0 && (
-          <div className="border-t border-white/10 pt-4">
-            <div className="mb-2 text-sm font-medium text-white/80">Optional Modifiers</div>
-            <ModifiersStep state={state} setState={setState} />
-          </div>
-        )}
-      </div>
-    ),
-
-    // Step 3: Rules — scoring + league policies (conditional fields hidden when irrelevant)
-    rules: (
-      <div className="space-y-6">
-        <ScoringStep state={state} setState={setState} />
-        <div className="border-t border-white/10 pt-4">
-          <RulesStep state={state} setState={setState} />
-        </div>
-      </div>
-    ),
-
-    // These still exist for backward compat but aren't in step order
+    sport: <SportStep state={state} setState={setState} />,
     format: <FormatStep state={state} setState={setState} />,
     modifiers: <ModifiersStep state={state} setState={setState} />,
+    draft: <DraftStep state={state} setState={setState} />,
     roster: <RosterStep state={state} setState={setState} />,
     scoring: <ScoringStep state={state} setState={setState} />,
-
-    // Step 4 (specialty): format-specific setup
-    survivor_setup: <SurvivorSetupStep state={state} setState={setState} />,
-    guillotine_setup: <GuillotineSetupStep state={state} setState={setState} />,
-
-    // Step 5: Launch — visibility + invite
+    rules: <RulesStep state={state} setState={setState} />,
     invite: <InviteStep state={state} setState={setState} />,
   }[step]
 
@@ -352,44 +252,12 @@ export function CreateLeaguePageClient() {
           requestedAt: new Date().toISOString(),
         },
         ...(state.formatId === 'survivor' && {
-          survivor: {
-            playerCount: state.survivorPlayerCount,
-            tribeCount: state.survivorTribeCount > 0 ? state.survivorTribeCount : 4,
-            tribeSize: Math.floor(
-              state.survivorPlayerCount / (state.survivorTribeCount > 0 ? state.survivorTribeCount : 4)
-            ),
-            tribeFormation: state.survivorTribeFormation,
-            tribeNaming: state.survivorTribeNaming,
-            mergeTrigger: state.survivorMergeTrigger,
-            mergeWeek: state.survivorMergeWeek,
-            mergeAtCount: state.survivorMergeAtCount,
-            juryStart: state.survivorJuryStart,
-            exileEnabled: state.survivorExileEnabled,
-            idolsEnabled: state.survivorIdolsEnabled,
-            idolCount: state.survivorIdolCount,
-            idolsTradable: state.survivorIdolsTradable,
-            idolsExpireAtMerge: state.survivorIdolsExpireAtMerge,
-            challengeMode: state.survivorChallengeMode,
-            selfVoteAllowed: state.survivorSelfVoteAllowed,
-            rocksEnabled: state.survivorRocksEnabled,
-            tieRule: state.survivorTieRule,
-            revealMode: state.survivorRevealMode,
-            tokenEnabled: state.survivorTokenEnabled,
-            bossResetEnabled: state.survivorBossResetEnabled,
-            commissionerPlays: state.survivorCommissionerPlays,
-          },
+          survivor_suggested_tribe_count: Math.min(4, Math.max(2, Math.round(state.survivorTribeCount))),
+          survivor_season_theme_label: state.survivorSeasonTheme.trim() || undefined,
+          survivor_challenges_system_run: state.survivorChallengesSystemRun,
         }),
-        ...(state.formatId === 'guillotine' && {
-          guillotine: {
-            endgame: state.guillotineEndgame,
-            eliminationsPerPeriod: state.guillotineEliminationsPerPeriod,
-            protectedWeek1: state.guillotineProtectedWeek1,
-            tiebreaker: state.guillotineTiebreaker,
-            samePeriodPickups: state.guillotineSamePeriodPickups,
-            waiverMode: state.guillotineWaiverMode,
-            faabBudget: state.guillotineFaabBudget,
-            tradesEnabled: state.guillotineTradesEnabled,
-          },
+        ...(state.formatId === 'zombie' && {
+          zombie_whisperer_selection: state.zombieWhispererSelection,
         }),
       },
     }
@@ -399,22 +267,24 @@ export function CreateLeaguePageClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        credentials: 'same-origin',
       })
 
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create league')
+      const { ok, data, errorMessage } = await readFetchJson<{ league?: { id: string } }>(response)
+      if (!ok) {
+        throw new Error(errorMessage || 'Failed to create league')
+      }
+      if (!data?.league?.id) {
+        throw new Error('League created but no ID returned')
       }
 
-      // Route to format-specific app shell for specialty leagues
-      const leagueId = data.league.id
-      if (state.formatId === 'survivor') {
-        router.push(`/survivor/${leagueId}`)
-      } else if (state.formatId === 'zombie') {
-        router.push(`/zombie/${leagueId}`)
-      } else {
-        router.push(`/league/${leagueId}`)
-      }
+      router.push(
+        buildPostCreateLeagueHomeHref({
+          leagueId: data.league.id,
+          leagueType: state.formatId,
+          allowInviteLink: state.allowInviteLink,
+        }),
+      )
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create league')
     } finally {
@@ -422,8 +292,37 @@ export function CreateLeaguePageClient() {
     }
   }
 
+  function handleBack() {
+    if (currentStepIndex > 0) {
+      setStep(STEP_ORDER[Math.max(0, currentStepIndex - 1)]!)
+      return
+    }
+    resetWizardState()
+    router.push('/dashboard')
+  }
+
   return (
     <main className="min-h-screen bg-[#040915] px-4 py-8 text-white">
+      <div className="mx-auto mb-4 flex w-full max-w-6xl items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push('/import?returnTo=%2Fleagues%2Fcreate')}
+          className="border-cyan-300/40 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+        >
+          Import
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            resetWizardState()
+            router.push('/dashboard')
+          }}
+        >
+          Home
+        </Button>
+      </div>
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="border-white/10 bg-[#081124]">
           <CardHeader>
@@ -463,8 +362,7 @@ export function CreateLeaguePageClient() {
             <div className="flex items-center justify-between gap-3">
               <Button
                 variant="outline"
-                disabled={currentStepIndex === 0}
-                onClick={() => setStep(STEP_ORDER[Math.max(0, currentStepIndex - 1)]!)}
+                onClick={handleBack}
               >
                 Back
               </Button>
@@ -494,6 +392,22 @@ export function CreateLeaguePageClient() {
                 {state.leagueName || `${state.sport} ${resolution.format.label}`}
               </div>
               <div className="mt-1 text-white/60">{resolution.format.description}</div>
+              {state.formatId === 'survivor' && (
+                <div className="mt-3 space-y-1 rounded-xl border border-amber-500/20 bg-amber-950/20 p-3 text-xs text-amber-100/90">
+                  <div>
+                    Tribes: {Math.min(4, Math.max(2, state.survivorTribeCount))} · Theme:{' '}
+                    {state.survivorSeasonTheme.trim() || '(set in Rules)'}
+                  </div>
+                  <div>Challenges: {state.survivorChallengesSystemRun ? 'System-run' : 'Manual'}</div>
+                  <div className="text-white/55">Exile island linked at creation; FAQ posts when league chat is linked.</div>
+                </div>
+              )}
+              {state.formatId === 'zombie' && (
+                <div className="mt-3 space-y-1 rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3 text-xs text-emerald-100/90">
+                  <div>Whisperer selection: {state.zombieWhispererSelection.replace(/_/g, ' ')}</div>
+                  <div className="text-white/55">Zombie config is initialized; tune advanced rules in league settings after create.</div>
+                </div>
+              )}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">

@@ -1,19 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import {
   LEAGUE_TYPE_IDS,
   LEAGUE_TYPE_LABELS,
-  getAllowedLeagueTypesForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import { StepHeader } from './StepHelp'
 
 export type LeagueTypeSelectorProps = {
-  sport: string
+  sport?: string
   value: LeagueTypeId
   onChange: (leagueType: LeagueTypeId) => void
 }
@@ -44,11 +41,10 @@ const LEAGUE_TYPE_BADGES: Partial<Record<LeagueTypeId, 'POPULAR' | 'NEW' | 'FLAG
 /**
  * League type selection (redraft, dynasty, keeper, etc.). Options filtered by sport.
  */
-export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelectorProps) {
-  const allowed = getAllowedLeagueTypesForSport(sport)
-  const safeValue = allowed.includes(value) ? value : allowed[0]!
+export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps) {
+  const visibleLeagueTypes = LEAGUE_TYPE_IDS
+  const safeValue = visibleLeagueTypes.includes(value) ? value : visibleLeagueTypes[0]!
   const selectedMedia = getLeagueTypeMedia(safeValue)
-  const [showPreview, setShowPreview] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -66,7 +62,7 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
       <div className="space-y-3">
         <Label className="text-cyan-300">Type</Label>
         <div className="grid gap-3 sm:grid-cols-2">
-          {LEAGUE_TYPE_IDS.filter((id) => allowed.includes(id)).map((id) => {
+          {LEAGUE_TYPE_IDS.filter((id) => visibleLeagueTypes.includes(id)).map((id) => {
             const media = getLeagueTypeMedia(id)
             return (
               <button
@@ -113,46 +109,28 @@ export function LeagueTypeSelector({ sport, value, onChange }: LeagueTypeSelecto
       </div>
 
       <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
-        <button
-          type="button"
-          onClick={() => setShowPreview((v) => !v)}
-          className="flex w-full items-center justify-between gap-2 rounded-lg px-1 py-1 text-left"
-          aria-expanded={showPreview}
-        >
-          <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected league type preview</p>
-            <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
-          </div>
-          {showPreview ? (
-            <ChevronDown className="size-4 text-cyan-200/80" aria-hidden />
-          ) : (
-            <ChevronRight className="size-4 text-cyan-200/80" aria-hidden />
-          )}
-        </button>
-        {showPreview && (
-          <>
-            <video
-              key={selectedMedia.selectionVideo}
-              className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
-              src={selectedMedia.selectionVideo}
-              poster={selectedMedia.thumbnail}
-              autoPlay
-              loop
-              muted
-              playsInline
-              controls
-              onError={(event) => {
-                const target = event.currentTarget
-                target.poster = selectedMedia.thumbnailFallback
-                target.removeAttribute('src')
-                target.load()
-              }}
-            />
-            <p className="mt-2 text-xs text-white/60">
-              The intro video (when available) will play on league entry; this preview is optional during setup.
-            </p>
-          </>
-        )}
+        <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">League type preview</p>
+        <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
+        <video
+          key={selectedMedia.selectionVideo}
+          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
+          src={selectedMedia.selectionVideo}
+          poster={selectedMedia.thumbnail}
+          autoPlay
+          loop
+          muted
+          playsInline
+          controls
+          onError={(event) => {
+            const target = event.currentTarget
+            target.poster = selectedMedia.thumbnailFallback
+            target.removeAttribute('src')
+            target.load()
+          }}
+        />
+        <p className="mt-2 text-xs text-white/60">
+          This is the selection clip for your format; a welcome intro can still play when managers enter the league.
+        </p>
       </div>
     </div>
   )

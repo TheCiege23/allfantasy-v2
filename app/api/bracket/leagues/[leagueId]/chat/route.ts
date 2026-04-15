@@ -44,7 +44,7 @@ export async function GET(
   })
   if (!member) return NextResponse.json({ error: "Not a member" }, { status: 403 })
 
-  const cursor = req.nextUrl.searchParams.get("before")
+  const cursor = req.nextUrl.searchParams?.get("before")
   const limit = 50
 
   const messages = await (prisma as any).bracketLeagueMessage.findMany({

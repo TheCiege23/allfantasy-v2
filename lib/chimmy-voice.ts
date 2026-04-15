@@ -92,9 +92,11 @@ export function playChimmyVoice(
   onEnd?: () => void,
   onError?: (message: string) => void,
   elevenLabsVoiceId?: string,
+  /** When true (e.g. user tapped Play), speak even if voice is toggled off in settings. */
+  forcePlay = false,
 ): Promise<() => void> {
   const speechText = trimSpeechText(text)
-  if (!speechText || !config.enabled) {
+  if (!speechText || (!config.enabled && !forcePlay)) {
     return Promise.resolve(() => {})
   }
 

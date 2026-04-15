@@ -19,21 +19,31 @@ export type AppShellProps = {
 export default function AppShell({ children, leftPanel, rightPanel, rootProps }: AppShellProps) {
   return (
     <div
-      className="flex h-screen w-full overflow-hidden bg-[#07071a] text-white"
+      className="flex h-screen w-full overflow-hidden text-[var(--text)]"
+      style={{ background: 'var(--bg)' }}
       {...rootProps}
     >
       {/* Left: 45% */}
-      <aside className="hidden h-full w-[45%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-white/[0.07] bg-[#0a0a1f] md:flex">
+      <aside
+        className="hidden h-full w-[45%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-[var(--border)] md:flex"
+        style={{ background: 'var(--panel2)' }}
+      >
         {leftPanel}
       </aside>
 
       {/* Center: 35% */}
-      <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:w-[35%] md:flex-none">
+      <div
+        className="flex min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:w-[35%] md:flex-none"
+        style={{ background: 'var(--bg)' }}
+      >
         {children}
       </div>
 
       {/* Right: 20% */}
-      <aside className="hidden h-full w-[20%] min-w-0 max-w-[20%] flex-shrink-0 overflow-hidden md:flex">
+      <aside
+        className="hidden h-full w-[20%] min-w-0 max-w-[20%] flex-shrink-0 overflow-hidden border-l border-[var(--border)] md:flex"
+        style={{ background: 'var(--panel2)' }}
+      >
         {rightPanel}
       </aside>
     </div>

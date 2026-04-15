@@ -33,12 +33,13 @@ In your environment secrets, add:
 
 - `ADMIN_PASSWORD`: Your secure admin password
 
-**Rolling Insights (DataFeeds GraphQL)** — add in Vercel Project → Settings → Environment Variables:
+**Rolling Insights (DataFeeds REST-first, GraphQL fallback)** — add in Vercel Project → Settings → Environment Variables:
 
 - `ROLLING_INSIGHTS_CLIENT_ID` / `ROLLING_INSIGHTS_CLIENT_SECRET` — credential set 1 (NFL)
 - `ROLLING_INSIGHTS_CLIENT_ID2` / `ROLLING_INSIGHTS_CLIENT_SECRET2` — credential set 2 (NBA, MLB, NHL, Soccer, NCAABB, NCAAFB)
+- `ROLLING_INSIGHTS_REST_BASE` or `ROLLING_INSIGHTS_REST_BASE_URL` — optional REST override (defaults to DataFeeds REST API)
 
-See `.env.example` for descriptions. Legacy `ROLLING_INSIGHTS_RSC_TOKEN` is optional and not used by the GraphQL player/team sync.
+See `.env.example` for descriptions. `ROLLING_INSIGHTS_RSC_TOKEN` remains optional for direct REST diagnostics/probes.
 
 ### 3. Run Prisma Migrations
 

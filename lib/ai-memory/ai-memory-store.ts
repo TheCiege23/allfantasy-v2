@@ -5,6 +5,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { recordChimmyQualityEvent } from '@/lib/chimmy-quality/ChimmyQualityAnalytics'
 
 export type AiMemoryScope =
   | 'user_preferences'
@@ -12,6 +13,10 @@ export type AiMemoryScope =
   | 'league_history'
   | 'past_trades'
   | 'coaching_notes'
+  /** Long-horizon strategy tendencies for Chimmy (risk, contender vs rebuild, scoring prefs) */
+  | 'chimmy_strategy_profile'
+  /** War Room draft behavior + post-draft handoff for Chimmy / Waiver / Trade Finder */
+  | 'war_room_draft'
 
 export interface UpsertAiMemoryInput {
   userId: string
@@ -49,6 +54,20 @@ export async function upsertAiMemory(input: UpsertAiMemoryInput): Promise<{ id: 
             value: input.value as object,
           },
         })
+
+    if (!existing) {
+      await recordChimmyQualityEvent({
+        userId: input.userId,
+        leagueId,
+        eventType: 'memory_item_created',
+        meta: {
+          scope: input.scope,
+          key,
+          source: 'ai_memory_store',
+        },
+      })
+    }
+
     return { id: row.id }
   } catch (error) {
     console.warn('[AiMemory] upsert failed:', String(error))
@@ -124,6 +143,14 @@ function parsePreferenceFlags(message: string): Record<string, unknown> {
   if (/\bdetailed\b|deep dive|more detail/.test(text)) updates.detailLevel = 'detailed'
   if (/\bcalm\b|steady tone/.test(text)) updates.toneStyle = 'calm'
   if (/\bhype\b|fun|banter/.test(text)) updates.toneStyle = 'engaging'
+  if (/\bcontend(er|ing)?\b|win[-\s]?now|playoff push|all-?in\b/.test(text)) updates.teamArchetype = 'contender'
+  if (/\brebuild\b|tank(ing)?\b|future assets|retool\b/.test(text)) updates.teamArchetype = 'rebuilder'
+  if (/\bfull\s*ppr\b|\bppr\b/.test(text)) updates.scoringPreference = 'ppr'
+  if (/\bhalf\s*ppr\b|0\.5\s*ppr/.test(text)) updates.scoringPreference = 'half_ppr'
+  if (/\bstandard\b|\bnon[-\s]?ppr\b/.test(text)) updates.scoringPreference = 'non_ppr'
+  if (/\bdynasty\b/.test(text)) updates.favoriteLeagueType = 'dynasty'
+  if (/\bredraft\b/.test(text)) updates.favoriteLeagueType = 'redraft'
+  if (/\bkeeper\b/.test(text)) updates.favoriteLeagueType = 'keeper'
   return updates
 }
 
@@ -157,6 +184,20 @@ export async function rememberChimmyUserMessageMemory(input: {
       key: 'coaching_profile',
       value: {
         ...(existing && !Array.isArray(existing) ? existing : {}),
+        ...preferenceUpdates,
+        updatedAt: now,
+      },
+    })
+    const stratExisting = (await getAiMemory(input.userId, 'chimmy_strategy_profile', { leagueId, key: 'snapshot' })) as
+      | Record<string, unknown>
+      | null
+    await upsertAiMemory({
+      userId: input.userId,
+      leagueId,
+      scope: 'chimmy_strategy_profile',
+      key: 'snapshot',
+      value: {
+        ...(stratExisting && !Array.isArray(stratExisting) ? stratExisting : {}),
         ...preferenceUpdates,
         updatedAt: now,
       },
@@ -243,6 +284,17 @@ export async function rememberChimmyAssistantMemory(input: {
       lastAdvice: summary,
       recommendedTool: input.recommendedTool ?? null,
       confidence: input.confidence ?? null,
+    },
+  })
+
+  await recordChimmyQualityEvent({
+    userId: input.userId,
+    leagueId,
+    eventType: 'memory_item_used_in_response',
+    meta: {
+      source: 'assistant_memory_writeback',
+      confidence: input.confidence ?? null,
+      recommendedTool: input.recommendedTool ?? null,
     },
   })
 }

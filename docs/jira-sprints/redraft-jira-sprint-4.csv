@@ -1,0 +1,8 @@
+﻿"Issue Type","Summary","Description","Story Points","Epic Link","Assignee","Depends On","Sprint","Rank"
+"Story","RED-025 Waiver and FAAB Schema","Create waiver claims, batches, ledgers, and priority snapshot tables.","8","REDRAFT-SYS","ENG-DATA","RED-004","Sprint 4","250"
+"Story","RED-026 Waiver Batch Resolver","Process waiver claims in scheduled batches with deterministic tie-break logic.","10","REDRAFT-SYS","ENG-DATA","RED-025","Sprint 4","260"
+"Story","RED-027 Waiver Claim API","Implement claim submission endpoints for FAAB and priority-based modes.","6","REDRAFT-SYS","ENG-PLAT","RED-025","Sprint 4","270"
+"Story","RED-028 Trade Schema and Vote Tracking","Create trade entities, vote records, and review event history.","8","REDRAFT-SYS","ENG-DATA","RED-004","Sprint 4","280"
+"Story","RED-029 Trade APIs","Implement trade propose, accept, approve, and veto endpoints with deadline enforcement.","8","REDRAFT-SYS","ENG-PLAT","RED-028;RED-006","Sprint 4","290"
+"Story","RED-030 Notification Outbox and Fanout","Build event outbox and fanout worker for reminders and transaction updates.","11","REDRAFT-SYS","ENG-RT","RED-008;RED-025;RED-028","Sprint 4","300"
+"Story","RED-031 Realtime Bootstrap Endpoint","Provide startup channel bootstrap with cursor state for clients.","4","REDRAFT-SYS","ENG-RT","RED-015;RED-024","Sprint 4","310"

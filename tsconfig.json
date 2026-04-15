@@ -13,13 +13,14 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    // Deprecated: Remove before TypeScript 7.0
     "downlevelIteration": true,
-    "ignoreDeprecations": "5.0",
     "plugins": [
       {
         "name": "next"
       }
     ],
+    // Deprecated: Remove before TypeScript 7.0
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
@@ -29,6 +30,10 @@
     "next-env.d.ts",
     "app/**/*.d.ts",
     "types/**/*.d.ts",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
     "app/**/*.ts",
     "app/**/*.tsx",
     "middleware.ts",

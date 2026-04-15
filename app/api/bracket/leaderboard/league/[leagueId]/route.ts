@@ -4,40 +4,39 @@ import { prisma } from "@/lib/prisma"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { leagueId: string } },
-) {
+export async function GET(req: NextRequest) {
   try {
-    const { leagueId } = params
     const { searchParams } = new URL(req.url)
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10))
-    const pageSize = Math.min(100, Math.max(10, parseInt(searchParams.get("limit") || "50", 10)))
-    const aroundEntryId = searchParams.get("aroundEntryId") || null
+    const tournamentId = searchParams?.get("tournamentId")
+    const page = Math.max(1, parseInt(searchParams?.get("page") || "1", 10))
+    const pageSize = Math.min(100, Math.max(10, parseInt(searchParams?.get("limit") || "50", 10)))
+    const aroundEntryId = searchParams?.get("aroundEntryId") || null
 
-    const league = await prisma.bracketLeague.findUnique({
-      where: { id: leagueId },
-      select: { id: true, name: true, tournamentId: true },
+    if (!tournamentId) {
+      return NextResponse.json({ error: "tournamentId is required" }, { status: 400 })
+    }
+
+    const tournament = await prisma.bracketTournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, name: true, season: true },
     })
-    if (!league) {
-      return NextResponse.json({ error: "League not found" }, { status: 404 })
+    if (!tournament) {
+      return NextResponse.json({ error: "Tournament not found" }, { status: 404 })
     }
 
     const baseWhere: any = {
-      tournamentId: league.tournamentId,
-      leagueId,
+      tournamentId,
+      leagueId: null,
     }
 
     let offset = (page - 1) * pageSize
 
     if (aroundEntryId) {
-      const target = await prisma.bracketLeaderboard.findUnique({
+      const target = await prisma.bracketLeaderboard.findFirst({
         where: {
-          tournamentId_leagueId_entryId: {
-            tournamentId: league.tournamentId,
-            leagueId,
-            entryId: aroundEntryId,
-          },
+          tournamentId,
+          leagueId: null,
+          entryId: aroundEntryId,
         },
         select: { rank: true },
       })
@@ -60,7 +59,7 @@ export async function GET(
     if (!rows.length) {
       return NextResponse.json({
         ok: true,
-        league,
+        tournament,
         totalEntries: totalCount,
         page,
         totalPages: totalCount ? Math.ceil(totalCount / pageSize) : 0,
@@ -74,26 +73,33 @@ export async function GET(
         where: { id: { in: entryIds } },
         include: {
           user: { select: { id: true, displayName: true, avatarUrl: true } },
+          league: { select: { id: true, name: true } },
         },
       }),
       prisma.bracketHealthSnapshot.findMany({
         where: {
-          tournamentId: league.tournamentId,
-          leagueId,
+          tournamentId,
           entryId: { in: entryIds },
         },
         select: {
           entryId: true,
+          leagueId: true,
           healthScore: true,
         },
       }),
     ])
     const entryById = new Map(entries.map((e) => [e.id, e]))
-    const healthByEntry = new Map(healthSnaps.map((h) => [h.entryId, h.healthScore]))
+    const healthByEntry = new Map(
+      healthSnaps.map((h) => [`${h.leagueId}:${h.entryId}`, h.healthScore]),
+    )
 
     const result = rows.map((r) => {
       const e = entryById.get(r.entryId)
-      const healthScore = healthByEntry.get(r.entryId) ?? null
+      const leagueIdForRow = e?.league?.id ?? null
+      const healthScore =
+        leagueIdForRow != null
+          ? healthByEntry.get(`${leagueIdForRow}:${r.entryId}`) ?? null
+          : null
       return {
         entryId: r.entryId,
         rank: r.rank,
@@ -102,6 +108,8 @@ export async function GET(
         score: r.score,
         username: e?.user?.displayName ?? null,
         avatarUrl: e?.user?.avatarUrl ?? null,
+        leagueId: e?.league?.id ?? null,
+        leagueName: e?.league?.name ?? null,
         healthScore,
         updatedAt: r.updatedAt,
       }
@@ -109,18 +117,19 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
-      league,
+      tournament,
       totalEntries: totalCount,
       page,
       totalPages: totalCount ? Math.ceil(totalCount / pageSize) : 0,
       rows: result,
     })
   } catch (err: any) {
-    console.error("[leaderboard/league] Error:", err)
+    console.error("[leaderboard/global] Error:", err)
     return NextResponse.json(
-      { error: err?.message || "Failed to fetch league leaderboard" },
+      { error: err?.message || "Failed to fetch global leaderboard" },
       { status: 500 },
     )
   }
 }
+
 

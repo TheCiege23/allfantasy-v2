@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
 
 async function runAutomation() {
   const processed: string[] = []
+  const legacyProcessed: string[] = []
   const errors: { id: string; message: string }[] = []
 
   const shells = await prisma.tournamentShell.findMany({
@@ -82,5 +83,35 @@ async function runAutomation() {
     }
   }
 
-  return NextResponse.json({ processed: processed.length, errors })
+  const legacyTournaments = await prisma.legacyTournament.findMany({
+    where: { status: { notIn: ['completed', 'setup'] } },
+    select: { id: true, settings: true },
+  })
+
+  for (const lt of legacyTournaments) {
+    try {
+      const prev = (typeof lt.settings === 'object' && lt.settings !== null ? lt.settings : {}) as Record<string, unknown>
+      await prisma.legacyTournament.update({
+        where: { id: lt.id },
+        data: {
+          settings: {
+            ...prev,
+            lastOverallStandingsRefreshAt: new Date().toISOString(),
+          },
+        },
+      })
+      legacyProcessed.push(lt.id)
+    } catch (e) {
+      errors.push({
+        id: lt.id,
+        message: e instanceof Error ? e.message : String(e),
+      })
+    }
+  }
+
+  return NextResponse.json({
+    processed: processed.length,
+    legacyTournamentsProcessed: legacyProcessed.length,
+    errors,
+  })
 }

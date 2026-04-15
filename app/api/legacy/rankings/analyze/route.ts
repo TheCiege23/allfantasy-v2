@@ -4,6 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { writeSnapshot } from '@/lib/trade-engine/snapshot-store'
 import { logUserEventByUsername } from '@/lib/user-events'
+import {
+  getAllPlayers,
+  getLeagueInfo,
+  getLeagueRosters,
+  getLeagueUsers,
+  getPlayoffBracket,
+  getTradedDraftPicks,
+} from '@/lib/sleeper-client'
 
 const openai = getOpenAIRouteClient()
 
@@ -105,51 +113,40 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/analyze", too
       return NextResponse.json({ error: 'User not found. Please sign up on the AllFantasy home page first.' }, { status: 404 })
     }
 
-    const leagueRes = await fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(league_id)}`, {
-      next: { revalidate: 0 },
-    })
-    if (!leagueRes.ok) {
+    const leagueData: any = await getLeagueInfo(league_id)
+    if (!leagueData) {
       return NextResponse.json({ error: 'Failed to fetch league' }, { status: 500 })
     }
-    const leagueData: any = await leagueRes.json()
 
-    const [rostersRes, usersRes, tradedPicksRes, bracketRes] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(league_id)}/rosters`, { next: { revalidate: 0 } }),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(league_id)}/users`, { next: { revalidate: 0 } }),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(league_id)}/traded_picks`, { next: { revalidate: 0 } }),
-      fetch(`https://api.sleeper.app/v1/league/${encodeURIComponent(league_id)}/winners_bracket`, { next: { revalidate: 0 } }).catch(() => null),
+    const [rostersData, usersData, tradedPicksData, bracketData] = await Promise.all([
+      getLeagueRosters(league_id),
+      getLeagueUsers(league_id),
+      getTradedDraftPicks(league_id),
+      getPlayoffBracket(league_id),
     ])
 
-    if (!rostersRes.ok || !usersRes.ok) {
+    if (!Array.isArray(rostersData) || !Array.isArray(usersData)) {
       return NextResponse.json({ error: 'Failed to fetch league data' }, { status: 500 })
     }
 
-    const rosters: SleeperRoster[] = await rostersRes.json()
-    const users: SleeperUser[] = await usersRes.json()
-
-    let tradedPicks: any[] = []
-    if (tradedPicksRes.ok) {
-      tradedPicks = await tradedPicksRes.json()
-    }
-
-    let bracketData: any[] = []
-    if (bracketRes && bracketRes.ok) {
-      bracketData = await bracketRes.json().catch(() => [])
-    }
+    const rosters: SleeperRoster[] = rostersData as SleeperRoster[]
+    const users: SleeperUser[] = usersData as SleeperUser[]
+    const tradedPicks: any[] = Array.isArray(tradedPicksData) ? tradedPicksData : []
+    const bracketEntries: any[] = Array.isArray(bracketData) ? bracketData : []
     const championRosterId = (() => {
-      if (!Array.isArray(bracketData) || bracketData.length === 0) return null
-      const finalMatch = bracketData.find((m: any) => m.r === 3 && m.t1_from?.w !== undefined)
-        || bracketData.find((m: any) => m.r === 3)
-        || bracketData.find((m: any) => m.p === 1)
+      if (!Array.isArray(bracketEntries) || bracketEntries.length === 0) return null
+      const finalMatch = bracketEntries.find((m: any) => m.r === 3 && m.t1_from?.w !== undefined)
+        || bracketEntries.find((m: any) => m.r === 3)
+        || bracketEntries.find((m: any) => m.p === 1)
       if (!finalMatch) return null
       if (finalMatch.w != null) return finalMatch.w
       return null
     })()
     const runnerUpRosterId = (() => {
-      if (!Array.isArray(bracketData) || bracketData.length === 0) return null
-      const finalMatch = bracketData.find((m: any) => m.r === 3 && m.t1_from?.w !== undefined)
-        || bracketData.find((m: any) => m.r === 3)
-        || bracketData.find((m: any) => m.p === 1)
+      if (!Array.isArray(bracketEntries) || bracketEntries.length === 0) return null
+      const finalMatch = bracketEntries.find((m: any) => m.r === 3 && m.t1_from?.w !== undefined)
+        || bracketEntries.find((m: any) => m.r === 3)
+        || bracketEntries.find((m: any) => m.p === 1)
       if (!finalMatch) return null
       if (finalMatch.l != null) return finalMatch.l
       return null
@@ -204,8 +201,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/analyze", too
 
     let playersData: Record<string, any> = {}
     try {
-      const playersRes = await fetch('https://api.sleeper.app/v1/players/nfl', { next: { revalidate: 0 } })
-      if (playersRes.ok) playersData = await playersRes.json()
+      playersData = await getAllPlayers()
     } catch {
       console.log('Could not fetch players data')
     }
@@ -241,7 +237,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/analyze", too
 
         const isChampion = roster.roster_id === championRosterId
         const isRunnerUp = roster.roster_id === runnerUpRosterId
-        const madePlayoffs = Array.isArray(bracketData) && bracketData.some(
+        const madePlayoffs = Array.isArray(bracketEntries) && bracketEntries.some(
           (m: any) => m.t1 === roster.roster_id || m.t2 === roster.roster_id
         )
 

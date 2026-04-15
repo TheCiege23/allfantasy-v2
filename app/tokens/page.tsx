@@ -8,6 +8,7 @@ import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 import { resolveCheckoutUrl } from '@/lib/monetization/checkout-client'
 import { MonetizationComplianceNotice } from '@/components/monetization/MonetizationComplianceNotice'
+import { StripePaymentHint } from '@/components/monetization/StripePaymentHint'
 import {
   trackInsufficientTokenFlowViewed,
   trackMonetizationPageVisited,
@@ -302,22 +303,45 @@ export default function TokensPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
-      <header className="rounded-2xl border border-white/10 bg-[#0a1228] p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-cyan-300/80">AllFantasy token center</p>
-            <h1 className="mt-1 text-2xl font-semibold text-white">AI Tokens</h1>
-            <p className="mt-2 text-sm text-white/65">
-              Buy token packs, preview feature costs, and review every token movement in your ledger.
+    <main className="relative min-h-screen overflow-hidden bg-[#05060a] text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 left-1/2 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-cyan-400/10 blur-[140px]" />
+        <div className="absolute top-40 -left-40 h-[420px] w-[420px] rounded-full bg-fuchsia-500/8 blur-[160px]" />
+        <div className="absolute -bottom-48 right-0 h-[480px] w-[480px] rounded-full bg-indigo-500/8 blur-[170px]" />
+      </div>
+      <div className="relative mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-10">
+      <header className="rounded-2xl border border-white/[0.09] bg-[#0a1220]/95 p-5 shadow-lg shadow-black/20 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 max-w-xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300/85">AllFantasy · Token center</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">AI tokens</h1>
+            <p className="mt-2 text-sm leading-relaxed text-white/65">
+              Buy packs with{' '}
+              <a
+                href="https://stripe.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-cyan-300/90 underline-offset-2 hover:underline"
+              >
+                Stripe
+              </a>
+              , see what each feature costs, and audit your balance in one place.
             </p>
           </div>
-          <Link
-            href="/pricing"
-            className="rounded-lg border border-white/20 bg-white/[0.03] px-3 py-2 text-xs text-white/80 hover:bg-white/[0.08]"
-          >
-            Back to pricing
-          </Link>
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+            <Link
+              href="/"
+              className="rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/85 transition hover:bg-white/[0.09]"
+            >
+              Home
+            </Link>
+            <Link
+              href="/pricing"
+              className="rounded-xl border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+            >
+              Plans & subscriptions
+            </Link>
+          </div>
         </div>
         <div
           className="mt-4 inline-flex items-center gap-2 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2"
@@ -374,26 +398,44 @@ export default function TokensPage() {
         </div>
       ) : (
         <>
-          <section className="mt-4">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-white/70">Buy token packs</h2>
-            <p className="mt-1 text-xs text-white/60">
-              Tokens are pay-per-use access credits. Different AI actions cost different token amounts.
+          <section className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 sm:p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-white/75">Buy token packs</h2>
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/58">
+              Tokens are pay-per-use credits for AI features. Purchases use Stripe’s hosted checkout — same secure flow as
+              subscriptions on{' '}
+              <Link href="/pricing" className="font-medium text-cyan-300/90 underline-offset-2 hover:underline">
+                Pricing
+              </Link>
+              .
             </p>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {tokenPacks.map((pack) => (
-                <article key={pack.sku} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <h3 className="text-sm font-semibold text-white">{pack.title}</h3>
-                  <p className="mt-1 text-xs text-white/60">{pack.description}</p>
-                  <div className="mt-2 text-lg font-bold text-cyan-300">{formatUsd(pack.amountUsd)}</div>
+                <article
+                  key={pack.sku}
+                  className="flex min-h-[15rem] flex-col rounded-xl border border-white/10 bg-[#0a1220]/90 p-4"
+                >
+                  <h3 className="text-sm font-semibold leading-snug text-white [overflow-wrap:anywhere]">{pack.title}</h3>
+                  <p className="mt-2 flex-1 text-xs leading-relaxed text-white/58 [overflow-wrap:anywhere]">
+                    {pack.description}
+                  </p>
+                  {pack.tokenAmount > 0 ? (
+                    <p className="mt-2 text-[11px] font-medium text-cyan-200/90">
+                      {pack.tokenAmount.toLocaleString()} tokens
+                    </p>
+                  ) : null}
+                  <div className="mt-3 text-xl font-bold tabular-nums text-cyan-300">{formatUsd(pack.amountUsd)}</div>
                   <button
                     type="button"
                     onClick={() => void startCheckout(pack.sku)}
                     disabled={pendingSku != null || !pack.stripePriceConfigured}
-                    className="mt-3 min-h-[40px] w-full rounded-lg bg-cyan-500/85 px-3 py-2 text-xs font-semibold text-[#041322] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-3 min-h-[44px] w-full rounded-lg bg-cyan-500/90 px-3 py-2.5 text-xs font-semibold text-[#041018] transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                     data-testid={`tokens-buy-cta-${pack.sku}`}
                   >
-                    {pendingSku === pack.sku ? 'Starting checkout...' : 'Buy token pack'}
+                    {pendingSku === pack.sku ? 'Opening Stripe…' : 'Buy with Stripe'}
                   </button>
+                  {pack.stripePriceConfigured ? <StripePaymentHint className="mt-2" /> : (
+                    <p className="mt-2 text-[10px] text-amber-200/90">Checkout unavailable until Stripe price is configured.</p>
+                  )}
                 </article>
               ))}
             </div>
@@ -403,10 +445,10 @@ export default function TokensPage() {
             <MonetizationComplianceNotice />
           </section>
 
-          <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4" data-testid="tokens-pricing-matrix">
+          <section className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 sm:p-5" data-testid="tokens-pricing-matrix">
             <h2 className="text-sm font-semibold text-white">Token pricing matrix</h2>
-            <p className="mt-1 text-xs text-white/60">
-              Heavier and league-wide actions cost more tokens than quick one-off explanations.
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/58">
+              Heavier and league-wide actions cost more tokens than quick one-off explanations. Labels wrap on small screens.
             </p>
             {hasSubscriberDiscounts ? (
               <p className="mt-2 rounded-md border border-emerald-400/25 bg-emerald-500/10 px-2 py-1.5 text-[11px] text-emerald-100">
@@ -476,8 +518,10 @@ export default function TokensPage() {
                     {pricingByTier[tier].length > 0 ? (
                       pricingByTier[tier].map((rule) => (
                         <div key={rule.code} className="rounded-md border border-white/10 bg-black/30 px-2 py-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[11px] font-medium text-white/90">{rule.featureLabel}</p>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="min-w-0 flex-1 break-words text-[11px] font-medium leading-snug text-white/90">
+                              {rule.featureLabel}
+                            </p>
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                 rule.discountPct > 0 && rule.tokenCost < rule.baseTokenCost
@@ -506,9 +550,9 @@ export default function TokensPage() {
             </div>
           </section>
 
-          <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <section className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 sm:p-5">
             <h2 className="text-sm font-semibold text-white">Feature cost preview</h2>
-            <p className="mt-1 text-xs text-white/60">
+            <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/58">
               Token costs vary by compute intensity and user value. Every spend requires explicit confirmation.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -558,7 +602,7 @@ export default function TokensPage() {
             ) : null}
           </section>
 
-          <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <section className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold text-white">Usage history</h2>
               <button
@@ -606,6 +650,7 @@ export default function TokensPage() {
           </section>
         </>
       )}
+      </div>
     </main>
   )
 }

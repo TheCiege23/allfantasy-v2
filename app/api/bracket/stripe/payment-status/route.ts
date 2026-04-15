@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const leagueId = req.nextUrl.searchParams.get("leagueId")
+    const leagueId = req.nextUrl.searchParams?.get("leagueId")
     if (!leagueId) {
       return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
     }
@@ -67,3 +67,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to check status" }, { status: 500 })
   }
 }
+

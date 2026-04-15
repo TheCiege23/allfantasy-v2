@@ -62,7 +62,10 @@ export async function handleZombieChimmyAction(
         return { ok: false, chimmyActionId: row.id, privateMessage: msg }
       }
     }
-    if (lower.includes('@chimmy') && (lower.includes('bomb') || rawMessage.includes('💣'))) {
+    if (
+      lower.includes('@chimmy') &&
+      (lower.includes('bomb') || lower.includes('dynamite') || lower.includes('tnt') || rawMessage.includes('💣'))
+    ) {
       const row = await processBombAction(leagueId, userId, rawMessage, week)
       const full = await prisma.zombieChimmyAction.findUniqueOrThrow({ where: { id: row.id } })
       return {
@@ -75,8 +78,14 @@ export async function handleZombieChimmyAction(
     }
     if (
       lower.includes('@chimmy') &&
-      (lower.includes('knife') || lower.includes('axe') || lower.includes('bow') || lower.includes('gun') ||
-       lower.includes('weapon'))
+      (lower.includes('axe') ||
+        lower.includes('gun') ||
+        lower.includes('knife') ||
+        lower.includes('bow') ||
+        lower.includes('🪓') ||
+        lower.includes('🔫') ||
+        lower.includes('🔪') ||
+        lower.includes('🏹'))
     ) {
       const row = await processWeaponAction(leagueId, userId, rawMessage, week)
       const full = await prisma.zombieChimmyAction.findUniqueOrThrow({ where: { id: row.id } })
@@ -107,7 +116,7 @@ export async function handleZombieChimmyAction(
         isValid: false,
         validationError: 'unrecognized',
         privateResponse:
-          "⚠️ I didn't understand that zombie action. Try: @Chimmy use serum, @Chimmy use weapon knife, @Chimmy use weapon axe, @Chimmy use weapon bow, @Chimmy use weapon gun, @Chimmy 💣 detonate bomb, @Chimmy ambush, @Chimmy revive, @Chimmy activate [power]",
+          "⚠️ I didn't understand that zombie action. Try @Chimmy ambush …, @Chimmy serum …, @Chimmy knife/bow/axe/gun, @Chimmy bomb or dynamite 💣 …",
       },
     })
     return { ok: false, chimmyActionId: row.id, privateMessage: row.privateResponse }

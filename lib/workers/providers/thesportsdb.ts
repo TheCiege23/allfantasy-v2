@@ -1,5 +1,5 @@
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
-import type { ApiFetchParams, ApiProvider } from '@/lib/workers/api-config'
+import { apiChainSportToDbSport, toApiChainSport, type ApiFetchParams, type ApiProvider } from '@/lib/workers/api-config'
 
 const THESPORTSDB_LEAGUE_IDS = {
   NFL: '4391',
@@ -16,7 +16,9 @@ function apiKey(): string {
 }
 
 function leagueIdForSport(sport: string): string {
-  return THESPORTSDB_LEAGUE_IDS[sport as keyof typeof THESPORTSDB_LEAGUE_IDS] || ''
+  const chain = toApiChainSport(sport)
+  const key = chain ? apiChainSportToDbSport(chain) : sport.toUpperCase()
+  return THESPORTSDB_LEAGUE_IDS[key as keyof typeof THESPORTSDB_LEAGUE_IDS] || ''
 }
 
 function toSearch(value: unknown): string {

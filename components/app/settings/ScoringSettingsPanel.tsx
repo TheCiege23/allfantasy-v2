@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useLeagueSectionData } from '@/hooks/useLeagueSectionData'
 
@@ -44,6 +45,7 @@ function formatStatLabel(statKey: string): string {
 }
 
 export default function ScoringSettingsPanel({ leagueId }: { leagueId: string }) {
+  const router = useRouter()
   const { data: config, loading, error, reload } = useLeagueSectionData<ScoringConfig>(
     leagueId,
     'scoring/config'
@@ -120,6 +122,7 @@ export default function ScoringSettingsPanel({ leagueId }: { leagueId: string })
       toast.success('Scoring overrides saved')
       setEditing(false)
       await reload()
+      router.refresh()
     } finally {
       setSaving(false)
     }

@@ -19,6 +19,8 @@ export type ApiProviderName =
   | 'api_sports'
   | 'thesportsdb'
   | 'cfbd'
+  /** Final fantasy-data fallback (NFL player pool + injury_status from public players feed). */
+  | 'sleeper'
 
 /** Cache TTLs in seconds — drives all cache expiry (DB-first). */
 export const API_CHAIN_TTLS = {
@@ -162,18 +164,24 @@ export function normalizeApiSport(sport: string | SupportedSport | undefined): S
   return normalizeToSupportedSport(sport)
 }
 
+function envFlag(value: string | undefined, fallback: boolean): boolean {
+  if (value == null || value.trim() === '') return fallback
+  return /^(1|true|yes|on)$/i.test(value.trim())
+}
+
 /**
- * Legacy flags for lib/provider-config.ts (all enabled for chain sports).
+ * Legacy flags for lib/provider-config.ts.
+ * Defaults match historical behavior: NFL on, all other sports off until explicitly enabled.
  */
 export const ROLLING_INSIGHTS_SPORTS = {
-  NFL: true,
-  NBA: true,
-  MLB: true,
-  NHL: true,
-  NCAAF: true,
-  NCAAB: true,
-  SOCCER: true,
-  Soccer: true,
+  NFL: envFlag(process.env.RI_NFL_ENABLED, true),
+  NBA: envFlag(process.env.RI_NBA_ENABLED, false),
+  MLB: envFlag(process.env.RI_MLB_ENABLED, false),
+  NHL: envFlag(process.env.RI_NHL_ENABLED, false),
+  NCAAF: envFlag(process.env.RI_NCAAF_ENABLED, false),
+  NCAAB: envFlag(process.env.RI_NCAAB_ENABLED, false),
+  SOCCER: envFlag(process.env.RI_SOCCER_ENABLED, false),
+  Soccer: envFlag(process.env.RI_SOCCER_ENABLED, false),
 } as const
 
 export function ttlSecondsForDataType(dataType: string): number {

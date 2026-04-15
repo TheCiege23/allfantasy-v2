@@ -23,7 +23,7 @@ export type MetaTabId = "draft" | "waiver" | "trade" | "roster" | "strategy"
 export type TimeframeId = "24h" | "7d" | "30d"
 const META_TAB_IDS: readonly MetaTabId[] = ["draft", "waiver", "trade", "roster", "strategy"] as const
 
-function isMetaTabId(value: string | null): value is MetaTabId {
+function isMetaTabId(value: string | null | undefined): value is MetaTabId {
   return value != null && META_TAB_IDS.includes(value as MetaTabId)
 }
 
@@ -37,10 +37,10 @@ export default function MetaInsightsDashboard() {
   const onRefresh = useCallback(() => setRefreshKey((k) => k + 1), [])
 
   useEffect(() => {
-    const sportParam = searchParams.get("sport")
-    const leagueFormatParam = searchParams.get("leagueFormat")
-    const timeframeParam = searchParams.get("timeframe")
-    const tabParam = searchParams.get("tab")
+    const sportParam = searchParams?.get("sport")
+    const leagueFormatParam = searchParams?.get("leagueFormat")
+    const timeframeParam = searchParams?.get("timeframe")
+    const tabParam = searchParams?.get("tab")
 
     if (sportParam) {
       const normalized = normalizeToSupportedSport(sportParam)

@@ -158,6 +158,15 @@ const REGISTRY: AIToolRegistration[] = [
     requiredContextFields: [],
     responseSchema: ['aiExplanation', 'confidence', 'uncertainty'],
   },
+  {
+    toolKey: 'start_vs',
+    toolName: 'Start A vs B (Player Comparison)',
+    deterministicRequired: true,
+    allowedProviders: ['openai', 'deepseek', 'grok'],
+    supportedModes: ['single_model', 'specialist', 'consensus', 'unified_brain'],
+    requiredContextFields: ['deterministic', 'playerA', 'playerB', 'sport'],
+    responseSchema: ['shortVerdict', 'fullReasoning', 'confidence', 'floorPick', 'upsidePick', 'riskFlags'],
+  },
 ]
 
 const BY_KEY = new Map<string, AIToolRegistration>()
@@ -204,6 +213,11 @@ const TOOL_ALIASES: Record<string, string> = {
   'chimmy-chat': 'chimmy_chat',
   'chimmy chat': 'chimmy_chat',
   chimmy_chat: 'chimmy_chat',
+  'start-vs': 'start_vs',
+  start_vs: 'start_vs',
+  'start vs b': 'start_vs',
+  player_comparison: 'start_vs',
+  'player-comparison': 'start_vs',
   psychology: 'psychological',
   psychological_profiles: 'psychological',
   legacy: 'legacy_score',

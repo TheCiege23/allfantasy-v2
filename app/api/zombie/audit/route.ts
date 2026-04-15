@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const leagueId = searchParams.get('leagueId')
+  const leagueId = searchParams?.get('leagueId')
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   await requireCommissionerOnly(leagueId, session.user.id)
@@ -22,3 +22,4 @@ export async function GET(req: Request) {
   const entries = await getFullAuditTrail(z.id)
   return NextResponse.json({ entries })
 }
+

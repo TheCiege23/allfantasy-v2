@@ -30,7 +30,7 @@ export async function GET(
     }
 
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport')
+    const sportRaw = url.searchParams?.get('sport')
     const sport =
       sportRaw == null
         ? undefined

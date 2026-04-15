@@ -8,7 +8,7 @@ export const GET = withApiUsage({
 })(async (req: Request, ctx: { params: { leagueId: string } }) => {
   const { leagueId } = ctx.params
   const url = new URL(req.url)
-  const days = Number(url.searchParams.get("days") ?? 60)
+  const days = Number(url.searchParams?.get("days") ?? 60)
 
   const rows = await getDriftSeries({ leagueId, days })
   return NextResponse.json({ leagueId, rows })

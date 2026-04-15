@@ -15,7 +15,9 @@ export async function POST(
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as never)) as {
+    user?: { id?: string; email?: string | null }
+  } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -42,6 +44,7 @@ export async function POST(
 
   const gate = await requireFeatureEntitlement({
     userId,
+    userEmail: session?.user?.email,
     featureId: 'commissioner_automation',
     allowTokenFallback: true,
     confirmTokenSpend,

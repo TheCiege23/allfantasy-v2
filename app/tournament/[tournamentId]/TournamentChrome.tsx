@@ -15,17 +15,19 @@ import {
   Settings,
   Target,
   Trophy,
+  Wrench,
 } from 'lucide-react'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
-import { TournamentSettingsModal } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModal'
+import { TournamentSettingsModalEditable } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModalEditable'
+import { TournamentEntryIntroModal } from '@/components/tournament/TournamentEntryIntroModal'
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
 
 export function TournamentChrome({ children }: { children: React.ReactNode }) {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const pathname = usePathname()
+  const currentPath = pathname ?? ''
   const ctx = useTournamentUi()
   const { shell, conferences, participant, isCommissioner, viewerUserId } = ctx
   const state = useTournamentParticipantState(ctx)
@@ -60,6 +62,12 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
+              href: `/app/tournament/${tournamentId}/control`,
+              label: 'Commissioner ops',
+              icon: <Wrench className="h-5 w-5" strokeWidth={1.75} />,
+              commishOnly: true,
+            },
+            {
               href: '#commissioner',
               label: 'Commissioner',
               icon: <Settings className="h-5 w-5" strokeWidth={1.75} />,
@@ -68,7 +76,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           ] as NavItem[])
         : []),
     ],
-    [base, isCommissioner],
+    [base, isCommissioner, tournamentId],
   )
 
   const desktopNav: NavItem[] = useMemo(
@@ -83,6 +91,12 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
+              href: `/app/tournament/${tournamentId}/control`,
+              label: 'Commissioner ops',
+              icon: <span className="text-lg">🛠️</span>,
+              commishOnly: true,
+            },
+            {
               href: '#commissioner',
               label: 'Commissioner',
               icon: <span className="text-lg">⚙️</span>,
@@ -91,7 +105,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           ] as NavItem[])
         : []),
     ],
-    [base, isCommissioner],
+    [base, isCommissioner, tournamentId],
   )
 
   const eliminated = state.status === 'eliminated'
@@ -162,7 +176,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
           <nav className="flex flex-1 flex-col gap-0.5 p-2">
             {desktopNav.map((item) => {
               if (hideDrafts && item.href.endsWith('/drafts')) return null
-              const active = pathname === item.href || (item.href !== base && pathname.startsWith(item.href))
+              const active = currentPath === item.href || (item.href !== base && currentPath.startsWith(item.href))
               return (
                 <Link
                   key={item.href + item.label}
@@ -289,7 +303,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
 
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--tournament-border)] bg-[var(--tournament-panel)]/98 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {primaryMobile.map((item) => {
-          const active = pathname === item.href || (item.href !== base && pathname.startsWith(item.href))
+                    const active = currentPath === item.href || (item.href !== base && currentPath.startsWith(item.href))
           return (
             <Link
               key={item.href}
@@ -348,8 +362,10 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
+      <TournamentEntryIntroModal tournamentId={tournamentId} sport={shell.sport} />
+
       {isCommissioner ? (
-        <TournamentSettingsModal
+        <TournamentSettingsModalEditable
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           tournamentId={tournamentId}

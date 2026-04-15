@@ -102,9 +102,16 @@ export async function getSeasonCalendar(
   formatType: string = 'DEFAULT'
 ): Promise<SeasonCalendarDto> {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType) as SportType
-  const row = await prisma.seasonCalendar.findUnique({
-    where: { uniq_season_calendar_sport_format: { sportType: sport, formatType } },
-  })
+  let row: Awaited<ReturnType<typeof prisma.seasonCalendar.findUnique>>
+  try {
+    row = await prisma.seasonCalendar.findUnique({
+      where: { sportType_formatType: { sportType: sport, formatType } },
+    })
+  } catch (err) {
+    // Production DBs may lag migrations (e.g. missing `sportType` / composite key) — never fail league create.
+    console.warn('[getSeasonCalendar] DB lookup failed; using in-memory calendar', { sport, formatType, err })
+    row = null
+  }
   if (row) {
     return {
       calendarId: row.id,

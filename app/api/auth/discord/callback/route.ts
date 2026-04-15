@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DISCORD_CLIENT_ID, DISCORD_OAUTH_REDIRECT_URI } from '@/lib/discord/constants'
+import { encrypt } from '@/lib/league-auth-crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,29 +17,28 @@ export async function GET(req: NextRequest) {
   }
 
   const searchParams = req.nextUrl.searchParams
-  const code = searchParams.get('code')
-  const state = searchParams.get('state')
-  const err = searchParams.get('error')
+  const code = searchParams?.get('code')
+  const state = searchParams?.get('state')
+  const err = searchParams?.get('error')
 
   const cookieStore = await cookies()
   const stored = cookieStore.get('discord_oauth_state')?.value
+  const initiatingUserId = cookieStore.get('discord_oauth_user_id')?.value
 
   if (err) {
     cookieStore.delete('discord_oauth_state')
+    cookieStore.delete('discord_oauth_user_id')
     return NextResponse.redirect(new URL(`/settings?discord=error`, SETTINGS_BASE))
   }
 
-  if (!code) {
+  if (!code || !state || !stored || stored !== state || !initiatingUserId || initiatingUserId !== session.user.id) {
     cookieStore.delete('discord_oauth_state')
-    return NextResponse.redirect(new URL('/settings?discord=error&reason=no_code', SETTINGS_BASE))
-  }
-
-  if (!state || !stored || stored !== state) {
-    cookieStore.delete('discord_oauth_state')
-    return NextResponse.redirect(new URL('/settings?discord=error&reason=state_mismatch', SETTINGS_BASE))
+    cookieStore.delete('discord_oauth_user_id')
+    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
   }
 
   cookieStore.delete('discord_oauth_state')
+  cookieStore.delete('discord_oauth_user_id')
 
   const secret = process.env.DISCORD_CLIENT_SECRET
   if (!secret) {
@@ -58,9 +58,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!tokenRes.ok) {
-    const errorBody = await tokenRes.text().catch(() => 'unknown')
-    console.error('[discord/callback] Token exchange failed:', tokenRes.status, errorBody)
-    return NextResponse.redirect(new URL(`/settings?discord=error&reason=token_exchange`, SETTINGS_BASE))
+    return NextResponse.redirect(new URL('/settings?discord=error', SETTINGS_BASE))
   }
 
   const tokens = (await tokenRes.json()) as {
@@ -90,6 +88,8 @@ export async function GET(req: NextRequest) {
   }
 
   const username = data.global_name ?? data.username
+  const encryptedAccessToken = encrypt(access_token)
+  const encryptedRefreshToken = tokens.refresh_token ? encrypt(tokens.refresh_token) : null
 
   try {
     await prisma.userProfile.upsert({
@@ -100,8 +100,8 @@ export async function GET(req: NextRequest) {
         discordUsername: username,
         discordEmail: data.email ?? null,
         discordAvatar: data.avatar ?? null,
-        discordAccessToken: access_token,
-        discordRefreshToken: tokens.refresh_token ?? null,
+        discordAccessToken: encryptedAccessToken,
+        discordRefreshToken: encryptedRefreshToken,
         discordConnectedAt: new Date(),
       },
       update: {
@@ -109,8 +109,8 @@ export async function GET(req: NextRequest) {
         discordUsername: username,
         discordEmail: data.email ?? null,
         discordAvatar: data.avatar ?? null,
-        discordAccessToken: access_token,
-        discordRefreshToken: tokens.refresh_token ?? null,
+        discordAccessToken: encryptedAccessToken,
+        discordRefreshToken: encryptedRefreshToken,
         discordConnectedAt: new Date(),
       },
     })
@@ -121,3 +121,4 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.redirect(new URL("/settings?discord=connected", SETTINGS_BASE))
 }
+

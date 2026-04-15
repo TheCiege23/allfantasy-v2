@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { Plus, Settings } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { LeagueListPanel } from './LeagueListPanel'
 import type { RightControlPanelLayoutProps, UserLeague } from '../types'
 
@@ -31,27 +32,31 @@ export function RightControlPanel({
   onAfterLeagueNavigate,
   onSettingsNavigate,
   onLeaguesRefresh,
+  onLeagueRemoved,
 }: RightControlPanelLayoutProps) {
   const router = useRouter()
+  const { t } = useLanguage()
   const resolvedSelectedId = activeLeagueId ?? selectedId
   const subtitle =
     userSubtitle === ''
       ? null
       : userSubtitle != null && userSubtitle !== ''
         ? userSubtitle
-        : 'AllFantasy'
+        : t('dashboard.right.brandSubtitle')
 
   return (
     <div className="relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col overflow-x-hidden border-l border-white/[0.07] bg-[#0a0a1f]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-2 py-2">
-          <p className="text-[16px] dashboard-header-bold header-myleagues uppercase tracking-widest">My Leagues</p>
+          <p className="text-[16px] dashboard-header-bold header-myleagues uppercase tracking-widest">
+            {t('dashboard.right.myLeagues')}
+          </p>
           <button
             type="button"
             onClick={onImport}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white transition hover:bg-white/[0.08]"
-            aria-label="Import league"
-            title="Import league"
+            aria-label={t('dashboard.right.importLeague')}
+            title={t('dashboard.right.importLeague')}
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -67,6 +72,7 @@ export function RightControlPanel({
             compact
             loading={leaguesLoading}
             onLeaguesRefresh={onLeaguesRefresh}
+            onLeagueRemoved={onLeagueRemoved}
           />
         </div>
       </div>
@@ -104,16 +110,14 @@ export function RightControlPanel({
         <button
           type="button"
           data-testid="dashboard-right-settings"
-          className="flex shrink-0 items-center justify-center rounded-lg p-2 min-h-[36px] min-w-[36px] transition-colors hover:bg-white/[0.08] active:bg-white/[0.12]"
-          aria-label="Settings"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
+          className="flex shrink-0 rounded-lg p-1 transition-colors hover:bg-white/[0.06]"
+          aria-label={t('dashboard.right.settings')}
+          onClick={() => {
             onSettingsNavigate?.()
             router.push('/settings')
           }}
         >
-          <Settings className="h-4 w-4 text-white/50 transition-colors hover:text-white/90" />
+          <Settings className="h-3.5 w-3.5 text-white/40 transition-colors hover:text-white/80" />
         </button>
       </div>
     </div>

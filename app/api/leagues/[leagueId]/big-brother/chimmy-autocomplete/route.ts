@@ -24,7 +24,7 @@ export async function GET(
   const isBB = await isBigBrotherLeague(leagueId)
   if (!isBB) return NextResponse.json({ error: 'Not a Big Brother league' }, { status: 404 })
 
-  const draft = req.nextUrl.searchParams.get('draft') ?? ''
+  const draft = req.nextUrl.searchParams?.get('draft') ?? ''
   const options = await getBbChimmyMentionOptions({ leagueId, draft, userId })
   return NextResponse.json(options)
 }

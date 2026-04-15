@@ -9,22 +9,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams;
-  const sport = normalizeToSupportedSport(searchParams.get('sport') || 'NFL');
-  const typeRaw = searchParams.get('type')?.trim().toLowerCase();
+  const sport = normalizeToSupportedSport(searchParams?.get('sport') || 'NFL');
+  const typeRaw = searchParams?.get('type')?.trim().toLowerCase();
   const type = typeRaw === 'player' || typeRaw === 'team' ? typeRaw : null;
-  const query = searchParams.get('query')?.trim() || null;
+  const query = searchParams?.get('query')?.trim() || null;
   // Backward compatibility for old player param callers.
-  const legacyPlayer = searchParams.get('player')?.trim() || null;
-  const refresh = searchParams.get('refresh') === 'true';
-  const summarizeParam = searchParams.get('summarize');
-  const enrichParam = searchParams.get('enrich');
+  const legacyPlayer = searchParams?.get('player')?.trim() || null;
+  const refresh = searchParams?.get('refresh') === 'true';
+  const summarizeParam = searchParams?.get('summarize');
+  const enrichParam = searchParams?.get('enrich');
   const enrich =
     enrichParam != null
       ? enrichParam !== 'false'
       : summarizeParam != null
         ? summarizeParam !== 'false'
         : true;
-  const limit = Math.min(parseInt(searchParams.get('limit') || '25', 10), 50);
+  const limit = Math.min(parseInt(searchParams?.get('limit') || '25', 10), 50);
   const effectiveType: FeedType | null = type ?? (legacyPlayer ? 'player' : query ? 'player' : null);
   const effectiveQuery = (query ?? legacyPlayer)?.trim() || null;
 
@@ -55,3 +55,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

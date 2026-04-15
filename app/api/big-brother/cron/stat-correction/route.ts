@@ -6,12 +6,12 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 async function run(req: NextRequest) {
-  const leagueId = req.nextUrl.searchParams.get('leagueId')?.trim() || undefined
-  const redraftSeasonId = req.nextUrl.searchParams.get('redraftSeasonId')?.trim() || undefined
-  const weekRaw = req.nextUrl.searchParams.get('week')
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim() || undefined
+  const redraftSeasonId = req.nextUrl.searchParams?.get('redraftSeasonId')?.trim() || undefined
+  const weekRaw = req.nextUrl.searchParams?.get('week')
   const week = weekRaw != null ? parseInt(weekRaw, 10) : undefined
   const dryRun =
-    req.nextUrl.searchParams.get('dryRun') === '1' || req.nextUrl.searchParams.get('dryRun') === 'true'
+    req.nextUrl.searchParams?.get('dryRun') === '1' || req.nextUrl.searchParams?.get('dryRun') === 'true'
 
   const result = await handleBbStatCorrectionSignal({
     leagueId,
@@ -35,3 +35,4 @@ export async function POST(req: NextRequest) {
   }
   return run(req)
 }
+

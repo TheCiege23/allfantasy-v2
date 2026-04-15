@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions as any) as { user?: { id?: string } } | null
     if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const leagueId = req.nextUrl.searchParams.get('leagueId')
+    const leagueId = req.nextUrl.searchParams?.get('leagueId')
     if (!leagueId) return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
 
     const league = await prisma.league.findFirst({
@@ -116,3 +116,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Failed to fetch retrospective' }, { status: 500 })
   }
 }
+

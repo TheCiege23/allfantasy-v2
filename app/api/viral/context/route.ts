@@ -13,8 +13,8 @@ const COOKIE_NAME = 'af_league_invite'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7 // 7 days
 
 export async function GET(req: NextRequest) {
-  const type = req.nextUrl.searchParams.get('type')
-  const code = req.nextUrl.searchParams.get('code')?.trim()
+  const type = req.nextUrl.searchParams?.get('type')
+  const code = req.nextUrl.searchParams?.get('code')?.trim()
   if (type !== 'league_invite' || !code) {
     return NextResponse.json({ error: 'Missing type or code' }, { status: 400 })
   }
@@ -34,3 +34,4 @@ export async function GET(req: NextRequest) {
   })
   return res
 }
+

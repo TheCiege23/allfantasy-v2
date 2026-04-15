@@ -242,14 +242,14 @@ export async function GET(
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
     const url = new URL(req.url)
-    const sportRaw = url.searchParams.get('sport')
+    const sportRaw = url.searchParams?.get('sport')
     const sport = sportRaw ? (normalizeSportForRivalry(sportRaw) ?? undefined) : undefined
-    const seasonParam = url.searchParams.get('season')
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : undefined
-    const managerId = url.searchParams.get('managerId') ?? undefined
-    const managerAId = url.searchParams.get('managerAId') ?? undefined
-    const managerBId = url.searchParams.get('managerBId') ?? undefined
-    const limitParam = url.searchParams.get('limit')
+    const managerId = url.searchParams?.get('managerId') ?? undefined
+    const managerAId = url.searchParams?.get('managerAId') ?? undefined
+    const managerBId = url.searchParams?.get('managerBId') ?? undefined
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 100) : 50
 
     const rivalries = await listRivalries(leagueId, {

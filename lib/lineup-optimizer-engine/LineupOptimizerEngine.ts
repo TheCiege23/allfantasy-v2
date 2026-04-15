@@ -1,4 +1,5 @@
 import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import type { LineupOptimizerSportKey } from './types'
 import type {
   LineupOptimizerInput,
   LineupOptimizerResult,
@@ -26,8 +27,66 @@ const FLEX_GROUPS: Record<string, string[]> = {
   FLEX: ['RB', 'WR', 'TE'],
   SUPERFLEX: ['QB', 'RB', 'WR', 'TE'],
   SFLEX: ['QB', 'RB', 'WR', 'TE'],
-  UTIL: ['PG', 'SG', 'SF', 'PF', 'C', 'QB', 'RB', 'WR', 'TE', 'GKP', 'DEF', 'MID', 'FWD', 'C', 'LW', 'RW', 'D', 'G', 'SP', 'RP', 'P', '1B', '2B', '3B', 'SS', 'OF'],
-  ANY: ['PG', 'SG', 'SF', 'PF', 'C', 'QB', 'RB', 'WR', 'TE', 'GKP', 'DEF', 'MID', 'FWD', 'C', 'LW', 'RW', 'D', 'G', 'SP', 'RP', 'P', '1B', '2B', '3B', 'SS', 'OF'],
+  UTIL: [
+    'PG',
+    'SG',
+    'SF',
+    'PF',
+    'C',
+    'QB',
+    'RB',
+    'WR',
+    'TE',
+    'GKP',
+    'DEF',
+    'MID',
+    'FWD',
+    'C',
+    'LW',
+    'RW',
+    'D',
+    'G',
+    'SP',
+    'RP',
+    'P',
+    '1B',
+    '2B',
+    '3B',
+    'SS',
+    'OF',
+    'GOLFER',
+    'DRIVER',
+  ],
+  ANY: [
+    'PG',
+    'SG',
+    'SF',
+    'PF',
+    'C',
+    'QB',
+    'RB',
+    'WR',
+    'TE',
+    'GKP',
+    'DEF',
+    'MID',
+    'FWD',
+    'C',
+    'LW',
+    'RW',
+    'D',
+    'G',
+    'SP',
+    'RP',
+    'P',
+    '1B',
+    '2B',
+    '3B',
+    'SS',
+    'OF',
+    'GOLFER',
+    'DRIVER',
+  ],
   G: ['PG', 'SG'],
   F: ['SF', 'PF'],
   W: ['LW', 'RW'],
@@ -41,6 +100,19 @@ const DEFAULT_SLOT_CODES: Record<SupportedSport, string[]> = {
   NHL: ['C', 'C', 'LW', 'RW', 'D', 'D', 'G', 'UTIL'],
   MLB: ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'SP', 'RP', 'UTIL'],
   SOCCER: ['GKP', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD', 'UTIL'],
+}
+
+export function resolveOptimizerSportKey(raw?: string): LineupOptimizerSportKey {
+  const u = raw?.trim().toUpperCase() ?? ''
+  if (u === 'PGA' || u === 'GOLF') return 'GOLF'
+  if (u === 'CUP' || u === 'NASCAR') return 'NASCAR'
+  return normalizeToSupportedSport(raw)
+}
+
+export function defaultSlotCodesForSport(sportKey: LineupOptimizerSportKey): string[] {
+  if (sportKey === 'GOLF') return ['GOLFER', 'GOLFER', 'GOLFER', 'GOLFER']
+  if (sportKey === 'NASCAR') return ['DRIVER', 'DRIVER', 'DRIVER', 'DRIVER', 'FLEX']
+  return DEFAULT_SLOT_CODES[sportKey]
 }
 
 function roundToTenth(value: number): number {
@@ -91,10 +163,10 @@ function slotAllowedPositions(code: string): string[] {
 }
 
 function normalizeSlots(input: {
-  sport: SupportedSport
+  sport: LineupOptimizerSportKey
   slots?: OptimizerSlotInput[]
 }): NormalizedSlot[] {
-  const fallbackSlots: OptimizerSlotInput[] = DEFAULT_SLOT_CODES[input.sport].map((code) => ({ code }))
+  const fallbackSlots: OptimizerSlotInput[] = defaultSlotCodesForSport(input.sport).map((code) => ({ code }))
   const sourceSlots: OptimizerSlotInput[] = input.slots?.length ? input.slots : fallbackSlots
   const slotInputs = sourceSlots.map((slot, index) => ({
     ...slot,
@@ -142,7 +214,7 @@ function buildDeterministicNotes(result: LineupOptimizerResult): string[] {
 }
 
 export function optimizeLineupDeterministic(input: LineupOptimizerInput): LineupOptimizerResult {
-  const sport = normalizeToSupportedSport(input.sport ?? DEFAULT_SPORT)
+  const sport = resolveOptimizerSportKey(input.sport ?? DEFAULT_SPORT)
   const players = normalizePlayers(input.players)
   const slots = normalizeSlots({ sport, slots: input.slots })
 

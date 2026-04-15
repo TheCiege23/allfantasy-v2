@@ -36,8 +36,11 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
     const playerMapCount = Object.keys(raw.playerMap ?? {}).length
     const rosterWithPlayersCount = rosters.filter((roster) => roster.player_ids.length > 0).length
 
+    const viewerTeam = raw.teams.find((t) => t.managerId.startsWith('fantrax-user:'))
+
     const result: NormalizedImportResult = {
       source,
+      viewer_source_team_id: viewerTeam?.teamId ?? null,
       league,
       rosters,
       scoring,

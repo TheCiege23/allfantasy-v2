@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = req.nextUrl
-  const leagueId = searchParams.get('leagueId')?.trim() ?? ''
+  const leagueId = searchParams?.get('leagueId')?.trim() ?? ''
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const allowed = await canAccessLeagueDraft(leagueId, userId)
@@ -45,11 +45,11 @@ export async function GET(req: NextRequest) {
   const isIdp = await isIdpLeague(leagueId)
   if (!isIdp) return NextResponse.json({ error: 'Not an IDP league' }, { status: 404 })
 
-  const pool = (searchParams.get('pool') ?? 'waiver').toLowerCase()
+  const pool = (searchParams?.get('pool') ?? 'waiver').toLowerCase()
   const poolWaiver = pool !== 'all'
-  const positionFilter = searchParams.get('position')?.trim() ?? ''
-  const q = searchParams.get('q')?.trim().toLowerCase() ?? ''
-  const limit = Math.min(150, Math.max(1, Number(searchParams.get('limit') || '50') || 50))
+  const positionFilter = searchParams?.get('position')?.trim() ?? ''
+  const q = searchParams?.get('q')?.trim().toLowerCase() ?? ''
+  const limit = Math.min(150, Math.max(1, Number(searchParams?.get('limit') || '50') || 50))
 
   const [all, rostered] = await Promise.all([getAllPlayers(), poolWaiver ? getRosteredPlayerIdsInLeague(leagueId) : null])
 
@@ -72,3 +72,4 @@ export async function GET(req: NextRequest) {
     players,
   })
 }
+

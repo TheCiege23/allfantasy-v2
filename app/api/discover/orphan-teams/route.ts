@@ -14,6 +14,8 @@ import {
   getOrphanAdoptionRequests,
 } from "@/lib/orphan-marketplace"
 
+export const dynamic = "force-dynamic"
+
 type SessionWithUser = { user?: { id?: string } } | null
 
 function toRecord(value: unknown): Record<string, unknown> {
@@ -128,9 +130,9 @@ export async function GET(req: NextRequest) {
     const session = (await getServerSession(authOptions as any)) as SessionWithUser
     const viewerId = session?.user?.id ?? null
 
-    const sport = req.nextUrl.searchParams.get("sport")?.trim().toUpperCase() || ""
-    const q = req.nextUrl.searchParams.get("q")?.trim().toLowerCase() || ""
-    const leagueTypeFilter = req.nextUrl.searchParams.get("leagueType")?.trim().toLowerCase() || ""
+    const sport = req.nextUrl.searchParams?.get("sport")?.trim().toUpperCase() || ""
+    const q = req.nextUrl.searchParams?.get("q")?.trim().toLowerCase() || ""
+    const leagueTypeFilter = req.nextUrl.searchParams?.get("leagueType")?.trim().toLowerCase() || ""
     const { page, limit, skip } = parseOffsetPageParams(req, 30)
 
     const rows = await prisma.roster.findMany({

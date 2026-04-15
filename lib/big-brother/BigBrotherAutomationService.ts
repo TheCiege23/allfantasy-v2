@@ -17,7 +17,7 @@ import type { BigBrotherWeekPhase } from './types'
 export interface AutomationRunInput {
   leagueId: string
   /** Optional: force action (e.g. 'close_eviction', 'auto_nominate', 'veto_draw', 'veto_decision_timeout'). If not set, automation infers from phase and time. PROMPT 5. */
-  action?: 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'veto_decision_timeout' | 'auto_replacement' | 'lock_voting'
+  action?: 'tick' | 'close_eviction' | 'auto_nominate' | 'veto_draw' | 'veto_decision_timeout' | 'auto_replacement' | 'lock_voting' | 'auto_hoh'
   systemUserId?: string | null
 }
 
@@ -44,6 +44,26 @@ export async function runAutomation(input: AutomationRunInput): Promise<Automati
   if (!current) return { ok: false, error: 'No current cycle' }
 
   const phase = current.phase as BigBrotherWeekPhase
+
+  if (action === 'auto_hoh') {
+    if (phase !== 'HOH_OPEN') return { ok: false, error: 'Cycle not in HOH_OPEN' }
+    // Auto-resolve HOH via seeded random when deadline passes without manual trigger
+    const { getEligibleHOHRosterIds, assignHOH } = await import('./BigBrotherHOHEngine')
+    const { resolveChallengeBySeededRandom } = await import('./BigBrotherChallengeEngine')
+    const { announceHOHWinner } = await import('./BigBrotherChatAnnouncements')
+    const eligible = await getEligibleHOHRosterIds(leagueId, config.configId, current.week, config.consecutiveHohAllowed)
+    if (eligible.length === 0) return { ok: false, error: 'No eligible HOH competitors' }
+    const winnerId = resolveChallengeBySeededRandom({
+      leagueId, configId: config.configId, week: current.week,
+      participantRosterIds: eligible, challengeType: 'hoh',
+    })
+    if (!winnerId) return { ok: false, error: 'Could not determine HOH winner' }
+    await assignHOH(leagueId, config.configId, current.id, winnerId)
+    await transitionPhase(current.id, 'HOH_LOCKED')
+    await transitionPhase(current.id, 'NOMINATION_OPEN')
+    await announceHOHWinner({ leagueId, week: current.week, hohRosterId: winnerId, systemUserId }).catch(() => {})
+    return { ok: true, cycleId: current.id, phase: 'NOMINATION_OPEN', actionTaken: 'auto_hoh' }
+  }
 
   if (action === 'veto_decision_timeout') {
     if (phase !== 'VETO_DECISION_OPEN') return { ok: false, error: 'Cycle not in VETO_DECISION_OPEN' }

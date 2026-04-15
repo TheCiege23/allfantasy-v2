@@ -12,7 +12,7 @@ import type { ReferralDashboardData, ReferralRewardView } from "@/lib/referral"
 
 type DashboardTab = "overview" | "rewards" | "leaderboard"
 
-function resolveTab(input: string | null): DashboardTab {
+function resolveTab(input: string | null | undefined): DashboardTab {
   if (input === "rewards" || input === "leaderboard") return input
   return "overview"
 }
@@ -34,7 +34,7 @@ function formatRewardValue(reward: ReferralRewardView): string {
 
 export function ReferralDashboard() {
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<DashboardTab>(resolveTab(searchParams.get("tab")))
+  const [tab, setTab] = useState<DashboardTab>(resolveTab(searchParams?.get("tab")))
   const [dashboard, setDashboard] = useState<ReferralDashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [reloading, setReloading] = useState(false)
@@ -65,7 +65,7 @@ export function ReferralDashboard() {
   }, [])
 
   useEffect(() => {
-    setTab(resolveTab(searchParams.get("tab")))
+    setTab(resolveTab(searchParams?.get("tab")))
   }, [searchParams])
 
   useEffect(() => {

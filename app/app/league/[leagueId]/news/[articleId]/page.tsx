@@ -28,7 +28,7 @@ interface ArticleDetail {
 
 export default function LeagueNewsArticlePage() {
   const { formatDateInTimezone } = useUserTimezone()
-  const params = useParams<{ leagueId: string; articleId: string }>()
+  const params = useParams<{ leagueId: string; articleId: string }>() ?? ({} as { leagueId: string; articleId: string })
   const leagueId = params?.leagueId ?? ''
   const articleId = params?.articleId ?? ''
   const [article, setArticle] = useState<ArticleDetail | null>(null)

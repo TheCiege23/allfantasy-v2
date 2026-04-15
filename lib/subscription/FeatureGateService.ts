@@ -41,9 +41,10 @@ export class FeatureGateService {
 
   async evaluateUserFeatureAccess(
     userId: string,
-    featureId: SubscriptionFeatureId
+    featureId: SubscriptionFeatureId,
+    email?: string | null
   ): Promise<FeatureGateDecision> {
-    const resolved = await this.entitlementResolver.resolveForUser(userId, featureId)
+    const resolved = await this.entitlementResolver.resolveForUser(userId, featureId, email)
     const requiredPlanId = getRequiredPlanForFeature(featureId)
     const requiredPlan = requiredPlanId ? getDisplayPlanName(requiredPlanId) : null
     const upgradePath = buildFeatureUpgradePath(featureId)
@@ -81,8 +82,12 @@ export class FeatureGateService {
     }
   }
 
-  async assertUserHasFeature(userId: string, featureId: SubscriptionFeatureId): Promise<void> {
-    const decision = await this.evaluateUserFeatureAccess(userId, featureId)
+  async assertUserHasFeature(
+    userId: string,
+    featureId: SubscriptionFeatureId,
+    email?: string | null
+  ): Promise<void> {
+    const decision = await this.evaluateUserFeatureAccess(userId, featureId, email)
     if (!decision.allowed) {
       throw new FeatureGateAccessError(decision)
     }

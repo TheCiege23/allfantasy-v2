@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const seasonId = req.nextUrl.searchParams.get('seasonId')?.trim()
-  const rosterId = req.nextUrl.searchParams.get('rosterId')?.trim()
+  const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
+  const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
   if (!seasonId || !rosterId) {
     return NextResponse.json({ error: 'seasonId and rosterId required' }, { status: 400 })
   }
@@ -107,3 +107,4 @@ export async function DELETE(req: NextRequest) {
 
   return NextResponse.json({ ok: true })
 }
+

@@ -22,6 +22,7 @@ import {
   getSurvivorConfig,
   upsertSurvivorConfig,
 } from '@/lib/survivor/SurvivorLeagueConfig'
+import { SURVIVOR_LEAGUE_INTRO_VIDEO } from '@/lib/survivor/constants'
 import { getExcludedRosterIdsForSurvivor, isRosterCurrentlyEliminated } from '@/lib/survivor/SurvivorRosterState'
 import {
   isZombieLeague,
@@ -144,12 +145,12 @@ function registerSurvivor(): void {
     upsertConfig: upsertSurvivorConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-survivor.png',
+      firstEntryVideo: SURVIVOR_LEAGUE_INTRO_VIDEO,
+      introVideo: SURVIVOR_LEAGUE_INTRO_VIDEO,
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/survivor/SurvivorFirstEntryModal',
     homeComponent: '@/components/survivor/SurvivorHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/survivor/summary',
@@ -186,9 +187,9 @@ function registerZombie(): void {
     upsertConfig: upsertZombieLeagueConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-zombie.png',
+      firstEntryVideo: '/league-type-zombie-intro.mp4',
+      introVideo: '/league-type-zombie.mp4',
     }),
 
     firstEntryModal: undefined,
@@ -234,12 +235,12 @@ function registerDevy(): void {
     upsertConfig: upsertDevyConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-devy.png',
+      firstEntryVideo: '/league-type-devy-intro.mp4',
+      introVideo: '/league-type-devy.mp4',
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/devy/DevyFirstEntryModal',
     homeComponent: '@/components/devy/DevyHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/devy/summary',
@@ -261,12 +262,12 @@ function registerC2C(): void {
     upsertConfig: upsertC2CConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-c2c.png',
+      firstEntryVideo: '/league-type-c2c-intro.mp4',
+      introVideo: '/league-type-c2c.mp4',
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/devy/DevyFirstEntryModal',
     homeComponent: '@/components/merged-devy-c2c/MergedDevyC2CHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/merged-devy-c2c/summary',
@@ -286,9 +287,9 @@ function registerTournament(): void {
     upsertConfig: upsertTournamentConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-tournament.png',
+      firstEntryVideo: '/league-type-tournament.mp4',
+      introVideo: '/league-type-tournament.mp4',
     }),
 
     firstEntryModal: undefined,
@@ -315,12 +316,12 @@ function registerBigBrother(): void {
     upsertConfig: upsertBigBrotherConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-big-brother.png',
+      firstEntryVideo: '/league-type-big-brother-intro.mp4',
+      introVideo: '/league-type-big-brother.mp4',
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/big-brother/BigBrotherFirstEntryModal',
     homeComponent: '@/components/big-brother/BigBrotherHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/big-brother/summary',
@@ -350,12 +351,12 @@ function registerIdp(): void {
     upsertConfig: upsertIdpLeagueConfig,
 
     assets: () => ({
-      leagueImage: '',
-      firstEntryVideo: undefined,
-      introVideo: undefined,
+      leagueImage: '/league-type-idp.png',
+      firstEntryVideo: '/league-type-idp-intro.mp4',
+      introVideo: '/league-type-idp.mp4',
     }),
 
-    firstEntryModal: undefined,
+    firstEntryModal: '@/components/idp/IDPFirstEntryModal',
     homeComponent: '@/components/idp/IDPHome',
 
     summaryRoutePath: '/api/leagues/[leagueId]/idp/config',

@@ -12,6 +12,14 @@ export const DRAFT_ROOM_MESSAGES = {
   playerPoolLoading: 'Loading player pool…',
 } as const
 
+/** i18n keys for `useLanguage().t()` — keep in sync with `lib/i18n/translations` `draftRoom.*` */
+export const DRAFT_ROOM_I18N_KEYS = {
+  loading: 'draftRoom.state.loading',
+  noSession: 'draftRoom.state.noSession',
+  queueEmpty: 'draftRoom.queue.empty',
+  playerPoolLoading: 'draftRoom.playerPool.loading',
+} as const
+
 export type CurrentPickDisplay = {
   overall: number
   round: number

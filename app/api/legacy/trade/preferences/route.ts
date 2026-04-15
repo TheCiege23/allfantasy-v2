@@ -5,7 +5,7 @@ import { QUIZ_TRADES, calculatePreferences } from '@/lib/trade-quiz-data'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/trade/preferences", tool: "LegacyTradePreferences" })(async (req: NextRequest) => {
   const url = new URL(req.url)
-  const sleeperUsername = url.searchParams.get('sleeper_username')?.trim().toLowerCase()
+  const sleeperUsername = url.searchParams?.get('sleeper_username')?.trim().toLowerCase()
 
   if (!sleeperUsername) {
     return NextResponse.json({ error: 'Missing sleeper_username' }, { status: 400 })
@@ -77,3 +77,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/preferences", to
     return NextResponse.json({ error: 'Failed to save preferences' }, { status: 500 })
   }
 })
+

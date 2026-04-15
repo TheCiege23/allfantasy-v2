@@ -79,11 +79,16 @@ export default defineConfig({
     command: `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
     url: PLAYWRIGHT_BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 240_000,
     env: {
       ...process.env,
       DATABASE_URL:
-        process.env.DATABASE_URL ?? 'postgresql://playwright:playwright@localhost:5432/playwright',
+        process.env.DATABASE_URL ??
+        process.env.POSTGRES_PRISMA_URL ??
+        process.env.POSTGRES_URL ??
+        process.env.DIRECT_URL ??
+        process.env.POSTGRES_URL_NON_POOLING ??
+        '',
       PLAYWRIGHT_E2E: '1',
     },
   },

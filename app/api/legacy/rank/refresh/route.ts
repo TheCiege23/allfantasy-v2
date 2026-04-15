@@ -11,7 +11,7 @@ function safeNum(v: unknown, fallback = 0): number {
 }
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/rank/refresh", tool: "LegacyRankRefresh" })(async (request: NextRequest) => {
-  const raw = request.nextUrl.searchParams.get("sleeper_username")?.trim();
+  const raw = request.nextUrl.searchParams?.get("sleeper_username")?.trim();
   if (!raw) return NextResponse.json({ error: "Missing sleeper_username" }, { status: 400 });
 
   const uname = raw.toLowerCase();
@@ -188,3 +188,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rank/refresh", tool: "
     rate_limit: { remaining: rl.remaining, retryAfterSec: rl.retryAfterSec },
   });
 })
+

@@ -6,6 +6,7 @@ import type {
   SurvivorSeasonPayload,
   SurvivorUiPlayerState,
 } from './survivorUiTypes'
+import { shouldApplySurvivorFairPlayRedaction } from './survivorFairPlay'
 
 export type UseSurvivorPlayerStateResult = {
   loading: boolean
@@ -30,6 +31,10 @@ export type UseSurvivorPlayerStateResult = {
   tokenBalance: number | null
   currentWeek: number
   leaguePhase: string
+  /** League was created with player/commissioner fair-play rules. */
+  survivorFairPlayLimited: boolean
+  /** This viewer is a competing commissioner — cross-tribe intel is redacted in APIs. */
+  survivorFairPlayActive: boolean
   refetch: () => void
 }
 
@@ -92,6 +97,13 @@ export function useSurvivorPlayerState(leagueId: string): UseSurvivorPlayerState
 
     const role = settings?.userRole ?? ''
     const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
+    const survivorFairPlayLimited = Boolean(settings?.survivorFairPlayLimited)
+    const viewerHasTeam = Boolean(settings?.viewerHasTeam)
+    const survivorFairPlayActive = shouldApplySurvivorFairPlayRedaction(
+      survivorFairPlayLimited,
+      isCommissioner,
+      viewerHasTeam,
+    )
 
     return {
       loading,
@@ -119,6 +131,8 @@ export function useSurvivorPlayerState(leagueId: string): UseSurvivorPlayerState
       tokenBalance: typeof us?.tokenBalance === 'number' ? us.tokenBalance : null,
       currentWeek: season?.activeCouncil?.week ?? season?.currentChallenge?.week ?? 1,
       leaguePhase: season?.phase ?? 'pre_draft',
+      survivorFairPlayLimited,
+      survivorFairPlayActive,
       refetch: load,
     }
   }, [error, load, loading, season, settings])

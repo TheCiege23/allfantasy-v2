@@ -2,14 +2,15 @@
 
 import { useEffect } from 'react';
 import { initPWA } from '@/lib/pwa';
+import { shouldRegisterServiceWorker } from '@/lib/pwa/shouldRegisterServiceWorker';
 
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    if (typeof window === 'undefined') {
+    if (!shouldRegisterServiceWorker()) {
       return;
     }
 

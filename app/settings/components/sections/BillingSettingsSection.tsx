@@ -1,9 +1,12 @@
 "use client"
 
 import Link from "next/link"
+import { useLanguage } from "@/components/i18n/LanguageProviderClient"
+import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { useEntitlements } from "@/hooks/useEntitlements"
 
 export function BillingSettingsSection() {
+  const { t } = useLanguage()
   const ents = useEntitlements()
 
   if (ents.loading) {
@@ -16,14 +19,12 @@ export function BillingSettingsSection() {
 
   return (
     <section className="space-y-4" data-testid="settings-billing-section">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-white/40">
-        Subscription &amp; Billing
-      </h2>
+      <h2 className="text-sm font-bold uppercase tracking-wider text-white/40">{t("settings.nav.billing")}</h2>
 
       <div className="rounded-2xl border border-white/[0.1] bg-white/[0.03] p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="mb-1 text-xs uppercase tracking-wider text-white/40">Current plan</p>
+            <p className="mb-1 text-xs uppercase tracking-wider text-white/40">{t("settings.billing.currentPlan")}</p>
             {hasAnySub ? (
               <div className="flex flex-wrap items-center gap-2">
                 {ents.hasAllAccess && (
@@ -64,27 +65,28 @@ export function BillingSettingsSection() {
                     : "border-white/[0.1] bg-white/[0.03] text-white/40",
             ].join(" ")}
           >
-            {status === "none" ? "Free" : status.replace(/_/g, " ")}
+            {status === "none" ? t("settings.billing.statusFree") : status.replace(/_/g, " ")}
           </span>
         </div>
 
         {snap?.currentPeriodEnd && (
           <p className="mt-2 text-xs text-white/40">
-            {status === "active" ? "Renews" : "Access until"}{" "}
+            {status === "active" ? t("settings.billing.renews") : t("settings.billing.accessUntil")}{" "}
             {new Date(snap.currentPeriodEnd).toLocaleDateString()}
           </p>
         )}
 
         {status === "past_due" && (
           <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-200">
-            Your last payment failed. Update your billing method to keep access.
+            {t("settings.billing.paymentFailed")}
           </div>
         )}
 
         {status === "grace" && snap?.gracePeriodEnd && (
           <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
-            Access extended until {new Date(snap.gracePeriodEnd).toLocaleDateString()}. Renew to keep
-            your subscription.
+            {interpolateTemplate(t("settings.billing.graceNotice"), {
+              date: new Date(snap.gracePeriodEnd).toLocaleDateString(),
+            })}
           </div>
         )}
       </div>
@@ -120,7 +122,7 @@ export function BillingSettingsSection() {
           className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-500 px-4 py-2 text-sm font-bold text-[#030b14] transition hover:from-cyan-400 hover:to-sky-400"
           data-testid="settings-billing-pricing"
         >
-          {hasAnySub ? "Change plan" : "View plans"}
+          {hasAnySub ? t("settings.billing.changePlan") : t("settings.billing.viewPlans")}
         </Link>
       </div>
     </section>

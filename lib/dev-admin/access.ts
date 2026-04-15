@@ -1,4 +1,5 @@
 import type { EntitlementStatus, SubscriptionPlanId } from "@/lib/subscription/types"
+import { isAdminEmailAllowed } from "@/lib/adminAuth"
 import { getTokenSpendRuleMatrixEntry, type TokenPricingTier } from "@/lib/tokens/pricing-matrix"
 
 const DEV_ADMIN_PLANS: readonly SubscriptionPlanId[] = ["all_access"]
@@ -55,7 +56,31 @@ type DevAdminTokenLedgerEntryView = {
   createdAt: string
 }
 
+/**
+ * Permanent app-owner / developer accounts that always get admin access
+ * regardless of the DEV_ADMIN_USER_IDS environment variable.
+ */
+const STATIC_ADMIN_USER_IDS = new Set<string>([
+  '944bb9f1-7a25-455b-8ef2-66146dbf3553', // theciege24 — app owner (supabase)
+])
+
+/** App owner emails — always bypass subscriptions and token charges regardless of user ID. */
+const STATIC_ADMIN_EMAILS = new Set<string>([
+  'cjabar.henson@gmail.com', // theciege24 — app owner
+])
+
 function parseDevAdminUserIds(rawValue: string | undefined): Set<string> {
+  if (!rawValue) return new Set()
+  return new Set(
+    rawValue
+      .split(/[\n\r,;]+/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )
+}
+
+/** App user ids (same as Supabase `auth.users.id` when accounts are linked) that skip AI token / monetization notifications. */
+function parseTokenNotificationBypassUserIds(rawValue: string | undefined): Set<string> {
   if (!rawValue) return new Set()
   return new Set(
     rawValue
@@ -83,7 +108,50 @@ function getRuleMeta(ruleCode: string): {
 export function isDevAdminUserId(userId: string | null | undefined): boolean {
   const normalizedUserId = String(userId ?? "").trim()
   if (!normalizedUserId) return false
+  if (STATIC_ADMIN_USER_IDS.has(normalizedUserId)) return true
   return parseDevAdminUserIds(process.env.DEV_ADMIN_USER_IDS).has(normalizedUserId)
+}
+
+/**
+ * When true, `dispatchNotification` can skip channels for notifications that look like
+ * AI token balance, purchases, or monetization nudges (see `shouldSuppressTokenMonetizationNotification`).
+ * Includes `TOKEN_NOTIFICATION_BYPASS_USER_IDS` and `DEV_ADMIN_USER_IDS` (admin token bypass).
+ */
+export function isTokenNotificationBypassUserId(userId: string | null | undefined): boolean {
+  const normalizedUserId = String(userId ?? "").trim()
+  if (!normalizedUserId) return false
+  if (parseTokenNotificationBypassUserIds(process.env.TOKEN_NOTIFICATION_BYPASS_USER_IDS).has(normalizedUserId)) {
+    return true
+  }
+  return isDevAdminUserId(userId)
+}
+
+/**
+ * Full subscription + AI + token-ledger bypass for internal / QA testing (same snapshot as dev admin).
+ * Use Prisma `AppUser.id` (matches `session.user.id` / Supabase auth user id when linked).
+ *
+ * Covers: {@link isTokenNotificationBypassUserId} (TOKEN list + dev admin + static admin) and
+ * optional `AI_ENTITLEMENT_BYPASS_USER_IDS` for an explicit QA list without reusing other env names.
+ */
+/**
+ * Full bypass for subscriptions + token metering. Pass `email` when available so accounts in
+ * `ADMIN_EMAILS` match platform admin / “super admin” the same way `/admin` does (not only env user-id lists).
+ */
+export function isSubscriptionEntitlementBypassUserId(
+  userId: string | null | undefined,
+  email?: string | null
+): boolean {
+  // Static super-admin emails always bypass
+  if (email && STATIC_ADMIN_EMAILS.has(email.trim().toLowerCase())) return true
+  const normalizedUserId = String(userId ?? "").trim()
+  if (normalizedUserId) {
+    if (parseDevAdminUserIds(process.env.AI_ENTITLEMENT_BYPASS_USER_IDS).has(normalizedUserId)) {
+      return true
+    }
+  }
+  if (isTokenNotificationBypassUserId(userId)) return true
+  if (email && isAdminEmailAllowed(email)) return true
+  return false
 }
 
 export function buildDevAdminEntitlementSnapshot(): DevAdminEntitlementSnapshot {

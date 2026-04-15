@@ -14,6 +14,8 @@ import { getFeatureTokenFallbackRule } from '@/lib/subscription/feature-gate-mat
 
 export type FeatureGateMiddlewareOptions = {
   userId: string
+  /** Session email — enables ADMIN_EMAILS platform-admin bypass (same as `/admin`). */
+  userEmail?: string | null
   featureId: SubscriptionFeatureId
   allowTokenFallback?: boolean
   tokenRuleCode?: TokenSpendRuleCode
@@ -109,7 +111,11 @@ export async function requireFeatureEntitlement(
   options: FeatureGateMiddlewareOptions
 ): Promise<FeatureGateMiddlewareResult> {
   const gate = new FeatureGateService()
-  const decision = await gate.evaluateUserFeatureAccess(options.userId, options.featureId)
+  const decision = await gate.evaluateUserFeatureAccess(
+    options.userId,
+    options.featureId,
+    options.userEmail
+  )
   if (decision.allowed) {
     return { ok: true, decision, tokenSpend: null, tokenPreview: null }
   }
@@ -126,12 +132,13 @@ export async function requireFeatureEntitlement(
   const tokenSpendService = new TokenSpendService()
   let preview: TokenSpendPreview
   try {
-    const balance = await tokenSpendService.getBalance(options.userId)
+    const balance = await tokenSpendService.getBalance(options.userId, options.userEmail)
     preview = await tokenSpendService.previewSpendWithEntitlement({
       userId: options.userId,
       ruleCode: tokenRuleCode,
       entitlement: decision.entitlement,
       currentBalance: Number(balance.balance || 0),
+      userEmail: options.userEmail,
     })
   } catch (error) {
     if (error instanceof TokenSpendRuleNotFoundError) {
@@ -159,6 +166,7 @@ export async function requireFeatureEntitlement(
         featureId: options.featureId,
         ...(options.tokenMetadata ?? {}),
       },
+      userEmail: options.userEmail,
     })
   } catch (error) {
     if (error instanceof TokenInsufficientBalanceError) {

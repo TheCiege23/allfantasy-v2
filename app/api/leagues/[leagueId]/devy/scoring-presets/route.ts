@@ -25,7 +25,7 @@ export async function GET(
   const isDevy = await isDevyLeague(leagueId)
   if (!isDevy) return NextResponse.json({ error: 'Not a devy league' }, { status: 404 })
 
-  const sport = (req.nextUrl.searchParams.get('sport') ?? 'NFL').toUpperCase() as 'NFL' | 'NBA'
+  const sport = (req.nextUrl.searchParams?.get('sport') ?? 'NFL').toUpperCase() as 'NFL' | 'NBA'
   const presets = getDevyScoringPresets(sport)
   return NextResponse.json({ sport, presets })
 }

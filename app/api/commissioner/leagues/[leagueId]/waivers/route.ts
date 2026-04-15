@@ -20,8 +20,8 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const type = req.nextUrl.searchParams.get('type') || 'pending'
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get('limit') || '50')))
+  const type = req.nextUrl.searchParams?.get('type') || 'pending'
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get('limit') || '50')))
 
   if (type === 'settings') {
     const settings = await getEffectiveLeagueWaiverSettings(params.leagueId)

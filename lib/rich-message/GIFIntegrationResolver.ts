@@ -1,9 +1,12 @@
 /**
- * GIFIntegrationResolver — detect if GIF search is configured and provide paste-URL fallback.
- * Graceful fallback when TENOR_API_KEY / GIPHY_API_KEY are not set.
+ * GIFIntegrationResolver — Klipy primary, Giphy/Tenor fallback.
+ * Graceful fallback when API keys are not set.
  */
 
-/** Client-safe: only NEXT_PUBLIC_* are available in browser. */
+function getKlipyKey(): string {
+  if (typeof process === "undefined") return ""
+  return process.env.VITE_KLIPY_API_KEY ?? process.env.KLIPY_API_KEY ?? ""
+}
 function getTenorKey(): string {
   if (typeof process === "undefined") return ""
   return process.env.NEXT_PUBLIC_TENOR_API_KEY ?? ""
@@ -14,10 +17,11 @@ function getGiphyKey(): string {
 }
 
 export function isGifSearchConfigured(): boolean {
-  return Boolean(getTenorKey() || getGiphyKey())
+  return Boolean(getKlipyKey() || getTenorKey() || getGiphyKey())
 }
 
-export function getGifProviderName(): "tenor" | "giphy" | null {
+export function getGifProviderName(): "klipy" | "tenor" | "giphy" | null {
+  if (getKlipyKey()) return "klipy"
   if (getTenorKey()) return "tenor"
   if (getGiphyKey()) return "giphy"
   return null
@@ -55,7 +59,26 @@ export type GifSearchResult = {
   id: string
   url: string
   previewUrl?: string
-  provider: "tenor" | "giphy"
+  provider: "klipy" | "tenor" | "giphy"
+}
+
+function normalizeKlipyResults(payload: unknown): GifSearchResult[] {
+  const wrapper = payload as { result?: boolean; data?: { data?: unknown[] } }
+  const list = Array.isArray(wrapper?.data?.data) ? wrapper.data!.data! : []
+  const normalized: GifSearchResult[] = []
+  for (const entry of list) {
+    const obj = entry as Record<string, unknown>
+    const id = String(obj.id ?? "")
+    const files = (obj.files ?? {}) as Record<string, Record<string, unknown>>
+    const gif = files.gif
+    const gifSmall = files.gif_small
+    const webp = files.webp
+    const url = typeof gif?.url === "string" ? gif.url : typeof webp?.url === "string" ? webp.url : ""
+    const previewUrl = typeof gifSmall?.url === "string" ? gifSmall.url : url
+    if (!id || !url) continue
+    normalized.push({ id, url, previewUrl, provider: "klipy" })
+  }
+  return normalized
 }
 
 function normalizeTenorResults(payload: unknown): GifSearchResult[] {
@@ -64,15 +87,15 @@ function normalizeTenorResults(payload: unknown): GifSearchResult[] {
     : []
   const normalized: GifSearchResult[] = []
   for (const entry of list) {
-      const obj = entry as Record<string, unknown>
-      const id = typeof obj.id === "string" ? obj.id : ""
-      const mediaFormats = (obj.media_formats || {}) as Record<string, Record<string, unknown>>
-      const gif = mediaFormats.gif
-      const tiny = mediaFormats.tinygif
-      const url = typeof gif?.url === "string" ? gif.url : ""
-      const previewUrl = typeof tiny?.url === "string" ? tiny.url : url
-      if (!id || !url) continue
-      normalized.push({ id, url, previewUrl, provider: "tenor" })
+    const obj = entry as Record<string, unknown>
+    const id = typeof obj.id === "string" ? obj.id : ""
+    const mediaFormats = (obj.media_formats || {}) as Record<string, Record<string, unknown>>
+    const gif = mediaFormats.gif
+    const tiny = mediaFormats.tinygif
+    const url = typeof gif?.url === "string" ? gif.url : ""
+    const previewUrl = typeof tiny?.url === "string" ? tiny.url : url
+    if (!id || !url) continue
+    normalized.push({ id, url, previewUrl, provider: "tenor" })
   }
   return normalized
 }
@@ -83,15 +106,15 @@ function normalizeGiphyResults(payload: unknown): GifSearchResult[] {
     : []
   const normalized: GifSearchResult[] = []
   for (const entry of list) {
-      const obj = entry as Record<string, unknown>
-      const id = typeof obj.id === "string" ? obj.id : ""
-      const images = (obj.images || {}) as Record<string, Record<string, unknown>>
-      const original = images.original
-      const preview = images.preview_gif || images.fixed_width_small || original
-      const url = typeof original?.url === "string" ? original.url : ""
-      const previewUrl = typeof preview?.url === "string" ? preview.url : url
-      if (!id || !url) continue
-      normalized.push({ id, url, previewUrl, provider: "giphy" })
+    const obj = entry as Record<string, unknown>
+    const id = typeof obj.id === "string" ? obj.id : ""
+    const images = (obj.images || {}) as Record<string, Record<string, unknown>>
+    const original = images.original
+    const preview = images.preview_gif || images.fixed_width_small || original
+    const url = typeof original?.url === "string" ? original.url : ""
+    const previewUrl = typeof preview?.url === "string" ? preview.url : url
+    if (!id || !url) continue
+    normalized.push({ id, url, previewUrl, provider: "giphy" })
   }
   return normalized
 }
@@ -101,6 +124,19 @@ export async function searchGifs(query: string, limit = 12): Promise<GifSearchRe
   if (!trimmed) return []
   const provider = getGifProviderName()
   if (!provider) return []
+
+  if (provider === "klipy") {
+    const key = getKlipyKey()
+    const url = `https://api.klipy.com/api/v1/${key}/gifs/search?q=${encodeURIComponent(trimmed)}&per_page=${limit}&rating=g`
+    try {
+      const res = await fetch(url)
+      if (!res.ok) return []
+      const data = await res.json().catch(() => ({}))
+      return normalizeKlipyResults(data)
+    } catch {
+      return []
+    }
+  }
 
   const url = provider === "tenor" ? getTenorSearchUrl(trimmed, limit) : getGiphySearchUrl(trimmed, limit)
   if (!url) return []

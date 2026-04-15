@@ -116,10 +116,10 @@ export function TournamentTeamView({ leagueId, userId }: { leagueId: string; use
           </div>
         </div>
         <Link
-          href={`/app/tournament/${data.tournamentId}`}
+          href={`/tournament/${data.tournamentId}`}
           className="text-sm text-amber-400 hover:text-amber-300"
         >
-          Tournament hub →
+          Tournament home →
         </Link>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">

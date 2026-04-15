@@ -9,8 +9,8 @@ import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/pre-analysis", tool: "LegacyPreAnalysis" })(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
-  const username = searchParams.get('username')
-  const leagueId = searchParams.get('leagueId')
+  const username = searchParams?.get('username')
+  const leagueId = searchParams?.get('leagueId')
 
   if (!username || !leagueId) {
     return NextResponse.json({ 
@@ -73,3 +73,4 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/pre-analysis", tool: "
     }, { status: 500 })
   }
 })
+

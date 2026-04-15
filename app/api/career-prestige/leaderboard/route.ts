@@ -18,7 +18,7 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url)
-    const leagueId = url.searchParams.get("leagueId") ?? undefined
+    const leagueId = url.searchParams?.get("leagueId") ?? undefined
     if (!leagueId) {
       return NextResponse.json({ error: "Missing leagueId" }, { status: 400 })
     }
@@ -27,14 +27,14 @@ export async function GET(req: Request) {
     } catch {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-    const sportRaw = url.searchParams.get("sport")
+    const sportRaw = url.searchParams?.get("sport")
     const sport =
       sportRaw == null
         ? undefined
         : isSupportedSport(sportRaw)
           ? normalizeToSupportedSport(sportRaw)
           : null
-    const limitParam = url.searchParams.get("limit")
+    const limitParam = url.searchParams?.get("limit")
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 50, 100) : 50
     if (sport === null) {
       return NextResponse.json({ error: "Invalid sport" }, { status: 400 })
@@ -50,3 +50,4 @@ export async function GET(req: Request) {
     )
   }
 }
+

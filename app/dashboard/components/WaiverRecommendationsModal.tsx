@@ -3,6 +3,7 @@
 import { X } from 'lucide-react'
 import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { ProLeagueLink } from '@/components/dashboard/ProLeagueLink'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type Props = {
   isOpen: boolean
@@ -12,10 +13,22 @@ type Props = {
   hasProAccess: boolean
 }
 
+function formatReportDate(iso: string): string {
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return iso
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  } catch {
+    return iso
+  }
+}
+
 export function WaiverRecommendationsModal({ isOpen, onClose, data, loading, hasProAccess }: Props) {
+  const { t } = useLanguage()
   if (!isOpen) return null
 
   const recs = data?.recommendations ?? []
+  const injuryPulse = data?.injuryPulse ?? []
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
@@ -50,10 +63,41 @@ export function WaiverRecommendationsModal({ isOpen, onClose, data, loading, has
                 <div key={i} className="h-28 animate-pulse rounded-xl bg-white/[0.05]" />
               ))}
             </div>
-          ) : recs.length === 0 ? (
-            <p className="text-center text-[13px] text-emerald-300/90">✅ No waiver recommendations right now.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
+              {injuryPulse.length > 0 ? (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.06] p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/80">
+                    {t('dashboard.waiverModal.injuryPulseTitle')}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-white/45">{t('dashboard.waiverModal.injuryPulseHint')}</p>
+                  <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto text-[12px]">
+                    {injuryPulse.slice(0, 12).map((row, idx) => (
+                      <li
+                        key={`${row.sport}-${row.playerName}-${row.reportDate}-${idx}`}
+                        className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-white/[0.04] pb-1.5 last:border-0 last:pb-0"
+                      >
+                        <span className="rounded bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white/55">
+                          {row.sport}
+                        </span>
+                        <span className="font-medium text-white/90">{row.playerName}</span>
+                        <span className="text-white/40">{row.team}</span>
+                        <span className="text-amber-200/85">{row.status}</span>
+                        <span className="text-[10px] text-white/35">{formatReportDate(row.reportDate)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {recs.length === 0 ? (
+                <p className="text-center text-[13px] text-emerald-300/90">
+                  {injuryPulse.length > 0
+                    ? `✅ ${t('dashboard.waiverModal.emptyWithInjuryPulse')}`
+                    : `✅ ${t('dashboard.waiverModal.emptyNoRecs')}`}
+                </p>
+              ) : (
+              <div className="space-y-3">
               {recs.map((lg) => (
                 <div key={lg.leagueId} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
                   <div className="flex gap-3">
@@ -144,6 +188,8 @@ export function WaiverRecommendationsModal({ isOpen, onClose, data, loading, has
                   </div>
                 </div>
               ))}
+            </div>
+              )}
             </div>
           )}
         </div>

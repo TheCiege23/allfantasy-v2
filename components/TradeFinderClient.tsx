@@ -35,10 +35,10 @@ function computeTradeGrade(finderScore: number, valueDeltaPct: number, confidenc
 
 export default function TradeFinderClient({ initialLeagues, sleeperUserId }: { initialLeagues: League[]; sleeperUserId?: string | null }) {
   const searchParams = useSearchParams();
-  const requestedLeagueId = searchParams.get('leagueId');
-  const requestedStrategy = searchParams.get('strategy');
-  const dynastyContext = searchParams.get('context') === 'dynasty';
-  const dynastyTeamId = searchParams.get('dynastyTeamId') || '';
+  const requestedLeagueId = searchParams?.get('leagueId');
+  const requestedStrategy = searchParams?.get('strategy');
+  const dynastyContext = searchParams?.get('context') === 'dynasty';
+  const dynastyTeamId = searchParams?.get('dynastyTeamId') || '';
   const initialLeagueId = useMemo(
     () => (requestedLeagueId && initialLeagues.some((l) => l.id === requestedLeagueId) ? requestedLeagueId : (initialLeagues[0]?.id || '')),
     [initialLeagues, requestedLeagueId]

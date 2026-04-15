@@ -49,9 +49,15 @@ vi.mock('@/lib/league-import/fantrax/FantraxHistoricalBackfillService', () => ({
   syncFantraxHistoricalBackfillAfterImport: syncFantraxHistoricalBackfillAfterImportMock,
 }))
 
+const calculateAndSaveRankMock = vi.fn()
+vi.mock('@/lib/rank/calculateRank', () => ({
+  calculateAndSaveRank: calculateAndSaveRankMock,
+}))
+
 describe('ImportedLeagueCommitService source tracking', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    calculateAndSaveRankMock.mockResolvedValue(null)
     leagueFindFirstMock.mockResolvedValue(null)
     leagueCreateMock.mockResolvedValue({
       id: 'league-abc',
@@ -151,6 +157,7 @@ describe('ImportedLeagueCommitService source tracking', () => {
       name: 'Imported League',
       sport: 'NFL',
     })
+    expect(calculateAndSaveRankMock).toHaveBeenCalledWith('u1')
   })
 
   it('runs fantrax historical backfill for fantrax imports', async () => {
@@ -212,5 +219,6 @@ describe('ImportedLeagueCommitService source tracking', () => {
       userId: 'u1',
     })
     expect(result.historicalBackfill).toEqual({ status: 'queued-fantrax' })
+    expect(calculateAndSaveRankMock).toHaveBeenCalledWith('u1')
   })
 })

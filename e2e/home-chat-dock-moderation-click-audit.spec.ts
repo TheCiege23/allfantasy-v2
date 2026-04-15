@@ -222,7 +222,7 @@ test.describe("@db @messaging home chat dock moderation click audit", () => {
     await page.goto("/e2e/home-chat-dock-audit")
     await page.waitForTimeout(1000)
     const dbConfigErrorVisible = await page
-      .getByText("DATABASE_URL is not set. Add it to your local environment and Vercel project settings.")
+      .getByText(/DATABASE_URL is not set/)
       .isVisible()
       .catch(() => false)
     test.skip(dbConfigErrorVisible, "HomeChatDock moderation audit unavailable without DATABASE_URL in web server environment")

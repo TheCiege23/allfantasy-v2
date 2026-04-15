@@ -2,8 +2,8 @@ import { prisma } from './prisma';
 import { normalizeTeamAbbrev } from './team-abbrev';
 import { recordProviderSync } from './provider-sync-logger';
 
-const SITE_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
-const CORE_API = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl';
+const SITE_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl'; // db-first-exception: provider adapter layer
+const CORE_API = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl'; // db-first-exception: provider adapter layer
 
 const ESPN_TEAM_IDS: Record<string, number> = {
   ARI: 22, ATL: 1, BAL: 33, BUF: 2, CAR: 29, CHI: 3, CIN: 4, CLE: 5,

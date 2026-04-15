@@ -78,6 +78,8 @@ type ProfileBody = {
   fantasyPreferences?: Record<string, unknown> | null
   /** Auto sign-out after N minutes idle; omit to leave unchanged. */
   sessionIdleTimeoutMinutes?: number | null
+  /** ElevenLabs voice id for Chimmy TTS; null clears stored preference. */
+  chimmyTtsVoiceId?: string | null
 }
 
 async function handleProfileWrite(req: Request, userId: string) {
@@ -99,6 +101,7 @@ async function handleProfileWrite(req: Request, userId: string) {
     accentColor,
     fantasyPreferences,
     sessionIdleTimeoutMinutes,
+    chimmyTtsVoiceId,
   } = body
 
   const snapshot = await getSettingsProfile(userId)
@@ -172,6 +175,12 @@ async function handleProfileWrite(req: Request, userId: string) {
       sessionIdleTimeoutMinutes === null || sessionIdleTimeoutMinutes === 0
         ? null
         : sessionIdleTimeoutMinutes
+  }
+  if (chimmyTtsVoiceId !== undefined) {
+    profilePayload.chimmyTtsVoiceId =
+      chimmyTtsVoiceId === null || chimmyTtsVoiceId === ''
+        ? null
+        : String(chimmyTtsVoiceId).trim() || null
   }
 
   const snapshotForFallback = await getSettingsProfile(userId)

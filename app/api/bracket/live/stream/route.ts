@@ -76,8 +76,8 @@ async function fetchLiveData(tournamentId: string, leagueId?: string) {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
-  const tournamentId = searchParams.get("tournamentId")
-  const leagueId = searchParams.get("leagueId") ?? undefined
+  const tournamentId = searchParams?.get("tournamentId")
+  const leagueId = searchParams?.get("leagueId") ?? undefined
 
   if (!tournamentId) {
     return new Response("Missing tournamentId", { status: 400 })
@@ -143,3 +143,4 @@ export async function GET(request: NextRequest) {
     },
   })
 }
+

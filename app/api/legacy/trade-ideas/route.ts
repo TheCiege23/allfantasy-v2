@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { getPlayerValuesForNames, FantasyCalcSettings } from '@/lib/fantasycalc'
 import { requireAuthOrOrigin, forbiddenResponse } from '@/lib/api-auth'
+import { getAllPlayers, getLeagueInfo, getLeagueRosters, getLeagueTransactions, getLeagueUsers } from '@/lib/sleeper-client'
+import { assertSleeperBoundaryForLeagueId } from '@/lib/legacy/sleeper-boundary'
 
 function formatPlayerValues(values: Record<string, any>): string {
   const lines: string[] = []
@@ -39,18 +41,12 @@ interface SleeperTransaction {
 }
 
 async function fetchSleeperData(leagueId: string) {
-  const [leagueRes, rostersRes, usersRes] = await Promise.all([
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/rosters`),
-    fetch(`https://api.sleeper.app/v1/league/${leagueId}/users`)
+  const [league, rosters, users, players] = await Promise.all([
+    getLeagueInfo(leagueId),
+    getLeagueRosters(leagueId),
+    getLeagueUsers(leagueId),
+    getAllPlayers(),
   ])
-  
-  const league = await leagueRes.json()
-  const rosters: SleeperRoster[] = await rostersRes.json()
-  const users: SleeperUser[] = await usersRes.json()
-  
-  const playersRes = await fetch('https://api.sleeper.app/v1/players/nfl')
-  const players = await playersRes.json()
   
   return { league, rosters, users, players }
 }
@@ -60,8 +56,7 @@ async function fetchTradeHistory(leagueId: string): Promise<SleeperTransaction[]
   
   for (let week = 1; week <= 18; week++) {
     try {
-      const res = await fetch(`https://api.sleeper.app/v1/league/${leagueId}/transactions/${week}`)
-      const weekTx = await res.json()
+      const weekTx = await getLeagueTransactions(leagueId, week)
       if (Array.isArray(weekTx)) {
         transactions.push(...weekTx.filter((t: any) => t.type === 'trade' && t.status === 'complete'))
       }
@@ -196,19 +191,25 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
 
     const body = await req.json()
     const { leagueId, username, goals, depth, count = 5 } = body
+    const normalizedLeagueId = String(leagueId || '').trim()
     
-    if (!leagueId || !username) {
+    if (!normalizedLeagueId || !username) {
       return NextResponse.json({ error: 'leagueId and username are required' }, { status: 400 })
+    }
+
+    const boundary = await assertSleeperBoundaryForLeagueId(normalizedLeagueId)
+    if (!boundary.ok) {
+      return NextResponse.json({ error: boundary.message }, { status: boundary.status })
     }
     
     const [sleeperData, tradeHistory] = await Promise.all([
-      fetchSleeperData(leagueId),
-      fetchTradeHistory(leagueId)
+      fetchSleeperData(normalizedLeagueId),
+      fetchTradeHistory(normalizedLeagueId)
     ])
     
     const { league, rosters, users, players } = sleeperData
     
-    if (!users || !rosters || !Array.isArray(users) || !Array.isArray(rosters)) {
+    if (!league || !users || !rosters || !Array.isArray(users) || !Array.isArray(rosters)) {
       return NextResponse.json({ error: 'Invalid league ID or league data unavailable' }, { status: 400 })
     }
     
@@ -233,8 +234,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
         ideas: [],
         error: 'This league has no roster data yet. This typically happens with BestBall leagues before the draft or during the season. Trade Finder requires roster data to generate trade ideas.',
         leagueInfo: {
-          name: league.name,
-          type: league.settings?.type === 2 ? 'Dynasty' : 'Redraft',
+          name: league?.name ?? 'Unknown league',
+          type: league?.settings?.type === 2 ? 'Dynasty' : 'Redraft',
           teams: rosters.length,
           scoring: 'Unknown'
         }
@@ -266,11 +267,17 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade-ideas", tool: "L
     const userPlayerNames = userAnalysis.rosterPlayers.map(p => p.name)
     const allOtherPlayerNames = otherManagers.flatMap(m => m.players.map(p => p.name))
     
+    const qbSlotCount = (league.roster_positions || []).filter((p: string) => p === 'QB' || p === 'SUPER_FLEX').length
+    const numQbs: 1 | 2 = qbSlotCount >= 2 ? 2 : 1
+
+    const rawPpr = Number(league.scoring_settings?.rec ?? 0)
+    const ppr: 0 | 0.5 | 1 = rawPpr >= 1 ? 1 : rawPpr >= 0.5 ? 0.5 : 0
+
     const fcSettings: FantasyCalcSettings = {
       isDynasty: league.settings?.type === 2,
-      numQbs: (league.roster_positions || []).filter((p: string) => p === 'QB' || p === 'SUPER_FLEX').length,
+      numQbs,
       numTeams: rosters.length,
-      ppr: league.scoring_settings?.rec || 0
+      ppr,
     }
     
     const [userValuesMap, otherValuesMap] = await Promise.all([

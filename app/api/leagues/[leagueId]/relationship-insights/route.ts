@@ -16,12 +16,12 @@ export async function GET(
     if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
     const url = new URL(req.url)
-    const sport = normalizeOptionalSportForRelationship(url.searchParams.get('sport'))
-    const seasonParam = url.searchParams.get('season')
+    const sport = normalizeOptionalSportForRelationship(url.searchParams?.get('sport'))
+    const seasonParam = url.searchParams?.get('season')
     const season = seasonParam != null ? parseInt(seasonParam, 10) : null
-    const limitParam = url.searchParams.get('limit')
+    const limitParam = url.searchParams?.get('limit')
     const limit = limitParam != null ? Math.min(parseInt(limitParam, 10) || 25, 60) : 25
-    const syncGraphRivalryEdges = url.searchParams.get('syncGraphRivalryEdges') !== '0'
+    const syncGraphRivalryEdges = url.searchParams?.get('syncGraphRivalryEdges') !== '0'
 
     const insights = await getUnifiedRelationshipInsights({
       leagueId,

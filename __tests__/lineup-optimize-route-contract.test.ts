@@ -69,6 +69,7 @@ describe('POST /api/lineup/optimize contract', () => {
         leagueId: 'league-1',
         sport: 'NFL',
         useAIExplanation: false,
+        premiumDecisionEngine: false,
         rosterSlots: ['QB', 'RB', 'WR', 'FLEX'],
         players: [
           { name: 'QB Elite', position: 'QB', projectedPoints: 24.2 },

@@ -24,6 +24,7 @@ import {
   computeAthleticGrade,
   computeCollegeProductionGrade,
 } from "@/lib/player-analytics";
+import { runEnhancedPipeline, type EnhancedTradeAnalysis } from "./enhanced-trade-pipeline";
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -1482,6 +1483,33 @@ export async function runTradeAnalysis(req: TradeEngineRequest): Promise<TradeEn
       [...(splitA.marketAssets || []), ...(splitB.marketAssets || [])],
       [...(teamA.roster || []), ...(teamB.roster || [])]
     ),
+
+    // ─── ENHANCED PIPELINE (UTV + multi-factor + risk + team context + log fairness) ───
+    enhanced: (() => {
+      try {
+        return runEnhancedPipeline(
+          req,
+          (pricedA.items as any[]).map((it: any) => ({
+            name: String(it.name ?? ''),
+            type: String(it.type ?? 'player'),
+            value: Number(it.assetValue?.total ?? it.value ?? 0),
+            position: it.position,
+            age: it.age,
+          })),
+          (pricedB.items as any[]).map((it: any) => ({
+            name: String(it.name ?? ''),
+            type: String(it.type ?? 'player'),
+            value: Number(it.assetValue?.total ?? it.value ?? 0),
+            position: it.position,
+            age: it.age,
+          })),
+          netStarterImpactA,
+          netStarterImpactB,
+        );
+      } catch {
+        return null;
+      }
+    })(),
   };
 }
 

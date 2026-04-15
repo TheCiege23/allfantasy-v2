@@ -78,11 +78,11 @@ async function syncTrendingPlayersToDb(
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const sport = url.searchParams.get('sport') || 'nfl';
-  const signal = url.searchParams.get('signal');
-  const position = url.searchParams.get('position');
-  const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50'));
-  const refresh = url.searchParams.get('refresh') === 'true';
+  const sport = url.searchParams?.get('sport') || 'nfl';
+  const signal = url.searchParams?.get('signal');
+  const position = url.searchParams?.get('position');
+  const limit = Math.min(100, parseInt(url.searchParams?.get('limit') || '50'));
+  const refresh = url.searchParams?.get('refresh') === 'true';
 
   try {
     if (refresh) {
@@ -125,3 +125,4 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

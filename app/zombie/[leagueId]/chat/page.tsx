@@ -17,7 +17,7 @@ type LeagueTeam = {
 }
 
 export default function ZombieChatHubPage() {
-  const { leagueId } = useParams<{ leagueId: string }>()
+  const { leagueId  } = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const [teams, setTeams] = useState<LeagueTeam[]>([])
   const [resolution, setResolution] = useState<{ status: string } | null>(null)
   const [inv, setInv] = useState<{

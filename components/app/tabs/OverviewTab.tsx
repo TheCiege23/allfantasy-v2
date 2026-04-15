@@ -12,6 +12,7 @@ import { ShareLeagueLinkCard } from '@/components/social/ShareLeagueLinkCard'
 import { LeagueStoryModal } from '@/components/league-story/LeagueStoryModal'
 import { InContextMonetizationCard } from '@/components/monetization/InContextMonetizationCard'
 import { GuillotineHome } from '@/components/guillotine/GuillotineHome'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { SalaryCapHome } from '@/components/salary-cap/SalaryCapHome'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
 import { ZombieHome } from '@/components/zombie/ZombieHome'
@@ -51,7 +52,11 @@ export default function OverviewTab({ leagueId, isGuillotine, isSalaryCap, isSur
   if (isGuillotine) {
     return (
       <VariantOverviewWrapper leagueId={leagueId}>
-        <GuillotineHome leagueId={leagueId} />
+        <GuillotineHome
+          leagueId={leagueId}
+          sport={sport ?? DEFAULT_SPORT}
+          leagueName={leagueName}
+        />
       </VariantOverviewWrapper>
     )
   }

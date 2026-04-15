@@ -22,6 +22,14 @@ export async function GET() {
     path: '/',
   })
 
+  cookieStore.set('discord_oauth_user_id', session.user.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 600,
+    path: '/',
+  })
+
   const url = new URL('https://discord.com/oauth2/authorize')
   url.searchParams.set('client_id', DISCORD_CLIENT_ID)
   url.searchParams.set('response_type', 'code')

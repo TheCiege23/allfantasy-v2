@@ -33,8 +33,14 @@ export interface AIContextEnvelope {
   sport: string
   /** League id when in league context. */
   leagueId?: string | null
+  /** Team/roster id for team-scoped AI modules. */
+  teamId?: string | null
   /** User id when known. */
   userId?: string | null
+  /** Legacy league format/type used by Chimmy specialty modules. */
+  leagueType?: string | null
+  /** Admin context for privileged league tooling. */
+  isAdmin?: boolean
   /** Deterministic engine output (trade fairness, rankings, simulation, waiver scores). Must not be overridden by AI. */
   deterministicPayload?: Record<string, unknown> | null
   /** Stats/numbers passed for interpretation (not invented). */
@@ -61,6 +67,8 @@ export interface AIContextEnvelope {
   assistantRoutingHints?: AIAssistantRole[]
   /** Raw user message or prompt suffix. */
   userMessage?: string
+  /** Lightweight reaction feedback used by legacy Chimmy memory integration. */
+  userFeedback?: { liked?: boolean | null } | null
   /**
    * Optional deterministic envelope used by grounded tools (trade/waiver/draft/matchup/rankings/story/content).
    * When present, providers must use this as the fact source and surface uncertainty/missing-data explicitly.

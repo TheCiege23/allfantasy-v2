@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Palmtree, Coins, AlertTriangle, ArrowRight } from 'lucide-react'
 import type { SurvivorSummary } from './types'
+import { EXILE_ISLAND_RULES, SURVIVOR_TOKEN_POOL_BLURB } from '@/lib/survivor/survivorIslandContent'
 
 export interface SurvivorExileViewProps {
   leagueId: string
@@ -20,7 +21,7 @@ export function SurvivorExileView({ leagueId, summary }: SurvivorExileViewProps)
   const [isPending, startTransition] = useTransition()
   const [returnError, setReturnError] = useState<string | null>(null)
   const [returnMessage, setReturnMessage] = useState<string | null>(null)
-  const { exileLeagueId, exileTokens, config } = summary
+  const { exileLeagueId, exileTokens, config, seasonCalendar } = summary
   const returnEnabled = config.exileReturnEnabled
   const tokensNeeded = config.exileReturnTokens ?? 0
   const myExileStatus = summary.myExileStatus ?? null
@@ -48,17 +49,42 @@ export function SurvivorExileView({ leagueId, summary }: SurvivorExileViewProps)
 
   return (
     <div className="space-y-6">
+      {seasonCalendar && (
+        <section className="rounded-2xl border border-cyan-500/20 bg-cyan-950/15 p-4 sm:p-6">
+          <p className="text-sm text-cyan-100/90">
+            Exile scoring follows the same regular-season window as the main island: weeks {seasonCalendar.firstWeek}–
+            {seasonCalendar.lastWeek} ({seasonCalendar.sport}, playoffs excluded).
+          </p>
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-violet-500/15 bg-violet-950/10 p-4 sm:p-6">
+        <h2 className="mb-2 text-lg font-semibold text-violet-100">Token Pool</h2>
+        <p className="text-sm leading-relaxed text-white/70">{SURVIVOR_TOKEN_POOL_BLURB}</p>
+        <p className="mt-3 text-xs text-white/45">
+          In some formats this runs in parallel with the main island — your commissioner defines how tokens connect to
+          return or FAAB.
+        </p>
+      </section>
+
       <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
           <Palmtree className="h-5 w-5 text-cyan-400" />
-          Exile Island
+          {EXILE_ISLAND_RULES.headline}
         </h2>
+        <div className="mb-4 space-y-2 rounded-xl border border-white/[0.06] bg-black/25 p-3 text-sm text-white/65">
+          <p>{EXILE_ISLAND_RULES.intro}</p>
+          <p>{EXILE_ISLAND_RULES.lineup}</p>
+          <p>{EXILE_ISLAND_RULES.tokens}</p>
+          <p>{EXILE_ISLAND_RULES.bossReset}</p>
+          <p className="text-amber-100/85">{EXILE_ISLAND_RULES.conduct}</p>
+        </div>
         {!exileLeagueId ? (
           <p className="text-sm text-white/50">Exile Island is not configured for this league.</p>
         ) : (
           <div className="space-y-4">
             <p className="text-sm text-white/70">
-              Exiled managers compete in a separate league. Earn tokens to buy your way back.
+              Exiled managers compete in a linked league below. Earn tokens to fight your way back to the main island.
             </p>
             <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3">
               <p className="mb-2 flex items-center gap-2 text-sm font-medium text-cyan-200">

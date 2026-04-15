@@ -11,8 +11,7 @@ import { StandingsRow } from '@/app/tournament/components/StandingsRow'
 const FILTERS = ['All', 'Commissioner', 'AI Recaps', 'Results', 'Drafts', 'Rules'] as const
 
 export default function TournamentForumPage() {
-  const params = useParams()
-  const tournamentId = params.tournamentId as string
+  const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const ctx = useTournamentUi()
   const state = useTournamentParticipantState(ctx)

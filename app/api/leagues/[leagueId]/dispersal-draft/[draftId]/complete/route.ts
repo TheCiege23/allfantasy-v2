@@ -29,7 +29,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ leagueId: str
       return NextResponse.json({ error: 'Draft not found' }, { status })
     }
 
-    await prisma.dispersalDraft.update({
+    await (prisma as any).dispersalDraft.update({
       where: { id: draftId },
       data: {
         status: 'completed',

@@ -51,13 +51,29 @@ export function hasDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): boolea
 }
 
 export function getDatabaseUrlOrThrow(env: DatabaseEnv | EnvLike = process.env): string {
-  const url = resolveDatabaseUrl(env)
+  const invalidSchemeKeys: string[] = []
 
-  if (!url) {
+  for (const key of DATABASE_URL_ENV_KEYS) {
+    const raw = env[key]
+    if (raw == null || typeof raw !== "string") continue
+    const value = raw.trim()
+    if (!value) continue
+    if (!hasSupportedPostgresScheme(value)) {
+      invalidSchemeKeys.push(key)
+      continue
+    }
+    return normalizeDatabaseUrl(value)
+  }
+
+  if (invalidSchemeKeys.length > 0) {
     throw new Error(
-      "DATABASE_URL is not set. Add it to your local environment and Vercel project settings."
+      `Invalid database URL: ${invalidSchemeKeys.join(", ")} must start with postgres:// or postgresql:// ` +
+        `(Prisma does not use prisma:// Accelerate URLs as DATABASE_URL). Fix the value in Vercel and redeploy.`
     )
   }
 
-  return url
+  throw new Error(
+    "DATABASE_URL is not set. Add it to your local environment and Vercel project settings. " +
+      "If you already added it: set it for the Production environment (not only Preview), use a postgres:// or postgresql:// URL, then redeploy so new serverless bundles pick up the variable."
+  )
 }

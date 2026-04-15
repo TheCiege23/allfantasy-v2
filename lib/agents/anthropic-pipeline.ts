@@ -1,4 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
@@ -28,11 +27,39 @@ import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
 
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim() ?? ''
 
-const anthropic = anthropicApiKey
-  ? new Anthropic({
-      apiKey: anthropicApiKey,
-    })
-  : null
+type AnthropicSdkModule = typeof import('@anthropic-ai/sdk')
+type AnthropicClient = InstanceType<AnthropicSdkModule['default']>
+
+let anthropicClientPromise: Promise<AnthropicClient | null> | null = null
+
+async function getAnthropicClient(): Promise<AnthropicClient | null> {
+  if (!anthropicApiKey) {
+    return null
+  }
+
+  if (!anthropicClientPromise) {
+    anthropicClientPromise = import('@anthropic-ai/sdk')
+      .then((mod) => {
+        const Anthropic = mod.default
+        return new Anthropic({ apiKey: anthropicApiKey })
+      })
+      .catch(() => null)
+  }
+
+  return anthropicClientPromise
+}
+
+function getAnthropicErrorStatus(error: unknown): number | null {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'number'
+  ) {
+    return (error as { status: number }).status
+  }
+  return null
+}
 
 const MODELS = {
   quickask: process.env.ANTHROPIC_MODEL_QUICKASK?.trim() || 'claude-haiku-4-5-20251001',
@@ -480,7 +507,7 @@ function buildAnthropicUserContent(userMessage: string, image?: UserContext['ima
 }
 
 export function isAnthropicPipelineAvailable(): boolean {
-  return Boolean(anthropic)
+  return Boolean(anthropicApiKey)
 }
 
 async function callClaude(args: {
@@ -490,6 +517,7 @@ async function callClaude(args: {
   maxTokens?: number
   image?: UserContext['image']
 }): Promise<ClaudeCallResult> {
+  const anthropic = await getAnthropicClient()
   if (!anthropic) {
     throw new Error('Anthropic API key is not configured.')
   }
@@ -520,23 +548,22 @@ async function callClaude(args: {
       model: response.model || args.model,
     }
   } catch (error: unknown) {
+    const status = getAnthropicErrorStatus(error)
     await rateLimitManager.recordCall(
       'anthropic',
       '/v1/messages',
-      error instanceof Anthropic.APIError && typeof error.status === 'number' ? error.status : 500,
+      status ?? 500,
       Date.now() - startedAt,
       { error: error instanceof Error ? error.message : String(error) }
     )
-    if (error instanceof Anthropic.APIError) {
-      if (error.status === 529) {
-        throw new Error('AI temporarily overloaded. Try again in a moment.')
-      }
-      if (error.status === 401) {
-        throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
-      }
-      if (error.status === 429) {
-        throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
-      }
+    if (status === 529) {
+      throw new Error('AI temporarily overloaded. Try again in a moment.')
+    }
+    if (status === 401) {
+      throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
+    }
+    if (status === 429) {
+      throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
     }
     throw error
   }
@@ -550,6 +577,7 @@ async function callClaudeStream(args: {
   onText: (delta: string, snapshot: string) => void
   image?: UserContext['image']
 }): Promise<ClaudeCallResult> {
+  const anthropic = await getAnthropicClient()
   if (!anthropic) {
     throw new Error('Anthropic API key is not configured.')
   }
@@ -587,23 +615,22 @@ async function callClaudeStream(args: {
       model: finalMessage.model || args.model,
     }
   } catch (error: unknown) {
+    const status = getAnthropicErrorStatus(error)
     await rateLimitManager.recordCall(
       'anthropic',
       '/v1/messages',
-      error instanceof Anthropic.APIError && typeof error.status === 'number' ? error.status : 500,
+      status ?? 500,
       Date.now() - startedAt,
       { error: error instanceof Error ? error.message : String(error) }
     )
-    if (error instanceof Anthropic.APIError) {
-      if (error.status === 529) {
-        throw new Error('AI temporarily overloaded. Try again in a moment.')
-      }
-      if (error.status === 401) {
-        throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
-      }
-      if (error.status === 429) {
-        throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
-      }
+    if (status === 529) {
+      throw new Error('AI temporarily overloaded. Try again in a moment.')
+    }
+    if (status === 401) {
+      throw new Error('Invalid Anthropic API key. Check ANTHROPIC_API_KEY.')
+    }
+    if (status === 429) {
+      throw new Error('Anthropic rate limit hit. Check usage limits and retry soon.')
     }
     throw error
   }
@@ -1120,6 +1147,36 @@ function isPlayerMovementIntent(intent: IntentType, userMessage: string): boolea
   return /\b(trade|waiver|add|drop|claim|start|sit|bench|keeper|draft|pick|compare)\b/i.test(
     userMessage
   )
+}
+
+function requiresLeagueGrounding(intent: IntentType, userMessage: string, ctx: UserContext): boolean {
+  const source = String(ctx.source ?? '').toLowerCase()
+  const message = userMessage.toLowerCase()
+
+  if (ctx.teamId) return true
+  if (
+    ['trade_evaluation', 'waiver_wire', 'matchup_simulator', 'dynasty_legacy', 'player_comparison'].includes(
+      intent
+    )
+  ) {
+    return true
+  }
+  if (source.includes('trade') || source.includes('waiver') || source.includes('lineup')) {
+    return true
+  }
+  return /\b(trade|waiver|lineup|start|sit|bench|my team|my roster|future|next season|for my team)\b/.test(
+    message
+  )
+}
+
+function buildLeagueGroundingRequiredResponse(intent: IntentType): AgentResponse {
+  return {
+    result:
+      'League context is required for trade, waiver, and team-specific planning requests. Open Chimmy from a league page or include leagueId.',
+    intent,
+    model: MODELS.orchestrator,
+    tokensUsed: 0,
+  }
 }
 
 async function buildPlayerContextMap(
@@ -1756,6 +1813,10 @@ export async function runAgentPipeline(
     const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
 
     if (wordCount <= 8 && !ctx.image) {
+      if (requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) && !ctx.leagueId) {
+        return buildLeagueGroundingRequiredResponse('quick_ask')
+      }
+
       const quickPayload = { userMessage: trimmedMessage }
       const cacheAddress = buildResponseCacheAddress({
         intent: 'quick_ask',
@@ -1769,6 +1830,18 @@ export async function runAgentPipeline(
       const structuredFantasyContext = isPlayerMovementIntent('quick_ask', trimmedMessage)
         ? await buildStructuredFantasyContext('quick_ask', quickPayload, ctx).catch(() => null)
         : null
+      if (
+        requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
+        !structuredFantasyContext
+      ) {
+        return {
+          result:
+            'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+          intent: 'quick_ask',
+          model: MODELS.orchestrator,
+          tokensUsed: 0,
+        }
+      }
       const quickResult = await withTimeout(
         runSpecialist('quick_ask', quickPayload, ctx, undefined, structuredFantasyContext),
         AGENT_TIMEOUT_MS,
@@ -1806,6 +1879,22 @@ export async function runAgentPipeline(
           () => null
         )
       : null
+
+    if (requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) && !ctx.leagueId) {
+      return buildLeagueGroundingRequiredResponse(classification.result.intent)
+    }
+    if (
+      requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
+      !structuredFantasyContext
+    ) {
+      return {
+        result:
+          'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+      }
+    }
 
     if (classification.result.isQuickAsk) {
       const quickResult = await withTimeout(
@@ -1896,6 +1985,12 @@ export async function streamAgentPipeline(
     const wordCount = trimmedMessage.split(/\s+/).filter(Boolean).length
 
     if (wordCount <= 8 && !ctx.image) {
+      if (requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) && !ctx.leagueId) {
+        const blocked = buildLeagueGroundingRequiredResponse('quick_ask')
+        onText(blocked.result, blocked.result)
+        return blocked
+      }
+
       const quickPayload = { userMessage: trimmedMessage }
       const cacheAddress = buildResponseCacheAddress({
         intent: 'quick_ask',
@@ -1912,6 +2007,20 @@ export async function streamAgentPipeline(
       const structuredFantasyContext = isPlayerMovementIntent('quick_ask', trimmedMessage)
         ? await buildStructuredFantasyContext('quick_ask', quickPayload, ctx).catch(() => null)
         : null
+      if (
+        requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
+        !structuredFantasyContext
+      ) {
+        const blocked: AgentResponse = {
+          result:
+            'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+          intent: 'quick_ask',
+          model: MODELS.orchestrator,
+          tokensUsed: 0,
+        }
+        onText(blocked.result, blocked.result)
+        return blocked
+      }
       const quickResult = await withTimeout(
         streamSpecialist(
           'quick_ask',
@@ -1959,6 +2068,26 @@ export async function streamAgentPipeline(
           () => null
         )
       : null
+
+    if (requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) && !ctx.leagueId) {
+      const blocked = buildLeagueGroundingRequiredResponse(classification.result.intent)
+      onText(blocked.result, blocked.result)
+      return blocked
+    }
+    if (
+      requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
+      !structuredFantasyContext
+    ) {
+      const blocked: AgentResponse = {
+        result:
+          'Unable to load current league data for this team-specific request. Refresh league data and retry.',
+        intent: classification.result.intent,
+        model: MODELS.orchestrator,
+        tokensUsed: 0,
+      }
+      onText(blocked.result, blocked.result)
+      return blocked
+    }
 
     if (classification.result.isQuickAsk) {
       const quickResult = await withTimeout(

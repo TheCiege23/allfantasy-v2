@@ -7,8 +7,8 @@ export const maxDuration = 60
 
 async function run(req: NextRequest) {
   const force =
-    req.nextUrl.searchParams.get('force') === '1' ||
-    req.nextUrl.searchParams.get('force') === 'true'
+    req.nextUrl.searchParams?.get('force') === '1' ||
+    req.nextUrl.searchParams?.get('force') === 'true'
   const result = await runZombieAutomationTick({ force })
   return NextResponse.json({
     processed: result.leaguesProcessed,
@@ -33,3 +33,4 @@ export async function POST(req: NextRequest) {
   }
   return run(req)
 }
+

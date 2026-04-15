@@ -1,31 +1,25 @@
-'use client'
+import { ChimmyChatPageClient } from './ChimmyChatPageClient'
 
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
-import { ChimmyChatShell } from '@/components/chimmy'
+function firstParam(v: string | string[] | undefined): string | undefined {
+  if (Array.isArray(v)) return v[0]
+  return v
+}
 
-export default function ChimmyChatPage() {
+export default async function ChimmyChatPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
+  const sp = searchParams ? await searchParams : {}
+
   return (
-    <main className="mode-surface min-h-screen px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-4xl">
-        <Link
-          href="/chimmy"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-white/65 hover:text-white/90"
-          data-testid="chimmy-chat-back-link"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back to Chimmy
-        </Link>
-        <ChimmyChatShell
-          sport="NFL"
-          toolContext={{
-            toolName: 'Chimmy',
-            summary: 'Direct chat route',
-            sport: 'NFL',
-          }}
-          className="min-h-[680px]"
-        />
-      </div>
-    </main>
+    <ChimmyChatPageClient
+      prompt={firstParam(sp.prompt)}
+      leagueId={firstParam(sp.leagueId)}
+      sport={firstParam(sp.sport)}
+      teamId={firstParam(sp.teamId)}
+      week={firstParam(sp.week)}
+      strategyMode={firstParam(sp.strategyMode)}
+    />
   )
 }

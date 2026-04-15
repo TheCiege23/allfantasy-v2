@@ -149,6 +149,7 @@ function formatAnimationTitle(type: string, meta: Record<string, unknown>): stri
       : '🧪 A serum was consumed. One Survivor lives.'
   }
   if (type === 'ambush_triggered') return '⚠️ The Whisperer stirred. Something changed.'
+  if (type === 'whisperer_selected') return '🎭 A Whisperer has been chosen. The island holds its breath.'
   if (type === 'whisperer_replaced') return '🎭 The old Whisperer has fallen. A new shadow rises.'
   if (type === 'horde_grows') {
     const size = meta.hordeSize != null ? ` ${String(meta.hordeSize)} strong.` : ''

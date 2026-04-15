@@ -10,9 +10,9 @@ import {
 
 export const GET = withApiUsage({ endpoint: "/api/rankings/weight-evolution", tool: "RankingsWeightEvolution" })(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams
-  const leagueType = sp.get('leagueType') ?? 'redraft'
-  const isSF = sp.get('isSF') === 'true'
-  const specialty = sp.get('specialty') ?? null
+  const leagueType = sp?.get('leagueType') ?? 'redraft'
+  const isSF = sp?.get('isSF') === 'true'
+  const specialty = sp?.get('specialty') ?? null
 
   const leagueClass = resolveLeagueClass({
     leagueType,
@@ -33,3 +33,4 @@ export const GET = withApiUsage({ endpoint: "/api/rankings/weight-evolution", to
     seasons: evolution,
   })
 })
+

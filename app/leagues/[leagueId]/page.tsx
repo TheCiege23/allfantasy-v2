@@ -55,7 +55,7 @@ const LEAGUE_TABS: LeagueTab[] = [
   "Previous Leagues",
 ]
 
-function isLeagueTab(tab: string | null): tab is LeagueTab {
+function isLeagueTab(tab: string | null | undefined): tab is LeagueTab {
   return tab != null && LEAGUE_TABS.includes(tab as LeagueTab)
 }
 
@@ -130,7 +130,7 @@ export default function LeagueHomeShellPage() {
     // Player modal state
     const [selectedPlayer, setSelectedPlayer] = useState<any | null>(null)
     const [playerModalOpen, setPlayerModalOpen] = useState(false)
-  const params = useParams<{ leagueId: string }>()
+  const params = useParams<{ leagueId: string }>() ?? ({} as { leagueId: string })
   const searchParams = useSearchParams()
   const leagueId = params?.leagueId || "unknown"
   const { data: session, status } = useSession()
@@ -271,7 +271,7 @@ export default function LeagueHomeShellPage() {
   }, [loadLeagueData])
 
   useEffect(() => {
-    const tabParam = searchParams.get("tab")
+    const tabParam = searchParams?.get("tab") ?? null
     if (isLeagueTab(tabParam)) {
       setActiveTab(tabParam)
     }

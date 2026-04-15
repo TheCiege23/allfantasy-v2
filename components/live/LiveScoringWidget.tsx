@@ -29,6 +29,7 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
       try {
         setLoading(true)
         setError(null)
+        let leagueSport: string | null = null
         if (leagueId) {
           const matchupsRes = await fetch(
             `/api/leagues/${encodeURIComponent(leagueId)}/matchups`,
@@ -36,6 +37,8 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
           )
           if (matchupsRes.ok) {
             const matchupJson = await matchupsRes.json().catch(() => null)
+            leagueSport =
+              typeof matchupJson?.sport === 'string' ? matchupJson.sport : null
             const rows = Array.isArray(matchupJson?.matchups) ? matchupJson.matchups : []
             if (!mounted) return
             if (rows.length > 0) {
@@ -56,7 +59,10 @@ export default function LiveScoringWidget({ leagueId }: { leagueId?: string }) {
             }
           }
         }
-        const url = `/api/sports/live-scores${refresh ? "?refresh=true" : ""}`
+        const qs = new URLSearchParams()
+        if (refresh) qs.set('refresh', 'true')
+        if (leagueSport) qs.set('sport', leagueSport)
+        const url = `/api/sports/live-scores${qs.toString() ? `?${qs.toString()}` : ''}`
         const res = await fetch(url, { cache: "no-store" })
         if (!res.ok) {
           throw new Error("Live scores unavailable")
