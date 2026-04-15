@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { fetchWithChain } from '@/lib/workers/api-chain'
@@ -7,6 +8,54 @@ import { SUPPORTED_SPORTS } from '@/lib/workers/api-config'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
+
+const NEWS_LOOKBACK_MS = 20 * 60 * 1000
+const NEWS_DISPATCH_LIMIT = 20
+
+/**
+ * Shared dispatch helper for both the X Grok and NewsAPI ingestion
+ * branches. Queries recent, undispatched PlayerNewsRecord rows matching
+ * the given source filter, fires push notifications, and stamps
+ * notificationDispatchedAt so subsequent cron runs skip them.
+ */
+async function dispatchRecentPlayerNews(
+  sourceWhere: Prisma.PlayerNewsRecordWhereInput['source'],
+): Promise<number> {
+  const { prisma } = await import('@/lib/prisma')
+  const { dispatchPlayerNewsNotifications } = await import(
+    '@/lib/notifications/PlayerNewsNotificationService'
+  )
+
+  const records = await prisma.playerNewsRecord.findMany({
+    where: {
+      source: sourceWhere,
+      createdAt: { gte: new Date(Date.now() - NEWS_LOOKBACK_MS) },
+      impact: { in: ['high', 'medium'] },
+      playerName: { not: null },
+      notificationDispatchedAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: NEWS_DISPATCH_LIMIT,
+  })
+
+  let notifications = 0
+  for (const news of records) {
+    if (!news.playerName) continue
+    const sent = await dispatchPlayerNewsNotifications(
+      news.playerName,
+      news.team,
+      news.headline,
+      (news.impact === 'high' ? 'injury' : 'player_news') as import('@/lib/workers/x-news-ingestion').NewsCategory,
+      news.impact as 'high' | 'medium' | 'low',
+      news.sport,
+    )
+    notifications += sent
+    await prisma.playerNewsRecord
+      .update({ where: { id: news.id }, data: { notificationDispatchedAt: new Date() } })
+      .catch(() => null)
+  }
+  return notifications
+}
 
 export async function GET(req: NextRequest) {
   if (!requireCronAuth(req, 'CRON_SECRET')) {
@@ -38,42 +87,12 @@ export async function GET(req: NextRequest) {
   let xNotifications = 0
   try {
     const { runXNewsIngestion } = await import('@/lib/workers/x-news-ingestion')
-    const { dispatchPlayerNewsNotifications } = await import('@/lib/notifications/PlayerNewsNotificationService')
 
     const xResult = await runXNewsIngestion()
     xNewRecords = xResult.newRecords
 
-    // Dispatch notifications for new high/medium impact items
     if (xResult.newRecords > 0) {
-      const { prisma } = await import('@/lib/prisma')
-      const recentNews = await prisma.playerNewsRecord.findMany({
-        where: {
-          source: 'x_grok_search',
-          createdAt: { gte: new Date(Date.now() - 20 * 60 * 1000) }, // last 20 min
-          impact: { in: ['high', 'medium'] },
-          playerName: { not: null },
-          // Only dispatch for records that have NEVER been notified.
-          notificationDispatchedAt: null,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      })
-
-      for (const news of recentNews) {
-        if (!news.playerName) continue
-        const sent = await dispatchPlayerNewsNotifications(
-          news.playerName,
-          news.team,
-          news.headline,
-          (news.impact === 'high' ? 'injury' : 'player_news') as import('@/lib/workers/x-news-ingestion').NewsCategory,
-          news.impact as 'high' | 'medium' | 'low',
-          news.sport,
-        )
-        xNotifications += sent
-        await prisma.playerNewsRecord
-          .update({ where: { id: news.id }, data: { notificationDispatchedAt: new Date() } })
-          .catch(() => null)
-      }
+      xNotifications = await dispatchRecentPlayerNews('x_grok_search')
     }
 
     if (xResult.errors.length > 0) {
@@ -88,41 +107,12 @@ export async function GET(req: NextRequest) {
   let newsApiNotifications = 0
   try {
     const { runNewsAPIIngestion } = await import('@/lib/workers/newsapi-ingestion')
-    const { dispatchPlayerNewsNotifications } = await import('@/lib/notifications/PlayerNewsNotificationService')
 
     const newsApiResult = await runNewsAPIIngestion()
     newsApiRecords = newsApiResult.newRecords
 
-    // Dispatch notifications for new high/medium impact NewsAPI items
     if (newsApiResult.newRecords > 0) {
-      const { prisma } = await import('@/lib/prisma')
-      const recentNewsApi = await prisma.playerNewsRecord.findMany({
-        where: {
-          source: { startsWith: 'newsapi:' },
-          createdAt: { gte: new Date(Date.now() - 20 * 60 * 1000) },
-          impact: { in: ['high', 'medium'] },
-          playerName: { not: null },
-          notificationDispatchedAt: null,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 20,
-      })
-
-      for (const news of recentNewsApi) {
-        if (!news.playerName) continue
-        const sent = await dispatchPlayerNewsNotifications(
-          news.playerName,
-          news.team,
-          news.headline,
-          (news.impact === 'high' ? 'injury' : 'player_news') as import('@/lib/workers/x-news-ingestion').NewsCategory,
-          news.impact as 'high' | 'medium' | 'low',
-          news.sport,
-        )
-        newsApiNotifications += sent
-        await prisma.playerNewsRecord
-          .update({ where: { id: news.id }, data: { notificationDispatchedAt: new Date() } })
-          .catch(() => null)
-      }
+      newsApiNotifications = await dispatchRecentPlayerNews({ startsWith: 'newsapi:' })
     }
 
     if (newsApiResult.errors.length > 0) {
