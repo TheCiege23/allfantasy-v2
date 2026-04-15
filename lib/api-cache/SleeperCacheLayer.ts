@@ -16,7 +16,9 @@
 
 import { prisma } from '@/lib/prisma'
 
-const BASE_URL = 'https://api.sleeper.app/v1'
+// This module IS the DB-first cache gateway for Sleeper — all other call sites
+// must go through it, and it hydrates the DB cache on miss/stale.
+const BASE_URL = 'https://api.sleeper.app/v1' // db-first-exception: canonical cache gateway
 
 type CacheEntry = {
   data: unknown
