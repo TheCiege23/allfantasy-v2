@@ -48,30 +48,35 @@ function createPauseError(notes: string, snapshot: PausedNeedsSnapshot): string 
   return `${PAUSE_ERROR_PREFIX}${JSON.stringify({ notes, snapshot })}`
 }
 
+/** Shape-validate an arbitrary value as a PausedNeedsSnapshot. */
+function coercePauseSnapshot(value: unknown): PausedNeedsSnapshot | null {
+  if (!value || typeof value !== 'object') return null
+  const snapshot = value as Partial<PausedNeedsSnapshot>
+  if (
+    typeof snapshot.needsChallengeLock !== 'boolean' ||
+    typeof snapshot.needsTribalLock !== 'boolean' ||
+    typeof snapshot.needsExileScore !== 'boolean' ||
+    typeof snapshot.needsPhaseAdvance !== 'boolean' ||
+    typeof snapshot.needsWeeklyRecap !== 'boolean'
+  ) {
+    return null
+  }
+  return {
+    needsChallengeLock: snapshot.needsChallengeLock,
+    needsTribalLock: snapshot.needsTribalLock,
+    needsExileScore: snapshot.needsExileScore,
+    needsPhaseAdvance: snapshot.needsPhaseAdvance,
+    needsWeeklyRecap: snapshot.needsWeeklyRecap,
+  }
+}
+
 function parsePauseSnapshot(lastError: string | null | undefined): PausedNeedsSnapshot | null {
   if (!lastError?.startsWith(PAUSE_ERROR_PREFIX)) return null
   const rawValue = lastError.slice(PAUSE_ERROR_PREFIX.length).trim()
   if (!rawValue.startsWith('{')) return null
   try {
-    const parsed = JSON.parse(rawValue) as { snapshot?: Partial<PausedNeedsSnapshot> } | null
-    const snapshot = parsed?.snapshot
-    if (!snapshot) return null
-    if (
-      typeof snapshot.needsChallengeLock !== 'boolean' ||
-      typeof snapshot.needsTribalLock !== 'boolean' ||
-      typeof snapshot.needsExileScore !== 'boolean' ||
-      typeof snapshot.needsPhaseAdvance !== 'boolean' ||
-      typeof snapshot.needsWeeklyRecap !== 'boolean'
-    ) {
-      return null
-    }
-    return {
-      needsChallengeLock: snapshot.needsChallengeLock,
-      needsTribalLock: snapshot.needsTribalLock,
-      needsExileScore: snapshot.needsExileScore,
-      needsPhaseAdvance: snapshot.needsPhaseAdvance,
-      needsWeeklyRecap: snapshot.needsWeeklyRecap,
-    }
+    const parsed = JSON.parse(rawValue) as { snapshot?: unknown } | null
+    return coercePauseSnapshot(parsed?.snapshot)
   } catch {
     return null
   }
@@ -384,8 +389,7 @@ export async function POST(req: NextRequest) {
     // Authoritative source: the dedicated pausedSnapshot JSON column.
     // Fall back to the legacy lastError-embedded snapshot only if the
     // new column is empty (older paused seasons).
-    const dbSnapshot =
-      (currentState?.pausedSnapshot as PausedNeedsSnapshot | null) ?? null
+    const dbSnapshot = coercePauseSnapshot(currentState?.pausedSnapshot)
     const legacySnapshot = parsePauseSnapshot(currentState?.lastError)
     const pausedSnapshot: PausedNeedsSnapshot | null = dbSnapshot ?? legacySnapshot
     const isLegacyPausedState = Boolean(

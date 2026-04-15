@@ -100,6 +100,15 @@ export async function POST(req: NextRequest) {
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
+    // Confirm the council belongs to the leagueId the commissioner was
+    // authorized on — prevents cross-league lock via a foreign councilId.
+    const council = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId },
+      select: { leagueId: true },
+    })
+    if (!council || council.leagueId !== leagueId) {
+      return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    }
     await lockVoting(councilId)
     return NextResponse.json({ ok: true })
   }
