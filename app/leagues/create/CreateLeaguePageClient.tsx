@@ -304,6 +304,16 @@ export function CreateLeaguePageClient() {
           survivor_reveal_mode: state.survivorRevealMode,
           survivor_challenge_mode: state.survivorChallengeMode,
         }),
+        ...(state.formatId === 'guillotine' && {
+          guillotineEliminationsPerPeriod: state.guillotineEliminationsPerPeriod,
+          guillotineProtectedWeek1: state.guillotineProtectedWeek1,
+          guillotineEndgame: state.guillotineEndgame,
+          guillotineTiebreaker: state.guillotineTiebreaker,
+          guillotineWaiverMode: state.guillotineWaiverMode,
+          guillotineFaabBudget: state.guillotineFaabBudget,
+          guillotineSamePeriodPickups: state.guillotineSamePeriodPickups,
+          guillotineTradesEnabled: state.guillotineTradesEnabled,
+        }),
         ...(state.formatId === 'zombie' && {
           zombie_whisperer_selection: state.zombieWhispererSelection,
         }),

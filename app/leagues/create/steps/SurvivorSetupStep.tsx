@@ -3,23 +3,22 @@
 import { Input } from '@/components/ui/input'
 import { LeagueCreateStepProps } from '../types'
 
-const TRIBE_FORMATIONS = ['random', 'manual', 'draft_pattern'] as const
-const TRIBE_NAMING_MODES = ['auto', 'ai', 'custom'] as const
-const MERGE_TRIGGERS = ['player_count', 'week'] as const
-const JURY_STARTS = ['after_merge', 'first_post_merge_vote', 'at_player_count'] as const
-const TIE_RULES = ['rocks', 'fire_making', 'score', 'commissioner'] as const
-const REVEAL_MODES = ['dramatic', 'full_public', 'anonymized', 'delayed'] as const
-const CHALLENGE_MODES = ['automatic', 'semi_automatic', 'manual'] as const
+const TRIBE_FORMATIONS = ['schoolyard', 'random', 'manual'] as const
+const TRIBE_NAMING_MODES = ['auto', 'custom'] as const
+const MERGE_TRIGGERS = ['week', 'players_remaining'] as const
+const JURY_STARTS = ['post_merge_vote_1', 'final_9', 'final_7'] as const
+const TIE_RULES = ['revote_then_rocks', 'revote_then_tiebreaker', 'commissioner'] as const
+const REVEAL_MODES = ['dramatic_sequential', 'simultaneous', 'commissioner'] as const
+const CHALLENGE_MODES = ['auto', 'hybrid', 'commissioner'] as const
 
 const TRIBE_LABEL: Record<string, string> = {
+  schoolyard: 'Schoolyard Pick',
   random: 'Auto-Generate',
   manual: 'Manual Assign',
-  draft_pattern: 'Draft-Pattern Split',
 }
 
 const NAMING_LABEL: Record<string, string> = {
   auto: 'Auto Names',
-  ai: 'AI Generated',
   custom: 'Custom Names',
 }
 
@@ -172,7 +171,7 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
                       : 'border-white/10 bg-white/[0.03] text-white/75 hover:border-white/20'
                   }`}
                 >
-                  {trigger === 'player_count' ? 'At Player Count' : 'At Week'}
+                  {trigger === 'players_remaining' ? 'At Player Count' : 'At Week'}
                 </button>
               ))}
             </div>
