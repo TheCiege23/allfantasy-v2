@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { Input } from '@/components/ui/input'
 import { LeagueCreateStepProps } from '../types'
 
@@ -30,6 +31,11 @@ function recommendedTribeSplit(players: number): string {
 }
 
 export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
+  const mergeTriggerRef = useRef(state.survivorMergeTrigger)
+  useEffect(() => {
+    mergeTriggerRef.current = state.survivorMergeTrigger
+  }, [state.survivorMergeTrigger])
+
   const tribeSize = state.survivorTribeCount > 0
     ? Math.floor(state.survivorPlayerCount / state.survivorTribeCount)
     : 0
@@ -164,7 +170,10 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
                 <button
                   key={trigger}
                   type="button"
-                  onClick={() => setState((c) => ({ ...c, survivorMergeTrigger: trigger }))}
+                  onClick={() => {
+                    mergeTriggerRef.current = trigger
+                    setState((c) => ({ ...c, survivorMergeTrigger: trigger }))
+                  }}
                   className={`rounded-2xl border px-3 py-2 text-xs transition ${
                     state.survivorMergeTrigger === trigger
                       ? 'border-cyan-300/60 bg-cyan-300/10 text-white'
@@ -185,19 +194,17 @@ export function SurvivorSetupStep({ state, setState }: LeagueCreateStepProps) {
               min={state.survivorMergeTrigger === 'week' ? 4 : 6}
               max={14}
               value={state.survivorMergeTrigger === 'week' ? state.survivorMergeWeek : state.survivorMergeAtCount}
-              onChange={(e) => {
-                // Snapshot the trigger at event time (from the render-time
-                // state) so the write key matches what the user is
-                // actually looking at, even if a batched setState has
-                // already changed the trigger between render and flush.
-                const activeTrigger = state.survivorMergeTrigger
-                const parsed = Number(e.target.value)
-                setState((c) =>
-                  activeTrigger === 'week'
-                    ? { ...c, survivorMergeWeek: Number.isFinite(parsed) && parsed > 0 ? parsed : 8 }
-                    : { ...c, survivorMergeAtCount: Number.isFinite(parsed) && parsed > 0 ? parsed : 10 },
-                )
-              }}
+              onChange={(e) =>
+                setState((c) => {
+                  const activeTrigger = mergeTriggerRef.current
+                  return {
+                    ...c,
+                    ...(activeTrigger === 'week'
+                      ? { survivorMergeWeek: Number(e.target.value) || 8 }
+                      : { survivorMergeAtCount: Number(e.target.value) || 10 }),
+                  }
+                })
+              }
             />
           </div>
         </div>
