@@ -34,7 +34,13 @@ test.describe("@retention engagement notification routing click audit", () => {
     const blockedLink = page.getByRole("link", { name: /Unsafe link blocked/i })
 
     await expect(dailyLink).toHaveAttribute("href", "/trade-analyzer")
-    await expect(leagueLink).toHaveAttribute("href", "/app/league/league-123")
+    // NotificationRouteResolver produces `/league/${leagueId}` (no /app
+    // prefix) for league_reminder notifications via getNotificationDestination
+    // in lib/notification-center/NotificationRouteResolver.ts — see
+    // `if (leagueId) return /league/${leagueId}`. The test previously
+    // expected a stale `/app/league/...` form that the resolver never
+    // produces.
+    await expect(leagueLink).toHaveAttribute("href", "/league/league-123")
     await expect(aiLink).toHaveAttribute("href", "/chimmy")
     await expect(weeklyLink).toHaveAttribute("href", "/tools-hub")
     await expect(blockedLink).toHaveAttribute("href", "/dashboard")
