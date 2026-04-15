@@ -57,7 +57,9 @@ function classifyNewsCategory(headline: string, body: string | null): DispatchCa
  * notificationDispatchedAt so subsequent cron runs skip them.
  */
 async function dispatchRecentPlayerNews(
-  sourceWhere: Prisma.PlayerNewsRecordWhereInput['source'],
+  // Always a Prisma.StringFilter object so callers are consistent —
+  // pass { equals: 'x_grok_search' } or { startsWith: 'newsapi:' } etc.
+  sourceFilter: Prisma.StringFilter,
 ): Promise<number> {
   const { prisma } = await import('@/lib/prisma')
   const { dispatchPlayerNewsNotifications } = await import(
@@ -66,7 +68,7 @@ async function dispatchRecentPlayerNews(
 
   const records = await prisma.playerNewsRecord.findMany({
     where: {
-      source: sourceWhere,
+      source: sourceFilter,
       createdAt: { gte: new Date(Date.now() - NEWS_LOOKBACK_MS) },
       impact: { in: ['high', 'medium'] },
       playerName: { not: null },
@@ -131,7 +133,7 @@ export async function GET(req: NextRequest) {
     xNewRecords = xResult.newRecords
 
     if (xResult.newRecords > 0) {
-      xNotifications = await dispatchRecentPlayerNews('x_grok_search')
+      xNotifications = await dispatchRecentPlayerNews({ equals: 'x_grok_search' })
     }
 
     if (xResult.errors.length > 0) {
