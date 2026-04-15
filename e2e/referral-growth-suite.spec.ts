@@ -388,6 +388,11 @@ test.describe("@growth @db referral system + growth incentives", () => {
       referrerPage.getByRole("heading", { name: "Grow the league, earn the upside" }),
     ).toBeVisible()
 
+    // Dashboard defaults to the "overview" tab which only shows a
+    // claimable-rewards *count*; the actual `referral-claim-${id}`
+    // buttons only render under `tab === "rewards"`. Switch tabs first.
+    await referrerPage.getByTestId("referral-tab-rewards").click()
+
     // Dashboard renders `referral-claim-${id}` (not `referral-redeem-`)
     // and shows "Claimed" text after the redeem API flips status to
     // 'redeemed'.
