@@ -358,6 +358,10 @@ model PlayerNewsRecord {
   source          String   @db.VarChar(32)
   publishedAt     DateTime @map("published_at")
   createdAt       DateTime @default(now()) @map("created_at")
+  /// Set the first time the cron dispatches push notifications for this
+  /// record, so subsequent runs within the same look-back window never
+  /// re-dispatch the same story.
+  notificationDispatchedAt DateTime? @map("notification_dispatched_at")
 
   @@unique([sport, playerName, headline, publishedAt], name: "uniq_player_news_dedupe")
   @@index([sport, publishedAt])

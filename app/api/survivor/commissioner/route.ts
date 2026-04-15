@@ -15,6 +15,27 @@ export const dynamic = 'force-dynamic'
 
 const PAUSE_ERROR_PREFIX = 'PAUSED:'
 
+/**
+ * Wraps requireCommissionerRole (which throws a bare Response) in a
+ * NextResponse-friendly async guard. Returns null on success or a
+ * NextResponse to return directly on failure.
+ */
+async function commissionerGuard(leagueId: string, userId: string): Promise<NextResponse | null> {
+  try {
+    await requireCommissionerRole(leagueId, userId)
+    return null
+  } catch (err) {
+    if (err instanceof Response) {
+      const body = await err.text().catch(() => '')
+      return new NextResponse(body || 'Forbidden', {
+        status: err.status,
+        headers: { 'content-type': err.headers.get('content-type') ?? 'text/plain' },
+      })
+    }
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+}
+
 type PausedNeedsSnapshot = {
   needsChallengeLock: boolean
   needsTribalLock: boolean
@@ -65,7 +86,8 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams?.get('type')?.trim()
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
-  await requireCommissionerRole(leagueId, userId)
+  const guard1 = await commissionerGuard(leagueId, userId)
+  if (guard1) return guard1
 
   if (type === 'state') {
     const gs = await prisma.survivorGameState.findUnique({ where: { leagueId } })
@@ -102,7 +124,8 @@ export async function POST(req: NextRequest) {
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : ''
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
-  await requireCommissionerRole(leagueId, userId)
+  const guard2 = await commissionerGuard(leagueId, userId)
+  if (guard2) return guard2
 
   const log = async (
     actionType: string,

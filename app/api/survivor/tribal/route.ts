@@ -105,16 +105,19 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === 'reveal_next') {
+    // Verify commissioner on the request's leagueId BEFORE any DB lookup
+    // so cross-league councilId probes leak nothing about council existence.
+    const gate = await assertLeagueCommissioner(leagueId, userId)
+    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
     const council = await prisma.survivorTribalCouncil.findUnique({
       where: { id: councilId },
       select: { leagueId: true, revealSequence: true },
     })
-    if (!council) return NextResponse.json({ error: 'Council not found' }, { status: 404 })
-    if (council.leagueId !== leagueId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    const gate = await assertLeagueCommissioner(council.leagueId, userId)
-    if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
+    if (!council || council.leagueId !== leagueId) {
+      return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    }
     const seq = Array.isArray(council.revealSequence) ? (council.revealSequence as unknown[]) : []
     if (seq.length === 0) return NextResponse.json({ step: null, remaining: 0 })
     const [step, ...remainingSeq] = seq

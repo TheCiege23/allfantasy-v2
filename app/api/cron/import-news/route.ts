@@ -45,12 +45,15 @@ export async function GET(req: NextRequest) {
 
     // Dispatch notifications for new high/medium impact items
     if (xResult.newRecords > 0) {
-      const recentNews = await (await import('@/lib/prisma')).prisma.playerNewsRecord.findMany({
+      const { prisma } = await import('@/lib/prisma')
+      const recentNews = await prisma.playerNewsRecord.findMany({
         where: {
           source: 'x_grok_search',
           createdAt: { gte: new Date(Date.now() - 20 * 60 * 1000) }, // last 20 min
           impact: { in: ['high', 'medium'] },
           playerName: { not: null },
+          // Only dispatch for records that have NEVER been notified.
+          notificationDispatchedAt: null,
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -67,6 +70,9 @@ export async function GET(req: NextRequest) {
           news.sport,
         )
         xNotifications += sent
+        await prisma.playerNewsRecord
+          .update({ where: { id: news.id }, data: { notificationDispatchedAt: new Date() } })
+          .catch(() => null)
       }
     }
 
@@ -89,12 +95,14 @@ export async function GET(req: NextRequest) {
 
     // Dispatch notifications for new high/medium impact NewsAPI items
     if (newsApiResult.newRecords > 0) {
-      const recentNewsApi = await (await import('@/lib/prisma')).prisma.playerNewsRecord.findMany({
+      const { prisma } = await import('@/lib/prisma')
+      const recentNewsApi = await prisma.playerNewsRecord.findMany({
         where: {
           source: { startsWith: 'newsapi:' },
           createdAt: { gte: new Date(Date.now() - 20 * 60 * 1000) },
           impact: { in: ['high', 'medium'] },
           playerName: { not: null },
+          notificationDispatchedAt: null,
         },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -111,6 +119,9 @@ export async function GET(req: NextRequest) {
           news.sport,
         )
         newsApiNotifications += sent
+        await prisma.playerNewsRecord
+          .update({ where: { id: news.id }, data: { notificationDispatchedAt: new Date() } })
+          .catch(() => null)
       }
     }
 
