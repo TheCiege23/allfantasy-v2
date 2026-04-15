@@ -11,6 +11,7 @@ const DASHBOARD_TITLE = "Dashboard temporarily unavailable"
 
 const KNOWN_CONFIG_ERRORS = [
   { env: "DATABASE_URL", pattern: "DATABASE_URL is not set" },
+  { env: "DATABASE_URL", pattern: "Invalid database URL" },
   { env: "NEXTAUTH_SECRET", pattern: "NEXTAUTH_SECRET is not set" },
   { env: "NEXTAUTH_SECRET", pattern: "NEXTAUTH_SECRET (or AUTH_SECRET) is not set" },
 ] as const

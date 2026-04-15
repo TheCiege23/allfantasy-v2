@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { signOut } from "next-auth/react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { ReferralSection } from "@/components/settings/ReferralSection"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
@@ -69,11 +70,14 @@ export default function SettingsApp({
           title={t("settings.errorTitle")}
           message={error ?? t("settings.errorMessage")}
           onRetry={() => void fetchProfile()}
-          actions={resolveRecoveryActions("settings").map((action) => ({
-            id: action.id,
-            label: action.label,
-            href: action.href,
-          }))}
+          actions={[
+            ...resolveRecoveryActions("settings").map((action) => ({
+              id: action.id,
+              label: action.label,
+              href: action.href,
+            })),
+            { id: "sign-out", label: "Sign out", href: "/logout" },
+          ]}
           testId="settings-error-state"
         />
       </div>

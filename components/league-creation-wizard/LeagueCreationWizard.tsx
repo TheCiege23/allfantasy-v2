@@ -1181,17 +1181,20 @@ export function LeagueCreationWizard({
                   value={effectiveLeagueVariant}
                   onChange={handleScoringChange}
                   lockedVariantLabel={variantLockedByLeagueType ? effectiveVariantLabel : null}
+                  leagueType={state.leagueType}
                 />
-                <LeagueSettingsPreviewPanel
-                  preset={creationPreset}
-                  sport={String(state.sport)}
-                  presetLabel={effectiveVariantLabel}
-                  teamCountOverride={state.teamCount}
-                  playoffTeamCountOverride={state.playoffSettings.playoffTeamCount}
-                  regularSeasonLengthOverride={state.scheduleSettings.regularSeasonLength}
-                  matchupUnitOverride={state.scheduleSettings.scheduleUnit}
-                  tradeReviewModeOverride={state.tradeReviewMode}
-                />
+                {state.leagueType !== 'survivor' && (
+                  <LeagueSettingsPreviewPanel
+                    preset={creationPreset}
+                    sport={String(state.sport)}
+                    presetLabel={effectiveVariantLabel}
+                    teamCountOverride={state.teamCount}
+                    playoffTeamCountOverride={state.playoffSettings.playoffTeamCount}
+                    regularSeasonLengthOverride={state.scheduleSettings.regularSeasonLength}
+                    matchupUnitOverride={state.scheduleSettings.scheduleUnit}
+                    tradeReviewModeOverride={state.tradeReviewMode}
+                  />
+                )}
                 {creationPresetLoading && (
                   <p className="text-xs text-white/55" role="status">
                     Refreshing preset templates for this sport and variant…

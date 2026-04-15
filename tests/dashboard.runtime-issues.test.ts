@@ -58,4 +58,19 @@ describe("dashboard runtime issues", () => {
       missing: ["DATABASE_URL"],
     })
   })
+
+  it("maps invalid database URL scheme errors to a dashboard issue", () => {
+    expect(
+      getDashboardRuntimeIssue(
+        new Error(
+          "Invalid database URL: DATABASE_URL must start with postgres:// or postgresql:// (Prisma does not use prisma:// Accelerate URLs as DATABASE_URL). Fix the value in Vercel and redeploy."
+        )
+      )
+    ).toEqual({
+      title: "Dashboard temporarily unavailable",
+      message:
+        "The dashboard can't load because this deployment is missing its database connection setting.",
+      missing: ["DATABASE_URL"],
+    })
+  })
 })

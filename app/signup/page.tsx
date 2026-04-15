@@ -1382,12 +1382,6 @@ function SignupContent() {
                       </span>
                     </button>
                   </div>
-                  <div
-                    className="mt-3 rounded-xl border px-3 py-2 text-xs"
-                    style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 92%, transparent)", color: "var(--muted2)" }}
-                  >
-                    ⚡ Translations powered by DeepL API · Changes every screen and notification
-                  </div>
                 </div>
 
                 <div className="mt-6 flex gap-3">
@@ -1516,7 +1510,7 @@ function SignupContent() {
                       type="checkbox"
                       checked={ageConfirmed}
                       onChange={(e) => setAgeConfirmed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
                     />
                     <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
                       <strong style={{ color: "var(--text)" }}>I am 18 years of age or older</strong>
@@ -1608,7 +1602,7 @@ function SignupContent() {
                       checked={disclaimerAgreed}
                       disabled={!disclaimerScrolledToEnd && !disclaimerAgreed}
                       onChange={(e) => setDisclaimerAgreed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
                     />
                     <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
                       <strong style={{ color: "var(--text)" }}>I have read and acknowledge the Disclaimer</strong>
@@ -1630,7 +1624,7 @@ function SignupContent() {
                       type="checkbox"
                       checked={termsAgreed}
                       onChange={(e) => setTermsAgreed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0"
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
                     />
                     <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
                       <strong style={{ color: "var(--text)" }}>I agree to the Terms of Service and Privacy Policy</strong>

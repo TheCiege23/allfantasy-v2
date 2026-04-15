@@ -5,12 +5,25 @@ import { Label } from '@/components/ui/label'
 import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { StepHeader } from './StepHelp'
 import { useSportRules } from '@/hooks/useSportRules'
+import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+
+/** Presets hidden when creating a survivor league. */
+const SURVIVOR_HIDDEN_PRESETS = new Set(['IDP', 'DYNASTY_IDP'])
+
+/** Human-friendly labels shown for survivor league scoring presets. */
+const SURVIVOR_PRESET_LABELS: Record<string, string> = {
+  STANDARD: 'Standard',
+  PPR: 'PPR',
+  HALF_PPR: 'Half-PPR',
+  SUPERFLEX: 'SF',
+}
 
 export type ScoringPresetSelectorProps = {
   sport: string
   value: string | null
   onChange: (value: string | null) => void
   lockedVariantLabel?: string | null
+  leagueType?: LeagueTypeId | null
 }
 
 /**
@@ -21,8 +34,11 @@ export function ScoringPresetSelector({
   value,
   onChange,
   lockedVariantLabel = null,
+  leagueType = null,
 }: ScoringPresetSelectorProps) {
   const { rules } = useSportRules(sport, value)
+  const isSurvivor = leagueType === 'survivor'
+
   if (lockedVariantLabel) {
     return (
       <div className="space-y-5">
@@ -50,7 +66,18 @@ export function ScoringPresetSelector({
     )
   }
 
-  const variants = getVariantsForSport(sport)
+  const allVariants = getVariantsForSport(sport)
+  const variants = isSurvivor
+    ? allVariants.filter((v) => !SURVIVOR_HIDDEN_PRESETS.has(v.value))
+    : allVariants
+
+  const displayVariants = isSurvivor
+    ? variants.map((v) => ({
+        ...v,
+        label: SURVIVOR_PRESET_LABELS[v.value] ?? v.label,
+      }))
+    : variants
+
   const safeValue = variants.some((v) => v.value === (value ?? '')) ? (value ?? variants[0]?.value) : (variants[0]?.value ?? 'STANDARD')
   const [selectedPresetValues, setSelectedPresetValues] = useState<string[]>(() =>
     safeValue ? [safeValue] : []
@@ -62,7 +89,10 @@ export function ScoringPresetSelector({
 
   const valueSet = useMemo(() => new Set(selectedPresetValues), [selectedPresetValues])
 
-  const priority = ['DYNASTY_IDP', 'IDP', 'SUPERFLEX', 'HALF_PPR', 'PPR', 'STANDARD']
+  const priority = isSurvivor
+    ? ['SUPERFLEX', 'HALF_PPR', 'PPR', 'STANDARD']
+    : ['DYNASTY_IDP', 'IDP', 'SUPERFLEX', 'HALF_PPR', 'PPR', 'STANDARD']
+
   const resolvePrimaryPreset = (values: string[]): string | null => {
     if (values.length === 0) return null
     for (const p of priority) {
@@ -100,7 +130,7 @@ export function ScoringPresetSelector({
           aria-label="Preset"
           data-testid="league-creation-preset-selector"
         >
-          {variants.map(({ value: presetValue, label: presetLabel }) => {
+          {displayVariants.map(({ value: presetValue, label: presetLabel }) => {
             const selected = valueSet.has(presetValue)
             return (
               <button
