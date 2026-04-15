@@ -44,6 +44,17 @@ type PausedNeedsSnapshot = {
   needsWeeklyRecap: boolean
 }
 
+function isPausedNeedsSnapshot(snapshot: Partial<PausedNeedsSnapshot> | null | undefined): snapshot is PausedNeedsSnapshot {
+  if (!snapshot) return false
+  return (
+    typeof snapshot.needsChallengeLock === 'boolean' &&
+    typeof snapshot.needsTribalLock === 'boolean' &&
+    typeof snapshot.needsExileScore === 'boolean' &&
+    typeof snapshot.needsPhaseAdvance === 'boolean' &&
+    typeof snapshot.needsWeeklyRecap === 'boolean'
+  )
+}
+
 function createPauseError(notes: string, snapshot: PausedNeedsSnapshot): string {
   return `${PAUSE_ERROR_PREFIX}${JSON.stringify({ notes, snapshot })}`
 }
@@ -79,6 +90,19 @@ function parsePauseSnapshot(lastError: string | null | undefined): PausedNeedsSn
     return coercePauseSnapshot(parsed?.snapshot)
   } catch {
     return null
+  }
+}
+
+function parsePausedSnapshotColumn(snapshot: Prisma.JsonValue | null | undefined): PausedNeedsSnapshot | null {
+  if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null
+  const parsedSnapshot = snapshot as Partial<PausedNeedsSnapshot>
+  if (!isPausedNeedsSnapshot(parsedSnapshot)) return null
+  return {
+    needsChallengeLock: parsedSnapshot.needsChallengeLock,
+    needsTribalLock: parsedSnapshot.needsTribalLock,
+    needsExileScore: parsedSnapshot.needsExileScore,
+    needsPhaseAdvance: parsedSnapshot.needsPhaseAdvance,
+    needsWeeklyRecap: parsedSnapshot.needsWeeklyRecap,
   }
 }
 
@@ -389,7 +413,7 @@ export async function POST(req: NextRequest) {
     // Authoritative source: the dedicated pausedSnapshot JSON column.
     // Fall back to the legacy lastError-embedded snapshot only if the
     // new column is empty (older paused seasons).
-    const dbSnapshot = coercePauseSnapshot(currentState?.pausedSnapshot)
+    const dbSnapshot = parsePausedSnapshotColumn(currentState?.pausedSnapshot ?? null)
     const legacySnapshot = parsePauseSnapshot(currentState?.lastError)
     const pausedSnapshot: PausedNeedsSnapshot | null = dbSnapshot ?? legacySnapshot
     const isLegacyPausedState = Boolean(
