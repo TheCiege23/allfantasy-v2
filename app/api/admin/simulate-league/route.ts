@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveAdminEmail } from '@/lib/auth/admin'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import { assertLeagueCommissioner } from '@/lib/league/league-access'
 import { simulateLeague } from '@/lib/simulation/leagueSimulator'
 
 export const dynamic = 'force-dynamic'
@@ -33,10 +33,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
   }
 
-  const leagueAccess = await assertLeagueMember(leagueId, userId)
+  const leagueAccess = await assertLeagueCommissioner(leagueId, userId)
   if (!leagueAccess.ok) {
     const status = leagueAccess.status === 404 ? 404 : 403
-    const error = leagueAccess.status === 404 ? 'League not found' : 'Forbidden'
+    const error =
+      leagueAccess.status === 404 ? 'League not found' : 'Commissioner access required'
     return NextResponse.json({ error }, { status })
   }
 

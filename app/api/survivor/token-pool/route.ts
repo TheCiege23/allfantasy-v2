@@ -60,6 +60,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `pickType must be one of: ${validTypes.join(', ')}` }, { status: 400 })
   }
 
+  // Per-pickType shape validation — prevents empty/partial picks reaching the engine.
+  const pickString = (key: string): string | null => {
+    const v = pick[key]
+    return typeof v === 'string' && v.trim().length > 0 ? v.trim() : null
+  }
+  const pickNumber = (key: string): number | null => {
+    const v = pick[key]
+    return typeof v === 'number' && Number.isFinite(v) ? v : null
+  }
+
+  const missing: string[] = []
+  if (pickType === 'win_pick') {
+    if (!pickString('teamId') && !pickString('team')) missing.push('team / teamId')
+  } else if (pickType === 'over_under') {
+    if (!pickString('side') && !pickString('selection')) missing.push('side (over|under)')
+    if (pickNumber('line') == null && pickNumber('total') == null) missing.push('line / total')
+  } else if (pickType === 'prop_bet') {
+    if (!pickString('propId') && !pickString('prop')) missing.push('propId / prop')
+    if (!pickString('selection') && !pickString('side')) missing.push('selection')
+  } else if (pickType === 'exact_score') {
+    if (pickNumber('homeScore') == null || pickNumber('awayScore') == null) {
+      missing.push('homeScore and awayScore')
+    }
+  }
+
+  if (missing.length > 0) {
+    return NextResponse.json(
+      { error: `pick is missing required fields for ${pickType}: ${missing.join(', ')}` },
+      { status: 400 },
+    )
+  }
+
   try {
     const result = await submitTokenPoolPick({
       leagueId,
