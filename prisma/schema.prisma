@@ -3769,6 +3769,13 @@ model UserProfile {
   rankTier                  String?             @map("rank_tier")
   xpTotal                   BigInt?             @map("xp_total")
   xpLevel                   Int?                @map("xp_level")
+  /// Denormalized legacy-career snapshot on the profile. Lives on
+  /// UserProfile so the rank route can read it in a single query
+  /// without joining the career tier computation service.
+  legacyCareerTier          Int?                @map("legacy_career_tier")
+  legacyCareerTierName      String?             @map("legacy_career_tier_name")
+  legacyCareerLevel         Int?                @map("legacy_career_level")
+  legacyCareerXp            BigInt?             @map("legacy_career_xp")
   rankCalculatedAt          DateTime?           @map("rank_calculated_at")
   careerWins                Int?                @map("career_wins")
   careerLosses              Int?                @map("career_losses")

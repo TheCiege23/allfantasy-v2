@@ -309,13 +309,7 @@ test.describe("@growth @db referral system + growth incentives", () => {
     expect(registerCookieHeader).toContain(`af_ref=${referralCode}`)
   })
 
-  // Pre-existing broken on main: /api/user/rank raw SQL references
-  // columns (legacy_career_tier, legacy_career_level, legacy_career_xp,
-  // legacy_career_tier_name) that don't exist in the CI Prisma schema,
-  // and the /api/referral/stats poll times out after 30s before
-  // signups/pendingRewards are visible. Skipping until the referral
-  // backend + user_profiles denorm columns are reconciled with Prisma.
-  test.skip("real backend: tracks click, attributes signup, grants and redeems reward", async ({ browser }) => {
+  test("real backend: tracks click, attributes signup, grants and redeems reward", async ({ browser }) => {
     const referrerCreds = makeCredentials("e2erefref")
     const referredCreds = makeCredentials("e2erefnew")
 
@@ -355,17 +349,21 @@ test.describe("@growth @db referral system + growth incentives", () => {
 
     await registerUser(visitorPage, referredCreds, { useE2EHeader: false })
 
+    // The default signup reward definition is granted with
+    // isClaimable: true, so it lands in status 'claimable' (not
+    // 'pending'). Poll until both the signup is attributed AND the
+    // claimable reward is visible.
     await expect
       .poll(
         async () => {
           const statsRes = await referrerPage.request.get("/api/referral/stats")
           if (!statsRes.ok()) return 0
           const data = (await statsRes.json()) as {
-            stats?: { signups?: number; pendingRewards?: number }
+            stats?: { signups?: number; claimableRewards?: number }
           }
           const signups = data.stats?.signups ?? 0
-          const pendingRewards = data.stats?.pendingRewards ?? 0
-          return signups > 0 && pendingRewards > 0 ? 1 : 0
+          const claimableRewards = data.stats?.claimableRewards ?? 0
+          return signups > 0 && claimableRewards > 0 ? 1 : 0
         },
         { timeout: 30_000, intervals: [1000, 2000, 3000] }
       )
@@ -376,17 +374,22 @@ test.describe("@growth @db referral system + growth incentives", () => {
     const rewardsPayload = (await rewardsRes.json()) as {
       rewards?: Array<{ id: string; status: string }>
     }
-    const pendingReward = (rewardsPayload.rewards ?? []).find((reward) => reward.status === "pending")
-    expect(pendingReward?.id).toBeTruthy()
+    const claimableReward = (rewardsPayload.rewards ?? []).find(
+      (reward) => reward.status === "claimable",
+    )
+    expect(claimableReward?.id).toBeTruthy()
 
     await referrerPage.goto("/referral", { waitUntil: "domcontentloaded" })
     await expect(referrerPage.getByRole("heading", { name: "Referral program" })).toBeVisible()
 
-    const redeemButton = referrerPage.getByTestId(`referral-redeem-${pendingReward!.id}`)
-    await expect(redeemButton).toBeVisible()
-    await redeemButton.click()
+    // Dashboard renders `referral-claim-${id}` (not `referral-redeem-`)
+    // and shows "Claimed" text after the redeem API flips status to
+    // 'redeemed'.
+    const claimButton = referrerPage.getByTestId(`referral-claim-${claimableReward!.id}`)
+    await expect(claimButton).toBeVisible()
+    await claimButton.click()
 
-    await expect(referrerPage.getByText("Redeemed").first()).toBeVisible()
+    await expect(referrerPage.getByText("Claimed").first()).toBeVisible()
 
     await expect
       .poll(
