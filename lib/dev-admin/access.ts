@@ -62,6 +62,7 @@ type DevAdminTokenLedgerEntryView = {
  */
 const STATIC_ADMIN_USER_IDS = new Set<string>([
   '944bb9f1-7a25-455b-8ef2-66146dbf3553', // theciege24 — app owner (supabase)
+  '3a7ffd10-b1a5-4a40-8d07-232364596735', // TheCiege24 — current app owner account
 ])
 
 /** App owner emails — always bypass subscriptions and token charges regardless of user ID. */
