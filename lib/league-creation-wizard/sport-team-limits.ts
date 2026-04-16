@@ -3,6 +3,8 @@
  * (every team has one manager; no duplicate slots).
  */
 
+import { TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
+
 const MAX_TEAMS_BY_SPORT: Record<string, number> = {
   NFL: 24,
   NBA: 20,
@@ -52,6 +54,9 @@ export function getZombieTeamCountOptionsForSport(sport: string): number[] {
 
 /** Every integer team count from 4 through the sport maximum (one manager per team). */
 export function getTeamCountOptionsForSport(sport: string, leagueType?: string): number[] {
+  if (String(leagueType ?? '').toLowerCase() === 'tournament') {
+    return [TOURNAMENT_TEAMS_PER_LEAGUE]
+  }
   if (String(leagueType ?? '').toLowerCase() === 'zombie') {
     return getZombieTeamCountOptionsForSport(sport)
   }
@@ -85,6 +90,9 @@ function clampDevyEvenTeamCount(sport: string, teamCount: number): number {
 }
 
 export function clampTeamCountForSport(sport: string, teamCount: number, leagueType?: string): number {
+  if (String(leagueType ?? '').toLowerCase() === 'tournament') {
+    return TOURNAMENT_TEAMS_PER_LEAGUE
+  }
   if (String(leagueType ?? '').toLowerCase() === 'zombie') {
     const opts = getZombieTeamCountOptionsForSport(sport)
     const n = Number.isFinite(teamCount) ? Math.round(teamCount) : opts[1] ?? 20

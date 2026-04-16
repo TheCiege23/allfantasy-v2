@@ -2,15 +2,18 @@
 
 import type { LeagueCreationPresetPayload, ScheduleTemplatePayload, SeasonCalendarPayload, SportFeatureFlagsPayload } from '@/hooks/useSportPreset'
 import { resolveSportAwareFrontendContext } from '@/lib/league-creation/SportAwareFrontendResolver'
+import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 
 export interface SportSummaryCardProps {
   preset: LeagueCreationPresetPayload
+  /** When tournament, clarifies feeder size vs real-world team catalog in the sport. */
+  leagueType?: LeagueTypeId
 }
 
 /** Single summary card (sport, scoring, roster, schedule, or season calendar). Preset loads first; customization allowed where supported. */
 function SummaryCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/15 bg-white/5 p-3 space-y-1.5">
+    <div className="rounded-lg border border-white/10 bg-white/[0.04] p-3 space-y-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
       <h4 className="text-xs font-semibold uppercase tracking-wider text-white/50">{title}</h4>
       <div className="text-sm text-white/80">{children}</div>
     </div>
@@ -106,13 +109,23 @@ function teamMetadataSummary(preset: LeagueCreationPresetPayload): {
  * Sport summary card for league creation: five summary cards (sport, scoring, roster, schedule, season calendar)
  * plus compatible feature toggles. Preset loads first; customization allowed where supported.
  */
-export function SportSummaryCard({ preset }: SportSummaryCardProps) {
+export function SportSummaryCard({ preset, leagueType }: SportSummaryCardProps) {
   const features = featureTogglesSummary(preset.featureFlags)
   const teamMeta = teamMetadataSummary(preset)
   const initContext = resolveSportAwareFrontendContext(preset)
+  const isTournament = leagueType === 'tournament'
 
   return (
     <div className="space-y-3">
+      {isTournament && (
+        <SummaryCard title="Tournament structure">
+          <p className="leading-relaxed text-white/75">
+            Feeder leagues use <span className="font-medium text-white/90">12 managers</span> each (12 fantasy teams).
+            The <span className="font-medium text-white/90">participant pool</span> on the next step sets total
+            managers (72, 144, or 216) and how many feeder leagues we create.
+          </p>
+        </SummaryCard>
+      )}
       <SummaryCard title="Sport">
         <div className="flex items-center gap-2">
           <span className="font-medium text-white">{initContext.branding.displayName}</span>
@@ -136,7 +149,15 @@ export function SportSummaryCard({ preset }: SportSummaryCardProps) {
       {teamMeta && (
         <SummaryCard title="Team metadata">
           <div className="space-y-2">
-            <p className="text-white/70">{teamMeta.teamCount} teams with sport-specific logos loaded</p>
+            <p className="text-white/70">
+              {teamMeta.teamCount} {isTournament ? 'real-world clubs' : 'teams'} with sport-specific logos loaded
+            </p>
+            {isTournament && (
+              <p className="text-xs text-white/50 leading-relaxed">
+                This is the pro/college team catalog for your sport (badges, abbreviations). It is not the number of
+                fantasy managers in a feeder league.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {teamMeta.samples.map((team) => (
                 <span

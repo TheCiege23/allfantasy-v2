@@ -36,38 +36,56 @@ export function TeamCountSelector({ sport, leagueType, teamCount, onTeamCountCha
   const maxTeams = getMaxTeamsForSport(sport)
   const safeTeamCount = clampTeamCountForSport(sport, teamCount, leagueType)
   const isSurvivor = String(leagueType ?? '').toLowerCase() === 'survivor'
+  const isTournament = String(leagueType ?? '').toLowerCase() === 'tournament'
   const isDevyOrC2c =
     String(leagueType ?? '').toLowerCase() === 'devy' || String(leagueType ?? '').toLowerCase() === 'c2c'
 
+  const teamLabel = isSurvivor ? 'Cast size (teams)' : isTournament ? 'Teams per feeder league' : 'Number of teams'
+  const teamAria = isTournament ? 'Teams per feeder league' : 'Number of teams'
+
   return (
-    <div className="space-y-1.5">
-      <Label className="text-white/90">{isSurvivor ? 'Cast size (teams)' : 'Number of teams'}</Label>
+    <div className="space-y-1.5" data-testid={isTournament ? 'wizard-tournament-feeder-teams' : undefined}>
+      <Label className="text-white/90">{teamLabel}</Label>
       <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
         <SelectTrigger
           className="mt-1.5 min-h-[44px] border-white/15 bg-[#050f1f]/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-          title="Set how many managers will join this league"
-          aria-label="Number of teams"
+          title={
+            isTournament
+              ? 'Tournament hubs use 12-team feeder leagues; total managers are set on the next step'
+              : 'Set how many managers will join this league'
+          }
+          aria-label={teamAria}
         >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {teamCounts.map((n) => (
             <SelectItem key={n} value={String(n)}>
-              {n} teams
+              {isTournament ? `${n} teams (fixed)` : `${n} teams`}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
       <p className="mt-1 text-xs text-white/50">
-        {isSurvivor
-          ? 'Survivor uses 16, 20, or 24 managers (one per team). Set on this step; tribe splits are on the next step.'
-          : isDevyOrC2c
-            ? sport.toUpperCase() === 'NFL'
-              ? 'Even team counts from 4–32 (NFL + NCAAF pool).'
-              : 'Even team counts from 4–30 (NBA + NCAAB pool).'
-            : sport.toUpperCase() === 'NFL'
-              ? 'NFL currently supports 16, 20, or 24 teams in this flow.'
-              : `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`}
+        {isTournament ? (
+          <>
+            Tournament mode uses <span className="text-white/70">12 fantasy teams per feeder league</span> (one manager
+            per team). On the next step you choose the <span className="text-white/70">total manager field</span>{' '}
+            (72, 144, or 216) — we split that into 6, 12, or 18 feeder leagues automatically.
+          </>
+        ) : isSurvivor ? (
+          'Survivor uses 16, 20, or 24 managers (one per team). Set on this step; tribe splits are on the next step.'
+        ) : isDevyOrC2c ? (
+          sport.toUpperCase() === 'NFL' ? (
+            'Even team counts from 4–32 (NFL + NCAAF pool).'
+          ) : (
+            'Even team counts from 4–30 (NBA + NCAAB pool).'
+          )
+        ) : sport.toUpperCase() === 'NFL' ? (
+          'NFL currently supports 16, 20, or 24 teams in this flow.'
+        ) : (
+          `Up to ${maxTeams} teams for ${sport}. You can change this later in settings.`
+        )}
       </p>
     </div>
   )

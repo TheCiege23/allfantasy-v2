@@ -3,6 +3,7 @@
 import { Label } from '@/components/ui/label';
 import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 import type { LeagueSport } from '@prisma/client';
+import type { LeagueTypeId } from '@/lib/league-creation-wizard/types';
 
 export type LeagueSportOption = SupportedSport;
 
@@ -45,6 +46,8 @@ export interface LeagueCreationSportSelectorProps {
   showHelper?: boolean;
   /** When set (e.g. Devy / C2C), only these sports are shown (NFL/NBA + college pairing in defaults). */
   allowedSports?: readonly LeagueSport[];
+  /** Drives footer copy (e.g. tournament vs standard league). */
+  leagueType?: LeagueTypeId;
 }
 
 /**
@@ -56,6 +59,7 @@ export function LeagueCreationSportSelector({
   disabled = false,
   showHelper = true,
   allowedSports,
+  leagueType,
 }: LeagueCreationSportSelectorProps) {
   const sportsList: LeagueSportOption[] =
     allowedSports && allowedSports.length > 0
@@ -121,16 +125,26 @@ export function LeagueCreationSportSelector({
       </div>
 
       {showHelper && (
-        <p className="text-white/55 text-xs mt-1">
+        <p className="text-white/55 text-xs mt-1 leading-relaxed">
           {collegePairMode ? (
             <>
               <strong className="text-white/70">Devy</strong> and <strong className="text-white/70">Campus to Canton (C2C)</strong> use{' '}
               <strong className="text-white/70">NFL + NCAA football</strong> or <strong className="text-white/70">NBA + NCAA basketball</strong>{' '}
               player pools. Pick the pro league here; the matching college pool is wired in when the league is created.
             </>
+          ) : leagueType === 'tournament' ? (
+            <>
+              Pick the <strong className="text-white/70">sport</strong> for every feeder league in this hub (draft pool,
+              scoring, schedules). Below, <strong className="text-white/70">12 teams per feeder league</strong> is fixed;
+              on the next step you set the <strong className="text-white/70">full tournament field</strong> (total
+              managers).
+            </>
           ) : (
             <>
-              <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring. <strong className="text-white/70">IDP</strong> is an NFL preset — choose NFL, then pick a preset below such as Standard, PPR, Superflex, IDP, or Dynasty IDP. Selecting a preset updates roster and scoring automatically.
+              <strong className="text-white/70">Soccer</strong> is its own sport with its own roster and scoring.{' '}
+              <strong className="text-white/70">IDP</strong> is an NFL preset — choose NFL, then pick a preset below such
+              as Standard, PPR, Superflex, IDP, or Dynasty IDP. Selecting a preset updates roster and scoring
+              automatically.
             </>
           )}
         </p>

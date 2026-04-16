@@ -1,59 +1,19 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
-import { CreateLeagueView } from '@/components/league-creation'
-import type { WizardStepId } from '@/lib/league-creation-wizard/types'
-
-const WIZARD_STEPS: WizardStepId[] = ['sport', 'team_setup', 'scoring', 'draft_privacy', 'review']
-const WIZARD_STORAGE_KEY = 'af:create-league:wizard-state'
-
-function parseWizardStep(raw: string | null | undefined): WizardStepId | null {
-  if (!raw || typeof raw !== 'string') return null
-  const v = raw.trim()
-  return WIZARD_STEPS.includes(v as WizardStepId) ? (v as WizardStepId) : null
-}
-
-export interface CreateLeaguePageClientProps {
-  userId: string
-}
+import { useRouter } from 'next/navigation'
+import { RedraftLeagueCreateClient } from '@/components/leagues/RedraftLeagueCreateClient'
 
 /**
- * Client UI for create league — auth is handled by the server `page.tsx` so we never
- * block on `useSession()` staying in the `loading` state.
+ * Primary "Create league" route — redraft-only 4-step flow + `POST /api/leagues/redraft/create`.
  */
-export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) {
+export function CreateLeaguePageClient() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const initialStep = parseWizardStep(searchParams?.get('step'))
-
-  const clearWizardState = () => {
-    if (typeof window === 'undefined') return
-    window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
-  }
-
-  /** Match wizard: step comes from URL when present; otherwise step 1 (do not use sessionStorage for step). */
-  const resolveCurrentStep = (): WizardStepId => initialStep ?? 'sport'
-
-  const pushWizardStep = (step: WizardStepId) => {
-    const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
-    nextParams.set('step', step)
-    nextParams.delete('returnTo')
-    router.push(`/create-league?${nextParams.toString()}`, { scroll: false })
-  }
 
   const handleBack = () => {
-    const currentStep = resolveCurrentStep()
-    const currentStepIndex = WIZARD_STEPS.indexOf(currentStep)
-    if (currentStepIndex > 0) {
-      pushWizardStep(WIZARD_STEPS[currentStepIndex - 1]!)
-      return
-    }
-    clearWizardState()
     router.push('/dashboard')
   }
 
   const handleHome = () => {
-    clearWizardState()
     router.push('/dashboard')
   }
 
@@ -90,7 +50,7 @@ export function CreateLeaguePageClient({ userId }: CreateLeaguePageClientProps) 
           </div>
         </div>
       </header>
-      <CreateLeagueView userId={userId} initialStep={initialStep} />
+      <RedraftLeagueCreateClient loginCallbackPath="/create-league" />
     </div>
   )
 }

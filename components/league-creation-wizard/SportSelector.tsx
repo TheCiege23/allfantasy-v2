@@ -26,15 +26,18 @@ export function SportSelector({ value, onChange, leagueType }: SportSelectorProp
   })()
 
   const isRestricted = allowedSports && allowedSports.length < LEAGUE_SPORTS.length
+  const isTournament = leagueType === 'tournament'
 
   return (
     <div className="space-y-5">
       <StepHeader
         title="Choose sport"
         description={
-          isRestricted
-            ? `This league type supports ${allowedSports.length} sport${allowedSports.length === 1 ? '' : 's'}. Roster slots, scoring, and draft options adapt to your choice.`
-            : 'Roster slots, scoring rules, and draft options are based on this sport. Most leagues use NFL or NBA.'
+          isTournament
+            ? 'The sport you pick applies to every feeder league in the tournament (player pool, positions, and scoring templates).'
+            : isRestricted
+              ? `This league type supports ${allowedSports!.length} sport${allowedSports!.length === 1 ? '' : 's'}. Roster slots, scoring, and draft options adapt to your choice.`
+              : 'Roster slots, scoring rules, and draft options are based on this sport. Most leagues use NFL or NBA.'
         }
         help={
           <>
@@ -49,6 +52,7 @@ export function SportSelector({ value, onChange, leagueType }: SportSelectorProp
           onChange={(s) => onChange(s)}
           showHelper={true}
           allowedSports={allowedSports}
+          leagueType={leagueType}
         />
       </div>
     </div>

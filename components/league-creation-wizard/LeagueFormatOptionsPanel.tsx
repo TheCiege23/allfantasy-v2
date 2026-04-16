@@ -76,15 +76,20 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
       />
 
       {leagueType === 'tournament' && (
-        <div className="space-y-4 rounded-2xl border border-purple-500/25 bg-purple-950/20 p-4">
-          <h4 className="text-sm font-semibold text-purple-100">Tournament hub</h4>
-          <p className="text-xs text-white/55">
-            Choose how many managers join the tournament. Each feeder league is exactly{' '}
-            <span className="text-white/80">{TOURNAMENT_TEAMS_PER_LEAGUE} teams</span> (12 managers). The pool size
-            determines how many feeder leagues we create (6, 12, or 18).
+        <div
+          className="space-y-4 rounded-2xl border border-purple-500/30 bg-gradient-to-br from-purple-950/35 to-[#040915]/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+          data-testid="wizard-tournament-hub-card"
+        >
+          <h4 className="text-sm font-semibold tracking-wide text-purple-100/95">Tournament hub</h4>
+          <p className="text-xs leading-relaxed text-white/60">
+            Pick the <span className="text-white/85">total manager count</span> for the whole tournament. Each feeder
+            league is always <span className="text-white/85">{TOURNAMENT_TEAMS_PER_LEAGUE} managers</span> (one fantasy
+            team per manager). The tier you choose sets how many parallel feeder leagues we spin up:{' '}
+            <span className="text-white/85">6, 12, or 18</span>.
           </p>
           <div className="space-y-1.5">
             <Label className="text-white/85">Participant pool</Label>
+            <p className="text-[11px] text-white/45">Total managers in the hub = sum of all feeder leagues.</p>
             <Select
               value={String(v.tournamentParticipantPoolSize)}
               onValueChange={(x) => {
@@ -95,27 +100,34 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
                 })
               }}
             >
-              <SelectTrigger className="border-white/20 bg-[#030a20] text-white">
+              <SelectTrigger className="min-h-[44px] border-white/15 bg-[#030a20] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n} managers → {FEEDER_LEAGUES_BY_POOL[n as keyof typeof FEEDER_LEAGUES_BY_POOL]} leagues ×{' '}
-                    {TOURNAMENT_TEAMS_PER_LEAGUE} teams
-                  </SelectItem>
-                ))}
+                {TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED.map((n) => {
+                  const feeders = FEEDER_LEAGUES_BY_POOL[n as keyof typeof FEEDER_LEAGUES_BY_POOL]
+                  return (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} managers total · {feeders} feeder leagues · {TOURNAMENT_TEAMS_PER_LEAGUE} managers each
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
           </div>
+          <p className="rounded-lg border border-white/[0.07] bg-black/30 px-3 py-2 text-[11px] leading-relaxed text-white/50">
+            <span className="text-white/70">1 manager = 1 fantasy team</span> in every feeder league. Real-world club
+            counts in the sport preview (e.g. NFL 32) are for logos and player pools — not your fantasy league size.
+          </p>
           <p className="text-[11px] text-white/45">
             Conference naming (Black/Gold, themed, or custom) is a cosmetic suggestion for labels — it does not block
             creation.
           </p>
           <div className="space-y-1.5">
-            <Label className="text-white/85">Feeder league size</Label>
-            <div className="rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-sm text-white/80">
-              Fixed at {TOURNAMENT_TEAMS_PER_LEAGUE} managers per feeder league
+            <Label className="text-white/85">Managers per feeder league</Label>
+            <div className="rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white/85">
+              Fixed at {TOURNAMENT_TEAMS_PER_LEAGUE} (feeder leagues are always full {TOURNAMENT_TEAMS_PER_LEAGUE}-team
+              drafts)
             </div>
           </div>
           <div className="space-y-1.5">

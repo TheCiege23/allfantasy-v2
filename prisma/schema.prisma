@@ -3989,6 +3989,10 @@ model League {
   logoUrl                         String?
   /// Official league timezone for waivers, trades, and scheduled events (synced to draft LeagueSettings when updated).
   timezone                        String?                      @default("America/New_York")
+  /// Short join code for native AllFantasy-created leagues (manual platform).
+  joinCode                        String?                      @unique @db.VarChar(16)
+  /// Commissioner UI language (e.g. en, es).
+  language                        String?                      @default("en") @db.VarChar(16)
   waiverType                      String?                      @default("rolling")
   waiverBudget                    Int?                         @default(100)
   waiverMinBid                    Int?                         @default(0)
@@ -4216,6 +4220,13 @@ model League {
   waiverTransactions              WaiverTransaction[]
   zombieConfig                    ZombieLeagueConfig?
   zombieLeague                    ZombieLeague?
+  redraftExtendedSettings         RedraftLeagueExtendedSettings?
+  redraftDraftProfile             RedraftLeagueDraftProfile?
+  redraftHomepageState            RedraftLeagueHomepageState?
+  redraftSportIntegration         RedraftLeagueSportIntegration?
+  redraftChatRooms                RedraftLeagueChatRoom[]
+  leagueEntrySlots                LeagueEntrySlot[]
+  redraftMembers                  RedraftLeagueMember[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -11530,6 +11541,144 @@ model AFProjectionSnapshot {
 
   @@index([playerId, week, season])
   @@index([sport, week, season])
+}
+
+/// Normalized settings row for leagues created via the redraft-only creation API (1:1 with League).
+model RedraftLeagueExtendedSettings {
+  id                           String   @id @default(cuid())
+  leagueId                     String   @unique
+  commissionerTradeReviewType  String   @default("commissioner") @db.VarChar(32)
+  languageCode                 String   @default("en") @db.VarChar(16)
+  scoringTypeDefault           String?  @db.VarChar(64)
+  waiverTypeDefault            String?  @db.VarChar(64)
+  rosterPresetKey              String?  @db.VarChar(128)
+  playoffPresetKey             String?  @db.VarChar(128)
+  draftTimerSecondsDefault     Int?
+  isPublic                     Boolean  @default(false)
+  allowInviteLinks             Boolean  @default(true)
+  settingsJson                 Json     @default("{}")
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  league                       League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_league_extended_settings")
+}
+
+/// Draft shell persisted at redraft create (complements `LeagueSettings` / `DraftSession`).
+model RedraftLeagueDraftProfile {
+  id              String    @id @default(cuid())
+  leagueId        String    @unique
+  draftType       String    @db.VarChar(32)
+  isOffline       Boolean   @default(false)
+  isAuto          Boolean   @default(false)
+  rounds          Int       @default(15)
+  timerSeconds    Int?
+  orderMode       String?   @db.VarChar(32)
+  auctionBudget   Int?
+  scheduledAt     DateTime?
+  draftStatus     String    @default("pre_draft") @db.VarChar(32)
+  configJson      Json      @default("{}")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  league          League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_league_draft_profiles")
+}
+
+model RedraftLeagueHomepageState {
+  id                  String   @id @default(cuid())
+  leagueId            String   @unique
+  activeTab           String   @default("overview") @db.VarChar(32)
+  onboardingComplete  Boolean  @default(false)
+  chatEnabled         Boolean  @default(true)
+  draftRoomEnabled    Boolean  @default(true)
+  paymentEnabled      Boolean  @default(false)
+  homepageConfigJson  Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  league              League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_league_homepage_states")
+}
+
+model RedraftLeagueSportIntegration {
+  id                   String   @id @default(cuid())
+  leagueId             String   @unique
+  sport                String   @db.VarChar(16)
+  /// SOCCER only: MLS vs European data pipeline (null for non-soccer leagues).
+  soccerPipelineVariant SoccerPipelineVariant?
+  standingsEnabled     Boolean  @default(true)
+  schedulesEnabled     Boolean  @default(true)
+  injuriesEnabled      Boolean  @default(true)
+  newsEnabled          Boolean  @default(true)
+  weatherEnabled       Boolean  @default(false)
+  playerPoolSource     String?  @db.VarChar(64)
+  gameFeedSource       String?  @db.VarChar(64)
+  integrationConfigJson Json    @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  league               League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("redraft_league_sport_integrations")
+}
+
+model RedraftLeagueChatRoom {
+  id        String   @id @default(cuid())
+  leagueId  String
+  roomType  String   @default("league") @db.VarChar(32)
+  title     String   @default("League chat") @db.VarChar(160)
+  createdAt DateTime @default(now())
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@map("redraft_league_chat_rooms")
+}
+
+model LeagueEntrySlot {
+  id         String               @id @default(cuid())
+  leagueId   String
+  slotNumber Int
+  status     LeagueEntrySlotStatus @default(OPEN)
+  rosterId   String?              @db.VarChar(64)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, slotNumber])
+  @@index([leagueId])
+  @@map("league_entry_slots")
+}
+
+model RedraftLeagueMember {
+  id         String                 @id @default(cuid())
+  leagueId   String
+  userId     String
+  role       RedraftLeagueMemberRole  @default(COMMISSIONER)
+  teamNumber Int?
+  joinedAt  DateTime @default(now())
+  createdAt DateTime @default(now())
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([userId])
+  @@map("redraft_league_members")
+}
+
+/// Soccer data region for redraft creation + integration rows (maps API `mls` / `euro`).
+enum SoccerPipelineVariant {
+  MLS
+  EURO
+}
+
+enum LeagueEntrySlotStatus {
+  OPEN
+  FILLED
+  RESERVED
+}
+
+enum RedraftLeagueMemberRole {
+  COMMISSIONER
+  MEMBER
 }
 
 enum FeedbackReason {

@@ -49,6 +49,8 @@ In the Shell:
 npx prisma db push
 \`\`\`
 
+Windows note: if `npx prisma generate` throws EPERM on `query_engine-windows.dll.node`, stop `npm run dev`, run `npx prisma generate`, then start `npm run dev` again.
+
 ### 4. Start Development Server
 
 \`\`\`bash

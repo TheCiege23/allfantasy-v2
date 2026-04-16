@@ -760,6 +760,7 @@ export function LeagueCreationWizard({
 
   const handleCreate = useCallback(async () => {
     const createRequestStart = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    console.log('[league-create] handleCreate fired', { sport: state.sport, leagueType: state.leagueType, draftType: state.draftType, teamCount: state.teamCount })
     emitLeagueCreationPerf('wizard_create_submit', {
       sport: state.sport,
       leagueType: state.leagueType,
@@ -962,12 +963,14 @@ export function LeagueCreationWizard({
         return
       }
 
+      console.log('[league-create] POST /api/league/create body:', JSON.stringify(body).slice(0, 500))
       const res = await fetch('/api/league/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         credentials: 'same-origin',
       })
+      console.log('[league-create] Response status:', res.status, 'ok:', res.ok)
       emitLeagueCreationPerf('wizard_create_response', {
         ok: res.ok,
         status: res.status,
@@ -976,6 +979,7 @@ export function LeagueCreationWizard({
         ),
       })
       const { ok, data, errorMessage } = await readFetchJson<{ league?: { id: string } }>(res)
+      console.log('[league-create] Parsed response:', { ok, data: JSON.stringify(data).slice(0, 300), errorMessage })
       if (!ok) {
         const statusHint = typeof res.status === 'number' ? ` (HTTP ${res.status})` : ''
         const baseMessage = errorMessage ?? 'Failed to create league'
@@ -1004,6 +1008,7 @@ export function LeagueCreationWizard({
         setError('League created but no ID returned')
       }
     } catch (e) {
+      console.error('[league-create] CAUGHT ERROR:', e)
       emitLeagueCreationPerf('wizard_create_error', {
         message: (e as Error).message ?? 'Request failed',
         durationMs: Number(
@@ -1248,7 +1253,9 @@ export function LeagueCreationWizard({
                     Could not load sport defaults: {creationPresetError}
                   </p>
                 )}
-                {creationPreset && state.leagueType !== 'zombie' && <SportSummaryCard preset={creationPreset} />}
+                {creationPreset && state.leagueType !== 'zombie' && (
+                  <SportSummaryCard preset={creationPreset} leagueType={state.leagueType} />
+                )}
                 <DraftTypeSelector
                   sport={String(state.sport)}
                   leagueType={state.leagueType}
