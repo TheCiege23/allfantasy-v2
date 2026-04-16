@@ -76,6 +76,33 @@ function isDatabaseUnavailableError(err: unknown): boolean {
   return false
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function withDatabaseUnavailableRetry<T>(operation: () => Promise<T>): Promise<T> {
+  const maxAttempts = 3
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation()
+    } catch (err) {
+      const lastAttempt = attempt === maxAttempts
+      if (!isDatabaseUnavailableError(err) || lastAttempt) {
+        throw err
+      }
+
+      const backoffMs = 150 * attempt
+      console.warn(
+        `[register] transient database error during signup; retrying attempt ${attempt + 1} of ${maxAttempts} in ${backoffMs}ms`
+      )
+      await sleep(backoffMs)
+    }
+  }
+
+  throw new Error("Registration retry loop exited unexpectedly.")
+}
+
 function throwRegistrationConflict(err: Prisma.PrismaClientKnownRequestError): never {
   const target = getUniqueConstraintTarget(err)
   if (target.includes("email")) {
@@ -284,15 +311,17 @@ export async function POST(req: Request) {
       }
     }
 
-    const existing = await prisma.appUser.findFirst({
-      where: {
-        OR: [
-          { email: { equals: email, mode: "insensitive" } },
-          { username },
-        ],
-      },
-      select: { id: true, email: true, username: true },
-    })
+    const existing = await withDatabaseUnavailableRetry(() =>
+      prisma.appUser.findFirst({
+        where: {
+          OR: [
+            { email: { equals: email, mode: "insensitive" } },
+            { username },
+          ],
+        },
+        select: { id: true, email: true, username: true },
+      })
+    )
 
     if (existing?.email && existing.email.toLowerCase() === email.toLowerCase()) {
       return NextResponse.json(
@@ -356,74 +385,76 @@ export async function POST(req: Request) {
       })
     }
 
-    const user = await withRegistrationConflictHandling(async () => {
-      if (isE2ERequest) {
-        const created = await prisma.appUser.create({
-          data: {
-            email,
-            username,
-            passwordHash,
-            displayName: displayName?.trim() || username,
-            detectedStateCode,
-            stateRestrictionLevel,
-            isStateRestricted: isStateRestrictedFlag,
-          },
-          select: { id: true, email: true, username: true },
-        })
+    const user = await withDatabaseUnavailableRetry(() =>
+      withRegistrationConflictHandling(async () => {
+        if (isE2ERequest) {
+          const created = await prisma.appUser.create({
+            data: {
+              email,
+              username,
+              passwordHash,
+              displayName: displayName?.trim() || username,
+              detectedStateCode,
+              stateRestrictionLevel,
+              isStateRestricted: isStateRestrictedFlag,
+            },
+            select: { id: true, email: true, username: true },
+          })
 
-        try {
-          await prisma.userProfile.create({
+          try {
+            await prisma.userProfile.create({
+              data: {
+                userId: created.id,
+                ...createProfileData,
+              },
+              select: { userId: true },
+            })
+          } catch (profileErr) {
+            try {
+              await prisma.appUser.delete({ where: { id: created.id } })
+            } catch (cleanupErr) {
+              console.warn("[register] failed to clean up e2e user after profile create error:", cleanupErr)
+            }
+            throw profileErr
+          }
+
+          try {
+            await upsertManagerXpProfile(prisma, created.id)
+          } catch (xpErr) {
+            console.warn("[register] managerXPProfile upsert failed during e2e signup (non-blocking):", xpErr)
+          }
+
+          return created
+        }
+
+        return prisma.$transaction(async (tx) => {
+          const created = await tx.appUser.create({
+            data: {
+              email,
+              username,
+              passwordHash,
+              displayName: displayName?.trim() || username,
+              detectedStateCode,
+              stateRestrictionLevel,
+              isStateRestricted: isStateRestrictedFlag,
+            },
+            select: { id: true, email: true, username: true },
+          })
+
+          await tx.userProfile.create({
             data: {
               userId: created.id,
               ...createProfileData,
             },
             select: { userId: true },
           })
-        } catch (profileErr) {
-          try {
-            await prisma.appUser.delete({ where: { id: created.id } })
-          } catch (cleanupErr) {
-            console.warn("[register] failed to clean up e2e user after profile create error:", cleanupErr)
-          }
-          throw profileErr
-        }
 
-        try {
-          await upsertManagerXpProfile(prisma, created.id)
-        } catch (xpErr) {
-          console.warn("[register] managerXPProfile upsert failed during e2e signup (non-blocking):", xpErr)
-        }
+          await upsertManagerXpProfile(tx, created.id)
 
-        return created
-      }
-
-      return prisma.$transaction(async (tx) => {
-        const created = await tx.appUser.create({
-          data: {
-            email,
-            username,
-            passwordHash,
-            displayName: displayName?.trim() || username,
-            detectedStateCode,
-            stateRestrictionLevel,
-            isStateRestricted: isStateRestrictedFlag,
-          },
-          select: { id: true, email: true, username: true },
+          return created
         })
-
-        await tx.userProfile.create({
-          data: {
-            userId: created.id,
-            ...createProfileData,
-          },
-          select: { userId: true },
-        })
-
-        await upsertManagerXpProfile(tx, created.id)
-
-        return created
       })
-    })
+    )
 
     // Mirror credentials in Supabase Auth so password recovery can use resetPasswordForEmail (no Neon round-trip).
     if (!isE2ERequest) {

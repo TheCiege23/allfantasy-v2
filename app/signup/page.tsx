@@ -494,8 +494,12 @@ function SignupContent() {
       })
 
       let data: Record<string, unknown> = {}
+      let responseText = ""
       try {
-        data = (await res.json()) as Record<string, unknown>
+        responseText = await res.text()
+        data = responseText
+          ? (JSON.parse(responseText) as Record<string, unknown>)
+          : {}
       } catch {
         data = {}
       }
@@ -507,7 +511,11 @@ function SignupContent() {
           )
         } else {
           const backendError =
-            typeof data.error === "string" ? data.error.trim() : ""
+            typeof data.error === "string"
+              ? data.error.trim()
+              : responseText && !responseText.trim().startsWith("<")
+                ? responseText.trim()
+                : ""
           setError(
             backendError || "Account creation failed. Please try again."
           )
