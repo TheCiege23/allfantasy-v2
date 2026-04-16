@@ -13,7 +13,7 @@ import type { LineupPreferenceEventKind, TraitStoredState, UserLineupPreferenceP
 const EVENT_FETCH_LIMIT = 120
 
 export async function loadUserLineupPreferenceProfile(userId: string): Promise<UserLineupPreferenceProfile> {
-  const rows = await prisma.userLineupPreferenceTrait.findMany({
+  const rows = await (prisma as any).userLineupPreferenceTrait.findMany({
     where: { userId },
   })
 
@@ -31,7 +31,7 @@ export async function loadUserLineupPreferenceProfile(userId: string): Promise<U
 
   const traits = traitsMapToStoredArray(map)
 
-  const events = await prisma.userLineupPreferenceEvent.findMany({
+  const events = await (prisma as any).userLineupPreferenceEvent.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
     take: EVENT_FETCH_LIMIT,
@@ -50,7 +50,7 @@ export async function recordUserLineupPreferenceEvent(
 ): Promise<{ traits: TraitStoredState[] }> {
   const now = new Date()
 
-  await prisma.userLineupPreferenceEvent.create({
+  await (prisma as any).userLineupPreferenceEvent.create({
     data: {
       userId,
       kind,
@@ -58,7 +58,7 @@ export async function recordUserLineupPreferenceEvent(
     },
   })
 
-  const rows = await prisma.userLineupPreferenceTrait.findMany({ where: { userId } })
+  const rows = await (prisma as any).userLineupPreferenceTrait.findMany({ where: { userId } })
   const rowCreated = new Map(rows.map((r) => [r.traitId, r.createdAt]))
   const map = traitMapFromRows(
     rows.map((r) => ({
@@ -78,7 +78,7 @@ export async function recordUserLineupPreferenceEvent(
   const traits = traitsMapToStoredArray(map)
 
   for (const t of traits) {
-    await prisma.userLineupPreferenceTrait.upsert({
+    await (prisma as any).userLineupPreferenceTrait.upsert({
       where: { userId_traitId: { userId, traitId: t.traitId } },
       create: {
         userId,
