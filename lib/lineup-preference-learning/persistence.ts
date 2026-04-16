@@ -18,7 +18,7 @@ export async function loadUserLineupPreferenceProfile(userId: string): Promise<U
   })
 
   const map = traitMapFromRows(
-    rows.map((r) => ({
+    rows.map((r: any) => ({
       traitId: r.traitId,
       confidence: r.confidence,
       sampleSize: r.sampleSize,
@@ -61,7 +61,7 @@ export async function recordUserLineupPreferenceEvent(
   const rows = await (prisma as any).userLineupPreferenceTrait.findMany({ where: { userId } })
   const rowCreated = new Map(rows.map((r) => [r.traitId, r.createdAt]))
   const map = traitMapFromRows(
-    rows.map((r) => ({
+    rows.map((r: any) => ({
       traitId: r.traitId,
       confidence: r.confidence,
       sampleSize: r.sampleSize,
