@@ -59,7 +59,7 @@ export async function recordUserLineupPreferenceEvent(
   })
 
   const rows = await (prisma as any).userLineupPreferenceTrait.findMany({ where: { userId } })
-  const rowCreated = new Map(rows.map((r: any) => [r.traitId, r.createdAt]))
+  const rowCreated = new Map<string, Date>(rows.map((r: any) => [String(r.traitId), new Date(r.createdAt)]))
   const map = traitMapFromRows(
     rows.map((r: any) => ({
       traitId: r.traitId,
