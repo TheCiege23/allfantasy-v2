@@ -32,10 +32,16 @@ export type TradeReviewMode = 'none' | 'commissioner' | 'league_vote'
 export type PprMode = 'standard' | 'half' | 'full'
 export type ScoringSource = 'af' | 'sleeper' | 'espn' | 'yahoo'
 
+export type SoccerPipeline = 'mls' | 'euro'
+
 export interface CreateLeagueV2State {
   // ── Page 1: Setup ────────────────────────────────────────────────
   leagueType: LeagueTypeId
+  /** IDP is a modifier, not a format. When true, leagueType stays 'redraft' and we pass leagueVariant: 'IDP'. */
+  idpSelected: boolean
   sport: SupportedSport
+  /** Soccer-only: MLS vs European data pipeline. */
+  soccerPipeline: SoccerPipeline | null
   teamCount: number
   /** Survivor-only: number of tribes. Ignored for other league types. */
   survivorTribeCount: number
@@ -60,7 +66,9 @@ export interface CreateLeagueV2State {
 
 export const DEFAULT_V2_STATE: CreateLeagueV2State = {
   leagueType: 'redraft',
+  idpSelected: false,
   sport: 'NFL',
+  soccerPipeline: null,
   teamCount: 12,
   survivorTribeCount: 2,
   draftType: 'snake',

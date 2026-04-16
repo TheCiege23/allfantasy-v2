@@ -36,5 +36,5 @@ export default async function CreateLeaguePage({
     redirect('/login?callbackUrl=/create-league')
   }
 
-  return <CreateLeaguePageClient />
+  return <CreateLeaguePageClient userId={userId} />
 }

@@ -51,19 +51,19 @@ export function SectionHeader({
   tooltip?: string
 }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-3">
+    <div className="mb-5 flex items-start justify-between gap-3">
       <div>
-        <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/60">{title}</h3>
-        {hint ? <p className="mt-1 text-xs text-white/45">{hint}</p> : null}
+        <h3 className="text-[13px] font-bold uppercase tracking-[0.18em] text-white/55">{title}</h3>
+        {hint ? <p className="mt-1.5 text-xs leading-relaxed text-white/40">{hint}</p> : null}
       </div>
       {tooltip ? (
         <button
           type="button"
           title={tooltip}
           aria-label={tooltip}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/15 bg-white/5 text-[11px] text-white/60 hover:bg-white/10"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.04] text-[11px] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/70"
         >
-          i
+          ?
         </button>
       ) : null}
     </div>
@@ -89,28 +89,41 @@ export function SelectableCard({
   icon?: ReactNode
   disabled?: boolean
 }) {
-  const base =
-    'group relative flex w-full flex-col items-start gap-1.5 rounded-2xl border p-4 text-left transition-all duration-200 ease-out'
-  const stateClasses = disabled
-    ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
-    : selected
-      ? `cursor-pointer border-transparent ring-2 ${accent.ring} bg-white/[0.07] ${accent.glow}`
-      : 'cursor-pointer border-white/10 bg-white/[0.03] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
-
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={`${base} ${stateClasses}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`group relative flex w-full flex-col items-start gap-1.5 overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 ease-out ${
+        disabled
+          ? 'cursor-not-allowed border-white/5 bg-white/[0.015] text-white/25'
+          : selected
+            ? `cursor-pointer border-transparent ring-2 ${accent.ring} bg-gradient-to-br from-white/[0.10] to-white/[0.04] ${accent.glow}`
+            : 'cursor-pointer border-white/[0.08] bg-gradient-to-br from-white/[0.04] to-transparent hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06] hover:shadow-[0_12px_40px_-12px_rgba(0,0,0,0.6)]'
+      }`}
+    >
+      {/* Ambient glow on selected */}
+      {selected && (
+        <span
+          className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 h-16 w-32 rounded-full opacity-40 blur-2xl"
+          style={{ background: accent.hex }}
+          aria-hidden
+        />
+      )}
       {icon ? (
         <span
-          className={`mb-1 inline-flex h-9 w-9 items-center justify-center rounded-xl text-base transition-colors ${
-            selected ? `bg-white/10 ${accent.text}` : 'bg-white/[0.04] text-white/70'
+          className={`relative mb-1 inline-flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-all duration-300 ${
+            selected
+              ? `bg-white/[0.12] ${accent.text} shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`
+              : 'bg-white/[0.04] text-white/60 group-hover:bg-white/[0.08] group-hover:text-white/80'
           }`}
           aria-hidden
         >
           {icon}
         </span>
       ) : null}
-      <span className={`text-sm font-semibold ${selected ? 'text-white' : 'text-white/85'}`}>{title}</span>
-      {subtitle ? <span className="text-[11px] leading-snug text-white/50">{subtitle}</span> : null}
+      <span className={`relative text-sm font-semibold transition-colors duration-200 ${selected ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>{title}</span>
+      {subtitle ? <span className="relative text-[11px] leading-snug text-white/45">{subtitle}</span> : null}
     </button>
   )
 }
@@ -138,10 +151,10 @@ export function PillRow<T extends string | number>({
         const selected = opt === value
         const disabled = disabledValues?.includes(opt) ?? false
         const stateClass = disabled
-          ? 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/25'
+          ? 'cursor-not-allowed border-white/5 bg-white/[0.015] text-white/25'
           : selected
-            ? `cursor-pointer border-transparent ring-2 ${accent.ring} bg-white/[0.08] ${accent.text} ${accent.glow}`
-            : 'cursor-pointer border-white/10 bg-white/[0.03] text-white/80 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+            ? `cursor-pointer border-transparent ring-2 ${accent.ring} bg-white/[0.10] ${accent.text} ${accent.glow}`
+            : 'cursor-pointer border-white/[0.08] bg-white/[0.03] text-white/75 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07] hover:text-white'
         return (
           <button
             key={String(opt)}
@@ -177,22 +190,22 @@ export function Toggle({
   accent: AccentTone
 }) {
   return (
-    <label className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+    <label className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-white/[0.04] to-transparent p-4 transition-all duration-200 hover:border-white/[0.12] hover:from-white/[0.05]">
       <span className="flex-1">
         <span className="block text-sm font-semibold text-white">{label}</span>
-        {description ? <span className="mt-1 block text-xs text-white/50">{description}</span> : null}
+        {description ? <span className="mt-1 block text-xs text-white/45">{description}</span> : null}
       </span>
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 shrink-0 rounded-full border border-white/10 transition-all duration-200 ${
-          checked ? `bg-white/15 ${accent.glow}` : 'bg-white/[0.04]'
+        className={`relative h-7 w-12 shrink-0 rounded-full border transition-all duration-300 ${
+          checked ? `border-white/20 bg-white/[0.15] ${accent.glow}` : 'border-white/10 bg-white/[0.04]'
         }`}
       >
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full transition-all duration-200 ${
+          className={`absolute top-0.5 h-5 w-5 rounded-full shadow-lg transition-all duration-300 ${
             checked ? `left-[calc(100%-1.375rem)] bg-white` : 'left-0.5 bg-white/60'
           }`}
         />
@@ -233,10 +246,10 @@ export function GlassInput({
         maxLength={maxLength}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full rounded-xl border px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition-all duration-150 ${
+        className={`w-full rounded-xl border px-4 py-3.5 text-sm text-white placeholder-white/25 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] ${
           error
             ? 'border-rose-400/50 bg-rose-500/5 focus:border-rose-300'
-            : `border-white/10 bg-white/[0.04] focus:border-white/30 focus:${accent.ring} focus:ring-2`
+            : `border-white/[0.08] bg-white/[0.03] focus:border-white/25 focus:bg-white/[0.05] focus:${accent.ring} focus:ring-2`
         }`}
       />
       {error ? (
@@ -338,7 +351,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={ariaLabel}
-      className="flex flex-col gap-1 rounded-2xl border border-white/10 bg-white/[0.03] p-1 sm:flex-row"
+      className="flex flex-col gap-1 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-1.5 sm:flex-row"
     >
       {options.map((opt) => {
         const selected = opt.value === value
@@ -349,15 +362,16 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={selected}
             onClick={() => onChange(opt.value)}
-            className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold transition-all duration-150 ${
+            className={`relative flex-1 overflow-hidden rounded-xl px-4 py-3 text-xs font-semibold transition-all duration-300 ${
               selected
-                ? `bg-white/10 text-white ring-1 ${accent.ring} ${accent.glow}`
-                : 'text-white/65 hover:bg-white/[0.04] hover:text-white/90'
+                ? `bg-white/[0.10] text-white ring-1 ${accent.ring} shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]`
+                : 'text-white/60 hover:bg-white/[0.05] hover:text-white/85'
             }`}
+            style={selected ? { boxShadow: `0 0 20px -6px ${accent.hex}` } : undefined}
           >
-            <span className="block">{opt.label}</span>
+            <span className="relative block">{opt.label}</span>
             {opt.hint ? (
-              <span className="mt-0.5 block text-[10px] font-normal text-white/45">{opt.hint}</span>
+              <span className="relative mt-0.5 block text-[10px] font-normal text-white/40">{opt.hint}</span>
             ) : null}
           </button>
         )
@@ -379,9 +393,9 @@ export function StepProgress({
 }) {
   const currentIndex = V2_PAGES.indexOf(current)
   return (
-    <div className="sticky top-0 z-20 border-b border-white/10 bg-[#0B0F1A]/80 px-4 py-3 backdrop-blur-xl">
+    <div className="sticky top-0 z-20 border-b border-white/[0.06] bg-[#060a18]/85 px-4 py-3.5 backdrop-blur-2xl">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between">
           {V2_PAGES.map((page, i) => {
             const reached = i <= currentIndex
             const isCurrent = page === current
@@ -394,40 +408,49 @@ export function StepProgress({
                 className="flex flex-1 items-center gap-2 text-left"
               >
                 <span
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-all duration-200 ${
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold transition-all duration-300 ${
                     isCurrent
-                      ? `border-transparent bg-white text-[#0B0F1A] ring-2 ${accent.ring} ${accent.glow}`
+                      ? `border-transparent bg-white text-[#060a18] ring-2 ${accent.ring} ${accent.glow}`
                       : reached
                         ? `border-white/20 bg-white/10 ${accent.text}`
-                        : 'border-white/10 bg-white/[0.02] text-white/40'
+                        : 'border-white/[0.08] bg-white/[0.02] text-white/35'
                   }`}
+                  style={isCurrent ? { boxShadow: `0 0 16px -2px ${accent.hex}` } : undefined}
                 >
-                  {i + 1}
+                  {reached && !isCurrent ? '✓' : i + 1}
                 </span>
                 <span
-                  className={`hidden text-[11px] font-semibold uppercase tracking-wider sm:inline ${
-                    isCurrent ? 'text-white' : reached ? 'text-white/70' : 'text-white/35'
+                  className={`hidden text-[11px] font-semibold uppercase tracking-wider sm:inline transition-colors duration-200 ${
+                    isCurrent ? 'text-white' : reached ? 'text-white/65' : 'text-white/30'
                   }`}
                 >
                   {V2_PAGE_LABELS[page]}
                 </span>
                 {i < V2_PAGES.length - 1 ? (
-                  <span className="mx-1 hidden h-px flex-1 bg-white/10 sm:block" />
+                  <span
+                    className={`mx-1 hidden h-px flex-1 transition-colors duration-300 sm:block ${
+                      reached ? 'bg-white/15' : 'bg-white/[0.06]'
+                    }`}
+                  />
                 ) : null}
               </button>
             )
           })}
         </div>
-        <div className="h-1 overflow-hidden rounded-full bg-white/[0.05]">
+        {/* Animated glowing progress bar */}
+        <div className="relative h-1.5 overflow-hidden rounded-full bg-white/[0.04]">
           <div
-            className="h-full rounded-full transition-all duration-500 ease-out"
+            className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
             style={{
               width: `${((currentIndex + 1) / V2_PAGES.length) * 100}%`,
-              background: `linear-gradient(90deg, ${accent.hexSoft}, ${accent.hex})`,
-              boxShadow: `0 0 20px -2px ${accent.hex}`,
+              background: `linear-gradient(90deg, ${accent.hexSoft}, ${accent.hex}, ${accent.hexSoft})`,
+              backgroundSize: '200% 100%',
+              animation: 'shimmer 3s ease-in-out infinite',
+              boxShadow: `0 0 24px -2px ${accent.hex}, 0 0 8px -1px ${accent.hex}`,
             }}
           />
         </div>
+        <style>{`@keyframes shimmer { 0%,100% { background-position: 0% 50% } 50% { background-position: 100% 50% } }`}</style>
       </div>
     </div>
   )
@@ -455,15 +478,18 @@ export function PrimaryCTA({
       type={type}
       onClick={onClick}
       disabled={disabled || loading}
-      className={`group relative inline-flex h-12 w-full items-center justify-center overflow-hidden rounded-2xl px-6 text-sm font-bold uppercase tracking-wider text-white transition-all duration-200 sm:w-auto sm:min-w-[16rem] ${
+      className={`group relative inline-flex h-13 w-full items-center justify-center overflow-hidden rounded-2xl px-8 text-sm font-bold uppercase tracking-wider text-white transition-all duration-300 sm:w-auto sm:min-w-[18rem] ${
         disabled || loading
-          ? 'cursor-not-allowed bg-white/5 text-white/40'
-          : `cursor-pointer ${accent.glow} hover:scale-[1.02] active:scale-[0.98]`
+          ? 'cursor-not-allowed bg-white/[0.04] text-white/35'
+          : `cursor-pointer hover:scale-[1.02] hover:brightness-110 active:scale-[0.98]`
       }`}
       style={
         disabled || loading
           ? undefined
-          : { background: `linear-gradient(135deg, ${accent.hex}, ${accent.hexSoft})` }
+          : {
+              background: `linear-gradient(135deg, ${accent.hex}, ${accent.hexSoft})`,
+              boxShadow: `0 0 40px -8px ${accent.hex}, 0 4px 20px -4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15)`,
+            }
       }
     >
       <span className="relative z-10 flex items-center gap-2">
@@ -490,7 +516,7 @@ export function SecondaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 bg-white/[0.04] px-6 text-sm font-semibold text-white/80 transition-all duration-150 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex h-13 items-center justify-center rounded-2xl border border-white/[0.10] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-6 text-sm font-semibold text-white/80 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-white/20 hover:from-white/[0.10] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
     >
       {children}
     </button>

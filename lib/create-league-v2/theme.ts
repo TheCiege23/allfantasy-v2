@@ -130,14 +130,22 @@ export function getAccent(leagueType: LeagueTypeId | null | undefined): AccentTo
   return ACCENTS[leagueType] ?? DEFAULT_ACCENT
 }
 
-/** Page background — static radial mesh so the accent gradient on top can shine. */
+/** Page background — layered cinematic mesh with deep galaxy vignette. */
 export const PAGE_BG_CLASS =
-  'min-h-screen bg-[#0B0F1A] bg-[radial-gradient(120%_80%_at_50%_-20%,rgba(30,50,120,0.55),rgba(11,15,26,0.98))] text-white'
+  'min-h-screen bg-[#060a18] bg-[radial-gradient(ellipse_120%_60%_at_50%_-15%,rgba(30,60,140,0.45),transparent_70%),radial-gradient(ellipse_80%_50%_at_80%_100%,rgba(15,25,80,0.3),transparent_60%),radial-gradient(ellipse_60%_40%_at_20%_80%,rgba(10,20,60,0.25),transparent_50%)] text-white'
 
-/** Glass surface — semi-transparent panel used everywhere. */
+/** Glass surface — frosted panel with layered depth and subtle inner shine. */
 export const GLASS_SURFACE =
-  'rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)]'
+  'rounded-3xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] backdrop-blur-2xl shadow-[0_24px_80px_-20px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.06)]'
 
-/** Softer surface for inner sub-panels. */
+/** Softer surface for inner sub-panels with subtle depth. */
 export const GLASS_INNER =
-  'rounded-2xl border border-white/[0.08] bg-white/[0.03]'
+  'rounded-2xl border border-white/[0.06] bg-gradient-to-b from-white/[0.04] to-white/[0.015] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+
+/** Ambient glow overlay — position behind content, tinted by accent hex. */
+export function ambientGlowStyle(hex: string): React.CSSProperties {
+  return {
+    background: `radial-gradient(600px circle at 50% 0%, ${hex}12, transparent 70%)`,
+    pointerEvents: 'none' as const,
+  }
+}

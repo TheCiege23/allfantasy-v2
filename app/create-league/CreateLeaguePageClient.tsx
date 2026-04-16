@@ -1,21 +1,14 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { RedraftLeagueCreateClient } from '@/components/leagues/RedraftLeagueCreateClient'
+import { CreateLeagueV2Client } from '@/app/create-league/v2/CreateLeagueV2Client'
 
 /**
- * Primary "Create league" route — redraft-only 4-step flow + `POST /api/leagues/redraft/create`.
+ * Primary "Create league" route — universal 4-step flow supporting all 13 league types.
+ * Delegates to the v2 client which routes to the correct API endpoint per league type.
  */
-export function CreateLeaguePageClient() {
+export function CreateLeaguePageClient({ userId }: { userId: string }) {
   const router = useRouter()
-
-  const handleBack = () => {
-    router.push('/dashboard')
-  }
-
-  const handleHome = () => {
-    router.push('/dashboard')
-  }
 
   return (
     <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
@@ -23,7 +16,7 @@ export function CreateLeaguePageClient() {
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <button
             type="button"
-            onClick={handleBack}
+            onClick={() => router.push('/dashboard')}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/20 text-lg text-white/80 hover:bg-white/10 hover:text-white"
             aria-label="Back to app"
           >
@@ -41,7 +34,7 @@ export function CreateLeaguePageClient() {
             </button>
             <button
               type="button"
-              onClick={handleHome}
+              onClick={() => router.push('/dashboard')}
               className="inline-flex h-9 items-center justify-center rounded-full border border-white/20 bg-black/20 px-3 text-xs font-semibold text-white/90 hover:bg-white/10"
               aria-label="Go to dashboard home"
             >
@@ -50,7 +43,7 @@ export function CreateLeaguePageClient() {
           </div>
         </div>
       </header>
-      <RedraftLeagueCreateClient loginCallbackPath="/create-league" />
+      <CreateLeagueV2Client userId={userId} />
     </div>
   )
 }

@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { getAccent, PAGE_BG_CLASS } from '@/lib/create-league-v2/theme'
+import { getAccent, PAGE_BG_CLASS, ambientGlowStyle } from '@/lib/create-league-v2/theme'
 import type { V2PageId } from '@/lib/create-league-v2/state'
 import {
   DEFAULT_V2_STATE,
@@ -115,12 +115,19 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
 
   return (
     <div className={PAGE_BG_CLASS}>
+      {/* Ambient accent glow — shifts color with league type */}
+      <div
+        className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
+        style={ambientGlowStyle(accent.hex)}
+        aria-hidden
+      />
+
       <StepProgress current={currentPage} accent={accent} onJump={jumpTo} />
 
-      <main className="mx-auto max-w-3xl px-4 pb-32 pt-6">
+      <main className="relative z-10 mx-auto max-w-3xl px-4 pb-32 pt-8">
         {/* Header */}
-        <div className="mb-6">
-          <p className={`mb-1 text-[11px] font-bold uppercase tracking-[0.2em] ${accent.text}`}>
+        <div className="mb-8">
+          <p className={`mb-1.5 text-[11px] font-bold uppercase tracking-[0.22em] ${accent.text} transition-colors duration-500`}>
             Step {currentIndex + 1} of {V2_PAGES.length}
           </p>
           <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -129,7 +136,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
             {currentPage === 'scoring' && 'Tune the scoring'}
             {currentPage === 'review' && 'Review and launch'}
           </h1>
-          <p className="mt-1 text-sm text-white/55">
+          <p className="mt-2 text-sm leading-relaxed text-white/50">
             {currentPage === 'setup' && 'Pick a format, sport, and how you\u2019ll draft.'}
             {currentPage === 'identity' && 'Name the league and set the ground rules.'}
             {currentPage === 'scoring' && 'Dial in how points are earned.'}
@@ -162,7 +169,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
       </main>
 
       {/* Sticky bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/10 bg-[#0B0F1A]/90 px-4 py-4 backdrop-blur-xl">
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/[0.06] bg-[#060a18]/90 px-4 py-4 backdrop-blur-2xl shadow-[0_-8px_30px_-10px_rgba(0,0,0,0.6)]">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <SecondaryButton onClick={goBack} disabled={submitting}>
             {currentIndex === 0 ? 'Cancel' : 'Back'}
