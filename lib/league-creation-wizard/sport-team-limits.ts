@@ -36,8 +36,25 @@ function evenTeamRange(min: number, max: number): number[] {
   return out
 }
 
+const ZOMBIE_TEAM_COUNT_OPTIONS = [18, 20, 22] as const
+
+/** Preferred Zombie sizes; capped per sport max (e.g. NBA max 20). */
+export function getZombieTeamCountOptionsForSport(sport: string): number[] {
+  const max = getMaxTeamsForSport(sport)
+  const filtered = ZOMBIE_TEAM_COUNT_OPTIONS.filter((n) => n <= max)
+  if (filtered.length > 0) return filtered
+  const fallback: number[] = []
+  for (let n = max; n >= 4 && fallback.length < 3; n -= 2) {
+    fallback.unshift(n)
+  }
+  return fallback.length > 0 ? fallback : [Math.min(22, max)]
+}
+
 /** Every integer team count from 4 through the sport maximum (one manager per team). */
 export function getTeamCountOptionsForSport(sport: string, leagueType?: string): number[] {
+  if (String(leagueType ?? '').toLowerCase() === 'zombie') {
+    return getZombieTeamCountOptionsForSport(sport)
+  }
   if (String(leagueType ?? '').toLowerCase() === 'survivor') {
     return [...SURVIVOR_CAST_SIZE_OPTIONS]
   }
@@ -69,9 +86,9 @@ function clampDevyEvenTeamCount(sport: string, teamCount: number): number {
 
 export function clampTeamCountForSport(sport: string, teamCount: number, leagueType?: string): number {
   if (String(leagueType ?? '').toLowerCase() === 'zombie') {
-    const max = getMaxTeamsForSport(sport)
-    const n = Number.isFinite(teamCount) ? Math.round(teamCount) : 12
-    return Math.min(Math.max(n, 4), max)
+    const opts = getZombieTeamCountOptionsForSport(sport)
+    const n = Number.isFinite(teamCount) ? Math.round(teamCount) : opts[1] ?? 20
+    return opts.reduce((closest, opt) => (Math.abs(opt - n) < Math.abs(closest - n) ? opt : closest), opts[0] ?? 20)
   }
   if (String(leagueType ?? '').toLowerCase() === 'survivor') {
     return clampSurvivorCastSize(teamCount)

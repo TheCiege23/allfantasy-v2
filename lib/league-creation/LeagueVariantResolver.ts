@@ -1,4 +1,5 @@
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { getZombieScoringVariants } from '@/lib/sport-defaults/LeagueVariantRegistry'
 
 const DYNASTY_LEAGUE_TYPE_SET = new Set(['dynasty', 'devy', 'c2c'])
 
@@ -31,6 +32,7 @@ function normalizeVariantKey(variant: string | null | undefined): string | null 
   if (upper === 'STANDARD' || upper === 'PPR' || upper === 'HALF_PPR' || upper === 'SUPERFLEX') {
     return upper
   }
+  if (upper === 'TE_PREMIUM' || upper === 'TEP') return 'TE_PREMIUM'
 
   if (lower === 'no_playoff') return 'NO_PLAYOFF'
   return raw
@@ -61,6 +63,14 @@ export function resolveEffectiveLeagueVariant(
     }
   }
 
+  /** Scoring preset must never resolve to Devy/C2C variant keys — those collide with dynasty-only API checks. */
+  if (leagueType === 'zombie') {
+    const nv = normalizeVariantKey(input.requestedVariant)
+    if (nv === 'devy_dynasty' || nv === 'merged_devy_c2c') {
+      return { variant: 'PPR', variantLockedByLeagueType: false }
+    }
+  }
+
   const normalizedVariant = normalizeVariantKey(input.requestedVariant)
   if (!normalizedVariant) {
     return {
@@ -86,7 +96,17 @@ export function resolveEffectiveLeagueVariant(
 }
 
 export function resolveCreationVariantOrDefault(input: ResolveLeagueVariantInput): string {
-  return resolveEffectiveLeagueVariant(input).variant ?? 'STANDARD'
+  const lt = normalizeLeagueType(input.leagueType)
+  const resolved = resolveEffectiveLeagueVariant(input)
+  let v = resolved.variant ?? 'STANDARD'
+  if (lt === 'zombie') {
+    const allowed = new Set(getZombieScoringVariants(input.sport ?? 'NFL').map((x) => x.value))
+    if (!allowed.has(v) || v === 'STANDARD' || v === 'SUPERFLEX') {
+      v = 'PPR'
+    }
+    return v
+  }
+  return resolved.variant ?? 'STANDARD'
 }
 
 export function getLeagueVariantLabel(variant: string | null | undefined): string {
@@ -98,6 +118,7 @@ export function getLeagueVariantLabel(variant: string | null | undefined): strin
   if (key === 'PPR') return 'PPR'
   if (key === 'HALF_PPR') return 'Half PPR'
   if (key === 'SUPERFLEX') return 'Superflex'
+  if (key === 'TE_PREMIUM') return 'TEP'
   if (key === 'IDP') return 'IDP'
   if (key === 'DYNASTY_IDP') return 'Dynasty IDP'
   if (normalized === 'devy_dynasty') return 'Devy Dynasty'

@@ -55,6 +55,8 @@ const createSchema = z.object({
   keeperSettings: z.record(z.unknown()).optional(),
   salaryCapSettings: z.record(z.unknown()).optional(),
   inviteSettings: z.record(z.unknown()).optional(),
+  /** Soccer only: MLS vs European data pipeline (stored in `settings.soccer_pipeline`). */
+  soccerPipeline: z.enum(['mls', 'euro']).optional(),
 });
 
 export async function POST(req: Request) {
@@ -107,6 +109,7 @@ export async function POST(req: Request) {
     keeperSettings,
     salaryCapSettings,
     inviteSettings,
+    soccerPipeline: soccerPipelineInput,
   } = parsed.data;
 
   if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
@@ -212,13 +215,17 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+  const isZombieLeagueType =
+    String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
+    String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
   const isDevyRequested =
     String(leagueVariantInput ?? '').toLowerCase() === 'devy_dynasty' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'devy';
   const isC2CRequested =
     String(leagueVariantInput ?? '').toLowerCase() === 'merged_devy_c2c' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'c2c';
-  if ((isDevyRequested || isC2CRequested) && isDynastyInput === false) {
+  /** Zombie uses scoring variants (PPR, IDP, etc.) on `leagueVariant` — never treat as Devy/C2C dynasty-only. */
+  if (!isZombieLeagueType && (isDevyRequested || isC2CRequested) && isDynastyInput === false) {
     return NextResponse.json(
       { error: 'Devy and C2C (Merged Devy) leagues cannot be created as redraft. They are dynasty-only.' },
       { status: 400 }
@@ -249,12 +256,15 @@ export async function POST(req: Request) {
       );
     }
   }
-  const isZombieEarly =
-    String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
-    String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
-  if (isZombieEarly && String(sport).toUpperCase() === 'SOCCER') {
+  if (isZombieLeagueType && String(sport).toUpperCase() === 'SOCCER') {
     return NextResponse.json(
       { error: 'Zombie leagues are not available for Soccer. Choose another sport.' },
+      { status: 400 }
+    );
+  }
+  if (String(requestedLeagueType ?? '').toLowerCase() === 'survivor' && String(sport).toUpperCase() === 'SOCCER') {
+    return NextResponse.json(
+      { error: 'Survivor leagues are not available for Soccer. Choose another sport.' },
       { status: 400 }
     );
   }
@@ -469,6 +479,13 @@ export async function POST(req: Request) {
       initialSettings.invite_settings = inviteSettings;
     }
 
+    if (sport === 'SOCCER') {
+      const fromSettings = (initialSettings as Record<string, unknown>).soccer_pipeline;
+      const raw = soccerPipelineInput ?? fromSettings;
+      const pipeline = raw === 'mls' || raw === 'euro' ? raw : 'euro';
+      (initialSettings as Record<string, unknown>).soccer_pipeline = pipeline;
+    }
+
     // Ensure sport/variant defaults from orchestrator payload are always present unless explicitly overridden.
     {
       const draftDefaults = creationPayload.draft;
@@ -513,6 +530,19 @@ export async function POST(req: Request) {
       (initialSettings as Record<string, unknown>).survivor_creation_team_count = cast;
       (initialSettings as Record<string, unknown>).teamCount = cast;
       initialSettings.roster_mode = 'redraft';
+      const feeMode = String((initialSettings as Record<string, unknown>).survivor_entry_fee_mode ?? 'free')
+        .toLowerCase()
+        .trim();
+      if (feeMode === 'paid') {
+        const centsRaw = (initialSettings as Record<string, unknown>).survivor_entry_fee_amount_cents;
+        const cents = typeof centsRaw === 'number' ? centsRaw : Number(centsRaw);
+        if (!Number.isFinite(cents) || cents < 1) {
+          return NextResponse.json(
+            { error: 'Paid Survivor leagues require a buy-in amount greater than zero (set by the commissioner).' },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     const generatedInviteCode = (await import('crypto')).randomBytes(6).toString('base64url').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);

@@ -19,6 +19,7 @@ const SPORT_PATH: Record<ApiChainSport, string> = {
   ncaab: 'ncaab',
   ncaaf: 'ncaaf',
   soccer_euro: 'soccer/euro',
+  soccer_mls: 'soccer/mls',
 }
 
 const REST_SPORT_CODES: Record<ApiChainSport, string[]> = {
@@ -29,6 +30,7 @@ const REST_SPORT_CODES: Record<ApiChainSport, string[]> = {
   ncaab: ['NCAABB', 'NCAAB'],
   ncaaf: ['NCAAFB', 'NCAAF'],
   soccer_euro: ['SOCCER', 'SOCCER_EURO', 'EURO_SOCCER'],
+  soccer_mls: ['MLS', 'SOCCER_MLS', 'MLS_SOCCER'],
 }
 
 const DATA_TYPE_PATH: Record<string, string> = {
@@ -117,6 +119,27 @@ function buildRestPathCandidates(dataSeg: string, chainSport: ApiChainSport): st
   // to avoid long tail timeouts from broad host/path permutations.
   if (chainSport === 'soccer_euro') {
     const soccerCode = 'SOCCER'
+    const byDataSeg: Record<string, string[]> = {
+      players: [`player-info/${soccerCode}`],
+      teams: [`team-info/${soccerCode}`],
+      injuries: [`injuries/${soccerCode}`],
+      schedule: [`schedule-season/${year}/${soccerCode}`, `schedule/${today}/${soccerCode}`],
+      scores: [`live/${today}/${soccerCode}`],
+      standings: [`standings/${year}/${soccerCode}`],
+      projections: [`player-stats/${year}/${soccerCode}`],
+      adp: [`adp/${soccerCode}`],
+      rosters: [`depth-charts/${soccerCode}`],
+    }
+
+    return dedupe([
+      ...(byDataSeg[dataSeg] ?? []),
+      `${dataSeg}/${soccerCode}`,
+      `${soccerCode}/${dataSeg}`,
+    ])
+  }
+
+  if (chainSport === 'soccer_mls') {
+    const soccerCode = 'MLS'
     const byDataSeg: Record<string, string[]> = {
       players: [`player-info/${soccerCode}`],
       teams: [`team-info/${soccerCode}`],
@@ -464,7 +487,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
 
   // Soccer player-info endpoints are inconsistent in RI REST and can induce long probe delays.
   // Fail fast so DB/api-sports fallback can respond quickly in the chain.
-  if (chainSport === 'soccer_euro' && String(params.dataType) === 'players') {
+  if ((chainSport === 'soccer_euro' || chainSport === 'soccer_mls') && String(params.dataType) === 'players') {
     return {
       data: null,
       error: 'RI soccer players unavailable',
@@ -528,7 +551,7 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
     let restBases = buildRestBaseCandidates(base)
     const restPaths = buildRestPathCandidates(dataSeg, chainSport)
 
-    if (chainSport === 'soccer_euro') {
+    if (chainSport === 'soccer_euro' || chainSport === 'soccer_mls') {
       // Keep soccer probing intentionally tight to reduce worst-case latency.
       restBases = restBases.slice(0, 1)
       rscTokenCandidates = rscTokenCandidates.slice(0, 2)
@@ -536,7 +559,9 @@ export async function rollingInsightsProvider(params: ApiFetchParams): Promise<C
 
     let lastHttpError: string | null = null
     const probeBudgetMs =
-      chainSport === 'soccer_euro' ? RI_SOCCER_REST_PROBE_BUDGET_MS : RI_REST_PROBE_BUDGET_MS
+      chainSport === 'soccer_euro' || chainSport === 'soccer_mls'
+        ? RI_SOCCER_REST_PROBE_BUDGET_MS
+        : RI_REST_PROBE_BUDGET_MS
     const probeDeadlineAt = Date.now() + probeBudgetMs
 
     restProbe: for (const restBase of restBases) {

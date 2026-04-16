@@ -26,6 +26,7 @@ function toClearSportsSport(params: ApiFetchParams): ClearSportsSport | null {
     ncaab: 'NCAAB',
     ncaaf: 'NCAAF',
     soccer_euro: 'SOCCER',
+    soccer_mls: 'SOCCER',
   }
   return map[chain] ?? null
 }

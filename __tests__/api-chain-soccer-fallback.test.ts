@@ -27,6 +27,7 @@ vi.mock('@/lib/workers/providers/rolling-insights', () => ({
 
 vi.mock('@/lib/workers/providers/api-sports', () => ({
   apiSportsProvider: {
+    name: 'api_sports',
     supports: apiSportsSupportsMock,
     fetch: apiSportsFetchMock,
   },

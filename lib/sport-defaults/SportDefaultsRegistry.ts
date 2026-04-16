@@ -576,6 +576,13 @@ function getScoringDefaultsWithVariant(
       scoring_format: 'standard',
     }
   }
+  if (normalized === 'TE_PREMIUM') {
+    return {
+      ...base,
+      scoring_template_id: 'NFL_TE_PREMIUM',
+      scoring_format: 'PPR',
+    }
+  }
   return base
 }
 

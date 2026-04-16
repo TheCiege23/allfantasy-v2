@@ -5,12 +5,13 @@ import { toApiChainSport } from '@/lib/workers/api-config'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro'] as const
+const VALID_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro', 'soccer_mls'] as const
 const VALID_TIERS = ['S', 'A', 'B', 'C', 'D'] as const
 
 const RECOGNIZED_SPORT_INPUTS = new Set([
   ...VALID_SPORTS,
   'soccer', 'euro', 'epl', 'mls',
+  'soccer_mls',
   'cfb', 'ncaafb', 'ncaa_football',
   'ncaam', 'ncaabasketball', 'ncaa_basketball',
 ])

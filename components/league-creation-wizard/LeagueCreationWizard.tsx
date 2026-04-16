@@ -33,7 +33,6 @@ import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
 import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
-import { getZombieSuggestedTeamCount } from '@/lib/zombie/zombie-regular-season-team-count'
 import { readFetchJson } from '@/lib/http/readFetchJson'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { useSportPreset } from '@/hooks/useSportPreset'
@@ -52,12 +51,13 @@ import { DevyLeagueSetupSection } from './DevyLeagueSetupSection'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
+import { SoccerPipelineSelector } from './SoccerPipelineSelector'
 import { LeagueTypeSelector } from './LeagueTypeSelector'
 import { DraftTypeSelector } from './DraftTypeSelector'
 import { TeamCountSelector, TeamSizeSelector } from './TeamSizeSelector'
 import { AiAutomationSettingsPanel } from './AiAutomationSettingsPanel'
 import { LeagueSettingsPreviewPanel } from '@/components/league-creation'
-import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
+import { getVariantsForSport, getZombieScoringVariants } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import {
   getLeagueVariantLabel,
   resolveCreationVariantOrDefault,
@@ -100,13 +100,11 @@ function StepPanelSkeleton() {
   )
 }
 
-function ZombieTeamCountHint({ sport, teamCount }: { sport: LeagueSport; teamCount: number }) {
-  const hint = getZombieSuggestedTeamCount(sport)
+function ZombieTeamCountHint({ teamCount }: { teamCount: number }) {
   return (
     <p className="mt-3 text-[11px] leading-relaxed text-white/45" data-testid="wizard-zombie-team-hint">
-      Suggested team count is based on the number of regular-season scoring weeks before playoffs for this sport (~
-      {hint.regularSeasonWeeks} weeks). You selected <span className="text-white/70">{teamCount}</span> teams.
-      {hint.capNote ? ` ${hint.capNote}` : ''}
+      Zombie leagues use <span className="text-white/70">18, 20, or 22</span> teams (capped by this sport&apos;s max).
+      You selected <span className="text-white/70">{teamCount}</span> teams.
     </p>
   )
 }
@@ -137,6 +135,7 @@ const initialState: LeagueCreationWizardState = {
   leagueTimezone: 'America/New_York',
   platformStyleMirror: 'af',
   sport: 'NFL',
+  soccerPipeline: null,
   leagueType: 'redraft',
   draftType: 'snake',
   name: '',
@@ -439,6 +438,12 @@ export function LeagueCreationWizard({
       if (!state.leagueTimezone?.trim()) {
         return 'Select a league timezone.'
       }
+      if (state.leagueType === 'survivor' && state.formatOptions.survivorEntryFeeMode === 'paid') {
+        const amt = Number(state.formatOptions.survivorEntryFeeUsd)
+        if (!Number.isFinite(amt) || amt <= 0) {
+          return 'Enter a buy-in amount greater than zero for a paid Survivor league.'
+        }
+      }
       return null
     }
     if (state.step === 'draft_privacy') {
@@ -452,6 +457,8 @@ export function LeagueCreationWizard({
     state.sport,
     state.name,
     state.leagueTimezone,
+    state.formatOptions.survivorEntryFeeMode,
+    state.formatOptions.survivorEntryFeeUsd,
   ])
 
   const buildStepHref = useCallback(
@@ -512,8 +519,10 @@ export function LeagueCreationWizard({
     const key = String(state.sport)
     if (zombieSportPresetRef.current === key) return
     zombieSportPresetRef.current = key
-    const hint = getZombieSuggestedTeamCount(state.sport as LeagueSport)
-    setState((s) => ({ ...s, teamCount: hint.suggested }))
+    setState((s) => ({
+      ...s,
+      teamCount: clampTeamCountForSport(String(state.sport), 20, 'zombie'),
+    }))
   }, [state.leagueType, state.sport])
 
   useEffect(() => {
@@ -560,6 +569,7 @@ export function LeagueCreationWizard({
     }
     setState({
       ...initialState,
+      soccerPipeline: null,
       commissionerPreferences: { ...DEFAULT_COMMISSIONER_PREFERENCES },
       formatOptions: { ...DEFAULT_WIZARD_FORMAT_OPTIONS },
       draftSettings: { ...DEFAULT_DRAFT_SETTINGS },
@@ -583,16 +593,23 @@ export function LeagueCreationWizard({
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
       const variants = getVariantsForSport(sport)
       const fallbackVariant = variants[0]?.value ?? 'STANDARD'
-      const resolvedVariant =
+      let resolvedVariant =
         resolveEffectiveLeagueVariant({
           sport,
           leagueType,
           requestedVariant: s.leagueVariant ?? s.scoringPreset ?? fallbackVariant,
         }).variant ?? fallbackVariant
+      if (leagueType === 'zombie') {
+        const allowed = new Set(getZombieScoringVariants(sport).map((x) => x.value))
+        if (!allowed.has(resolvedVariant) || resolvedVariant === 'STANDARD' || resolvedVariant === 'SUPERFLEX') {
+          resolvedVariant = 'PPR'
+        }
+      }
       const nextTeam = clampTeamCountForSport(sport, s.teamCount, leagueType)
       return {
         ...s,
         sport,
+        soccerPipeline: sport === 'SOCCER' ? (s.soccerPipeline ?? 'euro') : null,
         leagueType,
         draftType,
         teamCount: nextTeam,
@@ -614,12 +631,18 @@ export function LeagueCreationWizard({
       const nextSport = currentSportValid ? s.sport : (allowedSports[0] ?? 'NFL')
       const draftAllowed = getAllowedDraftTypesForLeagueType(leagueType, nextSport)
       const draftType = draftAllowed.includes(s.draftType) ? s.draftType : (draftAllowed[0] ?? 'snake')
-      const resolvedVariant =
+      let resolvedVariant =
         resolveEffectiveLeagueVariant({
           sport: nextSport,
           leagueType,
           requestedVariant: s.leagueVariant ?? s.scoringPreset ?? null,
         }).variant ?? 'STANDARD'
+      if (leagueType === 'zombie') {
+        const allowed = new Set(getZombieScoringVariants(String(nextSport)).map((x) => x.value))
+        if (!allowed.has(resolvedVariant) || resolvedVariant === 'STANDARD' || resolvedVariant === 'SUPERFLEX') {
+          resolvedVariant = 'PPR'
+        }
+      }
       const nextTeam = clampTeamCountForSport(String(nextSport), s.teamCount, leagueType)
       const nextFormat =
         leagueType === 'survivor'
@@ -843,6 +866,7 @@ export function LeagueCreationWizard({
       const presetScoringTemplate = creationPreset?.scoringTemplate
       const introUrl = getConceptIntroVideoUrl(String(state.sport))
       const storedPrivacy = mapWizardVisibilityToStoredPrivacy(state.privacySettings.visibility)
+      const soccerPipe = String(state.sport) === 'SOCCER' ? (state.soccerPipeline ?? 'euro') : null
       const body = {
         name,
         platform: 'manual',
@@ -853,6 +877,7 @@ export function LeagueCreationWizard({
         scoring: leagueVariant ?? undefined,
         league_type: state.leagueType,
         draft_type: state.draftType,
+        ...(soccerPipe ? { soccerPipeline: soccerPipe } : {}),
         ...(introUrl
           ? { introVideo: { url: introUrl, kind: 'concept_welcome' as const } }
           : {}),
@@ -889,6 +914,7 @@ export function LeagueCreationWizard({
           league_allow_invite_link: state.privacySettings.allowInviteLink,
           visibility: state.privacySettings.visibility,
           allow_invite_link: state.privacySettings.allowInviteLink,
+          ...(soccerPipe ? { soccer_pipeline: soccerPipe } : {}),
         },
       }
       if (state.leagueType === 'zombie' && state.formatOptions.zombieUniverseTier !== 'single_gamma') {
@@ -927,6 +953,7 @@ export function LeagueCreationWizard({
               leagueId: primaryId,
               leagueType: state.leagueType,
               allowInviteLink: state.privacySettings.allowInviteLink,
+              zombieUniverseTier: state.formatOptions.zombieUniverseTier,
             })
           )
         } else {
@@ -970,6 +997,7 @@ export function LeagueCreationWizard({
             leagueId,
             leagueType: state.leagueType,
             allowInviteLink: state.privacySettings.allowInviteLink,
+            zombieUniverseTier: state.formatOptions.zombieUniverseTier,
           }),
         )
       } else {
@@ -1179,7 +1207,7 @@ export function LeagueCreationWizard({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-2 sm:px-3 py-1 min-h-0 flex flex-col">
-      <div className="rounded-[28px] border border-cyan-400/25 bg-[#050f29]/75 p-3 sm:p-5 shadow-[0_0_0_1px_rgba(0,255,220,0.06)_inset] backdrop-blur-sm flex flex-col min-h-0">
+      <div className="rounded-[28px] border border-cyan-400/20 bg-gradient-to-b from-[#0a1228]/92 to-[#040915]/95 p-3 sm:p-5 shadow-[0_12px_48px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md flex flex-col min-h-0">
         <WizardStepContainer
           stepNumber={currentStepNumber}
           totalSteps={totalSteps}
@@ -1193,6 +1221,19 @@ export function LeagueCreationWizard({
               />
               <div className="mt-6 space-y-6 border-t border-white/10 pt-6">
                 <SportSelector value={state.sport} onChange={handleSportChange} leagueType={state.leagueType} />
+                {String(state.sport) === 'SOCCER' && (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <SoccerPipelineSelector
+                      value={state.soccerPipeline ?? 'euro'}
+                      onChange={(pipeline) =>
+                        setState((s) => ({
+                          ...s,
+                          soccerPipeline: pipeline,
+                        }))
+                      }
+                    />
+                  </div>
+                )}
                 {creationPresetLoading && (
                   <p
                     className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/65"
@@ -1207,7 +1248,7 @@ export function LeagueCreationWizard({
                     Could not load sport defaults: {creationPresetError}
                   </p>
                 )}
-                {creationPreset && <SportSummaryCard preset={creationPreset} />}
+                {creationPreset && state.leagueType !== 'zombie' && <SportSummaryCard preset={creationPreset} />}
                 <DraftTypeSelector
                   sport={String(state.sport)}
                   leagueType={state.leagueType}
@@ -1222,7 +1263,7 @@ export function LeagueCreationWizard({
                     onTeamCountChange={handleTeamCountChange}
                   />
                   {state.leagueType === 'zombie' && (
-                    <ZombieTeamCountHint sport={state.sport as LeagueSport} teamCount={state.teamCount} />
+                    <ZombieTeamCountHint teamCount={state.teamCount} />
                   )}
                 </div>
               </div>
@@ -1288,7 +1329,7 @@ export function LeagueCreationWizard({
                   lockedVariantLabel={variantLockedByLeagueType ? effectiveVariantLabel : null}
                   leagueType={state.leagueType}
                 />
-                {state.leagueType !== 'survivor' && (
+                {state.leagueType !== 'survivor' && state.leagueType !== 'zombie' && (
                   <LeagueSettingsPreviewPanel
                     preset={creationPreset}
                     sport={String(state.sport)}
@@ -1306,8 +1347,17 @@ export function LeagueCreationWizard({
                   </p>
                 )}
                 <p className="rounded-2xl border border-white/10 bg-[#030b1f]/70 px-3 py-2 text-xs text-white/60">
-                  Waivers, playoffs, schedule, and draft timing use sport defaults and can be changed in{' '}
-                  <strong className="text-white/80">League settings</strong> after you create.
+                  {state.leagueType === 'zombie' ? (
+                    <>
+                      Waivers, schedule, and draft timing use sport defaults and can be changed in{' '}
+                      <strong className="text-white/80">League settings</strong> after you create.
+                    </>
+                  ) : (
+                    <>
+                      Waivers, playoffs, schedule, and draft timing use sport defaults and can be changed in{' '}
+                      <strong className="text-white/80">League settings</strong> after you create.
+                    </>
+                  )}
                 </p>
               </div>
               <WizardStepNav

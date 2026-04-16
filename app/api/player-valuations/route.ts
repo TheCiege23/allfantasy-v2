@@ -5,7 +5,7 @@
  * Always reads from DB (never direct to Rolling Insights).
  *
  * Query params:
- *  sport     string  required  One of: nfl|nba|mlb|nhl|ncaaf|ncaab|soccer_euro
+ *  sport     string  required  One of: nfl|nba|mlb|nhl|ncaaf|ncaab|soccer_euro|soccer_mls
  *  position  string  optional  Filter by position (case-insensitive)
  *  limit     int     optional  Max players to return (default 50)
  *  sortBy    string  optional  "value" (default) | "adp"
@@ -21,13 +21,14 @@ import { toApiChainSport } from '@/lib/workers/api-config'
 
 export const dynamic = 'force-dynamic'
 
-const VALID_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro'] as const
+const VALID_SPORTS = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro', 'soccer_mls'] as const
 const VALID_TIERS = ['S', 'A', 'B', 'C', 'D'] as const
 
 // Known aliases accepted in addition to canonical sport IDs
 const RECOGNIZED_SPORT_INPUTS = new Set([
   ...VALID_SPORTS,
   'soccer', 'euro', 'epl', 'mls',
+  'soccer_mls',
   'cfb', 'ncaafb', 'ncaa_football',
   'ncaam', 'ncaabasketball', 'ncaa_basketball',
 ])

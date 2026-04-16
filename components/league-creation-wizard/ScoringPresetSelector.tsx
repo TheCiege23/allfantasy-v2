@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Label } from '@/components/ui/label'
-import { getVariantsForSport } from '@/lib/sport-defaults/LeagueVariantRegistry'
+import { getVariantsForSport, getZombieScoringVariants } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { StepHeader } from './StepHelp'
 import { useSportRules } from '@/hooks/useSportRules'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
@@ -38,10 +38,11 @@ export function ScoringPresetSelector({
 }: ScoringPresetSelectorProps) {
   const { rules } = useSportRules(sport, value)
   const isSurvivor = leagueType === 'survivor'
+  const isZombie = leagueType === 'zombie'
 
   if (lockedVariantLabel) {
     return (
-      <div className="space-y-5">
+      <div className="space-y-5 rounded-2xl border border-cyan-400/12 bg-[#0a1228]/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm sm:p-5">
         <StepHeader
           title="Scoring rules"
           description="This league type has a fixed variant, so scoring and roster defaults are locked to that setup."
@@ -66,7 +67,7 @@ export function ScoringPresetSelector({
     )
   }
 
-  const allVariants = getVariantsForSport(sport)
+  const allVariants = isZombie ? getZombieScoringVariants(sport) : getVariantsForSport(sport)
   const variants = isSurvivor
     ? allVariants.filter((v) => !SURVIVOR_HIDDEN_PRESETS.has(v.value))
     : allVariants
@@ -78,7 +79,10 @@ export function ScoringPresetSelector({
       }))
     : variants
 
-  const safeValue = variants.some((v) => v.value === (value ?? '')) ? (value ?? variants[0]?.value) : (variants[0]?.value ?? 'STANDARD')
+  const defaultZombie = displayVariants[0]?.value ?? 'PPR'
+  const safeValue = variants.some((v) => v.value === (value ?? ''))
+    ? (value ?? variants[0]?.value)
+    : (variants[0]?.value ?? (isZombie ? defaultZombie : 'STANDARD'))
   const [selectedPresetValues, setSelectedPresetValues] = useState<string[]>(() =>
     safeValue ? [safeValue] : []
   )
@@ -102,6 +106,11 @@ export function ScoringPresetSelector({
   }
 
   const togglePreset = (presetValue: string) => {
+    if (isZombie) {
+      setSelectedPresetValues([presetValue])
+      onChange(presetValue)
+      return
+    }
     const next = valueSet.has(presetValue)
       ? selectedPresetValues.filter((v) => v !== presetValue)
       : [...selectedPresetValues, presetValue]
@@ -111,7 +120,7 @@ export function ScoringPresetSelector({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 rounded-2xl border border-cyan-400/12 bg-[#0a1228]/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm sm:p-5">
       <StepHeader
         title="Scoring rules"
         description="Pick a preset that matches your league. It sets default roster slots and point values (e.g. PPR gives 1 point per reception for NFL)."
@@ -148,9 +157,11 @@ export function ScoringPresetSelector({
             )
           })}
         </div>
-        <p className="text-white/50 text-xs mt-2">
-          Toggle one or more presets. We apply the highest-priority compatible preset to creation defaults.
-        </p>
+        {!isZombie ? (
+          <p className="text-white/50 text-xs mt-2">
+            Toggle one or more presets. We apply the highest-priority compatible preset to creation defaults.
+          </p>
+        ) : null}
         {rules && (
           <div className="mt-2 rounded-xl border border-white/10 bg-black/25 px-3 py-2 text-xs text-white/65">
             <p>

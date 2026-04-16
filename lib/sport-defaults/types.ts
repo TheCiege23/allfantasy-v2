@@ -15,7 +15,14 @@ export type SportType =
 export const SPORT_TYPES: SportType[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 
 /** NFL league variants (presets). Other sports use STANDARD or sport-specific format. */
-export type NFLLeagueVariant = 'STANDARD' | 'PPR' | 'HALF_PPR' | 'SUPERFLEX' | 'IDP' | 'DYNASTY_IDP'
+export type NFLLeagueVariant =
+  | 'STANDARD'
+  | 'PPR'
+  | 'HALF_PPR'
+  | 'SUPERFLEX'
+  | 'TE_PREMIUM'
+  | 'IDP'
+  | 'DYNASTY_IDP'
 
 /** League variant key (sport-agnostic); NFL uses NFLLeagueVariant. */
 export type LeagueVariant = NFLLeagueVariant | 'STANDARD' | string

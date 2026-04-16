@@ -44,7 +44,7 @@ export function TeamCountSelector({ sport, leagueType, teamCount, onTeamCountCha
       <Label className="text-white/90">{isSurvivor ? 'Cast size (teams)' : 'Number of teams'}</Label>
       <Select value={String(safeTeamCount)} onValueChange={(v) => onTeamCountChange(Number(v))}>
         <SelectTrigger
-          className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+          className="mt-1.5 min-h-[44px] border-white/15 bg-[#050f1f]/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
           title="Set how many managers will join this league"
           aria-label="Number of teams"
         >
@@ -118,14 +118,14 @@ export function TeamSizeSelector({
         }
         helpTitle="After you create"
       />
-      <div className="space-y-5">
+      <div className="space-y-5 rounded-2xl border border-white/[0.08] bg-[#050f1f]/40 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm sm:p-5">
         <div className="space-y-1.5">
-          <Label className="text-cyan-300">League Name</Label>
+          <Label className="text-cyan-200/95">League Name</Label>
           <Input
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
             placeholder="e.g. My League"
-            className="mt-1.5 min-h-[48px] rounded-none border-0 border-b border-cyan-300/65 bg-transparent px-1 text-lg text-white placeholder:text-white/35 focus-visible:ring-0"
+            className="mt-1.5 min-h-[48px] rounded-lg border border-white/12 bg-[#050f1f]/80 px-3 text-lg text-white placeholder:text-white/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus-visible:ring-1 focus-visible:ring-cyan-400/30"
             aria-describedby="name-help"
             title="Editable later in league settings"
           />
@@ -145,7 +145,7 @@ export function TeamSizeSelector({
           <Label className="text-white/90">League timezone</Label>
           <Select value={leagueTimezone} onValueChange={onTimezoneChange}>
             <SelectTrigger
-              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+              className="mt-1.5 min-h-[44px] border-white/15 bg-[#050f1f]/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               aria-label="League timezone"
             >
               <SelectValue />
@@ -167,7 +167,7 @@ export function TeamSizeSelector({
           <Label className="text-white/90">Trade review mode</Label>
           <Select value={tradeReviewMode} onValueChange={(v) => onTradeReviewModeChange(v as TeamSizeSelectorProps['tradeReviewMode'])}>
             <SelectTrigger
-              className="mt-1.5 min-h-[44px] border-white/20 bg-[#030a20] text-white"
+              className="mt-1.5 min-h-[44px] border-white/15 bg-[#050f1f]/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               aria-label="Trade review mode"
             >
               <SelectValue />

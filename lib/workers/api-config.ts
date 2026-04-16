@@ -9,6 +9,8 @@ export const SUPPORTED_SPORTS = [
   'ncaaf',
   'ncaab',
   'soccer_euro',
+  /** MLS / North America soccer data chain (distinct from {@link soccer_euro}). */
+  'soccer_mls',
 ] as const
 
 export type ApiChainSport = (typeof SUPPORTED_SPORTS)[number]
@@ -115,8 +117,9 @@ export function toApiChainSport(input: string | SupportedSport | undefined): Api
     soccer_euro: 'soccer_euro',
     euro: 'soccer_euro',
     epl: 'soccer_euro',
-    /** User/alternate label → same `soccer_euro` chain as SOCCER (not a separate RI sport). */
-    mls: 'soccer_euro',
+    /** MLS / NA soccer — distinct Rolling Insights / feed chain from European soccer. */
+    mls: 'soccer_mls',
+    soccer_mls: 'soccer_mls',
   }
   if (map[lower]) return map[lower]
 
@@ -152,6 +155,7 @@ export function apiChainSportToDbSport(sport: ApiChainSport): string {
     ncaab: 'NCAAB',
     ncaaf: 'NCAAF',
     soccer_euro: 'SOCCER',
+    soccer_mls: 'SOCCER',
   }
   return m[sport]
 }

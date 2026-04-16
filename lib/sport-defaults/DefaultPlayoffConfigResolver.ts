@@ -142,8 +142,24 @@ const BASE_CONFIGS: Record<SportType, DefaultPlayoffConfig> = {
   },
 }
 
+const NO_PLAYOFF_OVERLAY: Partial<DefaultPlayoffConfig> = {
+  playoff_team_count: 0,
+  playoff_weeks: 0,
+  first_round_byes: 0,
+  playoff_start_week: null,
+  bye_rules: null,
+  total_rounds: 0,
+  consolation_plays_for: 'none',
+  consolation_bracket_enabled: false,
+  third_place_game_enabled: false,
+  toilet_bowl_enabled: false,
+  championship_length: 0,
+  reseed_behavior: 'fixed_bracket',
+}
+
 const VARIANT_OVERRIDES: PlayoffVariantMap = {
   NFL: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
     PPR: {},
     HALF_PPR: {},
@@ -176,6 +192,7 @@ const VARIANT_OVERRIDES: PlayoffVariantMap = {
     },
   },
   NBA: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
     DEVY_DYNASTY: {
       playoff_team_count: 8,
@@ -193,32 +210,25 @@ const VARIANT_OVERRIDES: PlayoffVariantMap = {
     },
   },
   MLB: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
   },
   NHL: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
   },
   NCAAF: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
   },
   NCAAB: {
+    NO_PLAYOFF: { ...NO_PLAYOFF_OVERLAY },
     STANDARD: {},
   },
   SOCCER: {
     STANDARD: {},
     NO_PLAYOFF: {
-      playoff_team_count: 0,
-      playoff_weeks: 0,
-      first_round_byes: 0,
-      playoff_start_week: null,
-      bye_rules: null,
-      total_rounds: 0,
-      consolation_plays_for: 'none',
-      consolation_bracket_enabled: false,
-      third_place_game_enabled: false,
-      toilet_bowl_enabled: false,
-      championship_length: 0,
-      reseed_behavior: 'fixed_bracket',
+      ...NO_PLAYOFF_OVERLAY,
     },
   },
 }
@@ -236,6 +246,8 @@ const PLAYOFF_VARIANT_ALIASES: Record<string, string> = {
   C2C: 'MERGED_DEVY_C2C',
   MERGED_DEVY_C2C: 'MERGED_DEVY_C2C',
   NO_PLAYOFF: 'NO_PLAYOFF',
+  ZOMBIE: 'NO_PLAYOFF',
+  zombie: 'NO_PLAYOFF',
 }
 
 export function normalizePlayoffVariant(variant?: string | null): string {

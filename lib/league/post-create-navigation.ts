@@ -12,6 +12,8 @@ export type PostCreateLeagueHomeArgs = {
   tournamentId?: string | null
   /** Mirrors wizard invite step — adds `showInvite=1` for standard league home. */
   allowInviteLink?: boolean
+  /** Zombie universe tier from create wizard — multi-league packs go to commissioner tools. */
+  zombieUniverseTier?: 'single_gamma' | 'beta_trio' | 'alpha_hex' | null
 }
 
 /**
@@ -33,6 +35,18 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
 
   if (lt === 'survivor') {
     return `/survivor/${leagueId}/commissioner?created=1`
+  }
+
+  if (lt === 'zombie') {
+    const tier = args.zombieUniverseTier ?? 'single_gamma'
+    if (tier === 'beta_trio' || tier === 'alpha_hex') {
+      return `/zombie/${leagueId}/settings?created=1`
+    }
+    const q = new URLSearchParams()
+    q.set('created', '1')
+    q.set('openChat', 'league')
+    if (args.allowInviteLink) q.set('showInvite', '1')
+    return `/league/${leagueId}?${q.toString()}`
   }
 
   if (lt === 'big_brother') {

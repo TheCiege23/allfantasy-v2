@@ -34,7 +34,7 @@ export function PlatformStyleSelector({ sport, value, onChange, onResolvedVarian
   }
 
   return (
-    <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+    <div className="space-y-4 rounded-2xl border border-cyan-400/15 bg-[#0a1228]/50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm">
       <StepHeader
         title="Scoring style (preset)"
         description="Choose whose default flavor you want to start from. You can fine-tune the preset below."
@@ -49,8 +49,8 @@ export function PlatformStyleSelector({ sport, value, onChange, onResolvedVarian
             onClick={() => apply(opt.id)}
             className={`rounded-xl border px-2 py-2.5 text-left text-xs transition ${
               safeValue === opt.id
-                ? 'border-cyan-400/45 bg-cyan-500/10 text-white'
-                : 'border-white/10 bg-white/[0.03] text-white/80 hover:bg-white/[0.06]'
+                ? 'border-cyan-300/50 bg-cyan-500/12 text-white shadow-[0_0_0_1px_rgba(0,255,220,0.1)_inset]'
+                : 'border-white/10 bg-black/30 text-white/80 hover:border-white/18 hover:bg-black/40'
             }`}
           >
             <div className="font-semibold leading-tight">{opt.label}</div>

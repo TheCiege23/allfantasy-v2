@@ -46,6 +46,135 @@ function normalizeVariantForRoster(
   return undefined
 }
 
+function resolveZombieRosterDefaults(
+  sport: LeagueSport,
+  modifiers: FormatRosterModifierId[],
+): FormatRosterDefaults {
+  const idpActive = sport === 'NFL' && modifiers.includes('idp')
+  if (idpActive) {
+    const idp = getRosterDefaults('NFL', 'IDP')
+    const starterSlots = { ...idp.starter_slots }
+    const flexDefinitions = [...idp.flex_definitions]
+    const resolved: FormatRosterDefaults = {
+      sport: 'NFL',
+      starterSlots,
+      benchSlots: idp.bench_slots,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions,
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  if (sport === 'NFL') {
+    const resolved: FormatRosterDefaults = {
+      sport: 'NFL',
+      starterSlots: { FLEX: 4, SUPERFLEX: 1 },
+      benchSlots: 3,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions: [
+        { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
+        { slotName: 'SUPERFLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+      ],
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  if (sport === 'NBA' || sport === 'NCAAB') {
+    const resolved: FormatRosterDefaults = {
+      sport,
+      starterSlots: { PG: 1, SG: 1, SF: 1, PF: 1, C: 1 },
+      benchSlots: 3,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions: [],
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  if (sport === 'MLB') {
+    const resolved: FormatRosterDefaults = {
+      sport: 'MLB',
+      starterSlots: { C: 1, OF: 2, UTIL: 2 },
+      benchSlots: 3,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions: [{ slotName: 'UTIL', allowedPositions: ['C', '1B', '2B', '3B', 'SS', 'OF', 'DH'] }],
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  if (sport === 'NHL') {
+    const resolved: FormatRosterDefaults = {
+      sport: 'NHL',
+      starterSlots: { F: 2, D: 2, UTIL: 1, G: 1 },
+      benchSlots: 3,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions: [
+        { slotName: 'F', allowedPositions: ['LW', 'RW', 'C'] },
+        { slotName: 'UTIL', allowedPositions: ['LW', 'RW', 'C', 'D'] },
+      ],
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  if (sport === 'NCAAF') {
+    const resolved: FormatRosterDefaults = {
+      sport: 'NCAAF',
+      starterSlots: { FLEX: 4, SUPERFLEX: 1 },
+      benchSlots: 3,
+      irSlots: 0,
+      taxiSlots: 0,
+      devySlots: 0,
+      flexDefinitions: [
+        { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
+        { slotName: 'SUPERFLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+      ],
+      rosterSize: 0,
+      modifiers,
+    }
+    resolved.rosterSize = toRosterSize(resolved)
+    return resolved
+  }
+
+  const fb = getRosterDefaults(sport, undefined)
+  const resolved: FormatRosterDefaults = {
+    sport,
+    starterSlots: { ...fb.starter_slots },
+    benchSlots: 3,
+    irSlots: 0,
+    taxiSlots: 0,
+    devySlots: 0,
+    flexDefinitions: [...fb.flex_definitions],
+    rosterSize: 0,
+    modifiers,
+  }
+  resolved.rosterSize = toRosterSize(resolved)
+  return resolved
+}
+
 export function resolveFormatRosterDefaults(options: {
   sport: LeagueSport | string
   formatId?: string | null
@@ -53,6 +182,11 @@ export function resolveFormatRosterDefaults(options: {
 }): FormatRosterDefaults {
   const sport = normalizeToSupportedSport(options.sport)
   const modifiers = [...new Set(options.modifiers ?? [])]
+
+  if (options.formatId === 'zombie') {
+    return resolveZombieRosterDefaults(sport, modifiers)
+  }
+
   const variant = normalizeVariantForRoster(sport, options.formatId, modifiers)
   const base = getRosterDefaults(sport, variant)
 

@@ -75,6 +75,8 @@ export type LeagueFormatResolution = {
 }
 
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
+/** Survivor fantasy format is not offered for Soccer in create flows. */
+const SURVIVOR_ELIGIBLE_SPORTS = ALL_SPORTS.filter((s) => s !== 'SOCCER') as LeagueSport[]
 const FOOTBALL_BASKETBALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
 const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
 const DRAFT_TYPES_STANDARD: LeagueDraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
@@ -172,7 +174,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'survivor',
     label: 'Survivor',
     description: 'Progressive elimination with specialty rules and weekly survival logic.',
-    supportedSports: ALL_SPORTS,
+    supportedSports: SURVIVOR_ELIGIBLE_SPORTS,
     defaultRosterMode: 'redraft',
     draftTypes: DRAFT_TYPES_SURVIVOR,
     defaultModifiers: [],
@@ -246,9 +248,9 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     supportedSports: ZOMBIE_ELIGIBLE_LEAGUE_SPORTS,
     defaultRosterMode: 'redraft',
     /** Snake / auction only at create; slow-draft removed as a discrete type (use timer presets). */
-    draftTypes: ['snake', 'auction', 'mock_draft'],
+    draftTypes: ['snake', 'auction'],
     defaultModifiers: [],
-    supportedModifiers: [],
+    supportedModifiers: ['idp', 'te_premium'],
     capabilities: {
       deterministicFeatures: ['status_transformations', 'weekly_state_updates'],
       aiOptionalFeatures: ['weekly_recap', 'commissioner_summary'],
@@ -322,6 +324,7 @@ function inferModifiers(
   const variant = String(options.leagueVariant ?? '').trim().toLowerCase()
   if (variant === 'superflex') requested.add('superflex')
   if (variant === 'idp' || variant === 'dynasty_idp') requested.add('idp')
+  if (variant === 'te_premium') requested.add('te_premium')
   if (variant === 'devy_dynasty') requested.add('devy')
   if (variant === 'merged_devy_c2c') requested.add('c2c')
   if (format.id === 'best_ball') requested.add('best_ball')

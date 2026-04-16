@@ -17,6 +17,10 @@ function apiKey(): string {
 
 function leagueIdForSport(sport: string): string {
   const chain = toApiChainSport(sport)
+  if (chain === 'soccer_mls') {
+    const mls = process.env.THESPORTSDB_MLS_LEAGUE_ID?.trim()
+    if (mls) return mls
+  }
   const key = chain ? apiChainSportToDbSport(chain) : sport.toUpperCase()
   return THESPORTSDB_LEAGUE_IDS[key as keyof typeof THESPORTSDB_LEAGUE_IDS] || ''
 }

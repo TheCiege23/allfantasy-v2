@@ -11,6 +11,7 @@ export type TournamentLeagueNamingMode = 'commissioner_custom' | 'app_generated'
 
 export type SurvivorTribeNameMode = 'auto' | 'custom'
 export type SurvivorCommissionerRole = 'commissioner_only' | 'player_commissioner'
+export type SurvivorEntryFeeMode = 'free' | 'paid'
 
 export interface WizardFormatOptions {
   /** Fantasy tournament (multi-league hub) — uses POST /api/tournament/create */
@@ -34,6 +35,10 @@ export interface WizardFormatOptions {
    * `null` = auto from cast size via `suggestedSurvivorTribeCount`; otherwise 2–4.
    */
   survivorTribeCountOverride: null | 2 | 3 | 4
+  /** Survivor — free play vs paid buy-in (amount set by commissioner). */
+  survivorEntryFeeMode: SurvivorEntryFeeMode
+  /** USD buy-in per manager when `survivorEntryFeeMode === 'paid'`; stored as cents in league settings. */
+  survivorEntryFeeUsd: number | null
   /** Keeper */
   keeperMaxKeepers: number
   /** Zombie — universe size (1 / 3 / 6 linked leagues). */
@@ -90,6 +95,8 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   survivorChallengesSystemRun: true,
   /** Default 4 tribes (no “auto” in UI — cast size still set on step 1). */
   survivorTribeCountOverride: 4,
+  survivorEntryFeeMode: 'free',
+  survivorEntryFeeUsd: null,
   keeperMaxKeepers: 3,
   zombieUniverseTier: 'single_gamma',
   zombieUniverseMode: false,
@@ -142,6 +149,18 @@ export function formatOptionsApplyToLeagueType(
 
   if (leagueType === 'survivor') {
     out.survivor_creation_team_count = clampSurvivorTeamCount(sport, options.survivorTeamCount)
+    const feeMode = options.survivorEntryFeeMode === 'paid' ? 'paid' : 'free'
+    out.survivor_entry_fee_mode = feeMode
+    if (feeMode === 'paid') {
+      const usd = Number(options.survivorEntryFeeUsd)
+      if (Number.isFinite(usd) && usd > 0) {
+        out.survivor_entry_fee_amount_cents = Math.round(usd * 100)
+      } else {
+        out.survivor_entry_fee_amount_cents = null
+      }
+    } else {
+      out.survivor_entry_fee_amount_cents = null
+    }
     out.survivor_tribe_name_mode = options.survivorTribeNameMode
     out.survivor_commissioner_role = options.survivorCommissionerRole
     out.survivor_challenges_system_run = options.survivorChallengesSystemRun !== false

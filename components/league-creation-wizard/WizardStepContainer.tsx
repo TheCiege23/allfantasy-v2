@@ -49,7 +49,7 @@ export const WizardStepContainer = memo(function WizardStepContainer({
           Recommended defaults are preselected. Open advanced options only when needed.
         </p>
       </div>
-      <div className="flex-1 min-h-0 rounded-2xl border border-white/10 bg-[#030a1f]/55 p-3 sm:p-4">
+      <div className="flex-1 min-h-0 rounded-2xl border border-white/[0.08] bg-gradient-to-b from-[#0a1228]/75 to-[#040915]/85 p-3 sm:p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm">
         {children}
       </div>
     </div>

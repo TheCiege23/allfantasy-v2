@@ -3,10 +3,6 @@
 import type { LeagueCreationPresetPayload } from '@/hooks/useSportPreset'
 import { LEAGUE_TYPE_LABELS, DRAFT_TYPE_LABELS } from '@/lib/league-creation-wizard/league-type-registry'
 import {
-  getLeagueVariantLabel,
-  resolveCreationVariantOrDefault,
-} from '@/lib/league-creation/LeagueVariantResolver'
-import {
   DEFAULT_AI_SETTINGS,
   DEFAULT_AUTOMATION_SETTINGS,
   DEFAULT_COMMISSIONER_PREFERENCES,
@@ -16,6 +12,7 @@ import {
   type WizardStepId,
 } from '@/lib/league-creation-wizard/types'
 import { DEFAULT_WIZARD_FORMAT_OPTIONS } from '@/lib/league-creation-wizard/wizard-format-options'
+import type { SoccerPipeline } from '@/lib/soccer/soccer-pipeline'
 
 const COMMISSIONER_PREF_LABELS: Record<keyof WizardCommissionerPreferences, string> = {
   leagueAutomation: 'League automation',
@@ -36,6 +33,11 @@ function buildCommissionerPreferencesSummary(prefs: WizardCommissionerPreference
     return 'None selected — enable anytime with AF Commissioner in league settings'
   }
   return `${enabled.length} on: ${enabled.join(' · ')}`
+}
+
+function soccerPipelineLabel(pipeline: SoccerPipeline | null | undefined): string {
+  if (pipeline === 'mls') return 'MLS / North America'
+  return 'European leagues'
 }
 
 function getPlatformStyleLabel(platformStyleMirror: LeagueCreationWizardState['platformStyleMirror']): string {
@@ -99,15 +101,9 @@ function SummarySection({
  * League Summary Review: displayed before creating the league.
  */
 export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onEditStep }: LeagueSummaryPanelProps) {
-  const effectiveVariant = resolveCreationVariantOrDefault({
-    sport: state.sport,
-    leagueType: state.leagueType,
-    requestedVariant: state.leagueVariant ?? state.scoringPreset ?? null,
-  })
   const aiSettings = state.aiSettings ?? DEFAULT_AI_SETTINGS
   const automationSettings = state.automationSettings ?? DEFAULT_AUTOMATION_SETTINGS
   const privacySettings = state.privacySettings ?? DEFAULT_PRIVACY_SETTINGS
-  const variantText = getLeagueVariantLabel(effectiveVariant)
   const aiSummary = [
     aiSettings.aiAdpEnabled ? 'AI ADP on' : 'AI ADP off',
     aiSettings.orphanTeamAiManagerEnabled ? 'Orphan AI on' : 'Orphan AI off',
@@ -140,6 +136,13 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
 
       <SummarySection title="Sport & format" stepId="sport" onEditStep={onEditStep}>
         <SummaryRow label="Sport" value={state.sport} testId="league-summary-sport" />
+        {state.sport === 'SOCCER' ? (
+          <SummaryRow
+            label="Soccer data"
+            value={soccerPipelineLabel(state.soccerPipeline ?? 'euro')}
+            testId="league-summary-soccer-pipeline"
+          />
+        ) : null}
         <SummaryRow label="League type" value={LEAGUE_TYPE_LABELS[state.leagueType]} testId="league-summary-league-type" />
         <SummaryRow label="Draft type" value={DRAFT_TYPE_LABELS[state.draftType]} testId="league-summary-draft-type" />
       </SummarySection>
@@ -152,6 +155,16 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
         />
         {state.leagueType === 'survivor' ? (
           <>
+            <SummaryRow
+              label="Buy-in"
+              value={
+                formatOpts.survivorEntryFeeMode === 'paid'
+                  ? formatOpts.survivorEntryFeeUsd != null && Number.isFinite(formatOpts.survivorEntryFeeUsd)
+                    ? `$${Number(formatOpts.survivorEntryFeeUsd).toFixed(2)} / manager`
+                    : 'Paid (amount set at create)'
+                  : 'Free'
+              }
+            />
             <SummaryRow label="Tribes" value={survivorTribes} />
             <SummaryRow
               label="Tribe names"
@@ -181,7 +194,6 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
 
       <SummarySection title="Scoring" stepId="scoring" onEditStep={onEditStep}>
         <SummaryRow label="Platform style" value={getPlatformStyleLabel(state.platformStyleMirror)} />
-        <SummaryRow label="Preset / variant" value={variantText} />
       </SummarySection>
 
       <SummarySection title="AI, automation & privacy" stepId="draft_privacy" onEditStep={onEditStep}>

@@ -12,6 +12,7 @@ export const NFL_VARIANTS: NFLLeagueVariant[] = [
   'PPR',
   'HALF_PPR',
   'SUPERFLEX',
+  'TE_PREMIUM',
   'IDP',
   'DYNASTY_IDP',
 ]
@@ -21,8 +22,29 @@ export const NFL_VARIANT_LABELS: Record<NFLLeagueVariant, string> = {
   PPR: 'PPR',
   HALF_PPR: 'Half PPR',
   SUPERFLEX: 'Superflex',
+  TE_PREMIUM: 'TEP',
   IDP: 'IDP',
   DYNASTY_IDP: 'Dynasty IDP',
+}
+
+/** Zombie create flow: PPR, Half PPR, TEP, IDP (non-NFL maps IDP/TEP to closest supported scoring templates). */
+export function getZombieScoringVariants(
+  sportType: SportType | string,
+): { value: string; label: string }[] {
+  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
+  const core = (
+    [
+      { value: 'PPR' as const, label: 'PPR' },
+      { value: 'HALF_PPR' as const, label: 'Half PPR' },
+      { value: 'TE_PREMIUM' as const, label: 'TEP' },
+      { value: 'IDP' as const, label: 'IDP' },
+    ] as const
+  ).map((row) =>
+    sport === 'NFL' && row.value === 'TE_PREMIUM'
+      ? { value: row.value, label: NFL_VARIANT_LABELS.TE_PREMIUM }
+      : row,
+  )
+  return core
 }
 
 /** IDP roster overlay: extra starter slots added to base NFL roster. */
@@ -46,12 +68,28 @@ export function getFormatTypeForVariant(
   const vLower = (variant ?? '').toLowerCase()
   if (vLower === 'devy_dynasty' || vLower === 'devy') return 'devy_dynasty'
   if (vLower === 'tournament_mode') return sport === 'NFL' ? 'PPR' : 'standard'
-  if (sport !== 'NFL') return 'standard'
+  if (sport !== 'NFL') {
+    if (v === 'PPR') {
+      if (sport === 'NBA' || sport === 'NCAAB') return 'points'
+      if (sport === 'NCAAF') return 'PPR'
+      return 'standard'
+    }
+    if (v === 'HALF_PPR') return 'Half PPR'
+    if (v === 'TE_PREMIUM') {
+      if (sport === 'NBA' || sport === 'NCAAB') return 'points'
+      if (sport === 'NCAAF') return 'PPR'
+      return 'standard'
+    }
+    if (v === 'IDP' || v === 'DYNASTY_IDP') return 'standard'
+    if (v === 'STANDARD' || v === 'SUPERFLEX') return 'standard'
+    return 'standard'
+  }
   if (v === 'IDP' || v === 'DYNASTY_IDP') return 'IDP'
   if (v === 'HALF_PPR') return 'Half PPR'
   if (v === 'PPR') return 'PPR'
   if (v === 'STANDARD') return 'standard'
   if (v === 'SUPERFLEX') return 'PPR'
+  if (v === 'TE_PREMIUM') return 'TE_PREMIUM'
   return 'PPR'
 }
 

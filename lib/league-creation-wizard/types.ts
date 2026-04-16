@@ -5,6 +5,7 @@
 
 import type { LeagueSport } from '@prisma/client'
 import type { DevyLeagueSetupState } from '@/lib/devy/devy-league-config'
+import type { SoccerPipeline } from '@/lib/soccer/soccer-pipeline'
 
 export type WizardStepId =
   | 'sport'
@@ -256,6 +257,8 @@ export interface LeagueCreationWizardState {
   /** Visual preset for scoring defaults (maps to variant / presets per sport). */
   platformStyleMirror: PlatformStyleMirror
   sport: LeagueSport | string
+  /** When sport is SOCCER: MLS vs European data feeds (stored as `settings.soccer_pipeline`). */
+  soccerPipeline: SoccerPipeline | null
   leagueType: LeagueTypeId
   draftType: DraftTypeId
   name: string

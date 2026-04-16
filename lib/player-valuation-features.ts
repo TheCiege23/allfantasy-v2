@@ -312,11 +312,19 @@ const STAT_WEIGHTS: Partial<Record<ApiChainSport, Record<string, Record<string, 
 
 /** Per-sport divisor to scale raw stat totals into the 0–10 000 range. */
 const SPORT_DIVISORS: Record<ApiChainSport, number> = {
-  nfl: 3, nba: 1.5, mlb: 1.5, nhl: 2.5, ncaaf: 3, ncaab: 1.5, soccer_euro: 1.5,
+  nfl: 3,
+  nba: 1.5,
+  mlb: 1.5,
+  nhl: 2.5,
+  ncaaf: 3,
+  ncaab: 1.5,
+  soccer_euro: 1.5,
+  soccer_mls: 1.5,
 }
 
 function getWeights(sport: ApiChainSport, position: string): Record<string, number> {
-  const sportWeights = STAT_WEIGHTS[sport] ?? {}
+  const wSport: ApiChainSport = sport === 'soccer_mls' ? 'soccer_euro' : sport
+  const sportWeights = STAT_WEIGHTS[wSport] ?? {}
   const pos = position?.toUpperCase() ?? 'DEFAULT'
   return sportWeights[pos] ?? sportWeights['DEFAULT'] ?? {}
 }
@@ -539,7 +547,7 @@ export async function getValuationCacheHealth(): Promise<{
   perSport: Record<string, { fresh: boolean; playerCount: number; syncedAt: string | null }>
 }> {
   const now = new Date()
-  const sports: ApiChainSport[] = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro']
+  const sports: ApiChainSport[] = ['nfl', 'nba', 'mlb', 'nhl', 'ncaaf', 'ncaab', 'soccer_euro', 'soccer_mls']
 
   const rows = await prisma.sportsDataCache.findMany({
     where: { cacheKey: { startsWith: VALUATION_KEY_PREFIX } },

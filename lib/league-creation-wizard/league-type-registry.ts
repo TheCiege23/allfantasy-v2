@@ -124,7 +124,7 @@ export function getAllowedDraftTypesForLeagueType(
   sport: LeagueSport | string = 'NFL'
 ): DraftTypeId[] {
   if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
-  if (leagueType === 'zombie') return ['snake', 'auction', 'mock_draft']
+  if (leagueType === 'zombie') return ['snake', 'auction']
   if (leagueType === 'survivor') return ['snake', 'auction']
   if (leagueType === 'devy') return ['devy_snake', 'devy_auction']
   if (leagueType === 'c2c') return ['c2c_snake', 'c2c_auction']

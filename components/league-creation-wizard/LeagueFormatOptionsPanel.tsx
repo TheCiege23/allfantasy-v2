@@ -67,7 +67,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
   }
 
   return (
-    <div className="space-y-6 border-t border-white/10 pt-6 mt-2">
+    <div className="space-y-6 border-t border-white/[0.08] pt-6 mt-2">
       <StepHeader
         title="Format-specific setup"
         description="These choices seed your league. Everything here can be refined later in League settings."
@@ -150,15 +150,77 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
       )}
 
       {leagueType === 'survivor' && (
-        <div className="space-y-4 rounded-2xl border border-amber-500/25 bg-amber-950/15 p-4">
-          <h4 className="text-sm font-semibold text-amber-100">
-            Survivor ({sportBrandLabel(sport)})
-          </h4>
-          <p className="text-xs text-white/55">
-            Cast size ({survivorCast} managers) was set on the previous step. Tribes split your{' '}
-            {sportBrandLabel(sport)} {survivorSeasonPhrase(sport)} into phases; you can name tribes below or let the
-            app label them. Exile Island is provisioned after create.
-          </p>
+        <div
+          className="space-y-4 rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-[#0a1228]/95 to-[#040915]/90 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_12px_40px_rgba(0,0,0,0.25)] backdrop-blur-sm"
+          data-testid="wizard-survivor-format-card"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+            <div>
+              <h4 className="text-sm font-semibold tracking-wide text-cyan-100/95">
+                Survivor ({sportBrandLabel(sport)})
+              </h4>
+              <p className="mt-1 max-w-[60ch] text-xs leading-relaxed text-white/55">
+                Cast size ({survivorCast} managers) was set on the previous step. Tribes split your{' '}
+                {sportBrandLabel(sport)} {survivorSeasonPhrase(sport)} into phases; you can name tribes below or let the
+                app label them. Exile Island is provisioned after create.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-white/85">League buy-in</Label>
+            <p className="text-[11px] text-white/45">Free leagues have no entry fee. Paid leagues store the per-manager amount you set (USD).</p>
+            <div className="flex flex-wrap gap-2">
+              {(['free', 'paid'] as const).map((mode) => {
+                const active = (v.survivorEntryFeeMode ?? 'free') === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        survivorEntryFeeMode: mode,
+                        ...(mode === 'free' ? { survivorEntryFeeUsd: null } : {}),
+                      })
+                    }
+                    className={`min-h-[40px] rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                        ? 'border-cyan-300/50 bg-cyan-500/15 text-white shadow-[0_0_0_1px_rgba(0,255,220,0.12)_inset]'
+                        : 'border-white/12 bg-black/35 text-white/75 hover:border-white/20 hover:bg-black/45'
+                    }`}
+                    data-testid={`wizard-survivor-fee-${mode}`}
+                  >
+                    {mode === 'free' ? 'Free' : 'Paid'}
+                  </button>
+                )
+              })}
+            </div>
+            {(v.survivorEntryFeeMode ?? 'free') === 'paid' && (
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-white/80">Buy-in per manager (USD)</Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min={0.01}
+                  step={0.01}
+                  placeholder="e.g. 25.00"
+                  value={v.survivorEntryFeeUsd != null && Number.isFinite(v.survivorEntryFeeUsd) ? v.survivorEntryFeeUsd : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim()
+                    if (raw === '') {
+                      onChange({ survivorEntryFeeUsd: null })
+                      return
+                    }
+                    const n = Number(raw)
+                    onChange({ survivorEntryFeeUsd: Number.isFinite(n) ? n : null })
+                  }}
+                  className="max-w-[220px] border-white/15 bg-[#050f1f]/90 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  data-testid="wizard-survivor-fee-amount"
+                />
+                <p className="text-[11px] text-white/45">You can adjust payment collection and rules later in league settings.</p>
+              </div>
+            )}
+          </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Number of tribes</Label>
             <Select
@@ -581,13 +643,13 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
 
       {/* IDP modifier settings — NFL only */}
       {isNfl && (
-        <div className="space-y-4 rounded-2xl border border-emerald-500/25 bg-emerald-950/10 p-4">
+        <div className="space-y-4 rounded-2xl border border-cyan-400/18 bg-[#0a1228]/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-950/40 text-xs font-bold text-emerald-400">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-400/25 bg-cyan-500/10 text-xs font-bold text-cyan-200">
               IDP
             </div>
             <div>
-              <p className="text-[13px] font-bold text-emerald-200">Individual Defensive Players</p>
+              <p className="text-[13px] font-bold text-cyan-100/95">Individual Defensive Players</p>
               <p className="text-[11px] text-white/50">Roster real defenders — DL, LB, DB — alongside your offense</p>
             </div>
           </div>
@@ -648,7 +710,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
           )}
 
           {v.idpEnabled && (
-            <div className="rounded-lg border border-emerald-500/10 bg-emerald-950/20 p-3 text-[11px] text-white/50">
+            <div className="rounded-lg border border-white/10 bg-black/25 p-3 text-[11px] text-white/50">
               IDP slots will be added to your standard offensive roster. Scoring overrides and custom slot counts can be fine-tuned in league settings after creation.
             </div>
           )}
