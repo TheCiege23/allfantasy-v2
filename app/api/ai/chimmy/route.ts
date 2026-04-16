@@ -90,7 +90,9 @@ function attachSportsDebugTrace(
 }
 
 export async function POST(req: Request) {
-  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const session = (await getServerSession(authOptions as any)) as {
+    user?: { id?: string; email?: string | null }
+  } | null
   if (!session?.user?.id) {
     return NextResponse.json(
       { code: 'unauthorized', message: 'Unauthorized', userMessage: 'You need to sign in to use this feature.' },
