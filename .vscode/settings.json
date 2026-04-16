@@ -1,0 +1,10 @@
+{
+  // Prisma migrations are PostgreSQL; the MSSQL extension otherwise flags valid SQL.
+  "mssql.validate.enable": false,
+  // Disable MSSQL semantic error checking that can still surface in SQL files.
+  "mssql.intelliSense.enableErrorChecking": false,
+  // Keep Prisma migration SQL files out of MSSQL language-service diagnostics.
+  "files.associations": {
+    "prisma/migrations/**/*.sql": "plaintext"
+  }
+}

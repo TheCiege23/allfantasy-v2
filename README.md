@@ -19,7 +19,6 @@ AI-powered fantasy sports platform for drafts, waivers, start/sit, and modern le
 - AF Legacy coming soon page
 - Full SEO implementation (metadata, OpenGraph, sitemap, robots.txt, JSON-LD)
 
-
 ### 1. Provision PostgreSQL Database
 
 1. Open the project
@@ -95,12 +94,14 @@ The app runs on **port 3000** by default (`next dev`). For script-based tests (e
 ## Database Models
 
 ### EarlyAccessSignup
+
 - id (UUID)
 - email (unique)
 - source (optional)
 - createdAt
 
 ### QuestionnaireResponse
+
 - id (UUID)
 - email (indexed)
 - favoriteSport
@@ -111,7 +112,3 @@ The app runs on **port 3000** by default (`next dev`). For script-based tests (e
 - experimentalInterest (string array)
 - freeText (optional)
 - createdAt
-
-sync test
-
-

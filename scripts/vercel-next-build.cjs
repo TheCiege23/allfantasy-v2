@@ -4,6 +4,7 @@ const { spawn } = require('child_process')
 
 const repoRoot = process.cwd()
 const backupRoot = path.join(repoRoot, '.next-build-disabled-routes')
+const nextBuildDir = path.join(repoRoot, '.next')
 const routeDirsToDisable = [
   path.join('app', 'e2e'),
   path.join('app', 'tools', 'social-share-engine-harness'),
@@ -99,6 +100,8 @@ function restoreNonProdRoutes() {
 }
 
 function run() {
+  // Avoid stale build-manifest/chunk issues in cached CI environments.
+  fs.rmSync(nextBuildDir, { recursive: true, force: true })
   disableNonProdRoutes()
 
   const nextArgs = process.argv.slice(2)
