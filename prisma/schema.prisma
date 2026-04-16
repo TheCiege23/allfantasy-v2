@@ -9775,7 +9775,7 @@ model StripeWebhookEvent {
   @@map("stripe_webhook_events")
 }
 
-/// Subscription plan catalog. Backed by monetization SKU families (AF Pro, Commissioner, War Room, All-Access).
+/// Subscription plan catalog. Backed by monetization SKU families (AF Pro, Commissioner, War Room, All-Access, Supreme).
 model SubscriptionPlan {
   id            String             @id @default(uuid())
   code          String             @unique @db.VarChar(64)

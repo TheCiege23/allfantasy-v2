@@ -41,8 +41,8 @@ function planFamilyToSubscriptionPlanId(
       return "commissioner"
     case "af_war_room":
       return "war_room"
-    case "af_all_access":
-      return "all_access"
+    case "af_supreme":
+      return "supreme"
     default:
       return null
   }
@@ -52,6 +52,12 @@ export const ALL_ACCESS_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
   "pro",
   "commissioner",
   "war_room",
+]
+
+/** Supreme tier includes the same product surface as All-Access for entitlement checks. */
+export const SUPREME_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
+  ...ALL_ACCESS_INCLUDED_PLAN_IDS,
+  "all_access",
 ]
 
 export function isActiveOrGraceStatus(status: EntitlementStatus): boolean {
@@ -78,6 +84,8 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
       return "AF War Room"
     case "all_access":
       return "AF All-Access Bundle"
+    case "supreme":
+      return "AF Supreme"
   }
 }
 
@@ -88,18 +96,30 @@ export function expandPlansWithBundle(plans: readonly SubscriptionPlanId[]): Sub
       expanded.add(includedPlan)
     }
   }
+  if (expanded.has("supreme")) {
+    for (const includedPlan of SUPREME_INCLUDED_PLAN_IDS) {
+      expanded.add(includedPlan)
+    }
+  }
   return Array.from(expanded)
 }
 
 export function resolveBundleInheritance(plans: readonly SubscriptionPlanId[]): {
   hasAllAccess: boolean
+  hasSupreme: boolean
   inheritedPlanIds: SubscriptionPlanId[]
   effectivePlanIds: SubscriptionPlanId[]
 } {
   const hasAllAccess = plans.includes("all_access")
+  const hasSupreme = plans.includes("supreme")
   return {
     hasAllAccess,
-    inheritedPlanIds: hasAllAccess ? [...ALL_ACCESS_INCLUDED_PLAN_IDS] : [],
+    hasSupreme,
+    inheritedPlanIds: hasSupreme
+      ? [...SUPREME_INCLUDED_PLAN_IDS]
+      : hasAllAccess
+        ? [...ALL_ACCESS_INCLUDED_PLAN_IDS]
+        : [],
     effectivePlanIds: expandPlansWithBundle(plans),
   }
 }
@@ -113,7 +133,11 @@ export function hasFeatureAccessForPlans(
   const expandedPlans = expandPlansWithBundle(plans)
   const required = getRequiredPlanForFeature(featureId)
   if (!required) return false
-  return expandedPlans.includes(required) || expandedPlans.includes("all_access")
+  return (
+    expandedPlans.includes(required) ||
+    expandedPlans.includes("all_access") ||
+    expandedPlans.includes("supreme")
+  )
 }
 
 export function buildFeatureUpgradePath(featureId: SubscriptionFeatureId): string {

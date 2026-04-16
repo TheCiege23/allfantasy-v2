@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
@@ -15,6 +15,7 @@ import { LeagueSettingsTab } from '@/components/league/LeagueSettingsTab'
 import { CommissionerToolsTab } from '@/components/league/CommissionerToolsTab'
 import { SurvivorFormatTab } from '@/components/league/SurvivorFormatTab'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
+import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
 
 function pathActive(pathname: string, href: string, isHome?: boolean) {
   if (isHome) return pathname === href
@@ -125,13 +126,23 @@ function SurvivorAppShellInner({
 
   const displayName = ctx.season?.userState?.displayName ?? 'Player'
 
+  const atmosphereMood = useMemo(() => {
+    if (pathname.includes('/tribal')) return 'tribal'
+    if (pathname.includes('/exile')) return 'exile'
+    if (pathname.includes('/jury')) return 'jury'
+    if (pathname.includes('/tribe')) return 'merge'
+    return 'default'
+  }, [pathname])
+
   return (
-    <div
-      className="flex min-h-screen flex-col text-[var(--survivor-text-bright)]"
-      style={{ background: 'var(--survivor-bg)' }}
-    >
+    <>
+      <SpecialtyLeagueAtmosphere variant="survivor" mood={atmosphereMood} />
+      <div
+        className="relative z-[1] flex min-h-screen flex-col text-[var(--survivor-text-bright)]"
+        style={{ background: 'transparent' }}
+      >
       {/* Top bar — mobile + desktop */}
-      <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-[var(--survivor-border)] bg-black/50 px-3 py-2 backdrop-blur-md md:pl-[72px]">
+      <header className="sticky top-0 z-40 flex items-center gap-2 border-b border-[var(--survivor-border)] bg-black/45 px-3 py-2 backdrop-blur-xl md:pl-[72px]">
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-bold uppercase tracking-wider text-white/55">
             {ctx.leagueName}
@@ -171,7 +182,7 @@ function SurvivorAppShellInner({
         {/* Desktop sidebar */}
         <aside
           className={clsx(
-            'hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:flex-col md:border-r md:border-[var(--survivor-border)] md:bg-[#05070c]',
+            'hidden md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:flex-col md:border-r md:border-[var(--survivor-border)] md:bg-[#05070c]/78 md:backdrop-blur-xl',
             expanded ? 'md:w-[220px]' : 'md:w-16',
           )}
         >
@@ -252,7 +263,7 @@ function SurvivorAppShellInner({
       </div>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--survivor-border)] bg-[#05070c]/95 px-1 py-1 backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--survivor-border)] bg-[#05070c]/88 px-1 py-1 backdrop-blur-xl md:hidden">
         {mobileMain.map((item) => (
           <Link
             key={item.href}
@@ -390,7 +401,8 @@ function SurvivorAppShellInner({
           <SurvivorFormatTab leagueId={leagueId} hasAfCommissionerSub={hasAfCommissionerSub} />
         }
       />
-    </div>
+      </div>
+    </>
   )
 }
 

@@ -69,21 +69,26 @@
   --tournament-text-mid: rgba(255, 255, 255, 0.7);
   --tournament-text-full: rgba(255, 255, 255, 0.95);
 
-  /* Zombie mode — Sleeper-hybrid dark island */
-  --zombie-bg: #050508;
-  --zombie-panel: #0a0b10;
-  --zombie-border: rgba(255, 255, 255, 0.06);
-  --zombie-red: #dc2626;
+  /* Zombie mode — Sleeper-hybrid dark island + command-center flagship */
+  --zombie-bg: #040508;
+  --zombie-panel: #0a0c12;
+  --zombie-gunmetal: #12161f;
+  --zombie-border: rgba(255, 255, 255, 0.08);
+  --zombie-red: #ef4444;
   --zombie-green: #16a34a;
+  --zombie-toxic: #4ade80;
+  --zombie-toxic-dim: rgba(74, 222, 128, 0.35);
   --zombie-purple: #7c3aed;
   --zombie-crimson: #9b1c1c;
-  --zombie-gold: #d97706;
+  --zombie-gold: #f59e0b;
+  --zombie-amber: #fbbf24;
   --zombie-gray: #4b5563;
-  --zombie-text-dim: rgba(255, 255, 255, 0.4);
-  --zombie-text-mid: rgba(255, 255, 255, 0.65);
-  --zombie-text-full: rgba(255, 255, 255, 0.92);
-  --zombie-glow-red: 0 0 12px rgba(220, 38, 38, 0.4);
-  --zombie-glow-green: 0 0 12px rgba(22, 163, 74, 0.4);
+  --zombie-text-dim: rgba(255, 255, 255, 0.42);
+  --zombie-text-mid: rgba(255, 255, 255, 0.68);
+  --zombie-text-full: rgba(255, 255, 255, 0.94);
+  --zombie-glow-red: 0 0 16px rgba(239, 68, 68, 0.45);
+  --zombie-glow-green: 0 0 14px rgba(34, 197, 94, 0.42);
+  --zombie-glow-toxic: 0 0 22px rgba(74, 222, 128, 0.35);
   --zombie-glow-purple: 0 0 12px rgba(124, 58, 237, 0.4);
 
   /* IDP League — split roster / matchup UI */
@@ -1161,6 +1166,12 @@ select, option {
   color: var(--tournament-text-full);
 }
 
+/* Tournament hub: layered atmosphere shows through; panels use glass in `TournamentChrome`. */
+.tournament-theme.af-tournament-immersive {
+  background: transparent;
+  color: var(--tournament-text-full);
+}
+
 .tournament-panel {
   background: var(--tournament-panel);
   border: 1px solid var(--tournament-border);
@@ -1258,6 +1269,13 @@ select, option {
   .ambush-anim {
     animation: none !important;
     transition: color 200ms, border-color 200ms, opacity 200ms !important;
+  }
+  .zombie-hero-fog,
+  .zombie-chompin-alert,
+  .zombie-toxic-ring,
+  .zombie-panel-shine::after,
+  .zombie-drift-particles {
+    animation: none !important;
   }
 }
 
@@ -1394,4 +1412,546 @@ select, option {
 
 .ambush-anim {
   animation: ambush-distort 1s ease-in-out;
+}
+
+/* Zombie flagship homepage — fog, glass, tactical UI */
+@keyframes zombie-fog-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(1.5%, -1.2%, 0) scale(1.03);
+    opacity: 0.65;
+  }
+}
+
+@keyframes zombie-toxic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 28px 3px rgba(74, 222, 128, 0.38);
+  }
+}
+
+@keyframes zombie-alert-shimmer {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: -200% 50%;
+  }
+}
+
+@keyframes zombie-panel-sweep {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.14;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+@keyframes zombie-drift-particles {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate3d(-3%, 2%, 0);
+    opacity: 0.55;
+  }
+}
+
+.zombie-glass {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.12) 100%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.zombie-hero-shell {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1.75rem;
+}
+
+.zombie-hero-fog {
+  pointer-events: none;
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(ellipse 75% 55% at 18% 12%, rgba(74, 222, 128, 0.14), transparent 58%),
+    radial-gradient(ellipse 65% 50% at 88% 72%, rgba(239, 68, 68, 0.09), transparent 52%),
+    radial-gradient(ellipse 80% 45% at 50% 100%, rgba(15, 23, 42, 0.95), transparent 62%);
+  animation: zombie-fog-drift 20s ease-in-out infinite;
+}
+
+.zombie-chompin-alert {
+  background: linear-gradient(
+    110deg,
+    rgba(245, 158, 11, 0.18) 0%,
+    rgba(239, 68, 68, 0.12) 45%,
+    rgba(245, 158, 11, 0.14) 100%
+  );
+  background-size: 200% 100%;
+  animation: zombie-alert-shimmer 8s linear infinite;
+}
+
+.zombie-toxic-ring {
+  animation: zombie-toxic-pulse 2.8s ease-in-out infinite;
+}
+
+.zombie-panel-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.zombie-panel-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    transparent 96%
+  );
+  animation: zombie-panel-sweep 5.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.zombie-drift-particles {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  background-image: radial-gradient(rgba(74, 222, 128, 0.12) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: zombie-drift-particles 24s ease-in-out infinite;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Specialty league immersive atmospheres (Tournament / Survivor / Big Brother) */
+/* -------------------------------------------------------------------------- */
+
+.af-atmo-layer {
+  isolation: isolate;
+  contain: strict;
+  background-color: #040915;
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(245, 184, 0, 0.12), transparent 55%),
+    radial-gradient(ellipse 90% 60% at 80% 100%, rgba(220, 38, 38, 0.08), transparent 50%),
+    linear-gradient(180deg, #050a14 0%, #040915 38%, #03060c 100%);
+  background-size: 100% 100%, 100% 100%, 100% 100%;
+}
+
+.af-atmo-tournament {
+  background-color: #05080e;
+  background-image:
+    radial-gradient(ellipse 100% 70% at 50% -15%, rgba(245, 184, 0, 0.22), transparent 52%),
+    radial-gradient(ellipse 70% 45% at 12% 88%, rgba(220, 38, 38, 0.12), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 92% 72%, rgba(0, 198, 255, 0.1), transparent 50%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 198, 255, 0.04) 0 1px,
+      transparent 1px 48px,
+      rgba(245, 184, 0, 0.035) 48px 49px,
+      transparent 49px 96px
+    ),
+    repeating-linear-gradient(
+      12deg,
+      rgba(0, 0, 0, 0.2) 0 2px,
+      transparent 2px 140px
+    ),
+    linear-gradient(185deg, #070c14 0%, #040915 42%, #020408 100%);
+  background-size:
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    240px 100%,
+    100% 100%,
+    100% 100%;
+  background-position:
+    center,
+    center,
+    center,
+    0 0,
+    0 0,
+    center;
+  animation: af-atmo-tournament-parallax 22s ease-in-out infinite alternate;
+}
+
+.af-atmo-tournament::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 35% at 50% 18%, rgba(255, 255, 255, 0.06), transparent 60%),
+    linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+.af-atmo-tournament::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(90deg, transparent 48%, rgba(0, 198, 255, 0.07) 49.5%, rgba(245, 184, 0, 0.06) 50.5%, transparent 52%),
+    linear-gradient(180deg, transparent 42%, rgba(0, 198, 255, 0.05) 43%, transparent 44%),
+    linear-gradient(180deg, transparent 58%, rgba(245, 184, 0, 0.05) 59%, transparent 60%);
+  background-size: 100% 100%, 180px 220px, 220px 180px;
+  background-position: center, 40% 30%, 62% 68%;
+  background-repeat: no-repeat, repeat, repeat;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.af-atmo-mood--championship.af-atmo-tournament,
+.af-atmo-layer.af-atmo-mood--championship.af-atmo-tournament {
+  background-image:
+    radial-gradient(ellipse 110% 75% at 50% -10%, rgba(245, 184, 0, 0.35), transparent 48%),
+    radial-gradient(ellipse 55% 40% at 50% 55%, rgba(220, 38, 38, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 12% 88%, rgba(220, 38, 38, 0.1), transparent 55%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 198, 255, 0.05) 0 1px,
+      transparent 1px 48px,
+      rgba(245, 184, 0, 0.05) 48px 49px,
+      transparent 49px 96px
+    ),
+    repeating-linear-gradient(12deg, rgba(0, 0, 0, 0.22) 0 2px, transparent 2px 140px),
+    linear-gradient(185deg, #080f18 0%, #050915 42%, #020408 100%);
+}
+
+.af-atmo-mood--bracket.af-atmo-tournament,
+.af-atmo-layer.af-atmo-mood--bracket.af-atmo-tournament {
+  background-image:
+    radial-gradient(ellipse 85% 55% at 50% 20%, rgba(0, 198, 255, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 12% 88%, rgba(245, 184, 0, 0.1), transparent 55%),
+    repeating-linear-gradient(
+      88deg,
+      rgba(0, 198, 255, 0.06) 0 1px,
+      transparent 1px 36px,
+      rgba(245, 184, 0, 0.04) 36px 37px,
+      transparent 37px 72px
+    ),
+    repeating-linear-gradient(12deg, rgba(0, 0, 0, 0.2) 0 2px, transparent 2px 120px),
+    linear-gradient(185deg, #060c14 0%, #040915 45%, #020408 100%);
+}
+
+.af-atmo-tournament-embers {
+  background-image:
+    radial-gradient(1px 1px at 10% 80%, rgba(255, 200, 120, 0.55), transparent),
+    radial-gradient(1.5px 1.5px at 22% 65%, rgba(255, 160, 80, 0.45), transparent),
+    radial-gradient(1px 1px at 35% 90%, rgba(255, 220, 140, 0.4), transparent),
+    radial-gradient(1px 1px at 70% 75%, rgba(255, 180, 100, 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 85% 88%, rgba(255, 200, 120, 0.45), transparent),
+    radial-gradient(1px 1px at 55% 95%, rgba(255, 160, 90, 0.4), transparent);
+  background-size: 100% 100%;
+  opacity: 0.55;
+  animation: af-atmo-ember-rise 14s linear infinite;
+  mix-blend-mode: screen;
+}
+
+.af-atmo-survivor {
+  background-color: #030b0c;
+  background-image:
+    radial-gradient(ellipse 90% 55% at 85% 8%, rgba(180, 220, 255, 0.09), transparent 50%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(8, 40, 35, 0.95), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 15% 75%, rgba(255, 140, 66, 0.08), transparent 50%),
+    linear-gradient(185deg, #041016 0%, #03120f 35%, #020806 100%);
+  animation: af-atmo-survivor-sway 18s ease-in-out infinite alternate;
+}
+
+.af-atmo-survivor::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 25, 30, 0.35) 0%, transparent 35%),
+    radial-gradient(ellipse 100% 40% at 50% 100%, rgba(0, 0, 0, 0.65), transparent 70%);
+  pointer-events: none;
+}
+
+.af-atmo-survivor::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 42%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 200'%3E%3Cpath fill='%23020608' d='M0 120 Q200 40 400 90 T800 70 T1200 100 L1200 200 L0 200 Z'/%3E%3C/svg%3E");
+  background-size: cover;
+  background-position: bottom;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.af-atmo-mood--tribal.af-atmo-survivor,
+.af-atmo-layer.af-atmo-mood--tribal.af-atmo-survivor {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 30%, rgba(220, 38, 38, 0.12), transparent 55%),
+    radial-gradient(ellipse 90% 55% at 85% 8%, rgba(180, 220, 255, 0.07), transparent 50%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(40, 12, 12, 0.55), transparent 55%),
+    linear-gradient(185deg, #120808 0%, #03120f 40%, #020806 100%);
+}
+
+.af-atmo-mood--exile.af-atmo-survivor,
+.af-atmo-layer.af-atmo-mood--exile.af-atmo-survivor {
+  background-image:
+    radial-gradient(ellipse 65% 50% at 20% 40%, rgba(139, 92, 246, 0.16), transparent 55%),
+    radial-gradient(ellipse 90% 55% at 85% 8%, rgba(120, 180, 220, 0.06), transparent 50%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(8, 20, 35, 0.9), transparent 55%),
+    linear-gradient(185deg, #0a0818 0%, #04121a 40%, #020308 100%);
+}
+
+.af-atmo-mood--jury.af-atmo-survivor,
+.af-atmo-layer.af-atmo-mood--jury.af-atmo-survivor {
+  background-image:
+    radial-gradient(ellipse 80% 55% at 50% 15%, rgba(245, 158, 11, 0.12), transparent 52%),
+    radial-gradient(ellipse 90% 55% at 85% 8%, rgba(200, 210, 230, 0.06), transparent 50%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(15, 12, 8, 0.88), transparent 55%),
+    linear-gradient(185deg, #18120a 0%, #0a100e 42%, #050806 100%);
+}
+
+.af-atmo-mood--merge.af-atmo-survivor,
+.af-atmo-layer.af-atmo-mood--merge.af-atmo-survivor {
+  background-image:
+    radial-gradient(ellipse 75% 50% at 50% 25%, rgba(34, 197, 94, 0.12), transparent 55%),
+    radial-gradient(ellipse 90% 55% at 85% 8%, rgba(180, 220, 255, 0.08), transparent 50%),
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(8, 35, 28, 0.92), transparent 55%),
+    linear-gradient(185deg, #051410 0%, #03120f 38%, #020806 100%);
+}
+
+.af-atmo-survivor-torches {
+  background:
+    radial-gradient(ellipse 55% 35% at 12% 98%, rgba(255, 140, 66, 0.35), transparent 60%),
+    radial-gradient(ellipse 55% 35% at 88% 98%, rgba(255, 120, 50, 0.32), transparent 60%);
+  opacity: 0.65;
+  mix-blend-mode: screen;
+  animation: af-atmo-torch-breathe 3.2s ease-in-out infinite;
+}
+
+.af-atmo-big-brother {
+  background-color: #05030c;
+  background-image:
+    radial-gradient(ellipse 80% 55% at 50% -5%, rgba(168, 85, 247, 0.16), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(34, 211, 238, 0.08), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 30%, rgba(236, 72, 153, 0.1), transparent 50%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0 1px,
+      transparent 1px 64px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(34, 211, 238, 0.03) 0 1px,
+      transparent 1px 72px
+    ),
+    linear-gradient(188deg, #0a0618 0%, #06040f 45%, #030208 100%);
+  animation: af-atmo-bb-pulse 16s ease-in-out infinite alternate;
+}
+
+.af-atmo-big-brother::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 35% at 50% 22%, rgba(255, 255, 255, 0.04), transparent 65%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.65) 100%);
+  pointer-events: none;
+}
+
+.af-atmo-big-brother::after {
+  content: '';
+  position: absolute;
+  inset: 8% 12%;
+  border-radius: 12px;
+  border: 1px solid rgba(34, 211, 238, 0.06);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.04), transparent 40%, rgba(236, 72, 153, 0.04));
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.af-atmo-mood--hoh.af-atmo-big-brother,
+.af-atmo-layer.af-atmo-mood--hoh.af-atmo-big-brother {
+  background-image:
+    radial-gradient(ellipse 85% 60% at 50% 0%, rgba(245, 200, 90, 0.22), transparent 48%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(34, 211, 238, 0.09), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 30%, rgba(236, 72, 153, 0.1), transparent 50%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(34, 211, 238, 0.035) 0 1px, transparent 1px 72px),
+    linear-gradient(188deg, #120a18 0%, #070510 45%, #030208 100%);
+}
+
+.af-atmo-mood--veto.af-atmo-big-brother,
+.af-atmo-layer.af-atmo-mood--veto.af-atmo-big-brother {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% 20%, rgba(74, 222, 128, 0.14), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(34, 211, 238, 0.1), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 92% 30%, rgba(236, 72, 153, 0.09), transparent 50%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(90deg, rgba(74, 222, 128, 0.04) 0 1px, transparent 1px 72px),
+    linear-gradient(188deg, #06120c 0%, #06040f 45%, #030208 100%);
+}
+
+.af-atmo-mood--eviction.af-atmo-big-brother,
+.af-atmo-layer.af-atmo-mood--eviction.af-atmo-big-brother {
+  background-image:
+    radial-gradient(ellipse 90% 60% at 50% 35%, rgba(220, 38, 38, 0.1), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 50% 0%, rgba(80, 20, 30, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(34, 211, 238, 0.06), transparent 55%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 64px),
+    linear-gradient(188deg, #080208 0%, #05030c 50%, #020105 100%);
+}
+
+.af-atmo-mood--jury.af-atmo-big-brother,
+.af-atmo-layer.af-atmo-mood--jury.af-atmo-big-brother {
+  background-image:
+    radial-gradient(ellipse 75% 50% at 50% 12%, rgba(230, 220, 200, 0.1), transparent 52%),
+    radial-gradient(ellipse 65% 45% at 88% 75%, rgba(168, 85, 247, 0.1), transparent 50%),
+    radial-gradient(ellipse 70% 50% at 15% 85%, rgba(34, 211, 238, 0.07), transparent 55%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 80px),
+    linear-gradient(188deg, #0c0a14 0%, #07060f 48%, #030208 100%);
+}
+
+.af-atmo-bb-particles {
+  background-image:
+    radial-gradient(1px 1px at 15% 30%, rgba(34, 211, 238, 0.5), transparent),
+    radial-gradient(1px 1px at 45% 70%, rgba(236, 72, 153, 0.45), transparent),
+    radial-gradient(1px 1px at 78% 22%, rgba(168, 85, 247, 0.4), transparent),
+    radial-gradient(1.5px 1.5px at 62% 55%, rgba(34, 211, 238, 0.35), transparent),
+    radial-gradient(1px 1px at 88% 80%, rgba(236, 72, 153, 0.4), transparent);
+  background-size: 100% 100%;
+  opacity: 0.4;
+  animation: af-atmo-bb-float 20s linear infinite;
+  mix-blend-mode: screen;
+}
+
+.af-atmo-static.af-atmo-tournament {
+  animation: none;
+}
+
+.af-atmo-static.af-atmo-survivor {
+  animation: none;
+}
+
+.af-atmo-static.af-atmo-big-brother {
+  animation: none;
+}
+
+@keyframes af-atmo-tournament-parallax {
+  0% {
+    background-position:
+      center,
+      center,
+      center,
+      0 0,
+      0 0,
+      center;
+  }
+  100% {
+    background-position:
+      center,
+      center,
+      center,
+      40px 0,
+      12px 0,
+      center;
+  }
+}
+
+@keyframes af-atmo-ember-rise {
+  0% {
+    transform: translateY(8vh);
+    opacity: 0.2;
+  }
+  100% {
+    transform: translateY(-12vh);
+    opacity: 0.55;
+  }
+}
+
+@keyframes af-atmo-survivor-sway {
+  0% {
+    filter: hue-rotate(0deg) saturate(1);
+  }
+  100% {
+    filter: hue-rotate(-4deg) saturate(1.08);
+  }
+}
+
+@keyframes af-atmo-torch-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scaleY(1.04);
+  }
+}
+
+@keyframes af-atmo-bb-pulse {
+  0% {
+    filter: brightness(1);
+  }
+  100% {
+    filter: brightness(1.06);
+  }
+}
+
+@keyframes af-atmo-bb-float {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(-3%, -2%);
+  }
+}
+
+@media (max-width: 768px) {
+  .af-atmo-tournament {
+    animation-duration: 32s;
+  }
+  .af-atmo-tournament-embers {
+    opacity: 0.35;
+    animation-duration: 18s;
+  }
+  .af-atmo-survivor-torches {
+    opacity: 0.45;
+  }
+  .af-atmo-bb-particles {
+    opacity: 0.28;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .af-atmo-tournament,
+  .af-atmo-survivor,
+  .af-atmo-big-brother {
+    animation: none !important;
+  }
+  .af-atmo-tournament-embers,
+  .af-atmo-survivor-torches,
+  .af-atmo-bb-particles {
+    animation: none !important;
+    opacity: 0.35 !important;
+  }
 }

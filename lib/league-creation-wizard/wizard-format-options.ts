@@ -5,6 +5,7 @@
 
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { clampSurvivorCastSize } from '@/lib/league-creation-wizard/sport-team-limits'
+import type { ZombieUniverseTierId } from '@/lib/zombie/zombie-universe-tier'
 
 export type TournamentLeagueNamingMode = 'commissioner_custom' | 'app_generated' | 'ai_themed'
 
@@ -35,8 +36,11 @@ export interface WizardFormatOptions {
   survivorTribeCountOverride: null | 2 | 3 | 4
   /** Keeper */
   keeperMaxKeepers: number
-  /** Zombie */
+  /** Zombie — universe size (1 / 3 / 6 linked leagues). */
+  zombieUniverseTier: ZombieUniverseTierId
+  /** @deprecated use zombieUniverseTier */
   zombieUniverseMode: boolean
+  /** @deprecated use zombieUniverseTier */
   zombieIntertwinedLeagueCount: number
   /** Zombie — whisperer assignment (passed to `upsertZombieLeagueConfig` at create) */
   zombieWhispererSelection: 'random' | 'veteran_priority'
@@ -87,6 +91,7 @@ export const DEFAULT_WIZARD_FORMAT_OPTIONS: WizardFormatOptions = {
   /** Default 4 tribes (no “auto” in UI — cast size still set on step 1). */
   survivorTribeCountOverride: 4,
   keeperMaxKeepers: 3,
+  zombieUniverseTier: 'single_gamma',
   zombieUniverseMode: false,
   zombieIntertwinedLeagueCount: 1,
   zombieWhispererSelection: 'random',
@@ -165,8 +170,11 @@ export function formatOptionsApplyToLeagueType(
   }
 
   if (leagueType === 'zombie') {
-    out.zombie_creation_universe_mode = options.zombieUniverseMode
-    out.zombie_creation_intertwined_league_count = Math.max(1, Math.min(8, options.zombieIntertwinedLeagueCount))
+    const tier = options.zombieUniverseTier ?? 'single_gamma'
+    out.zombie_universe_tier = tier
+    out.zombie_creation_universe_mode = tier !== 'single_gamma' || options.zombieUniverseMode
+    out.zombie_creation_intertwined_league_count =
+      tier === 'alpha_hex' ? 6 : tier === 'beta_trio' ? 3 : 1
     out.zombie_whisperer_selection = options.zombieWhispererSelection === 'veteran_priority' ? 'veteran_priority' : 'random'
   }
 

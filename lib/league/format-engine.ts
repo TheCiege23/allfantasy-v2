@@ -1,5 +1,6 @@
 import type { LeagueSport } from '@prisma/client'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { ZOMBIE_ELIGIBLE_LEAGUE_SPORTS } from '@/lib/zombie/zombie-sport-eligibility'
 import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
 import { resolveDefaultPlayoffConfig } from '@/lib/sport-defaults/DefaultPlayoffConfigResolver'
 import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
@@ -205,8 +206,8 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'devy',
     label: 'Devy',
     description: 'Dynasty leagues with a separate college asset pool and future rights.',
-    /** Create flow: NFL or NBA primary only (college pairs NCAAF / NCAAB via defaults). */
-    supportedSports: ['NFL', 'NBA'],
+    /** NFL/NCAAF and NBA/NCAAB prospect pipelines — not offered for MLB/NHL/Soccer. */
+    supportedSports: ['NFL', 'NCAAF', 'NBA', 'NCAAB'],
     defaultRosterMode: 'dynasty',
     draftTypes: ['devy_snake', 'devy_auction'],
     defaultModifiers: ['devy', 'taxi'],
@@ -223,8 +224,8 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'c2c',
     label: 'Campus To Canton',
     description: 'Two-track college and pro ecosystem with campus scoring and future pipelines.',
-    /** Create flow: NFL or NBA primary only (college pools pair NCAAF / NCAAB via defaults). */
-    supportedSports: ['NFL', 'NBA'],
+    /** NFL/NCAAF and NBA/NCAAB — not offered for MLB/NHL/Soccer. */
+    supportedSports: ['NFL', 'NCAAF', 'NBA', 'NCAAB'],
     defaultRosterMode: 'dynasty',
     draftTypes: ['c2c_snake', 'c2c_auction'],
     defaultModifiers: ['c2c', 'taxi'],
@@ -241,9 +242,11 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     id: 'zombie',
     label: 'Zombie',
     description: 'Themed elimination and role-shift mechanics layered onto standard league play.',
-    supportedSports: ALL_SPORTS,
+    /** Soccer excluded — Zombie is not offered for SOCCER in create flows. */
+    supportedSports: ZOMBIE_ELIGIBLE_LEAGUE_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    /** Snake / auction only at create; slow-draft removed as a discrete type (use timer presets). */
+    draftTypes: ['snake', 'auction', 'mock_draft'],
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {

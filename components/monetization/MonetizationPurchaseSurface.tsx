@@ -23,7 +23,11 @@ import { Check } from "lucide-react";
 import { PLAN_FAMILY_INCLUDES, PLAN_FAMILY_SHORT_TAGLINE } from "@/lib/monetization/planIncludes";
 import { StripePaymentHint } from "@/components/monetization/StripePaymentHint";
 
-export type PlanFamily = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access";
+export type PlanFamily =
+  | "af_pro"
+  | "af_commissioner"
+  | "af_war_room"
+  | "af_supreme";
 
 type CatalogItem = {
   sku: string;
@@ -98,13 +102,18 @@ function writeCatalogCache(payload: CatalogPayload): void {
   }
 }
 
-const PLAN_FAMILY_ORDER: PlanFamily[] = ["af_pro", "af_commissioner", "af_war_room", "af_all_access"];
+const PLAN_FAMILY_ORDER: PlanFamily[] = [
+  "af_pro",
+  "af_commissioner",
+  "af_war_room",
+  "af_supreme",
+];
 
 const PLAN_FAMILY_LABELS: Record<PlanFamily, string> = {
   af_pro: "AF Pro",
   af_commissioner: "AF Commissioner",
   af_war_room: "AF War Room",
-  af_all_access: "AF All-Access",
+  af_supreme: "AF Supreme",
 };
 
 const PRICING_CONVERSION_BULLETS: readonly string[] = [
@@ -123,7 +132,8 @@ export function normalizePlanFamilyInput(input: string | null | undefined): Plan
   if (value === "af_pro" || value === "pro") return "af_pro";
   if (value === "af_commissioner" || value === "commissioner") return "af_commissioner";
   if (value === "af_war_room" || value === "war_room") return "af_war_room";
-  if (value === "af_all_access" || value === "all_access") return "af_all_access";
+  if (value === "af_supreme" || value === "supreme" || value === "af_all_access" || value === "all_access")
+    return "af_supreme";
   return null;
 }
 
@@ -344,7 +354,7 @@ export default function MonetizationPurchaseSurface({
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
-                    <span><span className="font-semibold text-cyan-100">All-Access Bundle:</span> One subscription for every premium feature — best value for serious players.</span>
+                    <span><span className="font-semibold text-cyan-100">AF Supreme:</span> One subscription for the full Pro + Commissioner + War Room stack — best value for serious players.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
@@ -468,7 +478,7 @@ export default function MonetizationPurchaseSurface({
         {focusPlanFamily === "af_war_room" ? (
           <AFWarRoomPlanSpotlight className="mb-4" />
         ) : null}
-        {focusPlanFamily === "af_all_access" ? (
+        {focusPlanFamily === "af_supreme" ? (
           <AFAllAccessBundleSpotlight className="mb-4" />
         ) : null}
 
@@ -573,21 +583,21 @@ export default function MonetizationPurchaseSurface({
                         </li>
                       ))}
                     </ul>
-                    {focused && focusPlanFamily !== "af_all_access" ? (
+                    {focused && focusPlanFamily !== "af_supreme" ? (
                       <Link
-                        href="/all-access"
+                        href="/pricing?highlight=supreme"
                         onClick={() =>
                           trackUpgradeEntryClicked({
-                            targetPlan: "all_access",
+                            targetPlan: "supreme",
                             sourcePlan: resolvePlanTierFromSku(family),
                             surface: "pricing_cross_upgrade_link",
                             pagePath,
                           })
                         }
                         className="mt-3 inline-flex rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-emerald-100 hover:bg-emerald-500/20"
-                        data-testid={`pricing-cross-upgrade-all-access-${family}`}
+                        data-testid={`pricing-cross-upgrade-supreme-${family}`}
                       >
-                        Prefer one bundle? Get AF All-Access
+                        Want the full stack? Get AF Supreme
                       </Link>
                     ) : null}
                     <div className="mt-auto space-y-3 pt-4">

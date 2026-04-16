@@ -9,6 +9,7 @@ import { ActiveTradeCard } from '@/components/league/TradeCard'
 import type { LeagueTradeHistoryItem } from '@/components/league/types'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { LeagueTradeBlockPanelItem } from '@/components/league/types'
+import { ZombieTradePolicyCard } from '@/components/zombie/ZombieTradePolicyCard'
 
 export type TradesTabProps = {
   league: UserLeague
@@ -130,8 +131,11 @@ export function TradesTab({ league, teams }: TradesTabProps) {
 
   const tradeFinderHref = useMemo(() => '/trade-finder', [])
 
+  const isZombie = String(league.leagueVariant ?? '').toLowerCase() === 'zombie'
+
   return (
     <div className="flex min-h-0 flex-1 flex-col p-4 md:p-5">
+      {isZombie ? <ZombieTradePolicyCard leagueId={league.id} /> : null}
       <div className="grid min-h-0 flex-1 gap-0 overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0a1228] md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
         {/* Active Trades */}
         <section className="flex min-h-[280px] flex-col border-b border-white/[0.06] md:min-h-0 md:border-b-0 md:border-r md:border-white/[0.06]">

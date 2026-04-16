@@ -70,7 +70,13 @@ export type SubscriptionFeatureId =
   | 'war_room_pipeline_analysis'
 
 /** Plan slugs returned by entitlements API; used for hasAccess. */
-export type SubscriptionPlanId = 'pro' | 'commissioner' | 'war_room' | 'all_access'
+export type SubscriptionPlanId =
+  | 'pro'
+  | 'commissioner'
+  | 'war_room'
+  | 'all_access'
+  /** Top tier: AF Supreme — includes All-Access stack + highest token allowances (see subscription policy). */
+  | 'supreme'
 
 /** Entitlement status from GET /api/subscription/entitlements */
 export type EntitlementStatus = 'active' | 'grace' | 'past_due' | 'expired' | 'none'

@@ -18,7 +18,7 @@ describe("Monetization catalog", () => {
     expect(catalog.tokenPacks.length).toBe(3)
     expect(catalog.all.length).toBe(11)
 
-    expect(getMonetizationCatalogItemBySku("af_all_access_monthly")?.amountUsd).toBe(19.99)
+    expect(getMonetizationCatalogItemBySku("af_supreme_monthly")?.amountUsd).toBe(29.99)
     expect(getMonetizationCatalogItemBySku("af_tokens_25")?.tokenAmount).toBe(25)
   })
 

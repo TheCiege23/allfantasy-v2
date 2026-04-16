@@ -33,6 +33,7 @@ import { PlatformStyleSelector } from './PlatformStyleSelector'
 import { clampTeamCountForSport } from '@/lib/league-creation-wizard/sport-team-limits'
 import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
+import { getZombieSuggestedTeamCount } from '@/lib/zombie/zombie-regular-season-team-count'
 import { readFetchJson } from '@/lib/http/readFetchJson'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import { useSportPreset } from '@/hooks/useSportPreset'
@@ -45,6 +46,9 @@ import {
   isDynastyLeagueType,
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry'
+import { defaultDevyLeagueSetup } from '@/lib/devy/devy-league-config'
+import type { DevyLeagueSetupState } from '@/lib/devy/devy-league-config'
+import { DevyLeagueSetupSection } from './DevyLeagueSetupSection'
 import { WizardStepContainer } from './WizardStepContainer'
 import { WizardStepNav } from './WizardStepNav'
 import { SportSelector } from './SportSelector'
@@ -96,6 +100,17 @@ function StepPanelSkeleton() {
   )
 }
 
+function ZombieTeamCountHint({ sport, teamCount }: { sport: LeagueSport; teamCount: number }) {
+  const hint = getZombieSuggestedTeamCount(sport)
+  return (
+    <p className="mt-3 text-[11px] leading-relaxed text-white/45" data-testid="wizard-zombie-team-hint">
+      Suggested team count is based on the number of regular-season scoring weeks before playoffs for this sport (~
+      {hint.regularSeasonWeeks} weeks). You selected <span className="text-white/70">{teamCount}</span> teams.
+      {hint.capNote ? ` ${hint.capNote}` : ''}
+    </p>
+  )
+}
+
 const WIZARD_STORAGE_KEY = 'af:create-league:wizard-state'
 
 type ActiveWizardStepId = (typeof WIZARD_STEP_ORDER)[number]
@@ -140,6 +155,7 @@ const initialState: LeagueCreationWizardState = {
   privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
   formatOptions: { ...DEFAULT_WIZARD_FORMAT_OPTIONS },
   templateSettingsOverrides: {},
+  devyLeagueSetup: defaultDevyLeagueSetup('NFL'),
 }
 
 function mapDraftTypeToTournamentDraft(d: DraftTypeId): 'snake' | 'auction' {
@@ -351,6 +367,9 @@ export function LeagueCreationWizard({
       ...DEFAULT_WIZARD_FORMAT_OPTIONS,
       ...(initialWizardState?.formatOptions ?? {}),
     }
+    if (!merged.devyLeagueSetup) {
+      merged.devyLeagueSetup = defaultDevyLeagueSetup(String(merged.sport ?? 'NFL'))
+    }
     return merged
   })
   const { featureAccess: commissionerPlanUnlocked } = useEntitlement('commissioner_automation')
@@ -368,6 +387,7 @@ export function LeagueCreationWizard({
   const skipInitialTeamPresetSyncRef = useRef(Boolean(initialWizardState?.teamCount))
   const lastTeamPresetKeyRef = useRef<string | null>(null)
   const teamManualOverrideKeyRef = useRef<string | null>(null)
+  const zombieSportPresetRef = useRef<string | null>(null)
   const skipInitialLeagueNamePresetSyncRef = useRef(Boolean(initialWizardState?.name))
   const lastLeagueNamePresetKeyRef = useRef<string | null>(null)
   const leagueNameManualOverrideKeyRef = useRef<string | null>(null)
@@ -485,6 +505,18 @@ export function LeagueCreationWizard({
   }, [state.leagueType, state.sport, state.teamCount])
 
   useEffect(() => {
+    if (state.leagueType !== 'zombie') {
+      zombieSportPresetRef.current = null
+      return
+    }
+    const key = String(state.sport)
+    if (zombieSportPresetRef.current === key) return
+    zombieSportPresetRef.current = key
+    const hint = getZombieSuggestedTeamCount(state.sport as LeagueSport)
+    setState((s) => ({ ...s, teamCount: hint.suggested }))
+  }, [state.leagueType, state.sport])
+
+  useEffect(() => {
     if (state.leagueType !== 'tournament') return
     const p = state.formatOptions.tournamentParticipantPoolSize
     const allowed = TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED as readonly number[]
@@ -537,6 +569,7 @@ export function LeagueCreationWizard({
       aiSettings: { ...DEFAULT_AI_SETTINGS },
       automationSettings: { ...DEFAULT_AUTOMATION_SETTINGS },
       privacySettings: { ...DEFAULT_PRIVACY_SETTINGS },
+      devyLeagueSetup: defaultDevyLeagueSetup('NFL'),
       step: 'sport',
     })
     router.push('/dashboard')
@@ -565,6 +598,7 @@ export function LeagueCreationWizard({
         teamCount: nextTeam,
         leagueVariant: resolvedVariant,
         scoringPreset: resolvedVariant,
+        devyLeagueSetup: leagueType === 'devy' ? defaultDevyLeagueSetup(sport) : s.devyLeagueSetup,
         formatOptions:
           leagueType === 'survivor'
             ? { ...s.formatOptions, survivorTeamCount: nextTeam }
@@ -603,6 +637,7 @@ export function LeagueCreationWizard({
         leagueVariant: resolvedVariant,
         scoringPreset: resolvedVariant,
         teamCount: nextTeam,
+        devyLeagueSetup: leagueType === 'devy' ? defaultDevyLeagueSetup(nextSport) : s.devyLeagueSetup,
         formatOptions: nextFormat,
       }
     })
@@ -610,6 +645,23 @@ export function LeagueCreationWizard({
 
   const handleDraftTypeChange = useCallback((d: DraftTypeId) => {
     setState((s) => ({ ...s, draftType: d }))
+  }, [])
+
+  const handleDevyLeagueSetupChange = useCallback((next: DevyLeagueSetupState) => {
+    setState((s) => ({
+      ...s,
+      devyLeagueSetup: next,
+      draftSettings: {
+        ...s.draftSettings,
+        devyRounds: [next.devyRoundsPerSeason],
+        devySlotCount: next.rosterSlots.devy,
+        devyTaxiSlots: next.rosterSlots.taxi,
+        devyCollegeSports:
+          String(s.sport).toUpperCase() === 'NBA' || String(s.sport).toUpperCase() === 'NCAAB'
+            ? ['NCAAB']
+            : ['NCAAF'],
+      },
+    }))
   }, [])
 
   const handleNameChange = useCallback((n: string) => {
@@ -768,10 +820,10 @@ export function LeagueCreationWizard({
       })
       const name = state.name.trim() || `${state.sport} League`
       const devyRounds =
-        state.draftSettings.devyRounds?.length > 0
-          ? state.draftSettings.devyRounds
-          : state.leagueType === 'devy'
-            ? [1]
+        state.leagueType === 'devy'
+          ? [state.devyLeagueSetup.devyRoundsPerSeason]
+          : state.draftSettings.devyRounds?.length > 0
+            ? state.draftSettings.devyRounds
             : []
       const c2cCollegeRounds =
         state.draftSettings.c2cCollegeRounds?.length > 0
@@ -816,6 +868,7 @@ export function LeagueCreationWizard({
           scoring_template_id: presetScoringTemplate?.templateId ?? undefined,
           trade_review_mode: state.tradeReviewMode,
           devy_rounds: devyRounds,
+          devy_league_config: state.leagueType === 'devy' ? state.devyLeagueSetup : undefined,
           devy_college_sports: devyCollegeSports,
           c2c_college_rounds: c2cCollegeRounds,
           c2c_college_sports: c2cCollegeSports,
@@ -838,6 +891,50 @@ export function LeagueCreationWizard({
           allow_invite_link: state.privacySettings.allowInviteLink,
         },
       }
+      if (state.leagueType === 'zombie' && state.formatOptions.zombieUniverseTier !== 'single_gamma') {
+        const uniRes = await fetch('/api/zombie/universe/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zombieUniverseTier: state.formatOptions.zombieUniverseTier,
+            leagueCreatePayload: body,
+          }),
+          credentials: 'same-origin',
+        })
+        emitLeagueCreationPerf('wizard_create_response', {
+          ok: uniRes.ok,
+          status: uniRes.status,
+          durationMs: Number(
+            ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - createRequestStart).toFixed(1)
+          ),
+        })
+        const uniData = (await uniRes.json().catch(() => ({}))) as {
+          primaryLeagueId?: string | null
+          error?: string
+        }
+        if (!uniRes.ok) {
+          setError(uniData.error ?? 'Failed to create Zombie universe')
+          return
+        }
+        const primaryId = uniData.primaryLeagueId
+        if (primaryId) {
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
+          }
+          onSuccess?.(primaryId)
+          router.push(
+            buildPostCreateLeagueHomeHref({
+              leagueId: primaryId,
+              leagueType: state.leagueType,
+              allowInviteLink: state.privacySettings.allowInviteLink,
+            })
+          )
+        } else {
+          setError('Universe created but no league id returned')
+        }
+        return
+      }
+
       const res = await fetch('/api/league/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1124,6 +1221,9 @@ export function LeagueCreationWizard({
                     teamCount={state.teamCount}
                     onTeamCountChange={handleTeamCountChange}
                   />
+                  {state.leagueType === 'zombie' && (
+                    <ZombieTeamCountHint sport={state.sport as LeagueSport} teamCount={state.teamCount} />
+                  )}
                 </div>
               </div>
               <WizardStepNav
@@ -1156,6 +1256,13 @@ export function LeagueCreationWizard({
                 value={state.formatOptions}
                 onChange={handleFormatOptionsChange}
               />
+              {state.leagueType === 'devy' ? (
+                <DevyLeagueSetupSection
+                  sport={state.sport}
+                  value={state.devyLeagueSetup}
+                  onChange={handleDevyLeagueSetupChange}
+                />
+              ) : null}
               <WizardStepNav
                 onBack={goBack}
                 onNext={goNext}

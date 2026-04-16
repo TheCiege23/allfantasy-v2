@@ -54,6 +54,8 @@ const PLAN_CODE_TO_ID: Record<string, SubscriptionPlanId> = {
   war_room: "war_room",
   af_all_access: "all_access",
   all_access: "all_access",
+  af_supreme: "supreme",
+  supreme: "supreme",
 }
 
 function mapSkuToPlanId(sku: string | null | undefined): SubscriptionPlanId | null {
@@ -63,6 +65,7 @@ function mapSkuToPlanId(sku: string | null | undefined): SubscriptionPlanId | nu
   if (normalized.startsWith("af_commissioner_")) return "commissioner"
   if (normalized.startsWith("af_war_room_")) return "war_room"
   if (normalized.startsWith("af_all_access_")) return "all_access"
+  if (normalized.startsWith("af_supreme_")) return "supreme"
   return null
 }
 

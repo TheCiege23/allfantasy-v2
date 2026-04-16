@@ -55,14 +55,14 @@ async function mockAllAccessBundleMonetization(page: Page, mode: 'locked' | 'bun
           effectivePlanIds: entitled ? ['all_access', 'pro', 'commissioner', 'war_room'] : [],
         },
         entitlementMessage: entitled
-          ? 'Access granted via AF All-Access.'
+          ? 'Access granted via AF Supreme.'
           : 'Upgrade to unlock this premium workflow.',
         feature: {
           featureId,
           hasAccess: entitled,
           requiredPlan: plan.requiredPlanLabel,
           upgradePath: plan.upgradePath,
-          message: entitled ? 'Access granted via AF All-Access.' : `${plan.requiredPlanLabel} is required for this workflow.`,
+          message: entitled ? 'Access granted via AF Supreme.' : `${plan.requiredPlanLabel} is required for this workflow.`,
         },
         tokenBalance: {
           balance: 0,
@@ -98,22 +98,22 @@ test.describe('@monetization all-access bundle click audit', () => {
     await expect(page.getByRole('heading', { name: /e2e all-access bundle harness/i })).toBeVisible()
 
     await expect(page.getByTestId('af-all-access-spotlight')).toBeVisible()
-    await expect(page.getByTestId('af-all-access-price-monthly')).toContainText('$19.99 monthly')
-    await expect(page.getByTestId('af-all-access-price-yearly')).toContainText('$199.99 yearly')
-    await expect(page.getByTestId('af-all-access-upgrade-link')).toHaveAttribute('href', /\/upgrade\?plan=all_access/)
+    await expect(page.getByTestId('af-all-access-price-monthly')).toContainText('$29.99 monthly')
+    await expect(page.getByTestId('af-all-access-price-yearly')).toContainText('$299.99 yearly')
+    await expect(page.getByTestId('af-all-access-upgrade-link')).toHaveAttribute('href', /\/upgrade\?plan=supreme/)
     await expect(page.getByTestId('af-all-access-token-clarity-copy')).toBeVisible()
     await expect(page.getByTestId('af-all-access-includes-af-pro')).toBeVisible()
     await expect(page.getByTestId('af-all-access-includes-af-commissioner')).toBeVisible()
     await expect(page.getByTestId('af-all-access-includes-af-war-room')).toBeVisible()
-    await expect(page.getByTestId('af-all-access-switch-from-pro')).toHaveAttribute('href', /\/upgrade\?plan=all_access&from=pro/)
-    await expect(page.getByTestId('af-all-access-switch-from-commissioner')).toHaveAttribute('href', /\/upgrade\?plan=all_access&from=commissioner/)
-    await expect(page.getByTestId('af-all-access-switch-from-war-room')).toHaveAttribute('href', /\/upgrade\?plan=all_access&from=war_room/)
+    await expect(page.getByTestId('af-all-access-switch-from-pro')).toHaveAttribute('href', /\/upgrade\?plan=supreme&from=pro/)
+    await expect(page.getByTestId('af-all-access-switch-from-commissioner')).toHaveAttribute('href', /\/upgrade\?plan=supreme&from=commissioner/)
+    await expect(page.getByTestId('af-all-access-switch-from-war-room')).toHaveAttribute('href', /\/upgrade\?plan=supreme&from=war_room/)
 
     const prefixes = ['all-access-pro', 'all-access-commissioner', 'all-access-war-room']
     for (const prefix of prefixes) {
       await expect(page.getByTestId(`${prefix}-upgrade-cta`)).toBeVisible()
       await expect(page.getByTestId(`${prefix}-buy-tokens-cta`)).toBeVisible()
-      await expect(page.getByTestId(`${prefix}-all-access-cta`)).toHaveAttribute('href', /\/all-access/)
+      await expect(page.getByTestId(`${prefix}-all-access-cta`)).toHaveAttribute('href', /\/pricing\?highlight=supreme/)
     }
   })
 
@@ -125,7 +125,7 @@ test.describe('@monetization all-access bundle click audit', () => {
     for (const prefix of prefixes) {
       await expect(page.getByTestId(`${prefix}-card`)).toBeVisible()
       await expect(page.getByTestId(`${prefix}-loading`)).toHaveCount(0)
-      await expect(page.getByTestId(`${prefix}-entitlement-state`)).toContainText('AF All-Access bundle inheritance')
+      await expect(page.getByTestId(`${prefix}-entitlement-state`)).toContainText('AF Supreme bundle inheritance')
       await expect(page.getByTestId(`${prefix}-token-clarity-note`)).toBeVisible()
       await expect(page.getByTestId(`${prefix}-buy-tokens-cta`)).toHaveCount(0)
       await expect(page.getByTestId(`${prefix}-upgrade-cta`)).toHaveCount(0)

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import clsx from 'clsx'
 import Link from 'next/link'
 import {
   Skull,
@@ -10,6 +11,8 @@ import {
   ChevronDown,
   FileText,
   ExternalLink,
+  Biohazard,
+  Radio,
 } from 'lucide-react'
 import type { ZombieSummary, ZombieView } from './types'
 import { ZOMBIE_ITEM_ICON, ZOMBIE_STATUS_ICON } from '@/lib/zombie/iconSystem'
@@ -74,17 +77,21 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
 
   if (loading && !summary) {
     return (
-      <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] p-8">
-        <p className="text-sm text-white/60">Loading Zombie League…</p>
+      <div className="zombie-glass flex min-h-[200px] items-center justify-center rounded-2xl border border-white/[0.09] p-8">
+        <p className="text-sm text-white/65">Loading outbreak data…</p>
       </div>
     )
   }
 
   if (error && !summary) {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-4">
-        <p className="text-sm text-amber-200">{error}</p>
-        <button type="button" onClick={() => load()} className="mt-2 text-xs text-cyan-400 hover:underline">
+      <div className="rounded-2xl border border-red-500/35 bg-red-950/25 p-4">
+        <p className="text-sm text-red-100">{error}</p>
+        <button
+          type="button"
+          onClick={() => load()}
+          className="mt-2 text-xs font-medium text-cyan-300 hover:underline"
+        >
           Retry
         </button>
       </div>
@@ -96,91 +103,102 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
   const itemEmojiStrip = Object.values(ZOMBIE_ITEM_ICON).join(' ')
 
   return (
-    <div className="space-y-6 text-[#e8e6f2]">
-      {/* Zombie branding — fun-dark, not gory */}
-      <header className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-gradient-to-br from-[#140a18] via-[#0c0c18] to-[#07071a] p-4 shadow-[0_0_40px_rgba(88,28,135,0.12)] sm:p-6">
-        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-violet-600/10 blur-2xl" />
-        <div className="relative flex flex-wrap items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-violet-400/35 bg-violet-950/40 sm:h-20 sm:w-20">
-            <Skull className="h-8 w-8 text-violet-300 sm:h-10 sm:w-10" />
+    <div className="space-y-6 text-[var(--zombie-text-full)]">
+      <header className="zombie-hero-shell relative overflow-hidden border border-white/10 shadow-[0_18px_60px_rgba(0,0,0,0.4)]">
+        <div className="zombie-hero-fog opacity-80" aria-hidden />
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_15%_0%,rgba(74,222,128,0.12),transparent_55%),linear-gradient(180deg,rgba(8,10,18,0.92),rgba(4,5,10,0.98))]"
+          aria-hidden
+        />
+        <div className="relative z-[1] p-4 sm:p-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--zombie-toxic)]/35 bg-black/35 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--zombie-toxic)]">
+              <Radio className="h-3 w-3" aria-hidden />
+              League embed
+            </span>
           </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">Zombie League</h1>
-            <p className="text-sm text-violet-200/75">
-              Whisperer · Horde · serums · weapons · ambushes — stay human or join the swarm.
-            </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/45" title="Status keys">
-              {ZOMBIE_STATUS_ICON.survivor} Survivor · {ZOMBIE_STATUS_ICON.whisperer} Whisperer ·{' '}
-              {ZOMBIE_STATUS_ICON.zombie} Zombie · {ZOMBIE_STATUS_ICON.revived_survivor} Revived
-            </p>
-            <p className="mt-1 text-[11px] text-white/40" title="Serums, weapons, ambush">
-              {itemEmojiStrip}
-            </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[var(--zombie-toxic)]/35 bg-black/45 sm:h-16 sm:w-16">
+              <Skull className="h-7 w-7 text-[var(--zombie-toxic)] sm:h-8 sm:w-8" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">Zombie League</h1>
+              <p className="text-sm text-white/72">
+                Tactical chaos · Whisperer · Horde · serums · weapons · ambushes — stay human or join the swarm.
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-white/45" title="Status keys">
+                {ZOMBIE_STATUS_ICON.survivor} Survivor · {ZOMBIE_STATUS_ICON.whisperer} Whisperer ·{' '}
+                {ZOMBIE_STATUS_ICON.zombie} Zombie · {ZOMBIE_STATUS_ICON.revived_survivor} Revived
+              </p>
+              <p className="mt-1 text-[11px] text-white/38" title="Serums, weapons, ambush">
+                {itemEmojiStrip}
+              </p>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Quick links */}
+      {/* Quick links — command-center accents */}
       <div className="flex flex-wrap gap-2">
         <Link
           href={`/league/${leagueId}?tab=Chat`}
-          className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-950/25 px-4 py-2 text-sm text-cyan-100 hover:bg-cyan-950/45"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-sm font-semibold text-cyan-50 ring-1 ring-inset ring-cyan-400/25 transition hover:bg-cyan-950/50"
         >
-          <MessageSquare className="h-4 w-4" /> League Chat (@Chimmy)
+          <MessageSquare className="h-4 w-4 shrink-0" /> League Chat (@Chimmy)
         </Link>
         <Link
           href={`/zombie/${leagueId}`}
-          className="inline-flex items-center gap-2 rounded-xl border border-violet-500/35 bg-violet-950/30 px-4 py-2 text-sm text-violet-100 hover:bg-violet-950/50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-[var(--zombie-toxic)]/35 bg-emerald-950/20 px-4 py-2 text-sm font-semibold text-emerald-50 ring-1 ring-inset ring-[var(--zombie-toxic)]/25 transition hover:bg-emerald-950/40"
         >
-          <ExternalLink className="h-4 w-4" /> Full Zombie hub
+          <ExternalLink className="h-4 w-4 shrink-0" /> Full Zombie hub
         </Link>
         <Link
           href={`/zombie/${leagueId}/rules`}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/85 hover:bg-white/10"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white/88 transition hover:bg-white/10"
         >
-          <FileText className="h-4 w-4" /> Rules (no waivers · zombie trade limits)
+          <FileText className="h-4 w-4 shrink-0" /> Rules (no waivers · zombie trade limits)
         </Link>
         <Link
           href={`/league/${leagueId}?tab=Settings`}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/85 hover:bg-white/10"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white/88 transition hover:bg-white/10"
         >
-          <Settings className="h-4 w-4" /> Settings
+          <Settings className="h-4 w-4 shrink-0" /> Settings
         </Link>
         <Link
           href={`/league/${leagueId}?tab=Intelligence`}
-          className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-500/25 bg-fuchsia-950/20 px-4 py-2 text-sm text-fuchsia-100 hover:bg-fuchsia-950/40"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-fuchsia-500/28 bg-fuchsia-950/25 px-4 py-2 text-sm font-semibold text-fuchsia-100 ring-1 ring-inset ring-fuchsia-400/20 transition hover:bg-fuchsia-950/45"
         >
-          <Sparkles className="h-4 w-4" /> Storyline & AI
+          <Sparkles className="h-4 w-4 shrink-0" /> Storyline & AI
         </Link>
         {summary?.myRosterId && (
           <Link
             href={`/app/zombie-universe`}
-            className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/25 px-4 py-2 text-sm text-amber-100 hover:bg-amber-950/45"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-2xl border border-amber-500/35 bg-amber-950/25 px-4 py-2 text-sm font-semibold text-amber-50 ring-1 ring-inset ring-amber-400/25 transition hover:bg-amber-950/45"
           >
-            Universe (Alpha / Beta / Gamma)
+            <Biohazard className="h-4 w-4 shrink-0" /> Universe (Alpha / Beta / Gamma)
           </Link>
         )}
       </div>
 
-      <section className="rounded-2xl border border-violet-500/20 bg-violet-950/[0.12] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-violet-100">@Chimmy in chat — items & ambush</h2>
-        <p className="mt-1 text-[12px] text-white/55">
+      <section className="zombie-glass zombie-panel-shine relative rounded-2xl border border-cyan-500/20 p-4 sm:p-5">
+        <h2 className="text-sm font-bold text-cyan-100">@Chimmy — items & ambush</h2>
+        <p className="mt-1 text-[12px] leading-relaxed text-white/58">
           The engine validates timing and inventory. After a Whisperer ambush, the commissioner can remap matchups for
           that week in{' '}
-          <span className="text-violet-200/90">Commissioner → Zombie → Combat / Ambush</span> if your league allows it.
+          <span className="text-cyan-200/90">Commissioner → Zombie → Combat / Ambush</span> if your league allows it.
         </p>
-        <ul className="mt-3 space-y-1.5 text-[12px] text-white/70">
+        <ul className="mt-3 space-y-1.5 text-[12px] text-white/72">
           <li>
-            <span className="text-violet-300/90">Ambush:</span> @Chimmy ambush steal · horde boost · swap matchup …
+            <span className="font-medium text-violet-200/90">Ambush:</span> @Chimmy ambush steal · horde boost · swap matchup …
           </li>
           <li>
-            <span className="text-violet-300/90">Serum:</span> @Chimmy serum … (antidote / revive flow per rules)
+            <span className="font-medium text-teal-200/90">Serum:</span> @Chimmy serum … (antidote / revive flow per rules)
           </li>
           <li>
-            <span className="text-violet-300/90">Weapons:</span> @Chimmy knife · bow · axe · gun · bomb / dynamite 💣
+            <span className="font-medium text-amber-200/90">Weapons:</span> @Chimmy knife · bow · axe · gun · bomb / dynamite
           </li>
           <li>
-            <span className="text-violet-300/90">Whisperer:</span> @Chimmy activate … (dark whisper / infection override …)
+            <span className="font-medium text-fuchsia-200/90">Whisperer:</span> @Chimmy activate … (dark whisper / infection override …)
           </li>
         </ul>
       </section>
@@ -191,7 +209,7 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
         <select
           value={week}
           onChange={(e) => setWeek(Math.max(1, parseInt(e.target.value, 10) || 1))}
-          className="rounded-xl border border-white/20 bg-white/5 py-2 pl-3 pr-8 text-sm text-white focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+          className="rounded-xl border border-white/15 bg-black/30 py-2 pl-3 pr-8 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
         >
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((w) => (
             <option key={w} value={w}>
@@ -208,7 +226,7 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
           <select
             value={view}
             onChange={(e) => setView(e.target.value as ZombieView)}
-            className="rounded-xl border border-white/20 bg-white/5 py-2 pl-3 pr-8 text-sm text-white appearance-none focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+            className="rounded-xl border border-white/15 bg-black/30 py-2 pl-3 pr-8 text-sm text-white appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
           >
             {(Object.keys(VIEW_LABELS) as ZombieView[]).map((v) => (
               <option key={v} value={v}>
@@ -224,9 +242,12 @@ export function ZombieHome({ leagueId }: ZombieHomeProps) {
               key={v}
               type="button"
               onClick={() => setView(v)}
-              className={`rounded-lg px-3 py-1.5 text-sm ${
-                view === v ? 'bg-rose-500/20 text-rose-200' : 'bg-white/5 text-white/70 hover:bg-white/10'
-              }`}
+              className={clsx(
+                'rounded-xl border px-3 py-2 text-sm font-semibold transition',
+                view === v
+                  ? 'border-cyan-500/35 bg-cyan-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.12)]'
+                  : 'border-white/10 bg-white/[0.04] text-white/70 hover:border-white/15 hover:bg-white/[0.07]',
+              )}
             >
               {VIEW_LABELS[v]}
             </button>

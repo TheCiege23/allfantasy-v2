@@ -106,7 +106,7 @@ async function persistSubscriptionEntitlementFromCheckout(
     update: {
       name: item.title.replace(" Monthly", "").replace(" Yearly", ""),
       description: item.description,
-      isBundle: item.planFamily === "af_all_access",
+      isBundle: item.planFamily === "af_supreme",
       isActive: true,
       metadata: {
         sku: item.sku,
@@ -118,7 +118,7 @@ async function persistSubscriptionEntitlementFromCheckout(
       code: item.planFamily,
       name: item.title.replace(" Monthly", "").replace(" Yearly", ""),
       description: item.description,
-      isBundle: item.planFamily === "af_all_access",
+      isBundle: item.planFamily === "af_supreme",
       isActive: true,
       metadata: {
         sku: item.sku,

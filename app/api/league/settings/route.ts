@@ -308,6 +308,24 @@ export async function PATCH(req: NextRequest) {
     updatedFieldNames.push('sportConfig')
   }
 
+  if (body.devyLeagueConfig !== undefined) {
+    if (body.devyLeagueConfig !== null && typeof body.devyLeagueConfig !== 'object') {
+      return jsonError('devyLeagueConfig must be an object or null', 400)
+    }
+    const prev = (league.settings as Record<string, unknown> | null) ?? {}
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: {
+        settings: {
+          ...prev,
+          devy_league_config:
+            body.devyLeagueConfig === null ? Prisma.JsonNull : (body.devyLeagueConfig as Prisma.InputJsonValue),
+        } as Prisma.InputJsonValue,
+      },
+    })
+    updatedFieldNames.push('devy_league_config')
+  }
+
   const lsUpdate: Prisma.LeagueSettingsUpdateInput = { updatedBy: userId }
 
   if (body.draftDateUtc !== undefined) {

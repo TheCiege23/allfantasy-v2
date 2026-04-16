@@ -1,5 +1,6 @@
 'use client'
 
+import clsx from 'clsx'
 import { AlertTriangle } from 'lucide-react'
 
 export interface ZombieChompinBlockProps {
@@ -9,10 +10,17 @@ export interface ZombieChompinBlockProps {
 }
 
 export function ZombieChompinBlock({ candidates, displayNames, week }: ZombieChompinBlockProps) {
+  const active = candidates.length > 0
   return (
-    <section className="rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 sm:p-6">
-      <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-amber-200">
-        <AlertTriangle className="h-5 w-5" />
+    <section
+      className={clsx(
+        'zombie-glass rounded-2xl border p-4 sm:p-6',
+        active ? 'zombie-chompin-alert border-red-500/35' : 'border-amber-500/25 bg-amber-950/15',
+      )}
+      data-testid="zombie-chompin-block"
+    >
+      <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-amber-100">
+        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-300" aria-hidden />
         On the Chompin&apos; Block
       </h2>
       <p className="mb-3 text-xs text-white/50">

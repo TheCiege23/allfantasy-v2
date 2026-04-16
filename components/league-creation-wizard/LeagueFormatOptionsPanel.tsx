@@ -12,6 +12,7 @@ import {
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
 import { FEEDER_LEAGUES_BY_POOL, TOURNAMENT_TEAMS_PER_LEAGUE } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import { StepHeader } from './StepHelp'
+import { ZOMBIE_UNIVERSE_TIER_LABELS } from '@/lib/zombie/zombie-universe-tier'
 
 const CHECKBOX_CLASS = 'mt-0.5 shrink-0 size-5 rounded border border-white/30 bg-[#020817] accent-cyan-400'
 
@@ -288,7 +289,44 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
       )}
 
       {leagueType === 'zombie' && (
-        <div className="space-y-3 rounded-2xl border border-lime-500/25 bg-lime-950/10 p-4">
+        <div className="space-y-4 rounded-2xl border border-[#39ff14]/25 bg-gradient-to-br from-[#0a1a0d]/90 to-[#050a14]/95 p-4 shadow-[0_0_40px_rgba(57,255,20,0.06)]">
+          <div>
+            <h4 className="text-sm font-bold tracking-wide text-[#b8ff9a]">Zombie universe</h4>
+            <p className="mt-1 text-[11px] leading-relaxed text-white/50">
+              Paid vs free is configured later in league homepage settings — not here.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-white/85">Zombie universe size</Label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {(['single_gamma', 'beta_trio', 'alpha_hex'] as const).map((tier) => {
+                const meta = ZOMBIE_UNIVERSE_TIER_LABELS[tier]
+                const active = (v.zombieUniverseTier ?? 'single_gamma') === tier
+                return (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        zombieUniverseTier: tier,
+                        zombieUniverseMode: tier !== 'single_gamma',
+                        zombieIntertwinedLeagueCount: tier === 'alpha_hex' ? 6 : tier === 'beta_trio' ? 3 : 1,
+                      })
+                    }
+                    className={`rounded-xl border px-3 py-3 text-left text-[12px] transition ${
+                      active
+                        ? 'border-[#39ff14]/50 bg-[#39ff14]/10 text-white shadow-[inset_0_0_0_1px_rgba(57,255,20,0.2)]'
+                        : 'border-white/10 bg-black/30 text-white/75 hover:border-white/20'
+                    }`}
+                    data-testid={`wizard-zombie-tier-${tier}`}
+                  >
+                    <div className="text-[11px] font-bold text-[#d4fcca]">{meta.title}</div>
+                    <p className="mt-1 text-[10px] text-white/45 leading-snug">{meta.description}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
           <div className="space-y-1.5">
             <Label className="text-white/85">Whisperer selection</Label>
             <Select
@@ -308,41 +346,11 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
               </SelectContent>
             </Select>
           </div>
-          <Label
-            htmlFor="zombie-universe-mode"
-            className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-white/85 transition ${
-              v.zombieUniverseMode
-                ? 'border-cyan-400/35 bg-cyan-500/10 text-white'
-                : 'border-white/12 bg-black/25 hover:bg-black/35'
-            }`}
-          >
-            <input
-              id="zombie-universe-mode"
-              type="checkbox"
-              checked={v.zombieUniverseMode}
-              onChange={(e) => onChange({ zombieUniverseMode: e.target.checked })}
-              className={CHECKBOX_CLASS}
-              aria-label="Create a Zombie universe"
-            />
-            Create a Zombie universe (inter-linked leagues)
-          </Label>
-          {v.zombieUniverseMode && (
-            <div className="space-y-1.5">
-              <Label className="text-white/85">Linked leagues in universe (1–8)</Label>
-              <Input
-                type="number"
-                min={1}
-                max={8}
-                value={v.zombieIntertwinedLeagueCount}
-                onChange={(e) =>
-                  onChange({
-                    zombieIntertwinedLeagueCount: Math.max(1, Math.min(8, Number(e.target.value) || 1)),
-                  })
-                }
-                className="border-white/20 bg-[#030a20] text-white"
-              />
-            </div>
-          )}
+          <p className="text-[10px] text-white/40">
+            Draft format on the previous step is limited to <span className="text-white/60">Snake</span> or{' '}
+            <span className="text-white/60">Auction</span>. Long pick windows are controlled with draft timers — there is no
+            separate &quot;slow draft&quot; type.
+          </p>
         </div>
       )}
 

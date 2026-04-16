@@ -4,6 +4,7 @@ export { TournamentCommissionerDashboard } from './TournamentCommissionerDashboa
 export { KingBuffaloPresentedBy, KingBuffaloPresentedByText } from './KingBuffaloPresentedBy'
 export { TournamentLeagueSettingsModalLegacy } from './TournamentLeagueSettingsModalLegacy'
 export { TournamentControlDashboard } from './TournamentControlDashboard'
+export { default as TournamentLeagueHomepage } from './TournamentLeagueHomepage'
 export { TournamentLeagueHome } from './TournamentLeagueHome'
 export { TournamentTeamView } from './TournamentTeamView'
 export { TournamentBracketView } from './TournamentBracketView'

@@ -38,14 +38,14 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
       data-testid="af-all-access-spotlight"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-white">AF All-Access bundle</h2>
+        <h2 className="text-sm font-semibold text-white">AF Supreme bundle</h2>
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href="/upgrade?plan=all_access"
+            href="/upgrade?plan=supreme"
             onClick={() =>
               trackUpgradeEntryClicked({
-                targetPlan: 'all_access',
-                surface: 'af_all_access_spotlight',
+                targetPlan: 'supreme',
+                surface: 'af_supreme_spotlight',
                 pagePath: window.location.pathname,
               })
             }
@@ -53,7 +53,7 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
             data-testid="af-all-access-upgrade-link"
           >
             <WandSparkles className="h-3.5 w-3.5" />
-            Upgrade to All-Access
+            Upgrade to AF Supreme
           </Link>
           <Link
             href="/pricing"
@@ -74,13 +74,13 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
           className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-100"
           data-testid="af-all-access-price-monthly"
         >
-          $19.99 monthly
+          $29.99 monthly
         </span>
         <span
           className="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-2.5 py-1 font-semibold text-emerald-100"
           data-testid="af-all-access-price-yearly"
         >
-          $199.99 yearly
+          $299.99 yearly
         </span>
       </div>
 
@@ -123,12 +123,12 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-white/75">
         <span>Switch from an individual plan:</span>
         <Link
-          href="/upgrade?plan=all_access&from=pro"
+          href="/upgrade?plan=supreme&from=pro"
           onClick={() =>
             trackUpgradeEntryClicked({
-              targetPlan: 'all_access',
+              targetPlan: 'supreme',
               sourcePlan: 'pro',
-              surface: 'af_all_access_spotlight',
+              surface: 'af_supreme_spotlight',
               pagePath: window.location.pathname,
             })
           }
@@ -138,12 +138,12 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
           From AF Pro
         </Link>
         <Link
-          href="/upgrade?plan=all_access&from=commissioner"
+          href="/upgrade?plan=supreme&from=commissioner"
           onClick={() =>
             trackUpgradeEntryClicked({
-              targetPlan: 'all_access',
+              targetPlan: 'supreme',
               sourcePlan: 'commissioner',
-              surface: 'af_all_access_spotlight',
+              surface: 'af_supreme_spotlight',
               pagePath: window.location.pathname,
             })
           }
@@ -153,12 +153,12 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
           From AF Commissioner
         </Link>
         <Link
-          href="/upgrade?plan=all_access&from=war_room"
+          href="/upgrade?plan=supreme&from=war_room"
           onClick={() =>
             trackUpgradeEntryClicked({
-              targetPlan: 'all_access',
+              targetPlan: 'supreme',
               sourcePlan: 'war_room',
-              surface: 'af_all_access_spotlight',
+              surface: 'af_supreme_spotlight',
               pagePath: window.location.pathname,
             })
           }

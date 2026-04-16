@@ -353,7 +353,7 @@ export function CommissionerSettingsModal({
           ) : activeTab === 'zombie_items' ? (
             <ZombieItemsPanel canEdit={canEdit} />
           ) : activeTab === 'zombie_paid' ? (
-            <ZombiePaidPanel canEdit={canEdit} />
+            <ZombiePaidPanel leagueId={leagueId} canEdit={canEdit} />
           ) : activeTab === 'zombie_universe' ? (
             <ZombieUniversePanel canEdit={canEdit} />
           ) : activeTab === 'zombie_updates' ? (

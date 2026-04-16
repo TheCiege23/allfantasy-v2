@@ -8,7 +8,7 @@
  * Division, Member, Co-owner, Commissioner Control, Dues, Previous Leagues, Delete.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { DeleteLeagueFromAfPanel } from './DeleteLeagueFromAfPanel'
 import { LeagueRulesSummarySection } from './LeagueRulesSummarySection'
@@ -28,6 +28,7 @@ import { CoOwnerSettingsPanel } from '@/components/league-settings/CoOwnerSettin
 import { CommissionerControlPanel } from '@/components/league-settings/CommissionerControlPanel'
 import { LeagueHistoryPanel } from '@/components/league-settings/LeagueHistoryPanel'
 import { LeagueDuesTrackerPanel } from '@/components/league-settings/LeagueDuesTrackerPanel'
+import { DevyLeagueSettingsHub } from '@/components/devy/settings/DevyLeagueSettingsHub'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,7 @@ import { LeagueDuesTrackerPanel } from '@/components/league-settings/LeagueDuesT
 
 export type CommissionerSectionId =
   | 'league'
+  | 'devy'
   | 'team'
   | 'roster'
   | 'scoring'
@@ -56,6 +58,7 @@ export type CommissionerSectionId =
 // Nav items use translation key suffixes — resolved at render via t()
 const NAV_IDS: { id: CommissionerSectionId; labelKey: string; subtitleKey: string }[] = [
   { id: 'league', labelKey: 'commish.nav.leagueSettings', subtitleKey: 'commish.subtitle.leagueSettings' },
+  { id: 'devy', labelKey: 'commish.nav.devyHq', subtitleKey: 'commish.subtitle.devyHq' },
   { id: 'team', labelKey: 'commish.nav.teamSettings', subtitleKey: 'commish.subtitle.teamSettings' },
   { id: 'roster', labelKey: 'commish.nav.rosterSettings', subtitleKey: 'commish.subtitle.rosterSettings' },
   { id: 'scoring', labelKey: 'commish.nav.scoringSettings', subtitleKey: 'commish.subtitle.scoringSettings' },
@@ -86,6 +89,7 @@ const PANEL_BY_SECTION: Record<string, string> = {
 function panelFromInitial(initial: string | null | undefined): CommissionerSectionId | null {
   if (!initial) return null
   const map: Record<string, CommissionerSectionId> = {
+    'devy-command-center': 'devy',
     'my-team': 'team',
     'co-owners': 'coowners',
     'league-history': 'history',
@@ -141,9 +145,35 @@ export function CommissionerLeagueSettingsShell({
     () => panelFromInitial(initialPanelId) ?? 'league',
   )
 
-  const navItem = useMemo(() => NAV_IDS.find((n) => n.id === section), [section])
-  const title = navItem ? t(navItem.labelKey) : 'Settings'
-  const subtitle = navItem ? t(navItem.subtitleKey) : ''
+  const isDevyLeague = useMemo(() => {
+    const raw = ctx.league.settings && typeof ctx.league.settings === 'object' && !Array.isArray(ctx.league.settings)
+      ? (ctx.league.settings as Record<string, unknown>).devy_league_config
+      : undefined
+    return ctx.league.leagueType === 'devy' || Boolean(raw)
+  }, [ctx.league.leagueType, ctx.league.settings])
+
+  useEffect(() => {
+    if (!isDevyLeague && section === 'devy') setSection('league')
+  }, [isDevyLeague, section])
+
+  const navIds = useMemo(
+    () => (isDevyLeague ? NAV_IDS : NAV_IDS.filter((n) => n.id !== 'devy')),
+    [isDevyLeague],
+  )
+
+  const navItem = useMemo(() => navIds.find((n) => n.id === section), [navIds, section])
+  const title =
+    section === 'devy'
+      ? 'Devy League HQ'
+      : navItem
+        ? t(navItem.labelKey)
+        : 'Settings'
+  const subtitle =
+    section === 'devy'
+      ? 'Rosters, pool, drafts, promotions, trades, assets, Chimmy'
+      : navItem
+        ? t(navItem.subtitleKey)
+        : ''
 
   const sleeperSettingsHref = useMemo(
     () => (ctx.sleeperLeagueId ? `https://sleeper.com/leagues/${ctx.sleeperLeagueId}/settings` : null),
@@ -162,6 +192,9 @@ export function CommissionerLeagueSettingsShell({
             showEditLink={Boolean(sleeperSettingsHref)}
           />
         )
+
+      case 'devy':
+        return <DevyLeagueSettingsHub ctx={ctx} />
 
       case 'scoring':
         return (
@@ -222,7 +255,7 @@ export function CommissionerLeagueSettingsShell({
     <div className="flex min-h-[380px] flex-1 flex-col gap-0 md:min-h-[460px] md:flex-row">
       {/* ===== Mobile: horizontal scroll tabs ===== */}
       <div className="scrollbar-none flex gap-0.5 overflow-x-auto border-b border-white/[0.06] pb-2 md:hidden">
-        {NAV_IDS.map((item) => {
+        {navIds.map((item) => {
           const active = section === item.id
           return (
             <button
@@ -236,7 +269,7 @@ export function CommissionerLeagueSettingsShell({
                   : 'text-white/50 hover:text-white/80'
               }`}
             >
-              {t(item.labelKey)}
+              {item.id === 'devy' ? 'Devy HQ' : t(item.labelKey)}
             </button>
           )
         })}
@@ -247,7 +280,7 @@ export function CommissionerLeagueSettingsShell({
         className="hidden w-[180px] shrink-0 flex-col gap-0 border-r border-white/[0.06] pr-3 pt-1 md:flex"
         aria-label="Commissioner settings sections"
       >
-        {NAV_IDS.map((item) => {
+        {navIds.map((item) => {
           const active = section === item.id
           return (
             <button
@@ -261,7 +294,7 @@ export function CommissionerLeagueSettingsShell({
                   : 'text-white/70 hover:text-white'
               }`}
             >
-              {t(item.labelKey)}
+              {item.id === 'devy' ? 'Devy HQ' : t(item.labelKey)}
             </button>
           )
         })}

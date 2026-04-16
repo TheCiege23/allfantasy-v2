@@ -20,6 +20,9 @@ import { appendChatHistory, buildChimmyConversationId } from '@/lib/ai-memory/ch
 import { rememberChimmyAssistantMemory, rememberChimmyUserMessageMemory } from '@/lib/ai-memory/ai-memory-store'
 import { recordUnifiedMemoryFromChatTurn } from '@/lib/ai-memory/unified-memory-system'
 import { recordChimmyQualityEvent } from '@/lib/chimmy-quality/ChimmyQualityAnalytics'
+import { prisma } from '@/lib/prisma'
+import { requireFeatureEntitlement } from '@/lib/subscription/entitlement-middleware'
+import { parseZombieChimmyIntentFromMessage, persistZombieChimmyAction } from '@/lib/zombie/chimmy-zombie-persist'
 
 function extractSportsContextMeta(envelope: AIContextEnvelope): {
   source?: string
@@ -194,6 +197,27 @@ export async function POST(req: Request) {
     )
   }
 
+  const confirmTokenSpend = typeof body.confirmTokenSpend === 'boolean' ? body.confirmTokenSpend : false
+  const gate = await requireFeatureEntitlement({
+    userId,
+    userEmail: typeof session.user?.email === 'string' ? session.user.email : null,
+    featureId: 'ai_chat',
+    allowTokenFallback: true,
+    confirmTokenSpend,
+    tokenRuleCode: 'ai_chimmy_chat_message',
+    tokenSourceType: 'unified_ai_chimmy_route',
+    tokenSourceId: `${leagueId ?? 'no-league'}:${Date.now()}`,
+    tokenDescription: 'Chimmy unified orchestration message',
+    tokenMetadata: {
+      leagueId,
+      sport: contract.sport,
+      tool: contract.tool,
+    },
+  })
+  if (!gate.ok) {
+    return gate.response
+  }
+
   const result = await runUnifiedOrchestration(unified)
   if (!result.ok) {
     return NextResponse.json(
@@ -251,11 +275,42 @@ export async function POST(req: Request) {
   ]
   await Promise.allSettled(persistTasks)
 
+  let zombieChimmyActionId: string | null = null
+  if (leagueId && contract.userMessage.trim().length > 0) {
+    try {
+      const lg = await prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { leagueVariant: true },
+      })
+      if (String(lg?.leagueVariant ?? '').toLowerCase() === 'zombie') {
+        const parsed = parseZombieChimmyIntentFromMessage(contract.userMessage)
+        if (parsed) {
+          const zLeague = await prisma.zombieLeague.findUnique({
+            where: { leagueId },
+            select: { currentWeek: true },
+          })
+          const week = Math.max(1, zLeague?.currentWeek ?? 1)
+          const row = await persistZombieChimmyAction({
+            leagueId,
+            userId,
+            week,
+            rawMessage: contract.userMessage,
+            parsed,
+          })
+          zombieChimmyActionId = row.id
+        }
+      }
+    } catch {
+      // Non-fatal: chat response still succeeds
+    }
+  }
+
   return NextResponse.json({
     ...responseWithTrace,
     debugTrace: {
       ...(responseWithTrace.debugTrace ?? {}),
       conversationId,
+      ...(zombieChimmyActionId ? { zombieChimmyActionId } : {}),
     },
   })
 }

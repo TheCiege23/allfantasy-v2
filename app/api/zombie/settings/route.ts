@@ -52,10 +52,22 @@ export async function PATCH(req: Request) {
     ...(bool('updateIncludeDanger') !== undefined ? { updateIncludeDanger: bool('updateIncludeDanger') } : {}),
   }
 
-  const row = await prisma.zombieLeague.update({
+  let row = await prisma.zombieLeague.update({
     where: { id: z.id },
     data: leaguePatch,
   })
+
+  if (body.commissionerUiPrefs && typeof body.commissionerUiPrefs === 'object' && !Array.isArray(body.commissionerUiPrefs)) {
+    const cur =
+      z.commissionerUiPrefs && typeof z.commissionerUiPrefs === 'object' && !Array.isArray(z.commissionerUiPrefs)
+        ? (z.commissionerUiPrefs as Record<string, unknown>)
+        : {}
+    const next = { ...cur, ...(body.commissionerUiPrefs as Record<string, unknown>) }
+    row = await prisma.zombieLeague.update({
+      where: { id: z.id },
+      data: { commissionerUiPrefs: next as object },
+    })
+  }
 
   const configPatch = {
     ...(str('universeId') !== undefined ? { universeId: str('universeId') || null } : {}),
@@ -98,6 +110,8 @@ export async function PATCH(req: Request) {
     ...(num('buyInAmount') !== undefined ? { buyInAmount: num('buyInAmount') } : {}),
     ...(num('commissionerFeeRate') !== undefined ? { commissionerFeeRate: num('commissionerFeeRate') } : {}),
     ...(num('commissionerFeeCap') !== undefined ? { commissionerFeeCap: num('commissionerFeeCap') } : {}),
+    ...(num('totalPot') !== undefined ? { totalPot: num('totalPot') } : {}),
+    ...(num('weeklyPayoutPool') !== undefined ? { weeklyPayoutPool: num('weeklyPayoutPool') } : {}),
     ...(num('weeklyPayoutRate') !== undefined ? { weeklyPayoutRate: num('weeklyPayoutRate') } : {}),
     ...(num('seasonPayoutRate') !== undefined ? { seasonPayoutRate: num('seasonPayoutRate') } : {}),
     ...(num('survivorBonusRate') !== undefined ? { survivorBonusRate: num('survivorBonusRate') } : {}),

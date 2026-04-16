@@ -102,7 +102,7 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
         <Label className="text-cyan-300">Type</Label>
         <p className="text-xs text-white/60">
           {leagueType === 'devy'
-            ? 'Pro startup + college devy pool (NFL↔NCAAF or NBA↔NCAAB). Formats: '
+            ? 'Startup uses pro + college devy pools (NFL/NCAAF or NBA/NCAAB only — no MLB/NHL). Formats: '
             : leagueType === 'c2c'
               ? 'Pro + college C2C pools (NFL↔NCAAF or NBA↔NCAAB). Formats: '
               : `${String(sport).toUpperCase()} supports: `}

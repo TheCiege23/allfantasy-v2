@@ -226,23 +226,37 @@ export async function POST(req: Request) {
   }
   if (isDevyRequested) {
     const devySport = (sportInput ?? 'NFL').toString().toUpperCase();
-    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
-    if (!['NFL', 'NBA'].includes(devySport)) {
+    /** Devy is supported for NFL/NCAAF and NBA/NCAAB pipelines only (no MLB/NHL/Soccer). */
+    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(devySport)) {
       return NextResponse.json(
-        { error: 'Devy leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
+        {
+          error:
+            'Devy leagues are available for NFL, NCAA Football, NBA, or NCAA Basketball prospect pipelines. Choose one of those sports.',
+        },
         { status: 400 }
       );
     }
   }
   if (isC2CRequested) {
     const c2cSport = (sportInput ?? 'NFL').toString().toUpperCase();
-    /** Wizard uses primary sport NFL or NBA; college pools (NCAAF / NCAAB) are configured automatically. */
-    if (!['NFL', 'NBA'].includes(c2cSport)) {
+    if (!['NFL', 'NBA', 'NCAAF', 'NCAAB'].includes(c2cSport)) {
       return NextResponse.json(
-        { error: 'C2C leagues use NFL (with NCAAF) or NBA (with NCAAB). Please select NFL or NBA as the sport.' },
+        {
+          error:
+            'Campus-to-Canton leagues are available for NFL, NCAA Football, NBA, or NCAA Basketball. Choose one of those sports.',
+        },
         { status: 400 }
       );
     }
+  }
+  const isZombieEarly =
+    String(leagueVariantInput ?? '').toLowerCase() === 'zombie' ||
+    String(requestedLeagueType ?? '').toLowerCase() === 'zombie';
+  if (isZombieEarly && String(sport).toUpperCase() === 'SOCCER') {
+    return NextResponse.json(
+      { error: 'Zombie leagues are not available for Soccer. Choose another sport.' },
+      { status: 400 }
+    );
   }
   let name = nameInput;
   let leagueSize = leagueSizeInput;
@@ -927,10 +941,34 @@ export async function POST(req: Request) {
     if (isZombie) {
       try {
         const { upsertZombieLeagueConfig } = await import('@/lib/zombie/ZombieLeagueConfig');
+        const { createZombieLeague } = await import('@/lib/zombie/setupEngine');
         const zw = (settingsWizard ?? {}) as Record<string, unknown>;
         const whispererSelection =
           zw.zombie_whisperer_selection === 'veteran_priority' ? 'veteran_priority' : 'random';
-        await upsertZombieLeagueConfig(league.id, { whispererSelection });
+        const universeId =
+          typeof zw.zombie_universe_id === 'string' && zw.zombie_universe_id.trim()
+            ? String(zw.zombie_universe_id).trim()
+            : null;
+        const levelId =
+          typeof zw.zombie_level_id === 'string' && zw.zombie_level_id.trim()
+            ? String(zw.zombie_level_id).trim()
+            : null;
+        await upsertZombieLeagueConfig(league.id, { whispererSelection, universeId });
+        await createZombieLeague(
+          {
+            leagueId: league.id,
+            name: name ?? null,
+            sport: String(sport),
+            teamCount: typeof league.leagueSize === 'number' ? league.leagueSize : 12,
+            isPaid: false,
+            buyInAmount: null,
+            whispererSelectionMode: whispererSelection,
+            namingMode: 'hybrid',
+            isSingleLeague: !universeId,
+          },
+          universeId,
+          levelId,
+        );
       } catch (err) {
         console.warn('[league/create] Zombie config bootstrap non-fatal:', err);
       }

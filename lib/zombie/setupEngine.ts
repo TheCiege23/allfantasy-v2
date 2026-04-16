@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { generateLeagueName, generateUniverseName } from '@/lib/zombie/namingEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import {
+  getZombieUniverseLevelPlan,
+  type ZombieUniverseTierId,
+} from '@/lib/zombie/zombie-universe-tier'
 
 export type ZombieUniverseConfig = {
   name?: string
@@ -95,6 +99,87 @@ export async function createZombieUniverse(commissionerId: string, config: Zombi
         },
       })
     }
+  }
+
+  if (namingMode === 'auto' || namingMode === 'hybrid') {
+    await prisma.zombieNameRecord.create({
+      data: {
+        universeId: universe.id,
+        entityType: 'universe',
+        entityId: universe.id,
+        generatedName: baseName,
+        finalName: baseName,
+        wasEdited: Boolean(config.name?.trim()),
+        namingMode,
+      },
+    })
+  }
+
+  return prisma.zombieUniverse.findUniqueOrThrow({
+    where: { id: universe.id },
+    include: { levels: { orderBy: { rankOrder: 'desc' } } },
+  })
+}
+
+/**
+ * Universe for Zombie create flow: tier-specific level counts (1 / 3 / 6 leagues).
+ * Does not create `League` rows — those are created via `/api/league/create` per slot.
+ */
+export async function createZombieUniverseForTier(
+  commissionerId: string,
+  config: {
+    name?: string
+    sport: string
+    tier: ZombieUniverseTierId
+    namingMode?: string
+  },
+) {
+  const sport = normalizeToSupportedSport(config.sport ?? 'NFL')
+  const namingMode = config.namingMode ?? 'hybrid'
+  const plan = getZombieUniverseLevelPlan(config.tier)
+  const baseName =
+    config.name?.trim() ||
+    generateUniverseName(
+      (await prisma.zombieUniverse.findMany({ select: { name: true }, take: 500 })).map((u) => u.name),
+    )
+
+  const universe = await prisma.zombieUniverse.create({
+    data: {
+      name: baseName,
+      sport,
+      status: 'setup',
+      tiersEnabled: config.tier !== 'single_gamma',
+      tierCount: plan.length,
+      namingMode,
+      isPaid: false,
+      defaultBuyIn: null,
+      newMembersStartAtBottom: true,
+      promotionEnabled: config.tier !== 'single_gamma',
+      relegationEnabled: config.tier !== 'single_gamma',
+      promotionCount: 2,
+      relegationCount: 2,
+      promotionMode: 'auto',
+      commissionedByUserId: commissionerId,
+      createdByUserId: commissionerId,
+      settings: {
+        zombieUniverseTier: config.tier,
+        createdFromWizard: true,
+      } as object,
+    },
+  })
+
+  for (const L of plan) {
+    await prisma.zombieUniverseLevel.create({
+      data: {
+        universeId: universe.id,
+        name: L.name,
+        rankOrder: L.rankOrder,
+        tierLabel: L.tierLabel,
+        tierLevel: L.rankOrder,
+        leagueCount: L.leagueSlots,
+        maxLeagues: Math.max(L.leagueSlots, 4),
+      },
+    })
   }
 
   if (namingMode === 'auto' || namingMode === 'hybrid') {

@@ -45,6 +45,11 @@ export const SUBSCRIPTION_TOKEN_POLICY_CONFIG: SubscriptionTokenPolicyConfig = {
       discountedTokenSpendPct: 35,
       supportsUnlimitedLowTierInFuture: true,
     },
+    supreme: {
+      monthlyIncludedPremiumCredits: 320,
+      discountedTokenSpendPct: 45,
+      supportsUnlimitedLowTierInFuture: true,
+    },
   },
 }
 
@@ -102,7 +107,10 @@ export function resolveTokenChargeDecisionForEntitlement(input: {
   const expandedPlans = expandPlansWithBundle(input.entitlement.plans)
   const hasActiveSubscription = isActiveOrGraceStatus(input.entitlement.status)
   const requiredPlanEligible =
-    !requiredPlan || expandedPlans.includes(requiredPlan) || expandedPlans.includes("all_access")
+    !requiredPlan ||
+    expandedPlans.includes(requiredPlan) ||
+    expandedPlans.includes("all_access") ||
+    expandedPlans.includes("supreme")
   const subscriptionEligible = hasActiveSubscription && requiredPlanEligible
 
   if (!subscriptionEligible) {

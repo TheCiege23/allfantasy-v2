@@ -101,6 +101,12 @@ import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
+import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
+import {
+  SpecialtyLeagueHomeHero,
+  type TournamentHeroContext,
+} from '@/components/league-home/SpecialtyLeagueHomeHero'
+import { DevyLeagueHomeHero } from '@/components/devy/DevyLeagueHomeHero'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -622,9 +628,90 @@ export function LeagueShell({
     setSettingsInitialPanel(null)
   }
 
+  const specialtyImmersive =
+    league.leagueVariant === 'survivor' || league.leagueVariant === 'big_brother'
+
+  const specialtyAtmosphereMood = useMemo(() => {
+    if (league.leagueVariant === 'survivor') {
+      if (activeTab === 'survivor_tribal') return 'tribal'
+      if (activeTab === 'survivor_exile') return 'exile'
+      if (activeTab === 'survivor_jury') return 'jury'
+      return 'default'
+    }
+    if (league.leagueVariant === 'big_brother') {
+      if (activeTab === 'bb_hoh') return 'hoh'
+      if (activeTab === 'bb_veto') return 'veto'
+      if (activeTab === 'bb_voting') return 'eviction'
+      if (activeTab === 'bb_jury') return 'jury'
+      return 'default'
+    }
+    return 'default'
+  }, [league.leagueVariant, activeTab])
+
+  const [tournamentHeroContext, setTournamentHeroContext] = useState<TournamentHeroContext | null>(null)
+
+  useEffect(() => {
+    if (league.leagueVariant === 'survivor' || league.leagueVariant === 'big_brother') {
+      setTournamentHeroContext(null)
+      return
+    }
+    let cancelled = false
+    fetch(`/api/leagues/${encodeURIComponent(league.id)}/tournament-context`, { cache: 'no-store' })
+      .then((r) => r.json().catch(() => ({})))
+      .then((data: { tournament?: TournamentHeroContext | null }) => {
+        if (cancelled) return
+        const t = data?.tournament
+        if (t?.tournamentId && t.tournamentName) setTournamentHeroContext(t)
+        else setTournamentHeroContext(null)
+      })
+      .catch(() => {
+        if (!cancelled) setTournamentHeroContext(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id, league.leagueVariant])
+
+  const specialtyHeroVariant = useMemo(() => {
+    if (league.leagueVariant === 'survivor') return 'survivor' as const
+    if (league.leagueVariant === 'big_brother') return 'big_brother' as const
+    if (tournamentHeroContext) return 'tournament' as const
+    return null
+  }, [league.leagueVariant, tournamentHeroContext])
+
+  const showSpecialtyHero = specialtyHeroVariant !== null
+
+  const showDevyHero =
+    league.leagueType === 'devy' || (devyConfig !== null && devyConfig !== 'none')
+
+  const draftTabForHero = useMemo(() => {
+    const ids = new Set(tabDefs.map((x) => x.id))
+    const prefer = ['draft', 'roster', 'squad', 'leaderboard', 'my-picks'] as const
+    for (const id of prefer) {
+      if (ids.has(id)) return id
+    }
+    return tabDefs[0]?.id ?? 'draft'
+  }, [tabDefs])
+
+  const standingsTabForHero = useMemo(() => {
+    const ids = new Set(tabDefs.map((x) => x.id))
+    const prefer = ['standings', 'table', 'leaderboard'] as const
+    for (const id of prefer) {
+      if (ids.has(id)) return id
+    }
+    return ids.has('scores') ? 'scores' : tabDefs[0]?.id ?? 'league'
+  }, [tabDefs])
+
   return (
     <>
+      {specialtyImmersive ? (
+        <SpecialtyLeagueAtmosphere
+          variant={league.leagueVariant === 'survivor' ? 'survivor' : 'big_brother'}
+          mood={specialtyAtmosphereMood}
+        />
+      ) : null}
       <AppShell
+        immersive={specialtyImmersive}
         rightRailCollapsed={myLeaguesRail.collapsed}
         onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
         rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
@@ -658,13 +745,17 @@ export function LeagueShell({
         }
       >
         <main
-          className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
+          className={`relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
             league.leagueVariant === 'survivor'
-              ? 'relative border-x border-amber-500/10 bg-gradient-to-b from-[#081018] via-[#07071a] to-[#07071a]'
+              ? specialtyImmersive
+                ? 'border-x border-emerald-500/12 bg-gradient-to-b from-black/50 via-emerald-950/15 to-black/55'
+                : 'border-x border-amber-500/10 bg-gradient-to-b from-[#081018] via-[#07071a] to-[#07071a]'
               : league.leagueVariant === 'zombie'
-                ? 'relative border-x border-violet-500/15 bg-gradient-to-b from-[#120818] via-[#07071a] to-[#07071a]'
+                ? 'border-x border-violet-500/15 bg-gradient-to-b from-[#120818] via-[#07071a] to-[#07071a]'
                 : league.leagueVariant === 'big_brother'
-                  ? 'relative border-x border-amber-500/12 bg-gradient-to-b from-[#0a0e1c] via-[#070a14] to-[#040915]'
+                  ? specialtyImmersive
+                    ? 'border-x border-fuchsia-500/12 bg-gradient-to-b from-black/50 via-violet-950/20 to-black/58'
+                    : 'border-x border-amber-500/12 bg-gradient-to-b from-[#0a0e1c] via-[#070a14] to-[#040915]'
                   : ''
           }`}
           data-league-variant={
@@ -678,12 +769,49 @@ export function LeagueShell({
           }
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+            {showSpecialtyHero && specialtyHeroVariant ? (
+              <SpecialtyLeagueHomeHero
+                leagueId={league.id}
+                leagueName={selectedLeague.name ?? 'League'}
+                sport={String(selectedLeague.sport)}
+                season={Number(selectedLeague.season ?? new Date().getFullYear())}
+                teamCount={league.leagueSize ?? selectedLeague.teamCount ?? 12}
+                teamsFilled={league.teams?.length ?? 0}
+                variant={specialtyHeroVariant}
+                tournamentContext={specialtyHeroVariant === 'tournament' ? tournamentHeroContext : null}
+                draftDateIso={draftDateIso}
+                rightRailCollapsed={myLeaguesRail.collapsed}
+                isCommissioner={isCommissioner}
+                isHeadCommissioner={isHeadCommissioner}
+                onOpenDraftTab={() => setActiveTab(draftTabForHero)}
+                onOpenStandingsTab={() => setActiveTab(standingsTabForHero)}
+                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
+                onOpenSettings={() => openLeagueSettingsModal(null)}
+                onOpenCommissionerSettings={() => setCommissionerSettingsOpen(true)}
+              />
+            ) : null}
+            {showDevyHero ? (
+              <DevyLeagueHomeHero
+                leagueId={league.id}
+                leagueName={selectedLeague.name ?? 'League'}
+                sport={String(selectedLeague.sport)}
+                season={Number(selectedLeague.season ?? new Date().getFullYear())}
+                isCommissioner={isCommissioner}
+                onOpenChat={() => router.push(`/league/${league.id}?openChat=league`)}
+                onOpenSettings={() =>
+                  isCommissioner
+                    ? openLeagueSettingsModal('devy-command-center')
+                    : openLeagueSettingsModal(null)
+                }
+              />
+            ) : null}
             <LeagueHeader
               league={selectedLeague}
               leagueId={league.id}
               tabs={tabDefs}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              compactTitleRow={showSpecialtyHero || showDevyHero}
               onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}
               memberGearMenu={
                 isCommissioner
@@ -820,7 +948,10 @@ export function LeagueShell({
           )
         : null}
 
-      {portalMounted && (league.leagueVariant === 'devy_dynasty' || league.leagueVariant === 'merged_devy_c2c')
+      {portalMounted &&
+      (league.leagueType === 'devy' ||
+        league.leagueVariant === 'devy_dynasty' ||
+        league.leagueVariant === 'merged_devy_c2c')
         ? createPortal(
             <DevyFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
             document.body,
@@ -1174,6 +1305,7 @@ function LeagueHeader({
   tabs,
   activeTab,
   onTabChange,
+  compactTitleRow = false,
   onOpenLeagueSettingsModal,
   memberGearMenu,
   onGoHome,
@@ -1197,6 +1329,8 @@ function LeagueHeader({
   tabs: TabDef[]
   activeTab: string
   onTabChange: (t: string) => void
+  /** When true, title row is hidden (content lives in `SpecialtyLeagueHomeHero`). */
+  compactTitleRow?: boolean
   /** Opens the full League Settings modal (commissioner / co-comm hub, or member card grid). */
   onOpenLeagueSettingsModal: () => void
   /** When set, header gear opens a compact menu (regular members) instead of the full modal. */
@@ -1259,15 +1393,28 @@ function LeagueHeader({
         : 'border-[color:var(--cap-red)]/45 bg-[color:var(--cap-red)]/15 text-red-100'
   return (
     <div className="sticky top-0 z-[45] flex-shrink-0 border-b border-white/[0.08] bg-[#050814] shadow-[0_10px_28px_rgba(0,0,0,0.42)]">
-      <div className="flex flex-wrap items-start gap-3 px-4 pb-2 pt-4 sm:px-5">
+      <div
+        className={cn(
+          'flex flex-wrap items-start gap-3 px-4 pb-2 sm:px-5',
+          compactTitleRow ? 'pt-3' : 'pt-4',
+        )}
+      >
         <div
-          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+          className={cn(
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-rose-500 to-rose-700 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]',
+            compactTitleRow && 'hidden',
+          )}
           aria-hidden
         >
           <span className="drop-shadow">{leagueTabSportEmoji(league.sport)}</span>
         </div>
 
-        <div className="min-w-0 flex-1 basis-[min(100%,12rem)]">
+        <div
+          className={cn(
+            'min-w-0 flex-1 basis-[min(100%,12rem)]',
+            compactTitleRow && 'hidden',
+          )}
+        >
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h1 className="max-w-full truncate text-base font-bold leading-tight text-white sm:text-[17px]">
               {league.name}
@@ -1356,7 +1503,12 @@ function LeagueHeader({
           ) : null}
         </div>
 
-        <div className="ml-auto flex min-w-0 flex-shrink-0 flex-col items-end gap-2 sm:max-w-[42%]">
+        <div
+          className={cn(
+            'ml-auto flex min-w-0 flex-shrink-0 flex-col items-end gap-2 sm:max-w-[42%]',
+            compactTitleRow && 'w-full',
+          )}
+        >
           <div className="flex w-full flex-col items-end gap-1">
             {c2cLeagueActive && c2cConfig ? (
               <span

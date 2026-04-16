@@ -17,6 +17,10 @@ export type AppShellProps = {
   onRightRailExpand?: () => void
   /** e.g. league count — shown on the collapsed strip */
   rightRailCollapsedHint?: string
+  /**
+   * When true, center column is transparent and side rails use glass (for `SpecialtyLeagueAtmosphere` behind shell).
+   */
+  immersive?: boolean
 }
 
 /**
@@ -31,17 +35,31 @@ export default function AppShell({
   rightRailCollapsed = false,
   onRightRailExpand,
   rightRailCollapsedHint,
+  immersive = false,
 }: AppShellProps) {
+  const leftRailClass = immersive
+    ? 'border-r border-white/[0.08] bg-[#070b14]/80 backdrop-blur-xl'
+    : 'border-[var(--border)]'
+  const rightRailClass = immersive
+    ? 'border-l border-white/[0.08] bg-[#070b14]/80 backdrop-blur-xl'
+    : 'border-[var(--border)]'
+  const centerBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
+  const rootBg = immersive ? { background: 'transparent' as const } : { background: 'var(--bg)' }
+
   return (
     <div
-      className="flex h-screen w-full overflow-hidden text-[var(--text)]"
-      style={{ background: 'var(--bg)' }}
+      className={cn('flex h-screen w-full overflow-hidden text-[var(--text)]', immersive && 'relative z-[1]')}
+      style={rootBg}
+      data-af-immersive={immersive ? '1' : undefined}
       {...rootProps}
     >
       {/* Left chat rail */}
       <aside
-        className="hidden h-full w-[45%] min-h-0 flex-shrink-0 flex-col overflow-hidden border-r border-[var(--border)] transition-[width] duration-200 ease-out md:flex"
-        style={{ background: 'var(--panel2)' }}
+        className={cn(
+          'hidden h-full w-[45%] min-h-0 flex-shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out md:flex',
+          leftRailClass,
+        )}
+        style={immersive ? undefined : { background: 'var(--panel2)' }}
       >
         {leftPanel}
       </aside>
@@ -52,7 +70,7 @@ export default function AppShell({
           'flex min-h-0 min-w-0 w-full flex-col overflow-hidden transition-[flex] duration-200 ease-out',
           rightRailCollapsed ? 'md:min-w-0 md:flex-1' : 'md:w-[35%] md:flex-none',
         )}
-        style={{ background: 'var(--bg)' }}
+        style={centerBg}
       >
         {children}
       </div>
@@ -60,10 +78,11 @@ export default function AppShell({
       {/* Right: My Leagues — full strip or slim expand control */}
       <aside
         className={cn(
-          'hidden h-full min-h-0 flex-shrink-0 overflow-hidden border-l border-[var(--border)] transition-[width] duration-200 ease-out md:flex',
+          'hidden h-full min-h-0 flex-shrink-0 overflow-hidden transition-[width] duration-200 ease-out md:flex',
           rightRailCollapsed ? 'w-12 max-w-[3rem]' : 'w-[20%] max-w-[20%]',
+          rightRailClass,
         )}
-        style={{ background: 'var(--panel2)' }}
+        style={immersive ? undefined : { background: 'var(--panel2)' }}
         data-testid="app-shell-right-rail"
       >
         {rightRailCollapsed ? (

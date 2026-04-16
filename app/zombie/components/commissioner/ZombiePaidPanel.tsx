@@ -1,18 +1,218 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
 import { SettingsSection, SettingsRow, Input } from '@/app/league/[leagueId]/tabs/settings/components'
+import { ZombiePaymentTrackerGrid } from '@/app/zombie/components/commissioner/ZombiePaymentTrackerGrid'
+import { ZombiePayoutMatrixPanel } from '@/app/zombie/components/commissioner/ZombiePayoutMatrixPanel'
 
-export function ZombiePaidPanel({ canEdit }: { canEdit: boolean }) {
+type Prefs = {
+  leaguesafeUrl?: string
+  fancredUrl?: string
+  primaryPayment?: 'leaguesafe' | 'fancred'
+}
+
+export function ZombiePaidPanel({ leagueId, canEdit }: { leagueId: string; canEdit: boolean }) {
   const d = !canEdit
+  const [loading, setLoading] = useState(true)
+  const [paid, setPaid] = useState(false)
+  const [buyIn, setBuyIn] = useState<number>(0)
+  const [prefs, setPrefs] = useState<Prefs>({})
+  const [sport, setSport] = useState('NFL')
+  const [tierLabel, setTierLabel] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        league?: {
+          isPaid?: boolean
+          buyInAmount?: number | null
+          commissionerUiPrefs?: unknown
+          sport?: string
+          level?: { tierLabel?: string | null } | null
+        }
+      }
+      const L = data.league
+      if (L) {
+        setPaid(Boolean(L.isPaid))
+        setBuyIn(typeof L.buyInAmount === 'number' ? L.buyInAmount : 0)
+        if (typeof L.sport === 'string') setSport(L.sport)
+        const tl = L.level && typeof L.level === 'object' ? L.level.tierLabel : null
+        setTierLabel(typeof tl === 'string' ? tl : null)
+        const raw = L.commissionerUiPrefs
+        if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+          const p = raw as Record<string, unknown>
+          setPrefs({
+            leaguesafeUrl: typeof p.leaguesafeUrl === 'string' ? p.leaguesafeUrl : '',
+            fancredUrl: typeof p.fancredUrl === 'string' ? p.fancredUrl : '',
+            primaryPayment: p.primaryPayment === 'fancred' ? 'fancred' : 'leaguesafe',
+          })
+        }
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const saveZombie = async (patch: Record<string, unknown>) => {
+    await fetch('/api/zombie/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ leagueId, ...patch }),
+    }).catch(() => {})
+  }
+
+  const savePrefs = async (next: Prefs) => {
+    setPrefs(next)
+    await saveZombie({
+      commissionerUiPrefs: {
+        leaguesafeUrl: next.leaguesafeUrl,
+        fancredUrl: next.fancredUrl,
+        primaryPayment: next.primaryPayment,
+      },
+    })
+  }
+
   return (
     <div className="space-y-5 px-6 py-6 text-[13px] text-white/85">
-      <SettingsSection id="zm-paid" title="Payment mode">
-        <SettingsRow label="Buy-in ($)" control={<Input type="number" disabled={d} className="w-32" />} />
-        <SettingsRow label="Commissioner fee %" control={<Input type="number" disabled={d} className="w-24" />} />
-      </SettingsSection>
-      <SettingsSection id="zm-free" title="Free mode labels">
-        <SettingsRow label="Currency label" control={<Input defaultValue="Outbreak Points" disabled={d} />} />
-      </SettingsSection>
+      <p className="text-[11px] text-[#9fe89a]/90">
+        Payment mode is configured here — not during league creation. Free leagues hide payouts and payment tracking.
+      </p>
+      {loading ? (
+        <p className="text-white/45">Loading…</p>
+      ) : (
+        <>
+          <SettingsSection id="zm-payment-mode" title="League payment mode">
+            <SettingsRow
+              label="Mode"
+              description="Free = survival gameplay without money modules. Paid = buy-in, payouts, and external payment links."
+              control={
+                <select
+                  className="rounded-lg border border-white/15 bg-[#050a18] px-2 py-1.5 text-white disabled:opacity-50"
+                  value={paid ? 'paid' : 'free'}
+                  disabled={d}
+                  onChange={(e) => {
+                    const next = e.target.value === 'paid'
+                    setPaid(next)
+                    void saveZombie({ isPaid: next, buyInAmount: buyIn })
+                  }}
+                  data-testid="zombie-payment-mode"
+                >
+                  <option value="free">Free</option>
+                  <option value="paid">Paid</option>
+                </select>
+              }
+            />
+          </SettingsSection>
+
+          {paid ? (
+            <>
+              <SettingsSection id="zm-buyin" title="Buy-in & links">
+                <SettingsRow
+                  label="Buy-in ($)"
+                  control={
+                    <Input
+                      type="number"
+                      disabled={d}
+                      className="w-32"
+                      value={buyIn}
+                      onChange={(e) => setBuyIn(Number(e.target.value) || 0)}
+                      onBlur={() => void saveZombie({ buyInAmount: buyIn, isPaid: true })}
+                    />
+                  }
+                />
+                <SettingsRow
+                  label="Primary button"
+                  control={
+                    <select
+                      className="rounded-lg border border-white/15 bg-[#050a18] px-2 py-1 text-[12px] text-white"
+                      value={prefs.primaryPayment ?? 'leaguesafe'}
+                      disabled={d}
+                      onChange={(e) =>
+                        void savePrefs({
+                          ...prefs,
+                          primaryPayment: e.target.value === 'fancred' ? 'fancred' : 'leaguesafe',
+                        })
+                      }
+                    >
+                      <option value="leaguesafe">LeagueSafe</option>
+                      <option value="fancred">Fancred</option>
+                    </select>
+                  }
+                />
+                <SettingsRow
+                  label="LeagueSafe URL"
+                  control={
+                    <Input
+                      className="max-w-md"
+                      disabled={d}
+                      placeholder="https://www.leaguesafe.com/join/..."
+                      value={prefs.leaguesafeUrl ?? ''}
+                      onChange={(e) => setPrefs({ ...prefs, leaguesafeUrl: e.target.value })}
+                      onBlur={(e) => {
+                        const next = { ...prefs, leaguesafeUrl: e.target.value }
+                        setPrefs(next)
+                        void saveZombie({
+                          commissionerUiPrefs: {
+                            leaguesafeUrl: next.leaguesafeUrl,
+                            fancredUrl: next.fancredUrl,
+                            primaryPayment: next.primaryPayment,
+                          },
+                        })
+                      }}
+                    />
+                  }
+                />
+                <SettingsRow
+                  label="Fancred URL"
+                  control={
+                    <Input
+                      className="max-w-md"
+                      disabled={d}
+                      placeholder="https://..."
+                      value={prefs.fancredUrl ?? ''}
+                      onChange={(e) => setPrefs({ ...prefs, fancredUrl: e.target.value })}
+                      onBlur={(e) => {
+                        const next = { ...prefs, fancredUrl: e.target.value }
+                        setPrefs(next)
+                        void saveZombie({
+                          commissionerUiPrefs: {
+                            leaguesafeUrl: next.leaguesafeUrl,
+                            fancredUrl: next.fancredUrl,
+                            primaryPayment: next.primaryPayment,
+                          },
+                        })
+                      }}
+                    />
+                  }
+                />
+              </SettingsSection>
+              <ZombiePayoutMatrixPanel
+                leagueId={leagueId}
+                sport={sport}
+                tierLabel={tierLabel}
+                canEdit={canEdit}
+                isPaid={paid}
+              />
+              <ZombiePaymentTrackerGrid leagueId={leagueId} canEdit={canEdit} />
+            </>
+          ) : (
+            <SettingsSection id="zm-free" title="Free mode">
+              <SettingsRow
+                label="Cosmetic currency label"
+                control={<Input defaultValue="Outbreak Points" disabled={d} />}
+              />
+            </SettingsSection>
+          )}
+        </>
+      )}
     </div>
   )
 }

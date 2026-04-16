@@ -173,6 +173,7 @@ export async function GET(req: Request) {
             colorHex: z.level.colorHex,
             difficultyLabel: z.level.difficultyLabel,
             tierTheme: z.level.tierTheme,
+            tierLabel: z.level.tierLabel,
           }
         : null,
       config,

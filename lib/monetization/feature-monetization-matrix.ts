@@ -54,7 +54,10 @@ function buildUpgradePathForPlanAndFeature(
   if (requiredPlanId === "war_room") {
     return `/war-room?feature=${encodeURIComponent(featureId)}`
   }
-  return `/all-access?feature=${encodeURIComponent(featureId)}`
+  if (requiredPlanId === "supreme") {
+    return `/pricing?plan=supreme&feature=${encodeURIComponent(featureId)}`
+  }
+  return `/pricing?highlight=supreme&feature=${encodeURIComponent(featureId)}`
 }
 
 export function buildMonetizationUpgradePathForFeature(featureId: SubscriptionFeatureId): string {

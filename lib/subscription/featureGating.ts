@@ -13,14 +13,15 @@ const PLAN_UPGRADE_URLS: Record<string, string> = {
   pro: "/pro",
   commissioner: "/commissioner-upgrade",
   war_room: "/war-room",
-  all_access: "/all-access",
+  all_access: "/pricing",
+  supreme: "/pricing",
 }
 
 const PLAN_DISPLAY: Record<string, string> = {
   af_pro: "AF Pro",
   af_commissioner: "AF Commissioner",
   af_war_room: "AF War Room",
-  af_all_access: "All-Access",
+  af_supreme: "AF Supreme",
 }
 
 export type GateDef = {
@@ -56,10 +57,10 @@ export function getGateDef(featureId: SubscriptionFeatureId): GateDef {
     // ENTITLEMENTS is `as const`; cast to EntitlementDef so optional highlightParam is not a per-key union.
     const ent = cat as EntitlementDef
     const rawNames = ent.requiredPlan
-      .filter((p) => p !== "af_all_access")
+      .filter((p) => p !== "af_supreme")
       .map((p) => PLAN_DISPLAY[p] ?? p)
     const requiredPlanDisplay =
-      rawNames.length > 0 ? rawNames : [PLAN_DISPLAY.af_all_access]
+      rawNames.length > 0 ? rawNames : [PLAN_DISPLAY.af_supreme]
     const highlightFromCatalog = ent.highlightParam
     return {
       featureId,

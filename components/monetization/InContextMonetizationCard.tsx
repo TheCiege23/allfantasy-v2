@@ -14,7 +14,7 @@ import {
 } from '@/lib/monetization-analytics'
 
 function planLabel(plan: string): string {
-  if (plan === 'all_access') return 'AF All-Access'
+  if (plan === 'all_access') return 'AF Supreme'
   if (plan === 'commissioner') return 'AF Commissioner'
   if (plan === 'war_room') return 'AF War Room'
   if (plan === 'pro') return 'AF Pro'
@@ -22,7 +22,7 @@ function planLabel(plan: string): string {
 }
 
 function resolveCurrentPlan(plans: string[]): string {
-  if (plans.includes('all_access')) return 'AF All-Access'
+  if (plans.includes('all_access')) return 'AF Supreme'
   if (plans.includes('commissioner')) return 'AF Commissioner'
   if (plans.includes('war_room')) return 'AF War Room'
   if (plans.includes('pro')) return 'AF Pro'
@@ -53,7 +53,9 @@ export function InContextMonetizationCard({
   const isAllAccessUser = Boolean(entitlement?.plans?.includes('all_access'))
   const showBuyTokensCta = Boolean(!includedWithPlan && primaryPreview && !primaryPreview.canSpend)
   const showUpgradeCta = Boolean(feature && !feature.hasAccess)
-  const showAllAccessCta = Boolean(showUpgradeCta && feature?.requiredPlan !== 'AF All-Access')
+  const showAllAccessCta = Boolean(
+    showUpgradeCta && feature?.requiredPlan !== 'AF Supreme' && feature?.requiredPlan !== 'AF All-Access'
+  )
   const currentPlanLabel = resolveCurrentPlan(entitlement?.plans ?? [])
   const didTrackPrompt = useRef(false)
   const didTrackInsufficient = useRef(false)
@@ -135,7 +137,7 @@ export function InContextMonetizationCard({
             <Lock className="h-3 w-3" />
             {feature.hasAccess
               ? isAllAccessUser
-                ? 'Included with AF All-Access bundle inheritance'
+                ? 'Included with AF Supreme bundle inheritance'
                 : 'Included with your plan'
               : `${feature.requiredPlan ?? 'Premium'} required`}
           </span>
@@ -227,7 +229,7 @@ export function InContextMonetizationCard({
           ) : null}
           {showAllAccessCta ? (
             <Link
-              href="/all-access"
+              href="/pricing?highlight=supreme"
               onClick={() => {
                 trackLockedFeatureConversionClick({
                   surface: 'in_context_monetization_card',
@@ -236,7 +238,7 @@ export function InContextMonetizationCard({
                   requiredPlan: feature?.requiredPlan ?? null,
                 })
                 trackUpgradeEntryClicked({
-                  targetPlan: 'all_access',
+                  targetPlan: 'supreme',
                   surface: 'in_context_monetization_card',
                   pagePath: window.location.pathname,
                 })
@@ -244,7 +246,7 @@ export function InContextMonetizationCard({
               className="rounded-lg border border-emerald-400/35 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
               data-testid={`${testIdPrefix}-all-access-cta`}
             >
-              Get AF All-Access
+              Get AF Supreme
             </Link>
           ) : null}
         </div>

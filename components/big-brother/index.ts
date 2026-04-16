@@ -2,6 +2,7 @@
  * Big Brother components. PROMPT 4.
  */
 
+export { default as BigBrotherLeagueHomepage } from './BigBrotherLeagueHomepage'
 export { BigBrotherHome } from './BigBrotherHome'
 export { BigBrotherStatusBadge } from './BigBrotherStatusBadge'
 export { BigBrotherCeremonyCenter } from './BigBrotherCeremonyCenter'

@@ -5,8 +5,8 @@ export type MonetizationSubscriptionSku =
   | "af_commissioner_yearly"
   | "af_war_room_monthly"
   | "af_war_room_yearly"
-  | "af_all_access_monthly"
-  | "af_all_access_yearly"
+  | "af_supreme_monthly"
+  | "af_supreme_yearly"
 
 export type MonetizationTokenPackSku =
   | "af_tokens_5"
@@ -15,7 +15,11 @@ export type MonetizationTokenPackSku =
 
 export type MonetizationSku = MonetizationSubscriptionSku | MonetizationTokenPackSku
 
-export type SubscriptionPlanFamily = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access"
+export type SubscriptionPlanFamily =
+  | "af_pro"
+  | "af_commissioner"
+  | "af_war_room"
+  | "af_supreme"
 
 export type MonetizationCatalogItem = {
   sku: MonetizationSku
@@ -104,28 +108,30 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_YEARLY",
   },
   {
-    sku: "af_all_access_monthly",
+    sku: "af_supreme_monthly",
     type: "subscription",
-    title: "AF All-Access Monthly",
-    description: "AF Pro + AF Commissioner + AF War Room in one bundle.",
-    amountUsd: 19.99,
+    title: "AF Supreme Monthly",
+    description:
+      "Everything in All-Access plus the highest token allowances and platform-wide premium priority.",
+    amountUsd: 29.99,
     currency: "usd",
     interval: "month",
     tokenAmount: null,
-    planFamily: "af_all_access",
-    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_MONTHLY",
+    planFamily: "af_supreme",
+    stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_MONTHLY",
   },
   {
-    sku: "af_all_access_yearly",
+    sku: "af_supreme_yearly",
     type: "subscription",
-    title: "AF All-Access Yearly",
-    description: "AF Pro + AF Commissioner + AF War Room in one bundle.",
-    amountUsd: 199.99,
+    title: "AF Supreme Yearly",
+    description:
+      "Everything in All-Access plus the highest token allowances and platform-wide premium priority.",
+    amountUsd: 299.99,
     currency: "usd",
     interval: "year",
     tokenAmount: null,
-    planFamily: "af_all_access",
-    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_YEARLY",
+    planFamily: "af_supreme",
+    stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_YEARLY",
   },
   {
     sku: "af_tokens_5",

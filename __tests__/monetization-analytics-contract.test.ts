@@ -21,7 +21,7 @@ describe('monetization analytics taxonomy', () => {
     expect(resolvePlanTierFromSku('af_pro_monthly')).toBe('pro')
     expect(resolvePlanTierFromSku('af_commissioner_yearly')).toBe('commissioner')
     expect(resolvePlanTierFromSku('af_war_room_monthly')).toBe('war_room')
-    expect(resolvePlanTierFromSku('af_all_access_yearly')).toBe('all_access')
+    expect(resolvePlanTierFromSku('af_supreme_yearly')).toBe('supreme')
     expect(resolvePlanTierFromSku('af_tokens_25')).toBe('tokens')
   })
 

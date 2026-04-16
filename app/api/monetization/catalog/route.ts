@@ -2,9 +2,11 @@ import { NextResponse } from "next/server"
 import { getFanCredBoundaryDisclosure } from "@/lib/legal/FanCredBoundaryDisclosure"
 import {
   getMonetizationCatalog,
+  getMonetizationStripePriceIdForSku,
   type MonetizationCatalogItem,
 } from "@/lib/monetization/catalog"
 import { getStripeCheckoutLinkForSku } from "@/lib/monetization/StripeCheckoutLinkRegistry"
+import { getRequiredStripeEnvKeys } from "@/lib/monetization/required-stripe-env"
 import { listFeatureMonetizationMatrix } from "@/lib/monetization/feature-monetization-matrix"
 
 type ApiMonetizationCatalogItem = MonetizationCatalogItem & {
@@ -14,9 +16,10 @@ type ApiMonetizationCatalogItem = MonetizationCatalogItem & {
 
 function mapCatalogItem(item: MonetizationCatalogItem): ApiMonetizationCatalogItem {
   const checkoutLink = getStripeCheckoutLinkForSku(item.sku)
+  const priceId = getMonetizationStripePriceIdForSku(item.sku)
   return {
     ...item,
-    stripePriceConfigured: Boolean(checkoutLink),
+    stripePriceConfigured: Boolean(checkoutLink && priceId),
     checkoutProvider: "stripe_checkout_link",
   }
 }
@@ -32,6 +35,7 @@ export async function GET() {
         tokenPacks: catalog.tokenPacks.map(mapCatalogItem),
         all: catalog.all.map(mapCatalogItem),
       },
+      requiredStripeEnv: getRequiredStripeEnvKeys(),
       featureMatrix,
       fancredBoundary: getFanCredBoundaryDisclosure(),
       generatedAt: new Date().toISOString(),

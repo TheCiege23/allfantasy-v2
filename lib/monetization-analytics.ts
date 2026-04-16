@@ -10,11 +10,19 @@ const MONETIZATION_EVENT_PREFIX = 'monetization'
 
 type SubscriptionLifecycleStatus = 'active' | 'grace' | 'past_due' | 'expired' | 'none'
 
-export type MonetizationPlanTier = 'pro' | 'commissioner' | 'war_room' | 'all_access' | 'tokens' | 'unknown'
+export type MonetizationPlanTier =
+  | 'pro'
+  | 'commissioner'
+  | 'war_room'
+  | 'all_access'
+  | 'supreme'
+  | 'tokens'
+  | 'unknown'
 
 function toPlanTier(input: string | null | undefined): MonetizationPlanTier {
   const value = String(input ?? '').trim().toLowerCase()
   if (!value) return 'unknown'
+  if (value.includes('supreme')) return 'supreme'
   if (value.includes('all_access') || value.includes('all-access')) return 'all_access'
   if (value.includes('war_room') || value.includes('war-room')) return 'war_room'
   if (value.includes('commissioner')) return 'commissioner'

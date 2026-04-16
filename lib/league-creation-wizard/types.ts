@@ -4,6 +4,7 @@
  */
 
 import type { LeagueSport } from '@prisma/client'
+import type { DevyLeagueSetupState } from '@/lib/devy/devy-league-config'
 
 export type WizardStepId =
   | 'sport'
@@ -279,6 +280,8 @@ export interface LeagueCreationWizardState {
    * These keys are merged into League.settings on create before wizard-level overrides.
    */
   templateSettingsOverrides?: Record<string, unknown>
+  /** Populated when `leagueType === 'devy'` — persisted as `League.settings.devy_league_config`. */
+  devyLeagueSetup: DevyLeagueSetupState
 }
 
 /** Five-step flow: setup → identity → scoring → draft/privacy/AI → review. */

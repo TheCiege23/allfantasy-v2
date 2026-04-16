@@ -2,6 +2,7 @@
  * Survivor specialty league frontend (PROMPT 347).
  */
 
+export { default as SurvivorLeagueHomepage } from './SurvivorLeagueHomepage'
 export { SurvivorHome } from './SurvivorHome'
 export { SurvivorFirstEntryModal } from './SurvivorFirstEntryModal'
 export { SurvivorTribeBoard } from './SurvivorTribeBoard'

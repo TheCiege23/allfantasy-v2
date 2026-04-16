@@ -41,7 +41,13 @@ export interface UseEntitlementResult {
   refetch: () => Promise<void>
 }
 
-const ALLOWED_PLAN_IDS = new Set<SubscriptionPlanId>(['pro', 'commissioner', 'war_room', 'all_access'])
+const ALLOWED_PLAN_IDS = new Set<SubscriptionPlanId>([
+  'pro',
+  'commissioner',
+  'war_room',
+  'all_access',
+  'supreme',
+])
 
 function toPlanIds(plans: string[] | undefined): SubscriptionPlanId[] {
   return (plans ?? []).filter((plan): plan is SubscriptionPlanId =>

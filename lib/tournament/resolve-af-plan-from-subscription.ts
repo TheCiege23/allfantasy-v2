@@ -12,6 +12,7 @@ export function resolveAfPlanFromEntitlement(
 ): AfPlanId | null {
   if (!isActiveOrGraceStatus(status)) return null
   const set = new Set(plans)
+  if (set.has('supreme')) return 'af_supreme'
   if (set.has('all_access')) return 'af_supreme'
 
   const hasPro = set.has('pro')

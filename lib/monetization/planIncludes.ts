@@ -1,4 +1,8 @@
-export type PlanFamilyKey = "af_pro" | "af_commissioner" | "af_war_room" | "af_all_access"
+export type PlanFamilyKey =
+  | "af_pro"
+  | "af_commissioner"
+  | "af_war_room"
+  | "af_supreme"
 
 /** One-line value prop for plan summary grids. */
 export const PLAN_FAMILY_SHORT_TAGLINE: Record<PlanFamilyKey, string> = {
@@ -8,8 +12,8 @@ export const PLAN_FAMILY_SHORT_TAGLINE: Record<PlanFamilyKey, string> = {
     "Commissioner toolkit: governance, automations, and league operations — dues & payouts stay on FanCred.",
   af_war_room:
     "Draft room plus dynasty & long-term planning for deep, year-round fantasy managers.",
-  af_all_access:
-    "Full stack: AF Pro + Commissioner + War Room in one subscription — best value for power users.",
+  af_supreme:
+    "Pro + Commissioner + War Room in one tier, plus maximum token discounts and platform priority.",
 }
 
 /** Bullets for pricing cards (short lines for narrow columns). */
@@ -29,9 +33,9 @@ export const PLAN_FAMILY_INCLUDES: Record<PlanFamilyKey, readonly string[]> = {
     "Dynasty / keeper & multi-season planning",
     "Built for deep leagues and roster architects",
   ],
-  af_all_access: [
-    "Everything in Pro, Commissioner & War Room",
-    "One subscription, fewer upsells mid-season",
-    "Tokens still power heavy AI usage (fair metering)",
+  af_supreme: [
+    "Full All-Access capability across NFL–Soccer",
+    "Highest monthly token credit + deepest subscriber discount on spends",
+    "Best for commissioners who live in the product year-round",
   ],
 }

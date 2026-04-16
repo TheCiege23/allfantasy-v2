@@ -133,7 +133,7 @@ export function ZombieCommissionerModal({
           {/* Content area */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'general' && <ZombieSetupPanel leagueId={leagueId} canEdit />}
-            {tab === 'paid' && <ZombiePaidPanel canEdit />}
+            {tab === 'paid' && <ZombiePaidPanel leagueId={leagueId} canEdit />}
             {tab === 'universe' && <ZombieUniversePanel canEdit />}
             {tab === 'whisperer' && <ZombieWhispererPanel canEdit />}
             {tab === 'combat' && <ZombieCombatPanel canEdit />}

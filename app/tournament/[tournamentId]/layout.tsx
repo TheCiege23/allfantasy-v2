@@ -31,7 +31,7 @@ export default async function TournamentLayout({
 
   return (
     <TournamentUiProvider value={{ ...data, viewerUserId: session?.user?.id ?? null }}>
-      <div className="tournament-theme min-h-dvh">
+      <div className="tournament-theme af-tournament-immersive relative min-h-dvh">
         <TournamentChrome>{children}</TournamentChrome>
       </div>
     </TournamentUiProvider>

@@ -83,29 +83,31 @@ function buildCatalogPayload() {
       stripePriceConfigured: true,
     },
     {
-      sku: 'af_all_access_monthly',
+      sku: 'af_supreme_monthly',
       type: 'subscription',
-      title: 'AF All-Access Monthly',
-      description: 'AF Pro + AF Commissioner + AF War Room in one bundle.',
-      amountUsd: 19.99,
+      title: 'AF Supreme Monthly',
+      description:
+        'Everything in All-Access plus the highest token allowances and platform-wide premium priority.',
+      amountUsd: 29.99,
       currency: 'usd',
       interval: 'month',
       tokenAmount: null,
-      planFamily: 'af_all_access',
-      stripePriceId: 'price_af_all_access_monthly',
+      planFamily: 'af_supreme',
+      stripePriceId: 'price_af_supreme_monthly',
       stripePriceConfigured: true,
     },
     {
-      sku: 'af_all_access_yearly',
+      sku: 'af_supreme_yearly',
       type: 'subscription',
-      title: 'AF All-Access Yearly',
-      description: 'AF Pro + AF Commissioner + AF War Room in one bundle.',
-      amountUsd: 199.99,
+      title: 'AF Supreme Yearly',
+      description:
+        'Everything in All-Access plus the highest token allowances and platform-wide premium priority.',
+      amountUsd: 299.99,
       currency: 'usd',
       interval: 'year',
       tokenAmount: null,
-      planFamily: 'af_all_access',
-      stripePriceId: 'price_af_all_access_yearly',
+      planFamily: 'af_supreme',
+      stripePriceId: 'price_af_supreme_yearly',
       stripePriceConfigured: true,
     },
   ]
@@ -353,8 +355,8 @@ test.describe('@monetization checkout click audit', () => {
       'af_commissioner_yearly',
       'af_war_room_monthly',
       'af_war_room_yearly',
-      'af_all_access_monthly',
-      'af_all_access_yearly',
+      'af_supreme_monthly',
+      'af_supreme_yearly',
     ]
     const tokenSkus = ['af_tokens_5', 'af_tokens_10', 'af_tokens_25']
 
@@ -363,7 +365,7 @@ test.describe('@monetization checkout click audit', () => {
     await expect(page.getByRole('heading', { name: 'AF Pro' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'AF Commissioner' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'AF War Room' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'AF All-Access' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'AF Supreme' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Continue with Stripe — Monthly' })).toHaveCount(4)
     await expect(page.getByRole('button', { name: 'Continue with Stripe — Yearly' })).toHaveCount(4)
     await expect(page.getByText('AllFantasy AI Tokens (5)')).toBeVisible()

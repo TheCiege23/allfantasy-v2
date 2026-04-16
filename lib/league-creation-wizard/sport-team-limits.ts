@@ -68,6 +68,11 @@ function clampDevyEvenTeamCount(sport: string, teamCount: number): number {
 }
 
 export function clampTeamCountForSport(sport: string, teamCount: number, leagueType?: string): number {
+  if (String(leagueType ?? '').toLowerCase() === 'zombie') {
+    const max = getMaxTeamsForSport(sport)
+    const n = Number.isFinite(teamCount) ? Math.round(teamCount) : 12
+    return Math.min(Math.max(n, 4), max)
+  }
   if (String(leagueType ?? '').toLowerCase() === 'survivor') {
     return clampSurvivorCastSize(teamCount)
   }

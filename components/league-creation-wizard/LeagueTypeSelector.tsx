@@ -20,7 +20,7 @@ const LEAGUE_TYPE_TOOLTIPS: Partial<Record<LeagueTypeId, string>> = {
   dynasty: 'Keep your full roster year to year; rookie drafts each season.',
   keeper: 'Keep a set number of players each season.',
   best_ball: 'No lineup setting; best scoring lineup counts each week.',
-  devy: 'Draft and hold college players with dedicated devy rosters; supports football and basketball ecosystems.',
+  devy: 'Long-term devy format: NFL/NCAAF or NBA/NCAAB prospect pipelines — not available for MLB, NHL, or Soccer.',
   c2c: 'Campus to Canton: college + pro assets in one league with live college scoring; supports football and basketball ecosystems.',
   guillotine: 'Lowest scorer each week is eliminated. Roster released to waivers. Last team standing wins.',
   survivor: 'Tribes compete weekly. Losing tribe votes someone out. Idols, exile island, merge, jury — full Survivor experience.',
@@ -53,7 +53,7 @@ export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps)
         description="You can change this later in settings (except where league rules lock the choice)."
         help={
           <>
-            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy/C2C</strong> — Include college players and college scoring where supported (football and basketball ecosystems).
+            <strong>Redraft</strong> — New draft every season. <strong>Dynasty</strong> — Keep full roster; add rookies each year. <strong>Keeper</strong> — Keep a few players. <strong>Devy / C2C</strong> — College pipelines for NFL↔NCAAF and NBA↔NCAAB (no MLB/NHL Devy).
           </>
         }
         helpTitle="League type explained"

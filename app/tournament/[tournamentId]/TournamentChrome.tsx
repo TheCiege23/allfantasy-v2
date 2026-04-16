@@ -21,6 +21,7 @@ import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiCon
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { TournamentSettingsModalEditable } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModalEditable'
 import { TournamentEntryIntroModal } from '@/components/tournament/TournamentEntryIntroModal'
+import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
 
@@ -139,11 +140,18 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
     [],
   )
 
+  const atmosphereMood = useMemo(() => {
+    if (currentPath.includes('/progress')) return 'championship'
+    if (currentPath.includes('/drafts')) return 'bracket'
+    return 'default'
+  }, [currentPath])
+
   return (
     <>
-      <div className="flex min-h-dvh w-full">
+      <SpecialtyLeagueAtmosphere variant="tournament" mood={atmosphereMood} />
+      <div className="relative z-[1] flex min-h-dvh w-full">
         <aside
-          className={`relative hidden shrink-0 flex-col border-r border-[var(--tournament-border)] bg-[var(--tournament-panel)] md:flex ${
+          className={`relative hidden shrink-0 flex-col border-r border-[var(--tournament-border)] bg-[var(--tournament-panel)]/82 backdrop-blur-xl md:flex ${
             collapsed ? 'w-16' : 'w-[220px]'
           } transition-[width] duration-200`}
         >
@@ -235,7 +243,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
-          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-[var(--tournament-border)] bg-[var(--tournament-bg)]/95 px-3 py-2 backdrop-blur-md md:px-5">
+          <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-[var(--tournament-border)] bg-[#060a10]/78 px-3 py-2 backdrop-blur-xl md:px-5">
             <Link
               href="/dashboard"
               className="mr-1 hidden rounded-lg px-2 py-1 text-[11px] text-[var(--tournament-text-dim)] hover:text-white md:inline"
@@ -301,7 +309,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--tournament-border)] bg-[var(--tournament-panel)]/98 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[var(--tournament-border)] bg-[#0c1219]/88 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
         {primaryMobile.map((item) => {
                     const active = currentPath === item.href || (item.href !== base && currentPath.startsWith(item.href))
           return (

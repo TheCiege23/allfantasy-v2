@@ -167,6 +167,16 @@ export function LeagueSummaryPanel({ state, creationPreset: _creationPreset, onE
         ) : null}
         <SummaryRow label="Timezone" value={state.leagueTimezone ?? 'America/New_York'} />
         <SummaryRow label="Trade review" value={state.tradeReviewMode} />
+        {state.leagueType === 'devy' ? (
+          <>
+            <SummaryRow label="Devy rounds / yr" value={state.devyLeagueSetup.devyRoundsPerSeason} />
+            <SummaryRow
+              label="Devy / taxi slots"
+              value={`${state.devyLeagueSetup.rosterSlots.devy} devy · ${state.devyLeagueSetup.rosterSlots.taxi} taxi`}
+            />
+            <SummaryRow label="Annual draft order" value={state.devyLeagueSetup.annualRookieDevyOrderStyle} />
+          </>
+        ) : null}
       </SummarySection>
 
       <SummarySection title="Scoring" stepId="scoring" onEditStep={onEditStep}>
