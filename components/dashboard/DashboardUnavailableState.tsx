@@ -70,7 +70,15 @@ export default function DashboardUnavailableState({
                 <ul className="list-disc list-inside space-y-1">
                   <li><strong>{t("dashboard.env.redeploy")}:</strong> {t("dashboard.env.redeploy.desc")}</li>
                   <li><strong>{t("dashboard.env.environment")}:</strong> {t("dashboard.env.environment.desc")}</li>
-                  <li><strong>{t("dashboard.env.name")}:</strong> {t("dashboard.env.name.desc")} <code className="bg-white/10 px-1 rounded">DATABASE_URL</code>.</li>
+                  <li>
+                    <strong>{t("dashboard.env.name")}:</strong> {t("dashboard.env.name.desc")}{" "}
+                    <code className="bg-white/10 px-1 rounded">DATABASE_URL</code>
+                    {", "}
+                    <code className="bg-white/10 px-1 rounded">POSTGRES_PRISMA_URL</code>
+                    {", "}
+                    <code className="bg-white/10 px-1 rounded">POSTGRES_URL</code>
+                    {t("dashboard.env.name.suffix")}
+                  </li>
                 </ul>
               </div>
             </div>

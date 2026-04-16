@@ -117,6 +117,13 @@ export async function createRedraftLeagueInTransaction(
   const joinCode = await uniqueJoinCode(tx)
   const platformLeagueId = `manual-${randomUUID()}`
 
+  log?.('pre_prisma_league_create', {
+    userIdForLeague: appUserId,
+    sport,
+    teamCount: body.teamCount,
+    draftType: body.draftType,
+  })
+
   const league = await tx.league.create({
     data: {
       userId: appUserId,

@@ -4,14 +4,43 @@ import { getRedraftMaxTeams } from '@/lib/redraft-creation/sport-config'
 import { clampRedraftTeamCount } from '@/lib/redraft-creation/team-limits'
 import { isSupportedSport } from '@/lib/sport-scope'
 
-/** Accepts `redraft` or `REDRAFT` (checklist / clients may send uppercase). */
-function normalizeRedraftBody(input: unknown): unknown {
-  if (!input || typeof input !== 'object') return input
+/** Client must never send an authoritative user id — leagues.userId comes from the session only. */
+export const FORBIDDEN_REDRAFT_BODY_USER_KEYS = [
+  'userId',
+  'user_id',
+  'commissionerUserId',
+  'commissionerId',
+  'ownerUserId',
+  'appUserId',
+] as const
+
+export type StripForbiddenUserFieldsResult = {
+  body: unknown
+  /** Keys that were present and removed (for logging). */
+  strippedKeys: string[]
+}
+
+export function stripForbiddenUserFieldsFromRedraftBody(input: unknown): StripForbiddenUserFieldsResult {
+  if (!input || typeof input !== 'object') {
+    return { body: input, strippedKeys: [] }
+  }
   const o = { ...(input as Record<string, unknown>) }
+  const strippedKeys: string[] = []
+  for (const k of FORBIDDEN_REDRAFT_BODY_USER_KEYS) {
+    if (k in o && o[k] !== undefined) {
+      strippedKeys.push(k)
+      delete o[k]
+    }
+  }
   if (typeof o.leagueType === 'string') {
     o.leagueType = o.leagueType.trim().toLowerCase()
   }
-  return o
+  return { body: o, strippedKeys }
+}
+
+/** Accepts `redraft` or `REDRAFT` (checklist / clients may send uppercase). */
+function normalizeRedraftBody(input: unknown): unknown {
+  return stripForbiddenUserFieldsFromRedraftBody(input).body
 }
 
 export const redraftCreateBodySchema = z.object({

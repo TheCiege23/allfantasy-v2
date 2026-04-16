@@ -443,7 +443,7 @@ async function main() {
   ]
   await upsertRosterTemplate('MLB', 'standard', 'MLB_DEFAULT', mlbSlots)
   await upsertSportFeatureFlags('MLB', {
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,
@@ -505,7 +505,7 @@ async function main() {
   ]
   await upsertRosterTemplate('NHL', 'standard', 'NHL_DEFAULT', nhlSlots)
   await upsertSportFeatureFlags('NHL', {
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,
@@ -667,7 +667,7 @@ async function main() {
   ]
   await upsertRosterTemplate('SOCCER', 'standard', 'SOCCER_DEFAULT', soccerSlots)
   await upsertSportFeatureFlags('SOCCER', {
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,

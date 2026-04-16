@@ -1,5 +1,7 @@
 /**
  * Shared POST handler for redraft league creation (used by /api/leagues/redraft/create and legacy path).
+ *
+ * leagues.userId is ALWAYS `app_users.id` derived from the authenticated session — never from the client body.
  */
 
 import { NextResponse } from 'next/server'
@@ -9,7 +11,10 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createRedraftLeagueInTransaction } from '@/lib/redraft-creation/create-redraft-league'
 import { resolveAppUserIdForLeagueCreate } from '@/lib/redraft-creation/resolve-app-user-for-league'
-import { validateRedraftCreatePayload } from '@/lib/redraft-creation/validate'
+import {
+  stripForbiddenUserFieldsFromRedraftBody,
+  validateRedraftCreatePayload,
+} from '@/lib/redraft-creation/validate'
 
 const LOG_PREFIX = '[redraft-create]'
 
@@ -34,6 +39,44 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
   if (!session?.user?.id) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
+
+  let raw: unknown
+  try {
+    raw = await req.json()
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Invalid JSON body',
+        issues: [{ path: 'body', message: 'Request body must be valid JSON' }],
+      },
+      { status: 400 }
+    )
+  }
+
+  const { body: sanitizedBody, strippedKeys } = stripForbiddenUserFieldsFromRedraftBody(raw)
+  if (strippedKeys.length > 0) {
+    log('client_user_id_fields_stripped_ignored', { strippedKeys })
+  }
+
+  log('payload_received', {
+    keys: sanitizedBody && typeof sanitizedBody === 'object' ? Object.keys(sanitizedBody as object) : [],
+  })
+
+  const validated = validateRedraftCreatePayload(sanitizedBody)
+  if (!validated.ok) {
+    log('validation_failed', { error: validated.error, issues: validated.issues })
+    return NextResponse.json(
+      {
+        success: false,
+        error: validated.error,
+        issues: validated.issues,
+      },
+      { status: validated.status }
+    )
+  }
+
+  const body = validated.data
 
   const resolvedUser = await resolveAppUserIdForLeagueCreate(session.user)
   log('pre_league_create_app_user', {
@@ -85,41 +128,16 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
     )
   }
 
-  console.log('CREATE LEAGUE USER DEBUG', {
-    sessionUser: session?.user,
-    userIdBeingUsed: appUserId,
+  /** Real app_users.id used for leagues.userId (and roster / commissioner rows). */
+  const userIdForLeagueCreate = appUser.id
+
+  console.log(`${LOG_PREFIX} pre_league_create`, {
+    sessionUser: session.user,
+    incomingPayloadHadStrippedUserFields: strippedKeys.length > 0,
+    strippedUserFieldKeys: strippedKeys,
+    userIdForLeagueCreate,
   })
 
-  let raw: unknown
-  try {
-    raw = await req.json()
-  } catch {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Invalid JSON body',
-        issues: [{ path: 'body', message: 'Request body must be valid JSON' }],
-      },
-      { status: 400 }
-    )
-  }
-
-  log('payload_received', { keys: raw && typeof raw === 'object' ? Object.keys(raw as object) : [] })
-
-  const validated = validateRedraftCreatePayload(raw)
-  if (!validated.ok) {
-    log('validation_failed', { error: validated.error, issues: validated.issues })
-    return NextResponse.json(
-      {
-        success: false,
-        error: validated.error,
-        issues: validated.issues,
-      },
-      { status: validated.status }
-    )
-  }
-
-  const body = validated.data
   let createdLeagueId = ''
   let homepageUrl = ''
 
@@ -128,7 +146,7 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
       async (tx) => {
         return createRedraftLeagueInTransaction(
           tx as Prisma.TransactionClient,
-          appUserId,
+          userIdForLeagueCreate,
           body,
           (ev, payload) => log(ev, payload)
         )
@@ -139,7 +157,7 @@ export async function postRedraftCreate(req: Request): Promise<NextResponse> {
     homepageUrl = result.homepageUrl
   } catch (e) {
     const detail = prismaErrorDetail(e)
-    log('transaction_failed', { detail, appUserId })
+    log('transaction_failed', { detail, appUserId: userIdForLeagueCreate })
     return NextResponse.json(
       {
         success: false,

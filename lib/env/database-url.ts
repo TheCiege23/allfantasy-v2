@@ -1,6 +1,13 @@
-/** Prefer pooled runtime URLs first; use DIRECT / non-pooling only as fallbacks (e.g. local dev). */
+/**
+ * Resolution order for Prisma and dashboard health checks.
+ * Vercel/Neon integrations often inject POSTGRES_PRISMA_URL / POSTGRES_URL without a separate DATABASE_URL.
+ * Keep DATABASE_URL first so explicit project config wins.
+ */
 const DATABASE_URL_ENV_KEYS = [
   "DATABASE_URL",
+  "POSTGRES_PRISMA_URL",
+  "POSTGRES_URL",
+  "NEON_DATABASE_URL",
   "DIRECT_URL",
 ] as const
 
@@ -32,9 +39,15 @@ function hasSupportedPostgresScheme(url: string): boolean {
   return /^(postgres|postgresql):\/\//i.test(url.trim())
 }
 
+function envRecord(env: DatabaseEnv | EnvLike): Record<string, string | undefined> {
+  return env as Record<string, string | undefined>
+}
+
 export function resolveDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): string | null {
+  const e = envRecord(env)
   for (const key of DATABASE_URL_ENV_KEYS) {
-    const value = env[key]?.trim()
+    const raw = e[key]
+    const value = typeof raw === "string" ? raw.trim() : ""
     if (!value) continue
     if (!hasSupportedPostgresScheme(value)) continue
     return normalizeDatabaseUrl(value)
@@ -48,18 +61,19 @@ export function hasDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): boolea
 }
 
 export function getDatabaseUrlOrThrow(env: DatabaseEnv | EnvLike = process.env): string {
-  const invalidSchemeKeys: string[] = []
+  const resolved = resolveDatabaseUrl(env)
+  if (resolved) return resolved
 
+  const invalidSchemeKeys: string[] = []
+  const e = envRecord(env)
   for (const key of DATABASE_URL_ENV_KEYS) {
-    const raw = env[key]
+    const raw = e[key]
     if (raw == null || typeof raw !== "string") continue
     const value = raw.trim()
     if (!value) continue
     if (!hasSupportedPostgresScheme(value)) {
       invalidSchemeKeys.push(key)
-      continue
     }
-    return normalizeDatabaseUrl(value)
   }
 
   if (invalidSchemeKeys.length > 0) {
@@ -71,6 +85,7 @@ export function getDatabaseUrlOrThrow(env: DatabaseEnv | EnvLike = process.env):
 
   throw new Error(
     "DATABASE_URL is not set. Add it to your local environment and Vercel project settings. " +
-      "If you already added it: set it for the Production environment (not only Preview), use a postgres:// or postgresql:// URL, then redeploy so new serverless bundles pick up the variable."
+      "Use DATABASE_URL, or a provider alias such as POSTGRES_PRISMA_URL / POSTGRES_URL (Neon/Vercel). " +
+      "Set it for Production (and Preview if needed), use a postgres:// or postgresql:// URL, then redeploy so new serverless bundles pick up the variable."
   )
 }

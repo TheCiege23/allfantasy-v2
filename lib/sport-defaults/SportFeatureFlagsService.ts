@@ -42,7 +42,7 @@ const IN_MEMORY_FLAGS: Record<SportType, SportFeatureFlagsDto> = {
   },
   MLB: {
     sportType: 'MLB',
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,
@@ -57,7 +57,7 @@ const IN_MEMORY_FLAGS: Record<SportType, SportFeatureFlagsDto> = {
   },
   NHL: {
     sportType: 'NHL',
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,
@@ -87,7 +87,7 @@ const IN_MEMORY_FLAGS: Record<SportType, SportFeatureFlagsDto> = {
   },
   SOCCER: {
     sportType: 'SOCCER',
-    supportsBestBall: false,
+    supportsBestBall: true,
     supportsSuperflex: false,
     supportsTePremium: false,
     supportsKickers: false,

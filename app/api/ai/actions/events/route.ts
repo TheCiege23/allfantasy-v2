@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { createActionEvent, listActionEvents } from '@/lib/chimmy-actions/server-store'
+import type { AIActionEvent, AIActionType } from '@/lib/chimmy-actions'
 
 const BodySchema = z.object({
   id: z.string().min(1),
@@ -35,7 +36,13 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await createActionEvent(parsed.data)
+    const event: AIActionEvent = {
+      ...parsed.data,
+      actionType: parsed.data.actionType as AIActionType,
+      durationMs: parsed.data.durationMs,
+      metadata: parsed.data.metadata,
+    }
+    await createActionEvent(event)
     return NextResponse.json({ ok: true })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to persist action event', details: String(error) }, { status: 500 })

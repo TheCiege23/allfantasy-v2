@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import type { AIActionEvent, SavedAIRecommendation } from './AIActionModel'
+import type { AIActionEvent, AIActionType, SavedAIRecommendation } from './AIActionModel'
 import {
   buildLearningSnapshotFromEvents,
   getDefaultOutcomeAdapters,
@@ -8,7 +8,7 @@ import {
 
 type EventRow = {
   id: string
-  action_type: string
+  action_type: AIActionType
   surface: string
   user_id: string
   league_id: string | null
@@ -47,7 +47,7 @@ export async function listActionEvents(userId: string, limit: number): Promise<E
 
   return rows.map((row: any) => ({
     id: String(row.id),
-    action_type: String(row.actionType),
+    action_type: row.actionType as AIActionType,
     surface: String(row.surface),
     user_id: String(row.userId),
     league_id: row.leagueId ? String(row.leagueId) : null,

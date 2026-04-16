@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { createSavedRecommendation, listSavedRecommendations } from '@/lib/chimmy-actions/server-store'
+import type { SavedAIRecommendation } from '@/lib/chimmy-actions'
 
 const BodySchema = z.object({
   id: z.string().min(1),
@@ -36,7 +37,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const id = await createSavedRecommendation(parsed.data)
+    const recommendation: SavedAIRecommendation = {
+      ...parsed.data,
+      action: parsed.data.action,
+      actedOn: parsed.data.actedOn,
+      actedOnAt: parsed.data.actedOnAt,
+      expiresAt: parsed.data.expiresAt,
+      leagueId: parsed.data.leagueId,
+    }
+    const id = await createSavedRecommendation(recommendation)
     return NextResponse.json({ ok: true, id })
   } catch (error) {
     return NextResponse.json({ error: 'Failed to save recommendation', details: String(error) }, { status: 500 })
