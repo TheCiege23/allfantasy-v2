@@ -11,10 +11,23 @@ export type BigBrotherUserStatus =
   | 'ELIMINATED'
   | 'JURY'
 
+export interface BigBrotherMemoryWallEntry {
+  rosterId: string
+  displayName: string
+  avatarUrl: string | null
+  status: BigBrotherUserStatus
+}
+
 export interface BigBrotherSummary {
   totalRosterCount?: number
   remainingCount?: number
-  config: { sport: string; finaleFormat: string; juryStartMode: string }
+  config: {
+    sport: string
+    finaleFormat: string
+    juryStartMode: string
+    /** ai_theme | deterministic_score | hybrid — outcomes stay deterministic. */
+    challengeMode?: string
+  }
   /** Sport-calendar context: regular season weeks, eviction end week, disclaimer for non-NFL. */
   sportCalendar?: {
     regularSeasonWeeks: number
@@ -53,6 +66,17 @@ export interface BigBrotherSummary {
   myRosterId: string | null
   myStatus: BigBrotherUserStatus | null
   rosterDisplayNames: Record<string, string>
+  /** All houseguests — memory wall grid (status from current week). */
+  memoryWall?: BigBrotherMemoryWallEntry[]
 }
 
-export type BigBrotherView = 'house' | 'ceremony' | 'voting' | 'jury' | 'commissioner'
+export type BigBrotherView =
+  | 'house'
+  | 'hoh'
+  | 'veto'
+  | 'twists'
+  | 'history'
+  | 'ceremony'
+  | 'voting'
+  | 'jury'
+  | 'commissioner'

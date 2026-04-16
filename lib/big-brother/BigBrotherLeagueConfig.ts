@@ -123,6 +123,7 @@ export async function getBigBrotherConfig(leagueId: string): Promise<BigBrotherC
       autoNominationFallback: toAutoNominationFallback(row.autoNominationFallback),
       evictionTieBreakMode: toEvictionTieBreakMode((row as { evictionTieBreakMode?: string }).evictionTieBreakMode),
       weekProgressionPaused: (row as { weekProgressionPaused?: boolean }).weekProgressionPaused ?? false,
+      premiumEngineSpec: (row as { premiumEngineSpec?: unknown | null }).premiumEngineSpec ?? null,
     }
   }
 
@@ -162,6 +163,7 @@ export async function getBigBrotherConfig(leagueId: string): Promise<BigBrotherC
     autoNominationFallback: 'lowest_season_points',
     evictionTieBreakMode: 'season_points',
     weekProgressionPaused: false,
+    premiumEngineSpec: null,
   }
 }
 

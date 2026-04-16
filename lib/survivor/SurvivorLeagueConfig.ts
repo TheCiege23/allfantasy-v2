@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
 import { DEFAULT_MERGE_WEEK_BY_SPORT } from './constants'
+import { DEFAULT_SURVIVOR_ENGINE_SPEC_V2 } from './survivor-engine-spec-v2'
 import type { SurvivorConfig, SurvivorMode, TribeFormation, MergeTrigger } from './types'
 
 export async function isSurvivorLeague(leagueId: string): Promise<boolean> {
@@ -141,6 +142,7 @@ export async function upsertSurvivorConfig(
     seasonThemeLabel: string | null
     challengesSystemRun: boolean
     regularSeasonEndWeek: number | null
+    engineSpecV2: object | null
   }>
 ): Promise<SurvivorConfig | null> {
   const league = await prisma.league.findUnique({
@@ -179,6 +181,7 @@ export async function upsertSurvivorConfig(
       seasonThemeLabel: input.seasonThemeLabel ?? null,
       challengesSystemRun: input.challengesSystemRun ?? true,
       regularSeasonEndWeek: input.regularSeasonEndWeek ?? null,
+      engineSpecV2: (input.engineSpecV2 ?? DEFAULT_SURVIVOR_ENGINE_SPEC_V2) as object,
     },
     update: {
       ...(input.mode !== undefined && { mode: input.mode }),
@@ -207,6 +210,7 @@ export async function upsertSurvivorConfig(
       ...(input.seasonThemeLabel !== undefined && { seasonThemeLabel: input.seasonThemeLabel }),
       ...(input.challengesSystemRun !== undefined && { challengesSystemRun: input.challengesSystemRun }),
       ...(input.regularSeasonEndWeek !== undefined && { regularSeasonEndWeek: input.regularSeasonEndWeek }),
+      ...(input.engineSpecV2 !== undefined && { engineSpecV2: input.engineSpecV2 as object }),
     },
   })
   return getSurvivorConfig(leagueId)

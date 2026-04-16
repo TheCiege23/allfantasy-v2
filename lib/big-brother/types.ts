@@ -92,6 +92,8 @@ export interface BigBrotherConfig {
   autoNominationFallback: AutoNominationFallback
   evictionTieBreakMode: string
   weekProgressionPaused: boolean
+  /** Twists / engine flags; see `big-brother-premium-engine-spec.ts`. */
+  premiumEngineSpec?: unknown | null
 }
 
 /** Cycle row for a single week. */

@@ -5621,6 +5621,8 @@ model SurvivorLeagueConfig {
   faqSeededAt                    DateTime?
   /// Optional override for last regular-season scoring week (excludes playoffs); if null, use sport default.
   regularSeasonEndWeek           Int?
+  /// Survivor engine v2 — confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).
+  engineSpecV2                   Json?
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
   auditLog                       SurvivorAuditLog[]
@@ -6289,6 +6291,8 @@ model SurvivorGameState {
   /// the season — preserved across unrelated writes to lastError so that
   /// resume_season can restore the pre-pause state reliably.
   pausedSnapshot      Json?
+  /// Runtime state for engine v2 — confessionals index, clue-chain progress, story beats (see `lib/survivor/runtime/`).
+  engineRuntimeV2     Json?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
@@ -6501,6 +6505,8 @@ model BigBrotherLeagueConfig {
   inactivePlayerHandling              String                 @default("commissioner_only") @db.VarChar(32)
   /// Auto-nomination fallback if HOH times out: lowest_season_points | random | commissioner
   autoNominationFallback              String                 @default("lowest_season_points") @db.VarChar(32)
+  /// Twists, competition presets, optional America’s vote — see `lib/big-brother/big-brother-premium-engine-spec.ts`.
+  premiumEngineSpec                   Json?
   createdAt                           DateTime               @default(now())
   updatedAt                           DateTime               @updatedAt
   /// Eviction tie-break when vote is tied: hoh_vote | season_points | random | commissioner

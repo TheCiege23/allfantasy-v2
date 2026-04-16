@@ -81,6 +81,14 @@ function SurvivorAppShellInner({
   const desktopItems: NavItem[] = [
     { href: base, label: 'Island Home', icon: '🏝', show: true, dot: false, home: true },
     {
+      href: `${base}/commissioner`,
+      label: 'Command',
+      icon: '🎛',
+      show: ctx.isCommissioner,
+      dot: false,
+      home: false,
+    },
+    {
       href: `${base}/tribe`,
       label: 'Tribe',
       icon: '🔥',

@@ -10,22 +10,28 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight,
+  Ban,
   BarChart3,
   CalendarDays,
   CalendarRange,
   ClipboardList,
   Crosshair,
+  Crown,
   Eye,
+  Flame,
   History,
   Home,
+  LayoutDashboard,
   LayoutGrid,
   LineChart,
   ListOrdered,
   Lock,
   Repeat2,
   RotateCcw,
+  Scale,
   Scissors,
   Settings,
+  ScrollText,
   Shield,
   ShieldPlus,
   Shirt,
@@ -37,6 +43,9 @@ import {
   Trophy,
   User,
   Users,
+  Vote,
+  Wand2,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
@@ -76,10 +85,12 @@ import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
+import { SurvivorLeagueDeepLinkPanel } from '@/components/survivor/SurvivorLeagueDeepLinkPanel'
 import { SurvivorFirstEntryModal } from '@/components/survivor/SurvivorFirstEntryModal'
 import { BigBrotherFirstEntryModal } from '@/components/big-brother/BigBrotherFirstEntryModal'
 import { IDPFirstEntryModal } from '@/components/idp/IDPFirstEntryModal'
 import { BigBrotherHome } from '@/components/big-brother/BigBrotherHome'
+import { BigBrotherCommandDashboard } from '@/components/big-brother/BigBrotherCommandDashboard'
 import IDPHome from '@/components/idp/IDPHome'
 import { DevyFirstEntryModal } from '@/components/devy/DevyFirstEntryModal'
 import { GuillotineFirstEntryModal } from '@/components/guillotine/GuillotineFirstEntryModal'
@@ -210,8 +221,19 @@ export function LeagueShell({
     }
     if (league.leagueVariant === 'survivor') {
       const idx = base.findIndex((t) => t.id === 'redraft')
-      const s = { id: 'survivor', label: '🏝 Survivor' }
-      base = idx >= 0 ? [...base.slice(0, idx + 1), s, ...base.slice(idx + 1)] : [s, ...base]
+      const core: TabDef[] = [
+        { id: 'survivor', label: '🏝 Island' },
+        { id: 'survivor_tribal', label: '🗳 Tribal' },
+        { id: 'survivor_challenges', label: '⚡ Challenges' },
+        { id: 'survivor_chimmy', label: '🤖 Chimmy' },
+        { id: 'survivor_exile', label: '🏚 Exile' },
+        { id: 'survivor_jury', label: '⚖️ Jury' },
+      ]
+      const command: TabDef[] = isCommissioner
+        ? [{ id: 'survivor_command', label: '🎛 Command' }]
+        : []
+      const block = [...core, ...command]
+      base = idx >= 0 ? [...base.slice(0, idx + 1), ...block, ...base.slice(idx + 1)] : [...block, ...base]
     }
     if (league.leagueVariant === 'zombie') {
       const idx = base.findIndex((t) => t.id === 'redraft')
@@ -220,8 +242,18 @@ export function LeagueShell({
     }
     if (league.leagueVariant === 'big_brother') {
       const idx = base.findIndex((t) => t.id === 'redraft')
-      const bb = { id: 'big_brother', label: '👁 Big Brother' }
-      base = idx >= 0 ? [...base.slice(0, idx + 1), bb, ...base.slice(idx + 1)] : [bb, ...base]
+      const core: TabDef[] = [
+        { id: 'big_brother', label: '👁 Big Brother' },
+        { id: 'bb_hoh', label: '👑 HOH' },
+        { id: 'bb_veto', label: '🛡 Veto' },
+        { id: 'bb_voting', label: '🗳 Voting' },
+        { id: 'bb_jury', label: '⚖ Jury' },
+        { id: 'bb_twists', label: '✨ Twists' },
+        { id: 'bb_history', label: '📜 History' },
+      ]
+      const command: TabDef[] = isCommissioner ? [{ id: 'bb_command', label: '🎛 Command' }] : []
+      const block = [...core, ...command]
+      base = idx >= 0 ? [...base.slice(0, idx + 1), ...block, ...base.slice(idx + 1)] : [...block, ...base]
     }
     if (league.leagueVariant === 'idp' || league.leagueVariant === 'dynasty_idp') {
       const idx = base.findIndex((t) => t.id === 'redraft')
@@ -240,6 +272,7 @@ export function LeagueShell({
     league.bestBallMode,
     league.guillotineMode,
     league.leagueVariant,
+    isCommissioner,
     t,
     language,
   ])
@@ -247,11 +280,13 @@ export function LeagueShell({
   const guillotineLandingApplied = useRef(false)
   const survivorLandingApplied = useRef(false)
   const zombieLandingApplied = useRef(false)
+  const bigBrotherLandingApplied = useRef(false)
 
   useEffect(() => {
     guillotineLandingApplied.current = false
     survivorLandingApplied.current = false
     zombieLandingApplied.current = false
+    bigBrotherLandingApplied.current = false
   }, [league.id])
 
   useEffect(() => {
@@ -295,7 +330,6 @@ export function LeagueShell({
   }, [league.id, league.leagueVariant, league.guillotineMode, tabDefs, searchParams])
 
   /** Big Brother leagues default to the Big Brother hub. */
-  const bigBrotherLandingApplied = useRef(false)
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
@@ -357,9 +391,35 @@ export function LeagueShell({
       schedule: 'schedule',
       survivor: 'survivor',
       island: 'survivor',
+      tribal: 'survivor_tribal',
+      survivor_tribal: 'survivor_tribal',
+      challenges: 'survivor_challenges',
+      survivor_challenges: 'survivor_challenges',
+      chimmy: 'survivor_chimmy',
+      survivor_chimmy: 'survivor_chimmy',
+      exile: 'survivor_exile',
+      survivor_exile: 'survivor_exile',
+      jury: 'survivor_jury',
+      survivor_jury: 'survivor_jury',
+      command: 'survivor_command',
+      survivor_command: 'survivor_command',
       zombie: 'zombie',
       horde: 'zombie',
       outbreak: 'zombie',
+      big_brother: 'big_brother',
+      bb: 'big_brother',
+      bb_hoh: 'bb_hoh',
+      hoh: 'bb_hoh',
+      bb_veto: 'bb_veto',
+      veto: 'bb_veto',
+      bb_voting: 'bb_voting',
+      eviction: 'bb_voting',
+      bb_jury: 'bb_jury',
+      bb_twists: 'bb_twists',
+      twists: 'bb_twists',
+      bb_history: 'bb_history',
+      bb_command: 'bb_command',
+      bb_commissioner: 'bb_command',
     }
     const target = map[key]
     if (!target) return
@@ -603,14 +663,18 @@ export function LeagueShell({
               ? 'relative border-x border-amber-500/10 bg-gradient-to-b from-[#081018] via-[#07071a] to-[#07071a]'
               : league.leagueVariant === 'zombie'
                 ? 'relative border-x border-violet-500/15 bg-gradient-to-b from-[#120818] via-[#07071a] to-[#07071a]'
-                : ''
+                : league.leagueVariant === 'big_brother'
+                  ? 'relative border-x border-amber-500/12 bg-gradient-to-b from-[#0a0e1c] via-[#070a14] to-[#040915]'
+                  : ''
           }`}
           data-league-variant={
             league.leagueVariant === 'survivor'
               ? 'survivor'
               : league.leagueVariant === 'zombie'
                 ? 'zombie'
-                : undefined
+                : league.leagueVariant === 'big_brother'
+                  ? 'big_brother'
+                  : undefined
           }
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
@@ -915,10 +979,53 @@ function LeagueTabRouter({
       )
     case 'survivor':
       return <SurvivorHome leagueId={leagueId} />
+    case 'survivor_tribal':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_tribal" />
+    case 'survivor_challenges':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_challenges" />
+    case 'survivor_chimmy':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_chimmy" />
+    case 'survivor_exile':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_exile" />
+    case 'survivor_jury':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_jury" />
+    case 'survivor_command':
+      return <SurvivorLeagueDeepLinkPanel leagueId={leagueId} tabId="survivor_command" />
     case 'zombie':
       return <ZombieHome leagueId={leagueId} />
     case 'big_brother':
-      return <BigBrotherHome leagueId={leagueId} />
+    case 'bb_hoh':
+    case 'bb_veto':
+    case 'bb_voting':
+    case 'bb_jury':
+    case 'bb_twists':
+    case 'bb_history': {
+      const bbView =
+        activeTab === 'bb_hoh'
+          ? 'hoh'
+          : activeTab === 'bb_veto'
+            ? 'veto'
+            : activeTab === 'bb_voting'
+              ? 'voting'
+              : activeTab === 'bb_jury'
+                ? 'jury'
+                : activeTab === 'bb_twists'
+                  ? 'twists'
+                  : activeTab === 'bb_history'
+                    ? 'history'
+                    : 'house'
+      return (
+        <BigBrotherHome leagueId={leagueId} initialView={bbView} isCommissioner={isCommissioner} />
+      )
+    }
+    case 'bb_command':
+      return isCommissioner ? (
+        <BigBrotherCommandDashboard leagueId={leagueId} />
+      ) : (
+        <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/80 p-6 text-center text-sm text-white/55">
+          Commissioner tools only.
+        </div>
+      )
     case 'idp':
       return <IDPHome leagueId={leagueId} />
     case 'keeper':
@@ -1018,8 +1125,21 @@ const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
   bestball: Sparkles,
   guillotine: Scissors,
   survivor: TreePalm,
+  survivor_tribal: Flame,
+  survivor_challenges: Zap,
+  survivor_chimmy: Sparkles,
+  survivor_exile: Ban,
+  survivor_jury: Scale,
+  survivor_command: LayoutDashboard,
   zombie: Skull,
   big_brother: Eye,
+  bb_hoh: Crown,
+  bb_veto: Shield,
+  bb_voting: Vote,
+  bb_jury: Scale,
+  bb_twists: Wand2,
+  bb_history: ScrollText,
+  bb_command: LayoutDashboard,
   idp: ShieldPlus,
   keeper: Lock,
   settings: Settings,
@@ -1477,11 +1597,16 @@ function LeagueHeader({
           {(
             [
               ['Island', `/league/${leagueId}?view=survivor`],
+              ['Full hub', `/survivor/${leagueId}`],
+              ['Tribal', `/survivor/${leagueId}/tribal`],
+              ['Challenges', `/survivor/${leagueId}/challenges`],
+              ['Chimmy', `/survivor/${leagueId}/chimmy`],
               ['Team', `/league/${leagueId}?view=team`],
               ['Chat', `/league/${leagueId}?tab=Chat`],
               ['Scores', `/league/${leagueId}?view=scores`],
+              ...(isCommissioner ? ([['Command', `/survivor/${leagueId}/commissioner`]] as const) : []),
               ['Commissioner', '__commish__'],
-            ] as const
+            ] as Array<[string, string] | [string, '__commish__']>
           ).map(([label, href]) =>
             href === '__commish__' ? (
               <button
@@ -1501,7 +1626,7 @@ function LeagueHeader({
                 key={`survivor-${label}`}
                 href={href}
                 className="whitespace-nowrap rounded-lg border border-white/[0.08] bg-black/25 px-3 py-1.5 text-[11px] font-semibold text-amber-100/85 transition-colors hover:bg-amber-500/10"
-                data-testid={`survivor-quick-${label.toLowerCase()}`}
+                data-testid={`survivor-quick-${label.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {label}
               </Link>

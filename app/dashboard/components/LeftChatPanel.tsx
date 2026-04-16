@@ -537,6 +537,11 @@ export function LeftChatPanel({
 
   const { voiceId: selectedVoiceId, setVoiceId: handleVoiceChange } = useChimmyTtsVoiceSync()
 
+  const isBigBrotherHouse = selectedLeague?.leagueVariant === 'big_brother'
+  const leagueThreadTabLabel = isBigBrotherHouse ? '🏠 House' : '🏈 League'
+  const leagueThreadHeader = isBigBrotherHouse ? 'House Chat' : 'League Chat'
+  const leagueTabAria = isBigBrotherHouse ? 'House chat tab' : 'League chat tab'
+
   return (
     <div
       id={rootId ?? undefined}
@@ -553,9 +558,9 @@ export function LeftChatPanel({
               ? 'border-b-2 border-cyan-500 bg-white/[0.03]'
               : 'border-b-2 border-transparent text-white/40 hover:text-white/60'
           }`}
-          aria-label="League chat tab"
+          aria-label={leagueTabAria}
         >
-          🏈 League
+          {leagueThreadTabLabel}
         </button>
         <button
           type="button"
@@ -630,7 +635,12 @@ export function LeftChatPanel({
         {activeTab === 'league' && selectedLeague ? (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
             <div className="flex shrink-0 items-center justify-between border-b border-white/[0.07] px-3 py-2">
-              <p className="text-[14px] font-semibold text-white/90">League Chat</p>
+              <div>
+                <p className="text-[14px] font-semibold text-white/90">{leagueThreadHeader}</p>
+                {isBigBrotherHouse ? (
+                  <p className="text-[11px] text-white/40">Default — full house, alliances use DMs</p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 title="Mute (coming soon)"

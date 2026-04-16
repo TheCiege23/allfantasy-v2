@@ -904,6 +904,21 @@ export async function POST(req: Request) {
         } catch (faqErr) {
           console.warn('[league/create] Survivor FAQ seed non-fatal:', faqErr);
         }
+        try {
+          const { runSurvivorLeagueBootstrap } = await import('@/lib/survivor/survivorLeagueBootstrap');
+          const bootstrap = await runSurvivorLeagueBootstrap(league.id);
+          if (bootstrap.warnings.length) {
+            console.warn('[league/create] Survivor bootstrap warnings:', bootstrap.warnings);
+          }
+        } catch (bootErr) {
+          console.warn('[league/create] Survivor league bootstrap non-fatal:', bootErr);
+        }
+        try {
+          const { getOrCreateDraftSession } = await import('@/lib/live-draft-engine/DraftSessionService');
+          await getOrCreateDraftSession(league.id);
+        } catch (draftErr) {
+          console.warn('[league/create] Survivor draft session shell non-fatal:', draftErr);
+        }
       } catch (err) {
         console.warn('[league/create] Survivor config bootstrap non-fatal:', err);
       }
@@ -954,6 +969,15 @@ export async function POST(req: Request) {
       try {
         const { upsertBigBrotherConfig } = await import('@/lib/big-brother/BigBrotherLeagueConfig');
         await upsertBigBrotherConfig(league.id, {});
+        try {
+          const { runBigBrotherLeagueBootstrap } = await import('@/lib/big-brother/bigBrotherLeagueBootstrap');
+          const bbBoot = await runBigBrotherLeagueBootstrap(league.id);
+          if (!bbBoot.weekOneCycle.ok && bbBoot.weekOneCycle.error) {
+            console.warn('[league/create] Big Brother week-1 cycle:', bbBoot.weekOneCycle.error);
+          }
+        } catch (bootErr) {
+          console.warn('[league/create] Big Brother league bootstrap non-fatal:', bootErr);
+        }
       } catch (err) {
         console.warn('[league/create] Big Brother config bootstrap non-fatal:', err);
       }

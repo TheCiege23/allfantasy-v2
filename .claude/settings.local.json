@@ -100,7 +100,19 @@
       "Bash(find \"C:\\\\Users\\\\Guap_\\\\allfantasy-v2-main\\\\.claude\\\\worktrees\\\\adoring-wescoff\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"QuickCreatePanel\" {} \\\\;)",
       "Bash(wc -l \"C:\\\\Users\\\\Guap_\\\\allfantasy-v2-main\\\\.claude\\\\worktrees\\\\adoring-wescoff\\\\supabase\\\\migrations\"/*)",
       "Bash(ls \"C:\\\\Users\\\\Guap_\\\\allfantasy-v2-main\\\\.claude\\\\worktrees\\\\adoring-wescoff\\\\supabase\\\\migrations\"/*.sql)",
-      "Bash(ls supabase_ensure_*.sql)"
+      "Bash(ls supabase_ensure_*.sql)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(git stash:*)",
+      "Bash(gh api:*)",
+      "Bash(grep -n \"draft-desktop-layout\" components/app/draft-room/*.tsx)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__list_projects",
+      "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__get_project",
+      "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__list_deployments"
     ]
   }
 }

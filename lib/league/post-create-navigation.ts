@@ -32,7 +32,11 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
   }
 
   if (lt === 'survivor') {
-    return `/survivor/${leagueId}?created=1`
+    return `/survivor/${leagueId}/commissioner?created=1`
+  }
+
+  if (lt === 'big_brother') {
+    return `/big-brother/${leagueId}/command?created=1`
   }
 
   const q = new URLSearchParams()

@@ -1,0 +1,430 @@
+'use client'
+
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import {
+  LayoutDashboard,
+  Users,
+  Vote,
+  Zap,
+  Skull,
+  Scale,
+  Settings2,
+  MessageSquare,
+  Sparkles,
+  CreditCard,
+  ClipboardList,
+  History,
+  ExternalLink,
+  Flame,
+  ChevronRight,
+  ScanEye,
+} from 'lucide-react'
+import { SurvivorIslandAmbient } from '@/components/survivor/SurvivorIslandAmbient'
+import {
+  WarRoomHeroCard,
+  WarRoomPanel,
+  WarRoomStatOrb,
+  WarRoomTabButton,
+} from '@/components/tournament/TournamentWarRoomPrimitives'
+import { TournamentSubscriptionTokensPanel } from '@/components/tournament/TournamentSubscriptionTokensPanel'
+import { SurvivorPremiumCommandCenterPanel } from '@/components/survivor/SurvivorPremiumCommandCenterPanel'
+import type { AfPlanId } from '@/lib/tournament/af-premium-plans'
+
+type TabId =
+  | 'overview'
+  | 'tribes'
+  | 'tribal'
+  | 'minigames'
+  | 'exile'
+  | 'jury'
+  | 'settings'
+  | 'chat'
+  | 'ai'
+  | 'premium'
+  | 'subscription'
+  | 'approvals'
+  | 'history'
+
+const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
+  { id: 'overview', label: 'Overview', icon: <LayoutDashboard className="h-4 w-4" /> },
+  { id: 'tribes', label: 'Tribes', icon: <Users className="h-4 w-4" /> },
+  { id: 'tribal', label: 'Tribal Council', icon: <Vote className="h-4 w-4" /> },
+  { id: 'minigames', label: 'Mini Games', icon: <Zap className="h-4 w-4" /> },
+  { id: 'exile', label: 'Exile Island', icon: <Skull className="h-4 w-4" /> },
+  { id: 'jury', label: 'Jury', icon: <Scale className="h-4 w-4" /> },
+  { id: 'settings', label: 'Settings', icon: <Settings2 className="h-4 w-4" /> },
+  { id: 'chat', label: 'Communications', icon: <MessageSquare className="h-4 w-4" /> },
+  { id: 'ai', label: 'AI & Automation', icon: <Sparkles className="h-4 w-4" /> },
+  { id: 'premium', label: 'Premium intel', icon: <ScanEye className="h-4 w-4" /> },
+  { id: 'subscription', label: 'Access · Tokens', icon: <CreditCard className="h-4 w-4" /> },
+  { id: 'approvals', label: 'Approvals', icon: <ClipboardList className="h-4 w-4" /> },
+  { id: 'history', label: 'History', icon: <History className="h-4 w-4" /> },
+]
+
+type DashboardPayload = {
+  ok: true
+  role?: string
+  league: { id: string; name: string; sport: string; leagueSize: number | null }
+  shell: { draftSessionExists: boolean; survivorChatChannels: number; exileLeagueLinked: boolean }
+  gameState: {
+    phase: string
+    currentWeek: number
+    activeTribeCount: number
+    activePlayerCount: number
+    exilePlayerCount: number
+    juryPlayerCount: number
+    immuneTribeId: string | null
+    immunePlayerId: string | null
+    tribalDeadline: string | null
+  } | null
+  week: number
+  tribes: { id: string; name: string; emoji?: string | null; members: unknown[] }[]
+  council: unknown
+  juryCount: number
+  merged: boolean
+  rosterCount: number
+  eliminatedCount: number
+  auditTail: { eventType: string; metadata: unknown; createdAt: string }[]
+  monetization: { afPlan: AfPlanId | null; afTokensRemaining: number; subscriptionStatus: string }
+}
+
+export function SurvivorCommissionerDashboard({ leagueId }: { leagueId: string }) {
+  const searchParams = useSearchParams()
+  const created = searchParams?.get('created') === '1'
+  const [tab, setTab] = useState<TabId>('overview')
+  const [data, setData] = useState<DashboardPayload | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const base = `/survivor/${leagueId}`
+
+  const load = useCallback(async () => {
+    setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/survivor/commissioner-dashboard`, {
+        cache: 'no-store',
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(typeof j.error === 'string' ? j.error : 'Failed to load command center')
+        setData(null)
+        return
+      }
+      setData(j as DashboardPayload)
+    } catch {
+      setError('Network error')
+      setData(null)
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const heroAccent = useMemo((): 'cyan' | 'amber' | 'violet' | 'emerald' => {
+    const p = String(data?.gameState?.phase ?? '')
+    if (p.includes('jury') || p.includes('finale')) return 'amber'
+    if (p.includes('merge')) return 'violet'
+    if (p.includes('exile')) return 'emerald'
+    return 'cyan'
+  }, [data?.gameState?.phase])
+
+  const gs = data?.gameState
+
+  return (
+    <div className="relative min-h-[80vh] text-white">
+      <SurvivorIslandAmbient />
+      <div className="relative z-10">
+        <div className="mb-6">
+          <WarRoomHeroCard phaseAccent={heroAccent}>
+            <div className="border-b border-white/[0.07] px-1 pb-5 sm:px-2">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300/90">
+                    Survivor command center
+                  </p>
+                  <h1 className="bg-gradient-to-r from-amber-100 via-white to-emerald-200/90 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
+                    {data?.league.name ?? 'Survivor'}
+                  </h1>
+                  <p className="mt-1 text-sm text-white/55">
+                    {data ? (
+                      <>
+                        {data.league.sport} · Week {data.week} ·{' '}
+                        <span className="font-medium text-amber-100/90">{gs?.phase ?? 'loading'}</span>
+                      </>
+                    ) : (
+                      'Loading island…'
+                    )}
+                  </p>
+                </div>
+                <div className="flex w-full max-w-md flex-col gap-2 lg:items-end">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={base}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs font-medium text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm hover:bg-white/10"
+                    >
+                      Island home <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                    </Link>
+                    <Link
+                      href={`/league/${leagueId}?tab=settings`}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-50 shadow-[0_0_20px_-6px_rgba(52,211,153,0.35)] hover:bg-emerald-500/25"
+                    >
+                      League settings
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {created ? (
+              <div
+                className="flex items-center gap-2 border-b border-emerald-500/25 bg-emerald-500/[0.12] px-4 py-2.5 text-xs text-emerald-100 sm:px-6"
+                role="status"
+              >
+                <ChevronRight className="h-4 w-4 shrink-0 text-emerald-300/90" />
+                Survivor league is live — draft shell, tribes (after draft), exile link, and island chats initialize on
+                create. Review operations below.
+              </div>
+            ) : null}
+
+            <div className="flex gap-1.5 overflow-x-auto px-2 py-3 sm:px-3">
+              {TABS.map((t) => (
+                <WarRoomTabButton
+                  key={t.id}
+                  active={tab === t.id}
+                  onClick={() => setTab(t.id)}
+                  icon={t.icon}
+                  label={t.label}
+                  testId={`survivor-commissioner-tab-${t.id}`}
+                />
+              ))}
+            </div>
+          </WarRoomHeroCard>
+        </div>
+
+        {error ? (
+          <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-6 space-y-6">
+          {tab === 'overview' && data && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <WarRoomStatOrb label="Phase" value={gs?.phase ?? '—'} hint="Game state" accent="emerald" />
+                <WarRoomStatOrb
+                  label="Players / roster"
+                  value={`${Math.max(0, data.rosterCount - data.eliminatedCount)} active`}
+                  hint={`${data.eliminatedCount} eliminated`}
+                  accent="amber"
+                />
+                <WarRoomStatOrb label="Tribes" value={String(data.tribes.length)} hint="After draft — random split" accent="violet" />
+                <WarRoomStatOrb label="Jury" value={String(data.juryCount)} hint="Post-merge" accent="cyan" />
+                <WarRoomStatOrb label="Exile linked" value={data.shell.exileLeagueLinked ? 'Yes' : 'Pending'} hint="Side league" accent="emerald" />
+                <WarRoomStatOrb
+                  label="Draft shell"
+                  value={data.shell.draftSessionExists ? 'Ready' : '—'}
+                  hint="Session row"
+                  accent="cyan"
+                />
+                <WarRoomStatOrb
+                  label="Island chats"
+                  value={String(data.shell.survivorChatChannels)}
+                  hint="League / exile / jury channels"
+                  accent="violet"
+                />
+                <WarRoomStatOrb label="Merge" value={data.merged ? 'Merged' : 'Pre-merge'} hint="Conference fusion" accent="amber" />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <WarRoomPanel
+                  title="Quick links"
+                  subtitle="Tribal councils, challenges, @Chimmy, and exile — all wired to your sport."
+                >
+                  <ul className="space-y-2 text-sm text-white/75">
+                    <li className="flex justify-between gap-2">
+                      <span>Tribal Council</span>
+                      <Link href={`${base}/tribal`} className="text-emerald-300 hover:text-emerald-200">
+                        Open
+                      </Link>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span>Mini-games & challenges</span>
+                      <Link href={`${base}/challenges`} className="text-emerald-300 hover:text-emerald-200">
+                        Open
+                      </Link>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span>@Chimmy votes &amp; timing</span>
+                      <Link href={`${base}/chimmy`} className="text-emerald-300 hover:text-emerald-200">
+                        Open
+                      </Link>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span>Exile Island</span>
+                      <Link href={`${base}/exile`} className="text-emerald-300 hover:text-emerald-200">
+                        Open
+                      </Link>
+                    </li>
+                  </ul>
+                </WarRoomPanel>
+                <WarRoomPanel
+                  title="Immunity & deadlines"
+                  subtitle="Engine-driven — updates as councils and challenges lock."
+                >
+                  <p className="text-sm text-white/60">
+                    {gs?.tribalDeadline
+                      ? `Next tribal window: ${new Date(gs.tribalDeadline).toLocaleString()}`
+                      : 'No active tribal deadline in state.'}
+                  </p>
+                  <p className="mt-2 text-xs text-white/45">
+                    Immunity holders sync from live game state. Use Tribal Council tab for vote tools.
+                  </p>
+                </WarRoomPanel>
+              </div>
+            </>
+          )}
+
+          {tab === 'overview' && !data && !error && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/55">
+              Loading overview…
+            </div>
+          )}
+
+          {tab === 'tribes' && (
+            <WarRoomPanel title="Tribes" subtitle="Roster-based tribe assignment runs after the startup draft completes.">
+              <p className="mb-4 text-sm text-white/60">
+                {data?.tribes?.length
+                  ? `${data.tribes.length} tribes configured.`
+                  : 'Tribes appear after draft bootstrap assigns players.'}
+              </p>
+              <Link
+                href={`${base}/tribe`}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-50 hover:bg-emerald-500/25"
+              >
+                <Flame className="h-4 w-4" /> Open tribe view
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'tribal' && (
+            <WarRoomPanel title="Tribal Council" subtitle="Private votes, immunity, idols — processed by the Survivor engine and @Chimmy.">
+              <Link
+                href={`${base}/tribal`}
+                className="inline-flex rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-100 hover:bg-amber-500/15"
+              >
+                Open Tribal Council hub
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'minigames' && (
+            <WarRoomPanel
+              title="Mini games"
+              subtitle="Challenges pull real sport schedules for the active week — see Challenges hub."
+            >
+              <Link href={`${base}/challenges`} className="text-emerald-300 hover:text-emerald-200">
+                Go to challenges →
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'exile' && (
+            <WarRoomPanel title="Exile Island" subtitle="Hidden side competition — exile league links on create.">
+              <Link href={`${base}/exile`} className="text-emerald-300 hover:text-emerald-200">
+                Exile dashboard →
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'jury' && (
+            <WarRoomPanel title="Jury" subtitle="Jury phase and finale votes — see Jury hub.">
+              <Link href={`${base}/jury`} className="text-emerald-300 hover:text-emerald-200">
+                Jury chamber →
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'settings' && (
+            <WarRoomPanel title="Survivor settings" subtitle="Use league settings — Survivor panels are under the specialty format.">
+              <Link
+                href={`/league/${leagueId}?tab=settings`}
+                className="inline-flex rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-sm text-white/85 hover:bg-white/[0.08]"
+              >
+                Open full league settings
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'chat' && (
+            <WarRoomPanel title="Communications" subtitle="Island chat, tribe threads, jury, and exile channels.">
+              <Link href={`${base}/chat`} className="text-emerald-300 hover:text-emerald-200">
+                Survivor chat hub →
+              </Link>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'ai' && (
+            <WarRoomPanel title="AI & automation" subtitle="@Chimmy ingests votes, timestamps picks, and posts official results.">
+              <Link href={`${base}/chimmy`} className="text-emerald-300 hover:text-emerald-200">
+                @Chimmy command center →
+              </Link>
+              <p className="mt-4 text-xs text-white/45">
+                Commissioner automation (anti-collusion, recaps) mirrors subscription tiers — see Access · Tokens.
+              </p>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'premium' && data && (
+            <SurvivorPremiumCommandCenterPanel
+              leagueId={leagueId}
+              plan={data.monetization.afPlan ?? null}
+              tokensRemaining={data.monetization.afTokensRemaining ?? null}
+            />
+          )}
+
+          {tab === 'premium' && !data && !error && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/55">
+              Loading premium intel…
+            </div>
+          )}
+
+          {tab === 'subscription' && (
+            <TournamentSubscriptionTokensPanel
+              entitlements={{
+                plan: data?.monetization.afPlan ?? null,
+                afTokensRemaining: data?.monetization.afTokensRemaining ?? null,
+              }}
+            />
+          )}
+
+          {tab === 'approvals' && (
+            <WarRoomPanel title="Approvals" subtitle="Co-host setting changes can route through league approval flows when enabled.">
+              <p className="text-sm text-white/55">Wire to your league&apos;s co-commissioner approval policy (same pattern as tournaments).</p>
+            </WarRoomPanel>
+          )}
+
+          {tab === 'history' && (
+            <WarRoomPanel title="History / archive" subtitle="Recent Survivor audit events.">
+              {data?.auditTail?.length ? (
+                <ul className="space-y-2 text-sm">
+                  {data.auditTail.map((row, i) => (
+                    <li key={i} className="rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+                      <span className="text-white/80">{row.eventType}</span>
+                      <span className="ml-2 text-xs text-white/40">{new Date(row.createdAt).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-white/45">No audit rows yet.</p>
+              )}
+            </WarRoomPanel>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

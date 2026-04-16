@@ -14,6 +14,7 @@ import { getFinalNomineeRosterIds } from '@/lib/big-brother/BigBrotherNomination
 import { getJuryMembers } from '@/lib/big-brother/BigBrotherJuryEngine'
 import { getRosterDisplayNamesForLeague } from '@/lib/big-brother/ai/getRosterDisplayNames'
 import { getBigBrotherSportCalendarContext } from '@/lib/big-brother/BigBrotherSportCalendar'
+import { compareMemoryWallEntries, resolveMemoryWallStatus } from '@/lib/big-brother/memoryWallStatus'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -112,19 +113,7 @@ export async function GET(
   }
 
   const eliminatedRosterIds = eligibility?.eliminatedRosterIds ?? []
-  const allRosterIds = [
-    cycle?.hohRosterId,
-    cycle?.nominee1RosterId,
-    cycle?.nominee2RosterId,
-    cycle?.vetoWinnerRosterId,
-    cycle?.replacementNomineeRosterId,
-    cycle?.evictedRosterId,
-    ...(cycle?.vetoParticipantRosterIds ?? []),
-    ...finalNomineeRosterIds,
-    ...jury.map((j) => j.rosterId),
-    ...eliminatedRosterIds,
-  ].filter(Boolean) as string[]
-  const rosterDisplayNames = await getRosterDisplayNamesForLeague(leagueId, [...new Set(allRosterIds)])
+  const juryRosterIds = eligibility?.juryRosterIds ?? []
 
   const myStatus = myRosterId
     ? (() => {
@@ -166,6 +155,42 @@ export async function GET(
 
   const sportCalendar = await getBigBrotherSportCalendarContext(config.sport)
 
+  const allRosters = await prisma.roster.findMany({
+    where: { leagueId },
+    select: { id: true, platformUserId: true },
+  })
+  const rosterDisplayNames = await getRosterDisplayNamesForLeague(
+    leagueId,
+    allRosters.length ? allRosters.map((r) => r.id) : undefined
+  )
+  const platformIds = [...new Set(allRosters.map((r) => r.platformUserId).filter(Boolean))]
+  const usersForAvatar =
+    platformIds.length > 0
+      ? await prisma.appUser.findMany({
+          where: { id: { in: platformIds } },
+          select: { id: true, avatarUrl: true },
+        })
+      : []
+  const avatarByUserId = new Map(usersForAvatar.map((u) => [u.id, u.avatarUrl ?? null] as const))
+
+  const memoryWall = allRosters
+    .map((r) => {
+      const status = resolveMemoryWallStatus({
+        rosterId: r.id,
+        cycle,
+        finalNomineeRosterIds,
+        eliminatedRosterIds,
+        juryRosterIds,
+      })
+      return {
+        rosterId: r.id,
+        displayName: rosterDisplayNames[r.id] ?? `Houseguest ${r.id.slice(0, 8)}`,
+        avatarUrl: avatarByUserId.get(r.platformUserId) ?? null,
+        status,
+      }
+    })
+    .sort(compareMemoryWallEntries)
+
   return NextResponse.json({
     totalRosterCount,
     remainingCount,
@@ -173,6 +198,7 @@ export async function GET(
       sport: config.sport,
       finaleFormat: config.finaleFormat,
       juryStartMode: config.juryStartMode,
+      challengeMode: config.challengeMode,
     },
     sportCalendar: {
       regularSeasonWeeks: sportCalendar.regularSeasonWeeks,
@@ -197,5 +223,6 @@ export async function GET(
     myRosterId,
     myStatus,
     rosterDisplayNames,
+    memoryWall,
   })
 }

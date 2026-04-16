@@ -26,3 +26,12 @@ export function resolveAfPlanFromEntitlement(
 export function hasAfCommissionerTier(plan: AfPlanId | null | undefined): boolean {
   return plan === 'af_commissioner' || plan === 'af_supreme'
 }
+
+export function hasAfProTier(plan: AfPlanId | null | undefined): boolean {
+  return plan === 'af_pro' || plan === 'af_supreme'
+}
+
+/** AF Supreme — All-Access bundle or equivalent (see `resolveAfPlanFromEntitlement`). */
+export function hasAfSupremeTier(plan: AfPlanId | null | undefined): boolean {
+  return plan === 'af_supreme'
+}

@@ -70,6 +70,7 @@ export async function GET(
       autoNominationFallback: config.autoNominationFallback,
       evictionTieBreakMode: config.evictionTieBreakMode,
       weekProgressionPaused: config.weekProgressionPaused,
+      premiumEngineSpec: config.premiumEngineSpec ?? null,
     },
   })
 }

@@ -31,6 +31,10 @@ export type SubscriptionFeatureId =
   | 'guillotine_ai'
   | 'salary_cap_ai'
   | 'survivor_ai'
+  /** Host / commissioner Survivor automation — Chimmy ops, grading, fairness (AF Commissioner or Supreme). */
+  | 'survivor_host_ai'
+  | 'big_brother_ai'
+  | 'big_brother_host_ai'
   | 'zombie_ai'
   // UI / monetization catalog keys (same strings as former FeatureKey — unified with matrix IDs)
   | 'commissioner_ai_tools'

@@ -13,7 +13,13 @@ export const AF_PLANS: Record<
     label: 'AF Pro',
     shortLabel: 'Pro',
     description: 'Personal AI — lineups, outlooks, waivers, trades, draft help.',
-    unlocks: ['User-facing AI tools', 'Lineup & player insights', 'Waiver / trade / draft assistants'],
+    unlocks: [
+      'User-facing AI tools',
+      'Lineup & player insights',
+      'Waiver / trade / draft assistants',
+      'Survivor: threat map, social pulse, challenge outlook, jury lens (player)',
+      'Survivor: mini-game helper, confessional polish, jury speech helper (token metered)',
+    ],
   },
   af_commissioner: {
     label: 'AF Commissioner',
@@ -23,13 +29,20 @@ export const AF_PLANS: Record<
       'Anti-collusion & anti-tanking signals',
       'League health & fairness alerts',
       'Tournament automation & commissioner recommendations',
+      'Survivor: @Chimmy automation, vote/idol validation, mini-game grading, fairness radar',
+      'Survivor: weekly recap generator, challenge recommendation, inactivity alerts (token metered)',
     ],
   },
   af_supreme: {
     label: 'AF Supreme',
     shortLabel: 'Supreme',
     description: 'Full bundle — everything in AF Pro and AF Commissioner.',
-    unlocks: ['All AF Pro features', 'All AF Commissioner features', 'Best value for power users'],
+    unlocks: [
+      'All AF Pro features',
+      'All AF Commissioner features',
+      'Survivor: full premium command center + story mode controls',
+      'Best value for power users',
+    ],
   },
 }
 
