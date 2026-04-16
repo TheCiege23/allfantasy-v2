@@ -5587,6 +5587,10 @@ model SurvivorLeagueConfig {
   tribalCouncilDayOfWeek         Int?
   tribalCouncilTimeUtc           String?                 @db.VarChar(16)
   minigameFrequency              String                  @default("none") @db.VarChar(24)
+  seasonThemeLabel               String?                 @db.VarChar(255)
+  regularSeasonEndWeek           Int?
+  challengesSystemRun            Boolean                 @default(true)
+  faqSeededAt                    DateTime?
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
   /// Survivor engine v2 — confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).

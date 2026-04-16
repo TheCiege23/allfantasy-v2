@@ -12,3 +12,9 @@ ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "legacy_career_tier" INTEGE
 ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "legacy_career_tier_name" TEXT;
 ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "legacy_career_level" INTEGER;
 ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "legacy_career_xp" BIGINT;
+
+-- survivor_league_configs: season theme label for branding/customization
+ALTER TABLE "survivor_league_configs" ADD COLUMN IF NOT EXISTS "seasonThemeLabel" VARCHAR(255);
+ALTER TABLE "survivor_league_configs" ADD COLUMN IF NOT EXISTS "regularSeasonEndWeek" INTEGER;
+ALTER TABLE "survivor_league_configs" ADD COLUMN IF NOT EXISTS "challengesSystemRun" BOOLEAN DEFAULT true;
+ALTER TABLE "survivor_league_configs" ADD COLUMN IF NOT EXISTS "faqSeededAt" TIMESTAMP;
