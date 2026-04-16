@@ -44,7 +44,7 @@ export async function POST(req: Request) {
   try {
     const { traits } = await recordUserLineupPreferenceEvent(session.user.id, kind, payload)
 
-    const events = await prisma.userLineupPreferenceEvent.findMany({
+    const events = await (prisma as any).userLineupPreferenceEvent.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: 'desc' },
       take: 120,
