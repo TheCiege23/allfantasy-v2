@@ -1,6 +1,15 @@
 import type { AIAction, AIActionContext, AIActionEvent, AIActionType } from './AIActionModel'
 import { logAIActionEvent, getSavedRecommendations } from './AIActionLogger'
-import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
+
+function resolveInternalApiUrl(path: string): string {
+  if (typeof window !== 'undefined') return path
+  const base =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    'http://localhost:3000'
+  return `${base.replace(/\/$/, '')}${path}`
+}
 
 type TrackedEventType = AIActionEvent['event']
 
@@ -461,21 +470,27 @@ export async function getChimmyLearningSnapshot(
 ): Promise<ChimmyLearningSnapshot> {
   const limit = options?.limit ?? 1000
 
-  if (!isSupabaseConfigured) {
-    return buildLearningSnapshotFromEvents([], {
-      outcomeAdapters: options?.outcomeAdapters,
-    })
+  void userId
+
+  let data: EventRow[] = []
+  try {
+    const response = await fetch(
+      resolveInternalApiUrl(`/api/ai/actions/events?limit=${encodeURIComponent(String(limit))}`),
+      {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      }
+    )
+    if (response.ok) {
+      const payload = (await response.json()) as { rows?: EventRow[] }
+      data = Array.isArray(payload.rows) ? payload.rows : []
+    }
+  } catch {
+    data = []
   }
 
-  const query = supabase
-    .from('ai_action_events')
-    .select('*')
-    .eq('user_id', userId)
-    .order('timestamp', { ascending: false })
-    .limit(limit)
-
-  const { data, error } = await (query as unknown as Promise<{ data: EventRow[] | null; error: { message: string } | null }>)
-  if (error || !data) {
+  if (!data.length) {
     return buildLearningSnapshotFromEvents([], {
       outcomeAdapters: options?.outcomeAdapters,
     })

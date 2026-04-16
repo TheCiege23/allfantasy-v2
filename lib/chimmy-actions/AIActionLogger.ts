@@ -1,15 +1,31 @@
 /**
  * AI Action Logger
  * Writes lifecycle telemetry for AI actions and persists saved recommendations
- * to Supabase. All writes are fire-and-forget — failures are logged to console
- * and never throw to the caller.
+ * through internal API routes backed by Neon/Prisma.
  *
  * Import shape:
  *   import { logAIActionEvent, saveAIRecommendation, ... } from '@/lib/chimmy-actions'
  */
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import type { AIActionEvent, SavedAIRecommendation } from './AIActionModel'
+
+function resolveInternalApiUrl(path: string): string {
+  if (typeof window !== 'undefined') return path
+  const base =
+    process.env.APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    'http://localhost:3000'
+  return `${base.replace(/\/$/, '')}${path}`
+}
+
+async function parseJsonSafe<T>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T
+  } catch {
+    return null
+  }
+}
 
 // ─── Event Logger ───────────────────────────────────────────────────────────────
 
@@ -18,21 +34,12 @@ import type { AIActionEvent, SavedAIRecommendation } from './AIActionModel'
  * Silently no-ops when Supabase is not configured.
  */
 export async function logAIActionEvent(event: AIActionEvent): Promise<void> {
-  if (!isSupabaseConfigured) return
-
   try {
-    await supabase.from('ai_action_events').insert({
-      id: event.id,
-      action_type: event.actionType,
-      surface: event.surface,
-      user_id: event.userId,
-      league_id: event.leagueId ?? null,
-      team_id: event.teamId ?? null,
-      sport: event.sport ?? null,
-      event: event.event,
-      timestamp: new Date(event.timestamp).toISOString(),
-      duration_ms: event.durationMs ?? null,
-      metadata: event.metadata ?? null,
+    await fetch(resolveInternalApiUrl('/api/ai/actions/events'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(event),
     })
   } catch {
     // Non-critical — swallow logging failures silently
@@ -48,32 +55,19 @@ export async function logAIActionEvent(event: AIActionEvent): Promise<void> {
 export async function saveAIRecommendation(
   rec: SavedAIRecommendation,
 ): Promise<string | null> {
-  if (!isSupabaseConfigured) return null
-
   try {
-    const { data, error } = await supabase.from('ai_saved_recommendations').insert({
-      id: rec.id,
-      user_id: rec.userId,
-      league_id: rec.leagueId ?? null,
-      sport: rec.sport,
-      league_type: rec.leagueType,
-      surface: rec.surface,
-      recommendation_text: rec.recommendationText,
-      action: rec.action,
-      saved_at: new Date(rec.savedAt).toISOString(),
-      expires_at: rec.expiresAt ? new Date(rec.expiresAt).toISOString() : null,
-      acted_on: rec.actedOn ?? false,
-      acted_on_at: rec.actedOnAt ? new Date(rec.actedOnAt).toISOString() : null,
+    const response = await fetch(resolveInternalApiUrl('/api/ai/actions/recommendations'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(rec),
     })
-
-    if (error) {
-      console.error('[AIActionLogger] saveAIRecommendation failed:', error.message)
+    if (!response.ok) {
+      console.error('[AIActionLogger] saveAIRecommendation failed:', response.status)
       return null
     }
-
-    // Insert returns an array; grab the first item's id if present
-    const inserted = Array.isArray(data) ? (data as Array<{ id?: string }>)[0] : null
-    return inserted?.id ?? rec.id
+    const payload = await parseJsonSafe<{ id?: string }>(response)
+    return payload?.id ?? rec.id
   } catch {
     return null
   }
@@ -87,20 +81,15 @@ export async function saveAIRecommendation(
 export async function restoreSavedAIRecommendation(
   id: string,
 ): Promise<SavedAIRecommendation | null> {
-  if (!isSupabaseConfigured) return null
-
   try {
-    const { data, error } = await (
-      supabase
-        .from('ai_saved_recommendations')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle() as unknown as Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }>
-    )
-
-    if (error || !data) return null
-
-    return mapRowToRecommendation(data)
+    const response = await fetch(resolveInternalApiUrl(`/api/ai/actions/recommendations/${encodeURIComponent(id)}`), {
+      method: 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    if (!response.ok) return null
+    const payload = await parseJsonSafe<{ row?: SavedAIRecommendation | null }>(response)
+    return payload?.row ?? null
   } catch {
     return null
   }
@@ -115,21 +104,20 @@ export async function getSavedRecommendations(
   userId: string,
   limit = 20,
 ): Promise<SavedAIRecommendation[]> {
-  if (!isSupabaseConfigured) return []
+  void userId
 
   try {
-    const { data, error } = await (
-      supabase
-        .from('ai_saved_recommendations')
-        .select('*')
-        .eq('user_id', userId)
-        .order('saved_at', { ascending: false })
-        .limit(limit) as unknown as Promise<{ data: Record<string, unknown>[] | null; error: { message: string } | null }>
+    const response = await fetch(
+      resolveInternalApiUrl(`/api/ai/actions/recommendations?limit=${encodeURIComponent(String(limit))}`),
+      {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      }
     )
-
-    if (error || !data) return []
-
-    return data.map(mapRowToRecommendation)
+    if (!response.ok) return []
+    const payload = await parseJsonSafe<{ rows?: SavedAIRecommendation[] }>(response)
+    return Array.isArray(payload?.rows) ? payload.rows : []
   } catch {
     return []
   }
@@ -141,33 +129,12 @@ export async function getSavedRecommendations(
  * Mark a saved recommendation as acted on so it can be archived in the UI.
  */
 export async function markRecommendationActedOn(id: string): Promise<void> {
-  if (!isSupabaseConfigured) return
-
   try {
-    await supabase
-      .from('ai_saved_recommendations')
-      .update({ acted_on: true, acted_on_at: new Date().toISOString() })
-      .eq('id', id)
+    await fetch(resolveInternalApiUrl(`/api/ai/actions/recommendations/${encodeURIComponent(id)}`), {
+      method: 'PATCH',
+      credentials: 'same-origin',
+    })
   } catch {
     // Swallow
-  }
-}
-
-// ─── Row Mapper ─────────────────────────────────────────────────────────────────
-
-function mapRowToRecommendation(row: Record<string, unknown>): SavedAIRecommendation {
-  return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    leagueId: (row.league_id as string | null) ?? null,
-    sport: row.sport as string,
-    leagueType: row.league_type as string,
-    surface: row.surface as string,
-    recommendationText: row.recommendation_text as string,
-    action: row.action as SavedAIRecommendation['action'],
-    savedAt: new Date(row.saved_at as string).getTime(),
-    expiresAt: row.expires_at ? new Date(row.expires_at as string).getTime() : null,
-    actedOn: (row.acted_on as boolean) ?? false,
-    actedOnAt: row.acted_on_at ? new Date(row.acted_on_at as string).getTime() : null,
   }
 }

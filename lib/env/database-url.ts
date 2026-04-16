@@ -1,10 +1,7 @@
 /** Prefer pooled runtime URLs first; use DIRECT / non-pooling only as fallbacks (e.g. local dev). */
 const DATABASE_URL_ENV_KEYS = [
   "DATABASE_URL",
-  "POSTGRES_PRISMA_URL",
-  "POSTGRES_URL",
   "DIRECT_URL",
-  "POSTGRES_URL_NON_POOLING",
 ] as const
 
 type DatabaseEnv = Partial<Record<(typeof DATABASE_URL_ENV_KEYS)[number], string | undefined>>

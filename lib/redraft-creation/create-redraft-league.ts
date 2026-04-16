@@ -72,9 +72,10 @@ export type RedraftCreateTransactionResult = {
   homepageUrl: string
 }
 
+/** @param appUserId — Must be `AppUser.id` (app_users.id). Resolved in the API handler from the session. */
 export async function createRedraftLeagueInTransaction(
   tx: Tx,
-  userId: string,
+  appUserId: string,
   body: RedraftCreateBody,
   log?: (event: string, payload: Record<string, unknown>) => void
 ): Promise<RedraftCreateTransactionResult> {
@@ -111,14 +112,14 @@ export async function createRedraftLeagueInTransaction(
     },
   }
 
-  log?.('transaction_start', { userId, sport })
+  log?.('transaction_start', { appUserId, sport })
 
   const joinCode = await uniqueJoinCode(tx)
   const platformLeagueId = `manual-${randomUUID()}`
 
   const league = await tx.league.create({
     data: {
-      userId,
+      userId: appUserId,
       isCommissioner: true,
       name: body.name.trim(),
       platform: 'manual',
@@ -247,7 +248,7 @@ export async function createRedraftLeagueInTransaction(
   const roster = await tx.roster.create({
     data: {
       leagueId: league.id,
-      platformUserId: userId,
+      platformUserId: appUserId,
       playerData: { draftPicks: [] },
     },
   })
@@ -258,8 +259,8 @@ export async function createRedraftLeagueInTransaction(
       externalId: roster.id,
       ownerName: 'Commissioner',
       teamName: `${body.name.trim()} — Commissioner`,
-      claimedByUserId: userId,
-      platformUserId: userId,
+      claimedByUserId: appUserId,
+      platformUserId: appUserId,
       isCommissioner: true,
       role: 'commissioner',
     },
@@ -268,7 +269,7 @@ export async function createRedraftLeagueInTransaction(
   await tx.redraftLeagueMember.create({
     data: {
       leagueId: league.id,
-      userId,
+      userId: appUserId,
       role: 'COMMISSIONER',
       teamNumber: 1,
     },

@@ -27,7 +27,7 @@ import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { assertLeagueMember } from '@/lib/league-access'
-import { logAIActionEvent } from '@/lib/chimmy-actions/AIActionLogger'
+import { createActionEvent } from '@/lib/chimmy-actions/server-store'
 import { prisma } from '@/lib/prisma'
 import {
   runTwoPlayerComparisonEngine,
@@ -217,7 +217,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ leagueId: stri
     /* non-fatal */
   }
 
-  void logAIActionEvent({
+  void createActionEvent({
     id: randomUUID(),
     actionType: 'compare_alternatives',
     surface: 'start_vs_comparison',

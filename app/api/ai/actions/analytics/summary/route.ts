@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
-import { getChimmyLearningSnapshot } from '@/lib/chimmy-actions'
+import { getChimmyLearningSnapshotServer } from '@/lib/chimmy-actions/server-store'
 
 const QuerySchema = z.object({
   limit: z.coerce.number().int().min(50).max(5000).optional(),
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   const { limit, includeSavedRecommendations } = parsedQuery.data
 
-  const snapshot = await getChimmyLearningSnapshot(userId, {
+  const snapshot = await getChimmyLearningSnapshotServer(userId, {
     limit,
     includeSavedRecommendations: includeSavedRecommendations === 'true',
   })

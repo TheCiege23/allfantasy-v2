@@ -346,18 +346,18 @@ model AdpDataRecord {
 }
 
 model PlayerNewsRecord {
-  id              String   @id @default(cuid())
-  sport           String   @db.VarChar(16)
-  playerId        String?  @map("player_id") @db.VarChar(128)
-  playerName      String   @map("player_name") @db.VarChar(128)
-  team            String?  @db.VarChar(32)
-  headline        String   @db.VarChar(256)
-  body            String
-  impact          String   @db.VarChar(16)
-  fantasyRelevant Boolean  @default(false) @map("fantasy_relevant")
-  source          String   @db.VarChar(32)
-  publishedAt     DateTime @map("published_at")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                       String    @id @default(cuid())
+  sport                    String    @db.VarChar(16)
+  playerId                 String?   @map("player_id") @db.VarChar(128)
+  playerName               String    @map("player_name") @db.VarChar(128)
+  team                     String?   @db.VarChar(32)
+  headline                 String    @db.VarChar(256)
+  body                     String
+  impact                   String    @db.VarChar(16)
+  fantasyRelevant          Boolean   @default(false) @map("fantasy_relevant")
+  source                   String    @db.VarChar(32)
+  publishedAt              DateTime  @map("published_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
   /// Set the first time the cron dispatches push notifications for this
   /// record, so subsequent runs within the same look-back window never
   /// re-dispatch the same story.
@@ -2511,99 +2511,97 @@ model PlayerAnalyticsSnapshot {
 }
 
 model AppUser {
-  id                             String                     @id @default(uuid())
-  email                          String                     @unique
-  emailVerified                  DateTime?
-  username                       String                     @unique
-  passwordHash                   String?
-  displayName                    String?
-  avatarUrl                      String?
-  createdAt                      DateTime                   @default(now())
-  updatedAt                      DateTime                   @updatedAt
-  legacyUserId                   String?                    @unique
-  activeLeagueId                 String?
+  id                                       String                                 @id @default(uuid())
+  email                                    String                                 @unique
+  emailVerified                            DateTime?
+  username                                 String                                 @unique
+  passwordHash                             String?
+  displayName                              String?
+  avatarUrl                                String?
+  createdAt                                DateTime                               @default(now())
+  updatedAt                                DateTime                               @updatedAt
+  legacyUserId                             String?                                @unique
+  activeLeagueId                           String?
   /// US state/region code from geo at signup (compliance; Vercel headers / IP).
-  detectedStateCode              String?
-  isStateRestricted              Boolean                    @default(false)
-  stateRestrictionLevel          String?
-  bracketEntries                 BracketEntry[]
-  bracketLeaguesOwned            BracketLeague[]            @relation("BracketLeagueOwner")
-  bracketMemberships             BracketLeagueMember[]
-  bracketPayments                BracketPayment[]           @relation("BracketPayments")
-  legacyImportJobs               LegacyImportJob[]
-  legacyUser                     LegacyUser?                @relation(fields: [legacyUserId], references: [id])
-  accounts                       AuthAccount[]
-  sessions                       AuthSession[]
-  autoCoachSettings              AutoCoachSetting[]
-  bigBrotherChatCommandLogs      BigBrotherChatCommandLog[]
-  bracketLeagueMessages          BracketLeagueMessage[]     @relation("BracketLeagueMessages")
-  bracketMessageReactions        BracketMessageReaction[]   @relation("BracketMessageReactions")
-  bracketRiskProfile             BracketRiskProfile?        @relation("BracketRiskProfile")
-  creatorProfile                 CreatorProfile?
-  devyImportSessionsCommissioned DevyImportSession[]        @relation("DevyImportSessionCommissioner")
-  discordGuildLinks              DiscordGuildLink[]
-  draftAutopickSettings          DraftAutopickSetting[]
-  draftRoomChatMessages          DraftRoomChatMessage[]
-  draftRoomUserQueues            DraftRoomUserQueue[]
-  emailVerifyTokens              EmailVerifyToken[]
-  engagementEvents               EngagementEvent[]
-  fantasyMediaEpisodes           FantasyMediaEpisode[]
-  growthAttributions             GrowthAttribution?
-  inviteLinksCreated             InviteLink[]
-  leagueAuths                    LeagueAuth[]
-  leagueChatMessages             LeagueChatMessage[]
-  leagueIntroViews               LeagueIntroView[]
-  leagueTemplates                LeagueTemplate[]
-  leagues                        League[]
-  mockDraftRoomsCreated          MockDraftRoom[]            @relation("MockDraftRoomCreator")
-  mockDrafts                     MockDraft[]
-  passwordResetTokens            PasswordResetToken[]
-  platformBlockedBy              PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocked")
-  platformBlockedUsers           PlatformBlockedUser[]      @relation("PlatformBlockedUserBlocker")
-  platformChatMessages           PlatformChatMessage[]      @relation("PlatformChatMessageSender")
-  platformChatThreadMemberships  PlatformChatThreadMember[]
-  platformChatThreadsCreated     PlatformChatThread[]       @relation("PlatformChatThreadCreator")
-  platformMessageReports         PlatformMessageReport[]    @relation("PlatformMessageReportReporter")
-  platformNotifications          PlatformNotification[]
-  tournamentMiniCommissionerRoles LegacyTournamentMiniCommissioner[]
+  detectedStateCode                        String?
+  isStateRestricted                        Boolean                                @default(false)
+  stateRestrictionLevel                    String?
+  bracketEntries                           BracketEntry[]
+  bracketLeaguesOwned                      BracketLeague[]                        @relation("BracketLeagueOwner")
+  bracketMemberships                       BracketLeagueMember[]
+  bracketPayments                          BracketPayment[]                       @relation("BracketPayments")
+  legacyImportJobs                         LegacyImportJob[]
+  aiRecommendationLogs                     AiRecommendationLog[]
+  legacyUser                               LegacyUser?                            @relation(fields: [legacyUserId], references: [id])
+  accounts                                 AuthAccount[]
+  sessions                                 AuthSession[]
+  autoCoachSettings                        AutoCoachSetting[]
+  bigBrotherChatCommandLogs                BigBrotherChatCommandLog[]
+  bracketLeagueMessages                    BracketLeagueMessage[]                 @relation("BracketLeagueMessages")
+  bracketMessageReactions                  BracketMessageReaction[]               @relation("BracketMessageReactions")
+  bracketRiskProfile                       BracketRiskProfile?                    @relation("BracketRiskProfile")
+  creatorProfile                           CreatorProfile?
+  devyImportSessionsCommissioned           DevyImportSession[]                    @relation("DevyImportSessionCommissioner")
+  discordGuildLinks                        DiscordGuildLink[]
+  draftAutopickSettings                    DraftAutopickSetting[]
+  draftRoomChatMessages                    DraftRoomChatMessage[]
+  draftRoomUserQueues                      DraftRoomUserQueue[]
+  emailVerifyTokens                        EmailVerifyToken[]
+  engagementEvents                         EngagementEvent[]
+  fantasyMediaEpisodes                     FantasyMediaEpisode[]
+  growthAttributions                       GrowthAttribution?
+  inviteLinksCreated                       InviteLink[]
+  leagueAuths                              LeagueAuth[]
+  leagueChatMessages                       LeagueChatMessage[]
+  leagueIntroViews                         LeagueIntroView[]
+  leagueTemplates                          LeagueTemplate[]
+  leagues                                  League[]
+  legacyTournamentStaffRoles               LegacyTournamentStaff[]
+  legacyTournamentWaitlistEntries          LegacyTournamentWaitlistEntry[]
+  mockDraftRoomsCreated                    MockDraftRoom[]                        @relation("MockDraftRoomCreator")
+  mockDrafts                               MockDraft[]
+  passwordResetTokens                      PasswordResetToken[]
+  platformBlockedBy                        PlatformBlockedUser[]                  @relation("PlatformBlockedUserBlocked")
+  platformBlockedUsers                     PlatformBlockedUser[]                  @relation("PlatformBlockedUserBlocker")
+  platformChatMessages                     PlatformChatMessage[]                  @relation("PlatformChatMessageSender")
+  platformChatThreadMemberships            PlatformChatThreadMember[]
+  platformChatThreadsCreated               PlatformChatThread[]                   @relation("PlatformChatThreadCreator")
+  platformMessageReports                   PlatformMessageReport[]                @relation("PlatformMessageReportReporter")
+  platformNotifications                    PlatformNotification[]
+  platformUserReportsAgainst               PlatformUserReport[]                   @relation("PlatformUserReportReported")
+  platformUserReportsCreated               PlatformUserReport[]                   @relation("PlatformUserReportReporter")
+  walletAccount                            PlatformWalletAccount?
+  playerOutlooks                           PlayerOutlook[]
+  podcastEpisodes                          PodcastEpisode[]
+  referralCodes                            ReferralCode[]
+  referredByEvents                         ReferralEvent[]                        @relation("ReferralEventReferred")
+  referralEventsAsReferrer                 ReferralEvent[]                        @relation("ReferralEventReferrer")
+  referralRewards                          ReferralReward[]
+  referralAsReferred                       Referral?                              @relation("ReferralReferred")
+  referralsAsReferrer                      Referral[]                             @relation("ReferralReferrer")
+  shareableMoments                         ShareableMoment[]
+  sleeperLeagues                           SleeperLeague[]
+  socialClips                              SocialClip[]
+  socialContentAssets                      SocialContentAsset[]
+  socialPublishTargets                     SocialPublishTarget[]
+  tokenLedgerEntries                       TokenLedger[]
   tournamentLeagueSettingRequestsSubmitted LegacyTournamentLeagueSettingRequest[] @relation("TournamentLeagueSettingRequestRequester")
   tournamentLeagueSettingRequestsResolved  LegacyTournamentLeagueSettingRequest[] @relation("TournamentLeagueSettingRequestResolver")
-  platformUserReportsAgainst     PlatformUserReport[]       @relation("PlatformUserReportReported")
-  platformUserReportsCreated     PlatformUserReport[]       @relation("PlatformUserReportReporter")
-  walletAccount                  PlatformWalletAccount?
-  podcastEpisodes                PodcastEpisode[]
-  referralCodes                  ReferralCode[]
-  referredByEvents               ReferralEvent[]            @relation("ReferralEventReferred")
-  referralEventsAsReferrer       ReferralEvent[]            @relation("ReferralEventReferrer")
-  referralRewards                ReferralReward[]
-  referralAsReferred             Referral?                  @relation("ReferralReferred")
-  referralsAsReferrer            Referral[]                 @relation("ReferralReferrer")
-  shareableMoments               ShareableMoment[]
-  sleeperLeagues                 SleeperLeague[]
-  socialClips                    SocialClip[]
-  socialContentAssets            SocialContentAsset[]
-  socialPublishTargets           SocialPublishTarget[]
-  tokenLedgerEntries             TokenLedger[]
-  tournamentShellsCommissioned   TournamentShell[]          @relation("TournamentShellCommissioner")
-  tournamentShellsCreatedBy      TournamentShell[]          @relation("TournamentShellCreator")
-  tournamentsCreated             LegacyTournament[]         @relation("LegacyTournamentCreator")
-  legacyTournamentWaitlistEntries LegacyTournamentWaitlistEntry[]
-  legacyTournamentStaffRoles      LegacyTournamentStaff[]
-  tradeFeedback                  Feedback[]
-  tradeProfile                   TradeProfile?
-  profile                        UserProfile?
-  userSubscriptions              UserSubscription[]
-  tokenBalance                   UserTokenBalance?
-  waiverPickups                  WaiverPickup[]
-  walletLedgerEntries            WalletLedgerEntry[]
-  webPushSubscriptions           WebPushSubscription[]
-  zombieUniversesCommissioned    ZombieUniverse[]           @relation("ZombieUniverseCommissioner")
-  zombieUniversesCreated         ZombieUniverse[]           @relation("ZombieUniverseCreator")
-  lineupPreferenceTraits         UserLineupPreferenceTrait[]
-  lineupPreferenceEvents         UserLineupPreferenceEvent[]
-  warRoomSnapshots               WarRoomSnapshot[]
-  playerOutlooks                 PlayerOutlook[]
-  aiRecommendationLogs           AiRecommendationLog[]
+  tournamentMiniCommissionerRoles          LegacyTournamentMiniCommissioner[]
+  tournamentShellsCommissioned             TournamentShell[]                      @relation("TournamentShellCommissioner")
+  tournamentShellsCreatedBy                TournamentShell[]                      @relation("TournamentShellCreator")
+  tournamentsCreated                       LegacyTournament[]                     @relation("LegacyTournamentCreator")
+  tradeFeedback                            Feedback[]
+  tradeProfile                             TradeProfile?
+  profile                                  UserProfile?
+  userSubscriptions                        UserSubscription[]
+  tokenBalance                             UserTokenBalance?
+  waiverPickups                            WaiverPickup[]
+  walletLedgerEntries                      WalletLedgerEntry[]
+  warRoomSnapshots                         WarRoomSnapshot[]
+  webPushSubscriptions                     WebPushSubscription[]
+  zombieUniversesCommissioned              ZombieUniverse[]                       @relation("ZombieUniverseCommissioner")
+  zombieUniversesCreated                   ZombieUniverse[]                       @relation("ZombieUniverseCreator")
 
   @@map("app_users")
 }
@@ -3763,29 +3761,10 @@ model UserProfile {
   timezone                  String?
   themePreference           String?
   bio                       String?
-  dashboardOnboarding       Json?
   preferredSports           Json?
   notificationPreferences   Json?
   onboardingStep            String?
   onboardingCompletedAt     DateTime?
-  rankTier                  String?             @map("rank_tier")
-  xpTotal                   BigInt?             @map("xp_total")
-  xpLevel                   Int?                @map("xp_level")
-  /// Denormalized legacy-career snapshot on the profile. Lives on
-  /// UserProfile so the rank route can read it in a single query
-  /// without joining the career tier computation service.
-  legacyCareerTier          Int?                @map("legacy_career_tier")
-  legacyCareerTierName      String?             @map("legacy_career_tier_name")
-  legacyCareerLevel         Int?                @map("legacy_career_level")
-  legacyCareerXp            BigInt?             @map("legacy_career_xp")
-  rankCalculatedAt          DateTime?           @map("rank_calculated_at")
-  careerWins                Int?                @map("career_wins")
-  careerLosses              Int?                @map("career_losses")
-  careerChampionships       Int?                @map("career_championships")
-  careerPlayoffAppearances  Int?                @map("career_playoff_appearances")
-  careerSeasonsPlayed       Int?                @map("career_seasons_played")
-  careerLeaguesPlayed       Int?                @map("career_leagues_played")
-  leagueImportDetailPending Boolean?            @default(false) @map("league_import_detail_pending")
   /// PROMPT 149: Dismissed retention nudge IDs -> ISO date, e.g. { "return_nudge_1": "2025-03-14T..." }
   retentionNudgeDismissedAt Json?
   /// Aggregated scoring/league context after imports — feeds rankings / AI personalization.
@@ -3799,16 +3778,6 @@ model UserProfile {
   discordRefreshToken       String?
   discordConnectedAt        DateTime?
   discordGuildId            String?
-  /// Draft / war-room: risk and build prefs (AF War Room AI).
-  riskProfile               String?             @db.VarChar(32)
-  draftStyle                String?             @db.VarChar(32)
-  dynastyWindow             String?             @db.VarChar(32)
-  preferredBuild            String?             @db.VarChar(64)
-  preferredPositionsJson    Json?
-  fadePositionsJson         Json?
-  aiStrategyModeDefault     String?             @db.VarChar(32)
-  aiExplanationStyle        String?             @db.VarChar(32)
-  aiVoicePreference         String?             @db.VarChar(64)
   /// AF Commissioner subscription — unlocks premium league AI / playoff options.
   afCommissionerSub         Boolean             @default(false)
   /// Denormalized from userSubscription (System B) for legacy gates and quick checks.
@@ -3819,51 +3788,47 @@ model UserProfile {
   autoCoachGlobalEnabled    Boolean             @default(true)
   /// Auto sign-out after this many minutes of inactivity (null/0 = off). Allowed: 30, 60, 240, 720, 1440.
   sessionIdleTimeoutMinutes Int?
+  rankTier                  String?             @map("rank_tier")
+  xpTotal                   BigInt?             @map("xp_total")
+  xpLevel                   Int?                @map("xp_level")
+  rankCalculatedAt          DateTime?           @map("rank_calculated_at")
+  careerWins                Int?                @map("career_wins")
+  careerLosses              Int?                @map("career_losses")
+  careerChampionships       Int?                @map("career_championships")
+  careerPlayoffAppearances  Int?                @map("career_playoff_appearances")
+  careerSeasonsPlayed       Int?                @map("career_seasons_played")
+  careerLeaguesPlayed       Int?                @map("career_leagues_played")
+  leagueImportDetailPending Boolean?            @default(false) @map("league_import_detail_pending")
   chimmyTtsVoiceId          String?             @map("chimmy_tts_voice_id")
+  dashboardOnboarding       Json?
+  /// Draft / war-room: risk and build prefs (AF War Room AI).
+  riskProfile               String?             @db.VarChar(32)
+  draftStyle                String?             @db.VarChar(32)
+  dynastyWindow             String?             @db.VarChar(32)
+  preferredBuild            String?             @db.VarChar(64)
+  preferredPositionsJson    Json?
+  fadePositionsJson         Json?
+  aiStrategyModeDefault     String?             @db.VarChar(32)
+  aiExplanationStyle        String?             @db.VarChar(32)
+  aiVoicePreference         String?             @db.VarChar(64)
   /// Spotify Web Playback integration.
-  spotifyAccessToken         String?
-  spotifyRefreshToken        String?
-  spotifyExpiresAt           DateTime?
-  spotifyDisplayName         String?
-  spotifyConnectedAt         DateTime?
+  spotifyAccessToken        String?
+  spotifyRefreshToken       String?
+  spotifyExpiresAt          DateTime?
+  spotifyDisplayName        String?
+  spotifyConnectedAt        DateTime?
+  /// Denormalized legacy-career snapshot on the profile. Lives on
+  /// UserProfile so the rank route can read it in a single query
+  /// without joining the career tier computation service.
+  legacyCareerTier          Int?                @map("legacy_career_tier")
+  legacyCareerTierName      String?             @map("legacy_career_tier_name")
+  legacyCareerLevel         Int?                @map("legacy_career_level")
+  legacyCareerXp            BigInt?             @map("legacy_career_xp")
   user                      AppUser             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([sleeperUsername])
   @@index([phone])
   @@map("user_profiles")
-}
-
-/// Learned lineup optimizer preferences (tie-breakers; reinforced from accepts/rejects/promotions).
-model UserLineupPreferenceTrait {
-  id               String    @id @default(cuid())
-  userId           String
-  traitId          String    @db.VarChar(64)
-  confidence       Float     @default(0)
-  sampleSize       Int       @default(0)
-  lastReinforcedAt DateTime?
-  examples         Json      @default("[]")
-  metadata         Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  user             AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, traitId])
-  @@index([userId])
-  @@map("user_lineup_preference_traits")
-}
-
-/// Append-only learning events for lineup preference reinforcement and audit.
-model UserLineupPreferenceEvent {
-  id        String   @id @default(cuid())
-  userId    String
-  kind      String   @db.VarChar(48)
-  payload   Json     @default("{}")
-  createdAt DateTime @default(now())
-  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([kind])
-  @@map("user_lineup_preference_events")
 }
 
 /// Discord server linked by a commissioner (Tier 2 prep).
@@ -3952,281 +3917,281 @@ model PasswordResetToken {
 }
 
 model League {
-  id                              String                       @id @default(uuid())
-  userId                          String
-  platform                        String
-  platformLeagueId                String
-  name                            String?
-  sport                           LeagueSport                  @default(NFL)
+  id                                    String                                 @id @default(uuid())
+  userId                                String
+  platform                              String
+  platformLeagueId                      String
+  name                                  String?
+  sport                                 LeagueSport                            @default(NFL)
   /// Season year for this row (Sleeper may have one row per league per year).
-  season                          Int                          @default(2024)
-  leagueSize                      Int?
-  scoring                         String?
-  isDynasty                       Boolean                      @default(false)
-  rosterSize                      Int?
-  starters                        Json?
-  status                          String?
-  avatarUrl                       String?
-  settings                        Json?
-  lastSyncedAt                    DateTime?
-  syncStatus                      String?
-  syncError                       String?
-  legacyLeagueId                  String?                      @unique
-  createdAt                       DateTime                     @default(now())
-  updatedAt                       DateTime                     @updatedAt
-  leagueVariant                   String?                      @db.VarChar(32)
-  importBatchId                   String?                      @db.VarChar(64)
-  importedAt                      DateTime?
-  importWins                      Int?                         @map("import_wins")
-  importLosses                    Int?                         @map("import_losses")
-  importTies                      Int?                         @map("import_ties")
-  importMadePlayoffs              Boolean?                     @map("import_made_playoffs")
-  importWonChampionship           Boolean?                     @map("import_won_championship")
-  importFinalStanding             Int?                         @map("import_final_standing")
-  importPointsFor                 Float?                       @map("import_points_for")
-  importPointsAgainst             Float?                       @map("import_points_against")
+  season                                Int                                    @default(2024)
+  leagueSize                            Int?
+  scoring                               String?
+  isDynasty                             Boolean                                @default(false)
+  rosterSize                            Int?
+  starters                              Json?
+  status                                String?
+  avatarUrl                             String?
+  settings                              Json?
+  lastSyncedAt                          DateTime?
+  syncStatus                            String?
+  syncError                             String?
+  legacyLeagueId                        String?                                @unique
+  createdAt                             DateTime                               @default(now())
+  updatedAt                             DateTime                               @updatedAt
+  leagueVariant                         String?                                @db.VarChar(32)
+  importBatchId                         String?                                @db.VarChar(64)
+  importedAt                            DateTime?
   /// League logo (AllFantasy commissioner upload; separate from imported avatarUrl when set).
-  logoUrl                         String?
+  logoUrl                               String?
   /// Official league timezone for waivers, trades, and scheduled events (synced to draft LeagueSettings when updated).
-  timezone                        String?                      @default("America/New_York")
-  /// Short join code for native AllFantasy-created leagues (manual platform).
-  joinCode                        String?                      @unique @db.VarChar(16)
-  /// Commissioner UI language (e.g. en, es).
-  language                        String?                      @default("en") @db.VarChar(16)
-  waiverType                      String?                      @default("rolling")
-  waiverBudget                    Int?                         @default(100)
-  waiverMinBid                    Int?                         @default(0)
-  waiverClearAfterGames           Boolean                      @default(true)
-  waiverHours                     Int?                         @default(24)
-  customDailyWaivers              Boolean                      @default(false)
-  waiverProcessTime               String?                      @default("02:00")
-  waiverSchedule                  Json?
-  tradeReviewHours                Int?                         @default(48)
-  tradeDeadlineWeek               Int?
-  draftPickTrading                Boolean                      @default(false)
-  playoffStartWeek                Int?                         @default(14)
-  playoffTeams                    Int?                         @default(4)
-  playoffWeeksPerRound            Int?                         @default(1)
-  playoffSeedingRule              String?                      @default("default")
-  playoffLowerBracket             String?                      @default("consolation")
-  irSlots                         Int?                         @default(0)
-  irAllowCovid                    Boolean                      @default(false)
-  irAllowOut                      Boolean                      @default(true)
-  irAllowSuspended                Boolean                      @default(false)
-  irAllowNA                       Boolean                      @default(false)
-  irAllowDNR                      Boolean                      @default(false)
-  irAllowDoubtful                 Boolean                      @default(false)
-  leagueType                      String?                      @default("redraft")
-  devyYear                        String?
-  medianGame                      Boolean                      @default(false)
-  allowPreDraftMoves              Boolean                      @default(true)
-  preventBenchDrops               Boolean                      @default(false)
-  lockAllMoves                    Boolean                      @default(false)
-  dispersalDraftRounds            Int?                         @default(0) @map("supplementalDraftRounds")
-  taxiSlots                       Int?                         @default(0)
-  taxiAllowNonRookies             Boolean                      @default(false)
-  taxiYearsLimit                  Int?                         @default(2)
-  taxiDeadlineWeek                Int?                         @default(0)
-  overrideInviteCapacity          Boolean                      @default(false)
-  disableInviteLinks              Boolean                      @default(false)
-  aiChimmyEnabled                 Boolean                      @default(true)
-  aiWaiverSuggestions             Boolean                      @default(false)
-  aiTradeAnalysis                 Boolean                      @default(false)
-  aiLineupHelp                    Boolean                      @default(false)
-  aiDraftRecs                     Boolean                      @default(false)
-  aiRecaps                        Boolean                      @default(false)
+  timezone                              String?                                @default("America/New_York")
+  waiverType                            String?                                @default("rolling")
+  waiverBudget                          Int?                                   @default(100)
+  waiverMinBid                          Int?                                   @default(0)
+  waiverClearAfterGames                 Boolean                                @default(true)
+  waiverHours                           Int?                                   @default(24)
+  customDailyWaivers                    Boolean                                @default(false)
+  waiverProcessTime                     String?                                @default("02:00")
+  waiverSchedule                        Json?
+  tradeReviewHours                      Int?                                   @default(48)
+  tradeDeadlineWeek                     Int?
+  draftPickTrading                      Boolean                                @default(false)
+  playoffStartWeek                      Int?                                   @default(14)
+  playoffTeams                          Int?                                   @default(4)
+  playoffWeeksPerRound                  Int?                                   @default(1)
+  playoffSeedingRule                    String?                                @default("default")
+  playoffLowerBracket                   String?                                @default("consolation")
+  irSlots                               Int?                                   @default(0)
+  irAllowCovid                          Boolean                                @default(false)
+  irAllowOut                            Boolean                                @default(true)
+  irAllowSuspended                      Boolean                                @default(false)
+  irAllowNA                             Boolean                                @default(false)
+  irAllowDNR                            Boolean                                @default(false)
+  irAllowDoubtful                       Boolean                                @default(false)
+  leagueType                            String?                                @default("redraft")
+  devyYear                              String?
+  medianGame                            Boolean                                @default(false)
+  allowPreDraftMoves                    Boolean                                @default(true)
+  preventBenchDrops                     Boolean                                @default(false)
+  lockAllMoves                          Boolean                                @default(false)
+  dispersalDraftRounds                  Int?                                   @default(0) @map("supplementalDraftRounds")
+  taxiSlots                             Int?                                   @default(0)
+  taxiAllowNonRookies                   Boolean                                @default(false)
+  taxiYearsLimit                        Int?                                   @default(2)
+  taxiDeadlineWeek                      Int?                                   @default(0)
+  overrideInviteCapacity                Boolean                                @default(false)
+  disableInviteLinks                    Boolean                                @default(false)
+  aiChimmyEnabled                       Boolean                                @default(true)
+  aiWaiverSuggestions                   Boolean                                @default(false)
+  aiTradeAnalysis                       Boolean                                @default(false)
+  aiLineupHelp                          Boolean                                @default(false)
+  aiDraftRecs                           Boolean                                @default(false)
+  aiRecaps                              Boolean                                @default(false)
   /// League-wide toggle (distinct from AiCommissionerAlert records).
-  leagueAiCommissionerAlerts      Boolean                      @default(false)
-  aiModeration                    Boolean                      @default(false)
-  aiPowerRankings                 Boolean                      @default(false)
+  leagueAiCommissionerAlerts            Boolean                                @default(false)
+  aiModeration                          Boolean                                @default(false)
+  aiPowerRankings                       Boolean                                @default(false)
   /// True when the importing user is Sleeper commissioner (is_owner) for current-season imports.
-  isCommissioner                  Boolean                      @default(false)
+  isCommissioner                        Boolean                                @default(false)
   /// Keeper league — max keepers per team per season (0 = effectively redraft for keepers).
-  keeperCount                     Int?                         @default(3)
-  keeperCostSystem                String?                      @default("round_based")
-  keeperMaxYears                  Int?                         @default(3)
-  keeperWaiverAllowed             Boolean?                     @default(true)
-  keeperEligibilityRule           String?                      @default("any")
-  keeperMinRoundsHeld             Int?                         @default(0)
-  keeperRoundPenalty              Int?                         @default(1)
-  keeperInflationRate             Int?                         @default(1)
-  keeperAuctionPctIncrease        Float?                       @default(0.2)
-  keeperSelectionDeadline         DateTime?
-  keeperPhaseActive               Boolean?                     @default(false)
-  dynastySeasonPhase              String?                      @default("regular")
-  keeperConflictRule              String?                      @default("player_chooses")
-  keeperMissedDeadlineRule        String?                      @default("auto_no_keepers")
+  keeperCount                           Int?                                   @default(3)
+  keeperCostSystem                      String?                                @default("round_based")
+  keeperMaxYears                        Int?                                   @default(3)
+  keeperWaiverAllowed                   Boolean?                               @default(true)
+  keeperEligibilityRule                 String?                                @default("any")
+  keeperMinRoundsHeld                   Int?                                   @default(0)
+  keeperRoundPenalty                    Int?                                   @default(1)
+  keeperInflationRate                   Int?                                   @default(1)
+  keeperAuctionPctIncrease              Float?                                 @default(0.2)
+  keeperSelectionDeadline               DateTime?
+  keeperPhaseActive                     Boolean?                               @default(false)
+  dynastySeasonPhase                    String?                                @default("regular")
+  keeperConflictRule                    String?                                @default("player_chooses")
+  keeperMissedDeadlineRule              String?                                @default("auto_no_keepers")
   /// Best ball — standard | private_league | tournament
-  bestBallVariant                 String?                      @default("standard")
-  bestBallMode                    Boolean?                     @default(false)
-  bbWaiversEnabled                Boolean?                     @default(false)
-  bbTradesEnabled                 Boolean?                     @default(false)
-  bbFaEnabled                     Boolean?                     @default(false)
-  bbIrEnabled                     Boolean?                     @default(false)
-  bbTaxiEnabled                   Boolean?                     @default(false)
-  bbScoringPeriod                 String?                      @default("weekly")
-  bbMatchupFormat                 String?                      @default("h2h")
-  bbTiebreaker                    String?                      @default("points_for")
-  bbOptimizerTiming               String?                      @default("period_end")
-  bbContestId                     String?
+  bestBallVariant                       String?                                @default("standard")
+  bestBallMode                          Boolean?                               @default(false)
+  bbWaiversEnabled                      Boolean?                               @default(false)
+  bbTradesEnabled                       Boolean?                               @default(false)
+  bbFaEnabled                           Boolean?                               @default(false)
+  bbIrEnabled                           Boolean?                               @default(false)
+  bbTaxiEnabled                         Boolean?                               @default(false)
+  bbScoringPeriod                       String?                                @default("weekly")
+  bbMatchupFormat                       String?                                @default("h2h")
+  bbTiebreaker                          String?                                @default("points_for")
+  bbOptimizerTiming                     String?                                @default("period_end")
+  bbContestId                           String?
   /// Guillotine survival (lowest score eliminated each period)
-  guillotineMode                  Boolean?                     @default(false)
-  guillotineEndgame               String?                      @default("last_team_standing")
-  guillotineEndgameThreshold      Int?                         @default(1)
-  guillotineEliminationsPerPeriod Int?                         @default(1)
-  guillotineProtectedWeek1        Boolean?                     @default(false)
-  guillotineAcceleratedWeeks      String?                      @default("[]")
-  guillotineTiebreaker            String?                      @default("lowest_bench_points")
-  guillotineSamePeriodPickups     Boolean?                     @default(false)
-  guillotineWaiverDelay           Int?                         @default(0)
-  guillotineRosterExpansion       Json?                        @default("[]")
-  guillotineFinalStageScoring     String?                      @default("cumulative")
-  survivorBossResetEnabled        Boolean?                     @default(true)
-  survivorChallengeMode           String?                      @default("auto")
-  survivorChatPermissions         String?                      @default("strict")
-  survivorDailyMessages           Boolean?                     @default(false)
-  survivorExileEnabled            Boolean?                     @default(true)
-  survivorExileReturnTrigger      String?                      @default("manual")
-  survivorExileReturnWeek         Int?
-  survivorFinal3                  Boolean?                     @default(true)
-  survivorIdolConvertRule         String?                      @default("faab")
-  survivorIdolCount               Int?                         @default(9)
-  survivorIdolsEnabled            Boolean?                     @default(true)
-  survivorIdolsExpireAtMerge      Boolean?                     @default(true)
-  survivorIdolsTradable           Boolean?                     @default(false)
-  survivorJuryStart               String?                      @default("post_merge_vote_1")
-  survivorMergeAtCount            Int?                         @default(10)
-  survivorMergeTrigger            String?                      @default("week")
-  survivorMergeWeek               Int?                         @default(7)
+  guillotineMode                        Boolean?                               @default(false)
+  guillotineEndgame                     String?                                @default("last_team_standing")
+  guillotineEndgameThreshold            Int?                                   @default(1)
+  guillotineEliminationsPerPeriod       Int?                                   @default(1)
+  guillotineProtectedWeek1              Boolean?                               @default(false)
+  guillotineAcceleratedWeeks            String?                                @default("[]")
+  guillotineTiebreaker                  String?                                @default("lowest_bench_points")
+  guillotineSamePeriodPickups           Boolean?                               @default(false)
+  guillotineWaiverDelay                 Int?                                   @default(0)
+  guillotineRosterExpansion             Json?                                  @default("[]")
+  guillotineFinalStageScoring           String?                                @default("cumulative")
+  survivorBossResetEnabled              Boolean?                               @default(true)
+  survivorChallengeMode                 String?                                @default("auto")
+  survivorChatPermissions               String?                                @default("strict")
+  survivorDailyMessages                 Boolean?                               @default(false)
+  survivorExileEnabled                  Boolean?                               @default(true)
+  survivorExileReturnTrigger            String?                                @default("manual")
+  survivorExileReturnWeek               Int?
+  survivorFinal3                        Boolean?                               @default(true)
+  survivorIdolConvertRule               String?                                @default("faab")
+  survivorIdolCount                     Int?                                   @default(9)
+  survivorIdolsEnabled                  Boolean?                               @default(true)
+  survivorIdolsExpireAtMerge            Boolean?                               @default(true)
+  survivorIdolsTradable                 Boolean?                               @default(false)
+  survivorJuryStart                     String?                                @default("post_merge_vote_1")
+  survivorMergeAtCount                  Int?                                   @default(10)
+  survivorMergeTrigger                  String?                                @default("week")
+  survivorMergeWeek                     Int?                                   @default(7)
   /// Survivor social format — phase and commissioner-tunable rules (see also survivorConfig).
-  survivorMode                    Boolean?                     @default(false)
-  survivorPhase                   String?                      @default("pre_draft")
-  survivorPlayerCount             Int?                         @default(20)
-  survivorRebalanceTrigger        Int?                         @default(3)
-  survivorRevealMode              String?                      @default("dramatic_sequential")
-  survivorRocksEnabled            Boolean?                     @default(true)
-  survivorSelfVoteAllowed         Boolean?                     @default(false)
-  survivorSwapTrigger             String?                      @default("manual")
-  survivorSwapWeek                Int?
-  survivorTieRule                 String?                      @default("revote_then_rocks")
-  survivorTokenEnabled            Boolean?                     @default(true)
-  survivorTribeCount              Int?                         @default(4)
-  survivorTribeNaming             String?                      @default("auto")
-  survivorTribeSize               Int?                         @default(5)
-  survivorWeeklyMessages          Boolean?                     @default(true)
+  survivorMode                          Boolean?                               @default(false)
+  survivorPhase                         String?                                @default("pre_draft")
+  survivorPlayerCount                   Int?                                   @default(20)
+  survivorRebalanceTrigger              Int?                                   @default(3)
+  survivorRevealMode                    String?                                @default("dramatic_sequential")
+  survivorRocksEnabled                  Boolean?                               @default(true)
+  survivorSelfVoteAllowed               Boolean?                               @default(false)
+  survivorSwapTrigger                   String?                                @default("manual")
+  survivorSwapWeek                      Int?
+  survivorTieRule                       String?                                @default("revote_then_rocks")
+  survivorTokenEnabled                  Boolean?                               @default(true)
+  survivorTribeCount                    Int?                                   @default(4)
+  survivorTribeNaming                   String?                                @default("auto")
+  survivorTribeSize                     Int?                                   @default(5)
+  survivorWeeklyMessages                Boolean?                               @default(true)
   /// Optional cap on exile token balance (null = no cap).
-  survivorTokenCap                Int?
+  survivorTokenCap                      Int?
   /// When true, failed exile_sacrifice_bet removes wagered tokens.
-  survivorExileHarshTokenLoss     Boolean?                     @default(false)
-  /// Commissioner-configurable week after which unused idols expire (null = Final 5 default).
-  survivorIdolExpiryWeek          Int?
+  survivorExileHarshTokenLoss           Boolean?                               @default(false)
   /// Commissioner kill switch — managers cannot use Chimmy AutoCoach when false (does not grant Pro).
-  autoCoachEnabled                Boolean                      @default(true)
-  invites                         LeagueInvite[]
-  managerClaims                   LeagueManagerClaim[]
-  aiCommissionerActionLogs        AiCommissionerActionLog[]
-  aiCommissionerAlerts            AiCommissionerAlert[]
-  aiCommissionerConfig            AiCommissionerConfig?
-  autoCoachSettings               AutoCoachSetting[]
-  bestBallAIInsights              BestBallAIInsight[]
-  bestBallOptimizedLineups        BestBallOptimizedLineup[]
-  bestBallRosterValidations       BestBallRosterValidation[]
-  bigBrotherConfig                BigBrotherLeagueConfig?
-  c2cConfig                       C2CLeagueConfig?
-  c2cLeague                       C2CLeague?
-  c2cScoringLogs                  C2CScoringLog[]
-  c2cTransitionRecords            C2CTransitionRecord[]
-  devyBestBallLineupSnapshots     DevyBestBallLineupSnapshot[]
-  devyCommissionerOverrides       DevyCommissionerOverride[]
-  devyDraftHistories              DevyDraftHistory[]
-  devyImportSessions              DevyImportSession[]
-  devyImportedSeasons             DevyImportedSeason[]
-  devyConfig                      DevyLeagueConfig?
-  devyLeague                      DevyLeague?
-  devyLifecycleEvents             DevyLifecycleEvent[]
-  devyRights                      DevyRights[]
-  discordLeagueChannels           DiscordLeagueChannel[]
-  draftRecaps                     DraftRecap[]
-  draftSessions                   DraftSession?
-  warRoomSnapshots                WarRoomSnapshot[]
-  playerOutlooks                  PlayerOutlook[]
-  managerTendencies               ManagerTendency[]
-  aiRecommendationLogs            AiRecommendationLog[]
-  dynastyConfig                   DynastyLeagueConfig?
-  findLeagueListings              FindLeagueListing[]
-  guillotineAiInsights            GuillotineAIInsight[]
-  guillotineConfig                GuillotineLeagueConfig?
-  guillotineSeasons               GuillotineSeason[]
-  idpCapConfig                    IDPCapConfig?
-  idpConfig                       IdpLeagueConfig?
-  integrityFlags                  IntegrityFlag[]
-  keeperAuditLogs                 KeeperAuditLog[]
-  keeperDeclarations              KeeperDeclaration[]
-  keeperEligibilities             KeeperEligibility[]
-  keeperPickAdjustments           KeeperPickAdjustment[]
-  keeperRecords                   KeeperRecord[]
-  keeperSelectionSessions         KeeperSelectionSession[]
-  chatMessages                    LeagueChatMessage[]
-  divisions                       LeagueDivision[]
-  integritySettings               LeagueIntegritySettings?
-  leagueIntroViews                LeagueIntroView[]
-  matchupPreviews                 LeagueMatchupPreview[]
-  seasons                         LeagueSeason[]
-  leagueSettings                  LeagueSettings?
-  storylines                      LeagueStoryline[]
-  teams                           LeagueTeam[]
-  waiverSettings                  LeagueWaiverSettings?
-  bbContest                       BestBallContest?             @relation("LeagueBestBallContest", fields: [bbContestId], references: [id])
-  legacyLeague                    LegacyLeague?                @relation(fields: [legacyLeagueId], references: [id])
-  user                            AppUser                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mockDrafts                      MockDraft[]
-  promotionRules                  PromotionRule[]
-  redraftLeagueTrades             RedraftLeagueTrade[]
-  redraftLeagueTransactions       RedraftLeagueTransaction[]
-  redraftDrafts                   RedraftDraft[]
-  redraftDraftPicks               RedraftDraftPick[]
-  redraftDraftEvents              RedraftDraftEvent[]
-  redraftTradeProposals           RedraftTradeProposal[]
-  redraftMatchups                 RedraftMatchup[]
-  redraftSeasons                  RedraftSeason[]
-  redraftWaiverClaims             RedraftWaiverClaim[]
-  rosters                         Roster[]
-  salaryCapConfig                 SalaryCapLeagueConfig?
-  scoringSnapshots                ScoringSettingsSnapshot[]
-  survivorAuditEntries            SurvivorAuditEntry[]
-  survivorChatChannels            SurvivorChatChannel[]
-  survivorChatMessages            SurvivorChatMessage[]
-  survivorCommissionerActions     SurvivorCommissionerAction[]
-  exileIsland                     ExileIsland?
-  survivorGameState               SurvivorGameState?
-  survivorHostMessages            SurvivorHostMessage[]
-  jurySession                     JurySession?
-  survivorConfig                  SurvivorLeagueConfig?
-  survivorNotifications           SurvivorNotification[]
-  survivorPhaseTransitions        SurvivorPhaseTransition[]
-  survivorPlayers                 SurvivorPlayer[]
-  survivorPowerBalance            SurvivorPowerBalance?
-  survivorSeasonSnapshot          SurvivorSeasonSnapshot?
-  tokenPoolPicks                  TokenPoolPick[]
-  survivorTribeSwaps              SurvivorTribeSwap[]
-  survivorTwistEvents             SurvivorTwistEvent[]
-  survivorWeeklyScores            SurvivorWeeklyScore[]
-  legacyTournamentLeague                  LegacyTournamentLeague?
-  tournamentMiniCommissionerAssignments   LegacyTournamentMiniCommissioner[]
+  autoCoachEnabled                      Boolean                                @default(true)
+  importWins                            Int?                                   @map("import_wins")
+  importLosses                          Int?                                   @map("import_losses")
+  importTies                            Int?                                   @map("import_ties")
+  importMadePlayoffs                    Boolean?                               @map("import_made_playoffs")
+  importWonChampionship                 Boolean?                               @map("import_won_championship")
+  importFinalStanding                   Int?                                   @map("import_final_standing")
+  importPointsFor                       Float?                                 @map("import_points_for")
+  importPointsAgainst                   Float?                                 @map("import_points_against")
+  /// Commissioner-configurable week after which unused idols expire (null = Final 5 default).
+  survivorIdolExpiryWeek                Int?
+  /// Short join code for native AllFantasy-created leagues (manual platform).
+  joinCode                              String?                                @db.VarChar(16)
+  /// Commissioner UI language (e.g. en, es).
+  language                              String?                                @default("en") @db.VarChar(16)
+  invites                               LeagueInvite[]
+  managerClaims                         LeagueManagerClaim[]
+  aiCommissionerActionLogs              AiCommissionerActionLog[]
+  aiCommissionerAlerts                  AiCommissionerAlert[]
+  aiCommissionerConfig                  AiCommissionerConfig?
+  aiRecommendationLogs                  AiRecommendationLog[]
+  autoCoachSettings                     AutoCoachSetting[]
+  bestBallAIInsights                    BestBallAIInsight[]
+  bestBallOptimizedLineups              BestBallOptimizedLineup[]
+  bestBallRosterValidations             BestBallRosterValidation[]
+  bigBrotherConfig                      BigBrotherLeagueConfig?
+  c2cConfig                             C2CLeagueConfig?
+  c2cLeague                             C2CLeague?
+  c2cScoringLogs                        C2CScoringLog[]
+  c2cTransitionRecords                  C2CTransitionRecord[]
+  devyBestBallLineupSnapshots           DevyBestBallLineupSnapshot[]
+  devyCommissionerOverrides             DevyCommissionerOverride[]
+  devyDraftHistories                    DevyDraftHistory[]
+  devyImportSessions                    DevyImportSession[]
+  devyImportedSeasons                   DevyImportedSeason[]
+  devyConfig                            DevyLeagueConfig?
+  devyLeague                            DevyLeague?
+  devyLifecycleEvents                   DevyLifecycleEvent[]
+  devyRights                            DevyRights[]
+  discordLeagueChannels                 DiscordLeagueChannel[]
+  draftRecaps                           DraftRecap[]
+  draftSessions                         DraftSession?
+  dynastyConfig                         DynastyLeagueConfig?
+  findLeagueListings                    FindLeagueListing[]
+  guillotineAiInsights                  GuillotineAIInsight[]
+  guillotineConfig                      GuillotineLeagueConfig?
+  guillotineSeasons                     GuillotineSeason[]
+  idpCapConfig                          IDPCapConfig?
+  idpConfig                             IdpLeagueConfig?
+  integrityFlags                        IntegrityFlag[]
+  keeperAuditLogs                       KeeperAuditLog[]
+  keeperDeclarations                    KeeperDeclaration[]
+  keeperEligibilities                   KeeperEligibility[]
+  keeperPickAdjustments                 KeeperPickAdjustment[]
+  keeperRecords                         KeeperRecord[]
+  keeperSelectionSessions               KeeperSelectionSession[]
+  chatMessages                          LeagueChatMessage[]
+  divisions                             LeagueDivision[]
+  leagueEntrySlots                      LeagueEntrySlot[]
+  integritySettings                     LeagueIntegritySettings?
+  leagueIntroViews                      LeagueIntroView[]
+  matchupPreviews                       LeagueMatchupPreview[]
+  seasons                               LeagueSeason[]
+  leagueSettings                        LeagueSettings?
+  storylines                            LeagueStoryline[]
+  teams                                 LeagueTeam[]
+  waiverSettings                        LeagueWaiverSettings?
+  bbContest                             BestBallContest?                       @relation("LeagueBestBallContest", fields: [bbContestId], references: [id])
+  legacyLeague                          LegacyLeague?                          @relation(fields: [legacyLeagueId], references: [id])
+  user                                  AppUser                                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  managerTendencies                     ManagerTendency[]
+  mockDrafts                            MockDraft[]
+  playerOutlooks                        PlayerOutlook[]
+  promotionRules                        PromotionRule[]
+  redraftDraftEvents                    RedraftDraftEvent[]
+  redraftDraftPicks                     RedraftDraftPick[]
+  redraftDrafts                         RedraftDraft[]
+  redraftChatRooms                      RedraftLeagueChatRoom[]
+  redraftDraftProfile                   RedraftLeagueDraftProfile?
+  redraftExtendedSettings               RedraftLeagueExtendedSettings?
+  redraftHomepageState                  RedraftLeagueHomepageState?
+  redraftMembers                        RedraftLeagueMember[]
+  redraftSportIntegration               RedraftLeagueSportIntegration?
+  redraftLeagueTrades                   RedraftLeagueTrade[]
+  redraftLeagueTransactions             RedraftLeagueTransaction[]
+  redraftMatchups                       RedraftMatchup[]
+  redraftSeasons                        RedraftSeason[]
+  redraftTradeProposals                 RedraftTradeProposal[]
+  redraftWaiverClaims                   RedraftWaiverClaim[]
+  rosters                               Roster[]
+  salaryCapConfig                       SalaryCapLeagueConfig?
+  scoringSnapshots                      ScoringSettingsSnapshot[]
+  survivorAuditEntries                  SurvivorAuditEntry[]
+  survivorChatChannels                  SurvivorChatChannel[]
+  survivorChatMessages                  SurvivorChatMessage[]
+  survivorCommissionerActions           SurvivorCommissionerAction[]
+  exileIsland                           ExileIsland?
+  survivorGameState                     SurvivorGameState?
+  survivorHostMessages                  SurvivorHostMessage[]
+  jurySession                           JurySession?
+  survivorConfig                        SurvivorLeagueConfig?
+  survivorNotifications                 SurvivorNotification[]
+  survivorPhaseTransitions              SurvivorPhaseTransition[]
+  survivorPlayers                       SurvivorPlayer[]
+  survivorPowerBalance                  SurvivorPowerBalance?
+  survivorSeasonSnapshot                SurvivorSeasonSnapshot?
+  tokenPoolPicks                        TokenPoolPick[]
+  survivorTribeSwaps                    SurvivorTribeSwap[]
+  survivorTwistEvents                   SurvivorTwistEvent[]
+  survivorWeeklyScores                  SurvivorWeeklyScore[]
   tournamentLeagueSettingRequests       LegacyTournamentLeagueSettingRequest[]
-  tournamentShellLeague           TournamentLeague?
-  waiverClaims                    WaiverClaim[]
-  waiverPickups                   WaiverPickup[]
-  waiverTransactions              WaiverTransaction[]
-  zombieConfig                    ZombieLeagueConfig?
-  zombieLeague                    ZombieLeague?
-  redraftExtendedSettings         RedraftLeagueExtendedSettings?
-  redraftDraftProfile             RedraftLeagueDraftProfile?
-  redraftHomepageState            RedraftLeagueHomepageState?
-  redraftSportIntegration         RedraftLeagueSportIntegration?
-  redraftChatRooms                RedraftLeagueChatRoom[]
-  leagueEntrySlots                LeagueEntrySlot[]
-  redraftMembers                  RedraftLeagueMember[]
+  legacyTournamentLeague                LegacyTournamentLeague?
+  tournamentMiniCommissionerAssignments LegacyTournamentMiniCommissioner[]
+  tournamentShellLeague                 TournamentLeague?
+  waiverClaims                          WaiverClaim[]
+  waiverPickups                         WaiverPickup[]
+  waiverTransactions                    WaiverTransaction[]
+  warRoomSnapshots                      WarRoomSnapshot[]
+  zombieConfig                          ZombieLeagueConfig?
+  zombieLeague                          ZombieLeague?
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -4359,57 +4324,57 @@ model PlayerStatusEvent {
 
 /// Commissioner-managed draft & league draft-time settings (one row per league).
 model LeagueSettings {
-  id                   String    @id @default(cuid())
-  leagueId             String    @unique
-  draftDateUtc         DateTime?
-  timezone             String?   @default("America/New_York")
-  autostart            Boolean   @default(false)
-  slowDraftPause       Boolean   @default(false)
-  slowPauseFrom        String?
-  slowPauseUntil       String?
-  cpuAutoPick          Boolean   @default(true)
-  aiAutoPick           Boolean   @default(false)
-  draftType            String    @default("snake")
-  pickTimerPreset      String    @default("120s")
-  pickTimerCustomValue Int?
-  rounds               Int       @default(15)
-  draftOrderMethod     String    @default("manual")
-  randomizeCount       Int?
-  draftOrderSlots      Json?
-  draftOrderLocked     Boolean   @default(false)
-  keeperCount          Int       @default(0)
-  keeperRoundCost      Boolean   @default(false)
-  keeperSlots          Json?
-  dynastyCarryover     Boolean   @default(false)
-  playerPool           String    @default("all")
-  alphabeticalSort     Boolean   @default(false)
-  aiQueueSuggestions   Boolean   @default(true)
-  aiBestAvailable      Boolean   @default(true)
-  aiRosterGuidance     Boolean   @default(true)
-  aiScarcityAlerts     Boolean   @default(true)
-  aiDraftGrade         Boolean   @default(true)
-  aiSleeperAlerts      Boolean   @default(true)
-  aiByeAwareness       Boolean   @default(true)
-  aiStackSuggestions   Boolean   @default(false)
-  aiRiskUpsideNotes    Boolean   @default(true)
-  aiScope              String    @default("everyone")
+  id                       String    @id @default(cuid())
+  leagueId                 String    @unique
+  draftDateUtc             DateTime?
+  timezone                 String?   @default("America/New_York")
+  autostart                Boolean   @default(false)
+  slowDraftPause           Boolean   @default(false)
+  slowPauseFrom            String?
+  slowPauseUntil           String?
+  cpuAutoPick              Boolean   @default(true)
+  aiAutoPick               Boolean   @default(false)
+  draftType                String    @default("snake")
+  pickTimerPreset          String    @default("120s")
+  pickTimerCustomValue     Int?
+  rounds                   Int       @default(15)
+  draftOrderMethod         String    @default("manual")
+  randomizeCount           Int?
+  draftOrderSlots          Json?
+  draftOrderLocked         Boolean   @default(false)
+  keeperCount              Int       @default(0)
+  keeperRoundCost          Boolean   @default(false)
+  keeperSlots              Json?
+  dynastyCarryover         Boolean   @default(false)
+  playerPool               String    @default("all")
+  alphabeticalSort         Boolean   @default(false)
+  aiQueueSuggestions       Boolean   @default(true)
+  aiBestAvailable          Boolean   @default(true)
+  aiRosterGuidance         Boolean   @default(true)
+  aiScarcityAlerts         Boolean   @default(true)
+  aiDraftGrade             Boolean   @default(true)
+  aiSleeperAlerts          Boolean   @default(true)
+  aiByeAwareness           Boolean   @default(true)
+  aiStackSuggestions       Boolean   @default(false)
+  aiRiskUpsideNotes        Boolean   @default(true)
+  aiScope                  String    @default("everyone")
+  randomizeHistory         Json?
+  resetHistory             Json?
+  updatedAt                DateTime  @updatedAt
+  updatedBy                String?
   /// AF War Room AI — commissioner / league-scoped toggles and defaults.
-  aiWarRoomEnabled           Boolean @default(false)
-  aiPlayerOutlookEnabled     Boolean @default(true)
-  aiPlayerCompareEnabled     Boolean @default(true)
-  aiContingencyEnabled       Boolean @default(true)
-  aiManagerTendencyEnabled   Boolean @default(true)
-  aiPostDraftReportEnabled   Boolean @default(true)
-  aiDefaultStrategyMode      String? @db.VarChar(32)
-  aiAggressiveness           String? @db.VarChar(16)
-  aiRookieBias               Float?  @default(0)
-  aiStackPreference          String? @db.VarChar(32)
-  aiRiskTolerance            String? @db.VarChar(16)
-  randomizeHistory     Json?
-  resetHistory         Json?
-  updatedAt            DateTime  @updatedAt
-  updatedBy            String?
-  league               League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  aiWarRoomEnabled         Boolean   @default(false)
+  aiPlayerOutlookEnabled   Boolean   @default(true)
+  aiPlayerCompareEnabled   Boolean   @default(true)
+  aiContingencyEnabled     Boolean   @default(true)
+  aiManagerTendencyEnabled Boolean   @default(true)
+  aiPostDraftReportEnabled Boolean   @default(true)
+  aiDefaultStrategyMode    String?   @db.VarChar(32)
+  aiAggressiveness         String?   @db.VarChar(16)
+  aiRookieBias             Float?    @default(0)
+  aiStackPreference        String?   @db.VarChar(32)
+  aiRiskTolerance          String?   @db.VarChar(16)
+  league                   League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("league_settings")
 }
@@ -4578,30 +4543,30 @@ model LeagueTemplate {
 }
 
 model LegacyTournament {
-  id             String                         @id @default(uuid())
-  name           String                         @db.VarChar(120)
-  sport          String                         @db.VarChar(8)
-  season         Int                            @default(0)
-  variant        String                         @default("black_vs_gold") @db.VarChar(32)
-  creatorId      String
-  settings       Json                           @default("{}")
-  hubSettings    Json                           @default("{}")
-  status         String                         @default("setup") @db.VarChar(24)
-  createdAt      DateTime                       @default(now())
-  updatedAt      DateTime                       @updatedAt
-  championUserId String?                        @db.VarChar(64)
-  lockedAt       DateTime?
-  announcements  LegacyTournamentAnnouncement[]
-  auditLogs      LegacyTournamentAuditLog[]
-  conferences    LegacyTournamentConference[]
-  leagues        LegacyTournamentLeague[]
+  id                    String                                 @id @default(uuid())
+  name                  String                                 @db.VarChar(120)
+  sport                 String                                 @db.VarChar(8)
+  season                Int                                    @default(0)
+  variant               String                                 @default("black_vs_gold") @db.VarChar(32)
+  creatorId             String
+  settings              Json                                   @default("{}")
+  hubSettings           Json                                   @default("{}")
+  status                String                                 @default("setup") @db.VarChar(24)
+  createdAt             DateTime                               @default(now())
+  updatedAt             DateTime                               @updatedAt
+  championUserId        String?                                @db.VarChar(64)
+  lockedAt              DateTime?
+  staffMembers          LegacyTournamentStaff[]
+  waitlistEntries       LegacyTournamentWaitlistEntry[]
+  announcements         LegacyTournamentAnnouncement[]
+  auditLogs             LegacyTournamentAuditLog[]
+  conferences           LegacyTournamentConference[]
+  leagueSettingRequests LegacyTournamentLeagueSettingRequest[]
+  leagues               LegacyTournamentLeague[]
+  miniCommissioners     LegacyTournamentMiniCommissioner[]
   participants          LegacyTournamentParticipant[]
-  rounds                  LegacyTournamentRound[]
-  miniCommissioners       LegacyTournamentMiniCommissioner[]
-  leagueSettingRequests   LegacyTournamentLeagueSettingRequest[]
-  waitlistEntries         LegacyTournamentWaitlistEntry[]
-  staffMembers            LegacyTournamentStaff[]
-  creator                 AppUser                        @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  rounds                LegacyTournamentRound[]
+  creator               AppUser                                @relation("LegacyTournamentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 
   @@index([creatorId])
   @@index([sport, season])
@@ -4731,16 +4696,15 @@ model LegacyTournamentParticipant {
 
 /// Deputy commissioner for one feeder/elimination league (cannot edit full tournament hub).
 model LegacyTournamentMiniCommissioner {
-  id           String   @id @default(cuid())
+  id           String           @id @default(cuid())
   tournamentId String
   leagueId     String
   userId       String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  league     League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user       AppUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  league       League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  tournament   LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user         AppUser          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, leagueId])
   @@index([userId])
@@ -4750,20 +4714,19 @@ model LegacyTournamentMiniCommissioner {
 
 /// Proposed league.settings patch — main commissioner must approve.
 model LegacyTournamentLeagueSettingRequest {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   tournamentId  String
   leagueId      String
   requesterId   String
   proposedPatch Json
-  status        String    @default("pending") @db.VarChar(16)
-  createdAt     DateTime  @default(now())
+  status        String           @default("pending") @db.VarChar(16)
+  createdAt     DateTime         @default(now())
   resolvedAt    DateTime?
   resolverId    String?
-
-  tournament LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  league     League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  requester  AppUser         @relation("TournamentLeagueSettingRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  resolver   AppUser?        @relation("TournamentLeagueSettingRequestResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+  league        League           @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  requester     AppUser          @relation("TournamentLeagueSettingRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  resolver      AppUser?         @relation("TournamentLeagueSettingRequestResolver", fields: [resolverId], references: [id])
+  tournament    LegacyTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
 
   @@index([tournamentId, status])
   @@index([requesterId])
@@ -5131,11 +5094,11 @@ model LeagueChatMessage {
   mentionedUserIds  String[] @default([])
   messageSubtype    String?  @db.VarChar(32)
   visibleToUserId   String?
-  parentMessageId   String?  // Threaded chat: parent message reference
+  parentMessageId   String?
   league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   user              AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  @@index([parentMessageId])
 
+  @@index([parentMessageId])
   @@index([leagueId])
   @@index([leagueId, source])
   @@index([createdAt])
@@ -5250,24 +5213,24 @@ model FindLeagueListing {
 }
 
 model Roster {
-  id                 String              @id @default(uuid())
-  leagueId           String
-  platformUserId     String
-  playerData         Json
-  faabRemaining      Int?
-  dispersalDraftPasses Boolean          @default(false)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  waiverPriority     Int?
+  id                   String              @id @default(uuid())
+  leagueId             String
+  platformUserId       String
+  playerData           Json
+  faabRemaining        Int?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  waiverPriority       Int?
   /// Optional commissioner flags: `isAdvertised`, `aiManaged`, `aiManagerType`, etc.
-  settings           Json?
-  devyRights         DevyRights[]
-  keeperDeclarations KeeperDeclaration[]
-  league             League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  redraftDraftPicks  RedraftDraftPick[]
-  redraftDraftQueue  RedraftDraftQueue[]
-  waiverClaims       WaiverClaim[]
-  waiverTransactions WaiverTransaction[]
+  settings             Json?
+  dispersalDraftPasses Boolean             @default(false)
+  devyRights           DevyRights[]
+  keeperDeclarations   KeeperDeclaration[]
+  redraftDraftPicks    RedraftDraftPick[]
+  redraftDraftQueue    RedraftDraftQueue[]
+  league               League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  waiverClaims         WaiverClaim[]
+  waiverTransactions   WaiverTransaction[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
@@ -5604,7 +5567,7 @@ model SurvivorLeagueConfig {
   id                             String                  @id @default(uuid())
   leagueId                       String                  @unique @db.VarChar(64)
   mode                           String                  @default("redraft") @db.VarChar(24)
-  tribeCount                     Int                     @default(3)
+  tribeCount                     Int                     @default(4)
   tribeSize                      Int                     @default(4)
   tribeFormation                 String                  @default("random") @db.VarChar(24)
   mergeTrigger                   String                  @default("week") @db.VarChar(24)
@@ -5624,18 +5587,10 @@ model SurvivorLeagueConfig {
   tribalCouncilDayOfWeek         Int?
   tribalCouncilTimeUtc           String?                 @db.VarChar(16)
   minigameFrequency              String                  @default("none") @db.VarChar(24)
-  /// Commissioner-defined season headline (e.g. "Heroes vs Villains") — not a default game mode.
-  seasonThemeLabel               String?                 @db.VarChar(160)
-  /// When true, the engine picks weekly challenges from templates (no host-only challenge design).
-  challengesSystemRun            Boolean                 @default(true)
-  /// Set when FAQ broadcast + pin was posted to linked league chat.
-  faqSeededAt                    DateTime?
-  /// Optional override for last regular-season scoring week (excludes playoffs); if null, use sport default.
-  regularSeasonEndWeek           Int?
-  /// Survivor engine v2 — confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).
-  engineSpecV2                   Json?
   createdAt                      DateTime                @default(now())
   updatedAt                      DateTime                @updatedAt
+  /// Survivor engine v2 — confessionals, clue chains, minigame pool, exile variants, presets (see `lib/survivor/survivor-engine-spec-v2.ts`).
+  engineSpecV2                   Json?
   auditLog                       SurvivorAuditLog[]
   challenges                     SurvivorChallenge[]
   exileLeague                    SurvivorExileLeague?
@@ -6298,14 +6253,14 @@ model SurvivorGameState {
   needsPowerRankings  Boolean   @default(false)
   lastAutomationRun   DateTime?
   lastError           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
   /// Snapshot of automation flags captured when the commissioner paused
   /// the season — preserved across unrelated writes to lastError so that
   /// resume_season can restore the pre-pause state reliably.
   pausedSnapshot      Json?
   /// Runtime state for engine v2 — confessionals index, clue-chain progress, story beats (see `lib/survivor/runtime/`).
   engineRuntimeV2     Json?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
   league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@index([phase])
@@ -6516,14 +6471,14 @@ model BigBrotherLeagueConfig {
   inactivePlayerHandling              String                 @default("commissioner_only") @db.VarChar(32)
   /// Auto-nomination fallback if HOH times out: lowest_season_points | random | commissioner
   autoNominationFallback              String                 @default("lowest_season_points") @db.VarChar(32)
-  /// Twists, competition presets, optional America’s vote — see `lib/big-brother/big-brother-premium-engine-spec.ts`.
-  premiumEngineSpec                   Json?
   createdAt                           DateTime               @default(now())
   updatedAt                           DateTime               @updatedAt
   /// Eviction tie-break when vote is tied: hoh_vote | season_points | random | commissioner
   evictionTieBreakMode                String                 @default("season_points") @db.VarChar(24)
   /// When true, automation does not advance week (commissioner can still force).
   weekProgressionPaused               Boolean                @default(false)
+  /// Twists, competition presets, optional America’s vote — see `lib/big-brother/big-brother-premium-engine-spec.ts`.
+  premiumEngineSpec                   Json?
   auditLog                            BigBrotherAuditLog[]
   cycles                              BigBrotherCycle[]
   jury                                BigBrotherJuryMember[]
@@ -8477,10 +8432,10 @@ model ZombieAuditLog {
 /// Multi-sport: roster template per sport/format (slot definitions)
 model RosterTemplate {
   id         String               @id @default(cuid())
-  sportType  String               @db.VarChar(12)
   name       String               @db.VarChar(64)
   formatType String               @db.VarChar(32)
   createdAt  DateTime             @default(now())
+  sportType  String               @db.VarChar(12)
   slots      RosterTemplateSlot[]
 
   @@unique([sportType, formatType])
@@ -8521,10 +8476,10 @@ model LeagueRosterConfig {
 /// Multi-sport: scoring template per sport/format
 model ScoringTemplate {
   id         String        @id @default(cuid())
-  sportType  String        @db.VarChar(12)
   name       String        @db.VarChar(64)
   formatType String        @db.VarChar(32)
   createdAt  DateTime      @default(now())
+  sportType  String        @db.VarChar(12)
   rules      ScoringRule[]
 
   @@unique([sportType, formatType])
@@ -8563,7 +8518,6 @@ model LeagueScoringOverride {
 /// Commissioners can override only where the sport allows; validation uses these flags.
 model SportFeatureFlags {
   id                    String   @id @default(cuid())
-  sportType             String   @unique @db.VarChar(12)
   supportsBestBall      Boolean  @default(false)
   supportsSuperflex     Boolean  @default(false)
   supportsTePremium     Boolean  @default(false)
@@ -8578,6 +8532,7 @@ model SportFeatureFlags {
   supportsIr            Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  sportType             String   @unique @db.VarChar(12)
 
   @@map("sport_feature_flags")
 }
@@ -8586,7 +8541,6 @@ model SportFeatureFlags {
 /// Separate from real-world season metadata. One default per sport (formatType = 'DEFAULT').
 model ScheduleTemplate {
   id                    String   @id @default(cuid())
-  sportType             String   @db.VarChar(12)
   name                  String   @db.VarChar(64)
   formatType            String   @db.VarChar(32)
   matchupType           String   @db.VarChar(48)
@@ -8603,6 +8557,7 @@ model ScheduleTemplate {
   bowlPlayoffMetadata   Boolean  @default(false)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  sportType             String   @db.VarChar(12)
 
   @@unique([sportType, formatType])
   @@index([sportType])
@@ -8613,7 +8568,6 @@ model ScheduleTemplate {
 /// One default per sport (formatType = 'DEFAULT').
 model SeasonCalendar {
   id                           String   @id @default(cuid())
-  sportType                    String   @db.VarChar(12)
   name                         String   @db.VarChar(64)
   formatType                   String   @db.VarChar(32)
   preseasonPeriod              Json?
@@ -8623,6 +8577,7 @@ model SeasonCalendar {
   internationalBreaksSupported Boolean  @default(false)
   createdAt                    DateTime @default(now())
   updatedAt                    DateTime @updatedAt
+  sportType                    String   @db.VarChar(12)
 
   @@unique([sportType, formatType])
   @@index([sportType])
@@ -8632,7 +8587,6 @@ model SeasonCalendar {
 /// Multi-sport: scheduled games for schedule/stats pipeline
 model GameSchedule {
   id          String    @id @default(cuid())
-  sportType   String    @db.VarChar(12)
   season      Int
   weekOrRound Int
   externalId  String    @db.VarChar(64)
@@ -8648,6 +8602,7 @@ model GameSchedule {
   weather     Json?
   homeScore   Int?      @map("home_score")
   awayScore   Int?      @map("away_score")
+  sportType   String    @db.VarChar(12)
 
   @@unique([sportType, season, weekOrRound, externalId])
   @@index([startTime])
@@ -8660,7 +8615,6 @@ model GameSchedule {
 model PlayerGameStat {
   id                String   @id @default(cuid())
   playerId          String   @db.VarChar(64)
-  sportType         String   @db.VarChar(12)
   gameId            String   @db.VarChar(64)
   season            Int
   weekOrRound       Int
@@ -8668,6 +8622,7 @@ model PlayerGameStat {
   normalizedStatMap Json     @map("normalized_stat_map")
   fantasyPoints     Float    @default(0)
   updatedAt         DateTime @updatedAt
+  sportType         String   @db.VarChar(12)
 
   @@unique([playerId, sportType, gameId])
   @@index([playerId, sportType, season])
@@ -8678,13 +8633,13 @@ model PlayerGameStat {
 /// Multi-sport: team-level game stats (optional aggregate)
 model TeamGameStat {
   id          String   @id @default(cuid())
-  sportType   String   @db.VarChar(12)
   gameId      String   @db.VarChar(64)
   teamId      String   @db.VarChar(32)
   season      Int
   weekOrRound Int
   statPayload Json     @map("stat_payload")
   updatedAt   DateTime @updatedAt
+  sportType   String   @db.VarChar(12)
 
   @@unique([sportType, gameId, teamId])
   @@index([sportType, season, weekOrRound])
@@ -8694,7 +8649,6 @@ model TeamGameStat {
 /// Multi-sport: stat ingestion job tracking
 model StatIngestionJob {
   id           String    @id @default(cuid())
-  sportType    String    @db.VarChar(12)
   season       Int
   weekOrRound  Int?
   source       String    @db.VarChar(32)
@@ -8704,6 +8658,7 @@ model StatIngestionJob {
   gameCount    Int       @default(0)
   statCount    Int       @default(0)
   errorMessage String?   @db.VarChar(512)
+  sportType    String    @db.VarChar(12)
 
   @@index([status, startedAt])
   @@index([sportType, season])
@@ -9011,13 +8966,10 @@ model DraftSession {
   devyConfig             Json?
   /// C2C: { enabled: boolean, collegeRounds: number[] } (1-based rounds that are college-only; rest are pro-only)
   c2cConfig              Json?
-  /// Commissioner AI draft managers: assignments (max 4 orphan rosters), trade rules, optional throttle metadata.
-  commissionerAiManagers Json?
   /// Draft pick trades: JSON array of { round, originalRosterId, previousOwnerName, newRosterId, newOwnerName } for ownership resolution
   tradedPicks            Json?                    @default("[]")
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
-  sportType              String?                  @db.VarChar(16)
   /// Sleeper `draft_id` when syncing live drafts from Sleeper (optional).
   sleeperDraftId         String?                  @unique
   /// `live` = Sleeper-synced; `mock` = AllFantasy mock (may also use MockDraftRoom).
@@ -9033,15 +8985,18 @@ model DraftSession {
   cpuAutoPick            Boolean                  @default(true)
   /// all | rookies_only | veterans_only
   playerPool             String                   @default("all")
+  sportType              String?                  @db.VarChar(16)
+  /// Commissioner AI draft managers: assignments (max 4 orphan rosters), trade rules, optional throttle metadata.
+  commissionerAiManagers Json?
+  aiRecommendationLogs   AiRecommendationLog[]
   draftChatMessages      DraftChatMessage[]
   tradeProposals         DraftPickTradeProposal[]
   picks                  DraftPick[]
   queueEntries           DraftQueueEntry[]
   queues                 DraftQueue[]
   draftRecaps            DraftRecap[]
-  warRoomSnapshots       WarRoomSnapshot[]
-  aiRecommendationLogs   AiRecommendationLog[]
   league                 League                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  warRoomSnapshots       WarRoomSnapshot[]
 
   @@index([leagueId])
   @@index([status])
@@ -9070,11 +9025,11 @@ model DraftPick {
   amount         Int?
   source         String?      @default("user")
   createdAt      DateTime     @default(now())
-  sportType      String?      @db.VarChar(16)
   roundPick      Int?
   ownerUserId    String?
   playerImageUrl String?
   pickedAt       DateTime?
+  sportType      String?      @db.VarChar(16)
   session        DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, overall])
@@ -9194,18 +9149,18 @@ model DraftImportBackup {
 
 /// AF War Room AI — persisted tier board / queue / ADP snapshot for replay and Chimmy context.
 model WarRoomSnapshot {
-  id             String         @id @default(cuid())
+  id             String        @id @default(cuid())
   leagueId       String
   userId         String
   draftSessionId String?
-  sport          LeagueSport    @default(NFL)
+  sport          LeagueSport   @default(NFL)
   season         Int?
-  snapshotKind   String         @default("in_draft") @db.VarChar(32)
-  payload        Json           @default("{}")
-  createdAt      DateTime       @default(now())
-  league         League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  user           AppUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  draftSession   DraftSession?  @relation(fields: [draftSessionId], references: [id], onDelete: SetNull)
+  snapshotKind   String        @default("in_draft") @db.VarChar(32)
+  payload        Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  draftSession   DraftSession? @relation(fields: [draftSessionId], references: [id])
+  league         League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user           AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([leagueId, createdAt])
   @@index([userId, createdAt])
@@ -9215,24 +9170,24 @@ model WarRoomSnapshot {
 
 /// AF War Room AI — cached AI player outlook blurb (deterministic + model refresh).
 model PlayerOutlook {
-  id           String      @id @default(cuid())
-  userId       String
-  leagueId     String?
-  sport        LeagueSport @default(NFL)
-  season       Int?
-  playerId     String
-  playerName   String
-  position     String?     @db.VarChar(16)
-  team         String?     @db.VarChar(16)
-  summary      String      @db.Text
-  confidence   Float?
-  detailJson   Json?
-  source       String      @default("ai") @db.VarChar(24)
-  validUntil   DateTime?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  user         AppUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  league       League?     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id         String      @id @default(cuid())
+  userId     String
+  leagueId   String?
+  sport      LeagueSport @default(NFL)
+  season     Int?
+  playerId   String
+  playerName String
+  position   String?     @db.VarChar(16)
+  team       String?     @db.VarChar(16)
+  summary    String
+  confidence Float?
+  detailJson Json?
+  source     String      @default("ai") @db.VarChar(24)
+  validUntil DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @default(now()) @updatedAt
+  league     League?     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       AppUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, playerId, sport])
   @@index([leagueId, season])
@@ -9241,18 +9196,18 @@ model PlayerOutlook {
 
 /// AF War Room AI — inferred draft behavior for an opponent roster in a league season.
 model ManagerTendency {
-  id              String      @id @default(cuid())
-  leagueId        String
-  season          Int
-  rosterId        String
-  sport           LeagueSport @default(NFL)
-  label           String?     @db.VarChar(128)
-  tendenciesJson  Json        @default("{}")
-  samplePicks     Int         @default(0)
-  lastComputedAt  DateTime    @default(now())
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  league          League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  leagueId       String
+  season         Int
+  rosterId       String
+  sport          LeagueSport @default(NFL)
+  label          String?     @db.VarChar(128)
+  tendenciesJson Json        @default("{}")
+  samplePicks    Int         @default(0)
+  lastComputedAt DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now()) @updatedAt
+  league         League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@unique([leagueId, rosterId, season])
   @@index([leagueId, season])
@@ -9261,22 +9216,22 @@ model ManagerTendency {
 
 /// AF War Room AI — audit / telemetry for recommendations (Chimmy, waiver, trade hooks).
 model AiRecommendationLog {
-  id               String        @id @default(cuid())
-  userId           String
-  leagueId         String?
-  draftSessionId   String?
-  feature          String        @db.VarChar(64)
-  recommendationType String?     @db.VarChar(32)
-  inputJson        Json          @default("{}")
-  outputJson       Json          @default("{}")
-  providerSummary  String?       @db.Text
-  tokenEstimate    Int?
-  confidencePct    Float?
-  accepted         Boolean?
-  createdAt        DateTime      @default(now())
-  user             AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  league           League?       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  draftSession     DraftSession? @relation(fields: [draftSessionId], references: [id], onDelete: SetNull)
+  id                 String        @id @default(cuid())
+  userId             String
+  leagueId           String?
+  draftSessionId     String?
+  feature            String        @db.VarChar(64)
+  inputJson          Json          @default("{}")
+  outputJson         Json          @default("{}")
+  providerSummary    String?
+  tokenEstimate      Int?
+  createdAt          DateTime      @default(now())
+  recommendationType String?       @db.VarChar(32)
+  confidencePct      Float?
+  accepted           Boolean?
+  draftSession       DraftSession? @relation(fields: [draftSessionId], references: [id])
+  league             League?       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user               AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([leagueId, feature])
@@ -10593,16 +10548,16 @@ model RedraftSeason {
   keeperRecords            KeeperRecord[]
   keeperSelectionSession   KeeperSelectionSession?
   aiLeagueInsights         RedraftAILeagueInsight[]
-  playoffMatchups          RedraftPlayoffMatchup[]
-  playoffRounds            RedraftPlayoffRound[]
-  playoffSeeds             RedraftPlayoffSeed[]
   redraftLeagueTrades      RedraftLeagueTrade[]
-  redraftTradeProposals    RedraftTradeProposal[]
   redraftTransactions      RedraftLeagueTransaction[]
   schedule                 RedraftMatchup[]
   playoffBracket           RedraftPlayoffBracket?
+  playoffMatchups          RedraftPlayoffMatchup[]
+  playoffRounds            RedraftPlayoffRound[]
+  playoffSeeds             RedraftPlayoffSeed[]
   rosters                  RedraftRoster[]
   league                   League                     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  redraftTradeProposals    RedraftTradeProposal[]
   redraftWaiverClaims      RedraftWaiverClaim[]
 
   @@index([leagueId])
@@ -10639,22 +10594,22 @@ model RedraftRoster {
   idpSalaryRecords         IDPSalaryRecord[]
   keeperRecords            KeeperRecord[]
   aiRosterInsights         RedraftAIRosterInsight[]
-  playoffAwayMatchups      RedraftPlayoffMatchup[]  @relation("RedraftPlayoffAwayRoster")
-  playoffHomeMatchups      RedraftPlayoffMatchup[]  @relation("RedraftPlayoffHomeRoster")
-  playoffWinningMatchups   RedraftPlayoffMatchup[]  @relation("RedraftPlayoffWinnerRoster")
-  playoffSeeds             RedraftPlayoffSeed[]
-  tradeAssetsFrom          RedraftTradeAsset[]      @relation("RedraftTradeAssetFrom")
-  tradeAssetsTo            RedraftTradeAsset[]      @relation("RedraftTradeAssetTo")
   tradesProposed           RedraftLeagueTrade[]       @relation("RedraftTradeProposer")
   tradesReceived           RedraftLeagueTrade[]       @relation("RedraftTradeReceiver")
-  tradeProposalVotes       RedraftTradeVote[]
-  tradeProposalsMade       RedraftTradeProposal[]   @relation("RedraftTradeProposalProposer")
-  tradeProposalsReceived   RedraftTradeProposal[]   @relation("RedraftTradeProposalReceiver")
   transactions             RedraftLeagueTransaction[]
   awayMatchups             RedraftMatchup[]           @relation("RedraftAwayRoster")
   homeMatchups             RedraftMatchup[]           @relation("RedraftHomeRoster")
+  playoffAwayMatchups      RedraftPlayoffMatchup[]    @relation("RedraftPlayoffAwayRoster")
+  playoffHomeMatchups      RedraftPlayoffMatchup[]    @relation("RedraftPlayoffHomeRoster")
+  playoffWinningMatchups   RedraftPlayoffMatchup[]    @relation("RedraftPlayoffWinnerRoster")
+  playoffSeeds             RedraftPlayoffSeed[]
   players                  RedraftRosterPlayer[]
   season                   RedraftSeason              @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  tradeAssetsFrom          RedraftTradeAsset[]        @relation("RedraftTradeAssetFrom")
+  tradeAssetsTo            RedraftTradeAsset[]        @relation("RedraftTradeAssetTo")
+  tradeProposalsMade       RedraftTradeProposal[]     @relation("RedraftTradeProposalProposer")
+  tradeProposalsReceived   RedraftTradeProposal[]     @relation("RedraftTradeProposalReceiver")
+  tradeProposalVotes       RedraftTradeVote[]
   waiverClaims             RedraftWaiverClaim[]
 
   @@unique([seasonId, ownerId])
@@ -10820,27 +10775,27 @@ model RedraftDraft {
 }
 
 model RedraftDraftPick {
-  id               String       @id
-  draftId          String
-  leagueId         String
-  round            Int
-  pickNumber       Int
-  slotNumber       Int
-  rosterId         String?
-  selectedPlayerId String?
+  id                 String       @id
+  draftId            String
+  leagueId           String
+  round              Int
+  pickNumber         Int
+  slotNumber         Int
+  rosterId           String?
+  selectedPlayerId   String?
   selectedPlayerName String?
-  selectedPosition String?
-  selectedTeam     String?
-  selectionSource  String?
-  status           String       @default("pending")
-  pickDeadlineAt   DateTime?
-  pickedAt         DateTime?
-  metadata         Json         @default("{}")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  draft            RedraftDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  league           League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  roster           Roster?      @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+  selectedPosition   String?
+  selectedTeam       String?
+  selectionSource    String?
+  status             String       @default("pending")
+  pickDeadlineAt     DateTime?
+  pickedAt           DateTime?
+  metadata           Json         @default("{}")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  draft              RedraftDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  league             League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster             Roster?      @relation(fields: [rosterId], references: [id])
 
   @@unique([draftId, pickNumber])
   @@unique([draftId, round, slotNumber])
@@ -10892,13 +10847,13 @@ model RedraftDraftEvent {
 }
 
 model RedraftTradeProposal {
-  id               String               @id
+  id               String                @id
   leagueId         String
   seasonId         String
   proposerRosterId String
   receiverRosterId String
-  status           String               @default("pending")
-  vetoMode         String               @default("commissioner")
+  status           String                @default("pending")
+  vetoMode         String                @default("commissioner")
   vetoThreshold    Int?
   reason           String?
   expiresAt        DateTime?
@@ -10906,15 +10861,15 @@ model RedraftTradeProposal {
   rejectedAt       DateTime?
   cancelledAt      DateTime?
   processedAt      DateTime?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
   assets           RedraftTradeAsset[]
   decision         RedraftTradeDecision?
+  league           League                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  proposerRoster   RedraftRoster         @relation("RedraftTradeProposalProposer", fields: [proposerRosterId], references: [id], onDelete: Cascade)
+  receiverRoster   RedraftRoster         @relation("RedraftTradeProposalReceiver", fields: [receiverRosterId], references: [id], onDelete: Cascade)
+  season           RedraftSeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   votes            RedraftTradeVote[]
-  league           League               @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  proposerRoster   RedraftRoster        @relation("RedraftTradeProposalProposer", fields: [proposerRosterId], references: [id], onDelete: Cascade)
-  receiverRoster   RedraftRoster        @relation("RedraftTradeProposalReceiver", fields: [receiverRosterId], references: [id], onDelete: Cascade)
-  season           RedraftSeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@index([leagueId, status])
   @@index([seasonId, createdAt])
@@ -10959,31 +10914,31 @@ model RedraftTradeVote {
 }
 
 model RedraftTradeDecision {
-  id            String               @id
-  proposalId    String               @unique
-  decision      String
+  id              String               @id
+  proposalId      String               @unique
+  decision        String
   decidedByUserId String?
-  decisionReason String?
-  snapshot      Json                 @default("{}")
-  createdAt     DateTime             @default(now())
-  proposal      RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  decisionReason  String?
+  snapshot        Json                 @default("{}")
+  createdAt       DateTime             @default(now())
+  proposal        RedraftTradeProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
 
   @@map("redraft_trade_decisions")
 }
 
 model RedraftPlayoffRound {
-  id          String                @id
+  id          String                  @id
   seasonId    String
   bracketId   String?
   roundNumber Int
   roundName   String?
   startsAt    DateTime?
   endsAt      DateTime?
-  status      String                @default("pending")
-  createdAt   DateTime              @default(now())
-  bracket     RedraftPlayoffBracket? @relation(fields: [bracketId], references: [id], onDelete: SetNull)
+  status      String                  @default("pending")
+  createdAt   DateTime                @default(now())
   matchups    RedraftPlayoffMatchup[]
-  season      RedraftSeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  bracket     RedraftPlayoffBracket?  @relation(fields: [bracketId], references: [id])
+  season      RedraftSeason           @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@unique([seasonId, roundNumber])
   @@index([seasonId, status])
@@ -11007,29 +10962,29 @@ model RedraftPlayoffSeed {
 }
 
 model RedraftPlayoffMatchup {
-  id            String               @id
-  seasonId      String
-  roundId       String
-  matchupNumber Int
-  homeRosterId  String?
-  awayRosterId  String?
-  homeSeed      Int?
-  awaySeed      Int?
-  homeScore     Float?
-  awayScore     Float?
+  id             String                  @id
+  seasonId       String
+  roundId        String
+  matchupNumber  Int
+  homeRosterId   String?
+  awayRosterId   String?
+  homeSeed       Int?
+  awaySeed       Int?
+  homeScore      Float?
+  awayScore      Float?
   winnerRosterId String?
-  nextMatchupId String?
-  status        String               @default("scheduled")
-  metadata      Json                 @default("{}")
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  awayRoster    RedraftRoster?       @relation("RedraftPlayoffAwayRoster", fields: [awayRosterId], references: [id], onDelete: SetNull)
-  homeRoster    RedraftRoster?       @relation("RedraftPlayoffHomeRoster", fields: [homeRosterId], references: [id], onDelete: SetNull)
-  nextMatchup   RedraftPlayoffMatchup? @relation("RedraftPlayoffNext", fields: [nextMatchupId], references: [id], onDelete: SetNull)
-  prevMatchups  RedraftPlayoffMatchup[] @relation("RedraftPlayoffNext")
-  round         RedraftPlayoffRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
-  season        RedraftSeason        @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  winnerRoster  RedraftRoster?       @relation("RedraftPlayoffWinnerRoster", fields: [winnerRosterId], references: [id], onDelete: SetNull)
+  nextMatchupId  String?
+  status         String                  @default("scheduled")
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  awayRoster     RedraftRoster?          @relation("RedraftPlayoffAwayRoster", fields: [awayRosterId], references: [id])
+  homeRoster     RedraftRoster?          @relation("RedraftPlayoffHomeRoster", fields: [homeRosterId], references: [id])
+  nextMatchup    RedraftPlayoffMatchup?  @relation("RedraftPlayoffNext", fields: [nextMatchupId], references: [id])
+  prevMatchups   RedraftPlayoffMatchup[] @relation("RedraftPlayoffNext")
+  round          RedraftPlayoffRound     @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  season         RedraftSeason           @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  winnerRoster   RedraftRoster?          @relation("RedraftPlayoffWinnerRoster", fields: [winnerRosterId], references: [id])
 
   @@unique([roundId, matchupNumber])
   @@index([roundId, status])
@@ -11054,13 +11009,13 @@ model PlayerWeeklyScore {
 }
 
 model RedraftPlayoffBracket {
-  id        String        @id @default(cuid())
-  seasonId  String        @unique
+  id        String                @id @default(cuid())
+  seasonId  String                @unique
   structure Json
-  status    String        @default("pending")
-  createdAt DateTime      @default(now())
+  status    String                @default("pending")
+  createdAt DateTime              @default(now())
+  season    RedraftSeason         @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   rounds    RedraftPlayoffRound[]
-  season    RedraftSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 
   @@map("redraft_playoff_brackets")
 }
@@ -11545,79 +11500,79 @@ model AFProjectionSnapshot {
 
 /// Normalized settings row for leagues created via the redraft-only creation API (1:1 with League).
 model RedraftLeagueExtendedSettings {
-  id                           String   @id @default(cuid())
-  leagueId                     String   @unique
-  commissionerTradeReviewType  String   @default("commissioner") @db.VarChar(32)
-  languageCode                 String   @default("en") @db.VarChar(16)
-  scoringTypeDefault           String?  @db.VarChar(64)
-  waiverTypeDefault            String?  @db.VarChar(64)
-  rosterPresetKey              String?  @db.VarChar(128)
-  playoffPresetKey             String?  @db.VarChar(128)
-  draftTimerSecondsDefault     Int?
-  isPublic                     Boolean  @default(false)
-  allowInviteLinks             Boolean  @default(true)
-  settingsJson                 Json     @default("{}")
-  createdAt                    DateTime @default(now())
-  updatedAt                    DateTime @updatedAt
-  league                       League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id                          String   @id @default(cuid())
+  leagueId                    String   @unique
+  commissionerTradeReviewType String   @default("commissioner")
+  languageCode                String   @default("en")
+  scoringTypeDefault          String?
+  waiverTypeDefault           String?
+  rosterPresetKey             String?
+  playoffPresetKey            String?
+  draftTimerSecondsDefault    Int?
+  isPublic                    Boolean  @default(false)
+  allowInviteLinks            Boolean  @default(true)
+  settingsJson                Json     @default("{}")
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  league                      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("redraft_league_extended_settings")
 }
 
 /// Draft shell persisted at redraft create (complements `LeagueSettings` / `DraftSession`).
 model RedraftLeagueDraftProfile {
-  id              String    @id @default(cuid())
-  leagueId        String    @unique
-  draftType       String    @db.VarChar(32)
-  isOffline       Boolean   @default(false)
-  isAuto          Boolean   @default(false)
-  rounds          Int       @default(15)
-  timerSeconds    Int?
-  orderMode       String?   @db.VarChar(32)
-  auctionBudget   Int?
-  scheduledAt     DateTime?
-  draftStatus     String    @default("pre_draft") @db.VarChar(32)
-  configJson      Json      @default("{}")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  league          League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  leagueId      String    @unique
+  draftType     String
+  isOffline     Boolean   @default(false)
+  isAuto        Boolean   @default(false)
+  rounds        Int       @default(15)
+  timerSeconds  Int?
+  orderMode     String?
+  auctionBudget Int?
+  scheduledAt   DateTime?
+  draftStatus   String    @default("pre_draft")
+  configJson    Json      @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  league        League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("redraft_league_draft_profiles")
 }
 
 model RedraftLeagueHomepageState {
-  id                  String   @id @default(cuid())
-  leagueId            String   @unique
-  activeTab           String   @default("overview") @db.VarChar(32)
-  onboardingComplete  Boolean  @default(false)
-  chatEnabled         Boolean  @default(true)
-  draftRoomEnabled    Boolean  @default(true)
-  paymentEnabled      Boolean  @default(false)
-  homepageConfigJson  Json     @default("{}")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  league              League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  leagueId           String   @unique
+  activeTab          String   @default("overview")
+  onboardingComplete Boolean  @default(false)
+  chatEnabled        Boolean  @default(true)
+  draftRoomEnabled   Boolean  @default(true)
+  paymentEnabled     Boolean  @default(false)
+  homepageConfigJson Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  league             League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("redraft_league_homepage_states")
 }
 
 model RedraftLeagueSportIntegration {
-  id                   String   @id @default(cuid())
-  leagueId             String   @unique
-  sport                String   @db.VarChar(16)
+  id                    String                 @id @default(cuid())
+  leagueId              String                 @unique
+  sport                 String
+  standingsEnabled      Boolean                @default(true)
+  schedulesEnabled      Boolean                @default(true)
+  injuriesEnabled       Boolean                @default(true)
+  newsEnabled           Boolean                @default(true)
+  weatherEnabled        Boolean                @default(false)
+  playerPoolSource      String?
+  gameFeedSource        String?
+  integrationConfigJson Json                   @default("{}")
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   /// SOCCER only: MLS vs European data pipeline (null for non-soccer leagues).
   soccerPipelineVariant SoccerPipelineVariant?
-  standingsEnabled     Boolean  @default(true)
-  schedulesEnabled     Boolean  @default(true)
-  injuriesEnabled      Boolean  @default(true)
-  newsEnabled          Boolean  @default(true)
-  weatherEnabled       Boolean  @default(false)
-  playerPoolSource     String?  @db.VarChar(64)
-  gameFeedSource       String?  @db.VarChar(64)
-  integrationConfigJson Json    @default("{}")
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  league               League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league                League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("redraft_league_sport_integrations")
 }
@@ -11625,8 +11580,8 @@ model RedraftLeagueSportIntegration {
 model RedraftLeagueChatRoom {
   id        String   @id @default(cuid())
   leagueId  String
-  roomType  String   @default("league") @db.VarChar(32)
-  title     String   @default("League chat") @db.VarChar(160)
+  roomType  String   @default("league")
+  title     String   @default("League chat")
   createdAt DateTime @default(now())
   league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
@@ -11635,14 +11590,14 @@ model RedraftLeagueChatRoom {
 }
 
 model LeagueEntrySlot {
-  id         String               @id @default(cuid())
+  id         String                @id @default(cuid())
   leagueId   String
   slotNumber Int
+  rosterId   String?               @db.VarChar(64)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
   status     LeagueEntrySlotStatus @default(OPEN)
-  rosterId   String?              @db.VarChar(64)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  league     League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  league     League                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@unique([leagueId, slotNumber])
   @@index([leagueId])
@@ -11650,14 +11605,14 @@ model LeagueEntrySlot {
 }
 
 model RedraftLeagueMember {
-  id         String                 @id @default(cuid())
+  id         String                  @id @default(cuid())
   leagueId   String
   userId     String
-  role       RedraftLeagueMemberRole  @default(COMMISSIONER)
   teamNumber Int?
-  joinedAt  DateTime @default(now())
-  createdAt DateTime @default(now())
-  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime                @default(now())
+  createdAt  DateTime                @default(now())
+  role       RedraftLeagueMemberRole @default(COMMISSIONER)
+  league     League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@unique([leagueId, userId])
   @@index([userId])

@@ -38,6 +38,16 @@ const DRAFT_LABELS: Record<RedraftDraftTypeId, string> = {
   auto: 'Auto',
 }
 
+const SPORT_MEDIA: Record<LeagueSport, { label: string; image: string; video: string; fallback: string }> = {
+  NFL: { label: 'NFL Football', image: '/Football.png', video: '/Football.mp4', fallback: '/af-crest.png' },
+  NBA: { label: 'NBA Basketball', image: '/Basketball.png', video: '/Basketball.mp4', fallback: '/af-crest.png' },
+  MLB: { label: 'MLB Baseball', image: '/Baseball.png', video: '/Baseball.mp4', fallback: '/af-crest.png' },
+  NHL: { label: 'NHL Hockey', image: '/Hockey.png', video: '/Hockey.mp4', fallback: '/af-crest.png' },
+  NCAAF: { label: 'NCAA Football', image: '/Football.png', video: '/Football.mp4', fallback: '/af-crest.png' },
+  NCAAB: { label: 'NCAA Basketball', image: '/Basketball.png', video: '/Basketball.mp4', fallback: '/af-crest.png' },
+  SOCCER: { label: 'Soccer', image: '/Soccer.png', video: '/Soccer.mp4', fallback: '/af-crest.png' },
+}
+
 const TRADE_OPTIONS = [
   { value: 'commissioner', label: 'Commissioner review required' },
   { value: 'league_vote', label: 'League vote / veto' },
@@ -340,6 +350,29 @@ export function RedraftLeagueCreateClient({
                 </SelectContent>
               </Select>
             </div>
+            {state.sport && (
+              <div className="rounded-xl border border-cyan-400/20 bg-[#07122d]/70 p-3">
+                <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected sport preview</p>
+                <p className="mt-1 text-sm text-white/85">{SPORT_MEDIA[state.sport].label}</p>
+                <video
+                  key={SPORT_MEDIA[state.sport].video}
+                  className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
+                  src={SPORT_MEDIA[state.sport].video}
+                  poster={SPORT_MEDIA[state.sport].image}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  controls
+                  onError={(event) => {
+                    const target = event.currentTarget
+                    target.poster = SPORT_MEDIA[state.sport!].fallback
+                    target.removeAttribute('src')
+                    target.load()
+                  }}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
