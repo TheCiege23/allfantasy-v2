@@ -17,10 +17,18 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const code = String(body?.code || "").trim()
-  const phone = String(body?.phone || profile?.phone || "").trim()
+  let phone = String(body?.phone || profile?.phone || "").trim()
 
   if (!phone) return NextResponse.json({ error: "MISSING_PHONE" }, { status: 400 })
   if (!code) return NextResponse.json({ error: "MISSING_CODE" }, { status: 400 })
+
+  // Normalize phone to E.164 to match the /start endpoint (which sends e.g. +12014176692).
+  // Without this, Twilio can't find the pending verification and returns 500 → VERIFY_FAILED.
+  phone = phone.replace(/[\s()-]/g, "")
+  if (!phone.startsWith("+")) phone = "+1" + phone
+  if (!/^\+\d{10,15}$/.test(phone)) {
+    return NextResponse.json({ error: "INVALID_PHONE", message: "Please enter a valid phone number with country code." }, { status: 400 })
+  }
 
   try {
     const { getTwilioClient } = await import("@/lib/twilio-client")
