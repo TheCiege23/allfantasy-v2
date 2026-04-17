@@ -1188,6 +1188,7 @@ function LeagueTabRouter({
           isCommissioner={isCommissioner}
           inviteToken={inviteToken}
           idpLeagueUi={idpLeagueActive}
+          userTeam={userTeam ? { id: userTeam.id, teamName: userTeam.teamName } : null}
         />
       )
     case 'players':

@@ -7,6 +7,10 @@ import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
 import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import type { LeagueDashboardView } from '@/app/league/[leagueId]/league-dashboard-types'
 import { DraftTab } from '@/app/league/[leagueId]/tabs/DraftTab'
+import { LeagueHomeHero } from '@/components/league-home/LeagueHomeHero'
+import { LeagueHomeQuickCards } from '@/components/league-home/LeagueHomeQuickCards'
+import { isExcludedFromHomeHero, resolveLeagueAccent } from '@/lib/league-home/accent-resolver'
+import { resolveLeagueMedia } from '@/lib/league-home/league-media-resolver'
 
 export type LeagueTabProps = {
   league: UserLeague
@@ -17,6 +21,8 @@ export type LeagueTabProps = {
   isCommissioner?: boolean
   inviteToken?: string
   idpLeagueUi?: boolean
+  /** Current user's team in the league — used by the home hero. Plumbed from LeagueShell. */
+  userTeam?: { id: string; teamName?: string | null } | null
 }
 
 type ScoringRowProps = {
@@ -60,11 +66,44 @@ export function LeagueTab({
   isCommissioner = false,
   inviteToken,
   idpLeagueUi = false,
+  userTeam = null,
 }: LeagueTabProps) {
   const scoring = leagueDashboard.scoring
 
+  // Hero is gated — Tournament hubs, Zombie universes (beta_trio / alpha_hex),
+  // and Big Brother leagues use their own specialty homepages.
+  const showHomeHero = !isExcludedFromHomeHero(
+    (league as { leagueType?: string | null }).leagueType ?? null,
+    (league as { leagueVariant?: string | null }).leagueVariant ?? null
+  )
+  const accent = resolveLeagueAccent(
+    (league as { leagueType?: string | null }).leagueType ?? null,
+    (league as { leagueVariant?: string | null }).leagueVariant ?? null
+  )
+  const media = resolveLeagueMedia(
+    String(league.sport ?? 'NFL'),
+    (league as { leagueType?: string | null }).leagueType ?? null,
+    (league as { leagueVariant?: string | null }).leagueVariant ?? null
+  )
+
   return (
     <div className="space-y-4 p-5">
+      {showHomeHero ? (
+        <>
+          <LeagueHomeHero
+            league={league}
+            teams={teams}
+            accent={accent}
+            media={media}
+            userTeam={userTeam}
+          />
+          <LeagueHomeQuickCards
+            leagueId={league.id}
+            accent={accent}
+            myTeamId={userTeam?.id ?? null}
+          />
+        </>
+      ) : null}
       <DraftTab
         mode="league"
         league={league}
