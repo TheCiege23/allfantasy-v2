@@ -10,7 +10,6 @@ import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/typ
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { getAllowedSportsForLeagueType, getAllowedDraftTypesForLeagueType } from '@/lib/league-creation-wizard/league-type-registry'
 import { getTeamCountOptionsForSport } from '@/lib/league-creation-wizard/sport-team-limits'
-import { TOURNAMENT_POOL_TIERS } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 
 // ── Sport filtering ─────────────────────────────────────────────────
@@ -73,10 +72,32 @@ function evenTeamCountsUpTo(max: number): number[] {
 }
 
 /**
+ * Guillotine: one team eliminated per regular-season week, so the max team
+ * count equals the sport's regular-season week count (no playoffs in guillotine).
+ */
+const GUILLOTINE_MAX_TEAMS_BY_SPORT: Record<string, number> = {
+  NFL: 18, // 18-week regular season
+  NBA: 24, // 24 weeks of regular season
+  MLB: 26, // ~26 weeks of regular season
+  NHL: 26, // ~26 weeks of regular season
+  NCAAF: 14, // 14-week regular season
+  NCAAB: 19, // ~19 weeks of regular season
+  SOCCER: 38, // Premier League / Big 5 average — 38 matchweeks
+}
+
+/** Fixed tournament pool sizes — user-facing tiers. */
+const TOURNAMENT_POOL_SIZES = [32, 64, 96, 128, 160, 192, 224] as const
+
+/** Big Brother: fixed house sizes (12 / 14 / 16 / 18). */
+const BIG_BROTHER_SIZES = [12, 14, 16, 18] as const
+
+/**
  * Team count options for the pill row.
- * - tournament → pool tiers (72, 144, 216)
+ * - tournament → fixed tiers [32, 64, 96, 128, 160, 192, 224]
+ * - guillotine → even counts 4 up to the sport's regular-season week max
+ * - big_brother → fixed [12, 14, 16, 18]
  * - survivor → 16 / 20 / 24 (fixed cast sizes)
- * - all others → even numbers 4 up to the sport's max
+ * - all others → even numbers 4 up to the sport's real-world club cap
  */
 export function getTeamCountOptions(
   sport: SupportedSport,
@@ -84,7 +105,14 @@ export function getTeamCountOptions(
   soccerPipeline?: 'mls' | 'euro' | null
 ): number[] {
   if (leagueType === 'tournament') {
-    return [...TOURNAMENT_POOL_TIERS]
+    return [...TOURNAMENT_POOL_SIZES]
+  }
+  if (leagueType === 'big_brother') {
+    return [...BIG_BROTHER_SIZES]
+  }
+  if (leagueType === 'guillotine') {
+    const max = GUILLOTINE_MAX_TEAMS_BY_SPORT[sport] ?? 18
+    return evenTeamCountsUpTo(max)
   }
   if (leagueType === 'survivor') {
     return [16, 20, 24]
