@@ -173,7 +173,10 @@ export interface Page1SetupProps {
 
 export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
   const effectiveType = resolveEffectiveLeagueType(state)
-  const teamCountOptions = useMemo(() => getTeamCountOptions(state.sport, effectiveType), [state.sport, effectiveType])
+  const teamCountOptions = useMemo(
+    () => getTeamCountOptions(state.sport, effectiveType, state.soccerPipeline),
+    [state.sport, effectiveType, state.soccerPipeline]
+  )
   const draftOptions = useMemo(() => getDraftTypeOptions(effectiveType, state.sport), [effectiveType, state.sport])
   const survivorTribes = useMemo(() => getSurvivorTribeOptions(state.teamCount), [state.teamCount])
   const isSnake = state.draftType === 'snake'
@@ -215,7 +218,8 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
 
     // Reset team count to default for new type
     const nextSport = (patch.sport ?? state.sport) as SupportedSport
-    patch.teamCount = getDefaultTeamCount(nextSport, nextType)
+    const nextPipeline = patch.soccerPipeline ?? state.soccerPipeline
+    patch.teamCount = getDefaultTeamCount(nextSport, nextType, nextPipeline)
 
     onChange(patch)
   }
@@ -228,8 +232,8 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     if (state.idpSelected && !isIdpAvailableForSport(sport)) {
       patch.idpSelected = false
     }
-    // Reset team count for new sport
-    patch.teamCount = getDefaultTeamCount(sport, effectiveType)
+    // Reset team count for new sport (respecting the new pipeline)
+    patch.teamCount = getDefaultTeamCount(sport, effectiveType, patch.soccerPipeline)
     onChange(patch)
   }
 
@@ -299,7 +303,16 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
               { value: 'euro' as const, label: 'European', hint: 'Top 5 leagues' },
             ]}
             value={state.soccerPipeline ?? 'euro'}
-            onChange={(v) => onChange({ soccerPipeline: v as SoccerPipeline })}
+            onChange={(v) => {
+              const nextPipeline = v as SoccerPipeline
+              const patch: Partial<CreateLeagueV2State> = { soccerPipeline: nextPipeline }
+              // If current team count exceeds the new pipeline's cap, clamp to the new default.
+              const max = nextPipeline === 'euro' ? 96 : 30
+              if (state.teamCount > max) {
+                patch.teamCount = getDefaultTeamCount('SOCCER', effectiveType, nextPipeline)
+              }
+              onChange(patch)
+            }}
             accent={accent}
             ariaLabel="Soccer data region"
           />

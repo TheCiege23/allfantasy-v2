@@ -28,32 +28,78 @@ export function isSportAllowedForType(sport: SupportedSport, leagueType: LeagueT
 
 // ── Team count ──────────────────────────────────────────────────────
 
-/** Standard even team counts 4–32 shown on the Setup page. */
-const EVEN_TEAM_COUNTS_4_32: number[] = (() => {
+/**
+ * Per-sport max team count caps. These mirror the number of real-world clubs
+ * in each league so a fantasy manager can (at most) claim one unique team.
+ *
+ * Sources (2025–2026 seasons):
+ * - NFL: 32 clubs
+ * - NBA: 30 clubs
+ * - MLB: 30 clubs
+ * - NHL: 32 clubs
+ * - NCAAB: 80 (per product spec — caps the Power 5 + high-major pool)
+ * - NCAAF: 86 (per product spec — caps the Power 4 + non-conference pool)
+ * - SOCCER (MLS): 30 clubs in 2026
+ * - SOCCER (Big 5 European): 96 clubs combined (EPL 20 + La Liga 20 + Serie A 20 + Bundesliga 18 + Ligue 1 18)
+ */
+const SPORT_MAX_TEAMS_STANDARD: Record<string, number> = {
+  NFL: 32,
+  NBA: 30,
+  MLB: 30,
+  NHL: 32,
+  NCAAF: 86,
+  NCAAB: 80,
+  SOCCER: 30, // default — refined below for MLS vs Euro
+}
+const SOCCER_EURO_MAX = 96
+const SOCCER_MLS_MAX = 30
+
+/** Resolve the per-sport max for team count. Accepts a soccer pipeline hint. */
+export function getMaxTeamsForSport(
+  sport: SupportedSport,
+  soccerPipeline?: 'mls' | 'euro' | null
+): number {
+  if (sport === 'SOCCER') {
+    return soccerPipeline === 'euro' ? SOCCER_EURO_MAX : SOCCER_MLS_MAX
+  }
+  return SPORT_MAX_TEAMS_STANDARD[sport] ?? 32
+}
+
+/** Even team counts from 4 up to `max`, inclusive. */
+function evenTeamCountsUpTo(max: number): number[] {
   const out: number[] = []
-  for (let n = 4; n <= 32; n += 2) out.push(n)
+  for (let n = 4; n <= max; n += 2) out.push(n)
   return out
-})()
+}
 
 /**
  * Team count options for the pill row.
  * - tournament → pool tiers (72, 144, 216)
  * - survivor → 16 / 20 / 24 (fixed cast sizes)
- * - all others → even numbers 4–32
+ * - all others → even numbers 4 up to the sport's max
  */
-export function getTeamCountOptions(sport: SupportedSport, leagueType: LeagueTypeId): number[] {
+export function getTeamCountOptions(
+  sport: SupportedSport,
+  leagueType: LeagueTypeId,
+  soccerPipeline?: 'mls' | 'euro' | null
+): number[] {
   if (leagueType === 'tournament') {
     return [...TOURNAMENT_POOL_TIERS]
   }
   if (leagueType === 'survivor') {
     return [16, 20, 24]
   }
-  return [...EVEN_TEAM_COUNTS_4_32]
+  const max = getMaxTeamsForSport(sport, soccerPipeline)
+  return evenTeamCountsUpTo(max)
 }
 
 /** Pick a sensible default from the options list. */
-export function getDefaultTeamCount(sport: SupportedSport, leagueType: LeagueTypeId): number {
-  const opts = getTeamCountOptions(sport, leagueType)
+export function getDefaultTeamCount(
+  sport: SupportedSport,
+  leagueType: LeagueTypeId,
+  soccerPipeline?: 'mls' | 'euro' | null
+): number {
+  const opts = getTeamCountOptions(sport, leagueType, soccerPipeline)
   if (opts.length === 0) return 12
   // Prefer 12 if available, otherwise middle of the list
   if (opts.includes(12)) return 12
