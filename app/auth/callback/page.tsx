@@ -16,12 +16,18 @@ function OAuthCallbackContent() {
   const [error, setError] = useState<string | null>(null)
 
   const nextParam = searchParams?.get("next") ?? null
+  const authType = searchParams?.get("type") ?? null
   const code = searchParams?.get("code") ?? null
   const providerError =
     searchParams?.get("error_description") ??
     searchParams?.get("error") ??
     null
-  const nextPath = useMemo(() => safeRedirectPath(nextParam), [nextParam])
+  const nextPath = useMemo(() => {
+    if (!nextParam && authType === "recovery") {
+      return "/reset-password"
+    }
+    return safeRedirectPath(nextParam)
+  }, [authType, nextParam])
 
   useEffect(() => {
     if (startedRef.current) return

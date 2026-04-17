@@ -6,6 +6,18 @@ import { logPasswordResetAudit } from "@/lib/auth/password-reset-audit"
 
 export const runtime = "nodejs"
 
+function buildPasswordResetRedirect(req: Request, returnTo: string | null): string {
+  const appBase =
+    process.env.NEXTAUTH_URL?.trim() ||
+    process.env.APP_BASE_URL?.trim() ||
+    process.env.APP_URL?.trim()
+
+  const origin = appBase || new URL(req.url).origin
+  const nextPath = returnTo && returnTo.startsWith("/") ? returnTo : "/reset-password"
+
+  return `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
+}
+
 export async function POST(req: Request) {
   try {
   const ip = getClientIp(req)
@@ -22,6 +34,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}))
   const type = String(body?.type || "email").toLowerCase()
+  const returnTo = typeof body?.returnTo === "string" ? body.returnTo : null
   const email = String(body?.email || "").toLowerCase().trim()
   let phone = String(body?.phone || "").trim().replace(/[\s()-]/g, "")
   if (phone && !phone.startsWith("+")) phone = "+1" + phone
@@ -121,7 +134,7 @@ export async function POST(req: Request) {
   const { createClient } = await import("@supabase/supabase-js")
   const supabase = createClient(supabaseUrl, supabaseAnon)
   const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: "https://www.allfantasy.ai/auth/callback?next=/reset-password",
+    redirectTo: buildPasswordResetRedirect(req, returnTo),
   })
 
   if (resetErr) {
