@@ -119,9 +119,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {buildLanguageInitScript(htmlLang)}
         </Script>
 
-        {shouldRegisterServiceWorker() && (
+        {shouldRegisterServiceWorker() ? (
           <Script id="af-register-sw" strategy="beforeInteractive">
             {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(function(){});})();`}
+          </Script>
+        ) : (
+          <Script id="af-unregister-sw" strategy="beforeInteractive">
+            {`(function(){if(typeof navigator==='undefined'||!('serviceWorker'in navigator))return;navigator.serviceWorker.getRegistrations().then(function(registrations){return Promise.all(registrations.map(function(reg){var url=(reg.active&&reg.active.scriptURL)||(reg.waiting&&reg.waiting.scriptURL)||(reg.installing&&reg.installing.scriptURL)||'';if(url.indexOf('/sw.js')===-1)return Promise.resolve(false);return reg.unregister();}));}).catch(function(){});if(typeof caches==='undefined')return;caches.keys().then(function(keys){return Promise.all(keys.filter(function(key){return key.indexOf('AllFantasy-')===0;}).map(function(key){return caches.delete(key);}));}).catch(function(){});})();`}
           </Script>
         )}
 
