@@ -2,9 +2,19 @@
 
 import DashboardUnavailableState from "@/components/dashboard/DashboardUnavailableState"
 import { getErrorMessage } from "@/lib/error-handling"
-import { getDashboardRuntimeIssue } from "@/lib/dashboard/runtime-issues"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
+/**
+ * Dashboard error boundary.
+ *
+ * IMPORTANT: This runs on the CLIENT. Importing server-only modules here
+ * (like runtime-issues.ts → database-url.ts) causes webpack to bundle
+ * DATABASE_URL resolution code into a shared client chunk, which crashes
+ * every route that loads that chunk — including league pages.
+ *
+ * The server-side page.tsx already checks getDashboardMissingEnvVars()
+ * proactively, so this boundary only catches client rendering failures.
+ */
 export default function DashboardError({
   error,
   reset,
@@ -13,18 +23,6 @@ export default function DashboardError({
   reset: () => void
 }) {
   const { t } = useLanguage()
-  const issue = getDashboardRuntimeIssue(error)
-
-  if (issue) {
-    return (
-      <DashboardUnavailableState
-        title={issue.title}
-        message={issue.message}
-        missing={issue.missing}
-        onRetry={reset}
-      />
-    )
-  }
 
   return (
     <DashboardUnavailableState
