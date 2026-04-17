@@ -44,7 +44,7 @@ export default async function LeaguePage({
   const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
   let session: {
     user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
-  } | null = null
+  } | null
   try {
     session = (await getServerSession(authOptions as never)) as typeof session
   } catch (error) {
@@ -57,11 +57,13 @@ export default async function LeaguePage({
     )
   }
 
-  if (!session?.user?.id) {
+  const sessionUser = session?.user
+  const rawUserId = typeof sessionUser?.id === 'string' ? sessionUser.id.trim() : ''
+  if (!sessionUser || !rawUserId) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/league/${leagueId}`)}`)
   }
 
-  const userId = session.user.id
+  const userId = rawUserId
 
   try {
   const defaultLeagueDashboardView: LeagueDashboardView = {
@@ -210,7 +212,7 @@ export default async function LeaguePage({
 
   const isCommissioner = role === 'commissioner' || role === 'co_commissioner'
   const isHeadCommissioner = role === 'commissioner'
-  const userImage = resolveDashboardAvatarUrl(session.user.image, dbUser?.avatarUrl)
+  const userImage = resolveDashboardAvatarUrl(sessionUser?.image ?? null, dbUser?.avatarUrl)
   const currentSleeperUserId = userProfile?.sleeperUserId ?? null
   const sleeperUsersByPlatformId: Record<string, { display_name: string; avatar: string | null }> = {}
 
@@ -232,7 +234,7 @@ export default async function LeaguePage({
         isHeadCommissioner={isHeadCommissioner}
         allLeagues={allLeagues}
         userId={userId}
-        userName={session.user.name ?? session.user.email ?? 'Manager'}
+        userName={sessionUser?.name ?? sessionUser?.email ?? 'Manager'}
         userImage={userImage}
         draftDateIso={draftDateIso}
         sleeperCommissionerId={sleeperCommissionerId}
