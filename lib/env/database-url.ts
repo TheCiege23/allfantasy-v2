@@ -7,6 +7,8 @@ const DATABASE_URL_ENV_KEYS = [
   "DATABASE_URL",
   "POSTGRES_PRISMA_URL",
   "POSTGRES_URL",
+  /** Vercel Postgres / Neon: direct (non-pooled) URL; must be postgres:// — see playwright.config.ts parity */
+  "POSTGRES_URL_NON_POOLING",
   "NEON_DATABASE_URL",
   "DIRECT_URL",
 ] as const

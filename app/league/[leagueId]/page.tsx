@@ -10,6 +10,13 @@ import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 import type { LeagueDashboardView } from './league-dashboard-types'
 import { resolveTournamentDestinationFromLeagueSettings } from '@/lib/dashboard/league-list-destination'
 
+import DashboardUnavailableState from '@/components/dashboard/DashboardUnavailableState'
+import {
+  createDashboardRuntimeIssue,
+  getDashboardMissingEnvVars,
+  getDashboardRuntimeIssue,
+} from '@/lib/dashboard/runtime-issues'
+import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 export const dynamic = 'force-dynamic'
 
 export default async function LeaguePage({
@@ -19,13 +26,36 @@ export default async function LeaguePage({
   params: Promise<{ leagueId: string }>
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const missingEnvVars = getDashboardMissingEnvVars()
+  if (missingEnvVars.length > 0) {
+    const issue = createDashboardRuntimeIssue('missing-env', missingEnvVars)
+    return (
+      <DashboardUnavailableState
+        title={issue.title}
+        message={issue.message}
+        missing={issue.missing}
+      />
+    )
+  }
+
   const { leagueId } = await params
   const sp = searchParams ? await searchParams : {}
   const zc = sp.zombieChimmy
   const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
-  const session = (await getServerSession(authOptions as never)) as {
+  let session: {
     user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
   } | null
+  try {
+    session = (await getServerSession(authOptions as never)) as typeof session
+  } catch (error) {
+    console.error('[league] getServerSession failed:', error)
+    return (
+      <DashboardUnavailableState
+        title="League temporarily unavailable"
+        message="We couldn't verify your session. Please sign in again or try again in a moment."
+      />
+    )
+  }
 
   if (!session?.user?.id) {
     redirect(`/login?callbackUrl=${encodeURIComponent(`/league/${leagueId}`)}`)
@@ -33,6 +63,7 @@ export default async function LeaguePage({
 
   const userId = session.user.id
 
+  try {
   const defaultLeagueDashboardView: LeagueDashboardView = {
     settingsRows: [],
     standings: { mode: 'standard' },
@@ -215,4 +246,29 @@ export default async function LeaguePage({
       />
     </div>
   )
+  } catch (error) {
+    if (isAppRouterRedirectError(error)) {
+      throw error
+    }
+
+    const issue = getDashboardRuntimeIssue(error)
+    if (issue) {
+      return (
+        <DashboardUnavailableState
+          title={issue.title}
+          message={issue.message}
+          missing={issue.missing}
+        />
+      )
+    }
+
+    console.error('[league] data load failed:', error)
+
+    return (
+      <DashboardUnavailableState
+        title="League temporarily unavailable"
+        message="We couldn't load this league. Please try again in a moment."
+      />
+    )
+  }
 }

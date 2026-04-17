@@ -69,9 +69,31 @@ export function createDashboardRuntimeIssue(missing: string[]): DashboardRuntime
   }
 }
 
+function collectErrorMessageChain(error: unknown): string {
+  const parts: string[] = []
+  let current: unknown = error
+  for (let depth = 0; depth < 8 && current != null; depth++) {
+    if (typeof current === "string") {
+      parts.push(current)
+      break
+    }
+    if (current instanceof Error) {
+      if (current.message) parts.push(current.message)
+      current = current.cause
+      continue
+    }
+    break
+  }
+  return parts.join(" ")
+}
+
 export function getDashboardRuntimeIssue(error: unknown): DashboardRuntimeIssue | null {
   const message =
-    typeof error === "string" ? error : error instanceof Error ? error.message : ""
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? collectErrorMessageChain(error)
+        : ""
 
   if (!message) return null
 

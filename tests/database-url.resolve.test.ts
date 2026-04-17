@@ -28,6 +28,16 @@ describe('resolveDatabaseUrl', () => {
     expect(url).toBe(input)
   })
 
+  it('accepts Vercel-style POSTGRES_URL_NON_POOLING when DATABASE_URL is unset', () => {
+    const input = 'postgresql://u:p@db.example.com:5432/app?sslmode=require'
+    expect(
+      resolveDatabaseUrl({
+        DATABASE_URL: '',
+        POSTGRES_URL_NON_POOLING: input,
+      })
+    ).toBe(input)
+  })
+
   it('getDatabaseUrlOrThrow explains invalid schemes when no postgres URL is available', () => {
     expect(() =>
       getDatabaseUrlOrThrow({

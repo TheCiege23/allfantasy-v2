@@ -25,6 +25,16 @@ describe("dashboard runtime issues", () => {
     ).toEqual([])
   })
 
+  it("accepts POSTGRES_URL_NON_POOLING when DATABASE_URL is empty (Vercel Postgres)", () => {
+    expect(
+      getDashboardMissingEnvVars({
+        DATABASE_URL: "",
+        POSTGRES_URL_NON_POOLING: "postgresql://vercel:pass@host:5432/db",
+        NEXTAUTH_SECRET: "set",
+      })
+    ).toEqual([])
+  })
+
   it("accepts AUTH_SECRET when NEXTAUTH_SECRET is unset", () => {
     expect(
       getDashboardMissingEnvVars({
@@ -67,6 +77,20 @@ describe("dashboard runtime issues", () => {
         )
       )
     ).toEqual({
+      title: "Dashboard temporarily unavailable",
+      message:
+        "The dashboard can't load because this deployment is missing its database connection setting.",
+      missing: ["DATABASE_URL"],
+    })
+  })
+
+  it("maps config errors from nested Error.cause (e.g. Prisma wrappers)", () => {
+    const inner = new Error(
+      "DATABASE_URL is not set. Add it to your local environment and Vercel project settings."
+    )
+    const outer = new Error("Request failed")
+    ;(outer as Error & { cause?: unknown }).cause = inner
+    expect(getDashboardRuntimeIssue(outer)).toEqual({
       title: "Dashboard temporarily unavailable",
       message:
         "The dashboard can't load because this deployment is missing its database connection setting.",
