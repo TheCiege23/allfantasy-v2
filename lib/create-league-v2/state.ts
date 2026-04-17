@@ -9,6 +9,9 @@
 
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'
 
+/** Wizard-level draft type — superset of Prisma's DraftTypeId to accommodate execution modes. */
+export type WizardDraftType = DraftTypeId | 'team' | 'auto' | 'offline'
+
 export type SupportedSport =
   | 'NFL'
   | 'NBA'
@@ -45,7 +48,7 @@ export interface CreateLeagueV2State {
   teamCount: number
   /** Survivor-only: number of tribes. Ignored for other league types. */
   survivorTribeCount: number
-  draftType: DraftTypeId
+  draftType: WizardDraftType
   /** Third-round reversal — snake drafts only. */
   thirdRoundReversal: boolean
 

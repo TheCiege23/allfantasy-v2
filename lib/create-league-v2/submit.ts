@@ -63,10 +63,13 @@ function getEndpoint(state: CreateLeagueV2State): string {
 // ── Per-endpoint payload builders ───────────────────────────────────
 
 function buildRedraftPayload(state: CreateLeagueV2State) {
+  // Redraft API only accepts snake/linear/auction/offline/auto — map 'team' to 'snake'.
+  const REDRAFT_ALLOWED = new Set(['snake', 'linear', 'auction', 'offline', 'auto'])
+  const draftType = REDRAFT_ALLOWED.has(state.draftType) ? state.draftType : 'snake'
   return {
     leagueType: 'redraft' as const,
     sport: state.sport,
-    draftType: state.draftType,
+    draftType,
     name: state.name.trim(),
     timezone: state.timezone,
     language: state.language,
