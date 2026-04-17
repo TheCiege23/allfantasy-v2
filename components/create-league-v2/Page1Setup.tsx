@@ -8,9 +8,10 @@
  * IDP is a 13th card that sets a modifier flag (not a format ID).
  */
 
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
+import { LEAGUE_TYPE_MEDIA, SPORT_MEDIA } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, SupportedSport, SoccerPipeline } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS } from '@/lib/create-league-v2/state'
 import {
@@ -89,6 +90,77 @@ function isCardSelected(card: LeagueTypeCard, state: CreateLeagueV2State): boole
 function resolveEffectiveLeagueType(state: CreateLeagueV2State): LeagueTypeId {
   // IDP maps to redraft internally
   return state.idpSelected ? 'redraft' : state.leagueType
+}
+
+// ── Video preview components ────────────────────────────────────────
+
+function LeagueTypeHeroVideo({ leagueType, accent }: { leagueType: string; accent: AccentTone }) {
+  const media = LEAGUE_TYPE_MEDIA[leagueType] ?? LEAGUE_TYPE_MEDIA.redraft
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  return (
+    <div
+      className="relative mt-5 overflow-hidden rounded-2xl border border-white/[0.08]"
+      style={{ boxShadow: `0 0 40px -16px ${accent.hex}` }}
+    >
+      <video
+        ref={videoRef}
+        key={media.video}
+        className="block h-48 w-full object-cover sm:h-56"
+        src={media.video}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        onError={() => {
+          const el = videoRef.current
+          if (!el) return
+          if (media.fallback && el.src !== window.location.origin + media.fallback) {
+            el.src = media.fallback
+            el.load()
+          }
+        }}
+      />
+      {/* accent-tinted bottom fade */}
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-24"
+        style={{ background: `linear-gradient(to top, ${accent.hex}55 0%, transparent 100%)` }}
+        aria-hidden
+      />
+    </div>
+  )
+}
+
+function SportPreviewVideo({ sport, label, accent }: { sport: string; label: string; accent: AccentTone }) {
+  const media = SPORT_MEDIA[sport] ?? SPORT_MEDIA.NFL
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  return (
+    <div
+      className="relative mt-5 overflow-hidden rounded-2xl border border-white/[0.08]"
+      style={{ boxShadow: `0 0 32px -16px ${accent.hex}` }}
+    >
+      <video
+        ref={videoRef}
+        key={media.video}
+        className="block h-40 w-full object-cover sm:h-48"
+        src={media.video}
+        poster={media.poster}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="metadata"
+        onError={() => {
+          const el = videoRef.current
+          if (!el || !media.fallback) return
+          el.poster = media.fallback
+        }}
+      />
+      <div className="pointer-events-none absolute left-3 top-3 rounded-full border border-white/15 bg-black/50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/85 backdrop-blur-md">
+        {label}
+      </div>
+    </div>
+  )
 }
 
 // ── Component ───────────────────────────────────────────────────────
@@ -186,6 +258,9 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
             )
           })}
         </div>
+
+        {/* League type hero video */}
+        <LeagueTypeHeroVideo leagueType={state.idpSelected ? 'idp' : state.leagueType} accent={accent} />
       </GlassCard>
 
       {/* Sport */}
@@ -209,6 +284,9 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
             )
           })}
         </div>
+
+        {/* Sport ambient loop */}
+        <SportPreviewVideo sport={state.sport} label={SPORT_LABELS[state.sport]} accent={accent} />
       </GlassCard>
 
       {/* Soccer pipeline selector */}

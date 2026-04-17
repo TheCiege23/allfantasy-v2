@@ -149,3 +149,44 @@ export function ambientGlowStyle(hex: string): React.CSSProperties {
     pointerEvents: 'none' as const,
   }
 }
+
+// ── Media registry for videos + posters ─────────────────────────────
+// Every file path below resolves to /public/<file>. Missing files fall back gracefully via onError.
+
+export type MediaAsset = {
+  video: string
+  poster?: string
+  fallback?: string
+}
+
+/** Per-sport ambient loop shown on the Sport section. */
+export const SPORT_MEDIA: Record<string, MediaAsset> = {
+  NFL: { video: '/Football.mp4', poster: '/Football.png', fallback: '/af-crest.png' },
+  NBA: { video: '/Basketball.mp4', poster: '/Basketball.png', fallback: '/af-crest.png' },
+  MLB: { video: '/Baseball.mp4', poster: '/Baseball.png', fallback: '/af-crest.png' },
+  NHL: { video: '/Hockey.mp4', poster: '/Hockey.png', fallback: '/af-crest.png' },
+  NCAAF: { video: '/Football.mp4', poster: '/Football.png', fallback: '/af-crest.png' },
+  NCAAB: { video: '/Basketball.mp4', poster: '/Basketball.png', fallback: '/af-crest.png' },
+  SOCCER: { video: '/Soccer.mp4', poster: '/Soccer.png', fallback: '/af-crest.png' },
+}
+
+/**
+ * Per-league-type hero. Uses the cinematic "-intro" clip where available,
+ * otherwise falls back to the shorter loop. IDP and tournament reuse the
+ * redraft hero (IDP is a redraft variant, tournament has no -intro).
+ */
+export const LEAGUE_TYPE_MEDIA: Record<string, MediaAsset> = {
+  redraft: { video: '/league-type-redraft-intro.mp4', fallback: '/af-crest.png' },
+  dynasty: { video: '/league-type-dynasty-intro.mp4', fallback: '/league-type-dynasty.mp4' },
+  keeper: { video: '/league-type-keeper-intro.mp4', fallback: '/league-type-keeper.mp4' },
+  best_ball: { video: '/league-type-best-ball-intro.mp4', fallback: '/league-type-best-ball.mp4' },
+  idp: { video: '/league-type-idp-intro.mp4', fallback: '/league-type-idp.mp4' },
+  salary_cap: { video: '/league-type-salary-cap-intro.mp4', fallback: '/league-type-salary-cap.mp4' },
+  devy: { video: '/league-type-devy-intro.mp4', fallback: '/league-type-devy.mp4' },
+  c2c: { video: '/league-type-c2c-intro.mp4', fallback: '/league-type-c2c.mp4' },
+  guillotine: { video: '/league-type-guillotine-intro.mp4', fallback: '/league-type-guillotine.mp4' },
+  zombie: { video: '/league-type-zombie-intro.mp4', fallback: '/league-type-zombie.mp4' },
+  survivor: { video: '/league-type-survivor-intro.mp4', fallback: '/league-type-survivor.mp4' },
+  tournament: { video: '/league-type-tournament.mp4', fallback: '/af-crest.png' },
+  big_brother: { video: '/league-type-big-brother-intro.mp4', fallback: '/league-type-big-brother.mp4' },
+}
