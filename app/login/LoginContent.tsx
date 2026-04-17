@@ -92,23 +92,12 @@ export default function LoginContent() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) return
-
-    const auth = (supabase as any)?.auth
-    if (!auth?.onAuthStateChange) return
-
-    const { data: listener } = auth.onAuthStateChange((_: string, session: any) => {
-      if (session?.user) {
-        clearUnifiedAuthDestination()
-        router.replace(postLoginRedirect)
-      }
-    })
-
-    return () => {
-      listener?.subscription?.unsubscribe?.()
-    }
-  }, [postLoginRedirect, router])
+  // NOTE: Supabase onAuthStateChange listener disabled — the app uses NextAuth
+  // for all server-side auth (getServerSession, JWT middleware). Keeping a Supabase
+  // listener here caused a redirect loop: Supabase detects session → redirects →
+  // NextAuth doesn't see it → page flickers back. If Supabase becomes the primary
+  // auth provider, re-enable this block.
+  // See: https://github.com/nextauthjs/next-auth/discussions/4136
 
   useEffect(() => {
     if (isAdminLogin) {
@@ -227,23 +216,14 @@ export default function LoginContent() {
     if (socialLoadingProvider) return
     setSocialLoadingProvider(provider)
     try {
-      const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
-      const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
-
-      if ((provider === "apple" || provider === "google" || provider === "facebook") && isSupabaseConfigured) {
-        await supabase.auth.signInWithOAuth({
-          provider,
-          options: {
-            redirectTo:
-              provider === "google" || provider === "facebook"
-                ? `${window.location.origin}/auth/callback`
-                : buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
-          },
-        })
-        return
-      }
+      // Always route social sign-in through NextAuth (not Supabase) since the
+      // entire app uses getServerSession / JWT for auth. Supabase OAuth creates a
+      // separate session that NextAuth can't see, causing redirect loops.
+      const googleEnabled = isSocialProviderEnabled("google")
+      const appleEnabled = isSocialProviderEnabled("apple")
 
       if (
+        (provider === "google" && googleEnabled) ||
         (provider === "apple" && appleEnabled) ||
         isSocialProviderEnabled(provider)
       ) {
