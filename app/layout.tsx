@@ -87,14 +87,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const htmlMode = resolveEffectiveDataMode(cookieMode);
   let initialSession: Session | null = null;
 
-  if (process.env.PLAYWRIGHT_E2E === '1') {
-    try {
-      const [{ getServerSession }, { authOptions }] = await Promise.all([
-        import('next-auth'),
-        import('@/lib/auth'),
-      ]);
-      initialSession = (await getServerSession(authOptions as never)) as Session | null;
-    } catch (error) {
+  try {
+    const [{ getServerSession }, { authOptions }] = await Promise.all([
+      import('next-auth'),
+      import('@/lib/auth'),
+    ]);
+    initialSession = (await getServerSession(authOptions as never)) as Session | null;
+  } catch (error) {
+    if (process.env.PLAYWRIGHT_E2E === '1') {
       console.warn('[layout] failed to preload session for Playwright E2E:', error);
     }
   }
