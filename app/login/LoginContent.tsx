@@ -219,11 +219,14 @@ export default function LoginContent() {
       // Always route social sign-in through NextAuth (not Supabase) since the
       // entire app uses getServerSession / JWT for auth. Supabase OAuth creates a
       // separate session that NextAuth can't see, causing redirect loops.
-      const googleEnabled = isSocialProviderEnabled("google")
+      if (provider === "google") {
+        await signIn("google", { callbackUrl: postLoginRedirect })
+        return
+      }
+
       const appleEnabled = isSocialProviderEnabled("apple")
 
       if (
-        (provider === "google" && googleEnabled) ||
         (provider === "apple" && appleEnabled) ||
         isSocialProviderEnabled(provider)
       ) {
