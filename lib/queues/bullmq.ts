@@ -1,6 +1,6 @@
 import "server-only";
 import { Queue, type ConnectionOptions } from "bullmq";
-import IORedis from "ioredis";
+import IORedis, { type RedisOptions } from "ioredis";
 import { QUEUE_NAMES } from "@/lib/jobs/types";
 
 const QUEUE_NAME_SIMULATIONS = QUEUE_NAMES.SIMULATIONS;
@@ -62,9 +62,9 @@ function getRedisPort(): number | null {
   return parseRedisPort(process.env.REDIS_PORT);
 }
 
-function getRedisOptions(): ConstructorParameters<typeof IORedis>[1] {
+function getRedisOptions(): RedisOptions {
   return {
-    maxRetriesPerRequest: null as null,
+    maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,
     connectTimeout: 8_000,
