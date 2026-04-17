@@ -143,6 +143,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.backHome": "Back home",
     "dashboard.unavailable.title": "Dashboard temporarily unavailable",
     "dashboard.unavailable.message": "We couldn't load the dashboard right now. Please try again in a moment.",
+    "league.error.title": "League temporarily unavailable",
+    "league.error.message":
+      "Something went wrong loading this league. Try again in a moment, or go back home.",
 
     // Landing page (universal)
     "landing.hero.headline": "Fantasy Sports With AI Superpowers",
@@ -2089,6 +2092,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.backHome": "Volver al inicio",
     "dashboard.unavailable.title": "Dashboard temporalmente no disponible",
     "dashboard.unavailable.message": "No pudimos cargar el dashboard en este momento. Inténtalo de nuevo en un momento.",
+    "league.error.title": "Liga temporalmente no disponible",
+    "league.error.message":
+      "Algo salió mal al cargar esta liga. Inténtalo de nuevo en un momento o vuelve al inicio.",
 
     // Landing page (universal)
     "landing.hero.headline": "Fantasy Sports con superpoderes de IA",
