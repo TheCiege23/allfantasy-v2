@@ -91,6 +91,12 @@ function createPrismaClient() {
     process.env.DATABASE_URL = databaseUrl;
   }
 
+  // Schema uses `directUrl = env("DIRECT_URL")`. Some tooling expects it at runtime; mirror the
+  // resolved URL when unset so single-URL Vercel/Neon setups do not fail intermittently.
+  if (!process.env.DIRECT_URL?.trim()) {
+    process.env.DIRECT_URL = databaseUrl;
+  }
+
   const client = new PrismaClient({
     datasourceUrl: databaseUrl,
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],

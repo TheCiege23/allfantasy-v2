@@ -28,7 +28,7 @@ export default async function LeaguePage({
 }) {
   const missingEnvVars = getDashboardMissingEnvVars()
   if (missingEnvVars.length > 0) {
-    const issue = createDashboardRuntimeIssue('missing-env', missingEnvVars)
+    const issue = createDashboardRuntimeIssue(missingEnvVars)
     return (
       <DashboardUnavailableState
         title={issue.title}
@@ -44,7 +44,7 @@ export default async function LeaguePage({
   const zombieChimmyPrefill = typeof zc === 'string' ? zc : Array.isArray(zc) ? zc[0] ?? null : null
   let session: {
     user?: { id?: string; name?: string | null; email?: string | null; image?: string | null }
-  } | null
+  } | null = null
   try {
     session = (await getServerSession(authOptions as never)) as typeof session
   } catch (error) {
