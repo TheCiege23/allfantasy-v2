@@ -136,7 +136,21 @@
       "Bash(curl -s -X POST http://localhost:3000/api/auth/config-check)",
       "Bash(curl -s http://localhost:3000/api/auth/config-check -m 30)",
       "Bash(curl -s -X POST http://localhost:3000/api/auth/callback/credentials -H 'Content-Type: application/x-www-form-urlencoded' -H 'Cookie: next-auth.csrf-token=test|test' --data-urlencode login=TheCiege24 --data-urlencode password=AFtemp!2026 --data-urlencode csrfToken=test --data-urlencode redirect=false --data-urlencode json=true -m 30 -w '\\\\nHTTP %{http_code}\\\\n')",
-      "Bash(taskkill //PID 6616 //F)"
+      "Bash(taskkill //PID 6616 //F)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/ -m 10)",
+      "Bash(curl -s http://localhost:3000/api/auth/providers -m 30)",
+      "Bash(curl -s -c /tmp/af-cookies/c.txt http://localhost:3000/api/auth/csrf -m 15)",
+      "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__get_runtime_logs",
+      "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__web_fetch_vercel_url",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/create-league -m 30)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/create-league -m 40)",
+      "Bash(taskkill //PID 12960 //F)",
+      "Bash(find /c/Users/Guap_/allfantasy-v2-main/app -type d -maxdepth 1 \\\\\\( -name \"survivor\" -o -name \"guillotine\" -o -name \"zombie\" -o -name \"tournament\" -o -name \"big-brother\" \\\\\\) -exec sh -c 'echo \"=== {} ===\"; ls -la \"{}\"' \\\\;)",
+      "Bash(wc -l app/league/[leagueId]/LeagueShell.tsx app/dashboard/DashboardShell.tsx app/components/AppShell.tsx)",
+      "Bash(ls app/league/[leagueId]/tabs/)",
+      "Bash(grep -n \"LeagueTab\" app/league/[leagueId]/LeagueShell.tsx)",
+      "Bash(grep -n \"userTeam\" app/league/[leagueId]/LeagueShell.tsx)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=8192 npx next build)"
     ]
   }
 }

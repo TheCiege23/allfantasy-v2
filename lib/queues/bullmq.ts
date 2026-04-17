@@ -16,25 +16,59 @@ function parseRedisPort(value: string | undefined): number | null {
   return Number.isInteger(port) && port > 0 ? port : null;
 }
 
+/**
+ * ioredis treats a bare "/" or other path-like strings as a Unix socket path.
+ * On Vercel that yields `connect EROFS /` (read-only FS). Reject invalid URLs.
+ */
+function isPlausibleRedisUrl(value: string): boolean {
+  const v = value.trim();
+  if (!v) return false;
+  if (v.startsWith("/") && !v.startsWith("//")) return false;
+  if (!/^rediss?:\/\//i.test(v)) return false;
+  try {
+    const u = new URL(v);
+    return Boolean(u.hostname?.length);
+  } catch {
+    return false;
+  }
+}
+
+function isPlausibleRedisHost(host: string): boolean {
+  const h = host.trim();
+  if (!h || h === "/" || h === ".") return false;
+  return true;
+}
+
 function getRedisUrl(): string | null {
   const value = process.env.REDIS_URL?.trim();
-  return value || null;
+  if (!value) return null;
+  if (!isPlausibleRedisUrl(value)) {
+    console.warn(
+      "[bullmq] REDIS_URL is set but not a valid redis(s):// URL with hostname; Redis disabled. " +
+        "Remove it or set a TCP URL (e.g. Upstash rediss://…).",
+    );
+    return null;
+  }
+  return value;
 }
 
 function getRedisHost(): string | null {
   const value = process.env.REDIS_HOST?.trim();
-  return value || null;
+  if (!value || !isPlausibleRedisHost(value)) return null;
+  return value;
 }
 
 function getRedisPort(): number | null {
   return parseRedisPort(process.env.REDIS_PORT);
 }
 
-function getRedisOptions() {
+function getRedisOptions(): ConstructorParameters<typeof IORedis>[1] {
   return {
     maxRetriesPerRequest: null as null,
     enableReadyCheck: false,
     lazyConnect: true,
+    connectTimeout: 8_000,
+    retryStrategy: (times: number) => (times > 2 ? null : Math.min(times * 200, 2_000)),
   };
 }
 
@@ -79,11 +113,17 @@ export function getRedisClient(): IORedis | null {
 
   if (redisUrl) {
     redisClient = new IORedis(redisUrl, options);
+    redisClient.on("error", (err) => {
+      console.warn("[redis]", err instanceof Error ? err.message : err);
+    });
     return redisClient;
   }
 
   if (host && port) {
     redisClient = new IORedis(port, host, options);
+    redisClient.on("error", (err) => {
+      console.warn("[redis]", err instanceof Error ? err.message : err);
+    });
     return redisClient;
   }
 

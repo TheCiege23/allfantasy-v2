@@ -14,6 +14,13 @@ import { RoundProgressBar } from '@/app/tournament/components/RoundProgressBar'
 import { ForumPostCard } from '@/app/tournament/components/ForumPostCard'
 import { MiniCommissionerHub } from '@/app/tournament/[tournamentId]/components/MiniCommissionerHub'
 import { KingBuffaloPresentedBy } from '@/components/tournament/KingBuffaloPresentedBy'
+import { CommissionerHubHeader } from '@/components/commissioner-hub/CommissionerHubHeader'
+import {
+  CommissionerFeederGrid,
+  type FeederCard,
+} from '@/components/commissioner-hub/CommissionerFeederGrid'
+import { resolveHubAccent } from '@/lib/commissioner-hub/feeder-accent'
+import { LEAGUE_TYPE_MEDIA } from '@/lib/create-league-v2/theme'
 
 function useCountdown(target: Date | null) {
   const [now, setNow] = useState(() => Date.now())
@@ -184,6 +191,21 @@ export default function TournamentHomePage() {
 
   const isFinals = currentRoundMeta?.roundType === 'championship'
 
+  // Commissioner-hub styling — create-league v2 visual language.
+  const hubAccent = resolveHubAccent('tournament')
+  const tournamentMedia = LEAGUE_TYPE_MEDIA.tournament
+  const feederCards: FeederCard[] = useMemo(() => {
+    if (!legacyFeederLeagues) return []
+    return legacyFeederLeagues.map((row) => ({
+      id: row.tournamentLeagueId,
+      href: `/league/${row.leagueId}?openChat=league`,
+      name: row.name,
+      sport: shell.sport ?? null,
+      tierLabel: row.conferenceName ?? null,
+      inviteCode: row.inviteCode ?? null,
+    }))
+  }, [legacyFeederLeagues, shell.sport])
+
   return (
     <div className={`mx-auto max-w-3xl space-y-4 md:max-w-4xl ${isFinals ? 'rounded-2xl ring-1 ring-yellow-500/20' : ''}`}>
       {shell.status === 'bubble' ? (
@@ -290,61 +312,61 @@ export default function TournamentHomePage() {
         </div>
       ) : null}
 
-      {hubKind === 'legacy' && isCommissioner && legacyFeederLeagues && legacyFeederLeagues.length > 0 ? (
-        <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-[#081226] to-[#0c1020] p-4 shadow-[0_0_32px_rgba(34,211,238,0.06)]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-[13px] font-bold uppercase tracking-wide text-cyan-100/95">Commissioner hub</h2>
-              <p className="mt-1 text-[11px] leading-snug text-white/50">
-                All qualification feeder leagues for <span className="text-white/75">{shell.name}</span>. Share each
-                invite only with managers assigned to that league.
-              </p>
-            </div>
-            <Link
-              href={`/app/tournament/${tournamentId}/commissioner`}
-              className="shrink-0 rounded-xl border border-cyan-400/35 bg-cyan-500/15 px-3 py-2 text-[11px] font-bold text-cyan-100 hover:bg-cyan-500/25"
-              data-testid="tournament-commissioner-dashboard-link"
-            >
-              Commissioner dashboard →
-            </Link>
-          </div>
-          <ul className="mt-4 space-y-3">
-            {legacyFeederLeagues.map((row) => (
-              <li
-                key={row.tournamentLeagueId}
-                className="rounded-xl border border-white/[0.08] bg-black/25 px-3 py-3"
+      {hubKind === 'legacy' && isCommissioner && feederCards.length > 0 ? (
+        <>
+          <CommissionerHubHeader
+            chip={`TOURNAMENT · ${currentRoundMeta?.roundLabel ?? `Round ${shell.currentRoundNumber || 1}`}`}
+            title={shell.name}
+            subtitle={`${shell.sport} · ${shell.currentParticipantCount} of ${shell.maxParticipants} participants · ${feederCards.length} feeder ${feederCards.length === 1 ? 'league' : 'leagues'}`}
+            accent={hubAccent}
+            videoSrc={tournamentMedia?.video ?? '/af-crest.png'}
+            videoFallback={tournamentMedia?.fallback ?? null}
+            stats={[
+              { label: 'Feeder leagues', value: String(feederCards.length) },
+              { label: 'Participants', value: String(shell.currentParticipantCount) },
+              { label: 'Round', value: currentRoundMeta?.roundLabel ?? `R${shell.currentRoundNumber || 1}` },
+              {
+                label: 'Status',
+                value: (
+                  <span className="text-sm font-medium text-white/70">
+                    {shell.status === 'bubble' ? 'Bubble week' : isFinals ? 'Finals' : 'Active'}
+                  </span>
+                ),
+              },
+            ]}
+            actions={
+              <Link
+                href={`/app/tournament/${tournamentId}/commissioner`}
+                className={`inline-flex items-center rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/85 transition hover:bg-white/[0.08] ${hubAccent.text}`}
+                data-testid="tournament-commissioner-dashboard-link"
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold text-white">{row.name}</p>
-                    <p className="text-[10px] text-white/40">{row.conferenceName}</p>
-                  </div>
-                  <Link
-                    href={`/league/${row.leagueId}?openChat=league`}
-                    className="shrink-0 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 hover:underline"
-                  >
-                    Open league →
-                  </Link>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
+                Commissioner dashboard →
+              </Link>
+            }
+          />
+          <CommissionerFeederGrid
+            leagues={feederCards}
+            accent={hubAccent}
+            title="Feeder leagues"
+            hint={`Share each invite only with managers assigned to that league. Click to open the league workspace.`}
+            footer={
+              <div className="flex flex-wrap gap-2">
+                {(legacyFeederLeagues ?? []).map((row) => (
                   <button
+                    key={`copy-${row.tournamentLeagueId}`}
                     type="button"
                     onClick={() => void copyInvite(row.joinUrl, row.name)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 transition hover:border-cyan-400/50 hover:bg-cyan-500/15"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-white/75 transition hover:border-white/20 hover:bg-white/[0.06]"
+                    title={`Copy invite link: ${row.name}`}
                   >
-                    <Copy className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-                    Copy invite link
+                    <Copy className="h-3 w-3" strokeWidth={2} aria-hidden />
+                    <span className="max-w-[9rem] truncate">{row.name}</span>
                   </button>
-                  {row.inviteCode ? (
-                    <span className="rounded-md bg-white/[0.06] px-2 py-1 font-mono text-[10px] text-white/45">
-                      {row.inviteCode}
-                    </span>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+                ))}
+              </div>
+            }
+          />
+        </>
       ) : null}
 
       {hubKind === 'legacy' ? (

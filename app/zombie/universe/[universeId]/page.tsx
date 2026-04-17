@@ -3,9 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import Link from 'next/link'
 import {
-  ArrowUpRight,
   Biohazard,
   Globe,
   Radio,
@@ -22,6 +20,11 @@ import {
   resolveZombieUniverseTier,
   zombieTierBadgeClasses,
 } from '@/lib/zombie/zombie-visual-system'
+import {
+  CommissionerFeederGrid,
+  type FeederCard,
+} from '@/components/commissioner-hub/CommissionerFeederGrid'
+import { resolveHubAccent } from '@/lib/commissioner-hub/feeder-accent'
 
 type LevelRow = {
   id: string
@@ -89,6 +92,22 @@ export default function ZombieUniverseHubPage() {
       return (a.name ?? a.leagueId).localeCompare(b.name ?? b.leagueId)
     })
   }, [data?.universe?.leagues])
+
+  const zombieAccent = useMemo(() => resolveHubAccent('zombie'), [])
+
+  const feederCards: FeederCard[] = useMemo(() => {
+    return sortedLeagues.map((l) => {
+      const tier = resolveZombieUniverseTier(l.level ?? null)
+      const tierLabel = formatZombieTierLabel(tier, l.level?.tierLabel ?? l.level?.name)
+      return {
+        id: l.leagueId,
+        href: `/zombie/${l.leagueId}`,
+        name: l.name ?? l.leagueId,
+        sport: l.sport ?? preset.sport ?? null,
+        tierLabel: tierLabel ?? null,
+      }
+    })
+  }, [sortedLeagues, preset.sport])
 
   if (!data?.universe) {
     return <p className="text-[13px] text-[var(--zombie-text-dim)]">Loading universe…</p>
@@ -181,45 +200,12 @@ export default function ZombieUniverseHubPage() {
       </section>
 
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <ZombieGlassPanel title="Linked leagues" eyebrow="Outbreak map" icon={<Biohazard className="h-5 w-5 text-[var(--zombie-toxic)]" />} shine>
-          {sortedLeagues.length === 0 ? (
-            <p className="text-sm text-white/55">No leagues linked to this universe yet.</p>
-          ) : (
-            <ul className="grid gap-3 sm:grid-cols-2">
-              {sortedLeagues.map((l) => {
-                const tier = resolveZombieUniverseTier(l.level ?? null)
-                const tierLabel = formatZombieTierLabel(tier, l.level?.tierLabel ?? l.level?.name)
-                return (
-                  <li key={l.leagueId}>
-                    <Link
-                      href={`/zombie/${l.leagueId}`}
-                      className={clsx(
-                        'group zombie-glass flex items-center justify-between gap-3 rounded-2xl p-4 transition',
-                        'hover:border-[var(--zombie-toxic)]/35 hover:shadow-[0_0_24px_rgba(74,222,128,0.08)]',
-                      )}
-                    >
-                      <div className="min-w-0">
-                        <span
-                          className={clsx(
-                            'inline-block rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em]',
-                            zombieTierBadgeClasses(tier),
-                          )}
-                        >
-                          {tierLabel}
-                        </span>
-                        <p className="mt-2 truncate text-sm font-bold text-white group-hover:text-[var(--zombie-toxic)]">
-                          {l.name ?? l.leagueId}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-white/45">{l.sport ?? preset.sport}</p>
-                      </div>
-                      <ArrowUpRight className="h-5 w-5 shrink-0 text-white/40 transition group-hover:text-[var(--zombie-toxic)]" />
-                    </Link>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </ZombieGlassPanel>
+        <CommissionerFeederGrid
+          leagues={feederCards}
+          accent={zombieAccent}
+          title="Linked leagues"
+          hint="Click a feeder to open the league workspace. Tiers follow the universe ladder from the commissioner setup."
+        />
 
         <ZombieGlassPanel title="Top survivors (PPW)" eyebrow="Cross-league" icon={<Trophy className="h-5 w-5 text-amber-200" />} variant="reward">
           {data.topByPpw.length === 0 ? (

@@ -123,9 +123,13 @@ async function checkAnthropicHealth(): Promise<HealthProviderEntry> {
   }
 
   const startedAt = Date.now()
+  const controller = new AbortController()
+  const probeTimeoutMs = 18_000
+  const timeout = setTimeout(() => controller.abort(), probeTimeoutMs)
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'content-type': 'application/json',
         'x-api-key': apiKey,
@@ -154,6 +158,8 @@ async function checkAnthropicHealth(): Promise<HealthProviderEntry> {
       latencyMs: Date.now() - startedAt,
       details: error instanceof Error ? error.message : 'anthropic_probe_failed',
     }
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

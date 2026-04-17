@@ -134,10 +134,7 @@ const providers: NextAuthOptions["providers"] = [
         const rawLogin = credentials?.login;
         const rawPassword = credentials?.password;
 
-        console.log("[auth:authorize] attempt, login present:", !!rawLogin, "pass present:", !!rawPassword);
-
         if (!rawLogin || !rawPassword) {
-          console.log("[auth:authorize] missing fields, returning null");
           return null;
         }
 
@@ -145,8 +142,6 @@ const providers: NextAuthOptions["providers"] = [
         const password = rawPassword;
 
         const user = await resolveUnifiedAuthIdentity(login);
-
-        console.log("[auth:authorize] user found:", !!user, "has hash:", !!user?.passwordHash);
 
         if (!user) {
           return null;
@@ -165,8 +160,6 @@ const providers: NextAuthOptions["providers"] = [
         }
 
         const isValidPassword = await bcrypt.compare(password, user.passwordHash);
-
-        console.log("[auth:authorize] password valid:", isValidPassword);
 
         if (!isValidPassword) {
           return null;
@@ -371,7 +364,6 @@ export const authOptions: NextAuthOptions = {
     },
     async jwt({ token, user }) {
       if (user) {
-        console.log("[auth:jwt] user set on token:", user.id, user.email);
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
