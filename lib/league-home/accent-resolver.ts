@@ -18,13 +18,9 @@ export function isExcludedFromHomeHero(
   leagueType: string | null | undefined,
   variant?: string | null
 ): boolean {
-  const type = String(leagueType ?? '').toLowerCase()
-  const v = String(variant ?? '').toLowerCase()
-  if (type === 'tournament') return true
-  if (type === 'big_brother') return true
-  // Zombie universes (multi-league) — single-gamma zombie leagues keep the hero.
-  if (type === 'zombie' && (v === 'beta_trio' || v === 'alpha_hex')) return true
-  return false
+  void leagueType
+  void variant
+  return true
 }
 
 /**
