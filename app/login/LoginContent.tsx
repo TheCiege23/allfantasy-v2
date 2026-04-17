@@ -93,6 +93,24 @@ export default function LoginContent() {
   }, [])
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return
+
+    const auth = (supabase as any)?.auth
+    if (!auth?.onAuthStateChange) return
+
+    const { data: listener } = auth.onAuthStateChange((_: string, session: any) => {
+      if (session?.user) {
+        clearUnifiedAuthDestination()
+        router.replace(postLoginRedirect)
+      }
+    })
+
+    return () => {
+      listener?.subscription?.unsubscribe?.()
+    }
+  }, [postLoginRedirect, router])
+
+  useEffect(() => {
     if (isAdminLogin) {
       setAdminModalOpen(true)
     }
@@ -212,19 +230,16 @@ export default function LoginContent() {
       const googleEnabled = isSocialProviderEnabled("google") || isSupabaseConfigured
       const appleEnabled = isSocialProviderEnabled("apple") || isSupabaseConfigured
 
-      // Google: always NextAuth so getServerSession / dashboard receive the same session (not Supabase-only OAuth).
-      if (provider === "apple" && isSupabaseConfigured) {
+      if ((provider === "apple" || provider === "google" || provider === "facebook") && isSupabaseConfigured) {
         await supabase.auth.signInWithOAuth({
-          provider: "apple",
+          provider,
           options: {
-            redirectTo: buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
+            redirectTo:
+              provider === "google" || provider === "facebook"
+                ? `${window.location.origin}/auth/callback`
+                : buildSupabaseOAuthRedirectTo({ callbackUrl: postLoginRedirect }) ?? undefined,
           },
         })
-        return
-      }
-
-      if (provider === "google" && googleEnabled) {
-        await signIn("google", { callbackUrl: "/dashboard" })
         return
       }
 

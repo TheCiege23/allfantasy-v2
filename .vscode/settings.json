@@ -3,8 +3,12 @@
   "mssql.validate.enable": false,
   // Disable MSSQL semantic error checking that can still surface in SQL files.
   "mssql.intelliSense.enableErrorChecking": false,
+  // Suppress Edge Tools webhint diagnostics (e.g., no-inline-styles) for this workspace.
+  "vscode-edge-devtools.webhint": false,
   // Keep Prisma migration SQL files out of MSSQL language-service diagnostics.
   "files.associations": {
-    "prisma/migrations/**/*.sql": "plaintext"
+    "prisma/migrations/**/*.sql": "plaintext",
+    "**/prisma/migrations/**/*.sql": "plaintext",
+    "*.sql": "plaintext"
   }
 }

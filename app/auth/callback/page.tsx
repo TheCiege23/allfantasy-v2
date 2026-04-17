@@ -29,12 +29,12 @@ function OAuthCallbackContent() {
 
     async function completeOAuthSignIn() {
       if (!isSupabaseConfigured) {
-        setError(resolveSocialOAuthErrorMessage("SUPABASE_NOT_CONFIGURED"))
+        router.replace(loginUrlWithIntent(nextPath))
         return
       }
 
       if (providerError) {
-        setError(resolveSocialOAuthErrorMessage(providerError))
+        router.replace(loginUrlWithIntent(nextPath))
         return
       }
 
@@ -43,21 +43,18 @@ function OAuthCallbackContent() {
           code
         )
         if (exchangeError) {
-          setError(
-            resolveSocialOAuthErrorMessage(
-              exchangeError.message || "Could not complete social sign-in."
-            )
-          )
+          router.replace(loginUrlWithIntent(nextPath))
           return
         }
-      } else {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        if (!session) {
-          setError(resolveSocialOAuthErrorMessage("Missing OAuth callback code."))
-          return
-        }
+      }
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+      if (sessionError || !session) {
+        router.replace(loginUrlWithIntent(nextPath))
+        return
       }
 
       const {
