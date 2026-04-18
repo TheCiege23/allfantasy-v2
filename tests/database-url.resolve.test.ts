@@ -39,8 +39,9 @@ describe('resolveDatabaseUrl', () => {
   })
 
   it('getDatabaseUrlOrThrow explains invalid schemes when no postgres URL is available', () => {
-    // Under jsdom, `window` exists; server-side behavior must be tested without it.
+    // Under jsdom, window/document exist; isDomRuntime() must be false to assert server throws.
     vi.stubGlobal('window', undefined)
+    vi.stubGlobal('document', undefined)
     try {
       expect(() =>
         getDatabaseUrlOrThrow({

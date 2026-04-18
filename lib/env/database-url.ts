@@ -16,6 +16,15 @@ const DATABASE_URL_ENV_KEYS = [
 type DatabaseEnv = Partial<Record<(typeof DATABASE_URL_ENV_KEYS)[number], string | undefined>>
 type EnvLike = Record<string, string | undefined>
 
+/** True in browsers / JSDOM; false in Node SSR. Used to avoid throwing when DB helpers leak into client bundles. */
+export function isDomRuntime(): boolean {
+  if (typeof globalThis === "undefined") return false
+  const g = globalThis as typeof globalThis & { window?: unknown; document?: unknown }
+  return typeof g.window !== "undefined" || typeof g.document !== "undefined"
+}
+
+const NOOP_POSTGRES_URL = "postgresql://noop:noop@localhost:5432/noop"
+
 function normalizeDatabaseUrl(url: string): string {
   try {
     const parsed = new URL(url)
@@ -63,10 +72,10 @@ export function hasDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): boolea
 }
 
 export function getDatabaseUrlOrThrow(env: DatabaseEnv | EnvLike = process.env): string {
-  // If running in the browser, Prisma is not usable — return a no-op URL so leaked server
-  // imports in client bundles do not throw when this helper is evaluated.
-  if (typeof window !== "undefined") {
-    return "postgresql://noop:noop@localhost:5432/noop"
+  // Browser / DOM: Prisma and server env are unavailable — never throw (webpack may still
+  // pull this module into client chunks). Prefer isDomRuntime over `window` alone (embeds, workers).
+  if (isDomRuntime()) {
+    return NOOP_POSTGRES_URL
   }
 
   const resolved = resolveDatabaseUrl(env)

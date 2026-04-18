@@ -7,7 +7,7 @@
  * reduce leakage; re-add `server-only` once no client graph pulls `@/lib/prisma`.
  */
 import { PrismaClient, Prisma } from "@prisma/client";
-import { getDatabaseUrlOrThrow } from "@/lib/env/database-url";
+import { getDatabaseUrlOrThrow, isDomRuntime } from "@/lib/env/database-url";
 
 const READ_OPERATIONS = new Set([
   "findUnique",
@@ -93,7 +93,19 @@ function applyNonProdConnectionGuardrails(rawUrl: string): string {
 
 function createPrismaClient() {
   // Runtime URL: resolveDatabaseUrl() prefers DATABASE_URL / pooler keys before DIRECT_URL (see lib/env/database-url.ts).
-  const databaseUrl = applyNonProdConnectionGuardrails(getDatabaseUrlOrThrow());
+  let databaseUrl: string;
+  try {
+    databaseUrl = applyNonProdConnectionGuardrails(getDatabaseUrlOrThrow());
+  } catch (err) {
+    // Last-resort: if anything still throws in a leaked client bundle, avoid crashing the page.
+    if (isDomRuntime()) {
+      databaseUrl = applyNonProdConnectionGuardrails(
+        "postgresql://noop:noop@localhost:5432/noop"
+      );
+    } else {
+      throw err;
+    }
+  }
 
   if (!process.env.DATABASE_URL?.trim()) {
     process.env.DATABASE_URL = databaseUrl;
