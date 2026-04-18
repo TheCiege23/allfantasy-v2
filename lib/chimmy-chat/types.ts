@@ -14,6 +14,7 @@ export type AIContextSource =
   | "lineup_tool"
   | "dashboard"
   | "dashboard_widget"
+  | "dashboard_rankings"
   | "tool_hub"
   | "ai_hub"
   | "quick_action"
@@ -22,11 +23,19 @@ export type AIContextSource =
   | "search"
   | "fallback"
   | "unknown"
+  | "war_room"
+  | "injury_impact"
+  | "injury_player"
+  | "matchup_prep"
+  | "power_rankings"
+  | "power_rankings_team"
 
 export type AIChatContext = {
   prompt?: string
   leagueId?: string
   leagueName?: string
+  /** When `all`, server pulls multi-sport injury/news digest (see Chimmy sport filter UI). */
+  sportScope?: "all"
   sleeperUsername?: string
   insightType?: AIInsightType
   teamId?: string

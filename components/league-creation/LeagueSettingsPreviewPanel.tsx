@@ -31,6 +31,13 @@ export function LeagueSettingsPreviewPanel({
   className = '',
 }: LeagueSettingsPreviewPanelProps) {
   const [showDisabledScoringRules, setShowDisabledScoringRules] = useState(false);
+  const scoringRules = useMemo(
+    () =>
+      (preset?.scoringTemplate?.rules ?? []).filter((rule) =>
+        showDisabledScoringRules ? true : rule.enabled !== false
+      ),
+    [preset?.scoringTemplate?.rules, showDisabledScoringRules]
+  );
   if (!preset) return null;
 
   const sportUpper = String(sport || '').toUpperCase();
@@ -57,13 +64,6 @@ export function LeagueSettingsPreviewPanel({
 
   const scoringFormat = preset.scoring?.scoring_format ?? preset.scoringTemplate?.formatType ?? '—';
   const scoringName = preset.scoringTemplate?.name ?? scoringFormat;
-  const scoringRules = useMemo(
-    () =>
-      (preset.scoringTemplate?.rules ?? []).filter((rule) =>
-        showDisabledScoringRules ? true : rule.enabled !== false
-      ),
-    [preset.scoringTemplate?.rules, showDisabledScoringRules]
-  );
 
   const playerPoolType =
     isSoccer

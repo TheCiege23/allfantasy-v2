@@ -143,6 +143,9 @@ function buildMessages(
   }
   if (normalizedFeatureType === 'chimmy_chat') {
     systemParts.push('Chimmy prompt style:\n' + getChimmyPromptStyleBlock())
+    systemParts.push(
+      'If deterministic context includes userTemporalContext, that clock (profile timezone + server UTC) is authoritative for "today", day-of-week, and days-until math. Never substitute an assumed or training-cutoff calendar date.'
+    )
   }
   systemParts.push(`Sport context: ${envelope.sport}.`)
   if (envelope.leagueId) {

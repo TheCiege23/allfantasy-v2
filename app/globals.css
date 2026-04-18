@@ -1955,3 +1955,172 @@ select, option {
     opacity: 0.35 !important;
   }
 }
+
+/* ── AI Tools — Tactical Decision Room (shared with start_sit_tactical_decision_room.html) ── */
+.ai-tools-tactical {
+  --at-bg: #0f1117;
+  --at-bg2: #1a1d27;
+  --at-bg3: #242838;
+  --at-bg4: #2e3347;
+  --at-border: #2e3347;
+  --at-border2: #3d4460;
+  --at-text: #e8eaf6;
+  --at-text2: #9ba3bf;
+  --at-text3: #5c6480;
+  --at-green: #00d4aa;
+  --at-green2: #00a888;
+  --at-green-bg: rgba(0, 212, 170, 0.12);
+  --at-blue: #5b8ef0;
+  --at-blue-bg: rgba(91, 142, 240, 0.12);
+  --at-radius: 10px;
+  --at-radius-sm: 6px;
+}
+
+.ai-tools-modal-shell {
+  --at-bg: #0f1117;
+  --at-bg2: #1a1d27;
+  --at-bg3: #242838;
+  --at-bg4: #2e3347;
+  --at-border: #2e3347;
+  --at-border2: #3d4460;
+  --at-text: #e8eaf6;
+  --at-text2: #9ba3bf;
+  --at-text3: #5c6480;
+  --at-green: #00d4aa;
+  --at-green2: #00a888;
+  --at-green-bg: rgba(0, 212, 170, 0.12);
+  --at-blue: #5b8ef0;
+  --at-blue-bg: rgba(91, 142, 240, 0.12);
+  --at-radius: 10px;
+  --at-radius-sm: 6px;
+}
+
+.at-panel {
+  background: var(--at-bg2);
+  border: 1px solid var(--at-border);
+  border-radius: var(--at-radius, 10px);
+}
+
+.at-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--at-text3);
+}
+
+.at-input,
+.at-select {
+  background: var(--at-bg3);
+  border: 1px solid var(--at-border2);
+  border-radius: var(--at-radius-sm, 6px);
+  color: var(--at-text, #e8eaf6);
+  font-size: 13px;
+}
+
+.at-input:focus,
+.at-select:focus {
+  outline: none;
+  border-color: var(--at-green);
+}
+
+.at-lens-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: var(--at-radius-sm, 6px);
+  border: 1px solid var(--at-border2);
+  background: var(--at-bg3);
+  color: var(--at-text2);
+  font-size: 13px;
+  transition: background 0.18s, border-color 0.18s;
+}
+
+.at-lens-btn:hover:not(.at-lens-btn--active) {
+  background: var(--at-bg4);
+}
+
+.at-lens-btn--active {
+  background: var(--at-blue-bg);
+  border-color: var(--at-blue, #5b8ef0);
+  color: var(--at-blue, #5b8ef0);
+}
+
+.at-btn-primary {
+  background: var(--at-green);
+  color: #0f1117;
+  font-weight: 600;
+  border-radius: var(--at-radius-sm, 6px);
+  padding: 8px 16px;
+  border: none;
+  transition: background 0.18s;
+}
+
+.at-btn-primary:hover {
+  background: var(--at-green2);
+}
+
+.at-api-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--at-bg4);
+  border: 1px solid var(--at-border2);
+  border-radius: 20px;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: var(--at-text3);
+}
+
+.at-api-pill--live {
+  border-color: var(--at-green);
+  color: var(--at-green);
+}
+
+.at-api-pill--live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  background: var(--at-green);
+  border-radius: 50%;
+  display: inline-block;
+}
+
+@keyframes ai-tools-modal-enter {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.ai-tools-modal-animate {
+  animation: ai-tools-modal-enter 0.25s ease-out;
+}
+
+/* AF Rankings — Dynasty tier subtle shimmer (premium prestige) */
+@keyframes af-rank-legend-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+.af-rank-legend-shimmer {
+  background: linear-gradient(
+    110deg,
+    rgba(252, 211, 77, 0.15) 0%,
+    rgba(252, 211, 77, 0.45) 40%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(252, 211, 77, 0.45) 60%,
+    rgba(252, 211, 77, 0.15) 100%
+  );
+  background-size: 200% 100%;
+  animation: af-rank-legend-shimmer 4s ease-in-out infinite;
+}

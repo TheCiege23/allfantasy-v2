@@ -12,6 +12,12 @@ export type AIToolModalShellProps = {
   subtitle?: string
   accentColor?: string
   icon?: React.ReactNode
+  /** Optional status badge in the header row (e.g. FantasyCalc live). */
+  headerBadge?: React.ReactNode
+  /** Rolling Insights / News / AI pills — set false for compact tool headers. */
+  showApiPills?: boolean
+  /** Wider modal for dense consoles (e.g. Trade Value). */
+  wide?: boolean
   loading?: boolean
   error?: string | null
   empty?: boolean
@@ -31,6 +37,9 @@ export function AIToolModalShell({
   subtitle,
   accentColor = 'cyan',
   icon,
+  headerBadge,
+  showApiPills = true,
+  wide = false,
   loading = false,
   error = null,
   empty = false,
@@ -46,7 +55,9 @@ export function AIToolModalShell({
 
   useEffect(() => {
     if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     document.addEventListener('keydown', handler)
     document.body.style.overflow = 'hidden'
     return () => {
@@ -57,15 +68,72 @@ export function AIToolModalShell({
 
   if (!open) return null
 
-  const accentMap: Record<string, { border: string; bg: string; text: string; glow: string }> = {
-    cyan: { border: 'border-cyan-500/20', bg: 'bg-cyan-500/5', text: 'text-cyan-400', glow: 'shadow-[0_0_40px_rgba(6,182,212,0.06)]' },
-    purple: { border: 'border-purple-500/20', bg: 'bg-purple-500/5', text: 'text-purple-400', glow: 'shadow-[0_0_40px_rgba(168,85,247,0.06)]' },
-    amber: { border: 'border-amber-500/20', bg: 'bg-amber-500/5', text: 'text-amber-400', glow: 'shadow-[0_0_40px_rgba(245,158,11,0.06)]' },
-    emerald: { border: 'border-emerald-500/20', bg: 'bg-emerald-500/5', text: 'text-emerald-400', glow: 'shadow-[0_0_40px_rgba(16,185,129,0.06)]' },
-    red: { border: 'border-red-500/20', bg: 'bg-red-500/5', text: 'text-red-400', glow: 'shadow-[0_0_40px_rgba(239,68,68,0.06)]' },
-    rose: { border: 'border-rose-500/20', bg: 'bg-rose-500/5', text: 'text-rose-400', glow: 'shadow-[0_0_40px_rgba(244,63,94,0.06)]' },
-    violet: { border: 'border-violet-500/20', bg: 'bg-violet-500/5', text: 'text-violet-400', glow: 'shadow-[0_0_40px_rgba(139,92,246,0.06)]' },
-    sky: { border: 'border-sky-500/20', bg: 'bg-sky-500/5', text: 'text-sky-400', glow: 'shadow-[0_0_40px_rgba(14,165,233,0.06)]' },
+  const accentMap: Record<
+    string,
+    {
+      circle: string
+      border: string
+      text: string
+      glow: string
+      softBg: string
+    }
+  > = {
+    cyan: {
+      circle: 'border-[#00d4aa] bg-[rgba(0,212,170,0.12)] text-[#00d4aa]',
+      border: 'border-[#2e3347]',
+      text: 'text-[#00d4aa]',
+      glow: 'shadow-[0_0_48px_rgba(0,212,170,0.07)]',
+      softBg: 'bg-[rgba(0,212,170,0.06)]',
+    },
+    purple: {
+      circle: 'border-[#a78bfa] bg-[rgba(167,139,250,0.12)] text-[#a78bfa]',
+      border: 'border-[#2e3347]',
+      text: 'text-[#a78bfa]',
+      glow: 'shadow-[0_0_48px_rgba(167,139,250,0.07)]',
+      softBg: 'bg-[rgba(167,139,250,0.06)]',
+    },
+    amber: {
+      circle: 'border-[#f5a623] bg-[rgba(245,166,35,0.12)] text-[#f5a623]',
+      border: 'border-[#2e3347]',
+      text: 'text-[#f5a623]',
+      glow: 'shadow-[0_0_48px_rgba(245,166,35,0.07)]',
+      softBg: 'bg-[rgba(245,166,35,0.06)]',
+    },
+    emerald: {
+      circle: 'border-emerald-400 bg-emerald-500/15 text-emerald-300',
+      border: 'border-[#2e3347]',
+      text: 'text-emerald-300',
+      glow: 'shadow-[0_0_48px_rgba(16,185,129,0.07)]',
+      softBg: 'bg-emerald-500/[0.06]',
+    },
+    red: {
+      circle: 'border-[#f06060] bg-[rgba(240,96,96,0.12)] text-[#f06060]',
+      border: 'border-[#2e3347]',
+      text: 'text-[#f06060]',
+      glow: 'shadow-[0_0_48px_rgba(240,96,96,0.07)]',
+      softBg: 'bg-[rgba(240,96,96,0.06)]',
+    },
+    rose: {
+      circle: 'border-rose-400 bg-rose-500/15 text-rose-300',
+      border: 'border-[#2e3347]',
+      text: 'text-rose-300',
+      glow: 'shadow-[0_0_48px_rgba(244,63,94,0.07)]',
+      softBg: 'bg-rose-500/[0.06]',
+    },
+    violet: {
+      circle: 'border-violet-400 bg-violet-500/15 text-violet-300',
+      border: 'border-[#2e3347]',
+      text: 'text-violet-300',
+      glow: 'shadow-[0_0_48px_rgba(139,92,246,0.07)]',
+      softBg: 'bg-violet-500/[0.06]',
+    },
+    sky: {
+      circle: 'border-sky-400 bg-sky-500/15 text-sky-300',
+      border: 'border-[#2e3347]',
+      text: 'text-sky-300',
+      glow: 'shadow-[0_0_48px_rgba(14,165,233,0.07)]',
+      softBg: 'bg-sky-500/[0.06]',
+    },
   }
 
   const accent = accentMap[accentColor] ?? accentMap.cyan
@@ -74,37 +142,40 @@ export function AIToolModalShell({
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      onClick={(e) => {
+        if (e.target === overlayRef.current) onClose()
+      }}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-sm" />
 
-      {/* Modal */}
       <div
-        className={`relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-white/[0.08] bg-[#080d1a] sm:max-w-xl sm:rounded-2xl ${accent.glow}`}
-        style={{ animation: 'slideUp 0.25s ease-out' }}
+        className={`ai-tools-modal-shell ai-tools-modal-animate relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[10px] border border-[#2e3347] bg-[#0b0e14] sm:rounded-[10px] ${wide ? 'sm:max-w-2xl lg:max-w-3xl' : 'sm:max-w-xl'} ${accent.glow}`}
       >
-        {/* Header */}
-        <div className={`shrink-0 border-b ${accent.border} px-5 pb-4 pt-5`}>
+        {/* Header — circular tool glyph + title stack + refresh/close */}
+        <div className={`shrink-0 border-b px-4 pb-4 pt-4 sm:px-5 sm:pt-5 ${accent.border}`}>
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-start gap-3">
               {icon && (
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent.bg} ${accent.text}`}>
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${accent.circle}`}
+                >
                   {icon}
                 </div>
               )}
-              <div>
-                <h2 className="text-[16px] font-black tracking-tight text-white">{title}</h2>
-                {subtitle && <p className="mt-0.5 text-[11px] text-white/40">{subtitle}</p>}
+              <div className="min-w-0">
+                <h2 className="text-[16px] font-bold tracking-tight text-[#e8eaf6]">{title}</h2>
+                {subtitle && <p className="mt-0.5 text-[11px] text-[#5c6480]">{subtitle}</p>}
               </div>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              {headerBadge}
               {onRefresh && (
                 <button
                   type="button"
                   onClick={onRefresh}
                   disabled={refreshing}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-white/40 transition hover:bg-white/[0.06] hover:text-white/60"
+                  className="flex h-8 w-8 items-center justify-center rounded-[6px] border border-[#3d4460] bg-[#242838] text-[#9ba3bf] transition hover:border-[#5c6480] hover:text-[#e8eaf6]"
+                  aria-label="Refresh"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 </button>
@@ -112,41 +183,60 @@ export function AIToolModalShell({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-white/40 transition hover:bg-white/[0.06] hover:text-white/60"
+                className="flex h-8 w-8 items-center justify-center rounded-[6px] border border-[#3d4460] bg-[#242838] text-[#9ba3bf] transition hover:border-[#5c6480] hover:text-[#e8eaf6]"
+                aria-label="Close"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           </div>
+
+          {showApiPills ? (
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="at-api-pill at-api-pill--live text-[9px] font-semibold uppercase tracking-wide">
+                Rolling Insights
+              </span>
+              <span className="at-api-pill text-[9px] font-semibold uppercase tracking-wide">News API</span>
+              <span className="at-api-pill text-[9px] font-semibold uppercase tracking-wide">AI Engine</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.08)_transparent]">
+        <div className="flex-1 overflow-y-auto bg-[#0b0e14] px-4 py-4 sm:px-5 [scrollbar-width:thin] [scrollbar-color:#3d4460_transparent]">
           {loading ? (
             <div className="flex flex-col items-center py-12 text-center">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${accent.bg}`}>
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-full border border-[#2e3347] ${accent.softBg}`}
+              >
                 <Loader2 className={`h-6 w-6 animate-spin ${accent.text}`} />
               </div>
-              <p className="mt-4 text-[13px] text-white/40">Analyzing...</p>
+              <p className="mt-4 text-[13px] text-[#5c6480]">Analyzing...</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center py-12 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10">
-                <X className="h-6 w-6 text-red-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-[#f06060]/30 bg-[rgba(240,96,96,0.08)]">
+                <X className="h-6 w-6 text-[#f06060]" />
               </div>
-              <p className="mt-4 text-[13px] text-red-300/80">{error}</p>
+              <p className="mt-4 text-[13px] text-[#f06060]/90">{error}</p>
               {onRefresh && (
-                <button type="button" onClick={onRefresh} className="mt-3 text-[12px] font-semibold text-cyan-300 hover:text-cyan-200">
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  className={`mt-3 text-[12px] font-semibold ${accent.text} hover:brightness-110`}
+                >
                   Try again
                 </button>
               )}
             </div>
           ) : empty ? (
             <div className="flex flex-col items-center py-12 text-center">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${accent.bg}`}>
+              <div
+                className={`flex h-12 w-12 items-center justify-center rounded-full border border-[#2e3347] ${accent.softBg}`}
+              >
                 {icon}
               </div>
-              <p className="mt-4 text-[13px] text-white/40">{emptyMessage}</p>
+              <p className="mt-4 text-[13px] text-[#5c6480]">{emptyMessage}</p>
             </div>
           ) : (
             children
@@ -154,15 +244,13 @@ export function AIToolModalShell({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-white/[0.06] px-5 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {actions}
-            </div>
+        <div className="shrink-0 border-t border-[#2e3347] bg-[#0b0e14] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">{actions}</div>
             {chimmyPrompt && (
               <Link
                 href={getChimmyChatHrefWithPrompt(chimmyPrompt, chimmyContext ?? {})}
-                className={`inline-flex items-center gap-1.5 rounded-lg ${accent.bg} ${accent.border} border px-3 py-1.5 text-[11px] font-semibold ${accent.text} transition hover:brightness-110`}
+                className="at-btn-primary inline-flex items-center gap-1.5 text-[12px] font-semibold no-underline"
               >
                 Ask Chimmy
               </Link>
@@ -171,12 +259,6 @@ export function AIToolModalShell({
         </div>
       </div>
 
-      <style jsx>{`
-        @keyframes slideUp {
-          from { transform: translateY(16px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-      `}</style>
     </div>
   )
 }

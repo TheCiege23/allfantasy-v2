@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from "react"
 import { X, ChevronLeft, ChevronRight, Zap, TrendingUp, Sparkles, Shield, Trophy } from "lucide-react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 
@@ -94,6 +94,7 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
   const [loadingAi, setLoadingAi] = useState<string | null>(null)
   const [pickAnimating, setPickAnimating] = useState(false)
   const { t } = useLanguage()
+  const pendingAdvanceRef = useRef(false)
 
   useEffect(() => {
     const idx = pickableNodes.findIndex(n => n.id === startNode.id)
@@ -101,23 +102,33 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
   }, [startNode.id, pickableNodes])
 
   const currentNode = pickableNodes[currentIdx]
-  if (!currentNode) { onClose(); return null }
-
-  const eff = effective.get(currentNode.id)
-  const homeName = eff?.home ?? currentNode.homeTeamName
-  const awayName = eff?.away ?? currentNode.awayTeamName
-  const homeSeed = homeName ? (seedMap.get(homeName) ?? currentNode.seedHome) : currentNode.seedHome
-  const awaySeed = awayName ? (seedMap.get(awayName) ?? currentNode.seedAway) : currentNode.seedAway
-  const picked = picks[currentNode.id] ?? null
-  const locked = isPickLocked(currentNode)
+  const eff = currentNode ? effective.get(currentNode.id) : undefined
+  const homeName = eff?.home ?? currentNode?.homeTeamName ?? null
+  const awayName = eff?.away ?? currentNode?.awayTeamName ?? null
+  const homeSeed =
+    currentNode && homeName ? (seedMap.get(homeName) ?? currentNode.seedHome) : currentNode?.seedHome ?? null
+  const awaySeed =
+    currentNode && awayName ? (seedMap.get(awayName) ?? currentNode.seedAway) : currentNode?.seedAway ?? null
+  const picked = currentNode ? (picks[currentNode.id] ?? null) : null
+  const locked = currentNode ? isPickLocked(currentNode) : false
   const hasBothTeams = !!homeName && !!awayName
-  const canPick = hasBothTeams && !locked
+  const canPick = Boolean(currentNode && hasBothTeams && !locked)
 
-  const totalInRound = pickableNodes.filter(n => n.round === currentNode.round && n.region === currentNode.region).length
-  const pickedInRound = pickableNodes.filter(n => n.round === currentNode.round && n.region === currentNode.region && picks[n.id]).length
+  const totalInRound = currentNode
+    ? pickableNodes.filter((n) => n.round === currentNode.round && n.region === currentNode.region).length
+    : 0
+  const pickedInRound = currentNode
+    ? pickableNodes.filter(
+        (n) => n.round === currentNode.round && n.region === currentNode.region && picks[n.id]
+      ).length
+    : 0
+
+  useLayoutEffect(() => {
+    if (!currentNode) onClose()
+  }, [currentNode, onClose])
 
   useEffect(() => {
-    if (!homeName || !awayName || aiData[currentNode.id]) return
+    if (!currentNode || !homeName || !awayName || aiData[currentNode.id]) return
     setLoadingAi(currentNode.id)
     fetch("/api/bracket/ai/matchup", {
       method: "POST",
@@ -132,25 +143,29 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
         seedB: awaySeed,
       }),
     })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setAiData(prev => ({ ...prev, [currentNode.id]: d })) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) setAiData((prev) => ({ ...prev, [currentNode.id]: d }))
+      })
       .catch(() => {})
       .finally(() => setLoadingAi(null))
-  }, [currentNode.id, homeName, awayName, entryId])
+  }, [currentNode, homeName, awayName, entryId, homeSeed, awaySeed, aiData])
 
-  const ai = aiData[currentNode.id]
+  const ai = currentNode ? aiData[currentNode.id] : undefined
 
-  const pendingAdvanceRef = useRef(false)
-
-  const handlePick = useCallback((team: string) => {
-    if (!canPick) return
-    setPickAnimating(true)
-    onPick(currentNode, team)
-    pendingAdvanceRef.current = true
-    setTimeout(() => setPickAnimating(false), 600)
-  }, [canPick, currentNode, onPick])
+  const handlePick = useCallback(
+    (team: string) => {
+      if (!currentNode || !canPick) return
+      setPickAnimating(true)
+      onPick(currentNode, team)
+      pendingAdvanceRef.current = true
+      setTimeout(() => setPickAnimating(false), 600)
+    },
+    [canPick, currentNode, onPick]
+  )
 
   useEffect(() => {
+    if (!currentNode) return
     if (!pendingAdvanceRef.current || pickAnimating) return
     pendingAdvanceRef.current = false
     const nextUnpicked = pickableNodes.findIndex((n, i) => {
@@ -158,14 +173,16 @@ export function PickWizard({ nodes, startNode, picks, seedMap, effective, entryI
       const e = effective.get(n.id)
       const h = e?.home ?? n.homeTeamName
       const a = e?.away ?? n.awayTeamName
-      return h && a && !picks[n.id] && !isPickLocked(n)
+      return Boolean(h && a && !picks[n.id] && !isPickLocked(n))
     })
     if (nextUnpicked >= 0) {
       setCurrentIdx(nextUnpicked)
     } else if (currentIdx < pickableNodes.length - 1) {
       setCurrentIdx(currentIdx + 1)
     }
-  }, [picks, pickAnimating, currentIdx, pickableNodes, effective])
+  }, [currentNode, picks, pickAnimating, currentIdx, pickableNodes, effective])
+
+  if (!currentNode) return null
 
   const goPrev = () => setCurrentIdx(Math.max(0, currentIdx - 1))
   const goNext = () => setCurrentIdx(Math.min(pickableNodes.length - 1, currentIdx + 1))

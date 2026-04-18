@@ -18,6 +18,7 @@ const AI_CONTEXT_SOURCES = new Set<AIContextSource>([
   "lineup_tool",
   "dashboard",
   "dashboard_widget",
+  "dashboard_rankings",
   "tool_hub",
   "ai_hub",
   "quick_action",
@@ -26,6 +27,12 @@ const AI_CONTEXT_SOURCES = new Set<AIContextSource>([
   "search",
   "fallback",
   "unknown",
+  "war_room",
+  "injury_impact",
+  "injury_player",
+  "matchup_prep",
+  "power_rankings",
+  "power_rankings_team",
 ])
 
 export type AIChatMessage = { role: "user" | "assistant"; content: string }

@@ -32,23 +32,67 @@ export async function DELETE(
 
     const league = await prisma.league.findFirst({
       where: { id, userId },
-      select: { id: true },
+      select: { id: true, platform: true, platformLeagueId: true },
     });
-    if (league) {
-      await prisma.league.delete({ where: { id } });
-      return NextResponse.json({ ok: true, removed: "league" as const });
-    }
 
     const sleeperLeague = await prisma.sleeperLeague.findFirst({
       where: { id, userId },
-      select: { id: true },
+      select: { id: true, sleeperLeagueId: true },
     });
-    if (sleeperLeague) {
-      await prisma.sleeperLeague.delete({ where: { id } });
-      return NextResponse.json({ ok: true, removed: "sleeper_league" as const });
+
+    if (!league && !sleeperLeague) {
+      return NextResponse.json({
+        ok: true,
+        removed: {
+          leagueRows: 0,
+          sleeperLeagueRows: 0,
+        },
+      });
     }
 
-    return NextResponse.json({ error: "League not found" }, { status: 404 });
+    const normalizedPlatform = String(league?.platform ?? "").toLowerCase();
+    const linkedSleeperLeagueId =
+      normalizedPlatform === "sleeper" && typeof league?.platformLeagueId === "string"
+        ? league.platformLeagueId
+        : sleeperLeague?.sleeperLeagueId ?? null;
+
+    const [deletedLeagueRows, deletedSleeperRows] = await prisma.$transaction([
+      prisma.league.deleteMany({
+        where: {
+          userId,
+          OR: [
+            { id },
+            ...(linkedSleeperLeagueId
+              ? [
+                  {
+                    platform: "sleeper",
+                    platformLeagueId: linkedSleeperLeagueId,
+                  },
+                ]
+              : []),
+          ],
+        },
+      }),
+      prisma.sleeperLeague.deleteMany({
+        where: {
+          userId,
+          OR: [
+            { id },
+            ...(linkedSleeperLeagueId
+              ? [{ sleeperLeagueId: linkedSleeperLeagueId }]
+              : []),
+          ],
+        },
+      }),
+    ]);
+
+    return NextResponse.json({
+      ok: true,
+      removed: {
+        leagueRows: deletedLeagueRows.count,
+        sleeperLeagueRows: deletedSleeperRows.count,
+      },
+    });
   } catch (e: unknown) {
     console.error("[api/league/[leagueId] DELETE]", e);
     return NextResponse.json(

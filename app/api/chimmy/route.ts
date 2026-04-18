@@ -65,6 +65,8 @@ const ChimmyJsonRequestSchema = z.object({
     userId: z.string().trim().min(1).optional(),
     tier: z.enum(['free', 'pro']).optional(),
     sport: z.string().trim().min(1).max(32).optional(),
+    sportScope: z.enum(['all']).optional(),
+    leagueName: z.string().trim().min(1).max(120).optional(),
     leagueId: z.string().trim().min(1).max(120).optional(),
     sleeperUsername: z.string().trim().min(1).max(80).optional(),
     insightType: z.enum(['matchup', 'playoff', 'dynasty', 'trade', 'waiver', 'draft']).optional(),
@@ -380,6 +382,12 @@ function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJ
 
   if (payload.userContext.sport) {
     formData.append('sport', payload.userContext.sport)
+  }
+  if (payload.userContext.sportScope === 'all') {
+    formData.append('sportScope', 'all')
+  }
+  if (payload.userContext.leagueName) {
+    formData.append('leagueName', payload.userContext.leagueName)
   }
   if (payload.userContext.leagueId) {
     formData.append('leagueId', payload.userContext.leagueId)

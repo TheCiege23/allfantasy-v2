@@ -123,6 +123,16 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
     }
   }, [managers, selectedRosterId])
 
+  const selectedManager = useMemo(
+    () => managers.find((manager) => manager.rosterId === selectedRosterId) ?? null,
+    [managers, selectedRosterId]
+  )
+  const premiumActionHref = useCallback(
+    (featureId: SubscriptionFeatureId, unlockedHref: string) =>
+      hasAccess(featureId) ? unlockedHref : buildFeatureUpgradePath(featureId),
+    [hasAccess]
+  )
+
   if (!leagueId) {
     return (
       <section className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -149,15 +159,6 @@ export default function CommissionerControlsPanel({ leagueId }: { leagueId?: str
   const canResume = draftStatus === 'paused'
   const canDraftControl = draftStatus === 'in_progress' || draftStatus === 'paused'
   const slotOrder = (draftSession?.slotOrder ?? []) as SlotOrderEntry[]
-  const selectedManager = useMemo(
-    () => managers.find((manager) => manager.rosterId === selectedRosterId) ?? null,
-    [managers, selectedRosterId]
-  )
-  const premiumActionHref = useCallback(
-    (featureId: SubscriptionFeatureId, unlockedHref: string) =>
-      hasAccess(featureId) ? unlockedHref : buildFeatureUpgradePath(featureId),
-    [hasAccess]
-  )
 
   const runDraftControl = async (action: string, body?: Record<string, unknown>) => {
     setBusyAction(action)

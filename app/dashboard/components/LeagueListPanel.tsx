@@ -250,7 +250,7 @@ export function LeagueListPanel({
           method: 'DELETE',
           credentials: 'include',
         })
-        if (res.ok) {
+        if (res.ok || res.status === 404) {
           onLeagueRemoved?.(leagueId)
           persistFavoriteIds(favoriteIds.filter((id) => id !== leagueId))
           persistOrderedIds(orderedIds.filter((id) => id !== leagueId))

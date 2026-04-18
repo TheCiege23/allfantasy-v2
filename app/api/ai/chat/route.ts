@@ -2,6 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { buildUserTemporalContextForAI } from '@/lib/preferences/userTemporalContextForAI'
 import { checkAiRateLimit } from '@/lib/ai-protection'
 import { logAiFailure } from '@/lib/error-tracking'
 import { openaiChatTextStream } from '@/lib/openai-client'
@@ -348,7 +349,18 @@ export const POST = withApiUsage({ endpoint: "/api/ai/chat", tool: "AiChat" })(a
     )
     const sportContext = buildSportContextString(chatLeagueMeta)
 
-    const systemPrompt = buildSystemPrompt(legacyContext, sportContext, playerAnalyticsContext)
+    const profileClock = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { timezone: true, preferredLanguage: true },
+    })
+    const userClock = buildUserTemporalContextForAI({
+      timezone: profileClock?.timezone,
+      preferredLanguage: profileClock?.preferredLanguage,
+    })
+
+    const systemPrompt =
+      buildSystemPrompt(legacyContext, sportContext, playerAnalyticsContext) +
+      `\n\n## USER DATE & TIME (authoritative)\n${userClock.promptLine}\nUse this for "today", schedules, and day-count questions; do not assume a different calendar date.`
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },

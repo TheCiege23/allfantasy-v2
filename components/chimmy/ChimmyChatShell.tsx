@@ -37,6 +37,7 @@ import {
 } from '@/lib/chimmy-voice'
 import { DEFAULT_VOICE_ID, getChimmyVoiceLabel, readStoredChimmyVoiceId } from '@/lib/tts/voices'
 import { triggerChimmyVoiceListenNudge } from '@/lib/chimmy-chat/voiceEngagementNudge'
+import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
 
 export type ChimmyChatMessage = {
   id: string
@@ -184,9 +185,44 @@ export default function ChimmyChatShell({
   const [showHistorySidebar, setShowHistorySidebar] = useState(false)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [isLoadingConversation, setIsLoadingConversation] = useState(false)
+  const [scopeSport, setScopeSport] = useState<'all' | SupportedSport>(() =>
+    sport ? resolveSportForAIChat(sport, null) : 'all'
+  )
+  const [scopeLeagueId, setScopeLeagueId] = useState<'all' | string>(() => leagueId ?? 'all')
+  const [leagues, setLeagues] = useState<Array<{ id: string; name: string | null; sport: string }>>([])
 
   useLayoutEffect(() => {
     setElevenLabsVoiceId(readStoredChimmyVoiceId())
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/league/list', { credentials: 'include' })
+        if (!r.ok) return
+        const data = (await r.json()) as { leagues?: unknown[] }
+        const raw = Array.isArray(data?.leagues) ? data.leagues : []
+        const mapped = raw
+          .map((row) => {
+            const o = row as Record<string, unknown>
+            const id = typeof o.id === 'string' ? o.id : ''
+            if (!id) return null
+            return {
+              id,
+              name: typeof o.name === 'string' ? o.name : null,
+              sport: typeof o.sport === 'string' ? o.sport : 'NFL',
+            }
+          })
+          .filter((x): x is { id: string; name: string | null; sport: string } => x != null)
+        if (!cancelled) setLeagues(mapped)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const transcriptRef = useRef<HTMLDivElement>(null)
@@ -195,9 +231,32 @@ export default function ChimmyChatShell({
   const initialPromptApplied = useRef(false)
   const sendingRef = useRef(false)
 
+  const filteredLeagues = useMemo(() => {
+    if (scopeSport === 'all') return leagues
+    return leagues.filter((l) => normalizeToSupportedSport(l.sport) === scopeSport)
+  }, [leagues, scopeSport])
+
+  useEffect(() => {
+    if (scopeLeagueId === 'all') return
+    const ok = filteredLeagues.some((l) => l.id === scopeLeagueId)
+    if (!ok) setScopeLeagueId('all')
+  }, [filteredLeagues, scopeLeagueId])
+
+  const displayLeagueName = useMemo(() => {
+    if (scopeLeagueId !== 'all') {
+      const row = leagues.find((l) => l.id === scopeLeagueId)
+      if (row?.name) return row.name
+    }
+    return leagueName ?? undefined
+  }, [scopeLeagueId, leagues, leagueName])
+
   const suggestedChips = useMemo(
-    () => getDefaultChimmyChips({ leagueName: leagueName ?? undefined, hasLeagues: !!leagueName }),
-    [leagueName]
+    () =>
+      getDefaultChimmyChips({
+        leagueName: displayLeagueName ?? undefined,
+        hasLeagues: leagues.length > 0 || !!displayLeagueName,
+      }),
+    [displayLeagueName, leagues.length]
   )
 
   const hasUserMessage = useMemo(() => messages.some((m) => m.role === 'user'), [messages])
@@ -214,14 +273,24 @@ export default function ChimmyChatShell({
     lastAssistantMessage.content.trim().length > 40 &&
     !voiceConfig.enabled &&
     !ttsUnavailable
-  const resolvedSport = useMemo(() => resolveSportForAIChat(sport, null), [sport])
-  const requestContext = useMemo(
-    () => ({
-      leagueId: leagueId ?? undefined,
+  const requestContext = useMemo((): AIChatContext => {
+    const effectiveLeagueId = scopeLeagueId !== 'all' ? scopeLeagueId : undefined
+    const selected = effectiveLeagueId ? leagues.find((l) => l.id === effectiveLeagueId) : undefined
+    const sportOut = selected
+      ? normalizeToSupportedSport(selected.sport)
+      : scopeSport !== 'all'
+        ? scopeSport
+        : undefined
+    const sportScopeOut = scopeSport === 'all' && !selected ? ('all' as const) : undefined
+
+    return {
+      leagueId: effectiveLeagueId,
+      leagueName: selected?.name ?? undefined,
+      sportScope: sportScopeOut,
       sleeperUsername: sleeperUsername ?? undefined,
       insightType,
       teamId: teamId ?? undefined,
-      sport: resolvedSport,
+      sport: sportOut,
       season: season ?? undefined,
       week: week ?? undefined,
       conversationId: conversationId ?? undefined,
@@ -229,32 +298,33 @@ export default function ChimmyChatShell({
       targetUsername: targetUsername ?? undefined,
       strategyMode: strategyMode ?? undefined,
       source: source ?? (privateMode ? "messages_dm_ai" : "messages_ai"),
-    }),
-    [
-      conversationId,
-      insightType,
-      leagueId,
-      privateMode,
-      resolvedSport,
-      season,
-      sleeperUsername,
-      source,
-      strategyMode,
-      targetUsername,
-      teamId,
-      week,
-    ]
-  )
+    }
+  }, [
+    conversationId,
+    insightType,
+    leagues,
+    privateMode,
+    scopeLeagueId,
+    scopeSport,
+    season,
+    sleeperUsername,
+    source,
+    strategyMode,
+    targetUsername,
+    teamId,
+    week,
+  ])
   const threadStorageKey = useMemo(
     () =>
       getAIThreadStorageKey({
-        leagueId: leagueId ?? undefined,
-        sport: resolvedSport,
+        leagueId: requestContext.leagueId,
+        sport: requestContext.sport,
+        sportScope: requestContext.sportScope,
         insightType,
         teamId: teamId ?? undefined,
         conversationId: conversationId ?? undefined,
       }),
-    [conversationId, insightType, leagueId, resolvedSport, teamId]
+    [conversationId, insightType, requestContext.leagueId, requestContext.sport, requestContext.sportScope, teamId]
   )
 
   const canCompare = lastMeta && Object.keys(lastMeta).length > 1
@@ -802,6 +872,55 @@ export default function ChimmyChatShell({
           />
         </div>
       </header>
+
+      <div className="flex flex-wrap items-end gap-2 px-3 py-2 border-b border-white/10 bg-[#0a1228]/90">
+        <label className="flex flex-col gap-1 min-w-[120px] flex-1 sm:flex-none">
+          <span className="text-[10px] uppercase tracking-wide text-white/45">Sport</span>
+          <select
+            data-testid="chimmy-scope-sport"
+            className="rounded-lg border border-white/15 bg-[#040915] px-2 py-1.5 text-xs text-white/90 focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
+            value={scopeSport}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === 'all') {
+                setScopeSport('all')
+              } else {
+                setScopeSport(normalizeToSupportedSport(v))
+              }
+            }}
+          >
+            <option value="all">All sports</option>
+            {SUPPORTED_SPORTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 min-w-[160px] flex-[2] sm:flex-none sm:min-w-[220px]">
+          <span className="text-[10px] uppercase tracking-wide text-white/45">League</span>
+          <select
+            data-testid="chimmy-scope-league"
+            className="max-w-full rounded-lg border border-white/15 bg-[#040915] px-2 py-1.5 text-xs text-white/90 focus:outline-none focus:ring-1 focus:ring-cyan-500/40"
+            value={scopeLeagueId}
+            onChange={(e) => {
+              const v = e.target.value
+              setScopeLeagueId(v)
+              if (v !== 'all') {
+                const row = leagues.find((l) => l.id === v)
+                if (row) setScopeSport(normalizeToSupportedSport(row.sport))
+              }
+            }}
+          >
+            <option value="all">All leagues</option>
+            {filteredLeagues.map((l) => (
+              <option key={l.id} value={l.id}>
+                {(l.name || 'League').slice(0, 48)} ({normalizeToSupportedSport(l.sport)})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
         <InContextMonetizationCard

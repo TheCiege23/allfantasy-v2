@@ -5,7 +5,7 @@ import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import { getRosterTeamMap } from '@/lib/zombie/rosterTeamMap'
 import { getCouncil } from './SurvivorTribalCouncilService'
 import { parseSurvivorCommand, looksLikeOfficialCommand } from './SurvivorCommandParser'
-import { useIdol, getActiveIdolsForRoster } from './SurvivorIdolRegistry'
+import { applyIdolPower, getActiveIdolsForRoster } from './SurvivorIdolRegistry'
 import { resolveSurvivorCurrentWeek } from './SurvivorTimelineResolver'
 import { submitVote } from './SurvivorVoteEngine'
 import { submitChallengeAnswer, getCurrentOpenChallengesForWeek, getChallengeById } from './SurvivorChallengeEngine'
@@ -502,7 +502,7 @@ export async function processSurvivorOfficialCommand(
       idolContext.targetRosterId = targetRosterId
     }
 
-    const result = await useIdol(leagueId, idol.id, myRosterId, idolContext)
+    const result = await applyIdolPower(leagueId, idol.id, myRosterId, idolContext)
     if (!result.ok) {
       return { handled: true, ok: false, status: 400, error: result.error ?? 'Idol play failed' }
     }

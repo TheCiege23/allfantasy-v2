@@ -13,7 +13,8 @@ import {
 import { Button } from '@/components/ui/button'
 import type { UserLeague } from '@/app/dashboard/types'
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
-import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS, isSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import type { MatchupPrepDashboardResult } from '@/lib/matchup-prep-dashboard/types'
 type LineupIssue = { type: string; message: string; severity: string }
 type LineupCheckLeague = {
   leagueId: string
@@ -126,7 +127,8 @@ export function AIToolsModal({ toolId, open, onClose, leagues, toolTitle }: AITo
             {(toolId === 'startSit' ||
               toolId === 'trade' ||
               toolId === 'waiver' ||
-              toolId === 'power') && (
+              toolId === 'power' ||
+              toolId === 'matchupPrep') && (
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-white/45">
                 League
                 <select
@@ -183,12 +185,25 @@ export function AIToolsModal({ toolId, open, onClose, leagues, toolTitle }: AITo
               </Link>
             ) : null}
             {toolId === 'matchupPrep' ? (
-              <Link
-                href={sport !== 'ALL' ? `/matchup-simulator?sport=${sport}` : '/matchup-simulator'}
-                className="inline-flex items-center justify-center rounded-lg border border-violet-500/35 bg-violet-500/10 px-3 py-2 text-[13px] font-semibold text-violet-100 hover:bg-violet-500/20"
-              >
-                Open matchup simulator
-              </Link>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('af-open-ai-tool', { detail: { tool: 'matchupPrep' } }))
+                    onClose()
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[13px] font-semibold text-sky-100 hover:bg-sky-500/20"
+                  data-testid="ai-tools-modal-open-matchup-prep-full"
+                >
+                  Open full Matchup Prep
+                </button>
+                <Link
+                  href={sport !== 'ALL' ? `/matchup-simulator?sport=${sport}` : '/matchup-simulator'}
+                  className="inline-flex items-center justify-center rounded-lg border border-violet-500/35 bg-violet-500/10 px-3 py-2 text-[13px] font-semibold text-violet-100 hover:bg-violet-500/20"
+                >
+                  Matchup simulator
+                </Link>
+              </>
             ) : null}
             <Link
               href={getChimmyChatHrefWithPrompt(buildAskPrompt(toolId, selectedLeague?.name ?? 'my league', sport), chimmyContext)}
@@ -226,7 +241,7 @@ function buildAskPrompt(
     case 'warRoom':
       return `Draft prep and multi-year roster planning (AF War Room): what should I prioritize ${sportBit} in ${leagueLabel}?`
     case 'matchupPrep':
-      return `Matchup prep ${sportBit} for ${leagueLabel}: key game environments, pace, and start/sit edges for this week.`
+      return `Matchup prep for ${leagueLabel} ${sportBit}: use only my synced league rosters, projections, and opponent data — projected edge, win chance, start/sit pivots, and risks before lineup lock.`
     default:
       return `Fantasy strategy help ${sportBit} for ${leagueLabel}.`
   }
@@ -265,7 +280,15 @@ function ToolBody({
     case 'warRoom':
       return <WarRoomBody leagueName={leagueName} />
     case 'matchupPrep':
-      return <MatchupPrepBody leagueName={leagueName} />
+      return (
+        <MatchupPrepBody
+          leagueId={leagueId}
+          leagueName={leagueName}
+          hasLeague={hasLeague}
+          sport={sport}
+          refreshTick={refreshTick}
+        />
+      )
     default:
       return null
   }
@@ -737,11 +760,153 @@ function WarRoomBody({ leagueName }: { leagueName: string }) {
   )
 }
 
-function MatchupPrepBody({ leagueName }: { leagueName: string }) {
+function MatchupPrepBody({
+  leagueId,
+  leagueName,
+  hasLeague,
+  sport,
+  refreshTick,
+}: {
+  leagueId: string
+  leagueName: string
+  hasLeague: boolean
+  sport: SportFilter
+  refreshTick: number
+}) {
+  const [data, setData] = useState<MatchupPrepDashboardResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!hasLeague || !leagueId.trim()) {
+      setData(null)
+      setErr(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    const sportFilter = sport === 'ALL' ? 'ALL' : isSupportedSport(sport) ? sport : 'ALL'
+    void fetch('/api/ai-tools/matchup-prep/dashboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sportFilter,
+        leagueId: leagueId.trim(),
+        teamFocus: 'my_team',
+        teamExternalId: null,
+        opponentExternalId: null,
+        timeHorizon: 'this_matchup',
+        strategyMode: 'balanced',
+        skipAi: true,
+        toggles: {
+          includeLiveNews: true,
+          includeInjuries: true,
+          includeScheduleAdjustments: true,
+          includeWeather: false,
+          includeStreamingRecommendations: true,
+          includeOpponentTrendAnalysis: true,
+          includePlayoffContext: true,
+          includeRookieProspectContext: false,
+        },
+      }),
+    })
+      .then(async (r) => {
+        const json = (await r.json()) as MatchupPrepDashboardResult | { ok: false; error?: string }
+        if (cancelled) return
+        if (!r.ok || !json.ok) {
+          setData(null)
+          setErr((json as { error?: string }).error ?? 'Matchup prep unavailable.')
+          return
+        }
+        setData(json)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setData(null)
+          setErr('Network error.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasLeague, leagueId, sport, refreshTick])
+
+  if (!hasLeague) {
+    return <p className="text-[13px] text-white/55">Select a league for matchup prep.</p>
+  }
+  if (loading && !data) {
+    return <p className="text-[13px] text-white/50">Loading matchup board…</p>
+  }
+  if (err && !data) {
+    return <p className="text-[13px] text-red-300/90">{err}</p>
+  }
+  if (!data?.ok) {
+    return <p className="text-[13px] text-white/55">{err ?? 'No matchup data yet.'}</p>
+  }
+
+  const d = data
   return (
-    <p className="text-[13px] leading-relaxed text-white/70">
-      Prep this week&apos;s matchups for <span className="text-white">{leagueName}</span>: game script, pace, and
-      volatility. Open the simulator for side-by-side projections, or Ask Chimmy for a concise plan.
-    </p>
+    <div className="space-y-3 rounded-xl border border-white/8 bg-black/30 p-3 text-[12px] text-white/80">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold text-white">{leagueName}</p>
+        {d.degraded ? (
+          <span className="rounded border border-amber-500/35 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+            Partial data
+          </span>
+        ) : (
+          <span className="rounded border border-emerald-500/25 px-1.5 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+            Live
+          </span>
+        )}
+      </div>
+      {loading ? <p className="text-[11px] text-cyan-200/60">Refreshing…</p> : null}
+      <p className="text-white/60">
+        vs <span className="text-white/90">{d.oppTeamName ?? 'Opponent TBD'}</span>
+        {d.weekLabel ? <span className="text-white/40"> · {d.weekLabel}</span> : null}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-[10px] uppercase text-white/40">Proj. edge</p>
+          <p className="text-lg font-bold tabular-nums text-cyan-200">
+            {d.projectedEdge != null ? `${d.projectedEdge > 0 ? '+' : ''}${d.projectedEdge.toFixed(1)}` : '—'}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase text-white/40">Win chance</p>
+          <p className="text-lg font-bold tabular-nums text-emerald-200/90">
+            {d.winProbability != null ? `${d.winProbability}%` : '—'}
+          </p>
+        </div>
+      </div>
+      {d.myProjectedTotal != null && d.oppProjectedTotal != null ? (
+        <p className="text-white/55">
+          You {d.myProjectedTotal.toFixed(1)} — Opp {d.oppProjectedTotal.toFixed(1)} (projected)
+        </p>
+      ) : null}
+      {d.gamePlan?.length ? (
+        <div>
+          <p className="mb-1 text-[10px] font-bold uppercase text-white/40">Top actions</p>
+          <ul className="space-y-1.5 text-white/70">
+            {d.gamePlan.slice(0, 3).map((a) => (
+              <li key={a.id} className="leading-snug">
+                <span className="text-white/90">{a.title}</span>
+                {a.detail ? <span className="text-white/50"> — {a.detail}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {d.dataGaps?.length ? (
+        <p className="text-[11px] text-amber-200/80">
+          Note: {d.dataGaps.slice(0, 2).join(' ')}
+          {d.dataGaps.length > 2 ? '…' : ''}
+        </p>
+      ) : null}
+      <p className="text-[10px] text-white/35">Updated {new Date(d.computedAt).toLocaleString()}</p>
+    </div>
   )
 }

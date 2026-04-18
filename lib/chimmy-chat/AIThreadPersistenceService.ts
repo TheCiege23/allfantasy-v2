@@ -13,14 +13,15 @@ function cleanKeyPart(value: string | undefined): string {
 }
 
 export function getAIThreadStorageKey(
-  context?: Pick<AIChatContext, "leagueId" | "sport" | "insightType" | "teamId" | "conversationId">
+  context?: Pick<AIChatContext, "leagueId" | "sport" | "sportScope" | "insightType" | "teamId" | "conversationId">
 ): string {
   const league = cleanKeyPart(context?.leagueId)
   const sport = cleanKeyPart(context?.sport)
+  const sportScope = cleanKeyPart(context?.sportScope)
   const insight = cleanKeyPart(context?.insightType)
   const team = cleanKeyPart(context?.teamId)
   const conversation = cleanKeyPart(context?.conversationId)
-  return `${STORAGE_PREFIX}:${league}:${sport}:${insight}:${team}:${conversation}`
+  return `${STORAGE_PREFIX}:${league}:${sport}:${sportScope}:${insight}:${team}:${conversation}`
 }
 
 function sanitizeMessages(messages: ChimmyThreadMessage[]): ChimmyThreadMessage[] {

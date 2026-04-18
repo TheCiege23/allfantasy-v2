@@ -146,8 +146,9 @@ export async function getIdolByPlayer(leagueId: string, playerId: string): Promi
 
 /**
  * Validate and apply idol use. Returns ok and optional error.
+ * (Named `applyIdolPower` — not a React hook.)
  */
-export async function useIdol(
+export async function applyIdolPower(
   leagueId: string,
   idolId: string,
   rosterId: string,

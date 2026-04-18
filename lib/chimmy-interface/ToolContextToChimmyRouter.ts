@@ -26,6 +26,7 @@ const AI_SOURCE_TO_TOOL_CONTEXT: Record<string, ToolContextSource> = {
   lineup_tool: 'generic',
   dashboard: 'generic',
   dashboard_widget: 'generic',
+  dashboard_rankings: 'rankings',
   tool_hub: 'generic',
   ai_hub: 'generic',
   quick_action: 'generic',
@@ -34,6 +35,12 @@ const AI_SOURCE_TO_TOOL_CONTEXT: Record<string, ToolContextSource> = {
   search: 'generic',
   fallback: 'generic',
   unknown: 'generic',
+  war_room: 'generic',
+  injury_impact: 'generic',
+  injury_player: 'generic',
+  matchup_prep: 'matchup',
+  power_rankings: 'rankings',
+  power_rankings_team: 'rankings',
 }
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {

@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { BarChart3, Brackets, Crown, Percent, Target, Trophy } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -9,6 +10,17 @@ import type { CompositeProfile } from '@/lib/legacy/overview-scoring'
 import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
 import { RankingFaqPanel } from '@/components/rankings/RankingFaqPanel'
 import { LegacyRankingsImportPanel } from '@/components/rankings/LegacyRankingsImportPanel'
+import type { RankLevelApiPayload } from '@/lib/rank/rank-level-payload'
+import {
+  AfRankingsAiPanel,
+  AfRankingsHeroPremium,
+  AfRankingsHistoryPlaceholder,
+  AfRankingsLeaderboardPlaceholder,
+  AfRankingsPerformanceSummary,
+  AfRankingsTierLadder,
+  AfRankingsXpBreakdown,
+  RankSnapshotCardPremium,
+} from '@/components/rankings/AfRankingsPageSections'
 
 /** Split AF Legacy overview chunks so the rankings route initial bundle stays smaller. */
 const OverviewReportCard = dynamic(() => import('@/app/af-legacy/components/OverviewReportCard'), {
@@ -93,28 +105,6 @@ interface RankResponse {
   stats?: RankResponse['careerStats']
 }
 
-/** Normalized 25-level payload from `/api/user/rank`. */
-type RankLevelApiPayload = {
-  tier: string
-  level: number
-  levelName: string
-  tierGroup: number
-  color: string
-  bgColor: string
-  xpTotal: number
-  xpIntoLevel: number
-  xpForLevel: number
-  progressPct: number
-  nextLevelName: string | null
-  careerWins: number | null
-  careerLosses: number | null
-  careerChampionships: number | null
-  careerPlayoffAppearances: number | null
-  careerSeasonsPlayed: number | null
-  careerLeaguesPlayed: number | null
-  rankCalculatedAt: string | null
-}
-
 function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload | null {
   const xp = data.xpTotal ?? (data.rank != null ? Number(data.rank.careerXp) : 0) ?? 0
   const lv = getLevelFromXp(xp)
@@ -127,7 +117,10 @@ function rankLevelPayloadFromResponse(data: RankResponse): RankLevelApiPayload |
     tier: data.tier?.trim() || row.tier,
     level,
     levelName: data.levelName?.trim() ?? row.name,
-    tierGroup: data.tierGroup ?? row.tierGroup,
+    tierGroup:
+      typeof data.tierGroup === 'number' && Number.isFinite(data.tierGroup)
+        ? data.tierGroup
+        : Number(data.tierGroup) || row.tierGroup,
     color: data.color ?? row.color,
     bgColor: data.bgColor ?? row.bgColor,
     xpTotal: xp,
@@ -398,37 +391,6 @@ function getTierConfig(rank: Pick<PlayerRank, 'careerTier' | 'careerTierName' | 
   return getTierConfigByLevel(getLevelFromXp(xp).level)
 }
 
-function RankBadge({ rank, size = 'md' }: { rank: PlayerRank; size?: 'sm' | 'md' | 'lg' }) {
-  const cfg = getTierConfig(rank)
-  const sizes = {
-    sm: { outer: 'w-16 h-16', inner: 'w-12 h-12', emoji: 'text-2xl', tier: 'text-[10px]' },
-    md: { outer: 'w-24 h-24', inner: 'w-20 h-20', emoji: 'text-4xl', tier: 'text-xs' },
-    lg: { outer: 'w-36 h-36', inner: 'w-32 h-32', emoji: 'text-6xl', tier: 'text-sm' },
-  }[size]
-
-  return (
-    <div className={`relative flex items-center justify-center ${sizes.outer}`}>
-      <div
-        className="absolute inset-0 rounded-full animate-pulse"
-        style={{ boxShadow: `0 0 32px 8px ${cfg.glow}`, background: `radial-gradient(circle, ${cfg.glow} 0%, transparent 70%)` }}
-      />
-      <div
-        className={`relative ${sizes.inner} rounded-full flex flex-col items-center justify-center border-2`}
-        style={{
-          borderColor: cfg.color,
-          background: `radial-gradient(circle at 35% 35%, ${cfg.glow}, rgba(10,10,30,0.95))`,
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 0 0 1px rgba(255,255,255,0.04)',
-        }}
-      >
-        <span className={sizes.emoji}>{cfg.badge}</span>
-        <span className={`${sizes.tier} font-bold mt-0.5`} style={{ color: cfg.color }}>
-          LV {getLevelFromXp(Number(rank.careerXp) || 0).level}
-        </span>
-      </div>
-    </div>
-  )
-}
-
 function CareerStats({ rank }: { rank: PlayerRank }) {
   const cfg = getTierConfig(rank)
   const wins = rank.totalWins ?? 0
@@ -438,38 +400,64 @@ function CareerStats({ rank }: { rank: PlayerRank }) {
   const playoffRateSafe = Number.isFinite(Number(rank.playoffRate)) ? Number(rank.playoffRate) : 0
   const recordLabel = ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`
   const stats = [
-    { label: 'Record', value: wins + losses + ties > 0 ? recordLabel : '—', sub: 'imported leagues (all connected providers)' },
-    { label: 'Win Rate', value: `${winRateSafe.toFixed(1)}%`, sub: 'career average' },
     {
-      label: 'Playoffs',
-      value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : '—',
-      sub: 'appearances (qualified seasons)',
+      icon: <BarChart3 className="h-4 w-4 text-cyan-300/80" aria-hidden />,
+      label: 'Record',
+      value: wins + losses + ties > 0 ? recordLabel : 'No games yet',
+      sub: 'Imported leagues (connected providers)',
     },
-    { label: 'Playoff rate', value: `${playoffRateSafe.toFixed(0)}%`, sub: 'of league seasons' },
-    { label: 'Titles', value: String(rank.championshipCount), sub: 'championships' },
-    { label: 'Seasons', value: String(rank.seasonsPlayed), sub: 'distinct seasons played' },
+    {
+      icon: <Percent className="h-4 w-4 text-emerald-300/80" aria-hidden />,
+      label: 'Win rate',
+      value: `${winRateSafe.toFixed(1)}%`,
+      sub: 'Career average',
+    },
+    {
+      icon: <Brackets className="h-4 w-4 text-violet-300/80" aria-hidden />,
+      label: 'Playoffs',
+      value: rank.playoffAppearances != null ? String(rank.playoffAppearances) : 'No playoff runs yet',
+      sub: 'Qualified seasons',
+    },
+    {
+      icon: <Target className="h-4 w-4 text-sky-300/80" aria-hidden />,
+      label: 'Playoff rate',
+      value: `${playoffRateSafe.toFixed(0)}%`,
+      sub: 'Of league seasons',
+    },
+    {
+      icon: <Trophy className="h-4 w-4 text-amber-300/80" aria-hidden />,
+      label: 'Titles',
+      value: rank.championshipCount > 0 ? String(rank.championshipCount) : 'No titles yet',
+      sub: 'Championships',
+    },
+    {
+      icon: <Crown className="h-4 w-4 text-amber-200/70" aria-hidden />,
+      label: 'Seasons',
+      value: rank.seasonsPlayed > 0 ? String(rank.seasonsPlayed) : 'First season',
+      sub: 'Distinct seasons played',
+    },
   ]
 
   return (
     <div className="rounded-2xl border border-white/8 bg-[#0d0d1f] p-5 sm:p-6">
-      <p className="text-xs font-semibold text-white/40 uppercase tracking-widest mb-5">Career Stats</p>
-      {/* 1 col → 2 from sm → 3 only xl+ so cards stay wide; avoids cramped 3-up on tablets */}
-      <div className="grid grid-cols-1 min-[400px]:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+      <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-white/40">Career stats</p>
+      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 xl:grid-cols-3 sm:gap-5">
         {stats.map((item) => (
           <div
             key={item.label}
             className="flex min-w-0 flex-col rounded-xl border border-white/6 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5"
           >
+            <div className="mb-2 flex items-center gap-2 text-white/45">
+              {item.icon}
+              <span className="text-[10px] font-bold uppercase tracking-wide">{item.label}</span>
+            </div>
             <div
               className="text-[clamp(1.25rem,3.2vw,2rem)] font-extrabold tabular-nums leading-tight tracking-tight [overflow-wrap:anywhere] sm:text-[clamp(1.35rem,2.8vw,2.25rem)]"
               style={{ color: cfg.color }}
             >
               {item.value}
             </div>
-            <div className="mt-3 space-y-1">
-              <div className="text-xs font-semibold leading-snug text-white/80">{item.label}</div>
-              <div className="text-[11px] leading-relaxed text-white/45">{item.sub}</div>
-            </div>
+            <div className="mt-2 text-[11px] leading-relaxed text-white/45">{item.sub}</div>
           </div>
         ))}
       </div>
@@ -526,81 +514,6 @@ function LeagueAccessRules({ rank }: { rank: PlayerRank }) {
             Requests are limited to leagues within 1 tier of your current rank. Earn XP through imports, play, and results to move up.
           </p>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function RankHero({ rank, username }: { rank: PlayerRank; username: string }) {
-  const cfg = getTierConfig(rank)
-  const xpRaw = Number(rank.careerXp)
-  const xp = Number.isFinite(xpRaw) ? xpRaw : 0
-  const lv = getLevelFromXp(xp)
-  const effectiveLevel = lv.level
-  const xpProgress = lv.progressPct
-  const nextRow = RANK_LEVELS.find((r) => r.level === effectiveLevel + 1)
-  const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xp) : 0
-
-  return (
-    <div
-      className="relative rounded-3xl overflow-hidden border border-white/8"
-      style={{ background: `radial-gradient(ellipse at 30% 0%, ${cfg.glow}, #07071a 60%)` }}
-    >
-      <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${cfg.color}, transparent)` }} />
-
-      <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-        <RankBadge rank={rank} size="lg" />
-
-        <div className="flex-1 text-center sm:text-left">
-          <div className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: cfg.color }}>
-            Your AllFantasy Rank
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-white leading-none mb-1">{rank.careerTierName || cfg.name}</h1>
-          <p className="text-sm text-white/50 mb-1">@{username}</p>
-          <p className="text-sm text-white/60 italic mb-4">{cfg.desc}</p>
-
-          <div className="max-w-xs sm:max-w-sm mx-auto sm:mx-0">
-            <div className="flex justify-between text-[11px] text-white/40 mb-1.5">
-              <span>Level {effectiveLevel}</span>
-              <span>{xp.toLocaleString()} XP</span>
-            </div>
-            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-1000"
-                style={{
-                  width: `${xpProgress}%`,
-                  background: `linear-gradient(90deg, ${cfg.color}80, ${cfg.color})`,
-                  boxShadow: `0 0 8px ${cfg.color}`,
-                }}
-              />
-            </div>
-            <div className="text-[10px] text-white/30 mt-1 text-right">
-              {nextRow
-                ? `${xpToNext.toLocaleString()} XP to ${nextRow.name}`
-                : effectiveLevel >= 25
-                  ? 'Max level reached'
-                  : '—'}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center gap-1">
-          <div className="rounded-2xl px-5 py-4 text-center border" style={{ background: cfg.glow, borderColor: `${cfg.color}40` }}>
-            <div className="text-3xl font-black" style={{ color: cfg.color }}>
-              {rank.aiReportGrade}
-            </div>
-            <div className="text-[10px] font-bold text-white/40 uppercase tracking-widest mt-0.5">AI Grade</div>
-          </div>
-          <div className="text-center">
-            <div className="text-lg font-bold text-white">{rank.aiScore}</div>
-            <div className="text-[10px] text-white/30">/ 100</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-white/6 px-6 sm:px-8 py-3 flex items-start gap-3">
-        <span className="text-cyan-400 text-xs font-bold mt-0.5 shrink-0">AI</span>
-        <p className="text-xs text-white/60 italic leading-relaxed">"{rank.aiInsight}"</p>
       </div>
     </div>
   )
@@ -668,23 +581,32 @@ function RankImportTimeoutState() {
 function LevelJourneyStrip({
   currentLevel,
   cardBgColor,
+  variant = 'light',
 }: {
   currentLevel: number
   /** Matches rank card background so ring-offset reads as part of the card (e.g. lavender tier tints). */
   cardBgColor?: string
+  /** Dark = AF Rankings page (premium night theme). */
+  variant?: 'light' | 'dark'
 }) {
   const lv = Math.min(25, Math.max(1, Math.round(Number(currentLevel)) || 1))
-  const offsetBg = (cardBgColor && cardBgColor.trim()) || '#f1efe8'
+  const offsetBg = (cardBgColor && cardBgColor.trim()) || (variant === 'dark' ? '#07071a' : '#f1efe8')
+  const dark = variant === 'dark'
+
   return (
     <div className="mt-6 w-full min-w-0 overflow-visible pb-1">
       <div className="mb-2.5 flex flex-wrap items-end justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#0a0a12]/45">Level journey</p>
-        <p className="text-[11px] font-bold tabular-nums text-[#0a0a12]/80">
-          You are <span className="text-[#0a0a12]">Level {lv}</span>
+        <p
+          className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${dark ? 'text-white/35' : 'text-[#0a0a12]/45'}`}
+        >
+          Level journey
+        </p>
+        <p className={`text-[11px] font-bold tabular-nums ${dark ? 'text-white/55' : 'text-[#0a0a12]/80'}`}>
+          You are{' '}
+          <span className={dark ? 'text-cyan-200/95' : 'text-[#0a0a12]'}>Level {lv}</span>
         </p>
       </div>
 
-      {/* flex + flex-1 distributes space so all 25 segments span the full card width */}
       <div
         className="flex w-full min-w-0 gap-0.5 sm:gap-1"
         role="list"
@@ -700,109 +622,47 @@ function LevelJourneyStrip({
               title={`${row.level}. ${row.name}`}
               aria-current={active ? 'step' : undefined}
               className={`relative flex min-h-[2.35rem] min-w-0 flex-1 flex-col items-center justify-center rounded-md border text-[9px] font-extrabold leading-none transition-all duration-200 sm:min-h-[2.75rem] sm:rounded-lg sm:text-[11px] ${
-                active ? 'z-[1] border-[#0a0a12]/30 shadow-lg' : 'border-black/10'
-              }`}
-              style={{
-                background: done
-                  ? `${row.color}55`
+                dark
+                  ? active
+                    ? 'z-[1] border-white/20 shadow-lg'
+                    : 'border-white/[0.08]'
                   : active
-                    ? `${row.color}dd`
-                    : 'rgba(255,255,255,0.4)',
-                color: active ? '#0a0a12' : done ? 'rgba(10,10,18,0.88)' : 'rgba(10,10,18,0.3)',
-                // Stacked rings: inner accent, gap filled with card bg (replaces generic ring-offset-white)
-                boxShadow: active
-                  ? `0 0 0 1px ${row.color}, 0 0 0 3px ${offsetBg}, 0 0 0 4px rgba(10,10,18,0.22), 0 8px 18px -4px ${row.color}99`
-                  : undefined,
-                transform: active ? 'translateY(-2px) scale(1.07)' : undefined,
-              }}
+                    ? 'z-[1] border-[#0a0a12]/30 shadow-lg'
+                    : 'border-black/10'
+              }`}
+              style={
+                dark
+                  ? {
+                      background: done
+                        ? `${row.color}44`
+                        : active
+                          ? `${row.color}cc`
+                          : 'rgba(255,255,255,0.06)',
+                      color: active ? '#0a0a12' : done ? 'rgba(248,250,252,0.92)' : 'rgba(248,250,252,0.28)',
+                      boxShadow: active
+                        ? `0 0 0 1px ${row.color}, 0 0 0 3px ${offsetBg}, 0 0 0 4px rgba(0,0,0,0.35), 0 8px 18px -4px ${row.color}aa`
+                        : undefined,
+                      transform: active ? 'translateY(-2px) scale(1.07)' : undefined,
+                    }
+                  : {
+                      background: done
+                        ? `${row.color}55`
+                        : active
+                          ? `${row.color}dd`
+                          : 'rgba(255,255,255,0.4)',
+                      color: active ? '#0a0a12' : done ? 'rgba(10,10,18,0.88)' : 'rgba(10,10,18,0.3)',
+                      boxShadow: active
+                        ? `0 0 0 1px ${row.color}, 0 0 0 3px ${offsetBg}, 0 0 0 4px rgba(10,10,18,0.22), 0 8px 18px -4px ${row.color}99`
+                        : undefined,
+                      transform: active ? 'translateY(-2px) scale(1.07)' : undefined,
+                    }
+              }
             >
               <span className="tabular-nums">{row.level}</span>
             </div>
           )
         })}
       </div>
-    </div>
-  )
-}
-
-function TwentyFiveLevelRankCard({ payload }: { payload: RankLevelApiPayload }) {
-  const icon = getLevelIcon(payload.tierGroup)
-  const seasons = payload.careerSeasonsPlayed ?? 0
-  const cells = [
-    { label: 'Seasons', value: String(seasons) },
-    { label: 'Wins', value: String(payload.careerWins ?? 0) },
-    { label: 'Losses', value: String(payload.careerLosses ?? 0) },
-    { label: 'Championships', value: String(payload.careerChampionships ?? 0) },
-    {
-      label: 'Playoff Apps',
-      value: payload.careerPlayoffAppearances != null ? String(payload.careerPlayoffAppearances) : '—',
-    },
-  ]
-  const nextRow = RANK_LEVELS.find((r) => r.level === payload.level + 1)
-  const xpToNext = nextRow ? Math.max(0, nextRow.minXp - payload.xpTotal) : 0
-
-  return (
-    <div
-      className="rounded-2xl border-2 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-      data-testid="import-rank-snapshot-card"
-      style={{
-        background: payload.bgColor,
-        borderColor: payload.color,
-      }}
-    >
-      <div className="text-center">
-        <div className="text-5xl font-black tabular-nums" style={{ color: payload.color }}>
-          {payload.level}
-        </div>
-        <p className="mt-1 text-lg font-bold text-[#0a0a12]" style={{ color: '#0a0a12' }}>
-          {payload.levelName}
-        </p>
-        <p className="text-sm font-semibold opacity-80" style={{ color: payload.color }}>
-          {payload.tier}
-        </p>
-        <div className="mt-3 flex justify-center text-3xl" aria-hidden>
-          {icon}
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <div className="mb-1 flex justify-between text-[11px] font-medium opacity-70">
-          <span style={{ color: '#0a0a12' }}>
-            {payload.xpIntoLevel.toLocaleString()} / {payload.xpForLevel.toLocaleString()} XP in level
-          </span>
-          <span style={{ color: '#0a0a12' }}>{payload.progressPct}%</span>
-        </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-black/10">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{
-              width: `${Math.min(100, Math.max(0, Number.isFinite(payload.progressPct) ? payload.progressPct : 0))}%`,
-              background: payload.color,
-            }}
-          />
-        </div>
-        <p className="mt-2 text-center text-[11px] font-medium opacity-75" style={{ color: '#0a0a12' }}>
-          {nextRow
-            ? `${xpToNext.toLocaleString()} XP to ${payload.nextLevelName ?? nextRow.name}`
-            : payload.level >= 25
-              ? 'Max level'
-              : '—'}
-        </p>
-      </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        {cells.map((c) => (
-          <div
-            key={c.label}
-            className="rounded-xl border border-black/10 bg-white/60 p-3 text-center backdrop-blur-sm"
-          >
-            <div className="text-lg font-bold text-[#0a0a12]">{c.value}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-[#0a0a12]/50">{c.label}</div>
-          </div>
-        ))}
-      </div>
-
-      <LevelJourneyStrip currentLevel={payload.level} cardBgColor={payload.bgColor} />
     </div>
   )
 }
@@ -914,18 +774,27 @@ function FullRankView({
   recalculateLoading?: boolean
 }) {
   return (
-    <div className="space-y-6">
-      {levelRank ? <TwentyFiveLevelRankCard payload={levelRank} /> : null}
-      <RankHero rank={rank} username={username} />
+    <div className="space-y-8">
+      <AfRankingsHeroPremium rank={rank} username={username} />
 
-      <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-6">
+      {levelRank ? (
         <div className="space-y-4">
-          <CareerStats rank={rank} />
-          <LeagueAccessRules rank={rank} />
-          <RankingFaqPanel currentLevel={rank.careerLevel} />
+          <RankSnapshotCardPremium payload={levelRank} />
+          <LevelJourneyStrip currentLevel={levelRank.level} cardBgColor="#07071a" variant="dark" />
         </div>
+      ) : null}
 
-        <div className="space-y-4">
+      <AfRankingsTierLadder currentLevel={rank.careerLevel} />
+
+      <AfRankingsPerformanceSummary rank={rank} />
+
+      <AfRankingsAiPanel rank={rank} />
+
+      <AfRankingsXpBreakdown id="af-xp-breakdown" />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <CareerStats rank={rank} />
           {overviewProfile ? (
             <>
               <OverviewReportCard
@@ -943,11 +812,13 @@ function FullRankView({
             </div>
           )}
 
-          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Refresh your legacy profile</p>
               <p className="text-xs text-white/40">
-                {rank.importedAt ? `Last calculated ${new Date(rank.importedAt).toLocaleString()}` : 'Run another import to recalculate your rank.'}
+                {rank.importedAt
+                  ? `Last calculated ${new Date(rank.importedAt).toLocaleString()}`
+                  : 'Run another import to recalculate your rank.'}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 shrink-0">
@@ -971,7 +842,15 @@ function FullRankView({
               </button>
             </div>
           </div>
+
+          <AfRankingsHistoryPlaceholder />
+          <AfRankingsLeaderboardPlaceholder />
         </div>
+
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <LeagueAccessRules rank={rank} />
+          <RankingFaqPanel currentLevel={rank.careerLevel} />
+        </aside>
       </div>
     </div>
   )
@@ -1003,7 +882,7 @@ function RankingsLoadingShell() {
           </Link>
           <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">AF Rankings</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
-            Your AllFantasy rank, AI grade, import flow, and league access rules in one place.
+            Your prestige tier, AI grade, XP progression, and career stats — built from real imported league history.
           </p>
         </div>
 
@@ -1406,7 +1285,7 @@ function MyRankingsPageInner() {
           </Link>
           <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">AF Rankings</h1>
           <p className="mt-3 max-w-3xl text-sm text-slate-300 sm:text-base">
-            Your AllFantasy rank, AI grade, import flow, and league access rules in one place.
+            Your prestige tier, AI grade, XP progression, and career stats — built from real imported league history.
           </p>
         </div>
 

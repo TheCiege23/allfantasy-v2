@@ -87,12 +87,12 @@ class ModuleRegistryImpl implements ModuleRegistry {
       new PlayerOutlookModule(),
     ]
 
-    for (const module of modulesToInit) {
-      if (module.config.enabled) {
-        this.register(module.config.name, module)
-        const health = await module.healthCheck()
+    for (const mod of modulesToInit) {
+      if (mod.config.enabled) {
+        this.register(mod.config.name, mod)
+        const health = await mod.healthCheck()
         if (!health.healthy) {
-          console.warn(`[ModuleRegistry] Module ${module.config.name} unhealthy: ${health.issues.join(', ')}`)
+          console.warn(`[ModuleRegistry] Module ${mod.config.name} unhealthy: ${health.issues.join(', ')}`)
         }
       }
     }
@@ -269,10 +269,10 @@ class ModuleRegistryImpl implements ModuleRegistry {
   async healthCheckAll(): Promise<{ module: string; healthy: boolean; issues: string[] }[]> {
     const results = []
 
-    for (const module of this.getAllModules()) {
-      const health = await module.healthCheck()
+    for (const mod of this.getAllModules()) {
+      const health = await mod.healthCheck()
       results.push({
-        module: module.config.name,
+        module: mod.config.name,
         healthy: health.healthy,
         issues: health.issues,
       })

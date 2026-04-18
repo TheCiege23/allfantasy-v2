@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { getServerSession } from 'next-auth'
 import OpenAI from 'openai'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { buildUserTemporalContextForAI } from '@/lib/preferences/userTemporalContextForAI'
 import { runPECR } from '@/lib/ai/pecr'
 import { runAiProtection } from '@/lib/ai-protection'
 import { runUnifiedOrchestration } from '@/lib/ai-orchestration/orchestration-service'
@@ -14,7 +16,9 @@ import {
 } from '@/lib/ai-tool-registry'
 import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import type { InsightType } from '@/lib/ai-simulation-integration'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
+import { loadLeagueSnapshotForUser } from '@/lib/chimmy/chimmy-league-snapshot'
+import { buildChimmySportDataDigest } from '@/lib/chimmy/chimmy-sport-data-digest'
 import { enrichChatWithData } from '@/lib/chat-data-enrichment'
 import {
   buildBehaviorRulesPrompt,
@@ -249,6 +253,13 @@ const ChimmyFormSchema = z.object({
     const trimmed = value.trim().toLowerCase()
     return trimmed.length > 0 ? trimmed : undefined
   }, z.enum(INSIGHT_TYPE_VALUES).optional()),
+  /** When set to `all`, Chimmy pulls multi-sport injury/news digest (no single-sport filter). */
+  sportScope: z.preprocess((value) => {
+    if (value == null || value === '') return undefined
+    if (typeof value !== 'string') return value
+    return value.trim().toLowerCase() === 'all' ? 'all' : undefined
+  }, z.enum(['all']).optional()),
+  leagueName: optionalTrimmedStringField(120),
   conversation: z.array(ConversationTurnSchema).max(MAX_CONVERSATION_TURNS),
   hasImage: z.boolean(),
 })
@@ -689,6 +700,7 @@ function buildUserMessage(input: {
   screenshotSummary?: string
   insightSummary?: string
   memorySection?: string
+  leagueGroundingLine?: string
   leagueFormat?: string
   scoring?: string
   strategyMode?: string
@@ -700,6 +712,10 @@ function buildUserMessage(input: {
 }): string {
   const parts: string[] = []
   parts.push(`USER QUESTION:\n${input.message || 'Analyze my fantasy context and recommend next moves.'}`)
+
+  if (input.leagueGroundingLine) {
+    parts.push(`LEAGUE GROUNDING (AllFantasy — use this for league-specific facts; do not substitute another league):\n${input.leagueGroundingLine}`)
+  }
 
   if (input.strategyMode) {
     parts.push(`STRATEGY MODE:\n${input.strategyMode}`)
@@ -757,6 +773,31 @@ function buildUserMessage(input: {
   }
 
   return parts.join('\n\n---\n\n')
+}
+
+function buildLeagueGroundingLine(args: {
+  leagueSnapshot: Awaited<ReturnType<typeof loadLeagueSnapshotForUser>>
+  leagueNameHint?: string
+}): string | undefined {
+  if (args.leagueSnapshot) {
+    const s = args.leagueSnapshot
+    return [
+      `League: ${s.name ?? s.id}`,
+      `id=${s.id}`,
+      `sport=${s.sport}`,
+      `season=${s.season}`,
+      `platform=${s.platform}`,
+      `platformLeagueId=${s.platformLeagueId}`,
+      s.importedAt ? `imported=${s.importedAt.toISOString()}` : null,
+      s.lastSyncedAt ? `lastSyncedAt=${s.lastSyncedAt.toISOString()}` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ')
+  }
+  if (args.leagueNameHint?.trim()) {
+    return `Selected league (label): ${args.leagueNameHint.trim()}`
+  }
+  return undefined
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -823,6 +864,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     season: formData.get('season'),
     week: formData.get('week'),
     insightType: formData.get('insightType'),
+    sportScope: formData.get('sportScope'),
+    leagueName: formData.get('leagueName'),
     conversation: conversationPayload,
     hasImage: imageValidation.hasImage,
   })
@@ -858,12 +901,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     season,
     week,
     insightType,
+    sportScope,
+    leagueName: leagueNameHint,
     conversation: parsedConversation,
     hasImage,
   } = parseResult.data
   const conversation = parsedConversation.slice(-MAX_CONVERSATION_CONTEXT_TURNS)
   const imageFile = imageValidation.file
-  const sport = normalizeToSupportedSport(sportRaw || undefined)
+
+  const leagueSnapshot =
+    leagueId && userId ? await loadLeagueSnapshotForUser(userId, leagueId).catch(() => null) : null
+
+  const sportExplicit =
+    typeof sportRaw === 'string' && sportRaw.trim().length > 0
+      ? normalizeToSupportedSport(sportRaw)
+      : undefined
+
+  const digestSport: SupportedSport | 'all' =
+    sportScope === 'all' && !leagueSnapshot ? 'all' : (sportExplicit ?? leagueSnapshot?.sport ?? DEFAULT_SPORT)
+
+  const sport: SupportedSport = sportExplicit ?? leagueSnapshot?.sport ?? DEFAULT_SPORT
   const effectiveStrategyMode = strategyMode ?? riskMode
   const initialIntent = classifyPecrIntent(message)
   const leagueGroundingRequired = requiresLeagueGrounding({
@@ -962,7 +1019,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     insightTask,
     memoryTask,
   ])
-  const personalizationResult = await resolveChimmyPersonalizationProfile(userId).catch(() => null)
+  const [personalizationResult, profileClock] = await Promise.all([
+    resolveChimmyPersonalizationProfile(userId).catch(() => null),
+    prisma.userProfile.findUnique({
+      where: { userId },
+      select: { timezone: true, preferredLanguage: true },
+    }),
+  ])
+  const userTemporalContext = buildUserTemporalContextForAI({
+    timezone: profileClock?.timezone,
+    preferredLanguage: profileClock?.preferredLanguage,
+  })
   const personalizationDirectives = personalizationResult
     ? buildChimmyPromptPersonalizationDirectives(personalizationResult)
     : undefined
@@ -1014,7 +1081,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const combinedMemorySection = [memPrompt.contextBlock, memorySection, personalizationDirectives, chimmyOrchestrationPrompt]
     .filter(Boolean)
     .join('\n\n')
-  const promptPrelude = [behaviorRulesBlock, memPrompt.systemBlock].filter(Boolean).join('\n\n')
+  const promptPrelude = [userTemporalContext.promptLine, behaviorRulesBlock, memPrompt.systemBlock]
+    .filter(Boolean)
+    .join('\n\n')
 
   if (screenshotSummary) dataSources.push('screenshot_vision')
   if (insightSources.length > 0) dataSources.push(...insightSources)
@@ -1029,6 +1098,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     screenshotSummary,
     insightSummary,
     memorySection: combinedMemorySection || undefined,
+    leagueGroundingLine: buildLeagueGroundingLine({
+      leagueSnapshot,
+      leagueNameHint: leagueNameHint ?? undefined,
+    }),
     leagueFormat,
     scoring,
     strategyMode: effectiveStrategyModeFinal,
@@ -1043,8 +1116,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     : baseUserMessageBody
 
   const deterministicContext = compactRecord({
+    userTemporalContext: compactRecord({
+      userTimezone: userTemporalContext.userTimezone,
+      userLocalDateTime: userTemporalContext.userLocalDateTime,
+      userLocalCalendarDate: userTemporalContext.userLocalCalendarDate,
+      utcNowIso: userTemporalContext.utcNowIso,
+      promptLine: userTemporalContext.promptLine,
+    }),
+    chimmySportDataScope: digestSport,
+    activeLeagueSnapshot: leagueSnapshot
+      ? compactRecord({
+          id: leagueSnapshot.id,
+          name: leagueSnapshot.name,
+          sport: leagueSnapshot.sport,
+          platform: leagueSnapshot.platform,
+          platformLeagueId: leagueSnapshot.platformLeagueId,
+          season: leagueSnapshot.season,
+          leagueSize: leagueSnapshot.leagueSize,
+          scoring: leagueSnapshot.scoring,
+          isDynasty: leagueSnapshot.isDynasty,
+          timezone: leagueSnapshot.timezone,
+          lastSyncedAt: leagueSnapshot.lastSyncedAt?.toISOString() ?? null,
+          importedAt: leagueSnapshot.importedAt?.toISOString() ?? null,
+        })
+      : undefined,
     contextSnapshot: compactRecord({
       leagueId,
+      leagueNameHint: leagueNameHint ?? undefined,
+      sportScope: sportScope ?? undefined,
       sleeperUsername,
       teamId,
       sport,
@@ -1269,6 +1368,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
           let legacyEnrichmentContext =
             legacyEnrichment.status === 'fulfilled' ? legacyEnrichment.value.context : ''
+
+          try {
+            const digest = await buildChimmySportDataDigest({ sport: digestSport })
+            if (digest.text) {
+              legacyEnrichmentContext = legacyEnrichmentContext
+                ? `${legacyEnrichmentContext}\n\n## CHIMMY SPORT DATA DIGEST (deterministic DB + optional NewsAPI)\n${digest.text}`
+                : `## CHIMMY SPORT DATA DIGEST (deterministic DB + optional NewsAPI)\n${digest.text}`
+            }
+          } catch {
+            /* non-fatal */
+          }
 
           // Inject specialty league context for tournament and Big Brother leagues
           if (planInput.leagueId && planInput.userId) {

@@ -278,10 +278,6 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
     }
   }, [defaultTemplateKey, isCommissioner, leagueId])
 
-  if (loading) return <div className="py-8 text-center text-sm text-white/50">Loading roster settings...</div>
-
-  const hasChanges = config && JSON.stringify(pendingSlots) !== JSON.stringify(config.slots)
-
   const rosterTotals = useMemo(() => {
     let starters = 0
     let bench = 0
@@ -295,6 +291,10 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
   }, [pendingSlots, slotDefs])
 
   const activeSections = useMemo(() => buildSectionsFromSlots(pendingSlots), [pendingSlots])
+
+  if (loading) return <div className="py-8 text-center text-sm text-white/50">Loading roster settings...</div>
+
+  const hasChanges = config && JSON.stringify(pendingSlots) !== JSON.stringify(config.slots)
 
   return (
     <RosterSettingsModalShell title="Roster Settings" subtitle="Set lineup slots and reserve structure">

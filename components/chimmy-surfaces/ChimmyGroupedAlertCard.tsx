@@ -13,8 +13,8 @@ export interface ChimmyGroupedAlertCardProps {
 }
 
 export default function ChimmyGroupedAlertCard({ groupTitle, alerts, onSnooze, onDismiss }: ChimmyGroupedAlertCardProps) {
-  if (alerts.length === 0) return null
   const [expanded, setExpanded] = useState(alerts.length <= 2)
+  if (alerts.length === 0) return null
   const summary = `${alerts.length} ${groupTitle.toLowerCase()} opportunities available`
 
   return (

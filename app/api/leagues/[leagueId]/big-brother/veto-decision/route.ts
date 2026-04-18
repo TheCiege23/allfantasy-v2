@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
 import { getCurrentCycleForLeague } from '@/lib/big-brother/BigBrotherPhaseStateMachine'
 import { transitionPhase } from '@/lib/big-brother/BigBrotherPhaseStateMachine'
-import { useVeto } from '@/lib/big-brother/BigBrotherVetoEngine'
+import { applyBigBrotherVeto } from '@/lib/big-brother/BigBrotherVetoEngine'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +53,7 @@ export async function POST(
   }
 
   if (!savedRosterId) return NextResponse.json({ error: 'savedRosterId required for use' }, { status: 400 })
-  const vu = await useVeto(current.id, savedRosterId)
+  const vu = await applyBigBrotherVeto(current.id, savedRosterId)
   if (!vu.ok) return NextResponse.json({ error: vu.error ?? 'Veto failed' }, { status: 400 })
   await transitionPhase(current.id, 'REPLACEMENT_NOMINATION_OPEN')
   return NextResponse.json({ ok: true })

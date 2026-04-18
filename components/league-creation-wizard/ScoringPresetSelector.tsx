@@ -26,46 +26,17 @@ export type ScoringPresetSelectorProps = {
   leagueType?: LeagueTypeId | null
 }
 
-/**
- * Scoring preset (e.g. Standard, PPR, IDP for NFL). Drives roster and scoring defaults.
- */
-export function ScoringPresetSelector({
+type ScoringPresetSelectorUnlockedProps = Omit<ScoringPresetSelectorProps, 'lockedVariantLabel'>
+
+function ScoringPresetSelectorUnlocked({
   sport,
   value,
   onChange,
-  lockedVariantLabel = null,
   leagueType = null,
-}: ScoringPresetSelectorProps) {
+}: ScoringPresetSelectorUnlockedProps) {
   const { rules } = useSportRules(sport, value)
   const isSurvivor = leagueType === 'survivor'
   const isZombie = leagueType === 'zombie'
-
-  if (lockedVariantLabel) {
-    return (
-      <div className="space-y-5 rounded-2xl border border-cyan-400/12 bg-[#0a1228]/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm sm:p-5">
-        <StepHeader
-          title="Scoring rules"
-          description="This league type has a fixed variant, so scoring and roster defaults are locked to that setup."
-          help={
-            <>
-              Devy and C2C leagues use fixed startup defaults so league creation, previews, and saved settings remain in sync.
-            </>
-          }
-          helpTitle="Locked scoring preset"
-        />
-        <div className="space-y-1.5">
-          <Label className="text-white/90">Preset</Label>
-          <div
-            className="rounded-lg border border-purple-600/40 bg-gray-900 px-3 py-2 text-sm text-white"
-            data-testid="league-creation-preset-locked"
-          >
-            {lockedVariantLabel}
-          </div>
-          <p className="mt-1 text-xs text-white/50">Preset is controlled by your selected league type.</p>
-        </div>
-      </div>
-    )
-  }
 
   const allVariants = isZombie ? getZombieScoringVariants(sport) : getVariantsForSport(sport)
   const variants = isSurvivor
@@ -175,5 +146,47 @@ export function ScoringPresetSelector({
         <p className="mt-1 text-xs text-white/50">You can customize scoring later in league settings.</p>
       </div>
     </div>
+  )
+}
+
+/**
+ * Scoring preset (e.g. Standard, PPR, IDP for NFL). Drives roster and scoring defaults.
+ */
+export function ScoringPresetSelector({
+  sport,
+  value,
+  onChange,
+  lockedVariantLabel = null,
+  leagueType = null,
+}: ScoringPresetSelectorProps) {
+  if (lockedVariantLabel) {
+    return (
+      <div className="space-y-5 rounded-2xl border border-cyan-400/12 bg-[#0a1228]/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm sm:p-5">
+        <StepHeader
+          title="Scoring rules"
+          description="This league type has a fixed variant, so scoring and roster defaults are locked to that setup."
+          help={
+            <>
+              Devy and C2C leagues use fixed startup defaults so league creation, previews, and saved settings remain in sync.
+            </>
+          }
+          helpTitle="Locked scoring preset"
+        />
+        <div className="space-y-1.5">
+          <Label className="text-white/90">Preset</Label>
+          <div
+            className="rounded-lg border border-purple-600/40 bg-gray-900 px-3 py-2 text-sm text-white"
+            data-testid="league-creation-preset-locked"
+          >
+            {lockedVariantLabel}
+          </div>
+          <p className="mt-1 text-xs text-white/50">Preset is controlled by your selected league type.</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <ScoringPresetSelectorUnlocked sport={sport} value={value} onChange={onChange} leagueType={leagueType} />
   )
 }

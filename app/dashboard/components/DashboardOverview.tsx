@@ -6,6 +6,10 @@ import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/das
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
 import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
+import { PowerRankingsMiniCard } from '@/components/ai-tools/PowerRankingsMiniCard'
+import { InjuryImpactMiniCard } from '@/components/ai-tools/InjuryImpactMiniCard'
+import { WarRoomMiniCard } from '@/components/ai-tools/WarRoomMiniCard'
+import { MatchupPrepMiniCard } from '@/components/ai-tools/MatchupPrepMiniCard'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
@@ -603,6 +607,13 @@ export function DashboardOverview({
           onTradesClick={handleTradeClick}
         />
 
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <PowerRankingsMiniCard leagues={leagues} />
+          <InjuryImpactMiniCard leagues={leagues} />
+          <WarRoomMiniCard leagues={leagues} />
+          <MatchupPrepMiniCard leagues={leagues} />
+        </div>
+
         <AIToolsGrid leagues={leagues} />
 
         {leagues.length > 0 && (
@@ -614,10 +625,12 @@ export function DashboardOverview({
           onImportNow={handleImport}
           rankRefreshKey={rankRefreshKey}
           onAskChimmy={() => {
-            handleAiShortcut('Show me how player rankings work for my leagues.')
+            const prompt =
+              'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
+            handleAiShortcut(prompt)
             window.dispatchEvent(
               new CustomEvent('af-chimmy-shortcut', {
-                detail: { prompt: 'Show me how player rankings work for my leagues.' },
+                detail: { prompt },
               })
             )
           }}

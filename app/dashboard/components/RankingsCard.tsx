@@ -1,11 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BarChart3, Brackets, CalendarDays, Crown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { interpolateTemplate } from '@/lib/i18n/interpolate'
-import { getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
+import { RANK_LEVELS, getLevelFromXp, getLevelIcon } from '@/lib/rank/levels'
+import { getTierTheme } from '@/lib/rank/tier-theme'
+import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
+import {
+  AIGradeRing,
+  RankingStatMiniCard,
+  RankInsightBanner,
+  RankMovementChip,
+  RankPrestigeEmblem,
+  RankingsCtaRow,
+  XpProgressPremium,
+} from '@/components/rankings/af-rankings-ui/AfRankingsUiKit'
 
 type RankApiPayload = {
   imported: boolean
@@ -26,10 +36,12 @@ type RankApiPayload = {
   careerPlayoffAppearances?: number | null
   careerSeasonsPlayed?: number | null
   careerLeaguesPlayed?: number | null
+  rankCalculatedAt?: string | null
   rank?: {
     careerXp: string
     aiReportGrade: string
     aiScore: number
+    aiInsight?: string
     careerTierName: string
     careerLevel: number
     totalWins?: number | null
@@ -54,7 +66,7 @@ export function RankingsCard({
 }: RankingsCardProps) {
   const { t } = useLanguage()
   const [data, setData] = useState<RankApiPayload | null>(() =>
-    initialRankPayload != null ? (initialRankPayload as RankApiPayload) : null
+    initialRankPayload != null ? (initialRankPayload as RankApiPayload) : null,
   )
   const [loading, setLoading] = useState(() => initialRankPayload == null)
 
@@ -73,10 +85,14 @@ export function RankingsCard({
   }, [rankRefreshKey, initialRankPayload])
 
   if (loading) {
-    return <div className="h-48 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+    return (
+      <div
+        className="h-64 animate-pulse rounded-2xl border border-cyan-500/15 bg-gradient-to-br from-[#0a1228]/80 to-[#070a14]"
+        data-testid="dashboard-rankings-card-skeleton"
+      />
+    )
   }
 
-  // ── Not imported yet ──────────────────────────────────────────────
   if (!data?.imported || (!data.rank && data.xpTotal == null)) {
     return (
       <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
@@ -103,45 +119,74 @@ export function RankingsCard({
     )
   }
 
-  // ── Resolve level/XP from API top-level fields (preferred) or rank.careerXp fallback ──
   const xpTotal = data.xpTotal ?? Number(data.rank?.careerXp ?? 0)
   const lv = getLevelFromXp(xpTotal)
   const level = data.level ?? lv.level
   const levelName = data.levelName ?? lv.name
-  const color = data.color ?? lv.color
   const xpIntoLevel = data.xpIntoLevel ?? lv.xpIntoLevel
   const xpForLevel = data.xpForLevel ?? lv.xpForLevel
   const progressPct = data.progressPct ?? lv.progressPct
   const nextLevelName = data.nextLevelName ?? lv.nextLevel?.name ?? null
-  const icon = getLevelIcon(data.tierGroup ?? lv.tierGroup)
+  const rawTg = data.tierGroup
+  const tierGroup =
+    typeof rawTg === 'number' && Number.isFinite(rawTg)
+      ? rawTg
+      : Number(rawTg) || lv.tierGroup
+  const theme = getTierTheme(tierGroup)
+  const emoji = getLevelIcon(tierGroup)
 
   const wins = data.careerWins ?? data.rank?.totalWins ?? 0
   const losses = data.careerLosses ?? data.rank?.totalLosses ?? 0
   const ties = data.rank?.totalTies ?? 0
-  const record = wins + losses + ties > 0
-    ? `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}`
-    : '—'
+  const games = wins + losses + ties
+  const recordStr =
+    games > 0 ? `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}` : t('dashboard.rankings.emptyRecord')
   const championships = data.careerChampionships ?? 0
   const seasons = data.careerSeasonsPlayed ?? 0
   const playoffApps = data.careerPlayoffAppearances ?? 0
 
   const aiGrade = data.rank?.aiReportGrade ?? '—'
   const aiScore = data.rank?.aiScore ?? null
+  const insight = data.rank?.aiInsight?.trim() ?? ''
+
+  const nextRow = RANK_LEVELS.find((r) => r.level === level + 1)
+  const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xpTotal) : 0
+
+  const chimmyWhyHref = getChimmyChatHrefWithPrompt(
+    `Explain my AF rank (level ${level}, ${levelName}) and AI grade ${aiGrade} using only my imported stats.`,
+    { source: 'dashboard_rankings' },
+  )
 
   return (
     <section data-testid="dashboard-rankings-card">
-      <div className="rounded-2xl border border-white/8 border-l-2 border-l-cyan-500 bg-[#0c0c1e] p-5">
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
-            {t('dashboard.rankings.myRanking')}
-          </p>
-          <div className="flex items-center gap-3">
+      <div
+        className={`relative overflow-hidden rounded-2xl border p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)] sm:p-6 ${theme.shimmerClass ?? ''}`}
+        style={{
+          borderColor: `${theme.borderGlow}`,
+          background: `linear-gradient(155deg, #0a1020 0%, #070a12 50%, ${theme.chipBg})`,
+          boxShadow: `0 0 32px ${theme.glow}`,
+        }}
+      >
+        <div
+          className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full opacity-25 blur-3xl"
+          style={{ background: theme.glow }}
+        />
+
+        {/* Top bar */}
+        <div className="relative mb-5 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">
+              {t('dashboard.rankings.myRanking')}
+            </p>
+            <RankMovementChip movement={null} />
+          </div>
+          <div className="flex items-center gap-2">
             {onAskChimmy ? (
               <button
                 type="button"
                 onClick={onAskChimmy}
-                className="text-xs font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
+                className="text-[11px] font-bold text-cyan-300 transition hover:text-cyan-200"
+                data-testid="dashboard-rankings-ask-chimmy-header"
               >
                 {t('dashboard.rankings.askChimmy')}
               </button>
@@ -149,91 +194,83 @@ export function RankingsCard({
           </div>
         </div>
 
-        {/* Level + AI Grade row */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 text-2xl"
-              style={{ borderColor: color, background: `${color}22` }}
-            >
-              {icon}
-            </div>
-            <div>
-              <div className="text-3xl font-black tabular-nums leading-none" style={{ color }}>
-                {level}
-              </div>
-              <p className="mt-0.5 text-sm font-semibold text-white/80">{levelName}</p>
-              <p className="text-[11px] text-white/40">{data.tier ?? ''}</p>
+        {/* Main: emblem + rank + AI ring */}
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-1 items-start gap-4">
+            <RankPrestigeEmblem theme={theme} level={level} emoji={emoji} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: theme.accent }}>
+                {data.tier ?? lv.tier}
+              </p>
+              <p className="mt-0.5 text-4xl font-black tabular-nums leading-none text-white">{level}</p>
+              <p className="mt-1 text-sm font-bold text-white/90">{levelName}</p>
+              <p className="mt-1 text-[11px] text-white/40">{t('dashboard.rankings.tierSubtitle')}</p>
             </div>
           </div>
-
-          {/* AI Grade */}
-          <div className="flex shrink-0 flex-col items-center gap-0.5">
-            <div className="min-w-[54px] rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-              <div className="text-xl font-black leading-none text-violet-300">{aiGrade}</div>
-              <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-white/35">
-                {t('dashboard.rankings.aiGrade')}
-              </div>
-            </div>
-            {aiScore != null ? (
-              <div className="text-center">
-                <span className="text-sm font-bold text-white/80">{aiScore}</span>
-                <span className="text-[10px] text-white/30">/100</span>
-              </div>
-            ) : null}
+          <div className="flex justify-center sm:justify-end">
+            <AIGradeRing grade={aiGrade} score={aiScore} theme={theme} compact />
           </div>
         </div>
 
-        {/* XP Progress bar */}
-        <div className="mt-4">
-          <div className="mb-1.5 flex items-center justify-between text-[11px] text-white/45">
-            <span>
-              {interpolateTemplate(t('dashboard.rankings.xpInLevel'), {
-                from: xpIntoLevel.toLocaleString(),
-                to: xpForLevel.toLocaleString(),
-              })}
-            </span>
-            <span>
-              {progressPct}%
-              {nextLevelName
-                ? interpolateTemplate(t('dashboard.rankings.nextLevelHint'), { name: nextLevelName })
-                : ''}
-            </span>
+        {insight ? (
+          <div className="relative mt-4">
+            <RankInsightBanner text={insight} />
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${progressPct}%`, background: color }}
-            />
-          </div>
-          <p className="mt-1 text-[10px] text-white/30">
-            {interpolateTemplate(t('dashboard.rankings.totalXp'), { n: xpTotal.toLocaleString() })}
+        ) : null}
+
+        <div className="relative mt-5 border-t border-white/[0.08] pt-4">
+          <XpProgressPremium
+            xpIntoLevel={xpIntoLevel}
+            xpForLevel={xpForLevel}
+            progressPct={progressPct}
+            xpTotal={xpTotal}
+            nextLevelName={nextLevelName}
+            xpToNext={xpToNext}
+            theme={theme}
+            helperText={t('dashboard.rankings.xpHelper')}
+          />
+        </div>
+
+        <div className="relative mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <RankingStatMiniCard
+            icon={<BarChart3 className="h-3.5 w-3.5" />}
+            label={t('dashboard.rankings.stat.record')}
+            value={games > 0 ? recordStr : t('dashboard.rankings.stat.noGames')}
+          />
+          <RankingStatMiniCard
+            icon={<Crown className="h-3.5 w-3.5" />}
+            label={t('dashboard.rankings.stat.titles')}
+            value={championships > 0 ? String(championships) : t('dashboard.rankings.stat.noTitles')}
+          />
+          <RankingStatMiniCard
+            icon={<Brackets className="h-3.5 w-3.5" />}
+            label={t('dashboard.rankings.stat.playoffs')}
+            value={playoffApps > 0 ? String(playoffApps) : t('dashboard.rankings.stat.noPlayoffs')}
+          />
+          <RankingStatMiniCard
+            icon={<CalendarDays className="h-3.5 w-3.5" />}
+            label={t('dashboard.rankings.stat.seasons')}
+            value={seasons > 0 ? String(seasons) : t('dashboard.rankings.stat.firstSeason')}
+          />
+        </div>
+
+        {data.rankCalculatedAt ? (
+          <p className="relative mt-3 text-[10px] text-white/30">
+            {t('dashboard.rankings.updated')}{' '}
+            {new Date(data.rankCalculatedAt).toLocaleString()}
           </p>
-        </div>
+        ) : null}
 
-        {/* Career stats */}
-        <div className="mt-4 grid grid-cols-4 gap-2">
-          {[
-            { label: t('dashboard.rankings.stat.record'), value: record },
-            { label: t('dashboard.rankings.stat.titles'), value: String(championships) },
-            { label: t('dashboard.rankings.stat.playoffs'), value: String(playoffApps) },
-            { label: t('dashboard.rankings.stat.seasons'), value: String(seasons) },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-white/8 bg-white/[0.03] px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-white/35">{stat.label}</div>
-              <div className="mt-0.5 text-sm font-bold text-white/80">{stat.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer link */}
-        <div className="mt-4 flex items-center justify-between">
-          <Link
-            href="/af-rankings"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-cyan-300 transition-colors hover:text-cyan-200"
-          >
-            {t('dashboard.rankings.viewFull')} <ArrowRight className="h-4 w-4" />
-          </Link>
+        <div className="relative mt-4">
+          <RankingsCtaRow
+            fullRankingsHref="/af-rankings"
+            viewFullLabel={t('dashboard.rankings.viewFull')}
+            chimmyWhyLabel={t('dashboard.rankings.chimmyWhy')}
+            xpExplainerLabel={t('dashboard.rankings.howXp')}
+            onAskChimmy={onAskChimmy}
+            chimmyHref={chimmyWhyHref}
+            xpExplainerHref="/af-rankings#af-xp-breakdown"
+          />
         </div>
       </div>
     </section>

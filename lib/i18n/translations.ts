@@ -1310,6 +1310,17 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.rankings.stat.playoffs": "Playoffs",
     "dashboard.rankings.stat.seasons": "Seasons",
     "dashboard.rankings.viewFull": "View full rankings",
+    "dashboard.rankings.chimmyWhy": "Ask Chimmy why",
+    "dashboard.rankings.howXp": "How XP works",
+    "dashboard.rankings.emptyRecord": "No games yet",
+    "dashboard.rankings.tierSubtitle": "Career tier & progression",
+    "dashboard.rankings.xpHelper":
+      "Earn XP through wins, titles, playoff appearances, activity, and league success.",
+    "dashboard.rankings.updated": "Updated",
+    "dashboard.rankings.stat.noGames": "No games yet",
+    "dashboard.rankings.stat.noTitles": "No titles yet",
+    "dashboard.rankings.stat.noPlayoffs": "No playoff runs yet",
+    "dashboard.rankings.stat.firstSeason": "First season",
 
     "powerRankingsPage.badge": "Power Rankings",
     "powerRankingsPage.loginTitle": "Sign in to open your league rankings",

@@ -1,9 +1,15 @@
-import { prisma } from '../prisma'
 import { createHash } from 'crypto'
+import type { TradeOfferMode as PrismaTradeOfferMode } from '@prisma/client'
+import { prisma } from '../prisma'
 
 export const CURRENT_MODEL_VERSION = 'v2.1.0'
 
-export type TradeOfferMode = 'INSTANT' | 'STRUCTURED' | 'TRADE_IDEAS' | 'PROPOSAL_GENERATOR'
+export type TradeOfferMode = 'INSTANT' | 'STRUCTURED' | 'TRADE_IDEAS' | 'PROPOSAL_GENERATOR' | 'TRADE_CONSOLE'
+
+function toPrismaTradeOfferMode(mode: TradeOfferMode): PrismaTradeOfferMode {
+  if (mode === 'TRADE_CONSOLE') return 'TRADE_HUB'
+  return mode as PrismaTradeOfferMode
+}
 
 export interface SegmentParts {
   isSuperflex: boolean
@@ -91,7 +97,7 @@ export async function logTradeOfferEvent(input: TradeOfferEventInput): Promise<s
         lean: input.verdict ?? 'NEUTRAL',
         grade: input.grade ?? null,
         confidenceScore: input.confidenceScore ?? null,
-        mode: input.mode,
+        mode: toPrismaTradeOfferMode(input.mode),
         isSuperFlex: input.isSuperFlex ?? null,
         leagueFormat: input.leagueFormat ?? null,
         scoringType: input.scoringType ?? null,

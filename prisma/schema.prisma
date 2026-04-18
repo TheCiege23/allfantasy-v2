@@ -4145,6 +4145,7 @@ model League {
   managerTendencies                     ManagerTendency[]
   mockDrafts                            MockDraft[]
   playerOutlooks                        PlayerOutlook[]
+  powerRankingSnapshots                 LeaguePowerRankingSnapshot[]
   promotionRules                        PromotionRule[]
   redraftDraftEvents                    RedraftDraftEvent[]
   redraftDraftPicks                     RedraftDraftPick[]
@@ -10075,6 +10076,24 @@ model LeagueGraphSnapshot {
   @@unique([leagueId, season], name: "uniq_league_graph_snapshot_league_season")
   @@index([leagueId, season])
   @@map("league_graph_snapshots")
+}
+
+/// Cached weekly power ranking rows per league (for trends / history UI)
+model LeaguePowerRankingSnapshot {
+  id           String   @id @default(cuid())
+  leagueId     String
+  season       Int
+  week         Int
+  rankingMode  String   @default("current_power") @db.VarChar(32)
+  engine       String   @db.VarChar(32)
+  teams        Json
+  computedAt   DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season, week, rankingMode], map: "uniq_league_power_rank_snapshot_league_season_week_mode")
+  @@index([leagueId, computedAt])
+  @@map("league_power_ranking_snapshots")
 }
 
 /// Dynasty historical import — maps internal league to platform league id per season (for graph/history)

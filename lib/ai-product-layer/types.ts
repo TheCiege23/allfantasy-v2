@@ -58,6 +58,11 @@ export type AIProductContext = Partial<
   >
 > & {
   leagueVariant?: string | null;
+  /** Optional structured player hint for tool handoffs (not all surfaces use this). */
+  player?: Record<string, unknown>;
+  focusPlayer?: Record<string, unknown>;
+  /** Optional team label for Chimmy handoffs (e.g. power rankings team drill-down). */
+  teamName?: string | null;
 };
 
 export type AIDashboardSurface = 'app' | 'league' | 'dashboard';

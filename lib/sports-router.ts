@@ -64,14 +64,14 @@ interface SportsDataResponse {
 }
 
 const API_PRIORITY: Record<Sport, string[]> = {
-  // Rolling Insights first → middle providers → Sleeper 2nd-to-last → ESPN last.
-  NFL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  NHL: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  NBA: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  MLB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  NCAAB: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  NCAAF: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
-  SOCCER: ['rolling_insights', 'clear_sports', 'api_sports', 'thesportsdb', 'sleeper', 'espn'],
+  // Rolling Insights → API-Sports (TheSportsDB / “TheDataDb”-class API DB) → ClearSports → TheSportsDB → Sleeper → FantasyPros (reserved) → ESPN last.
+  NFL: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  NHL: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  NBA: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  MLB: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  NCAAB: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  NCAAF: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
+  SOCCER: ['rolling_insights', 'api_sports', 'clear_sports', 'thesportsdb', 'sleeper', 'fantasypros', 'espn'],
 };
 
 const FRESHNESS_RULES: Record<DataType, number> = {
@@ -844,6 +844,9 @@ async function fetchFromSource(
       }
       case 'sleeper':
         return fetchFromSleeper(sport, dataType, identifier);
+      case 'fantasypros':
+        // Reserved slot in priority chain — wire `lib/fantasypros-*` fetcher when product adds FantasyPros REST coverage.
+        return null;
       default:
         return null;
     }

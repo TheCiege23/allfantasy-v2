@@ -52,10 +52,10 @@ export async function runChimmyProductService<T>(
   try {
     const { moduleRegistry } = await import('@/lib/chimmy-ai-modules')
     const featureType = SURFACE_FEATURE_MAP[surface] ?? surface
-    const module = moduleRegistry.getModule(featureType)
+    const brainModule = moduleRegistry.getModule(featureType)
 
-    if (module) {
-      const result = await (module as any).execute?.({
+    if (brainModule) {
+      const result = await (brainModule as any).execute?.({
         envelope,
         deterministic: buildDeterministicStub(envelope),
       })

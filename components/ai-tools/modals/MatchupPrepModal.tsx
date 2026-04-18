@@ -1,209 +1,615 @@
 'use client'
 
-import { Swords, Flame, AlertTriangle, Trophy, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ArrowRight, ChevronRight, Loader2, MessageSquare, Swords, Trophy } from 'lucide-react'
+import type { UserLeague } from '@/app/dashboard/types'
 import { AIToolModalShell } from '../AIToolModalShell'
+import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import type {
+  MatchupPrepDashboardResult,
+  MatchupPrepToggles,
+  MatchupPrepViewTabId,
+  MatchupStrategyModeId,
+  MatchupTeamFocusId,
+  MatchupTimeHorizonId,
+} from '@/lib/matchup-prep-dashboard/types'
 
-type EdgeCategory = {
-  label: string
-  mine: number // 0-100
-  theirs: number // 0-100
+type SportFilter = 'ALL' | (typeof SUPPORTED_SPORTS)[number]
+
+const TEAM_FOCUS: { id: MatchupTeamFocusId; label: string }[] = [
+  { id: 'my_team', label: 'My Team' },
+  { id: 'specific_team', label: 'Specific Team' },
+]
+
+const TIME_HORIZONS: { id: MatchupTimeHorizonId; label: string }[] = [
+  { id: 'this_matchup', label: 'This Matchup' },
+  { id: 'next_matchup', label: 'Next Matchup' },
+  { id: 'next_2_matchups', label: 'Next 2 Matchups' },
+  { id: 'playoff_window', label: 'Playoff Matchup Window' },
+  { id: 'rest_of_season', label: 'Rest of Season Opponent Outlook' },
+]
+
+const STRATEGIES: { id: MatchupStrategyModeId; label: string }[] = [
+  { id: 'balanced', label: 'Balanced' },
+  { id: 'high_upside', label: 'High Upside' },
+  { id: 'safe_floor', label: 'Safe Floor' },
+  { id: 'aggressive', label: 'Aggressive' },
+  { id: 'injury_protected', label: 'Injury-Protected' },
+  { id: 'streaming_focus', label: 'Streaming Focus' },
+  { id: 'playoff_prep', label: 'Playoff Prep' },
+  { id: 'neutral', label: 'Neutral' },
+]
+
+const VIEW_TABS: { id: MatchupPrepViewTabId; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'game_plan', label: 'Game Plan' },
+  { id: 'lineup_edge', label: 'Lineup Edge' },
+  { id: 'opponent_weaknesses', label: 'Opponent Weaknesses' },
+  { id: 'injuries', label: 'Injuries' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'streaming', label: 'Streaming' },
+  { id: 'ai_insights', label: 'AI Insights' },
+]
+
+const DEFAULT_TOGGLES: MatchupPrepToggles = {
+  includeLiveNews: true,
+  includeInjuries: true,
+  includeScheduleAdjustments: true,
+  includeWeather: true,
+  includeStreamingRecommendations: true,
+  includeOpponentTrendAnalysis: true,
+  includePlayoffContext: true,
+  includeRookieProspectContext: false,
 }
 
-type KeyNote = {
-  tone: 'advantage' | 'warning' | 'gameplan'
-  text: string
+function openTool(tool: string) {
+  window.dispatchEvent(new CustomEvent('af-open-ai-tool', { detail: { tool } }))
 }
 
-/**
- * Competitive game-plan signature: opponent snapshot header, head-to-head
- * "edge bars" per position group (mine vs theirs), an upset/win meter, and
- * a one-line game-plan block. Feels like a pre-game locker room board.
- *
- * TODO: wire to `/api/league/matchup?leagueId=…&week=…` when ready. UI
- * expects `{ opponent, myProj, theirProj, edges: EdgeCategory[],
- * winChance, gamePlan, notes: KeyNote[] }`.
- */
 export function MatchupPrepModal({
   open,
   onClose,
-  leagueId: _leagueId,
-  leagueName,
-  sport,
+  leagues,
+  initialLeagueId = '',
+  initialSport = 'ALL',
 }: {
   open: boolean
   onClose: () => void
-  leagueId: string
-  leagueName: string
-  sport: string
+  leagues: UserLeague[]
+  initialLeagueId?: string
+  initialSport?: string
 }) {
-  const myProj = 128.4
-  const theirProj = 124.2
-  const edgeDelta = myProj - theirProj
-  const winChance = 64
+  const [sportFilter, setSportFilter] = useState<SportFilter>('ALL')
+  const [leagueId, setLeagueId] = useState('')
+  const [teamFocus, setTeamFocus] = useState<MatchupTeamFocusId>('my_team')
+  const [teamExternalId, setTeamExternalId] = useState('')
+  const [opponentExternalId, setOpponentExternalId] = useState('')
+  const [timeHorizon, setTimeHorizon] = useState<MatchupTimeHorizonId>('this_matchup')
+  const [strategyMode, setStrategyMode] = useState<MatchupStrategyModeId>('balanced')
+  const [toggles, setToggles] = useState<MatchupPrepToggles>(DEFAULT_TOGGLES)
+  const [viewTab, setViewTab] = useState<MatchupPrepViewTabId>('overview')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [data, setData] = useState<MatchupPrepDashboardResult | null>(null)
+  const [leagueTeams, setLeagueTeams] = useState<
+    Array<{ externalId: string; teamName: string; ownerName: string; isYou?: boolean }>
+  >([])
+
+  useEffect(() => {
+    if (!open) return
+    const s = (initialSport || 'ALL').toUpperCase()
+    if (s === 'ALL') setSportFilter('ALL')
+    else if (SUPPORTED_SPORTS.includes(s as (typeof SUPPORTED_SPORTS)[number])) {
+      setSportFilter(s as SportFilter)
+    }
+    setLeagueId(initialLeagueId || '')
+  }, [open, initialLeagueId, initialSport])
+
+  const filteredLeagues = useMemo(() => {
+    if (sportFilter === 'ALL') return leagues
+    return leagues.filter((l) => String(l.sport).toUpperCase() === sportFilter)
+  }, [leagues, sportFilter])
+
+  useEffect(() => {
+    if (!open || !leagueId) {
+      setLeagueTeams([])
+      return
+    }
+    let cancelled = false
+    fetch(`/api/trade-value/league-teams?leagueId=${encodeURIComponent(leagueId)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!cancelled) setLeagueTeams(Array.isArray(j.teams) ? j.teams : [])
+      })
+      .catch(() => {
+        if (!cancelled) setLeagueTeams([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, leagueId])
+
+  const load = useCallback(async () => {
+    if (!leagueId.trim()) {
+      setData(null)
+      setError(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const r = await fetch('/api/ai-tools/matchup-prep/dashboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sportFilter,
+          leagueId: leagueId.trim(),
+          teamFocus,
+          teamExternalId: teamFocus === 'specific_team' && teamExternalId.trim() ? teamExternalId.trim() : null,
+          opponentExternalId: opponentExternalId.trim() || null,
+          timeHorizon,
+          strategyMode,
+          skipAi: false,
+          toggles,
+        }),
+      })
+      const json = (await r.json()) as MatchupPrepDashboardResult | { ok: false; error?: string }
+      if (!r.ok || !json.ok) {
+        setData(null)
+        setError((json as { error?: string }).error || 'Matchup prep failed.')
+        return
+      }
+      setData(json)
+    } catch {
+      setData(null)
+      setError('Network error')
+    } finally {
+      setLoading(false)
+    }
+  }, [sportFilter, leagueId, teamFocus, teamExternalId, opponentExternalId, timeHorizon, strategyMode, toggles])
+
+  useEffect(() => {
+    if (!open) return
+    void load()
+  }, [open, load])
+
+  const chimmyHref = useMemo(() => {
+    const prompt = data?.aiSummary
+      ? `Matchup prep (facts):\n${data.aiSummary}\n\nHelp me finalize start/sit and game plan.`
+      : 'Matchup prep: review my head-to-head edge using synced league data only.'
+    return getChimmyChatHrefWithPrompt(prompt, {
+      source: 'matchup_prep',
+      leagueId: leagueId || undefined,
+    })
+  }, [data?.aiSummary, leagueId])
+
+  const headerBadge =
+    data?.degraded || data?.dataGaps?.length ? (
+      <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+        Partial data
+      </span>
+    ) : (
+      <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+        Live
+      </span>
+    )
 
   return (
     <AIToolModalShell
       open={open}
       onClose={onClose}
       title="Matchup Prep"
-      subtitle="Pre-game scouting and game plan"
+      subtitle="Opponent scouting + game plan"
       accentColor="sky"
       icon={<Swords className="h-5 w-5" />}
-      chimmyPrompt={`Prep me for this week's ${sport} matchup in ${leagueName}`}
+      wide
+      loading={loading && !data}
+      error={error}
+      headerBadge={headerBadge}
+      onRefresh={() => void load()}
+      refreshing={loading}
+      chimmyPrompt="Matchup prep: what is the safest path to win this week?"
+      chimmyContext={data?.chimmyPayload}
     >
-      {/* Head-to-head hero */}
-      <div className="mb-4 overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/[0.08] via-cyan-500/[0.04] to-transparent px-5 py-4">
-        <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-sky-300/70">
-          This Week · {leagueName}
-        </p>
-        <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-          <div className="text-right">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">You</p>
-            <p className="text-[22px] font-black tabular-nums text-white/95">
-              {myProj.toFixed(1)}
-            </p>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-sky-300/60">vs</span>
-            <span
-              className={`mt-1 rounded-md border px-1.5 py-0.5 text-[10px] font-black tabular-nums ${
-                edgeDelta > 0
-                  ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                  : edgeDelta < 0
-                    ? 'border-red-500/25 bg-red-500/10 text-red-300'
-                    : 'border-white/[0.08] bg-white/[0.04] text-white/60'
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <select
+            value={sportFilter}
+            onChange={(e) => setSportFilter(e.target.value as SportFilter)}
+            className="rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            <option value="ALL">All sports</option>
+            {SUPPORTED_SPORTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select
+            value={leagueId}
+            onChange={(e) => setLeagueId(e.target.value)}
+            className="min-w-[160px] rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            <option value="">Select league…</option>
+            {sportFilter === 'ALL'
+              ? SUPPORTED_SPORTS.map((sp) => {
+                  const group = leagues.filter((l) => String(l.sport).toUpperCase() === sp)
+                  if (group.length === 0) return null
+                  return (
+                    <optgroup key={sp} label={sp}>
+                      {group.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )
+                })
+              : filteredLeagues.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+          </select>
+          <select
+            value={teamFocus}
+            onChange={(e) => setTeamFocus(e.target.value as MatchupTeamFocusId)}
+            className="rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            {TEAM_FOCUS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={opponentExternalId}
+            onChange={(e) => setOpponentExternalId(e.target.value)}
+            className="min-w-[140px] rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            <option value="">Opponent (auto if Sleeper NFL)</option>
+            {leagueTeams.map((t) => (
+              <option key={t.externalId} value={t.externalId}>
+                {t.teamName} {t.isYou ? '(you)' : ''}
+              </option>
+            ))}
+          </select>
+          <select
+            value={timeHorizon}
+            onChange={(e) => setTimeHorizon(e.target.value as MatchupTimeHorizonId)}
+            className="rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            {TIME_HORIZONS.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={strategyMode}
+            onChange={(e) => setStrategyMode(e.target.value as MatchupStrategyModeId)}
+            className="rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            {STRATEGIES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {teamFocus === 'specific_team' && leagueId ? (
+          <select
+            value={teamExternalId}
+            onChange={(e) => setTeamExternalId(e.target.value)}
+            className="w-full rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
+          >
+            <option value="">Your team to scout…</option>
+            {leagueTeams.map((t) => (
+              <option key={`me-${t.externalId}`} value={t.externalId}>
+                {t.teamName}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          {(Object.keys(toggles) as (keyof MatchupPrepToggles)[]).map((k) => (
+            <label
+              key={k}
+              className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[9px] text-white/70"
+            >
+              <input
+                type="checkbox"
+                checked={toggles[k]}
+                onChange={(e) => setToggles((prev) => ({ ...prev, [k]: e.target.checked }))}
+                className="rounded border-white/20"
+              />
+              <span className="leading-tight">{k.replace(/include/g, '').replace(/([A-Z])/g, ' $1').trim()}</span>
+            </label>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-1 border-b border-white/[0.06] pb-2">
+          {VIEW_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setViewTab(t.id)}
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
+                viewTab === t.id ? 'bg-sky-500/20 text-sky-100' : 'text-white/45 hover:text-white/75'
               }`}
             >
-              {edgeDelta > 0 ? '+' : ''}
-              {edgeDelta.toFixed(1)}
-            </span>
-          </div>
-          <div className="text-left">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Opponent</p>
-            <p className="text-[22px] font-black tabular-nums text-white/60">
-              {theirProj.toFixed(1)}
-            </p>
-          </div>
+              {t.label}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Win chance + upset meter */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-3">
-          <div className="flex items-center gap-1.5">
-            <Trophy className="h-3 w-3 text-emerald-400" />
-            <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-300">
-              Win Chance
-            </p>
+        {loading && !data ? (
+          <div className="flex items-center gap-2 py-8 text-[12px] text-white/50">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading matchup intelligence…
           </div>
-          <p className="mt-1 text-[22px] font-black tabular-nums text-emerald-200">{winChance}%</p>
-        </div>
-        <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-3">
-          <div className="flex items-center gap-1.5">
-            <Zap className="h-3 w-3 text-amber-400" />
-            <p className="text-[8px] font-bold uppercase tracking-widest text-amber-300">
-              Upset Risk
-            </p>
-          </div>
-          <p className="mt-1 text-[22px] font-black tabular-nums text-amber-200">
-            {100 - winChance}%
-          </p>
-        </div>
-      </div>
-
-      {/* Edge bars — position-by-position */}
-      <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-white/30">
-        Position Edges
-      </p>
-      <div className="mb-4 space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
-        {PLACEHOLDER_EDGES.map((edge) => (
-          <EdgeBar key={edge.label} edge={edge} />
-        ))}
-      </div>
-
-      {/* Key notes */}
-      <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-white/30">
-        Key Notes
-      </p>
-      <div className="space-y-1.5">
-        {PLACEHOLDER_NOTES.map((note, i) => (
-          <KeyNoteRow key={i} note={note} />
-        ))}
-      </div>
-
-      {/* Game plan one-liner */}
-      <div className="mt-4 rounded-xl border border-sky-500/15 bg-sky-500/[0.04] px-4 py-3">
-        <p className="mb-1 text-[9px] font-bold uppercase tracking-widest text-sky-300/70">
-          Game Plan
-        </p>
-        <p className="text-[12px] leading-relaxed text-white/70">
-          Lean into the RB edge — start both backs even in tough matchups — and play the floor at
-          flex with a volume option. Let your WR core win the week on target share, not ceiling.
-        </p>
+        ) : data ? (
+          <MatchupTabBody viewTab={viewTab} data={data} chimmyHref={chimmyHref} />
+        ) : !leagueId ? (
+          <p className="text-[11px] text-amber-200/90">Select a league for head-to-head prep.</p>
+        ) : null}
       </div>
     </AIToolModalShell>
   )
 }
 
-// ── Edge bar ─────────────────────────────────────────────────────────
+function MatchupTabBody({
+  viewTab,
+  data,
+  chimmyHref,
+}: {
+  viewTab: MatchupPrepViewTabId
+  data: MatchupPrepDashboardResult
+  chimmyHref: string
+}) {
+  const edge = data.projectedEdge
+  const win = data.winProbability
 
-function EdgeBar({ edge }: { edge: EdgeCategory }) {
-  const total = edge.mine + edge.theirs || 1
-  const mineWidth = (edge.mine / total) * 100
-  const diff = edge.mine - edge.theirs
+  if (viewTab === 'overview') {
+    return (
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/[0.08] via-cyan-500/[0.04] to-transparent px-4 py-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-sky-300/70">
+            Week {data.week} · {data.leagueName ?? 'League'}
+          </p>
+          <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <div className="text-right">
+              <p className="text-[10px] uppercase text-white/35">{data.myTeamName ?? 'You'}</p>
+              <p className="text-[22px] font-black tabular-nums text-white">
+                {data.myProjectedTotal != null ? data.myProjectedTotal.toFixed(1) : '—'}
+              </p>
+              <p className="text-[10px] text-white/40">{data.myRecord ?? '—'}</p>
+            </div>
+            <div className="flex flex-col items-center px-1">
+              <span className="text-[9px] font-bold uppercase text-sky-300/60">edge</span>
+              <span
+                className={`mt-0.5 rounded-md border px-1.5 py-0.5 text-[11px] font-black tabular-nums ${
+                  edge != null && edge > 0
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                    : edge != null && edge < 0
+                      ? 'border-red-500/25 bg-red-500/10 text-red-300'
+                      : 'border-white/[0.08] text-white/50'
+                }`}
+              >
+                {edge != null ? `${edge > 0 ? '+' : ''}${edge.toFixed(1)}` : '—'}
+              </span>
+            </div>
+            <div className="text-left">
+              <p className="text-[10px] uppercase text-white/35">{data.oppTeamName ?? 'Opponent'}</p>
+              <p className="text-[22px] font-black tabular-nums text-white/70">
+                {data.oppProjectedTotal != null ? data.oppProjectedTotal.toFixed(1) : '—'}
+              </p>
+              <p className="text-[10px] text-white/40">{data.oppRecord ?? '—'}</p>
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[0.04] p-2">
+            <div className="flex items-center gap-1">
+              <Trophy className="h-3 w-3 text-emerald-400" />
+              <p className="text-[8px] font-bold uppercase text-emerald-300">Win chance</p>
+            </div>
+            <p className="mt-0.5 text-xl font-black tabular-nums text-emerald-200">{win != null ? `${win}%` : '—'}</p>
+          </div>
+          <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-2">
+            <p className="text-[8px] font-bold uppercase text-sky-300">Confidence</p>
+            <p className="mt-0.5 text-xl font-black tabular-nums text-sky-200">{data.confidence}</p>
+          </div>
+          <div className="rounded-xl border border-violet-500/15 bg-violet-500/[0.04] p-2">
+            <p className="text-[8px] font-bold uppercase text-violet-300">Matchup</p>
+            <p className="mt-0.5 text-[11px] font-bold capitalize text-violet-100">{data.matchupDifficulty}</p>
+          </div>
+          <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-2">
+            <p className="text-[8px] font-bold uppercase text-amber-300">Top actions</p>
+            <p className="mt-0.5 text-[10px] leading-snug text-amber-100/90">
+              {data.gamePlan.slice(0, 2).map((g) => g.title).join(' · ') || '—'}
+            </p>
+          </div>
+        </div>
+        <p className="text-[10px] text-white/35">Updated {new Date(data.computedAt).toLocaleString()}</p>
+      </div>
+    )
+  }
+
+  if (viewTab === 'game_plan') {
+    return (
+      <div className="space-y-2">
+        {data.gamePlan.map((g) => (
+          <div
+            key={g.id}
+            className="flex items-start justify-between gap-2 rounded-xl border border-white/[0.06] bg-[#0d111a] px-2 py-2"
+          >
+            <div>
+              <p className="text-[11px] font-bold text-white/90">{g.title}</p>
+              <p className="text-[10px] text-white/45">{g.detail}</p>
+            </div>
+            {g.linkTool ? (
+              <button
+                type="button"
+                onClick={() => openTool(g.linkTool!)}
+                className="shrink-0 text-[9px] font-bold uppercase text-cyan-300"
+              >
+                Open
+              </button>
+            ) : null}
+          </div>
+        ))}
+        {data.conflicts.length > 0 ? (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-2">
+            <p className="text-[9px] font-bold uppercase text-amber-200">Trade-offs</p>
+            {data.conflicts.map((c) => (
+              <p key={c.id} className="mt-1 text-[10px] text-amber-100/85">
+                {c.summary}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (viewTab === 'lineup_edge') {
+    return (
+      <div className="space-y-2">
+        {data.positionEdges.map((e) => (
+          <EdgeBar key={e.position} label={e.position} mine={e.myPoints} theirs={e.oppPoints} />
+        ))}
+        {data.positionEdges.length === 0 ? (
+          <p className="text-[11px] text-white/45">No positional split — opponent projections unavailable.</p>
+        ) : null}
+      </div>
+    )
+  }
+
+  if (viewTab === 'opponent_weaknesses') {
+    const weak = data.positionEdges.filter((x) => x.edge > 0)
+    const strong = data.positionEdges.filter((x) => x.edge < 0)
+    return (
+      <div className="space-y-2 text-[11px] text-white/70">
+        <p className="font-bold text-emerald-200/90">Where you project ahead</p>
+        <ul className="list-inside list-disc space-y-1">
+          {weak.slice(0, 8).map((e) => (
+            <li key={e.position}>
+              {e.position}: +{e.edge.toFixed(1)} pts vs opponent slot
+            </li>
+          ))}
+        </ul>
+        <p className="mt-2 font-bold text-red-200/85">Opponent edges</p>
+        <ul className="list-inside list-disc space-y-1">
+          {strong.slice(0, 8).map((e) => (
+            <li key={e.position}>
+              {e.position}: {e.edge.toFixed(1)} pts
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
+  if (viewTab === 'injuries') {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => openTool('injury')}
+          className="w-full rounded-xl border border-red-500/20 bg-red-500/5 py-2 text-[11px] font-semibold text-red-100"
+        >
+          Open Injury Impact
+        </button>
+        {data.injuryHighlights.map((h, i) => (
+          <div key={i} className="rounded-lg border border-white/[0.06] px-2 py-1.5 text-[10px] text-white/70">
+            <span className="font-bold text-white/85">{h.side === 'you' ? 'You' : 'Opp'} · {h.name}</span> — {h.status}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  if (viewTab === 'schedule') {
+    return (
+      <ul className="list-inside list-disc space-y-1 text-[11px] text-white/65">
+        {data.scheduleNotes.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ul>
+    )
+  }
+
+  if (viewTab === 'streaming') {
+    return (
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => openTool('waiver')}
+          className="flex w-full items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-2 py-2 text-[11px] font-semibold text-emerald-100"
+        >
+          Waiver Wire — matchup adds
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+        <p className="text-[10px] text-white/45">
+          Streaming targets use the same projections as Start/Sit — add league context in Waiver Wire for FAAB and priority.
+        </p>
+      </div>
+    )
+  }
+
+  if (viewTab === 'ai_insights') {
+    return (
+      <div className="space-y-3">
+        {data.aiSummary ? (
+          <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.06] p-3 text-[12px] leading-relaxed text-white/85">
+            {data.aiSummary}
+          </div>
+        ) : (
+          <p className="text-[11px] text-white/45">AI summary unavailable — check OpenAI configuration.</p>
+        )}
+        <p className="text-[10px] text-white/35">Gaps: {data.dataGaps.join('; ') || 'none'}</p>
+        <Link
+          href={chimmyHref}
+          className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 py-2.5 text-[12px] font-semibold text-sky-100"
+        >
+          <MessageSquare className="h-4 w-4" />
+          Ask Chimmy with matchup context
+          <ChevronRight className="h-4 w-4" />
+        </Link>
+      </div>
+    )
+  }
+
+  return null
+}
+
+function EdgeBar({ label, mine, theirs }: { label: string; mine: number; theirs: number }) {
+  const total = mine + theirs || 1
+  const w = (mine / total) * 100
+  const diff = mine - theirs
   return (
     <div>
       <div className="flex items-center justify-between text-[10px]">
-        <span className="font-bold text-white/70">{edge.label}</span>
+        <span className="font-bold text-white/75">{label}</span>
         <span
-          className={`font-black tabular-nums ${
-            diff > 0 ? 'text-emerald-300' : diff < 0 ? 'text-red-300' : 'text-white/45'
-          }`}
+          className={`font-black tabular-nums ${diff > 0 ? 'text-emerald-300' : diff < 0 ? 'text-red-300' : 'text-white/45'}`}
         >
           {diff > 0 ? '+' : ''}
-          {diff}
+          {diff.toFixed(1)}
         </span>
       </div>
       <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-white/[0.04]">
-        <div
-          className="h-full bg-gradient-to-r from-sky-400 to-cyan-300"
-          style={{ width: `${mineWidth}%` }}
-        />
-        <div className="h-full flex-1 bg-red-400/40" />
+        <div className="h-full bg-gradient-to-r from-sky-400 to-cyan-300" style={{ width: `${w}%` }} />
+        <div className="h-full flex-1 bg-red-400/35" />
       </div>
+      <p className="mt-0.5 text-[9px] text-white/35">
+        You {mine.toFixed(1)} · Opp {theirs.toFixed(1)}
+      </p>
     </div>
   )
 }
-
-// ── Key note row ─────────────────────────────────────────────────────
-
-function KeyNoteRow({ note }: { note: KeyNote }) {
-  const map = {
-    advantage: { icon: <Flame className="h-3 w-3" />, cls: 'border-emerald-500/15 bg-emerald-500/[0.04] text-emerald-200' },
-    warning: { icon: <AlertTriangle className="h-3 w-3" />, cls: 'border-red-500/15 bg-red-500/[0.04] text-red-200' },
-    gameplan: { icon: <Swords className="h-3 w-3" />, cls: 'border-sky-500/15 bg-sky-500/[0.04] text-sky-200' },
-  }[note.tone]
-  return (
-    <div className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 ${map.cls}`}>
-      <span className="mt-0.5">{map.icon}</span>
-      <p className="text-[11px] leading-snug text-white/75">{note.text}</p>
-    </div>
-  )
-}
-
-// ── Placeholders ─────────────────────────────────────────────────────
-
-const PLACEHOLDER_EDGES: EdgeCategory[] = [
-  { label: 'QB', mine: 22, theirs: 20 },
-  { label: 'RB', mine: 34, theirs: 24 },
-  { label: 'WR', mine: 42, theirs: 40 },
-  { label: 'TE', mine: 9, theirs: 14 },
-  { label: 'FLEX', mine: 15, theirs: 18 },
-  { label: 'DST', mine: 8, theirs: 6 },
-]
-
-const PLACEHOLDER_NOTES: KeyNote[] = [
-  { tone: 'advantage', text: 'Your RB duo outranks every starter on the opponent’s bench.' },
-  { tone: 'warning', text: 'Opponent TE1 has a ceiling game vs. a bottom-5 defense — expect a booming week there.' },
-  { tone: 'gameplan', text: 'Start the safer flex option — volume wins when totals are close.' },
-]

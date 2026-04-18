@@ -101,7 +101,11 @@ export async function setVetoWinner(cycleId: string, winnerRosterId: string): Pr
 /**
  * Record veto use: save one nominee. HOH must then name replacement.
  */
-export async function useVeto(cycleId: string, savedRosterId: string): Promise<{ ok: boolean; error?: string }> {
+/** Apply veto resolution for a cycle (not a React hook). */
+export async function applyBigBrotherVeto(
+  cycleId: string,
+  savedRosterId: string,
+): Promise<{ ok: boolean; error?: string }> {
   const cycle = await prisma.bigBrotherCycle.findUnique({
     where: { id: cycleId },
     select: { nominee1RosterId: true, nominee2RosterId: true },

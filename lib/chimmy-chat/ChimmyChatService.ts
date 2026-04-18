@@ -190,6 +190,8 @@ export async function sendChimmyMessage(input: SendChimmyMessageInput): Promise<
       : undefined,
     userContext: {
       leagueId: input.context?.leagueId,
+      leagueName: input.context?.leagueName,
+      sportScope: input.context?.sportScope,
       sleeperUsername: input.context?.sleeperUsername,
       insightType: input.context?.insightType,
       teamId: input.context?.teamId,

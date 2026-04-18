@@ -50,11 +50,11 @@ export default function TradeCounterSuggestions({
     topReasons?: string[]
   }
 }) {
-  if (!counters || counters.length === 0) return null
-
   const [simResult, setSimResult] = React.useState<SimulationResult>(null)
   const [simLoading, setSimLoading] = React.useState(false)
   const [animatedAccept, setAnimatedAccept] = React.useState<number | null>(null)
+
+  if (!counters || counters.length === 0) return null
 
   const simulateCounter = async (c: Counter) => {
     const add = c.options?.addCandidates ?? []

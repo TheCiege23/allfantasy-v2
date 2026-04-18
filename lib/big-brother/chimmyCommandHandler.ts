@@ -7,7 +7,7 @@ import { isBigBrotherLeague } from './BigBrotherLeagueConfig'
 import { getCurrentCycleForLeague, transitionPhase } from './BigBrotherPhaseStateMachine'
 import { getEligibility, isJuryRoster } from './BigBrotherEligibilityEngine'
 import { setNominations, setReplacementNominee } from './BigBrotherNominationEngine'
-import { useVeto } from './BigBrotherVetoEngine'
+import { applyBigBrotherVeto } from './BigBrotherVetoEngine'
 import { getRosterDisplayNamesForLeague } from './ai/getRosterDisplayNames'
 import { announceNominationCeremony } from './BigBrotherChatAnnouncements'
 import { buildBigBrotherAIContext } from './ai/BigBrotherAIContext'
@@ -597,7 +597,7 @@ export async function processBigBrotherLeagueChatInput(
         chimmyMessages: [{ text: '⚠️ Use: `@chimmy veto use [nominee name]` or `@chimmy veto pass`', metadata: chimmyMeta() }],
       }
     }
-    const vu = await useVeto(current.id, saved)
+    const vu = await applyBigBrotherVeto(current.id, saved)
     if (!vu.ok) {
       await logBigBrotherChatCommand({
         leagueId,

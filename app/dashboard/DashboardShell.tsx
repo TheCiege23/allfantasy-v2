@@ -15,6 +15,7 @@ import type { DashboardConnectedLeague, UserLeague } from './types'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
+import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
 
 type DashboardShellProps = {
   userId: string
@@ -485,6 +486,7 @@ export function DashboardShell({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <StartSitLauncher userId={userId} variant="compact" />
                 <LanguageToggle />
                 <button
                   type="button"
@@ -507,6 +509,7 @@ export function DashboardShell({
             className="hidden border-b border-[var(--border)] px-6 py-2.5 md:flex md:items-center md:justify-end md:gap-3"
             style={{ background: 'var(--panel)' }}
           >
+            <StartSitLauncher userId={userId} />
             <div className="hidden md:block">
               <LanguageToggle />
             </div>

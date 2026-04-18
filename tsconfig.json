@@ -32,6 +32,7 @@
     "lib/**/*.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
+    "components/**/*.jsx",
     "app/**/*.ts",
     "app/**/*.tsx",
     "middleware.ts",

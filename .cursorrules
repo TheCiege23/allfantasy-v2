@@ -1,0 +1,48 @@
+# AllFantasy — Cursor project rules (read on every prompt)
+
+## Project identity
+- **Product**: AllFantasy — premium fantasy sports platform (leagues, tools, AI/Chimmy, social layer).
+- **Hosting & repo**: Deploy on **Vercel**; source on **GitHub**. Keep changes merge-safe and production-minded.
+- **Framework**: **Next.js App Router only** (`app/`). Do **not** add or extend the **Pages Router** (`pages/`) for new features. If legacy `pages/**` exists, do not duplicate routes there; migrate toward App Router when touching routing.
+- **Sports scope**: Respect `lib/sport-scope.ts` (`SUPPORTED_SPORTS`, `DEFAULT_SPORT`, `normalizeToSupportedSport`) for any sport-related feature — do not hardcode a single sport unless the task explicitly requires it.
+
+## Sports data API cascade (mandatory order)
+When suggesting or implementing data fetching, **always** respect this **priority order**. Do not skip to Sleeper, FantasyPros, or ESPN when higher-priority sources can serve the request.
+
+1. **FantasyCalc** (where integrated)
+2. **Rolling Insights**
+3. **TheDataDb / API-Sports-class providers** (e.g. internal `api_sports` / consolidated DB feeds)
+4. **ClearSports**
+5. **Sleeper**
+6. **FantasyPros**
+7. **ESPN** (last resort)
+
+Use the existing router / worker patterns (e.g. `lib/sports-router.ts`, API chain workers) instead of inventing parallel client-side fetch chains.
+
+## Chimmy & AI
+- **Execution**: Chimmy and orchestration run **server-side** only (API routes, server actions). **Never** put provider API keys or secrets in the browser or in `NEXT_PUBLIC_*` env vars.
+- **Provider cascade** (conceptual order for unified / multi-model flows): **OpenAI → DeepSeek → Grok → Anthropic** — follow existing `lib/ai-orchestration` and Chimmy routes; do not reorder arbitrarily.
+- **Grounding**: Inject **real, deterministic context** (user timezone, league snapshot, sports DB/injury/news digest, etc.) **before** the model runs. AI must not **invent** player stats, injuries, or scores; if data is missing, say so and rely on demo/fallback paths explicitly coded in the app.
+
+## Popup & modal UI pattern
+For new overlays (e.g. Start/Sit, tool modals):
+- **Theme**: Dark, dense, premium — align with Sleeper-hybrid direction (deep navy/charcoal surfaces `#040915`–`#0a1228`, subtle borders `white/8–15`, cyan/sky accents for primary actions).
+- **Structure**: Backdrop + centered panel; **Escape** closes; backdrop click closes; `role="dialog"`, `aria-modal="true"`.
+- **Styling**: Prefer **CSS Modules** (e.g. `ComponentName.module.css`) for new popup surfaces so tokens stay consistent.
+- Reuse existing shell patterns (`AppShell`, dashboard rails) — do not fragment navigation.
+
+## What not to do (hard negatives)
+- **No Tailwind** for new UI unless the user explicitly asks to use it on a given task; prefer CSS Modules + existing design tokens for new components (legacy screens may still contain Tailwind — do not mass-convert unless asked).
+- **No client-side API keys**; **no** exposing secrets via **`NEXT_PUBLIC_`** (except truly public ids the product already documents).
+- **No Pages Router** for new routes.
+- **No AI-hallucinated** player values, injuries, or league facts — deterministic and DB-backed data first.
+- **No** suggesting “just call ESPN” or “use Sleeper only” when the cascade above applies.
+
+## Feature roadmap awareness (do not break)
+Upcoming or in-flight product areas — avoid refactors that would block or silently break them:
+- **Survivor**, **Tournament**, **Zombie League**, **Draft Room**, **Exile Island**, bracket/dynasty-adjacent flows, commissioner tools.
+
+When in doubt, preserve extension points and existing feature flags.
+
+## If Cursor drifts
+User may say: **“follow .cursorrules”** — re-apply the above, especially cascade order, App Router-only, and no secrets in the client.
