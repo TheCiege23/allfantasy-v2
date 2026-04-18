@@ -4,9 +4,8 @@
  */
 
 import type { Metadata } from 'next'
+import { getPublicSiteOrigin } from '@/lib/site-public-origin'
 import { getOgImageUrl } from './SocialShareMetadataService'
-
-const BASE = 'https://allfantasy.ai'
 const SITE_NAME = 'AllFantasy'
 const INSTALL_PATH = '/install'
 
@@ -40,6 +39,7 @@ export interface BuildSeoMetaInput {
  * Use as: export const metadata = buildSeoMeta({ title, description, canonicalPath: '/ai' })
  */
 export function buildSeoMeta(input: BuildSeoMetaInput): Metadata {
+  const BASE = getPublicSiteOrigin()
   const canonical =
     input.canonical ?? (input.canonicalPath ? (input.canonicalPath.startsWith('http') ? input.canonicalPath : `${BASE}${input.canonicalPath}`) : undefined)
   const ogTitle = input.openGraphTitle ?? input.title

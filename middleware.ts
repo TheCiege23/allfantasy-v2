@@ -4,6 +4,28 @@ import { getToken } from "next-auth/jwt"
 
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
+import { getPublicSiteHostname } from "@/lib/site-public-origin"
+
+/**
+ * Redirect apex ↔ www for allfantasy.ai so document origin matches manifest `id` and SEO canonical.
+ * Uses the same host as NEXT_PUBLIC_SITE_URL / NEXTAUTH_URL when set.
+ */
+function canonicalProductionHostRedirect(request: NextRequest): NextResponse | null {
+  const host = request.headers.get("host")?.split(":")[0]?.toLowerCase()
+  if (!host) return null
+  if (host === "localhost" || host.endsWith(".vercel.app")) return null
+
+  const canonicalHost = getPublicSiteHostname()
+  if (host === canonicalHost) return null
+
+  const isAf = host === "allfantasy.ai" || host === "www.allfantasy.ai"
+  const canonAf = canonicalHost === "allfantasy.ai" || canonicalHost === "www.allfantasy.ai"
+  if (!isAf || !canonAf) return null
+
+  const url = request.nextUrl.clone()
+  url.hostname = canonicalHost
+  return NextResponse.redirect(url, 308)
+}
 
 /**
  * App routes that must have a valid NextAuth session (JWT).
@@ -119,6 +141,11 @@ function isMiddlewareAdmin(userId: string | null | undefined): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  const hostRedirect = canonicalProductionHostRedirect(request)
+  if (hostRedirect) {
+    return hostRedirect
+  }
 
   const appRedirect = redirectDeprecatedAppRoutes(request)
   if (appRedirect) {

@@ -3,7 +3,7 @@
  * Used for open graph and Twitter cards and share buttons.
  */
 
-const BASE = "https://allfantasy.ai"
+import { getPublicSiteOrigin } from "@/lib/site-public-origin"
 
 export interface SocialShareConfig {
   url: string
@@ -19,7 +19,8 @@ export const DEFAULT_OG_IMAGE_PATH = "/og-image.jpg"
 /** Build full image URL for OG/twitter. */
 export function getOgImageUrl(path?: string | null): string {
   const p = path && path.trim() ? path : DEFAULT_OG_IMAGE_PATH
-  return p.startsWith("http") ? p : `${BASE}${p}`
+  const base = getPublicSiteOrigin()
+  return p.startsWith("http") ? p : `${base}${p}`
 }
 
 /** Build social share config for a page. */
@@ -29,7 +30,8 @@ export function getSocialShareConfig(opts: {
   description: string
   imagePath?: string | null
 }): SocialShareConfig {
-  const url = opts.path.startsWith("http") ? opts.path : `${BASE}${opts.path}`
+  const base = getPublicSiteOrigin()
+  const url = opts.path.startsWith("http") ? opts.path : `${base}${opts.path}`
   return {
     url,
     title: opts.title,
