@@ -8,7 +8,7 @@ import {
   RANK_XP_PER_DISTINCT_SEASON,
   RANK_XP_PER_IMPORT_WIN,
   RANK_XP_PER_PLAYOFF_APPEARANCE,
-} from '@/lib/rank/calculateRank'
+} from '@/lib/rank/rank-xp-constants'
 
 type RankingFaqPanelProps = {
   /** Current 1–25 rank level (from XP ladder) to highlight in the table. */

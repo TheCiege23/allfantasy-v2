@@ -1,4 +1,4 @@
-import { sleeperHeadshotUrl, sleeperTeamLogoUrl, normalizeTeamAbbr, type SportKey } from './player-media'
+import { sleeperHeadshotUrl, sleeperTeamLogoUrl, normalizeTeamAbbr, type SportKey } from './player-media-urls'
 
 export type AnyPlayerLike = Record<string, unknown>
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Brain, Heart, MoonStar, Play, RefreshCw, Sparkles, Sunrise, Wind } from "lucide-react";
 import BreathingCircle, { type BreathingPhase } from "@/components/BreathingCircle";
 import ZenBackground from "@/components/ZenBackground";
-import { MOOD_OPTIONS } from "@/lib/mood";
+import { MOOD_OPTIONS } from "@/lib/mood-options";
 import type { Badge, StreakData } from "@/lib/streaks";
 
 const scenes = [

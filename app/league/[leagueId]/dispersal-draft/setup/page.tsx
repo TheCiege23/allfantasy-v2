@@ -23,7 +23,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { toast } from 'sonner'
 import { SubscriptionGateModal } from '@/components/subscription/SubscriptionGateModal'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
-import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
+import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphan-platform-ids'
 import type { SubscriptionFeatureId } from '@/lib/subscription/types'
 import type { DispersalAsset, DispersalScenario } from '@/lib/dispersal-draft/types'
 

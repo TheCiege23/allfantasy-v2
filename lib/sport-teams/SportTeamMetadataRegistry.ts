@@ -76,7 +76,7 @@ function toSportType(s: string): SportType {
   return 'NFL'
 }
 
-function logoUrlForAbbrev(sport: SportType, abbreviation: string): string {
+export function logoUrlForAbbrev(sport: SportType, abbreviation: string): string {
   const base = ESPN_LOGO_BASE[sport]
   const abbr = abbreviation.toUpperCase()
   if (sport === 'NFL') {
@@ -216,63 +216,14 @@ export function getTeamIdByAbbreviationMap(sportType: SportType | string): Map<s
 
 /**
  * Get team metadata for a sport using DB SportsTeam when available; falls back to static registry.
+ * Implemented in a separate module so this file stays prisma-free for client-safe imports (e.g. getPrimaryLogoUrlForTeam).
  */
 export async function getTeamMetadataForSportDbAware(
   sportType: SportType | string,
   options?: { limit?: number }
 ): Promise<TeamMetadata[]> {
-  const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-
-  let rows: Array<{
-    externalId: string | null
-    shortName: string | null
-    name: string
-    city: string | null
-    conference: string | null
-    division: string | null
-    logo: string | null
-    primaryColor: string | null
-  }> = []
-
-  try {
-    const { prisma } = await import('@/lib/prisma')
-    rows = await prisma.sportsTeam.findMany({
-      where: { sport },
-      orderBy: { fetchedAt: 'desc' },
-      take: options?.limit ?? 500,
-    })
-  } catch {
-    return getTeamMetadataForSport(sport)
-  }
-
-  if (rows.length === 0) {
-    return getTeamMetadataForSport(sport)
-  }
-
-  const deduped = new Map<string, TeamMetadata>()
-  for (const row of rows) {
-    const abbreviation = (row.shortName ?? row.externalId ?? row.name).trim().toUpperCase()
-    if (!abbreviation) continue
-    if (deduped.has(abbreviation)) continue
-    deduped.set(abbreviation, {
-      team_id: row.externalId || abbreviation,
-      sport_type: sport,
-      team_name: row.name,
-      city: row.city ?? '',
-      abbreviation,
-      conference: row.conference ?? null,
-      division: row.division ?? null,
-      primary_logo_url: row.logo ?? logoUrlForAbbrev(sport, abbreviation),
-      alternate_logo_url: null,
-      primary_color: row.primaryColor ?? null,
-    })
-  }
-
-  if (deduped.size === 0) {
-    return getTeamMetadataForSport(sport)
-  }
-
-  return [...deduped.values()]
+  const mod = await import('./SportTeamMetadataRegistry.db')
+  return mod.getTeamMetadataForSportDbAware(sportType, options)
 }
 
 /**

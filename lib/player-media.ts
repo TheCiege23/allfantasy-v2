@@ -1,16 +1,7 @@
-const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
-const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
+import { buildHeadshotUrl, getTeamLogoUrl } from './player-media-urls'
 
-const ESPN_TEAM_MAP: Record<string, string> = {
-  ARI: 'ari', ATL: 'atl', BAL: 'bal', BUF: 'buf',
-  CAR: 'car', CHI: 'chi', CIN: 'cin', CLE: 'cle',
-  DAL: 'dal', DEN: 'den', DET: 'det', GB: 'gb',
-  HOU: 'hou', IND: 'ind', JAX: 'jax', KC: 'kc',
-  LAC: 'lac', LAR: 'lar', LV: 'lv', MIA: 'mia',
-  MIN: 'min', NE: 'ne', NO: 'no', NYG: 'nyg',
-  NYJ: 'nyj', PHI: 'phi', PIT: 'pit', SEA: 'sea',
-  SF: 'sf', TB: 'tb', TEN: 'ten', WAS: 'was',
-}
+export type { SportKey } from './player-media-urls'
+export { sleeperHeadshotUrl, sleeperTeamLogoUrl, normalizeTeamAbbr } from './player-media-urls'
 
 export interface PlayerMedia {
   headshotUrl: string | null
@@ -49,25 +40,6 @@ function cacheKey(playerId: string, sport: string): string {
 
 function teamCacheKey(teamAbbr: string, sport: string): string {
   return `${sport}:team:${teamAbbr}`
-}
-
-function getTeamLogoUrl(teamAbbr: string | null, sport: string = 'nfl'): string | null {
-  if (!teamAbbr) return null
-  if (sport.toLowerCase() !== 'nfl') {
-    try {
-      const { resolveTeamLogoUrlSync } = require('@/lib/sport-teams/TeamLogoResolver')
-      return resolveTeamLogoUrlSync(teamAbbr, sport)
-    } catch {
-      // fallback to NFL map if sport-teams not available
-    }
-  }
-  const upper = teamAbbr.toUpperCase()
-  const key = ESPN_TEAM_MAP[upper]
-  return key ? `${ESPN_LOGO_BASE}/${key}.png` : null
-}
-
-function buildHeadshotUrl(playerId: string | null): string | null {
-  return playerId ? `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg` : null
 }
 
 function buildMediaFromTemplate(playerId: string | null, teamAbbr: string | null, sport: string = 'nfl'): PlayerMedia {
@@ -444,28 +416,4 @@ export function toStandardPlayer(
 export function clearMediaCache(): void {
   PLAYER_CACHE.clear()
   TEAM_CACHE.clear()
-}
-
-export type SportKey = 'nfl' | 'nba' | 'mlb' | 'nhl' | 'ncaaf' | 'ncaab' | string
-
-export function sleeperHeadshotUrl(playerId: string, sport: SportKey = 'nfl'): string | null {
-  if (!playerId) return null
-  if (sport === 'nfl') return `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg`
-  return null
-}
-
-export function sleeperTeamLogoUrl(teamAbbr: string, sport: SportKey = 'nfl'): string | null {
-  if (!teamAbbr) return null
-  if (sport === 'nfl') return `https://sleepercdn.com/images/team_logos/nfl/${teamAbbr.toLowerCase()}.png`
-  try {
-    const { resolveTeamLogoUrlSync } = require('@/lib/sport-teams/TeamLogoResolver')
-    return resolveTeamLogoUrlSync(teamAbbr, sport)
-  } catch {
-    return null
-  }
-}
-
-export function normalizeTeamAbbr(team?: string | null): string | null {
-  const t = (team || '').trim()
-  return t ? t.toUpperCase() : null
 }
