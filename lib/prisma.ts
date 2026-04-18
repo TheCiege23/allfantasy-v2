@@ -173,8 +173,10 @@ const globalForPrisma = globalThis as typeof globalThis & {
 };
 
 export const prisma: ExtendedPrismaClient =
-  globalForPrisma.prisma ?? createPrismaClient();
+  typeof window !== "undefined"
+    ? (null as unknown as ExtendedPrismaClient) // Client-side: Prisma is not usable
+    : (globalForPrisma.prisma ?? createPrismaClient());
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && typeof window === "undefined") {
   globalForPrisma.prisma = prisma;
 }
