@@ -4,10 +4,10 @@
  */
 
 import type { Metadata } from "next"
+import { getPublicSiteOrigin } from "@/lib/site-public-origin"
 import type { SEOPageConfig } from "./SEOPageResolver"
 import { getDefaultOgImagePath } from "./SEOPageResolver"
 
-const BASE = "https://allfantasy.ai"
 const SITE_NAME = "AllFantasy"
 const INSTALL_PATH = "/install"
 
@@ -17,9 +17,10 @@ export interface MetadataInput extends SEOPageConfig {
 
 /** Build Next.js Metadata from SEO config. */
 export function buildMetadata(input: MetadataInput): Metadata {
+  const siteOrigin = getPublicSiteOrigin()
   const imagePath = input.imagePath ?? getDefaultOgImagePath()
-  const imageUrl = imagePath.startsWith("http") ? imagePath : `${BASE}${imagePath}`
-  const canonical = input.canonical || `${BASE}${INSTALL_PATH}`
+  const imageUrl = imagePath.startsWith("http") ? imagePath : `${siteOrigin}${imagePath}`
+  const canonical = input.canonical || `${siteOrigin}${INSTALL_PATH}`
   return {
     title: input.title,
     description: input.description,

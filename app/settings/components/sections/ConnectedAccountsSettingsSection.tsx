@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
 import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { signIn } from "next-auth/react"
+import { supabase } from "@/lib/supabaseClient"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
 import { discordAvatarUrl } from "@/lib/discord/avatar"
 import {
@@ -42,6 +43,7 @@ export function ConnectedAccountsSettingsSection({
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [busyProviderId, setBusyProviderId] = useState<SignInProviderId | null>(null)
+  const [linkingProvider, setLinkingProvider] = useState<"discord" | "spotify" | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [statusTone, setStatusTone] = useState<"info" | "error" | "success" | null>(null)
 
@@ -112,6 +114,44 @@ export function ConnectedAccountsSettingsSection({
     if (res.ok) {
       onRefetchProfile()
       await loadProviders(true)
+    }
+  }
+
+  const handleLinkIdentity = async (provider: "discord" | "spotify") => {
+    setStatusMessage(null)
+    setStatusTone(null)
+    setLinkingProvider(provider)
+
+    try {
+      const redirectTo = "http://localhost:5173/settings"
+
+      const linker = (supabase.auth as {
+        linkIdentity?: (params: {
+          provider: "discord" | "spotify"
+          options?: { redirectTo?: string }
+        }) => Promise<{ data: unknown; error: { message?: string } | null }>
+      }).linkIdentity
+
+      if (!linker) {
+        setStatusTone("error")
+        setStatusMessage("Provider linking is not available in this environment.")
+        return
+      }
+
+      const { error } = await linker({
+        provider,
+        options: { redirectTo },
+      })
+
+      if (error) {
+        setStatusTone("error")
+        setStatusMessage(error.message ?? `Failed to connect ${provider}.`)
+      }
+    } catch (error) {
+      setStatusTone("error")
+      setStatusMessage(error instanceof Error ? error.message : `Failed to connect ${provider}.`)
+    } finally {
+      setLinkingProvider(null)
     }
   }
 
@@ -238,15 +278,17 @@ export function ConnectedAccountsSettingsSection({
         {!profile?.discordUserId ? (
           <div className="space-y-3">
             <p className="text-xs" style={{ color: "var(--muted)" }}>{t("settings.connected.discordBlurb")}</p>
-            <a
-              href="/api/auth/discord"
+            <button
+              type="button"
+              onClick={() => void handleLinkIdentity("discord")}
+              disabled={linkingProvider === "discord"}
               data-testid="settings-connect-discord"
               className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "#5865F2", background: "color-mix(in srgb, #5865F2 18%, transparent)", color: "var(--text)" }}
             >
               <DiscordIcon size={16} className="text-[#5865F2]" />
-              {t("settings.connected.connectDiscord")}
-            </a>
+              {linkingProvider === "discord" ? t("settings.connected.connecting") : t("settings.connected.connectDiscord")}
+            </button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -283,14 +325,16 @@ export function ConnectedAccountsSettingsSection({
         {!(profile as any)?.spotifyConnectedAt ? (
           <div className="space-y-3">
             <p className="text-xs" style={{ color: "var(--muted)" }}>Connect Spotify to play music while managing your leagues.</p>
-            <a
-              href="/api/auth/spotify"
+            <button
+              type="button"
+              onClick={() => void handleLinkIdentity("spotify")}
+              disabled={linkingProvider === "spotify"}
               className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "#1DB954", background: "color-mix(in srgb, #1DB954 18%, transparent)", color: "var(--text)" }}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="#1DB954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-              Connect Spotify
-            </a>
+              {linkingProvider === "spotify" ? t("settings.connected.connecting") : "Connect Spotify"}
+            </button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">

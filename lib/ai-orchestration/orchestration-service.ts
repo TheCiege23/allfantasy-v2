@@ -94,6 +94,23 @@ function buildProviderCallCacheKey(input: {
   return `ai-provider:${input.role}:${digest}`
 }
 
+/** Maps internal freshness labels to LLM instructions so "cached" is not read as "APIs are down". */
+function describeSportsDataFreshnessForPrompt(state: string | undefined): string | null {
+  if (!state || typeof state !== 'string') return null
+  switch (state) {
+    case 'live':
+      return 'Sports context freshness: live / recently refreshed pipeline data.'
+    case 'cached':
+      return 'Sports context freshness: loaded from AllFantasy synced database and platform cache (normal). Do not tell the user that live sports feeds or news APIs are unavailable unless missing data below explicitly says so.'
+    case 'stale':
+      return 'Sports context freshness: older snapshot — note uncertainty if relevant; do not claim feeds are offline unless missing data indicates it.'
+    case 'missing':
+      return 'Sports context freshness: no structured sports/news bundle was attached for this turn — say when specific stats or schedules are unavailable; do not invent.'
+    default:
+      return `Sports data freshness state: ${state}.`
+  }
+}
+
 function pruneProviderResponseCache(now: number) {
   for (const [key, entry] of PROVIDER_RESPONSE_CACHE.entries()) {
     if (entry.expiresAt <= now) PROVIDER_RESPONSE_CACHE.delete(key)
@@ -111,7 +128,9 @@ function buildMessages(
 ): Array<{ role: 'system' | 'user'; content: string }> {
   const normalizedFeatureType = normalizeOrchestrationToolKey(envelope.featureType)
   const systemParts: string[] = [
-    'You are a helpful fantasy sports analyst. Be concise, calm, and explicit about uncertainty.',
+    normalizedFeatureType === 'chimmy_chat'
+      ? 'You are Chimmy, AllFantasy’s sports assistant. Answer real-world sports questions (schedules, drafts, games, standings, injuries, stats) and fantasy sports questions within the supported sports and context provided. Be concise, calm, and explicit about uncertainty.'
+      : 'You are a helpful fantasy sports analyst. Be concise, calm, and explicit about uncertainty.',
     'Deterministic-first: never override hard engine outputs.',
     'Never invent player values, rankings, injuries, roster needs, team context, probabilities, or simulations.',
     'Always respect sport, league format, scoring settings, and roster settings in the provided context.',
@@ -140,7 +159,8 @@ function buildMessages(
     }
     if (stats.sportsDataSource) userParts.push(`(Source: ${stats.sportsDataSource})`)
     if (stats.sportsDataState && typeof stats.sportsDataState === 'string') {
-      userParts.push(`Sports data freshness state: ${stats.sportsDataState}.`)
+      const freshnessLine = describeSportsDataFreshnessForPrompt(stats.sportsDataState)
+      if (freshnessLine) userParts.push(freshnessLine)
     }
     if (stats.sportsDataCoverage && typeof stats.sportsDataCoverage === 'object') {
       const coverage = stats.sportsDataCoverage as {

@@ -30,7 +30,7 @@ const CLEARSPORTS_BASE_URL_KEYS = [
   'CLEARSPORTS_BASE_URL',
   'CLEAR_SPORTS_BASE_URL',
 ] as const
-const DEFAULT_CLEARSPORTS_BASE_URL = 'https://api.clearsportsapi.com/v1'
+const DEFAULT_CLEARSPORTS_BASE_URL = 'https://api.clearsportsapi.com/api/v1'
 
 const ROLLING_INSIGHTS_API_KEY_KEYS = ['ROLLING_INSIGHTS_API_KEY'] as const
 const ROLLING_INSIGHTS_CLIENT_ID_KEYS = ['ROLLING_INSIGHTS_CLIENT_ID'] as const

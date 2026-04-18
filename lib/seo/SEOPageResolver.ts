@@ -3,7 +3,9 @@
  * Integrates with seo-landing config for tools and sports; defines metadata for other key routes.
  */
 
-const BASE = "https://allfantasy.ai"
+import { getPublicSiteOrigin } from "@/lib/site-public-origin"
+
+const BASE = getPublicSiteOrigin()
 
 export type PageKey =
   | "home"

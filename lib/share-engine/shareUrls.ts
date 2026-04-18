@@ -3,6 +3,7 @@
  * Safe for client usage and public previews.
  */
 
+import { getPublicSiteOrigin } from "@/lib/site-public-origin";
 import type {
   ShareDestination,
   SharePayload,
@@ -11,7 +12,7 @@ import type {
 
 function getOrigin(): string {
   if (typeof window !== "undefined") return window.location.origin;
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai";
+  return getPublicSiteOrigin();
 }
 
 function trimToLength(value: string, maxLength: number): string {

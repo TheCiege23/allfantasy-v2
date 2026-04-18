@@ -1,3 +1,4 @@
+import { getPublicSiteOrigin } from "@/lib/site-public-origin";
 import type {
   SharePayload,
   SharePayloadRequest,
@@ -6,7 +7,7 @@ import type {
 } from "./types";
 
 function baseUrlFallback(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "https://allfantasy.ai";
+  return getPublicSiteOrigin();
 }
 
 function textOrUndefined(value: unknown, maxLength = 240): string | undefined {

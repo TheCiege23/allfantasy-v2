@@ -3,6 +3,8 @@
  * X, Reddit: intent URLs with pre-filled text. Instagram/Discord: copy caption + download image.
  */
 
+import { getPublicSiteOrigin } from '@/lib/site-public-origin'
+
 export type AICardShareChannel = 'x' | 'twitter' | 'reddit' | 'instagram' | 'discord'
 
 export interface AICardShareOptions {
@@ -22,7 +24,7 @@ export function buildAICardShareUrl(
   channel: AICardShareChannel,
   options: AICardShareOptions
 ): string {
-  const { title, insight, url = 'https://allfantasy.ai', hashtags = DEFAULT_HASHTAGS } = options
+  const { title, insight, url = getPublicSiteOrigin(), hashtags = DEFAULT_HASHTAGS } = options
   const tagStr = hashtags.map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ')
   const text = `${title}\n\n${insight}\n\n${tagStr}`
   const encodedText = encodeURIComponent(url ? `${text}\n\n${url}` : text)
@@ -45,7 +47,7 @@ export function getAICardCaption(
   channel: AICardShareChannel,
   options: AICardShareOptions
 ): string {
-  const { title, insight, url = 'https://allfantasy.ai', hashtags = DEFAULT_HASHTAGS } = options
+  const { title, insight, url = getPublicSiteOrigin(), hashtags = DEFAULT_HASHTAGS } = options
   const tagStr = hashtags.join(' ')
 
   switch (channel) {

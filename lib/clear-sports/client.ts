@@ -193,7 +193,7 @@ export async function runClearSportsHealthCheck(): Promise<ClearSportsHealthChec
 
   const timeoutMs = Math.max(1000, Math.min(getTimeoutMs(), 4000))
   const start = Date.now()
-  const json = await clearSportsFetch<unknown>('leagues/nfl/teams', undefined, { timeoutMs })
+  const json = await clearSportsFetch<unknown>('api-keys/me', undefined, { timeoutMs })
   const latencyMs = Date.now() - start
   if (json == null) {
     return {

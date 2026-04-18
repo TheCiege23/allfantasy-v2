@@ -351,9 +351,12 @@ async function applySportsDataDisclaimer(result: string): Promise<string> {
   if (!result.trim()) return result
   const snapshot = await getLatestSystemHealth().catch(() => null)
   const clearSportsStatus = snapshot?.providers?.clearsports?.status
-  if (!clearSportsStatus || clearSportsStatus === 'up') return result
+  // Only prepend outage-style copy when ClearSports is fully down. "degraded" still uses fallbacks/DB;
+  // avoid telling users "live feeds unavailable" for normal cache/fallback paths.
+  if (!clearSportsStatus || clearSportsStatus === 'up' || clearSportsStatus === 'degraded') return result
 
-  const disclaimer = 'Using cached data — live sports feeds temporarily unavailable.'
+  const disclaimer =
+    'Note: primary ClearSports API is unavailable; responses may rely on cached or fallback sports data — verify critical dates/stats if needed.'
   return result.startsWith(disclaimer) ? result : `${disclaimer}\n\n${result}`
 }
 

@@ -2,6 +2,7 @@
  * Builds share URLs for social networks and copy-link (Prompt 121).
  */
 
+import { getPublicSiteOrigin } from '@/lib/site-public-origin';
 import { getShareContent, formatShareText } from './AchievementShareGenerator';
 import type { AchievementShareType, AchievementShareContext } from './types';
 
@@ -9,7 +10,7 @@ const ACHIEVEMENT_PATH = '/share/achievements';
 
 function getOrigin(): string {
   if (typeof window !== 'undefined') return window.location.origin;
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'https://allfantasy.ai';
+  return getPublicSiteOrigin();
 }
 
 /**

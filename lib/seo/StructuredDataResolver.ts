@@ -3,7 +3,9 @@
  * Use for WebSite, SoftwareApplication, FAQPage, Organization.
  */
 
-const BASE = "https://allfantasy.ai"
+import { getPublicSiteOrigin } from "@/lib/site-public-origin"
+
+const BASE = getPublicSiteOrigin()
 
 export interface WebSiteSchema {
   "@context": "https://schema.org"

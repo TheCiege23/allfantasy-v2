@@ -1,6 +1,6 @@
 /**
  * Single public HTTPS origin for SEO metadata, emails, and canonical host redirects.
- * Prefer NEXT_PUBLIC_SITE_URL / PUBLIC_SITE_URL / NEXTAUTH_URL in production; default www.
+ * Prefer NEXT_PUBLIC_SITE_URL / PUBLIC_SITE_URL / NEXT_PUBLIC_APP_URL / NEXTAUTH_URL in production; default www.
  */
 
 const DEFAULT_ORIGIN = "https://www.allfantasy.ai"
@@ -13,6 +13,7 @@ export function getPublicSiteOrigin(): string {
     typeof process !== "undefined"
       ? process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
         process.env.PUBLIC_SITE_URL?.trim() ||
+        process.env.NEXT_PUBLIC_APP_URL?.trim() ||
         process.env.NEXTAUTH_URL?.trim() ||
         ""
       : ""

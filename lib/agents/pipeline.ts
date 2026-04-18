@@ -101,8 +101,36 @@ export async function buildAgentPrompt(input: BuildAgentPromptInput): Promise<st
 
 export function inferAgentFromMessage(message: string): ChimmyAgentType {
   const text = message.toLowerCase()
+
+  const asksScheduleOrCalendar =
+    /\b(when|where|what\s+date|what\s+time|what\s+day|how\s+long\s+until|is\s+the|schedule|calendar|what\s+week)\b/i.test(
+      text
+    )
+  const mentionsRealSportsContext =
+    /\b(nfl|nba|mlb|nhl|ncaa|college\s+football|college\s+basketball|soccer|mls|premier\s+league|champions\s+league|world\s+cup|fifa|march\s+madness|super\s*bowl|world\s+series|stanley\s+cup|playoffs?|bowl\s+game|combine|draft|game|match|kickoff)\b/i.test(
+      text
+    )
+  const clearlyFantasyLeague =
+    /\b(fantasy|my\s+league|dynasty\s+league|redraft|keeper\s+league|mock\s+draft|sleeper\s+league|faab|ppr|superflex|half\s+ppr)\b/i.test(
+      text
+    ) ||
+    /\b(my|our)\s+(dynasty|fantasy|redraft|keeper)\b/.test(text) ||
+    /\bdynasty\s+(startup|rookie\s+draft|league\s+draft)\b/.test(text)
+
+  // Pro/college schedules, league draft dates, major events — not the fantasy draft assistant
+  if (asksScheduleOrCalendar && mentionsRealSportsContext && !clearlyFantasyLeague) {
+    return 'trade_analyzer'
+  }
+
   if (/waiver|faab|add\/drop|add drop|claim/.test(text)) return 'waiver_wire'
-  if (/mock draft|draft|rookie pick|adp/.test(text)) return 'draft_assistant'
+  if (
+    /mock\s+draft|\brookie\s+pick\b|\b(?:fantasy|dynasty|redraft|keeper)\s+draft\b|draft\s+pick|adp|draft\s+strategy|when\s+to\s+draft/.test(
+      text
+    ) ||
+    (/\bdraft\b/.test(text) && !asksScheduleOrCalendar)
+  ) {
+    return 'draft_assistant'
+  }
   if (/matchup|start\/sit|start sit|projection|win probability/.test(text)) return 'matchup_simulator'
   if (/compare|versus|vs\b|player comparison/.test(text)) return 'player_comparison'
   if (/power rank|ranking table|rankings/.test(text)) return 'power_rankings'

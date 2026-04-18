@@ -38,6 +38,15 @@ const fallbackSupabase = {
         error: { message: 'SUPABASE_NOT_CONFIGURED' },
       }
     },
+    onAuthStateChange() {
+      return {
+        data: {
+          subscription: {
+            unsubscribe() {},
+          },
+        },
+      }
+    },
   },
   from(_: string) {
     return {

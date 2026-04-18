@@ -1,9 +1,10 @@
+import type { NextPage } from 'next'
+
 /**
  * Pages Router custom 500 — minimal UI for unexpected server errors.
- * Must be a plain function default export (Next build validates the component shape).
+ * Typed as NextPage so the build recognizes a valid React default export.
  */
-export default function Custom500Page() {
-  return (
+const Custom500Page: NextPage = () => (
     <main
       style={{
         minHeight: '100vh',
@@ -20,5 +21,6 @@ export default function Custom500Page() {
         </p>
       </div>
     </main>
-  )
-}
+)
+
+export default Custom500Page

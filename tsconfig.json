@@ -36,6 +36,8 @@
     "app/**/*.tsx",
     "middleware.ts",
     "instrumentation.ts",
+    "pages/**/*.ts",
+    "pages/**/*.tsx",
     ".next/types/**/*.ts"
   ],
   "exclude": [

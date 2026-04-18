@@ -437,7 +437,7 @@ export async function enrichEnvelopeWithSportsData(
 
   const statisticsPayload = { ...(envelope.statisticsPayload ?? {}) }
   statisticsPayload.sportsDataSource = source
-  statisticsPayload.sportsDataCached = stale ?? false
+  statisticsPayload.sportsDataCached = cached
   statisticsPayload.sportsDataState = sportsData ? (stale ? 'stale' : cached ? 'cached' : 'live') : 'missing'
   statisticsPayload.sportsDataCoverage = {
     requested: dataTypes,
