@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getDatabaseUrlOrThrow, resolveDatabaseUrl } from '@/lib/env/database-url'
 
 describe('resolveDatabaseUrl', () => {
@@ -39,10 +39,16 @@ describe('resolveDatabaseUrl', () => {
   })
 
   it('getDatabaseUrlOrThrow explains invalid schemes when no postgres URL is available', () => {
-    expect(() =>
-      getDatabaseUrlOrThrow({
-        DATABASE_URL: 'prisma://accelerate.example.net/?api_key=secret',
-      })
-    ).toThrow(/Invalid database URL/)
+    // Under jsdom, `window` exists; server-side behavior must be tested without it.
+    vi.stubGlobal('window', undefined)
+    try {
+      expect(() =>
+        getDatabaseUrlOrThrow({
+          DATABASE_URL: 'prisma://accelerate.example.net/?api_key=secret',
+        })
+      ).toThrow(/Invalid database URL/)
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

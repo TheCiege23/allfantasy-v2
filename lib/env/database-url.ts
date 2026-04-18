@@ -63,6 +63,12 @@ export function hasDatabaseUrl(env: DatabaseEnv | EnvLike = process.env): boolea
 }
 
 export function getDatabaseUrlOrThrow(env: DatabaseEnv | EnvLike = process.env): string {
+  // If running in the browser, Prisma is not usable — return a no-op URL so leaked server
+  // imports in client bundles do not throw when this helper is evaluated.
+  if (typeof window !== "undefined") {
+    return "postgresql://noop:noop@localhost:5432/noop"
+  }
+
   const resolved = resolveDatabaseUrl(env)
   if (resolved) return resolved
 
