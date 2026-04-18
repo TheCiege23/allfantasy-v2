@@ -66,12 +66,12 @@ export async function calculateAndSaveRank(userId: string): Promise<CalculateRan
         season: true,
         platform: true,
         leagueSize: true,
-        sleeperLeagueId: true,
+        platformLeagueId: true,
       },
     })
 
     for (const l of leagues) {
-      const key = `${l.platform ?? 'unknown'}:${l.sleeperLeagueId ?? ''}:${l.season}`
+      const key = `${l.platform ?? 'unknown'}:${l.platformLeagueId ?? ''}:${l.season}`
       rows.set(key, {
         key,
         wins: l.importWins ?? 0,
