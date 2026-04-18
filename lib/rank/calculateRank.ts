@@ -29,44 +29,136 @@ export type CalculateRankResult = {
   careerLeaguesPlayed: number
 }
 
+/** Uniform shape for a single league-season row used in XP calculation. */
+type RankLeagueRow = {
+  key: string
+  wins: number
+  losses: number
+  madePlayoffs: boolean
+  wonChampionship: boolean
+  season: number
+  leagueSize: number
+}
+
 /**
- * XP from imported `League` rows; level/tier from `getLevelFromXp`.
- * DB columns: `careerSeasonsPlayed` = league row count, `careerLeaguesPlayed` = distinct seasons.
+ * XP from imported `League` rows AND `legacyLeague`/`legacyRoster` rows.
+ * Merges both sources (deduplicates by key) so legacy import data is always
+ * reflected in the rank card even when `League.import_*` columns are null.
+ *
+ * IMPORTANT: This does NOT create or modify `League` rows — legacy data stays
+ * in the legacy tables and never appears in the My Leagues dashboard.
  */
 export async function calculateAndSaveRank(userId: string): Promise<CalculateRankResult | null> {
   try {
-    /** Hub/sync leagues omit import_*; only ranking snapshots and legacy career rows contribute XP. */
+    const rows = new Map<string, RankLeagueRow>()
+
+    // ── Source 1: League table (import_* columns) ──────────────────────
     const leagues = await prisma.league.findMany({
       where: {
         userId,
-        OR: [{ leagueVariant: 'legacy_summary' }, { importWins: { not: null } }],
+        importWins: { not: null },
       },
       select: {
         importWins: true,
         importLosses: true,
-        importTies: true,
         importMadePlayoffs: true,
         importWonChampionship: true,
-        importFinalStanding: true,
-        importPointsFor: true,
         season: true,
         platform: true,
         leagueSize: true,
+        platformLeagueId: true,
       },
     })
 
-    if (!leagues.length) return null
+    for (const l of leagues) {
+      const key = `${l.platform ?? 'unknown'}:${l.platformLeagueId ?? ''}:${l.season}`
+      rows.set(key, {
+        key,
+        wins: l.importWins ?? 0,
+        losses: l.importLosses ?? 0,
+        madePlayoffs: l.importMadePlayoffs === true,
+        wonChampionship: l.importWonChampionship === true,
+        season: l.season,
+        leagueSize: l.leagueSize ?? 12,
+      })
+    }
 
-    const careerWins = leagues.reduce((s, l) => s + (l.importWins ?? 0), 0)
-    const careerLosses = leagues.reduce((s, l) => s + (l.importLosses ?? 0), 0)
-    const careerChampionships = leagues.filter((l) => l.importWonChampionship === true).length
-    const careerPlayoffAppearances = leagues.filter((l) => l.importMadePlayoffs === true).length
-    const careerSeasonsPlayed = leagues.length
-    const careerLeaguesPlayed = new Set(leagues.map((l) => l.season)).size
+    // ── Source 2: Legacy tables (legacyLeague + legacyRoster) ─────────
+    const appUser = await prisma.appUser
+      .findUnique({
+        where: { id: userId },
+        select: { legacyUserId: true },
+      })
+      .catch(() => null)
 
-    const leagueSizeBonus = leagues.reduce((sum, l) => {
-      const teams = l.leagueSize ?? 12
-      return sum + Math.max(0, teams - 10) * RANK_XP_LEAGUE_SIZE_MULTIPLIER
+    if (appUser?.legacyUserId) {
+      const legacyLeagues = await prisma.legacyLeague.findMany({
+        where: { userId: appUser.legacyUserId },
+        select: {
+          id: true,
+          sleeperLeagueId: true,
+          season: true,
+          teamCount: true,
+          playoffTeams: true,
+          rosters: {
+            where: { isOwner: true },
+            take: 1,
+            select: {
+              wins: true,
+              losses: true,
+              isChampion: true,
+              finalStanding: true,
+              playoffSeed: true,
+            },
+          },
+        },
+      })
+
+      for (const ll of legacyLeagues) {
+        const roster = ll.rosters[0]
+        if (!roster) continue
+
+        // Dedup key matches the League table key so we don't double-count
+        const key = `sleeper:${ll.sleeperLeagueId}:${ll.season}`
+
+        // Skip if we already have data from League.import_* (more authoritative)
+        if (rows.has(key)) continue
+
+        const playoffCutoff = ll.playoffTeams ?? null
+        const madePlayoffs =
+          roster.isChampion === true ||
+          (playoffCutoff != null && roster.playoffSeed != null
+            ? roster.playoffSeed <= playoffCutoff
+            : playoffCutoff != null && roster.finalStanding != null
+              ? roster.finalStanding <= playoffCutoff
+              : false)
+
+        rows.set(key, {
+          key,
+          wins: roster.wins ?? 0,
+          losses: roster.losses ?? 0,
+          madePlayoffs,
+          wonChampionship: roster.isChampion === true,
+          season: ll.season,
+          leagueSize: ll.teamCount ?? 12,
+        })
+      }
+    }
+
+    // ── Compute XP from merged rows ──────────────────────────────────
+    const allRows = Array.from(rows.values())
+
+    if (allRows.length === 0) return null
+
+    const careerWins = allRows.reduce((s, r) => s + r.wins, 0)
+    const careerLosses = allRows.reduce((s, r) => s + r.losses, 0)
+    const careerChampionships = allRows.filter((r) => r.wonChampionship).length
+    const careerPlayoffAppearances = allRows.filter((r) => r.madePlayoffs).length
+    const careerSeasonsPlayed = allRows.length
+    const careerLeaguesPlayed = new Set(allRows.map((r) => r.season)).size
+
+    const leagueSizeBonus = allRows.reduce((sum, r) => {
+      return sum + Math.max(0, r.leagueSize - 10) * RANK_XP_LEAGUE_SIZE_MULTIPLIER
     }, 0)
 
     const xpNum =
