@@ -13,7 +13,7 @@ export async function buildWeatherContextForAI(
   void sport
   void position
   if (!impact?.hasWeatherData || !weather) return ''
-  if (Math.abs(impact.totalAdjustment) <= 1) return ''
+  if (Math.abs(impact.totalAdjustment) < 0.35) return ''
   const adj =
     (impact.totalAdjustment >= 0 ? '+' : '') + impact.totalAdjustment.toFixed(1)
   return `Game weather context: ${weather.conditionLabel}, ${weather.temperatureF.toFixed(0)}°F, wind ${weather.windSpeedMph.toFixed(0)}mph, ${weather.precipChancePct.toFixed(0)}% precip chance. AF weather adjustment: ${impact.shortReason} (${adj} pts).`
