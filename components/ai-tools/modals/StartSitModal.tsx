@@ -17,64 +17,21 @@ import { AIToolModalShell } from '../AIToolModalShell'
 import type { UserLeague } from '@/app/dashboard/types'
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import type {
+  StartSitAnalyzeResult,
+  StartSitMode,
+  StartSitPlayerRow,
+  StartSitRec,
+} from '@/lib/ai-tools-start-sit/types'
 
 type SportFilter = 'ALL' | (typeof SUPPORTED_SPORTS)[number]
 
-type StartSitMode = 'balanced' | 'safe' | 'upside'
+type PlayerRow = StartSitPlayerRow
+type Rec = StartSitRec
+type AnalyzeResult = StartSitAnalyzeResult
 
-type PlayerRow = {
-  playerId: string
-  recordId: string | null
-  name: string
-  position: string
-  team: string
-  projectedPoints: number | null
-  floor: number | null
-  ceiling: number | null
-  recentFantasyAvg: number | null
-  injuryStatus: string | null
-  rollingFppg: number | null
-  headshotUrl: string | null
-}
-
-type Rec = {
-  player: PlayerRow
-  reason: string
-  confidence: number
-}
-
-type AnalyzeResult = {
-  ok: true
-  sport: string
-  leagueId: string
-  leagueName: string
-  week: number
-  weekLabel: string
-  mode: StartSitMode
-  leagueSettingsSnapshot: Record<string, unknown> | null
-  teamContext: {
-    teamName: string | null
-    record: string | null
-    rank: number | null
-    pointsFor: number | null
-  }
-  opponent: { name: string | null; notes: string[] } | null
-  recommendations: {
-    bestStart: Rec | null
-    bestSit: Rec | null
-    safest: Rec | null
-    upside: Rec | null
-    floorOption: Rec | null
-  }
-  matchupNotes: string[]
-  injuryNewsNotes: string[]
-  reasoning: { league: string; team: string }
-  confidenceScore: number
-  players: PlayerRow[]
-  dataGaps: string[]
-  dataFreshness: string
-  chimmyPayload: Record<string, unknown>
-}
+/** League dropdown: sport-level snapshot without roster (real DB players, not league-scored). */
+const GLOBAL_START_SIT = '__af_global__'
 
 const MODES: { id: StartSitMode; label: string; icon: React.ReactNode; tone: string }[] = [
   { id: 'balanced', label: 'Balanced', icon: <Crosshair className="h-3 w-3" />, tone: 'Median EV' },
@@ -168,7 +125,7 @@ export function StartSitModal({
   }, [open, leagueId, initialSport])
 
   useEffect(() => {
-    if (!open || !activeLeagueId) {
+    if (!open || !activeLeagueId || activeLeagueId === GLOBAL_START_SIT) {
       setLeagueTeams([])
       return
     }
@@ -191,7 +148,14 @@ export function StartSitModal({
     () => leagues.find((l) => l.id === activeLeagueId) ?? null,
     [leagues, activeLeagueId],
   )
-  const displayLeagueName = activeLeague?.name ?? leagueName
+  const isGlobalMode = activeLeagueId === GLOBAL_START_SIT
+  const displayLeagueName = isGlobalMode ? 'Global (sport snapshot)' : activeLeague?.name ?? leagueName
+
+  const canAnalyze = useMemo(() => {
+    if (!activeLeagueId) return false
+    if (isGlobalMode) return sportFilter !== 'ALL'
+    return true
+  }, [activeLeagueId, isGlobalMode, sportFilter])
 
   const filteredLeagues = useMemo(() => {
     if (sportFilter === 'ALL') return leagues
@@ -204,15 +168,24 @@ export function StartSitModal({
       setError(null)
       return
     }
+    if (isGlobalMode && sportFilter === 'ALL') {
+      setError('Select a specific sport for global Start/Sit.')
+      setResult(null)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
+      const effectiveSport =
+        sportFilter === 'ALL' && activeLeague
+          ? (String(activeLeague.sport).toUpperCase() as SportFilter)
+          : sportFilter
       const r = await fetch('/api/ai-tools/start-sit/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sportFilter,
-          leagueId: activeLeagueId,
+          sportFilter: effectiveSport,
+          leagueId: isGlobalMode ? null : activeLeagueId,
           week,
           mode,
           teamExternalId: teamExternalId || null,
@@ -231,18 +204,18 @@ export function StartSitModal({
     } finally {
       setLoading(false)
     }
-  }, [activeLeagueId, sportFilter, week, mode, teamExternalId])
+  }, [activeLeagueId, activeLeague, isGlobalMode, sportFilter, week, mode, teamExternalId])
 
   useEffect(() => {
-    if (open && activeLeagueId) void runAnalyze()
-  }, [open, activeLeagueId, runAnalyze])
+    if (open && canAnalyze) void runAnalyze()
+  }, [open, canAnalyze, runAnalyze])
 
   const chimmyHref = getChimmyChatHrefWithPrompt(
     result?.chimmyPayload
       ? 'Explain Start/Sit using only the attached structured league and roster payload.'
       : `Start/Sit help for ${displayLeagueName}`,
     {
-      leagueId: activeLeagueId || undefined,
+      leagueId: isGlobalMode ? undefined : activeLeagueId || undefined,
       leagueName: displayLeagueName,
       sport: sportFilter === 'ALL' ? undefined : sportFilter,
       insightType: 'matchup',
@@ -264,8 +237,12 @@ export function StartSitModal({
       wide
       loading={false}
       error={error}
-      empty={!activeLeagueId}
-      emptyMessage="Choose a league to load your synced roster and scoring context."
+      empty={!canAnalyze}
+      emptyMessage={
+        isGlobalMode
+          ? 'Pick a sport to run a league-agnostic projection snapshot (not your roster or scoring).'
+          : 'Choose a league for roster-aware Start/Sit, or pick “Global” plus a sport for a sport snapshot.'
+      }
       onRefresh={() => void runAnalyze()}
       refreshing={loading}
       chimmyPrompt={
@@ -275,14 +252,86 @@ export function StartSitModal({
       }
       chimmyContext={result?.chimmyPayload ?? { source: 'start_sit_modal' }}
       headerBadge={
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-cyan-200">
-          <Activity className="h-3 w-3" />
-          Live data
-        </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+              isGlobalMode
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-100'
+                : 'border-cyan-500/25 bg-cyan-500/10 text-cyan-200'
+            }`}
+          >
+            <Activity className="h-3 w-3" />
+            {isGlobalMode ? 'Global mode' : 'League mode'}
+          </span>
+          {result?.sourceFlags ? (
+            <>
+              <span
+                title={
+                  result.sourceFlags.sportsDataReady
+                    ? 'Normalized sports player data loaded for this roster'
+                    : 'Sports data layer unavailable — projections may be partial'
+                }
+                className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                  result.sourceFlags.sportsDataReady ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/5 text-white/35'
+                }`}
+              >
+                Data
+              </span>
+              <span
+                title={
+                  result.sourceFlags.injuryNewsLayerReady
+                    ? 'Injury/news feed returned headlines for this roster'
+                    : 'No injury/news headlines returned for this roster'
+                }
+                className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                  result.sourceFlags.injuryNewsLayerReady ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/5 text-white/35'
+                }`}
+              >
+                News
+              </span>
+              <span
+                title={
+                  result.sourceFlags.weatherLayerReady
+                    ? 'Weather layer attached for at least one outdoor game'
+                    : 'Weather layer inactive (indoor or no outdoor games)'
+                }
+                className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                  result.sourceFlags.weatherLayerReady ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/5 text-white/35'
+                }`}
+              >
+                Wx
+              </span>
+              <span
+                title={
+                  result.sourceFlags.leagueScoringApplied
+                    ? 'League scoring rules applied to projections'
+                    : 'League scoring not applied — generic projections'
+                }
+                className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                  result.sourceFlags.leagueScoringApplied ? 'bg-emerald-500/15 text-emerald-200' : 'bg-amber-500/12 text-amber-100/90'
+                }`}
+              >
+                {result.sourceFlags.leagueScoringApplied ? 'Scoring' : 'No lg scoring'}
+              </span>
+              <span
+                title={
+                  result.sourceFlags.aiEnvelopeReady
+                    ? 'AI time/league envelope attached'
+                    : 'AI envelope missing — Chimmy context may be degraded'
+                }
+                className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                  result.sourceFlags.aiEnvelopeReady ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/5 text-white/35'
+                }`}
+              >
+                AI
+              </span>
+            </>
+          ) : null}
+        </div>
       }
     >
       <div className="at-panel mb-3 p-3">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
           <label className="flex flex-col gap-1">
             <span className="at-section-title !mb-0">Sport</span>
             <select
@@ -308,6 +357,9 @@ export function StartSitModal({
               onChange={(e) => {
                 const v = e.target.value
                 setActiveLeagueId(v)
+                if (v === GLOBAL_START_SIT && sportFilter === 'ALL') {
+                  setSportFilter('NFL')
+                }
                 const lg = leagues.find((l) => l.id === v)
                 if (lg) setSportFilter(String(lg.sport).toUpperCase() as SportFilter)
                 setTeamExternalId('')
@@ -316,6 +368,7 @@ export function StartSitModal({
               disabled={filteredLeagues.length === 0 && leagues.length === 0}
             >
               <option value="">— Select league —</option>
+              <option value={GLOBAL_START_SIT}>Global (sport snapshot — not your roster)</option>
               {sportFilter === 'ALL'
                 ? SUPPORTED_SPORTS.map((sp) => {
                     const group = leagues.filter((l) => String(l.sport).toUpperCase() === sp)
@@ -397,6 +450,40 @@ export function StartSitModal({
 
       {result && !loading ? (
         <>
+          {result.summary ? (
+            <p className="mb-2 text-[11px] leading-snug text-sky-200/75">{result.summary}</p>
+          ) : null}
+          {result.bestBallInformational ? (
+            <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[11px] text-amber-100/90">
+              Best ball: optimal lineup scoring runs automatically — these picks are informational, not manual
+              start/sit.
+            </div>
+          ) : null}
+          {result.timeContext ? (
+            <div className="mb-3 rounded-lg border border-white/[0.08] bg-[#0d111a] px-3 py-2 text-[10px] text-white/55">
+              <span className="font-semibold text-white/70">Time · </span>
+              Local {result.timeContext.userLocalTime ?? '—'} ({result.timeContext.userTimezone ?? '—'})
+              {result.timeContext.timezoneMismatch ? (
+                <span className="text-amber-200/85"> · device TZ differs from account — server time is truth</span>
+              ) : null}
+              {result.lockStatusLabel ? (
+                <span className="mt-1 block text-sky-200/80">{result.lockStatusLabel}</span>
+              ) : null}
+              {result.timeContext.nextLockTimeUTC && result.timeContext.timeUntilNextLockMs != null ? (
+                <span className="mt-1 block text-white/45">
+                  Next lock UTC: {result.timeContext.nextLockTimeUTC}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          {result.validation && !result.validation.rosterLoaded ? (
+            <p className="mb-2 text-[11px] text-amber-200/85">
+              Roster not synced — connect your league import for full Start/Sit.
+            </p>
+          ) : null}
+          {result.dataQuality === 'degraded' ? (
+            <p className="mb-2 text-[11px] text-amber-200/85">Partial data — confidence is reduced; review gaps below.</p>
+          ) : null}
           <div className="at-panel mb-3 flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="text-[11px] font-bold uppercase tracking-wide text-[#5c6480]">{result.weekLabel}</p>
@@ -446,6 +533,48 @@ export function StartSitModal({
             <RecCard title="Upside" rec={result.recommendations.upside} accent="border-l-[3px] border-l-amber-500/50" />
             <RecCard title="Floor play" rec={result.recommendations.floorOption} accent="border-l-[3px] border-l-sky-500/50" />
           </div>
+          {result.lineupSlotAnalysis && result.lineupSlotAnalysis.some((s) => s.canLateSwap !== null) ? (
+            <div className="at-panel mb-3 px-3 py-2">
+              <p className="at-section-title mb-1">Slot lock status</p>
+              <div className="flex flex-wrap gap-1.5">
+                {result.lineupSlotAnalysis.map((s, i) => {
+                  const tone =
+                    s.canLateSwap === true
+                      ? 'bg-emerald-500/12 text-emerald-200 border-emerald-500/30'
+                      : s.canLateSwap === false
+                        ? 'bg-rose-500/12 text-rose-200 border-rose-500/30'
+                        : 'bg-white/5 text-white/45 border-white/10'
+                  const label =
+                    s.canLateSwap === true ? 'Swap OK' : s.canLateSwap === false ? 'Locked' : 'No game data'
+                  return (
+                    <span
+                      key={`${s.slotName}-${i}`}
+                      title={s.topCandidateGameStart ? `Top candidate game: ${new Date(s.topCandidateGameStart).toLocaleString()}` : 'No game time available'}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${tone}`}
+                    >
+                      {s.slotName} · {label}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+          {result.unresolvedDecisions && result.unresolvedDecisions.length > 0 ? (
+            <div className="at-panel mb-3 px-3 py-2">
+              <p className="at-section-title mb-1">Close calls (same-slot)</p>
+              <ul className="space-y-1 text-[10px] text-[#9ba3bf]">
+                {result.unresolvedDecisions.map((u, i) => (
+                  <li key={`${u.slotLabel}-${i}`}>
+                    <span className="font-semibold text-[#e8eaf6]">{u.slotLabel}</span>: {u.optionA} vs {u.optionB}{' '}
+                    <span className="text-white/45">(~{u.projectedGap} pts)</span>
+                    {u.informationalOnly ? (
+                      <span className="text-amber-200/80"> · informational (best ball)</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="mb-3 grid gap-3 md:grid-cols-2">
             <div className="at-panel p-3">
