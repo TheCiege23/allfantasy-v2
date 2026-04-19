@@ -7,6 +7,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { runTradeConsoleAnalysis } from '@/lib/trade-value-console/runTradeConsoleAnalysis'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import type { TradeConsoleAnalyzeInput } from '@/lib/trade-value-console/types'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 
 const assetSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -70,7 +71,14 @@ export const POST = withApiUsage({ endpoint: '/api/trade-value/analyze', tool: '
       const out = await runTradeConsoleAnalysis(payload)
 
       if (!out.ok) {
-        const status = out.code === 'CROSS_SPORT' ? 422 : 400
+        const status =
+          out.code === 'CROSS_SPORT'
+            ? 422
+            : out.code === 'PLAYER_NOT_FOUND'
+              ? 422
+              : out.code && out.code !== 'EMPTY' && out.code !== 'VALIDATION'
+                ? httpStatusForLeagueToolCode(out.code)
+                : 400
         return NextResponse.json(out, { status })
       }
 

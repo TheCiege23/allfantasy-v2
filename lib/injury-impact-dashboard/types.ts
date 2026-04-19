@@ -1,3 +1,6 @@
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import type { AiTimeContextPayload } from '@/lib/time-engine/types'
+
 export type InjuryTeamContextId =
   | 'my_team'
   | 'specific_team'
@@ -58,6 +61,11 @@ export type InjuryImpactDashboardInput = {
     includeHandcuffs: boolean
     includePlayoffImpact: boolean
     includeDynastyImpact: boolean
+    /**
+     * When true and a league is selected, run Waiver Intelligence once and attach
+     * named FA suggestions to each severe on-roster injury (at matching position).
+     */
+    includeWaiverReplacements?: boolean
   }
   skipAi?: boolean
 }
@@ -85,10 +93,48 @@ export type InjuryPlayerIntelRow = {
   replacementUrgency: number
   confidence: number
   dataGaps: string[]
+  /** League-scored weekly projection when engine + DB rows exist. */
+  effectiveProjection?: number | null
+  projectionNotes?: string[]
+  injuryNewsSummary?: string | null
+  /** Human-readable recency — not a clinical timeline. */
+  freshnessNote?: string | null
+  /** Sport/position structural replacement guidance (no named players). */
+  replacementHint?: string | null
+  /**
+   * Named free agents that could fill this slot — populated only when
+   * `toggles.includeWaiverReplacements` is on and the league has a resolvable FA pool.
+   * Empty array signals we looked but found none; omitted field signals we didn't look.
+   */
+  suggestedWaiverAdds?: Array<{
+    name: string
+    position: string
+    team: string
+    faabPct: number
+    tier: string
+    why: string
+    playerId: string
+  }>
+}
+
+export type InjuryImpactValidation = {
+  leagueContextResolved: boolean
+  rosterContextAvailable: boolean
+  projectionLayerReady: boolean
+  injuryNewsLayerReady: boolean
+  timeContextPresent: boolean
+}
+
+export type InjuryIntegrationHints = {
+  startSit: string
+  waiverWire: string
+  matchupPrep: string
+  warRoom: string
 }
 
 export type InjuryImpactDashboardResult = {
   ok: true
+  analysisMode: 'league' | 'global'
   analysisScope: 'league' | 'general'
   leagueName: string | null
   sportLabel: string
@@ -107,8 +153,19 @@ export type InjuryImpactDashboardResult = {
   dataGaps: string[]
   degraded: boolean
   computedAt: string
+  timeContext?: AiTimeContextPayload | null
+  validation: InjuryImpactValidation
+  summaryLine: string
+  dataQuality: 'full' | 'partial' | 'degraded'
+  integrationHints: InjuryIntegrationHints
 }
 
-export type InjuryImpactDashboardError = { ok: false; error: string; code?: 'FORBIDDEN' | 'VALIDATION' }
+export type InjuryImpactDashboardError = {
+  ok: false
+  error: string
+  /** Machine-readable; prefer over parsing `error` string */
+  code?: LeagueToolAccessErrorCode | 'FORBIDDEN' | 'VALIDATION'
+  userMessage?: string
+}
 
 export type InjuryImpactDashboardOutput = InjuryImpactDashboardResult | InjuryImpactDashboardError

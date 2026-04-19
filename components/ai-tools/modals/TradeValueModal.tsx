@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeftRight,
   ArrowUp,
@@ -59,18 +59,24 @@ function emptyPlayerRow(): SideRow {
   return { key: newKey(), kind: 'player', name: '' }
 }
 
+/** Explicit global: valuations without a league (API receives leagueId: null). */
+const GLOBAL_TRADE = '__af_global_trade__'
+
 export function TradeValueModal({
   open,
   onClose,
   leagues,
   initialLeagueId = '',
   initialSport = 'NFL',
+  initialPrefillGivePlayer = null,
 }: {
   open: boolean
   onClose: () => void
   leagues: UserLeague[]
   initialLeagueId?: string
   initialSport?: string
+  /** When opening from Trending, seed the "give" side with a named player. */
+  initialPrefillGivePlayer?: { name: string; playerId?: string | null; sportHint?: string } | null
 }) {
   const [sportFilter, setSportFilter] = useState<SportFilter>('ALL')
   const [leagueId, setLeagueId] = useState<string>('')
@@ -92,7 +98,7 @@ export function TradeValueModal({
   >([])
   const [opponentTeamExternalId, setOpponentTeamExternalId] = useState('')
   const [teamsLoading, setTeamsLoading] = useState(false)
-  const [weekFilter, setWeekFilter] = useState('current')
+  const prefillGiveConsumed = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -107,18 +113,37 @@ export function TradeValueModal({
       setResult(null)
       setError(null)
       setLoading(false)
+      prefillGiveConsumed.current = false
     }
   }, [open])
 
   useEffect(() => {
-    if (!leagueId) {
+    if (!open || !initialPrefillGivePlayer?.name?.trim() || prefillGiveConsumed.current) return
+    prefillGiveConsumed.current = true
+    const n = initialPrefillGivePlayer.name.trim()
+    setGive([
+      {
+        key: newKey(),
+        kind: 'player',
+        name: n,
+        playerId: initialPrefillGivePlayer.playerId ?? undefined,
+        sportHint: initialPrefillGivePlayer.sportHint,
+      },
+    ])
+  }, [open, initialPrefillGivePlayer])
+
+  const isGlobalLeague = !leagueId || leagueId === GLOBAL_TRADE
+  const effectiveLeagueId = isGlobalLeague ? null : leagueId
+
+  useEffect(() => {
+    if (!effectiveLeagueId) {
       setLeagueTeams([])
       setOpponentTeamExternalId('')
       return
     }
     let cancelled = false
     setTeamsLoading(true)
-    fetch(`/api/trade-value/league-teams?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
+    fetch(`/api/trade-value/league-teams?leagueId=${encodeURIComponent(effectiveLeagueId)}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
         if (cancelled || !j?.teams) return
@@ -141,11 +166,17 @@ export function TradeValueModal({
     return () => {
       cancelled = true
     }
-  }, [leagueId])
+  }, [effectiveLeagueId])
+
+  useEffect(() => {
+    if (effectiveLeagueId && leagues.some((l) => l.id === effectiveLeagueId)) {
+      setTeamContext('my_team')
+    }
+  }, [effectiveLeagueId, leagues])
 
   const selectedLeague = useMemo(
-    () => leagues.find((l) => l.id === leagueId) ?? null,
-    [leagues, leagueId],
+    () => (effectiveLeagueId ? leagues.find((l) => l.id === effectiveLeagueId) ?? null : null),
+    [leagues, effectiveLeagueId],
   )
 
   const filteredLeagues = useMemo(() => {
@@ -164,7 +195,7 @@ export function TradeValueModal({
   }, [filteredLeagues])
 
   useEffect(() => {
-    if (!leagueId) return
+    if (!leagueId || leagueId === GLOBAL_TRADE) return
     if (!filteredLeagues.some((l) => l.id === leagueId)) setLeagueId('')
   }, [sportFilter, leagueId, filteredLeagues])
 
@@ -239,10 +270,19 @@ export function TradeValueModal({
     return { g, t }
   }, [give, getRows, sportFilter])
 
+  const canRunTrade = useMemo(() => {
+    if (isGlobalLeague && sportFilter === 'ALL') return false
+    return true
+  }, [isGlobalLeague, sportFilter])
+
   const analyze = useCallback(async () => {
     const { g, t } = toPayload()
     if (g.length === 0 || t.length === 0) {
       setError('Add at least one priced asset on each side.')
+      return
+    }
+    if (!canRunTrade) {
+      setError('Select a specific sport for global trade mode, or choose a league.')
       return
     }
     setLoading(true)
@@ -250,7 +290,7 @@ export function TradeValueModal({
     try {
       const body = {
         sportFilter,
-        leagueId: leagueId || null,
+        leagueId: effectiveLeagueId,
         leagueSize: selectedLeague?.teamCount,
         tePremium: tePremium || undefined,
         isSuperFlex: isSuperFlex || undefined,
@@ -291,6 +331,8 @@ export function TradeValueModal({
     teamContext,
     tab,
     opponentTeamExternalId,
+    effectiveLeagueId,
+    canRunTrade,
   ])
 
   useEffect(() => {
@@ -343,11 +385,24 @@ export function TradeValueModal({
         tradeWarnings?: string[]
         rebalanceSuggestions?: string[]
         alternateTargetsNote?: string
+        alternateTargets?: Array<{ name: string; marketValue: number; position?: string | null }>
+        why?: string
+        projectedImpact?: {
+          giveTotal: number | null
+          getTotal: number | null
+          net: number | null
+          summary: string
+        }
         leagueReasoning?: string
         teamReasoning?: string
         leagueHistoryNote?: string | null
         syncedDataHighlights?: string[]
       }
+    | undefined
+
+  const summaryLineRes = typeof result?.summaryLine === 'string' ? result.summaryLine : null
+  const timeCtx = result?.timeContext as
+    | { userLocalTime?: string; userTimezone?: string; timezoneMismatch?: boolean }
     | undefined
 
   const formatModes = ['REDRAFT', 'DYNASTY', 'KEEPER', 'ZOMBIE', 'SURVIVOR'] as const
@@ -365,7 +420,7 @@ export function TradeValueModal({
     <button
       type="button"
       onClick={() => analyze()}
-      disabled={loading}
+      disabled={loading || !canRunTrade}
       className="rounded-lg border border-purple-400/30 bg-purple-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-purple-200 transition hover:bg-purple-500/25 disabled:opacity-40"
     >
       {loading ? <Loader2 className="inline h-3 w-3 animate-spin" /> : 'Run analysis'}
@@ -383,12 +438,82 @@ export function TradeValueModal({
       wide
       headerBadge={
         <span className="flex flex-wrap items-center gap-1">
+          <span
+            className={`rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+              (result?.analysisMode as string) === 'global' || isGlobalLeague
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-100'
+                : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
+            }`}
+          >
+            {(result?.analysisMode as string) === 'global' || isGlobalLeague ? 'Global' : 'League'}
+          </span>
           <span className="at-api-pill at-api-pill--live text-[9px] font-semibold uppercase tracking-wide">
             Live data
           </span>
-          <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#8b9dc8]">
-            FantasyCalc · DB
-          </span>
+          {(() => {
+            const sf = result?.sourceFlags as
+              | {
+                  fantasyCalcReady?: boolean
+                  sportsDataReady?: boolean
+                  projectionLayerReady?: boolean
+                  injuryNewsLayerReady?: boolean
+                  leagueScoringApplied?: boolean
+                  aiEnvelopeReady?: boolean
+                }
+              | undefined
+            if (!sf) {
+              return (
+                <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#8b9dc8]">
+                  FantasyCalc · DB
+                </span>
+              )
+            }
+            const chipBase =
+              'rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide'
+            const green = 'bg-emerald-500/15 text-emerald-200'
+            const dim = 'bg-white/5 text-white/35'
+            const amber = 'bg-amber-500/12 text-amber-100/90'
+            return (
+              <>
+                <span
+                  title={sf.fantasyCalcReady ? 'FantasyCalc valuations active' : 'FantasyCalc unavailable for this sport'}
+                  className={`${chipBase} ${sf.fantasyCalcReady ? green : dim}`}
+                >
+                  FC
+                </span>
+                <span
+                  title={sf.sportsDataReady ? 'All assets resolved to sports_players rows' : 'Some assets missing DB rows'}
+                  className={`${chipBase} ${sf.sportsDataReady ? green : dim}`}
+                >
+                  Data
+                </span>
+                <span
+                  title={sf.projectionLayerReady ? 'Projection engine attached' : 'No projections merged'}
+                  className={`${chipBase} ${sf.projectionLayerReady ? green : dim}`}
+                >
+                  Proj
+                </span>
+                <span
+                  title={sf.injuryNewsLayerReady ? 'Injury/news signals attached' : 'No injury/news signals for these players'}
+                  className={`${chipBase} ${sf.injuryNewsLayerReady ? green : dim}`}
+                >
+                  News
+                </span>
+                <span
+                  title={sf.leagueScoringApplied ? 'League scoring rules applied' : 'League scoring not applied'}
+                  className={`${chipBase} ${sf.leagueScoringApplied ? green : amber}`}
+                >
+                  {sf.leagueScoringApplied ? 'Scoring' : 'No lg scoring'}
+                </span>
+                <span
+                  title={sf.aiEnvelopeReady ? 'AI context envelope ready' : 'AI envelope missing'}
+                  className={`${chipBase} ${sf.aiEnvelopeReady ? green : dim}`}
+                >
+                  AI
+                </span>
+              </>
+            )
+          })()}
         </span>
       }
       showApiPills={false}
@@ -408,6 +533,16 @@ export function TradeValueModal({
         <div className="mb-3 rounded-[10px] border border-[#f06060]/25 bg-[rgba(240,96,96,0.08)] px-3 py-2 text-[12px] text-[#f08080]">
           {error}
         </div>
+      ) : null}
+
+      {summaryLineRes ? (
+        <p className="mb-2 text-[11px] leading-snug text-sky-200/90">{summaryLineRes}</p>
+      ) : null}
+      {timeCtx?.userLocalTime ? (
+        <p className="mb-3 text-[10px] text-[#5c6480]">
+          Local {timeCtx.userLocalTime} ({timeCtx.userTimezone ?? '—'})
+          {timeCtx.timezoneMismatch ? <span className="text-amber-200/90"> · device TZ ≠ account TZ</span> : null}
+        </p>
       ) : null}
 
       {/* Global filters — Sport / League / Week */}
@@ -435,7 +570,8 @@ export function TradeValueModal({
               onChange={(e) => setLeagueId(e.target.value)}
               className="at-select w-full px-2 py-2 text-[13px]"
             >
-              <option value="">All leagues</option>
+              <option value="">—</option>
+              <option value={GLOBAL_TRADE}>Global (sport-only — no league roster)</option>
               {sportFilter === 'ALL' && leaguesBySport.length > 0
                 ? leaguesBySport.map(([sport, list]) => (
                     <optgroup key={sport} label={sport}>
@@ -451,17 +587,6 @@ export function TradeValueModal({
                       {l.name} ({l.sport})
                     </option>
                   ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="at-section-title !mb-0">Week</span>
-            <select
-              value={weekFilter}
-              onChange={(e) => setWeekFilter(e.target.value)}
-              className="at-select w-full px-2 py-2 text-[13px]"
-            >
-              <option value="current">Current week</option>
-              <option value="next">Next week</option>
             </select>
           </label>
         </div>
@@ -484,7 +609,7 @@ export function TradeValueModal({
       {/* Advanced controls */}
       <div className="mb-3 space-y-2 rounded-[10px] border border-[#2e3347] bg-[#161b22] p-2.5">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {leagueId && leagueTeams.length > 0 ? (
+          {effectiveLeagueId && leagueTeams.length > 0 ? (
             <label className="flex flex-col gap-1">
               <span className="at-section-title !mb-0">Opponent (lineup context)</span>
               <select
@@ -653,7 +778,7 @@ export function TradeValueModal({
             Lineup context: {rosterSummary.yourRosterPlayers ?? 0} your roster players priced,{' '}
             {rosterSummary.theirRosterPlayers ?? 0} opponent.
           </p>
-        ) : result && leagueId ? (
+        ) : result && effectiveLeagueId ? (
           <p className="mt-2 text-[10px] text-[#5c6480]">No synced roster — value-only (no lineup simulation).</p>
         ) : null}
       </div>
@@ -675,14 +800,38 @@ export function TradeValueModal({
             ) : null}
           </div>
           <p className="text-[13px] leading-relaxed text-[#c8d4f0]">{tradeIntelligence.fairnessVerdict}</p>
+          {tradeIntelligence.why ? (
+            <p className="mt-3 text-[12px] leading-relaxed text-[#b0bdd8]" data-testid="trade-value-why-summary">
+              {tradeIntelligence.why}
+            </p>
+          ) : null}
+          {tradeIntelligence.projectedImpact &&
+          (tradeIntelligence.projectedImpact.giveTotal != null ||
+            tradeIntelligence.projectedImpact.getTotal != null) ? (
+            <div
+              className="mt-3 rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2"
+              data-testid="trade-value-projection-impact"
+            >
+              <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-cyan-200/80">
+                League-scored weekly projection stack
+              </p>
+              <p className="text-[11px] leading-snug text-[#a8c4d8]">
+                Give ~{tradeIntelligence.projectedImpact.giveTotal ?? '—'} · Get ~
+                {tradeIntelligence.projectedImpact.getTotal ?? '—'} · Net{' '}
+                {tradeIntelligence.projectedImpact.net != null
+                  ? `${tradeIntelligence.projectedImpact.net >= 0 ? '+' : ''}${tradeIntelligence.projectedImpact.net}`
+                  : '—'}
+              </p>
+            </div>
+          ) : null}
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="rounded-lg border border-white/[0.08] bg-[#0a1228]/80 px-3 py-2">
               <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-[#5c6480]">Who wins now</p>
               <p className="text-[14px] font-bold text-[#e8eaf6]">
                 {tradeIntelligence.whoWinsNow === 'you'
-                  ? 'You (value lean)'
+                  ? 'You (proj-first when available)'
                   : tradeIntelligence.whoWinsNow === 'opponent'
-                    ? 'Opponent (value lean)'
+                    ? 'Opponent (proj-first when available)'
                     : 'Even / mixed'}
               </p>
             </div>
@@ -723,6 +872,21 @@ export function TradeValueModal({
               <ul className="list-inside list-disc space-y-1 text-[11px] text-[#e8e0ff]">
                 {tradeIntelligence.rebalanceSuggestions.map((w, i) => (
                   <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {tradeIntelligence.alternateTargets && tradeIntelligence.alternateTargets.length > 0 ? (
+            <div className="mt-3 rounded-lg border border-white/[0.08] bg-[#0a1228]/80 px-3 py-2">
+              <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-[#5c6480]">
+                Alternate counter targets (their roster)
+              </p>
+              <ul className="list-none space-y-1 text-[11px] text-[#9eb0d0]">
+                {tradeIntelligence.alternateTargets.map((t, i) => (
+                  <li key={`${t.name}-${i}`}>
+                    {t.name}
+                    {t.position ? ` (${t.position})` : ''} — ~{t.marketValue}
+                  </li>
                 ))}
               </ul>
             </div>

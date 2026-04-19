@@ -1,5 +1,7 @@
 import type { LeagueSport } from '@prisma/client'
 import type { SupportedSport } from '@/lib/sport-scope'
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 
 export type TradeSportFilter = 'ALL' | SupportedSport
 
@@ -86,6 +88,14 @@ export type TradeConsolePlayerLine = {
   composite: number
   marketValue: number
   pricedSource: 'fantasycalc' | 'sports_db' | 'faab' | 'pick' | 'unknown'
+  /** From `resolveNormalizedPlayerSportsProfiles` + league scoring stack. */
+  effectiveProjection?: number | null
+  projectionNotes?: string[]
+  injuryNewsSummary?: string | null
+  weatherSummary?: string | null
+  weatherRiskLevel?: string | null
+  trendHint?: string | null
+  rollingFppg?: number | null
 }
 
 /** Opponent roster pieces not in the current "get" side — potential counter/ask targets. */
@@ -97,6 +107,30 @@ export type TradeConsoleOpponentRosterTarget = {
 }
 
 /** Deterministic, data-grounded summary for UI + Chimmy (no invented stats). */
+export type TradeConsoleValidation = {
+  leagueContextResolved: boolean
+  scoringAppliedToProjections: boolean
+  rosterContextAvailable: boolean
+  projectionLayerReady: boolean
+  injuryNewsLayerReady: boolean
+}
+
+/** Provider-health flags for UI chips — mirrors other AI tools. */
+export type TradeConsoleSourceFlags = {
+  /** FantasyCalc valuations available (NFL only — always false for other sports). */
+  fantasyCalcReady: boolean
+  /** `sports_players` rows resolved for all assets (no unresolved lookups). */
+  sportsDataReady: boolean
+  /** Projection engine layer attached to at least one line. */
+  projectionLayerReady: boolean
+  /** Injury / news signal attached to at least one line. */
+  injuryNewsLayerReady: boolean
+  /** League scoring rules applied via normalized league context. */
+  leagueScoringApplied: boolean
+  /** AI time + league envelope attached to chimmyPayload. */
+  aiEnvelopeReady: boolean
+}
+
 export type TradeIntelligence = {
   fairnessVerdict: string
   confidenceScore: number
@@ -107,6 +141,17 @@ export type TradeIntelligence = {
   tradeWarnings: string[]
   rebalanceSuggestions: string[]
   alternateTargetsNote: string
+  /** Opponent roster pieces not in the deal — for counter offers (real market values). */
+  alternateTargets: Array<{ name: string; marketValue: number; position: string | null }>
+  /** Single narrative tying fairness, projections, roster lens, and strategy. */
+  why: string
+  /** League-scored projected fantasy points summed per side when DB projections exist. */
+  projectedImpact: {
+    giveTotal: number | null
+    getTotal: number | null
+    net: number | null
+    summary: string
+  }
   leagueReasoning: string
   teamReasoning: string
   leagueHistoryNote: string | null
@@ -116,6 +161,8 @@ export type TradeIntelligence = {
 
 export type TradeConsoleAnalyzeResult = {
   ok: true
+  /** `league` = roster + scoring from a league row; `global` = sport/asset analysis without league. */
+  analysisMode: 'league' | 'global'
   effectiveSport: SupportedSport | 'MIXED'
   analysisScope: 'league' | 'general' | 'browse_only'
   league: TradeConsoleLeagueSnapshot | null
@@ -143,6 +190,13 @@ export type TradeConsoleAnalyzeResult = {
     risk: { grade: string; note: string }
     scheduleImpact: { note: string }
     injuryImpact: { note: string }
+    scoringContext: { note: string }
+    projectionImpact: {
+      giveTotal: number | null
+      getTotal: number | null
+      net: number | null
+      summary: string
+    }
     shortTermOutlook: { note: string }
     longTermOutlook: { note: string }
     positionalScarcity: { note: string }
@@ -157,12 +211,35 @@ export type TradeConsoleAnalyzeResult = {
   opponentRosterTargets?: TradeConsoleOpponentRosterTarget[]
   tradeIntelligence: TradeIntelligence
   chimmyPayload: Record<string, unknown>
+  /** Time engine + lock hints (same as other AI tools). */
+  timeContext?: AiTimeContextPayload | null
+  validation: TradeConsoleValidation
+  sourceFlags: TradeConsoleSourceFlags
+  /** One-line grounded summary for UI and downstream tools. */
+  summaryLine: string
+  dataQuality: 'full' | 'partial' | 'degraded'
+  /**
+   * League trade-window context — real values from `NormalizedTradeSettings` + matchup period.
+   * Null fields indicate the rule is unknown for this league (no deadline configured, etc.).
+   */
+  tradeWindow: {
+    currentPeriod: number | null
+    tradeDeadlineWeek: number | null
+    weeksUntilDeadline: number | null
+    pastDeadline: boolean
+    tradeReviewHours: number | null
+    draftPickTrading: boolean | null
+    note: string
+  } | null
 }
 
 export type TradeConsoleAnalyzeError = {
   ok: false
   error: string
-  code?: 'CROSS_SPORT' | 'VALIDATION' | 'EMPTY'
+  code?: 'CROSS_SPORT' | 'VALIDATION' | 'EMPTY' | 'PLAYER_NOT_FOUND' | LeagueToolAccessErrorCode
+  userMessage?: string
+  /** Names that could not be resolved to DB rows — populated when `code === 'PLAYER_NOT_FOUND'`. */
+  unresolvedAssets?: string[]
 }
 
 export type TradeConsoleAnalyzeOutput = TradeConsoleAnalyzeResult | TradeConsoleAnalyzeError

@@ -2,7 +2,6 @@ import 'server-only'
 
 import type { SportsPlayerRecord } from '@prisma/client'
 import type { PricedAsset } from '@/lib/hybrid-valuation'
-import type { SupportedSport } from '@/lib/sport-scope'
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n))
@@ -28,24 +27,6 @@ function injuryVolatility(status: string | null | undefined): number {
   if (s.includes('quest')) return 0.32
   if (s.includes('prob')) return 0.26
   return 0.24
-}
-
-export function missingPlayerPriced(name: string, sport: SupportedSport): PricedAsset {
-  const h = name.split('').reduce((s, c) => s + c.charCodeAt(0), 0)
-  const market = 450 + (h % 600)
-  return {
-    name,
-    type: 'player',
-    value: market,
-    assetValue: {
-      marketValue: market,
-      impactValue: Math.round(market * 0.52),
-      vorpValue: Math.round(market * 0.24),
-      volatility: 0.42,
-    },
-    position: 'UNK',
-    source: 'unknown',
-  }
 }
 
 export function sportsRecordToPricedAsset(row: SportsPlayerRecord): PricedAsset {

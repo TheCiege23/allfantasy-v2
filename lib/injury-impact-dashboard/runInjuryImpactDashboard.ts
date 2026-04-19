@@ -1,19 +1,34 @@
 import 'server-only'
 
 import type { InjuryReportRecord, SportsPlayerRecord } from '@prisma/client'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-messages'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { openaiChatText } from '@/lib/openai-client'
 import { prisma } from '@/lib/prisma'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
+import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
+import { enrichChimmyWithPlayerSportsNorm } from '@/lib/sports-data-normalization'
+import { buildWeatherAugmentFromCachedWeather } from '@/lib/weather/applyWeatherToFantasyProjection'
+import { defaultGameTimeForSport } from '@/lib/weather/defaultGameTimes'
+import { fetchWeatherForTeamHomeWindow } from '@/lib/weather/venueResolver'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import type { AiToolPayloadEnvelope } from '@/lib/intelligence/buildAiToolPayload'
 import type {
   InjuryImpactDashboardInput,
   InjuryImpactDashboardOutput,
+  InjuryIntegrationHints,
   InjuryPlayerIntelRow,
   InjurySeverityBucket,
   InjuryStatusFilterId,
   InjuryTimeHorizonId,
+  InjuryImpactValidation,
 } from './types'
+import { enrichInjuryRowsWithLeagueProjections } from './injuryProjectionEnrichment'
+import { computeInjuryConfidence, formatInjuryFreshnessNote } from './injuryFreshness'
+import { buildReplacementHint } from './injuryReplacementHints'
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n))
@@ -119,7 +134,7 @@ function rowFromInjuryReport(
   if (opts.isStarter) impact = clamp(impact + 12, 0, 100)
   const lineup = clamp(impact * 0.92, 0, 100)
   const urg = clamp((baseScoreFromBucket(bucket) / 100) * (opts.isStarter ? 92 : 55), 0, 100)
-  const conf = 0.78
+  const conf = 0.72
   return {
     playerKey: `${r.sport}:${r.playerId}`,
     name: r.playerName,
@@ -193,16 +208,25 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
   const starterSet = new Set<string>()
 
   if (input.leagueId?.trim()) {
-    const access = await assertLeagueMember(input.leagueId.trim(), input.userId)
+    const access = await assertLeagueMemberWithCode(input.leagueId.trim(), input.userId)
     if (!access.ok) {
-      return { ok: false, error: 'League not found or access denied', code: 'FORBIDDEN' }
+      const code = access.code
+      const userMessage = leagueToolAccessUserMessage(code)
+      return {
+        ok: false,
+        code,
+        error: userMessage,
+        userMessage,
+      }
     }
     const league = await prisma.league.findFirst({
       where: { id: input.leagueId.trim() },
       include: { teams: true },
     })
     if (!league) {
-      return { ok: false, error: 'League not found', code: 'FORBIDDEN' }
+      const code: LeagueToolAccessErrorCode = 'LEAGUE_NOT_FOUND'
+      const userMessage = leagueToolAccessUserMessage(code)
+      return { ok: false, error: userMessage, code, userMessage }
     }
     leagueName = league.name
     leagueSport = normalizeToSupportedSport(String(league.sport))
@@ -396,6 +420,43 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
 
   rows.sort((a, b) => b.impactScore - a.impactScore)
 
+  if (process.env.OPENWEATHERMAP_API_KEY?.trim()) {
+    const nfl = rows.filter((r) => r.sport === 'NFL' && r.team?.trim())
+    const teams = [...new Set(nfl.map((r) => r.team.trim().toUpperCase()))].slice(0, 14)
+    const gt = defaultGameTimeForSport('NFL')
+    const wxByTeam = new Map<string, import('@/lib/weather/weatherService').NormalizedWeather | null>()
+    for (const t of teams) {
+      try {
+        wxByTeam.set(t, await fetchWeatherForTeamHomeWindow({ sport: 'NFL', teamAbbrev: t, gameTime: gt }))
+      } catch {
+        wxByTeam.set(t, null)
+      }
+    }
+    for (const r of rows) {
+      if (r.sport !== 'NFL' || !r.team?.trim()) continue
+      const t = r.team.trim().toUpperCase()
+      const w = wxByTeam.get(t) ?? null
+      const aug = buildWeatherAugmentFromCachedWeather({
+        sport: 'NFL',
+        position: r.position,
+        teamAbbrev: t,
+        baselinePoints: 14,
+        weather: w,
+      })
+      if (
+        aug?.weatherRiskLevel &&
+        (aug.weatherRiskLevel === 'moderate' ||
+          aug.weatherRiskLevel === 'high' ||
+          aug.weatherRiskLevel === 'extreme')
+      ) {
+        const line = aug.weatherSummary ?? aug.weatherImpactReason
+        if (line) {
+          r.notes = r.notes ? `${r.notes} · Game weather: ${line}` : `Game weather: ${line}`
+        }
+      }
+    }
+  }
+
   if (!input.toggles.includePractice) {
     dataGaps.push('Practice tags omitted from narrative weighting (toggle off).')
   }
@@ -414,9 +475,216 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
   const overallRisk =
     rows.length === 0 ? 12 : clamp(rows.reduce((s, x) => s + x.impactScore, 0) / rows.length, 8, 98)
 
-  const chimmyPayload: Record<string, unknown> = {
+  let injuryLeagueContext: NormalizedLeagueContext | null = null
+  if (input.leagueId?.trim()) {
+    const ir = await resolveNormalizedLeagueContext({
+      userId: input.userId,
+      leagueId: input.leagueId.trim(),
+    })
+    if (ir.ok) injuryLeagueContext = ir.context
+  }
+
+  const projectionByPlayer = await enrichInjuryRowsWithLeagueProjections({
+    prisma,
+    leagueScoring: injuryLeagueContext?.scoring,
+    rows,
+  })
+
+  for (const row of rows) {
+    const k = `${row.sport}:${row.name.toLowerCase()}`
+    const sl = projectionByPlayer.get(k)
+    if (sl) {
+      row.effectiveProjection = sl.effectiveProjection
+      row.projectionNotes = sl.projectionNotes
+      row.injuryNewsSummary = sl.injuryNewsSummary
+    }
+    row.freshnessNote = formatInjuryFreshnessNote(row)
+    row.confidence = computeInjuryConfidence(row)
+    row.replacementHint = buildReplacementHint({
+      sport: row.sport,
+      position: row.position,
+      severity: row.severity,
+      isStarter: row.isStarter,
+    })
+    if (row.onRoster && sl?.effectiveProjection != null && Number.isFinite(sl.effectiveProjection) && sl.effectiveProjection >= 10) {
+      row.impactScore = clamp(row.impactScore + Math.min(10, Math.round(sl.effectiveProjection / 6)), 0, 100)
+      row.lineupDisruption = clamp(row.lineupDisruption + 5, 0, 100)
+    }
+  }
+  rows.sort((a, b) => b.impactScore - a.impactScore)
+
+  if (input.toggles.includeWaiverReplacements && analysisScope === 'league' && input.leagueId?.trim()) {
+    try {
+      const { runWaiverIntelligenceAnalysis } = await import('@/lib/ai-tools-waiver/waiver-intelligence')
+      const waiverRes = await runWaiverIntelligenceAnalysis({
+        userId: input.userId,
+        sportFilter: (leagueSport ? String(leagueSport).toUpperCase() : 'ALL') as SupportedSport | 'ALL',
+        leagueId: input.leagueId.trim(),
+        position: 'ALL',
+        rookiesOnly: false,
+        strategy: 'injury_replacement',
+        teamContext: 'my_team',
+        timeHorizon: 'this_week',
+      })
+      if (waiverRes.ok && waiverRes.analysisMode === 'league') {
+        const picksByPosition = new Map<string, typeof waiverRes.picks>()
+        for (const pk of waiverRes.picks) {
+          const key = pk.position.toUpperCase()
+          const bucket = picksByPosition.get(key) ?? []
+          bucket.push(pk)
+          picksByPosition.set(key, bucket)
+        }
+        for (const row of rows) {
+          if (!row.onRoster) continue
+          const severe =
+            row.severity === 'out' ||
+            row.severity === 'ir' ||
+            row.severity === 'suspended' ||
+            row.severity === 'doubtful'
+          if (!severe) continue
+          const bucket = picksByPosition.get(row.position.toUpperCase()) ?? []
+          row.suggestedWaiverAdds = bucket.slice(0, 2).map((pk) => ({
+            name: pk.name,
+            position: pk.position,
+            team: pk.team,
+            faabPct: pk.faabPct,
+            tier: pk.tier,
+            why: pk.why.slice(0, 180),
+            playerId: pk.recordId ?? pk.playerId,
+          }))
+        }
+      }
+    } catch (e) {
+      dataGaps.push('Waiver replacement enrichment failed (non-fatal).')
+    }
+  }
+
+  const waiverTradeImplications: string[] = []
+  for (const p of rows.slice(0, 12)) {
+    const k = `${p.sport}:${p.name.toLowerCase()}`
+    const proj = projectionByPlayer.get(k)
+    if (!p.onRoster) continue
+    if (p.severity === 'out' || p.severity === 'ir') {
+      waiverTradeImplications.push(
+        `${p.name} (${p.position}): high-impact absence — check ${proj?.effectiveProjection != null ? `league-scored proj was ~${proj.effectiveProjection.toFixed(1)} when healthy; ` : ''}waiver wire for same-slot fill; trade only if buying wins this week.`,
+      )
+    } else if (p.severity === 'doubtful' || p.severity === 'questionable') {
+      waiverTradeImplications.push(
+        `${p.name}: monitor designation — ${proj?.injuryNewsSummary ?? 'confirm closer to lock; stash contingency if flex-eligible.'}`,
+      )
+    }
+  }
+
+  const hasAnyProjection = [...projectionByPlayer.values()].some(
+    (v) => v.effectiveProjection != null && Number.isFinite(v.effectiveProjection as number),
+  )
+  const injuryNewsLayerReady = rows.some((r) => Boolean(r.injuryNewsSummary?.trim()))
+
+  const analysisMode: 'league' | 'global' = analysisScope === 'league' ? 'league' : 'global'
+
+  const summaryLine = [
+    `${analysisMode === 'league' && leagueName ? `${leagueName}: ` : ''}Injury scan — ${rows.length} player${rows.length === 1 ? '' : 's'}; composite risk ${Math.round(overallRisk * 10) / 10}/100.`,
+    hasAnyProjection
+      ? 'League-scored projections merged where roster rows matched.'
+      : 'No merged weekly projections — check league selection and scoring sync.',
+    rosterIds.length > 0 ? `Roster-linked IDs: ${rosterIds.length}.` : 'No roster IDs — pick a league for roster-aware flags.',
+  ].join(' ')
+
+  const dataQuality: 'full' | 'partial' | 'degraded' =
+    rows.length === 0
+      ? 'degraded'
+      : dataGaps.length > 5
+        ? 'degraded'
+        : dataGaps.length > 0 || (analysisScope === 'league' && !injuryLeagueContext) || !hasAnyProjection
+          ? 'partial'
+          : 'full'
+
+  const severePositionsOnRoster = rows
+    .filter((r) => r.onRoster && (r.severity === 'out' || r.severity === 'ir' || r.severity === 'doubtful' || r.severity === 'suspended'))
+    .reduce<Record<string, number>>((acc, r) => {
+      const k = r.position.toUpperCase()
+      acc[k] = (acc[k] ?? 0) + 1
+      return acc
+    }, {})
+  const severePositionEntries = Object.entries(severePositionsOnRoster)
+  const positionBreakdown = severePositionEntries
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([pos, n]) => `${n}× ${pos}`)
+    .join(', ')
+  const waiverHint =
+    severePositionEntries.length > 0
+      ? `${severePositionEntries.reduce((n, [, c]) => n + c, 0)} injured starter${severePositionEntries.length === 1 && severePositionEntries[0][1] === 1 ? '' : 's'} need fills (${positionBreakdown}) — open Waiver Wire filtered to these positions.`
+      : 'No severe on-roster injuries right now — monitor designations before lock.'
+
+  const integrationHints: InjuryIntegrationHints = {
+    startSit:
+      'Use Start/Sit with the same league so projected starts align with these injury flags and scoring.',
+    waiverWire: waiverHint,
+    matchupPrep: 'Matchup Prep uses the same league for weekly opponent context and lineup pressure.',
+    warRoom: 'AF War Room bundles injury intel with Start/Sit, waiver, and trade modules for one league.',
+  }
+
+  let aiEnvelope: AiToolPayloadEnvelope | null = null
+  if (input.userId) {
+    try {
+      aiEnvelope = await buildAiToolPayload({
+        userId: input.userId,
+        tool: 'injury_impact',
+        mode: analysisScope === 'league' && input.leagueId?.trim() ? 'league' : 'global',
+        league:
+          input.leagueId?.trim() && leagueName && leagueSport
+            ? {
+                leagueId: input.leagueId.trim(),
+                leagueName,
+                sport: String(leagueSport),
+              }
+            : null,
+        data: {
+          summaryCounts,
+          overallRisk,
+          summaryLine,
+          dataQuality,
+          integrationHints,
+          scoringSummary: injuryLeagueContext
+            ? {
+                model: injuryLeagueContext.scoring.scoringModel,
+                receptionFormat: injuryLeagueContext.scoring.labels.receptionFormat,
+                superflex: injuryLeagueContext.scoring.labels.isSuperflex,
+              }
+            : null,
+          matchupPeriod: injuryLeagueContext?.matchupPeriod ?? null,
+          playoffContext: injuryLeagueContext?.playoff ?? null,
+          waiverTradeImplications: waiverTradeImplications.slice(0, 10),
+          projectionSlices: [...projectionByPlayer.entries()].slice(0, 24).map(([key, v]) => ({
+            key,
+            effectiveProjection: v.effectiveProjection,
+            notes: v.projectionNotes.slice(0, 3),
+            injuryNewsSummary: v.injuryNewsSummary,
+          })),
+          toggles: input.toggles,
+        },
+        enrichTimeFromLeagueId: input.leagueId?.trim() ?? null,
+        includeTeamContext: true,
+      })
+    } catch {
+      aiEnvelope = null
+    }
+  }
+
+  const validation: InjuryImpactValidation = {
+    leagueContextResolved: injuryLeagueContext != null,
+    rosterContextAvailable: rosterIds.length > 0,
+    projectionLayerReady: hasAnyProjection,
+    injuryNewsLayerReady,
+    timeContextPresent: Boolean(aiEnvelope?.time),
+  }
+
+  const chimmyCore: Record<string, unknown> = {
     tool: 'injury_impact',
+    leagueContextEngine: injuryLeagueContext,
     analysisScope,
+    analysisMode,
     leagueName,
     leagueSport,
     sportFilter: input.sportFilter,
@@ -426,18 +694,63 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
     toggles: input.toggles,
     summaryCounts,
     overallRisk,
-    players: rows.slice(0, 40).map((p) => ({
-      name: p.name,
-      sport: p.sport,
-      status: p.statusRaw,
-      severity: p.severity,
-      onRoster: p.onRoster,
-      starter: p.isStarter,
-      impactScore: p.impactScore,
-      source: p.source,
-      reportDate: p.reportDate,
-    })),
+    projectionByPlayer: Object.fromEntries([...projectionByPlayer.entries()].slice(0, 32)),
+    waiverTradeImplications: waiverTradeImplications.slice(0, 10),
+    validation,
+    summaryLine,
+    dataQuality,
+    integrationHints,
+    timeContext: aiEnvelope?.time ?? null,
+    players: rows.slice(0, 40).map((p) => {
+      const k = `${p.sport}:${p.name.toLowerCase()}`
+      const sl = projectionByPlayer.get(k)
+      return {
+        name: p.name,
+        sport: p.sport,
+        status: p.statusRaw,
+        severity: p.severity,
+        onRoster: p.onRoster,
+        starter: p.isStarter,
+        impactScore: p.impactScore,
+        lineupDisruption: p.lineupDisruption,
+        replacementUrgency: p.replacementUrgency,
+        source: p.source,
+        reportDate: p.reportDate,
+        freshnessNote: p.freshnessNote ?? null,
+        replacementHint: p.replacementHint ?? null,
+        suggestedWaiverAdds: p.suggestedWaiverAdds ?? null,
+        effectiveProjection: sl?.effectiveProjection ?? null,
+        projectionNotes: sl?.projectionNotes ?? null,
+        injuryNewsSummary: sl?.injuryNewsSummary ?? null,
+      }
+    }),
     dataGaps,
+  }
+
+  let chimmyPayload: Record<string, unknown> = chimmyCore
+  if (aiEnvelope) {
+    chimmyPayload = attachIntelligenceToChimmyPayload(chimmyPayload, aiEnvelope)
+  }
+
+  try {
+    const bySport = new Map<SupportedSport, string[]>()
+    for (const p of rows.slice(0, 32)) {
+      const sp = normalizeToSupportedSport(String(p.sport ?? leagueSport ?? 'NFL'))
+      const arr = bySport.get(sp) ?? []
+      if (!arr.includes(p.name)) arr.push(p.name)
+      bySport.set(sp, arr)
+    }
+    const groups = [...bySport.entries()].map(([sport, names]) => ({ sport, names: names.slice(0, 24) }))
+    if (groups.length > 0) {
+      chimmyPayload = await enrichChimmyWithPlayerSportsNorm({
+        chimmyPayload,
+        prisma,
+        groups,
+        leagueScoring: injuryLeagueContext?.scoring ?? null,
+      })
+    }
+  } catch {
+    /* non-fatal */
   }
 
   let aiNarrative: string | null = null
@@ -464,6 +777,7 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
 
   return {
     ok: true,
+    analysisMode,
     analysisScope,
     leagueName,
     sportLabel: input.sportFilter === 'ALL' ? 'All sports' : input.sportFilter,
@@ -476,5 +790,10 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
     dataGaps,
     degraded: dataGaps.length > 0 || rows.length === 0,
     computedAt: new Date().toISOString(),
+    timeContext: aiEnvelope?.time ?? null,
+    validation,
+    summaryLine,
+    dataQuality,
+    integrationHints,
   }
 }

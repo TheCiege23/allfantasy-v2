@@ -29,29 +29,43 @@ import { logNarrativeValidation } from '@/lib/trade-engine/narrative-validation-
 import { getPlayerValuesContext } from '@/lib/player-values/playerValuesLoader'
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { prisma } from '@/lib/prisma'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
+import {
+  attachSportsNormalizationToChimmyPayload,
+  resolveNormalizedPlayerSportsProfiles,
+} from '@/lib/sports-data-normalization'
 import { loadLeagueForTrade } from './league-loader'
 import { snapshotFromLoaded } from './quick-badges'
 import { pricedAssetToEngineAsset } from './priced-asset-to-asset'
 import { buildTradeIntelligence } from './build-trade-intelligence'
+import { enrichTradeConsolePlayerLines, sumEffectiveProjections } from './tradeProjectionEnrichment'
 import {
   formatStructuredContextForReasoning,
   highlightsFromStructuredNotes,
   loadLeagueStructuredContextNotes,
 } from './load-league-structured-context'
-import { clamp, missingPlayerPriced, sportsRecordToPricedAsset } from './sports-db-valuation'
+import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
+import { clamp, sportsRecordToPricedAsset } from './sports-db-valuation'
 import {
   benchAssetsNotInGive,
   inferThinPositionsFromRoster,
   loadTradeEngineRosterContext,
   type TradeEngineRosterContext,
 } from './roster-context-loader'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
+import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-messages'
+import type { AiToolPayloadEnvelope } from '@/lib/intelligence/buildAiToolPayload'
 import type {
   TradeAssetInput,
   TradeConsoleAnalyzeInput,
   TradeConsoleAnalyzeOutput,
+  TradeConsoleAnalyzeResult,
   TradeConsoleOpponentRosterTarget,
   TradeConsolePlayerLine,
   TradeConsoleRosterSummary,
+  TradeConsoleSourceFlags,
+  TradeConsoleValidation,
 } from './types'
 
 async function loadLeagueTradeHistoryNote(leagueId: string | null | undefined): Promise<string | null> {
@@ -125,9 +139,10 @@ async function resolveAssets(
     dataGaps: string[]
     fcPlayers: FantasyCalcPlayer[]
   },
-): Promise<{ priced: PricedAsset[]; lines: TradeConsolePlayerLine[] }> {
+): Promise<{ priced: PricedAsset[]; lines: TradeConsolePlayerLine[]; unresolved: string[] }> {
   const priced: PricedAsset[] = []
   const lines: TradeConsolePlayerLine[] = []
+  const unresolved: string[] = []
 
   for (const raw of items) {
     if (raw.kind === 'pick') {
@@ -212,18 +227,7 @@ async function resolveAssets(
       row = (await getPlayer(raw.playerId.trim())) as SportsPlayerRecord | null
     }
     if (!row) {
-      args.dataGaps.push(`No DB row for "${displayName || raw.playerId}" (${args.effectiveSport}) — using low-confidence placeholder.`)
-      const stub = missingPlayerPriced(displayName || 'Unknown', args.effectiveSport)
-      priced.push(stub)
-      lines.push(
-        lineFromPriced(stub, {
-          sport: args.effectiveSport,
-          pricedSource: 'unknown',
-          dataSource: 'placeholder',
-          playerId: null,
-          position: 'UNK',
-        }),
-      )
+      unresolved.push(displayName || raw.playerId || 'unknown')
       continue
     }
 
@@ -244,7 +248,22 @@ async function resolveAssets(
     )
   }
 
-  return { priced, lines }
+  return { priced, lines, unresolved }
+}
+
+function pprForNflFromLeagueContext(
+  norm: NormalizedLeagueContext | null,
+  leagueRow: Awaited<ReturnType<typeof loadLeagueForTrade>> | null,
+): 0 | 0.5 | 1 {
+  const fmt = norm?.scoring?.labels?.receptionFormat
+  if (fmt === 'ppr') return 1
+  if (fmt === 'half_ppr') return 0.5
+  if (fmt === 'standard') return 0
+  const s = (leagueRow?.scoring ?? '').toLowerCase()
+  if (s.includes('half') || s.includes('0.5')) return 0.5
+  if (s.includes('standard') && !s.includes('half')) return 0
+  if (s.includes('ppr') || s.includes('full')) return 1
+  return 1
 }
 
 function isMultisportLeague(settings: Record<string, unknown> | null | undefined): boolean {
@@ -256,6 +275,26 @@ function isMultisportLeague(settings: Record<string, unknown> | null | undefined
   return false
 }
 
+function buildTradeConsoleValidation(args: {
+  leagueNormCtx: NormalizedLeagueContext | null
+  giveLines: TradeConsolePlayerLine[]
+  getLines: TradeConsolePlayerLine[]
+  rosterLineup: boolean
+}): TradeConsoleValidation {
+  const lines = [...args.giveLines, ...args.getLines]
+  const projectionLayerReady = lines.some(
+    (l) => l.effectiveProjection != null && Number.isFinite(l.effectiveProjection),
+  )
+  const injuryNewsLayerReady = lines.some((l) => !!(l.injuryNewsSummary?.trim() || l.injuryStatus?.trim()))
+  return {
+    leagueContextResolved: args.leagueNormCtx != null,
+    scoringAppliedToProjections: args.leagueNormCtx != null && projectionLayerReady,
+    rosterContextAvailable: args.rosterLineup,
+    projectionLayerReady,
+    injuryNewsLayerReady,
+  }
+}
+
 export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): Promise<TradeConsoleAnalyzeOutput> {
   const give = input.sideGive ?? []
   const get = input.sideGet ?? []
@@ -263,12 +302,41 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     return { ok: false, error: 'Add at least one asset on each side.', code: 'EMPTY' }
   }
 
+  if (input.leagueId?.trim()) {
+    if (!input.userId) {
+      return {
+        ok: false,
+        error: 'Sign in required to analyze trades with a league context.',
+        code: 'MISSING_USER_CONTEXT',
+        userMessage: leagueToolAccessUserMessage('MISSING_USER_CONTEXT'),
+      }
+    }
+    const mem = await assertLeagueMemberWithCode(input.leagueId.trim(), input.userId)
+    if (!mem.ok) {
+      const um = leagueToolAccessUserMessage(mem.code)
+      return { ok: false, error: um, code: mem.code, userMessage: um }
+    }
+  }
+
   let leagueRow = null as Awaited<ReturnType<typeof loadLeagueForTrade>> | null
   if (input.leagueId && input.userId) {
-    leagueRow = await loadLeagueForTrade({ leagueId: input.leagueId, userId: input.userId })
+    leagueRow = await loadLeagueForTrade({
+      leagueId: input.leagueId.trim(),
+      userId: input.userId,
+      membershipPreverified: true,
+    })
   }
 
   const leagueSnapshot = leagueRow ? snapshotFromLoaded(leagueRow) : null
+
+  let leagueNormCtx: NormalizedLeagueContext | null = null
+  if (input.leagueId?.trim() && input.userId) {
+    const lc = await resolveNormalizedLeagueContext({
+      userId: input.userId,
+      leagueId: input.leagueId.trim(),
+    })
+    if (lc.ok) leagueNormCtx = lc.context
+  }
 
   let effectiveSport: SupportedSport | 'MIXED' = 'NFL'
   if (input.sportFilter === 'ALL') {
@@ -327,6 +395,12 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
   }
 
   const dataGaps: string[] = []
+
+  if (!leagueSnapshot) {
+    dataGaps.push(
+      'Global mode: no opponent roster, so rebalance suggestions and alternate targets are omitted. Select a league for negotiation-grade output.',
+    )
+  }
   const leagueSize =
     input.leagueSize ??
     leagueSnapshot?.leagueSize ??
@@ -334,9 +408,11 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
   const tePremium =
     input.tePremium ??
     leagueSnapshot?.tePremiumHint ??
-    false
+    (typeof leagueNormCtx?.scoring?.labels?.tePremiumExtra === 'number' &&
+      leagueNormCtx.scoring.labels.tePremiumExtra > 0)
   const isSuperFlex =
     input.isSuperFlex ??
+    leagueNormCtx?.scoring?.labels?.isSuperflex ??
     leagueSnapshot?.isSuperFlexHint ??
     false
   const waiverBudget =
@@ -344,12 +420,13 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     leagueSnapshot?.waiverBudget ??
     100
 
+  const pprNfl = pprForNflFromLeagueContext(leagueNormCtx, leagueRow)
   const asOf = new Date().toISOString().slice(0, 10)
   const fcPlayers = await fetchFantasyCalcValues({
     isDynasty: true,
     numQbs: isSuperFlex ? 2 : 1,
     numTeams: leagueSize,
-    ppr: 1,
+    ppr: pprNfl,
   })
 
   const nflCtx: ValuationContext = {
@@ -359,20 +436,50 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     numTeams: leagueSize,
   }
 
-  const { priced: givePriced, lines: giveLines } = await resolveAssets(give, {
+  let { priced: givePriced, lines: giveLines, unresolved: giveUnresolved } = await resolveAssets(give, {
     effectiveSport,
     nflCtx,
     waiverBudget,
     dataGaps,
     fcPlayers,
   })
-  const { priced: getPriced, lines: getLines } = await resolveAssets(get, {
+  let { priced: getPriced, lines: getLines, unresolved: getUnresolved } = await resolveAssets(get, {
     effectiveSport,
     nflCtx,
     waiverBudget,
     dataGaps,
     fcPlayers,
   })
+
+  const unresolved = [...giveUnresolved, ...getUnresolved]
+  if (unresolved.length > 0) {
+    const list = unresolved.slice(0, 6).join(', ')
+    const msg = `Could not resolve ${unresolved.length} player${unresolved.length === 1 ? '' : 's'} in the ${effectiveSport} database: ${list}${unresolved.length > 6 ? '…' : ''}. Fix spelling or use the player search before analyzing.`
+    return {
+      ok: false,
+      error: msg,
+      code: 'PLAYER_NOT_FOUND',
+      userMessage: msg,
+      unresolvedAssets: unresolved,
+    }
+  }
+
+  const [giveEnriched, getEnriched] = await Promise.all([
+    enrichTradeConsolePlayerLines({
+      prisma,
+      sport: effectiveSport,
+      leagueScoring: leagueNormCtx?.scoring,
+      lines: giveLines,
+    }),
+    enrichTradeConsolePlayerLines({
+      prisma,
+      sport: effectiveSport,
+      leagueScoring: leagueNormCtx?.scoring,
+      lines: getLines,
+    }),
+  ])
+  giveLines = giveEnriched
+  getLines = getEnriched
 
   if (givePriced.length === 0 || getPriced.length === 0) {
     return { ok: false, error: 'Could not price assets on both sides.', code: 'VALIDATION' }
@@ -475,7 +582,18 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
   const rawConfidence = drivers.confidenceRating as 'HIGH' | 'MEDIUM' | 'LOW' | 'LEARNING'
   const confidence: 'MEDIUM' | 'LOW' =
     rawConfidence === 'HIGH' ? 'MEDIUM' : rawConfidence === 'LOW' ? 'LOW' : 'MEDIUM'
-  const confidenceScore = Math.min(drivers.confidenceScore ?? 50, 85)
+  // Confidence cap scales with data quality — degraded signals lower the ceiling,
+  // so a user never sees "90% confident" on a trade priced with gaps.
+  const rawConfScore = drivers.confidenceScore ?? 50
+  const isLeagueMode = Boolean(input.leagueId?.trim())
+  const leagueCtxMissing = isLeagueMode && !leagueNormCtx
+  const confCap =
+    dataGaps.length >= 3 || leagueCtxMissing
+      ? 55
+      : dataGaps.length > 0
+        ? 72
+        : 88
+  const confidenceScore = Math.max(10, Math.min(rawConfScore, confCap))
 
   const delta = getTotal - giveTotal
   let fairnessLabel = 'Even trade'
@@ -494,6 +612,39 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
   const degraded =
     dataGaps.length > 0 ||
     [...giveLines, ...getLines].some((l) => l.dataSource === 'placeholder')
+
+  const giveProjSum = sumEffectiveProjections(giveLines)
+  const getProjSum = sumEffectiveProjections(getLines)
+  const netProj =
+    giveProjSum != null && getProjSum != null
+      ? Math.round((getProjSum - giveProjSum) * 10) / 10
+      : null
+
+  const projectedImpactBlock = {
+    giveTotal: giveProjSum,
+    getTotal: getProjSum,
+    net: netProj,
+    summary:
+      giveProjSum != null && getProjSum != null
+        ? 'Net = sum(get) − sum(give) of league-scored weekly projections (injury → weather → scoring stack) for players with DB rows — short-term add/drop signal, not dynasty market value.'
+        : 'Add league + player rows with projections to unlock scoring-adjusted weekly impact alongside market composites.',
+  }
+
+  const scoringSummaryLine = leagueNormCtx
+    ? `Normalized scoring: ${leagueNormCtx.scoring.scoringModel} · receptions ${leagueNormCtx.scoring.labels.receptionFormat} · superflex ${leagueNormCtx.scoring.labels.isSuperflex ? 'on' : 'off'}.`
+    : leagueSnapshot?.scoring
+      ? `League scoring label: ${leagueSnapshot.scoring}.`
+      : null
+
+  const injuryImpactNote = (() => {
+    const bits: string[] = []
+    for (const l of giveLines.concat(getLines)) {
+      if (l.injuryStatus) bits.push(`${l.name}: ${l.injuryStatus}`)
+      if (l.injuryNewsSummary) bits.push(`${l.name} (news): ${l.injuryNewsSummary}`)
+      if (l.trendHint) bits.push(`${l.name} (usage/trend): ${l.trendHint}`)
+    }
+    return bits.slice(0, 8).join(' · ') || 'No structured injury, news, or trend flags on these assets.'
+  })()
 
   const secondary = {
     rawValue: {
@@ -516,15 +667,14 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
       note: 'Schedule strength is blended from available data feeds (see sport data freshness).',
     },
     injuryImpact: {
-      note: giveLines
-        .concat(getLines)
-        .filter((l) => l.injuryStatus)
-        .map((l) => `${l.name}: ${l.injuryStatus}`)
-        .slice(0, 4)
-        .join(' · ') || 'No structured injury flags on these assets.',
+      note: injuryImpactNote,
     },
+    scoringContext: {
+      note: scoringSummaryLine ?? 'No league context engine — using sport defaults and trade-league hints only.',
+    },
+    projectionImpact: projectedImpactBlock,
     shortTermOutlook: {
-      note: `Market delta ~${percentDiff}%. Lean: ${drivers.lean}.`,
+      note: `Market delta ~${percentDiff}%. Lean: ${drivers.lean}.${netProj != null ? ` Projection net (weekly stack): ${netProj >= 0 ? '+' : ''}${netProj}.` : ''}`,
     },
     longTermOutlook: {
       note: leagueSnapshot?.isDynasty
@@ -578,6 +728,11 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     ? `\n\nLeague Format: Superflex — QBs carry extra trade weight.`
     : ''
   const tepContext = tePremium ? `\n\nLeague Format: Tight End Premium (~15% TE boost).` : ''
+  const scoringCtx = scoringSummaryLine ? `\n\n${scoringSummaryLine}` : ''
+  const projContext =
+    projectedImpactBlock.giveTotal != null && projectedImpactBlock.getTotal != null
+      ? `\n\nLeague-scored weekly projection stack (real DB projections, short-term): give sum ${projectedImpactBlock.giveTotal.toFixed(1)}, get sum ${projectedImpactBlock.getTotal.toFixed(1)}, net ${projectedImpactBlock.net ?? 'n/a'}.`
+      : ''
 
   let aiNarrative: { bullets: Array<{ text: string; driverId: string }>; sensitivity: { text: string; driverId: string } } | null =
     null
@@ -596,7 +751,10 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
                 (playerValuesCtx ? `\n\n${playerValuesCtx}` : '') +
                 `\n\nDo not invent injuries or news. Only explain using the structured driver data and named assets.`,
             },
-            { role: 'user', content: buildGptUserPrompt(gptContract) + sfContext + tepContext },
+            {
+              role: 'user',
+              content: buildGptUserPrompt(gptContract) + sfContext + tepContext + scoringCtx + projContext,
+            },
           ],
           temperature: 0.2,
           maxTokens: 450,
@@ -716,9 +874,12 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
   const structuredExtra = formatStructuredContextForReasoning(structuredNotes)
   const syncedHighlights = highlightsFromStructuredNotes(structuredNotes)
 
-  const injuryNotes = [...giveLines, ...getLines]
-    .filter((l) => l.injuryStatus)
-    .map((l) => `${l.name}: ${l.injuryStatus}`)
+  const injuryNotes = [...giveLines, ...getLines].flatMap((l) => {
+    const parts: string[] = []
+    if (l.injuryStatus) parts.push(`${l.name}: ${l.injuryStatus}`)
+    if (l.injuryNewsSummary) parts.push(`${l.name} (aggregated news): ${l.injuryNewsSummary}`)
+    return parts
+  })
 
   const tradeIntelligence = buildTradeIntelligence({
     league: leagueSnapshot,
@@ -735,7 +896,11 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     injuryNotes,
     drivers: driverPayload,
     negotiationToolkit,
-    opponentRosterTargets: opponentRosterTargets?.map((t) => ({ name: t.name, marketValue: t.marketValue })),
+    opponentRosterTargets: opponentRosterTargets?.map((t) => ({
+      name: t.name,
+      marketValue: t.marketValue,
+      position: t.position,
+    })),
     rosterSummary: {
       lineupSimulation: rosterSummaryOut.lineupSimulation,
       yourRosterPlayers: rosterSummaryOut.yourRosterPlayers,
@@ -744,12 +909,96 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     leagueHistoryNote,
     structuredContextExtra: structuredExtra || null,
     syncedDataHighlights: syncedHighlights,
+    projectedImpact: projectedImpactBlock,
+    scoringSummary: scoringSummaryLine,
   })
 
-  const chimmyPayload = {
+  const validation = buildTradeConsoleValidation({
+    leagueNormCtx,
+    giveLines,
+    getLines,
+    rosterLineup: rosterSummaryOut.lineupSimulation,
+  })
+
+  const allLines = [...giveLines, ...getLines]
+  const sourceFlags: TradeConsoleSourceFlags = {
+    fantasyCalcReady: effectiveSport === 'NFL' && fcPlayers.length > 0,
+    sportsDataReady: allLines.length > 0 && allLines.every((l) => Boolean(l.playerId)),
+    projectionLayerReady: validation.projectionLayerReady,
+    injuryNewsLayerReady: validation.injuryNewsLayerReady,
+    leagueScoringApplied: validation.scoringAppliedToProjections,
+    aiEnvelopeReady: false,
+  }
+
+  const shortLbl =
+    tradeIntelligence.whoWinsNow === 'you'
+      ? 'you'
+      : tradeIntelligence.whoWinsNow === 'opponent'
+        ? 'opponent'
+        : 'even'
+  const longLbl =
+    tradeIntelligence.whoWinsLongTerm === 'you'
+      ? 'you'
+      : tradeIntelligence.whoWinsLongTerm === 'opponent'
+        ? 'opponent'
+        : 'even'
+
+  const summaryLine = `Fairness ${Math.round(fairnessScore)}/100 · short-term ${shortLbl} · long-term ${longLbl}${degraded ? ' · degraded inputs' : ''}`
+
+  const dataQuality: 'full' | 'partial' | 'degraded' = degraded
+    ? 'degraded'
+    : dataGaps.length > 0 || (Boolean(input.leagueId?.trim()) && !leagueNormCtx)
+      ? 'partial'
+      : 'full'
+
+  let tradeWindow: TradeConsoleAnalyzeResult['tradeWindow'] = null
+  if (leagueNormCtx) {
+    const cur = leagueNormCtx.matchupPeriod.currentPeriod
+    const deadline = leagueNormCtx.trade.tradeDeadlineWeek
+    const reviewHours = leagueNormCtx.trade.tradeReviewHours
+    const pickTrading = leagueNormCtx.trade.draftPickTrading
+    const weeksUntil =
+      typeof cur === 'number' && typeof deadline === 'number' ? deadline - cur : null
+    const pastDeadline = weeksUntil != null && weeksUntil < 0
+    const deadlinePart =
+      deadline == null
+        ? 'No trade deadline configured for this league.'
+        : pastDeadline
+          ? `Trade deadline (week ${deadline}) has passed.`
+          : weeksUntil === 0
+            ? `Trade deadline is THIS week (week ${deadline}).`
+            : weeksUntil != null
+              ? `Trade deadline in ${weeksUntil} week${weeksUntil === 1 ? '' : 's'} (week ${deadline}).`
+              : `Trade deadline: week ${deadline}.`
+    const reviewPart =
+      reviewHours != null && reviewHours > 0
+        ? ` Trade review: ${reviewHours}h.`
+        : reviewHours === 0
+          ? ' No trade review period — accepted trades process immediately.'
+          : ''
+    const pickPart =
+      pickTrading === true
+        ? ' Draft pick trading allowed.'
+        : pickTrading === false
+          ? ' Draft pick trading disabled — do not include picks.'
+          : ''
+    tradeWindow = {
+      currentPeriod: cur,
+      tradeDeadlineWeek: deadline,
+      weeksUntilDeadline: weeksUntil,
+      pastDeadline,
+      tradeReviewHours: reviewHours,
+      draftPickTrading: pickTrading,
+      note: `${deadlinePart}${reviewPart}${pickPart}`.trim(),
+    }
+  }
+
+  let chimmyPayload: Record<string, unknown> = {
     tool: 'trade_value_console',
     sport: effectiveSport,
     league: leagueSnapshot,
+    leagueContextEngine: leagueNormCtx,
+    tradeWindow,
     strategy: input.strategy,
     teamContext: input.teamContext,
     analysisTab: input.analysisTab,
@@ -765,10 +1014,76 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     opponentRosterTargets: opponentRosterTargets ?? [],
     tradeIntelligence,
     structuredLeagueContext: structuredNotes,
+    validation,
+    sourceFlags,
+    summaryLine,
+    dataQuality,
+  }
+
+  if (leagueNormCtx && input.userId) {
+    try {
+      const tradePlayerNames = [
+        ...new Set(
+          [...giveLines, ...getLines]
+            .filter((l) => l.pricedSource !== 'pick' && l.pricedSource !== 'faab')
+            .map((l) => l.name)
+            .filter(Boolean),
+        ),
+      ].slice(0, 28)
+      if (tradePlayerNames.length > 0) {
+        const batch = await resolveNormalizedPlayerSportsProfiles({
+          prisma,
+          sport: effectiveSport,
+          players: tradePlayerNames.map((name) => ({ name })),
+          leagueScoring: leagueNormCtx.scoring,
+          includeClearSportsProjections: tradePlayerNames.length <= 20,
+        })
+        chimmyPayload = attachSportsNormalizationToChimmyPayload(chimmyPayload, batch)
+      }
+    } catch {
+      /* non-fatal: trade tool still returns valuation */
+    }
+  }
+
+  let aiEnvelope: AiToolPayloadEnvelope | null = null
+  if (input.userId) {
+    try {
+      aiEnvelope = await buildAiToolPayload({
+        userId: input.userId,
+        tool: 'trade_value_console',
+        mode: input.leagueId ? 'league' : 'global',
+        league: leagueSnapshot
+          ? {
+              leagueId: leagueSnapshot.id,
+              leagueName: leagueSnapshot.name,
+              sport: String(leagueSnapshot.sport),
+            }
+          : null,
+        data: {
+          tradeIntelligence,
+          projectedImpact: projectedImpactBlock,
+          scoringSummary: scoringSummaryLine,
+          partnerContext: {
+            opponentTeamExternalId: input.opponentTeamExternalId ?? null,
+            rosterSimulation: rosterSummaryOut.lineupSimulation,
+          },
+          validation,
+          summaryLine,
+        },
+        enrichTimeFromLeagueId: input.leagueId ?? null,
+        includeTeamContext: true,
+        preferredTeamExternalId: input.opponentTeamExternalId ?? null,
+      })
+      chimmyPayload = attachIntelligenceToChimmyPayload(chimmyPayload, aiEnvelope)
+      sourceFlags.aiEnvelopeReady = true
+    } catch {
+      /* non-fatal */
+    }
   }
 
   return {
     ok: true,
+    analysisMode: leagueSnapshot ? 'league' : 'global',
     effectiveSport,
     analysisScope: leagueSnapshot ? 'league' : 'general',
     league: leagueSnapshot,
@@ -797,5 +1112,11 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
     opponentRosterTargets,
     tradeIntelligence,
     chimmyPayload,
+    timeContext: aiEnvelope?.time ?? null,
+    validation,
+    sourceFlags,
+    summaryLine,
+    dataQuality,
+    tradeWindow,
   }
 }
