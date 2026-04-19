@@ -24,6 +24,7 @@ export {
   isProtectedPath,
   isAdminPath,
   getLoginRedirectUrl,
+  getAdminLoginRedirectUrl,
   getSignupRedirectUrl,
   resolveProtectedRouteRedirect,
 } from "./ProtectedRouteResolver"

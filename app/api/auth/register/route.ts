@@ -542,6 +542,34 @@ export async function POST(req: Request) {
       }
     }
 
+    // Mirror into EarlyAccessSignup so the admin "Signups" tab surfaces every new
+    // account (not just waitlist entries). `confirmedAt` flips on email verify;
+    // for phone-verified accounts the verification already succeeded above so
+    // we can mark it confirmed immediately. Best-effort — never blocks registration.
+    try {
+      const mirrorName =
+        typeof displayName === "string" && displayName.trim()
+          ? displayName.trim()
+          : username
+      const mirrorConfirmedAt = method === "PHONE" ? new Date() : null
+      await prisma.earlyAccessSignup.upsert({
+        where: { email },
+        create: {
+          email,
+          name: mirrorName,
+          source: "account_signup",
+          confirmedAt: mirrorConfirmedAt,
+        },
+        update: {
+          name: mirrorName,
+          // Only promote source if the row was previously a waitlist entry.
+          // We intentionally DO NOT overwrite an existing confirmedAt.
+        },
+      })
+    } catch (mirrorErr) {
+      console.warn("[register] EarlyAccessSignup mirror failed (non-blocking):", mirrorErr)
+    }
+
     if (method === "PHONE") {
       return NextResponse.json({
         ok: true,

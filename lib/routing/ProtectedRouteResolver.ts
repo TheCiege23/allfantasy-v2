@@ -58,6 +58,22 @@ export function getLoginRedirectUrl(requestedPath: string | null): string {
   return resolveLoginHrefFromRequestedPath(path)
 }
 
+/**
+ * Build the admin-only login redirect URL (`/admin-login?next=<path>`).
+ * Restricts `next` to /admin paths — anything else is coerced to `/admin`.
+ */
+export function getAdminLoginRedirectUrl(requestedPath: string | null): string {
+  let next = "/admin"
+  if (
+    requestedPath &&
+    requestedPath.startsWith("/admin") &&
+    !requestedPath.startsWith("//")
+  ) {
+    next = requestedPath
+  }
+  return `/admin-login?next=${encodeURIComponent(next)}`
+}
+
 /** Build signup redirect URL that preserves the requested path as next. */
 export function getSignupRedirectUrl(requestedPath: string | null): string {
   const path = requestedPath && requestedPath.startsWith("/") && !requestedPath.startsWith("//")

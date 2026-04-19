@@ -25,7 +25,9 @@ export const GET = withApiUsage({ endpoint: "/api/auth/admin-magic/consume", too
   const payload = verifyAdminMagicToken(token);
 
   if (!payload?.email || !isAdminAllowed(payload.email)) {
-    return NextResponse.redirect(new URL("/login?err=magic", url));
+    // Send expired/invalid tokens back to the admin login page so the user lands in a
+    // surface that understands "err=magic" and shows a clear retry prompt.
+    return NextResponse.redirect(new URL("/admin-login?err=magic", url));
   }
 
   const next = sanitizeNext(payload.next || "/admin");

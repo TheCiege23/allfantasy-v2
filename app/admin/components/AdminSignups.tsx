@@ -246,13 +246,22 @@ export default function AdminSignups() {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch("/api/migrate-signups");
+      const res = await fetch("/api/admin/signups/backfill-from-users", { method: "POST" });
       const data = await res.json();
-      if (data.ok) {
-        setSyncResult(`Synced ${data.inserted || 0} new signups (${data.skipped || 0} already existed)`);
+      if (res.ok && data.ok) {
+        const parts: string[] = [];
+        if (data.created) parts.push(`${data.created} added`);
+        if (data.promoted) parts.push(`${data.promoted} marked confirmed`);
+        if (data.alreadyPresent) parts.push(`${data.alreadyPresent} already present`);
+        if (data.skipped) parts.push(`${data.skipped} skipped`);
+        setSyncResult(
+          parts.length > 0
+            ? `Scanned ${data.scanned} user${data.scanned === 1 ? "" : "s"} · ${parts.join(" · ")}`
+            : `Scanned ${data.scanned} user${data.scanned === 1 ? "" : "s"} · no changes`,
+        );
         load();
       } else {
-        setSyncResult(`Error: ${data.error || "Unknown error"}`);
+        setSyncResult(`Error: ${data?.error || "Unknown error"}`);
       }
     } catch (e: any) {
       setSyncResult(`Error: ${e.message || "Failed to sync"}`);

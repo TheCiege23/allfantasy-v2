@@ -40,8 +40,16 @@ export async function GET(req: Request) {
 
   const now = new Date()
 
+  let verifiedEmail: string | null = null
+
   try {
     await (prisma as any).$transaction(async (tx: any) => {
+      const updated = await tx.appUser.findUnique({
+        where: { id: row.userId },
+        select: { email: true },
+      })
+      verifiedEmail = updated?.email ?? null
+
       await tx.appUser.updateMany({
         where: { id: row.userId },
         data: { emailVerified: now },
@@ -59,6 +67,19 @@ export async function GET(req: Request) {
   } catch (txErr) {
     console.error("[verify/email] Transaction failed:", txErr)
     return redirectTo(req, "/verify?error=INVALID_LINK", returnTo)
+  }
+
+  // Mirror the confirmation onto the EarlyAccessSignup row so the admin "Signups"
+  // tab shows the correct confirmed status for account-flow signups. Best-effort.
+  if (verifiedEmail) {
+    try {
+      await (prisma as any).earlyAccessSignup.updateMany({
+        where: { email: verifiedEmail, confirmedAt: null },
+        data: { confirmedAt: now },
+      })
+    } catch (mirrorErr) {
+      console.warn("[verify/email] EarlyAccessSignup confirm mirror failed (non-blocking):", mirrorErr)
+    }
   }
 
   return redirectTo(req, "/verify?verified=email", returnTo)
