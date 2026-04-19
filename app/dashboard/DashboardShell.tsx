@@ -305,11 +305,59 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const { t } = useLanguage()
   const router = useRouter()
+  /**
+   * Session-scoped tombstones: leagueIds that the user just deleted.
+   * Filters any subsequent server response so replication lag / race conditions
+   * can't resurrect a just-deleted league on `router.refresh()` or a polling fetch.
+   * Persisted in sessionStorage so a hard reload within the same tab still blocks it.
+   */
+  const [deletedLeagueIds, setDeletedLeagueIds] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set()
+    try {
+      const raw = sessionStorage.getItem('af_dashboard_deleted_leagues')
+      if (!raw) return new Set()
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return new Set()
+      return new Set(parsed.filter((id): id is string => typeof id === 'string'))
+    } catch {
+      return new Set()
+    }
+  })
+  const persistTombstones = useCallback((next: Set<string>) => {
+    if (typeof window === 'undefined') return
+    try {
+      sessionStorage.setItem(
+        'af_dashboard_deleted_leagues',
+        JSON.stringify(Array.from(next)),
+      )
+    } catch {
+      /* quota or privacy mode — in-memory filter still holds */
+    }
+  }, [])
+
   const [leagues, setLeagues] = useState<DashboardConnectedLeague[]>(() => {
     if (initialLeagueList == null) return []
+    const tombstones =
+      typeof window !== 'undefined'
+        ? (() => {
+            try {
+              const raw = sessionStorage.getItem('af_dashboard_deleted_leagues')
+              if (!raw) return new Set<string>()
+              const parsed = JSON.parse(raw) as unknown
+              return new Set<string>(
+                Array.isArray(parsed)
+                  ? parsed.filter((id): id is string => typeof id === 'string')
+                  : [],
+              )
+            } catch {
+              return new Set<string>()
+            }
+          })()
+        : new Set<string>()
     return initialLeagueList.leagues
       .map((league) => mapLeague(league))
       .filter((league): league is DashboardConnectedLeague => Boolean(league))
+      .filter((league) => !tombstones.has(league.id))
   })
   const [leaguesLoading, setLeaguesLoading] = useState(() => initialLeagueList == null)
   const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
@@ -347,15 +395,22 @@ export function DashboardShell({
     return () => window.removeEventListener('af-dashboard-open-mobile-left', openMobileLeft)
   }, [])
 
-  const applyLeaguesPayload = useCallback((payload: unknown) => {
-    const root = toRecord(payload)
-    const rawLeagues =
-      Array.isArray(root?.leagues) ? root?.leagues : Array.isArray(payload) ? payload : []
-    const nextLeagues = rawLeagues
-      .map((league) => mapLeague(league))
-      .filter((league): league is DashboardConnectedLeague => Boolean(league))
-    setLeagues(nextLeagues)
-  }, [])
+  const applyLeaguesPayload = useCallback(
+    (payload: unknown) => {
+      const root = toRecord(payload)
+      const rawLeagues =
+        Array.isArray(root?.leagues) ? root?.leagues : Array.isArray(payload) ? payload : []
+      const nextLeagues = rawLeagues
+        .map((league) => mapLeague(league))
+        .filter((league): league is DashboardConnectedLeague => Boolean(league))
+        // Strip anything the user just deleted — the server may still be returning it
+        // due to replication lag, an in-flight Sleeper re-sync, or a race on
+        // `router.refresh()`. Tombstones clear at tab close (sessionStorage).
+        .filter((league) => !deletedLeagueIds.has(league.id))
+      setLeagues(nextLeagues)
+    },
+    [deletedLeagueIds],
+  )
 
   useEffect(() => {
     if (initialLeagueList != null) return
@@ -393,11 +448,18 @@ export function DashboardShell({
   const onLeagueRemoved = useCallback(
     (leagueId: string) => {
       setLeagues((prev) => prev.filter((l) => l.id !== leagueId))
+      setDeletedLeagueIds((prev) => {
+        if (prev.has(leagueId)) return prev
+        const next = new Set(prev)
+        next.add(leagueId)
+        persistTombstones(next)
+        return next
+      })
       if (activeLeagueId === leagueId) {
         router.push('/dashboard')
       }
     },
-    [activeLeagueId, router]
+    [activeLeagueId, persistTombstones, router]
   )
 
   const handleTriggerImport = () => {

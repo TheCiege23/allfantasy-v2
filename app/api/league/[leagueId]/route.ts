@@ -40,12 +40,18 @@ export async function DELETE(
       select: { id: true, sleeperLeagueId: true },
     });
 
-    if (!league && !sleeperLeague) {
+    const tournament = await prisma.legacyTournament.findFirst({
+      where: { id, creatorId: userId },
+      select: { id: true },
+    });
+
+    if (!league && !sleeperLeague && !tournament) {
       return NextResponse.json({
         ok: true,
         removed: {
           leagueRows: 0,
           sleeperLeagueRows: 0,
+          tournamentRows: 0,
         },
       });
     }
@@ -56,41 +62,52 @@ export async function DELETE(
         ? league.platformLeagueId
         : sleeperLeague?.sleeperLeagueId ?? null;
 
-    const [deletedLeagueRows, deletedSleeperRows] = await prisma.$transaction([
-      prisma.league.deleteMany({
-        where: {
-          userId,
-          OR: [
-            { id },
-            ...(linkedSleeperLeagueId
-              ? [
-                  {
-                    platform: "sleeper",
-                    platformLeagueId: linkedSleeperLeagueId,
-                  },
-                ]
-              : []),
-          ],
-        },
-      }),
-      prisma.sleeperLeague.deleteMany({
-        where: {
-          userId,
-          OR: [
-            { id },
-            ...(linkedSleeperLeagueId
-              ? [{ sleeperLeagueId: linkedSleeperLeagueId }]
-              : []),
-          ],
-        },
-      }),
-    ]);
+    const [deletedLeagueRows, deletedSleeperRows, deletedTournamentRows] =
+      await prisma.$transaction([
+        prisma.league.deleteMany({
+          where: {
+            userId,
+            OR: [
+              { id },
+              ...(linkedSleeperLeagueId
+                ? [
+                    {
+                      platform: "sleeper",
+                      platformLeagueId: linkedSleeperLeagueId,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        }),
+        prisma.sleeperLeague.deleteMany({
+          where: {
+            userId,
+            OR: [
+              { id },
+              ...(linkedSleeperLeagueId
+                ? [{ sleeperLeagueId: linkedSleeperLeagueId }]
+                : []),
+            ],
+          },
+        }),
+        // Dashboard reader also surfaces `LegacyTournament` rows as leagues (tournament hubs).
+        // If we leave them, a deleted "league" can re-appear on refresh as its tournament row.
+        // Scope by `creatorId` to mirror the reader and avoid touching other users' rows.
+        prisma.legacyTournament.deleteMany({
+          where: {
+            creatorId: userId,
+            id,
+          },
+        }),
+      ]);
 
     return NextResponse.json({
       ok: true,
       removed: {
         leagueRows: deletedLeagueRows.count,
         sleeperLeagueRows: deletedSleeperRows.count,
+        tournamentRows: deletedTournamentRows.count,
       },
     });
   } catch (e: unknown) {
