@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import { leagueToolAccessUserMessage, httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { getPowerRankingSnapshotsForLeague } from '@/lib/power-rankings-dashboard/getPowerRankingSnapshotsForLeague'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { withApiUsage } from '@/lib/telemetry/usage'
@@ -29,9 +30,14 @@ export const GET = withApiUsage({ endpoint: '/api/ai-tools/power-rankings/snapsh
         return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
       }
 
-      const access = await assertLeagueMember(leagueId, userId)
+      const access = await assertLeagueMemberWithCode(leagueId, userId)
       if (!access.ok) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: access.status })
+        const code = access.code
+        const msg = leagueToolAccessUserMessage(code)
+        return NextResponse.json(
+          { ok: false as const, error: msg, code, userMessage: msg },
+          { status: httpStatusForLeagueToolCode(code) },
+        )
       }
 
       const limitRaw = req.nextUrl.searchParams.get('limit')

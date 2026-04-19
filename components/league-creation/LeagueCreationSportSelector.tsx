@@ -1,6 +1,8 @@
 'use client';
 
 import { Label } from '@/components/ui/label';
+import { LeagueStepPreviewVideo, OptionCardMedia } from '@/components/league-creation-wizard/OptionCardMedia';
+import { getSportSelectionVideoUrl } from '@/lib/league-media/resolveOptionMedia';
 import { COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope';
 import type { LeagueSport } from '@prisma/client';
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types';
@@ -68,6 +70,7 @@ export function LeagueCreationSportSelector({
   const collegePairMode =
     sportsList.length === 2 && sportsList.every((s) => COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS.includes(s as LeagueSport));
   const selectedMedia = SPORT_MEDIA[value];
+  const selectedVideoUrl = getSportSelectionVideoUrl(value, selectedMedia.video);
   return (
     <div className="space-y-4">
       <Label className="text-cyan-300">Sport</Label>
@@ -85,18 +88,20 @@ export function LeagueCreationSportSelector({
                 : 'border-white/15 bg-black/25 hover:bg-white/[0.05]'
             } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <img
-              src={SPORT_MEDIA[s].image}
-              alt={`${SPORT_LABELS[s]} thumbnail`}
-              className="h-24 w-full object-cover opacity-75"
-              onError={(event) => {
-                event.currentTarget.src = SPORT_MEDIA[s].thumbFallback;
-              }}
+            <OptionCardMedia
+              videoSrc={getSportSelectionVideoUrl(s, SPORT_MEDIA[s].video)}
+              posterSrc={SPORT_MEDIA[s].image}
+              fallbackSrc={SPORT_MEDIA[s].thumbFallback}
+              gradientOverlay={false}
+              frameClassName="relative aspect-[16/9] min-h-[6.5rem] w-full overflow-hidden bg-black/45 sm:min-h-[7rem]"
+              mediaClassName="object-cover object-center"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-white/75">{SPORT_EMOJI[s]} {s}</p>
-              <p className="text-sm font-semibold text-white">{SPORT_LABELS[s]}</p>
+            <div className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/78 via-black/35 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 z-[4] p-3">
+              <p className="text-xs uppercase tracking-[0.14em] text-white/85 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                {SPORT_EMOJI[s]} {s}
+              </p>
+              <p className="text-sm font-semibold text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.95)]">{SPORT_LABELS[s]}</p>
             </div>
           </button>
         ))}
@@ -105,22 +110,11 @@ export function LeagueCreationSportSelector({
       <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Selected sport preview</p>
         <p className="mt-1 text-sm text-white/85">{SPORT_LABELS[value]}</p>
-        <video
-          key={selectedMedia.video}
-          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
-          src={selectedMedia.video}
-          poster={selectedMedia.image}
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls
-          onError={(event) => {
-            const target = event.currentTarget;
-            target.poster = selectedMedia.thumbFallback;
-            target.removeAttribute('src');
-            target.load();
-          }}
+        <LeagueStepPreviewVideo
+          videoSrc={selectedVideoUrl}
+          posterSrc={selectedMedia.image}
+          fallbackSrc={selectedMedia.thumbFallback}
+          description={`${SPORT_LABELS[value]} preview clip`}
         />
       </div>
 

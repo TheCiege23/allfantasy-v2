@@ -8,6 +8,7 @@ import {
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import { StepHeader } from './StepHelp'
+import { LeagueStepPreviewVideo, OptionCardMedia } from './OptionCardMedia'
 
 export type LeagueTypeSelectorProps = {
   sport?: string
@@ -72,12 +73,12 @@ export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps)
                 className={`group relative overflow-hidden rounded-2xl border text-left transition ${
                   safeValue === id
                     ? 'border-cyan-300 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
-                    : 'border-white/15 bg-black/25 hover:bg-white/[0.05]'
+                    : 'border-white/15 bg-black/25 hover:bg-white/[0.05] hover:shadow-[0_0_24px_rgba(0,255,220,0.06)]'
                 }`}
                 title={LEAGUE_TYPE_TOOLTIPS[id]}
               >
                 {LEAGUE_TYPE_BADGES[id] && (
-                  <span className={`absolute left-2 top-2 z-10 rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] ${
+                  <span className={`absolute left-2 top-2 z-[4] rounded-md px-1.5 py-0.5 text-[10px] font-black tracking-[0.08em] ${
                     LEAGUE_TYPE_BADGES[id] === 'FLAGSHIP'
                       ? 'bg-amber-400 text-[#1a0800]'
                       : LEAGUE_TYPE_BADGES[id] === 'NEW'
@@ -87,19 +88,23 @@ export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps)
                     {LEAGUE_TYPE_BADGES[id]}
                   </span>
                 )}
-                <img
-                  src={media.thumbnail}
-                  alt={`${LEAGUE_TYPE_LABELS[id]} thumbnail`}
-                  className="h-32 w-full object-cover opacity-75"
-                  onError={(event) => {
-                    event.currentTarget.src = media.thumbnailFallback
-                  }}
+                <OptionCardMedia
+                  videoSrc={media.selectionVideo}
+                  posterSrc={media.thumbnail}
+                  fallbackSrc={media.thumbnailFallback}
+                  gradientOverlay={false}
+                  frameClassName="relative aspect-[16/9] min-h-[8rem] w-full overflow-hidden bg-black/50"
+                  mediaClassName="object-cover object-center"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-3">
-                  <p className="text-sm font-semibold text-white">{LEAGUE_TYPE_LABELS[id]}</p>
+                <div className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 z-[4] p-3">
+                  <p className="text-sm font-semibold text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.85)]">
+                    {LEAGUE_TYPE_LABELS[id]}
+                  </p>
                   {LEAGUE_TYPE_TOOLTIPS[id] && (
-                    <p className="mt-0.5 text-[10px] leading-tight text-white/50 line-clamp-2">{LEAGUE_TYPE_TOOLTIPS[id]}</p>
+                    <p className="mt-0.5 text-[10px] leading-tight text-white/70 line-clamp-2 drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)]">
+                      {LEAGUE_TYPE_TOOLTIPS[id]}
+                    </p>
                   )}
                 </div>
               </button>
@@ -111,22 +116,11 @@ export function LeagueTypeSelector({ value, onChange }: LeagueTypeSelectorProps)
       <div className="rounded-2xl border border-cyan-400/25 bg-[#07122d]/80 p-3">
         <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">League type preview</p>
         <p className="mt-1 text-sm text-white/85">{LEAGUE_TYPE_LABELS[safeValue]}</p>
-        <video
-          key={selectedMedia.selectionVideo}
-          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
-          src={selectedMedia.selectionVideo}
-          poster={selectedMedia.thumbnail}
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls
-          onError={(event) => {
-            const target = event.currentTarget
-            target.poster = selectedMedia.thumbnailFallback
-            target.removeAttribute('src')
-            target.load()
-          }}
+        <LeagueStepPreviewVideo
+          videoSrc={selectedMedia.selectionVideo}
+          posterSrc={selectedMedia.thumbnail}
+          fallbackSrc={selectedMedia.thumbnailFallback}
+          description={`${LEAGUE_TYPE_LABELS[safeValue]} selection preview clip`}
         />
         <p className="mt-2 text-xs text-white/60">
           This is the selection clip for your format; a welcome intro can still play when managers enter the league.

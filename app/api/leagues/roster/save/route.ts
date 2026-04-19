@@ -12,6 +12,8 @@ import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterSe
 import { validateRosterSectionsAgainstTemplate } from '@/lib/roster/LineupTemplateValidation'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { validateAiActionExecution } from '@/lib/ai/action-validation'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 // Guillotine: chopped (eliminated) rosters cannot change lineup/roster.
 // Salary cap: when persisting roster changes for a salary_cap league, call
@@ -271,6 +273,26 @@ export async function POST(req: NextRequest) {
     where: { id: targetRosterId },
     data: { playerData: nextPlayerData as any },
   })
+
+  const prevStarters = extractStarterIds({}, currentRoster.playerData)
+  const nextStarters = extractStarterIds(body, nextPlayerData)
+  const prevKey = [...prevStarters].sort().join(',')
+  const nextKey = [...nextStarters].sort().join(',')
+  if (prevKey !== nextKey) {
+    void recordAfLearningEvent({
+      eventType: 'lineup_change',
+      sport: normalizeToSupportedSport(String(league.sport ?? 'NFL')),
+      leagueId,
+      userId,
+      source: 'roster_save',
+      payload: {
+        week: editingWeek,
+        rosterId: targetRosterId,
+        prevStarterCount: prevStarters.length,
+        nextStarterCount: nextStarters.length,
+      },
+    })
+  }
 
   // Best-effort lineup_start signals for trend engine if starter IDs are provided.
   const starterIds = extractStarterIds(body, nextPlayerData)

@@ -9,7 +9,7 @@
 
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, V2PageId } from '@/lib/create-league-v2/state'
-import { isFootballLike } from '@/lib/create-league-v2/state'
+import { getEffectiveLeagueType, isFootballLike } from '@/lib/create-league-v2/state'
 import { GlassCard, InnerPanel } from './primitives'
 
 const LEAGUE_TYPE_LABEL: Record<string, string> = {
@@ -129,6 +129,7 @@ export interface Page4ReviewProps {
 
 export function Page4Review({ state, accent, onJump }: Page4ReviewProps) {
   const football = isFootballLike(state.sport)
+  const lt = getEffectiveLeagueType(state)
 
   return (
     <div className="space-y-4">
@@ -164,7 +165,7 @@ export function Page4Review({ state, accent, onJump }: Page4ReviewProps) {
               accent={accent}
               value={
                 <Badge accent={accent}>
-                  {state.idpSelected ? 'IDP' : (LEAGUE_TYPE_LABEL[state.leagueType] ?? state.leagueType)}
+                  {state.idpSelected ? 'IDP' : lt ? LEAGUE_TYPE_LABEL[String(lt)] ?? lt : '—'}
                 </Badge>
               }
             />
@@ -173,15 +174,15 @@ export function Page4Review({ state, accent, onJump }: Page4ReviewProps) {
               <Row label="Region" accent={accent} value={SOCCER_PIPELINE_LABEL[state.soccerPipeline] ?? state.soccerPipeline} />
             )}
             <Row
-              label={state.leagueType === 'tournament' ? 'Pool Size' : 'Teams'}
+              label={lt === 'tournament' ? 'Pool Size' : 'Teams'}
               accent={accent}
               value={
-                state.leagueType === 'tournament'
+                lt === 'tournament'
                   ? `${state.teamCount} managers (${Math.floor(state.teamCount / 12)} feeders)`
                   : state.teamCount
               }
             />
-            {state.leagueType === 'survivor' ? (
+            {lt === 'survivor' ? (
               <Row label="Starting Tribes" accent={accent} value={state.survivorTribeCount} />
             ) : null}
           </SectionCard>

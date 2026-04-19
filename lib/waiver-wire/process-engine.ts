@@ -10,6 +10,8 @@ import { onWaiverRunComplete } from "./run-hooks"
 import { getSpecialtySpecByVariant } from "@/lib/specialty-league/registry"
 import { isWaiverFrozenForRoster } from "@/lib/survivor/SurvivorEffectEngine"
 import type { ProcessedClaimResult } from "./types"
+import { recordAfLearningEvent } from "@/lib/ai-learning-system/recordEvent"
+import { resolveLeagueSport } from "@/lib/ai-learning-system/resolveLeagueSport"
 
 type ClaimRow = {
   id: string
@@ -223,6 +225,25 @@ export async function processWaiverClaimsForLeague(leagueId: string): Promise<Pr
 
     rosteredByPlayer.set(addId, claim.rosterId)
     if (dropId) rosteredByPlayer.delete(dropId)
+
+    const uid = roster.platformUserId?.trim()
+    if (uid) {
+      void resolveLeagueSport(leagueId).then((sport) =>
+        recordAfLearningEvent({
+          eventType: "waiver_claim_awarded",
+          sport,
+          leagueId,
+          userId: uid,
+          source: "waiver_process_engine",
+          payload: {
+            claimId: claim.id,
+            addPlayerId: addId,
+            dropPlayerId: dropId ?? null,
+            faabSpent: faabSpent ?? null,
+          },
+        }),
+      )
+    }
 
     results.push({
       claimId: claim.id,

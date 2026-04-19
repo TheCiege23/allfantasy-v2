@@ -68,6 +68,8 @@ export type SubscriptionFeatureId =
   | 'war_room_devy_rankings'
   | 'war_room_draft_strategy'
   | 'war_room_pipeline_analysis'
+  /** League hub AI Coaching tab + long-term coaching API (AF Pro — `af_pro_monthly` / `af_pro_yearly`). */
+  | 'league_ai_coaching'
 
 /** Plan slugs returned by entitlements API; used for hasAccess. */
 export type SubscriptionPlanId =

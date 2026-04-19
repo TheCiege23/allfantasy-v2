@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   const ctx = JSON.stringify(body ?? {})
   try {
-    const text = await draftAiText(SYS, `Draft context:\n${ctx}`)
+    const text = await draftAiText(SYS, `Draft context:\n${ctx}`, { userId: session.user.id })
     const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
     const parsed = JSON.parse(cleaned) as unknown
     return NextResponse.json({ result: parsed })

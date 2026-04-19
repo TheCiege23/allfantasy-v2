@@ -119,6 +119,7 @@ export async function POST(req: Request) {
       const text = await draftAiText(
         'You are Chimmy. Reply with JSON only: {"playerId":"","playerName":"","position":"","team":""} for best NFL pick.',
         'Suggest one player for a fantasy draft.',
+        { userId: isCpu ? userId : onClock },
       )
       const j = JSON.parse(text.replace(/```json\n?|\n?```/g, '').trim()) as Record<string, unknown>
       if (typeof j.playerName === 'string') {

@@ -29,7 +29,9 @@ function buildProviders(): BracketDataProvider[] {
     )
   }
 
-  const theSportsDbKey = process.env.THESPORTSDB_API_KEY
+  const theSportsDbKey =
+    process.env.THESPORTSDB_API_KEY?.trim() ||
+    process.env.THEAUDIODB_API_KEY?.trim()
   if (theSportsDbKey || process.env.NODE_ENV === "development") {
     providers.push(
       new HttpProvider({

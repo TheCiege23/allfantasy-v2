@@ -86,7 +86,7 @@ export async function POST(
   }
 
   try {
-    const { narrative, model } = await generateZombieAI(deterministic, type)
+    const { narrative, model } = await generateZombieAI(deterministic, type, userId)
     return NextResponse.json({
       deterministic: {
         leagueId: deterministic.leagueId,

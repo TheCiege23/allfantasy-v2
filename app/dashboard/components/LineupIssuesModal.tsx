@@ -2,6 +2,9 @@
 
 import { X } from 'lucide-react'
 import { ProLeagueLink } from '@/components/dashboard/ProLeagueLink'
+import type { LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
+
+export type LineupCheckPayload = LineupActionSummaryPayload
 
 export type LineupIssueRow = {
   type: string
@@ -9,21 +12,6 @@ export type LineupIssueRow = {
   playerName?: string
   position?: string
   severity: 'critical' | 'warning' | 'info'
-}
-
-export type LineupCheckLeaguePayload = {
-  leagueId: string
-  leagueName: string
-  leagueAvatar: string | null
-  sport: string
-  issues: LineupIssueRow[]
-  chimmyAdvice: string
-}
-
-export type LineupCheckPayload = {
-  totalIssues: number
-  leagues: LineupCheckLeaguePayload[]
-  scannedLeagues?: number
 }
 
 function severityIcon(sev: LineupIssueRow['severity']) {
@@ -45,7 +33,8 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
 
   const scanned = data?.scannedLeagues ?? 0
   const leagues = data?.leagues ?? []
-  const total = data?.totalIssues ?? 0
+  const total = data?.totalUnresolvedSlotActions ?? data?.totalIssues ?? 0
+  const urgent = data?.urgentLineupActions ?? 0
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
@@ -66,14 +55,20 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
 
         <div className="border-b border-white/[0.06] px-5 pb-4 pt-5 pr-12">
           <h2 id="lineup-issues-title" className="text-[17px] font-bold text-white">
-            ⚠️ Lineup Issues
+            Lineup decisions
           </h2>
           <p className="mt-1 text-[12px] text-white/50">
             {loading
               ? 'Checking your leagues…'
               : total === 0 && leagues.length === 0
-                ? 'No lineup problems found in your connected leagues.'
-                : `${total} issue${total === 1 ? '' : 's'} across ${leagues.length} league${leagues.length === 1 ? '' : 's'}`}
+                ? 'No lineup actions needed in leagues we could scan.'
+                : `${total} decision${total === 1 ? '' : 's'} across ${leagues.length} league${leagues.length === 1 ? '' : 's'}${
+                    urgent > 0 ? ` · ${urgent} urgent` : ''
+                  }`}
+          </p>
+          <p className="mt-2 text-[11px] leading-snug text-white/38">
+            Counts empty or illegal starters, inactive players in your lineup, and (when enabled) doubtful starters.
+            Locked players and low-impact suggestions are excluded.
           </p>
         </div>
 
@@ -86,8 +81,8 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
             </div>
           ) : leagues.length === 0 ? (
             <p className="text-center text-[13px] text-emerald-300/90">
-              ✅ All lineups look good! Chimmy checked {scanned > 0 ? `all ${scanned} connected Sleeper ` : 'your '}
-              league{scanned === 1 ? '' : 's'}.
+              You&apos;re set for now — Chimmy scanned {scanned > 0 ? `all ${scanned} connected ` : 'your '}league
+              {scanned === 1 ? '' : 's'}.
             </p>
           ) : (
             <div className="space-y-3">
@@ -109,12 +104,12 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14px] font-bold text-white">{lg.leagueName}</p>
                       <p className="text-[11px] text-white/40">
-                        {lg.sport} · Sleeper
+                        {lg.sport} · {lg.platform}
                       </p>
                     </div>
                   </div>
 
-                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-white/35">Issues</p>
+                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-white/35">Actions</p>
                   <ul className="mt-1 space-y-1">
                     {lg.issues.map((issue, idx) => (
                       <li key={`${issue.type}-${idx}`} className="text-[12px] text-white/75">
@@ -124,17 +119,19 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                     ))}
                   </ul>
 
-                  <div className="mt-3 rounded-lg border border-cyan-500/[0.12] bg-cyan-500/[0.06] p-3">
-                    <div className="flex gap-2">
-                      <div
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 text-[9px] font-bold text-white"
-                        aria-hidden
-                      >
-                        CH
+                  {lg.chimmyAdvice ? (
+                    <div className="mt-3 rounded-lg border border-cyan-500/[0.12] bg-cyan-500/[0.06] p-3">
+                      <div className="flex gap-2">
+                        <div
+                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-violet-600 text-[9px] font-bold text-white"
+                          aria-hidden
+                        >
+                          CH
+                        </div>
+                        <p className="text-[12px] leading-snug text-cyan-100">{lg.chimmyAdvice}</p>
                       </div>
-                      <p className="text-[12px] leading-snug text-cyan-100">{lg.chimmyAdvice}</p>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                     <button
@@ -142,7 +139,9 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                       onClick={() =>
                         window.dispatchEvent(
                           new CustomEvent('af-chimmy-shortcut', {
-                            detail: { prompt: `Give me full lineup help for ${lg.leagueName} — starters, injuries, and matchup strategy.` },
+                            detail: {
+                              prompt: `Give me full lineup help for ${lg.leagueName} — starters, injuries, and matchup strategy.`,
+                            },
                           })
                         )
                       }
@@ -153,7 +152,7 @@ export function LineupIssuesModal({ isOpen, onClose, data, loading, hasProAccess
                     <ProLeagueLink
                       leagueId={lg.leagueId}
                       leagueName={lg.leagueName}
-                      label="Fix this lineup →"
+                      label="Open lineup →"
                       hasProAccess={hasProAccess}
                       href={`/league/${lg.leagueId}?tab=team`}
                     />

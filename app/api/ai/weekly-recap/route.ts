@@ -78,7 +78,7 @@ injuryImpact should briefly note how injuries shaped the week (or say if none st
 
     const userPayload = `League: ${String(bundle.league.name ?? '')} — Week ${week} (${bundle.sport})\nMatchup snapshot:\n${JSON.stringify(rows, null, 2)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Weekly recap failed'

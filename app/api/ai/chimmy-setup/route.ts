@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 
     const userPayload = `League: ${league.name ?? leagueId}\nSport: ${league.sport}\nPlatform: ${league.platform}\nSettings snapshot:\n${JSON.stringify(league.settings ?? {}, null, 2).slice(0, 8000)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Chimmy setup failed'

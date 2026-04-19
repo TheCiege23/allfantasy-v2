@@ -4,6 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import {
   buildLeagueRelationshipProfile,
   normalizeSportForGraph,
@@ -77,6 +79,12 @@ export async function POST(
   ctx: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null;
+    const sessionUserId = session?.user?.id;
+    if (!sessionUserId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { leagueId } = await ctx.params;
     if (!leagueId) {
       return NextResponse.json({ error: "Missing leagueId" }, { status: 400 });
@@ -118,6 +126,7 @@ export async function POST(
     const envelope = buildEnvelopeForTool("rivalries", {
       sport: sport ?? undefined,
       leagueId,
+      userId: sessionUserId,
       deterministicPayload: {
         graphSummary: summaryForAI,
         focusType: type,

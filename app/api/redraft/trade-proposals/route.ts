@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 
 export const dynamic = 'force-dynamic'
 
@@ -184,6 +186,19 @@ export async function POST(req: NextRequest) {
       include: { assets: true, votes: true, decision: true },
     })
   })
+
+  if (created?.id) {
+    void resolveLeagueSport(leagueId).then((sport) =>
+      recordAfLearningEvent({
+        eventType: 'trade_proposal_created',
+        sport,
+        leagueId,
+        userId,
+        source: 'redraft_trade_proposal',
+        payload: { proposalId: created.id, assetCount: assets.length, vetoMode },
+      }),
+    )
+  }
 
   return NextResponse.json({ proposal: created })
 }

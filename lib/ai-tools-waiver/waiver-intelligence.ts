@@ -1358,6 +1358,7 @@ export async function runWaiverIntelligenceAnalysis(input: {
       },
       enrichTimeFromLeagueId: input.leagueId ?? null,
       includeTeamContext: true,
+      includeStrategicCoaching: Boolean(part.leagueId),
     })
     let chimmyPayload = attachIntelligenceToChimmyPayload(
       {

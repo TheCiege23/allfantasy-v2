@@ -65,6 +65,11 @@ export interface AIContextEnvelope {
   modelRoutingHints?: AIModelRole[]
   /** Optional assistant routing hints (e.g. Chimmy/OpenClaw entry surfaces). */
   assistantRoutingHints?: AIAssistantRole[]
+  /**
+   * Server Time Engine snapshot (UTC + account TZ + device signals).
+   * Injected by orchestration when `userId` is set — do not rely on device clock for deadlines.
+   */
+  afTimeContext?: Record<string, unknown> | null
   /** Raw user message or prompt suffix. */
   userMessage?: string
   /** Lightweight reaction feedback used by legacy Chimmy memory integration. */

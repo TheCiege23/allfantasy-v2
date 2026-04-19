@@ -185,16 +185,38 @@ export function MatchupPrepModal({
     })
   }, [data?.aiSummary, leagueId])
 
-  const headerBadge =
-    data?.degraded || data?.dataGaps?.length ? (
-      <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
-        Partial data
-      </span>
-    ) : (
-      <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
-        Live
-      </span>
-    )
+  const headerBadge = (
+    <span className="flex flex-wrap items-center gap-1">
+      {data?.degraded || data?.dataGaps?.length ? (
+        <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+          Partial data
+        </span>
+      ) : (
+        <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+          Live
+        </span>
+      )}
+      {(() => {
+        const sf = data?.sourceFlags
+        if (!sf) return null
+        const chipBase = 'rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide'
+        const green = 'bg-emerald-500/15 text-emerald-200'
+        const dim = 'bg-white/5 text-white/35'
+        const amber = 'bg-amber-500/12 text-amber-100/90'
+        return (
+          <>
+            <span title={sf.opponentResolved ? 'Opponent resolved (native or Sleeper)' : 'Opponent could not be resolved'} className={`${chipBase} ${sf.opponentResolved ? green : amber}`}>Opp</span>
+            <span title={sf.myProjectionReady ? 'Your team projections ready' : 'Your team projections missing'} className={`${chipBase} ${sf.myProjectionReady ? green : dim}`}>Mine</span>
+            <span title={sf.oppProjectionReady ? 'Opponent projections ready' : 'Opponent projections missing'} className={`${chipBase} ${sf.oppProjectionReady ? green : dim}`}>Opp Proj</span>
+            <span title={sf.injuryNewsLayerReady ? 'Injury/news signals attached' : 'No injury/news signals'} className={`${chipBase} ${sf.injuryNewsLayerReady ? green : dim}`}>Inj</span>
+            <span title={sf.weatherLayerReady ? 'Weather influence captured' : 'No weather influence (indoor / clear)'} className={`${chipBase} ${sf.weatherLayerReady ? green : dim}`}>Wx</span>
+            <span title={sf.leagueScoringApplied ? 'League scoring rules applied' : 'League scoring not applied'} className={`${chipBase} ${sf.leagueScoringApplied ? green : amber}`}>{sf.leagueScoringApplied ? 'Scoring' : 'No lg scoring'}</span>
+            <span title={sf.aiEnvelopeReady ? 'AI envelope attached' : 'AI envelope missing'} className={`${chipBase} ${sf.aiEnvelopeReady ? green : dim}`}>AI</span>
+          </>
+        )
+      })()}
+    </span>
+  )
 
   return (
     <AIToolModalShell
@@ -269,7 +291,7 @@ export function MatchupPrepModal({
             onChange={(e) => setOpponentExternalId(e.target.value)}
             className="min-w-[140px] rounded-lg border border-white/10 bg-[#121725] px-2 py-1.5 text-[11px] text-white"
           >
-            <option value="">Opponent (auto if Sleeper NFL)</option>
+            <option value="">Opponent (auto: Sleeper or native schedule)</option>
             {leagueTeams.map((t) => (
               <option key={t.externalId} value={t.externalId}>
                 {t.teamName} {t.isYou ? '(you)' : ''}
@@ -377,6 +399,20 @@ function MatchupTabBody({
   if (viewTab === 'overview') {
     return (
       <div className="space-y-3">
+        {data.scoringSummary ? (
+          <div className="rounded-xl border border-white/[0.06] bg-[#0d111a] px-3 py-2 text-[10px] text-white/70">
+            <span className="font-bold text-cyan-200/90">Scoring</span>{' '}
+            {data.scoringSummary.scoringModel}
+            {data.scoringSummary.receptionFormat ? ` · ${data.scoringSummary.receptionFormat}` : ''}
+            {data.scoringSummary.superflex ? ' · superflex' : ''}
+          </div>
+        ) : null}
+        {data.matchupPeriod ? (
+          <p className="text-[10px] text-white/45">
+            Period: {data.matchupPeriod.weekLabel} · season {data.matchupPeriod.season}
+            {data.matchupPeriod.periodSource ? ` · ${data.matchupPeriod.periodSource}` : ''}
+          </p>
+        ) : null}
         <div className="overflow-hidden rounded-2xl border border-sky-500/20 bg-gradient-to-br from-sky-500/[0.08] via-cyan-500/[0.04] to-transparent px-4 py-3">
           <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-sky-300/70">
             Week {data.week} · {data.leagueName ?? 'League'}
@@ -419,6 +455,11 @@ function MatchupTabBody({
               <p className="text-[8px] font-bold uppercase text-emerald-300">Win chance</p>
             </div>
             <p className="mt-0.5 text-xl font-black tabular-nums text-emerald-200">{win != null ? `${win}%` : '—'}</p>
+            <p className="mt-1 text-[8px] leading-snug text-white/35">
+              {data.winProbabilityModel === 'starter_spread_normal'
+                ? 'From projection spread (fantasy pts)'
+                : 'From mean edge (logistic)'}
+            </p>
           </div>
           <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] p-2">
             <p className="text-[8px] font-bold uppercase text-sky-300">Confidence</p>
@@ -429,12 +470,22 @@ function MatchupTabBody({
             <p className="mt-0.5 text-[11px] font-bold capitalize text-violet-100">{data.matchupDifficulty}</p>
           </div>
           <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-2">
-            <p className="text-[8px] font-bold uppercase text-amber-300">Top actions</p>
-            <p className="mt-0.5 text-[10px] leading-snug text-amber-100/90">
-              {data.gamePlan.slice(0, 2).map((g) => g.title).join(' · ') || '—'}
-            </p>
+            <p className="text-[8px] font-bold uppercase text-amber-300">Urgency</p>
+            <p className="mt-0.5 text-xl font-black tabular-nums text-amber-100">{data.urgencyScore}</p>
           </div>
         </div>
+        {data.winProbabilityNotes ? (
+          <p className="text-[9px] leading-relaxed text-white/40">{data.winProbabilityNotes}</p>
+        ) : null}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+          <p className="text-[9px] font-bold uppercase text-white/45">Floor vs upside (Start/Sit)</p>
+          <p className="mt-1 text-[10px] text-white/75">{data.floorVsUpside.note}</p>
+        </div>
+        {data.gamePlan.length > 0 ? (
+          <p className="text-[10px] text-white/50">
+            Next: <span className="text-white/80">{data.gamePlan[0]?.title}</span>
+          </p>
+        ) : null}
         <p className="text-[10px] text-white/35">Updated {new Date(data.computedAt).toLocaleString()}</p>
       </div>
     )
@@ -479,12 +530,39 @@ function MatchupTabBody({
 
   if (viewTab === 'lineup_edge') {
     return (
-      <div className="space-y-2">
-        {data.positionEdges.map((e) => (
-          <EdgeBar key={e.position} label={e.position} mine={e.myPoints} theirs={e.oppPoints} />
-        ))}
-        {data.positionEdges.length === 0 ? (
-          <p className="text-[11px] text-white/45">No positional split — opponent projections unavailable.</p>
+      <div className="space-y-3">
+        {data.slotEdges.length > 0 ? (
+          <div>
+            <p className="mb-1.5 text-[9px] font-bold uppercase text-sky-300/80">By lineup slot</p>
+            <div className="space-y-2">
+              {data.slotEdges.map((e) => (
+                <div key={e.slotName} className="rounded-lg border border-white/[0.06] bg-[#0d111a] px-2 py-1.5">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="font-bold text-white/80">{e.slotName}</span>
+                    <span
+                      className={`font-black tabular-nums ${e.edge > 0 ? 'text-emerald-300' : e.edge < 0 ? 'text-red-300' : 'text-white/45'}`}
+                    >
+                      {e.edge > 0 ? '+' : ''}
+                      {e.edge.toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-white/40">
+                    You {e.myStarterName ?? '—'} ({e.myPoints.toFixed(1)}) · Opp {e.oppStarterName ?? '—'} (
+                    {e.oppPoints.toFixed(1)})
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div>
+          <p className="mb-1.5 text-[9px] font-bold uppercase text-white/50">By position group</p>
+          {data.positionEdges.map((e) => (
+            <EdgeBar key={e.position} label={e.position} mine={e.myPoints} theirs={e.oppPoints} />
+          ))}
+        </div>
+        {data.positionEdges.length === 0 && data.slotEdges.length === 0 ? (
+          <p className="text-[11px] text-white/45">No split — opponent projections unavailable.</p>
         ) : null}
       </div>
     )
@@ -525,6 +603,16 @@ function MatchupTabBody({
         >
           Open Injury Impact
         </button>
+        {data.injuryPivots.length > 0 ? (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-2 py-2">
+            <p className="text-[9px] font-bold uppercase text-amber-200">Pivots to watch</p>
+            {data.injuryPivots.map((p, i) => (
+              <p key={i} className="mt-1 text-[10px] text-amber-100/90">
+                {p.player}: {p.detail}
+              </p>
+            ))}
+          </div>
+        ) : null}
         {data.injuryHighlights.map((h, i) => (
           <div key={i} className="rounded-lg border border-white/[0.06] px-2 py-1.5 text-[10px] text-white/70">
             <span className="font-bold text-white/85">{h.side === 'you' ? 'You' : 'Opp'} · {h.name}</span> — {h.status}
@@ -536,11 +624,31 @@ function MatchupTabBody({
 
   if (viewTab === 'schedule') {
     return (
-      <ul className="list-inside list-disc space-y-1 text-[11px] text-white/65">
-        {data.scheduleNotes.map((s, i) => (
-          <li key={i}>{s}</li>
-        ))}
-      </ul>
+      <div className="space-y-3">
+        <ul className="list-inside list-disc space-y-1 text-[11px] text-white/65">
+          {data.scheduleNotes.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ul>
+        {data.timeContext?.nextLockTimeUTC || data.timeContext?.matchupLockAt ? (
+          <p className="text-[10px] text-cyan-200/80">
+            Next lineup lock (UTC): {data.timeContext.nextLockTimeUTC ?? data.timeContext.matchupLockAt}
+          </p>
+        ) : null}
+        {data.timeContext?.timeAuthorityNote ? (
+          <p className="text-[9px] text-white/45">{data.timeContext.timeAuthorityNote}</p>
+        ) : null}
+        {data.weatherInfluence.length > 0 ? (
+          <div className="rounded-xl border border-sky-500/15 bg-sky-500/[0.04] px-2 py-2">
+            <p className="text-[9px] font-bold uppercase text-sky-300/80">Weather (your starters)</p>
+            {data.weatherInfluence.map((w, i) => (
+              <p key={i} className="mt-1 text-[10px] text-white/70">
+                {w.name} ({w.team}): {w.summary}
+              </p>
+            ))}
+          </div>
+        ) : null}
+      </div>
     )
   }
 
@@ -555,8 +663,20 @@ function MatchupTabBody({
           Waiver Wire — matchup adds
           <ArrowRight className="h-3.5 w-3.5" />
         </button>
+        {data.streamingOpportunities.length > 0 ? (
+          <ul className="space-y-2">
+            {data.streamingOpportunities.map((s) => (
+              <li key={s.id} className="rounded-lg border border-white/[0.06] px-2 py-2 text-[10px] text-white/75">
+                <span className="font-bold text-emerald-200/90">{s.title}</span>
+                <p className="mt-0.5 text-white/50">{s.detail}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-[10px] text-white/45">No clear positional stream need vs this opponent in projections.</p>
+        )}
         <p className="text-[10px] text-white/45">
-          Streaming targets use the same projections as Start/Sit — add league context in Waiver Wire for FAAB and priority.
+          Uses the same normalized projections as Start/Sit — open Waiver Wire for FAAB, priority, and adds.
         </p>
       </div>
     )

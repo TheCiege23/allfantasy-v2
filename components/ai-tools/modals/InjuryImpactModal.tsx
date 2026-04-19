@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Activity, AlertTriangle, Clock, ShieldAlert, Sparkles, X } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { AIToolModalShell } from '../AIToolModalShell'
@@ -10,6 +10,7 @@ import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimm
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import type {
   InjuryImpactDashboardResult,
+  InjuryIntegrationHints,
   InjuryPlayerIntelRow,
   InjuryStatusFilterId,
   InjuryTeamContextId,
@@ -85,12 +86,15 @@ export function InjuryImpactModal({
   leagues,
   initialLeagueId = '',
   initialSport = 'ALL',
+  initialFocusPlayerName = null,
 }: {
   open: boolean
   onClose: () => void
   leagues: UserLeague[]
   initialLeagueId?: string
   initialSport?: string
+  /** When opening from Trending, open this player's detail drawer if present in the injury payload. */
+  initialFocusPlayerName?: string | null
 }) {
   const [sportFilter, setSportFilter] = useState<SportFilter>('ALL')
   const [leagueId, setLeagueId] = useState('')
@@ -107,6 +111,7 @@ export function InjuryImpactModal({
     includeHandcuffs: true,
     includePlayoffImpact: true,
     includeDynastyImpact: true,
+    includeWaiverReplacements: false,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -115,6 +120,7 @@ export function InjuryImpactModal({
   const [leagueTeams, setLeagueTeams] = useState<
     Array<{ externalId: string; teamName: string; ownerName: string; isYou?: boolean }>
   >([])
+  const injuryFocusConsumed = useRef(false)
 
   useEffect(() => {
     if (!open) return
@@ -125,6 +131,10 @@ export function InjuryImpactModal({
     }
     setLeagueId(initialLeagueId || '')
   }, [open, initialLeagueId, initialSport])
+
+  useEffect(() => {
+    if (!open) injuryFocusConsumed.current = false
+  }, [open])
 
   const filteredLeagues = useMemo(() => {
     if (sportFilter === 'ALL') return leagues
@@ -204,6 +214,16 @@ export function InjuryImpactModal({
     void load()
   }, [open, load])
 
+  useEffect(() => {
+    if (!open || injuryFocusConsumed.current || !initialFocusPlayerName?.trim() || !data?.ok) return
+    const n = initialFocusPlayerName.trim().toLowerCase()
+    const hit = data.players.find((p) => p.name.trim().toLowerCase() === n)
+    if (hit) {
+      setDetail(hit)
+      injuryFocusConsumed.current = true
+    }
+  }, [open, initialFocusPlayerName, data])
+
   const filteredPlayers = useMemo(() => {
     if (!data?.ok) return []
     const p = data.players
@@ -230,18 +250,38 @@ export function InjuryImpactModal({
   const headerBadge =
     data?.ok ? (
       <div className="flex flex-wrap items-center gap-1">
-        {data.degraded ? (
-          <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
-            Partial data
-          </span>
-        ) : (
-          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
-            Live DB
-          </span>
-        )}
-        <span className="rounded border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-red-200/90">
-          {data.analysisScope === 'league' ? 'League-aware' : 'General'}
+        <span
+          className={`rounded border px-2 py-0.5 text-[9px] font-bold uppercase ${
+            data.dataQuality === 'full'
+              ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+              : data.dataQuality === 'partial'
+                ? 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+                : 'border-red-500/35 bg-red-500/10 text-red-200/90'
+          }`}
+        >
+          {data.dataQuality === 'full' ? 'Full intel' : data.dataQuality === 'partial' ? 'Partial intel' : 'Degraded'}
         </span>
+        <span className="rounded border border-red-500/25 bg-red-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-red-200/90">
+          {data.analysisMode === 'league' ? 'League' : 'Global'}
+        </span>
+        {data.feedFreshness ? (
+          <span
+            title={
+              data.feedFreshness.latestReportDateIso
+                ? `Latest injury_report row: ${new Date(data.feedFreshness.latestReportDateIso).toLocaleString()} (${data.feedFreshness.staleHours ?? 0}h ago · ${data.feedFreshness.rowsSeen} rows)`
+                : 'No injury_report rows returned — falling back to sports_players injuryStatus only'
+            }
+            className={`rounded border px-2 py-0.5 text-[9px] font-bold uppercase ${
+              data.feedFreshness.stale
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-100'
+                : data.feedFreshness.latestReportDateIso
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  : 'border-white/15 bg-white/[0.04] text-white/50'
+            }`}
+          >
+            Feed {data.feedFreshness.stale ? `${data.feedFreshness.staleHours}h stale` : data.feedFreshness.latestReportDateIso ? `${data.feedFreshness.staleHours ?? 0}h` : 'none'}
+          </span>
+        ) : null}
       </div>
     ) : null
 
@@ -292,6 +332,24 @@ export function InjuryImpactModal({
                 className="text-[11px] font-semibold text-red-300/90 underline-offset-2 hover:underline"
               >
                 Trade value
+              </Link>
+              <Link
+                href={getChimmyChatHrefWithPrompt('Matchup prep for this week using my league injury context', {
+                  source: 'injury_impact',
+                  leagueId,
+                })}
+                className="text-[11px] font-semibold text-red-300/90 underline-offset-2 hover:underline"
+              >
+                Matchup Prep
+              </Link>
+              <Link
+                href={getChimmyChatHrefWithPrompt('Open War Room with injury and league context', {
+                  source: 'injury_impact',
+                  leagueId,
+                })}
+                className="text-[11px] font-semibold text-red-300/90 underline-offset-2 hover:underline"
+              >
+                War Room
               </Link>
             </div>
           ) : null
@@ -426,6 +484,7 @@ export function InjuryImpactModal({
                     ['includeHandcuffs', 'Handcuffs / replacements'],
                     ['includePlayoffImpact', 'Playoff impact'],
                     ['includeDynastyImpact', 'Dynasty / prospect'],
+                    ['includeWaiverReplacements', 'Named FA replacements (slower)'],
                   ] as const
                 ).map(([key, label]) => (
                   <label key={key} className="flex cursor-pointer items-center gap-2 text-[11px] text-[#c4c9dc]">
@@ -479,6 +538,42 @@ export function InjuryImpactModal({
                 </div>
               </div>
 
+              {data.summaryLine ? (
+                <p className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] leading-relaxed text-white/72">
+                  {data.summaryLine}
+                </p>
+              ) : null}
+
+              {data.timeContext ? (
+                <div className="rounded-lg border border-white/[0.06] bg-[#080c14] px-3 py-2 text-[10px] text-[#8b93a8]">
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-sky-200/80">Time & data freshness</p>
+                  <p className="mt-1 text-white/65">{data.timeContext.freshnessSummary}</p>
+                  <p className="mt-1">
+                    {data.timeContext.userLocalCalendarDate} · {data.timeContext.userLocalTime} ({data.timeContext.userTimezone})
+                  </p>
+                  {data.timeContext.dataFreshness?.injuriesLastUpdatedAt ? (
+                    <p className="mt-1 text-sky-200/75">
+                      Injuries data: {new Date(data.timeContext.dataFreshness.injuriesLastUpdatedAt).toLocaleString()}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-amber-200/70">Injuries timestamp not attached — rely on per-row report dates.</p>
+                  )}
+                  {(data.timeContext.timezoneMismatch || data.timeContext.deviceClockMismatch) && (
+                    <p className="mt-1 text-amber-200/85">Clock/timezone mismatch signal — confirm lock times locally.</p>
+                  )}
+                </div>
+              ) : null}
+
+              {data.validation ? (
+                <div className="flex flex-wrap gap-1.5 text-[9px] text-[#6b7280]">
+                  <ValidationChip ok={data.validation.leagueContextResolved} label="League context" />
+                  <ValidationChip ok={data.validation.rosterContextAvailable} label="Roster" />
+                  <ValidationChip ok={data.validation.projectionLayerReady} label="Projections" />
+                  <ValidationChip ok={data.validation.injuryNewsLayerReady} label="Injury news" />
+                  <ValidationChip ok={data.validation.timeContextPresent} label="Time engine" />
+                </div>
+              ) : null}
+
               <div className="flex gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]">
                 {VIEW_TABS.map((t) => (
                   <button
@@ -502,6 +597,7 @@ export function InjuryImpactModal({
                 allPlayers={data.players}
                 onOpen={setDetail}
                 aiNarrative={data.aiNarrative}
+                integrationHints={data.integrationHints}
               />
 
               {data.dataGaps.length > 0 ? (
@@ -521,6 +617,18 @@ export function InjuryImpactModal({
 
       {detail ? <InjuryDetailDrawer row={detail} onClose={() => setDetail(null)} /> : null}
     </>
+  )
+}
+
+function ValidationChip({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={`rounded border px-1.5 py-0.5 font-semibold ${
+        ok ? 'border-emerald-500/30 text-emerald-200/90' : 'border-white/10 text-white/35'
+      }`}
+    >
+      {label}
+    </span>
   )
 }
 
@@ -549,12 +657,14 @@ function ViewPanel({
   allPlayers,
   onOpen,
   aiNarrative,
+  integrationHints,
 }: {
   tab: InjuryViewTabId
   players: InjuryPlayerIntelRow[]
   allPlayers: InjuryPlayerIntelRow[]
   onOpen: (r: InjuryPlayerIntelRow) => void
   aiNarrative: string | null
+  integrationHints: InjuryIntegrationHints
 }) {
   if (tab === 'ai') {
     return (
@@ -573,8 +683,15 @@ function ViewPanel({
   }
 
   if (tab === 'replacements' || tab === 'waiver' || tab === 'trade') {
+    const hint =
+      tab === 'trade'
+        ? integrationHints.warRoom
+        : tab === 'waiver'
+          ? integrationHints.waiverWire
+          : integrationHints.startSit
     return (
       <div className="space-y-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 text-[12px] text-white/65">
+        <p className="text-[11px] text-white/70">{hint}</p>
         <p>
           Replacement names are not auto-generated here — use{' '}
           <span className="text-red-200/90">Waiver Wire</span> and{' '}
@@ -582,8 +699,8 @@ function ViewPanel({
         </p>
         <p className="text-[11px] text-[#5c6480]">
           {tab === 'trade'
-            ? 'Trade impact follows real injury status changes to player value; confirm in the trade tool.'
-            : 'Waiver targets depend on your league scoring and free agents — open the waiver tool after reviewing flagged players below.'}
+            ? 'Trade impact follows real injury status; confirm dollar values in Trade Value.'
+            : `${integrationHints.matchupPrep} Waiver targets depend on league scoring and free agents.`}
         </p>
         <div className="space-y-1.5 pt-2">
           {allPlayers.slice(0, 8).map((p) => (
@@ -656,6 +773,25 @@ function InjuryAlertCard({ alert, onOpen }: { alert: InjuryPlayerIntelRow; onOpe
             {alert.position} · {alert.team} · {alert.sport}
           </p>
           <p className="mt-1 text-[11px] text-white/65">{alert.statusRaw}</p>
+          {alert.freshnessNote ? (
+            <p className="mt-0.5 text-[10px] text-sky-200/75">{alert.freshnessNote}</p>
+          ) : null}
+          {alert.effectiveProjection != null && Number.isFinite(alert.effectiveProjection) ? (
+            <p className="mt-0.5 text-[10px] font-semibold text-amber-200/85">
+              League proj ~{alert.effectiveProjection.toFixed(1)} pts (when healthy / engine slice)
+            </p>
+          ) : null}
+          {alert.replacementHint ? (
+            <p className="mt-0.5 line-clamp-2 text-[10px] text-white/45">{alert.replacementHint}</p>
+          ) : null}
+          {alert.returnTimeline && alert.returnTimeline.category !== 'unknown' ? (
+            <p
+              className="mt-0.5 inline-flex items-center rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-200/90"
+              title={alert.returnTimeline.rawText ?? ''}
+            >
+              Return: {alert.returnTimeline.label}
+            </p>
+          ) : null}
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[9px] font-semibold text-white/40">
             {alert.reportDate ? (
               <span>
@@ -714,7 +850,62 @@ function InjuryDetailDrawer({ row, onClose }: { row: InjuryPlayerIntelRow; onClo
           <p className={`text-[11px] font-bold ${s.text}`}>{row.statusRaw}</p>
           <p className="mt-1 text-[11px] text-white/65">{row.notes || 'No notes on file.'}</p>
           {row.practice ? <p className="mt-1 text-[10px] text-white/45">Practice: {row.practice}</p> : null}
+          {row.injuryNewsSummary ? (
+            <p className="mt-1 text-[10px] text-sky-200/80">News: {row.injuryNewsSummary}</p>
+          ) : null}
+          {row.freshnessNote ? <p className="mt-1 text-[10px] text-sky-200/70">{row.freshnessNote}</p> : null}
         </div>
+        {row.effectiveProjection != null && Number.isFinite(row.effectiveProjection) ? (
+          <div className="mt-2 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase text-amber-200/90">League weekly projection</p>
+            <p className="text-[13px] font-bold tabular-nums text-white/90">~{row.effectiveProjection.toFixed(1)} pts</p>
+            {row.projectionNotes?.length ? (
+              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] text-white/55">
+                {row.projectionNotes.slice(0, 4).map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+        {row.returnTimeline ? (
+          <div className="mt-2 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase text-sky-200/80">Return window</p>
+            <p className="text-[12px] font-semibold text-white/85">{row.returnTimeline.label}</p>
+            {row.returnTimeline.rawText && row.returnTimeline.category !== 'unknown' ? (
+              <p className="mt-0.5 text-[10px] italic text-white/45">"{row.returnTimeline.rawText}"</p>
+            ) : null}
+          </div>
+        ) : null}
+        {row.replacementHint ? (
+          <div className="mt-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase text-[#5c6480]">Replacement structure</p>
+            <p className="text-[11px] text-white/70">{row.replacementHint}</p>
+          </div>
+        ) : null}
+        {row.suggestedWaiverAdds && row.suggestedWaiverAdds.length > 0 ? (
+          <div className="mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase text-emerald-200/80">Named FA replacements</p>
+            <ul className="mt-1 space-y-1">
+              {row.suggestedWaiverAdds.map((add) => (
+                <li key={add.playerId} className="flex items-start justify-between gap-2 text-[11px]">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white/90">
+                      {add.name} <span className="text-white/50">· {add.position} · {add.team}</span>
+                    </p>
+                    <p className="line-clamp-2 text-[10px] text-white/55">{add.why}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[9px] font-bold uppercase text-emerald-200/90">{add.tier.replace('_', ' ')}</p>
+                    {add.faabPct > 0 ? (
+                      <p className="text-[9px] text-white/55">FAAB ~{add.faabPct}%</p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
           <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-2 py-1.5">
             <p className="text-[9px] uppercase text-[#5c6480]">Impact score</p>

@@ -1,0 +1,190 @@
+/**
+ * Data-driven scoring presets for concept-first league creation.
+ * Maps a stable preset id → scoring string / scoringSettings / superflex flags consumed by POST /api/league/create.
+ */
+
+import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+import type { SupportedSport } from '@/lib/create-league-v2/state'
+import { isFootballLike } from '@/lib/create-league-v2/state'
+
+export type ScoringPresetOption = {
+  id: string
+  label: string
+  hint: string
+}
+
+type PresetCtx = {
+  leagueType: LeagueTypeId
+  sport: SupportedSport
+  idpSelected: boolean
+}
+
+type PresetRule = {
+  id: string
+  label: string
+  hint: string
+  /** Return true when this preset row applies to the current concept + sport + modifiers. */
+  matches: (ctx: PresetCtx) => boolean
+  /** Build API-facing scoring + scoringSettings (merged into wizard payload). */
+  build: (ctx: PresetCtx) => {
+    scoring: string
+    scoringSettings: Record<string, unknown>
+    isSuperflex: boolean
+  }
+}
+
+const pprMap = { standard: 0, half: 0.5, full: 1 } as const
+
+function fbPreset(
+  id: string,
+  label: string,
+  hint: string,
+  opts: {
+    ppr: keyof typeof pprMap
+    superflex?: boolean
+    tePremium?: boolean
+    tePremiumMultiplier?: number
+  },
+): PresetRule {
+  return {
+    id,
+    label,
+    hint,
+    matches: (ctx) =>
+      isFootballLike(ctx.sport) &&
+      !ctx.idpSelected &&
+      ['redraft', 'dynasty', 'keeper', 'best_ball', 'guillotine', 'tournament', 'devy', 'c2c', 'zombie', 'salary_cap'].includes(
+        ctx.leagueType,
+      ),
+    build: () => {
+      const pprValue = pprMap[opts.ppr]
+      const scoring = opts.ppr === 'full' ? 'ppr' : opts.ppr === 'half' ? 'half_ppr' : 'standard'
+      return {
+        scoring,
+        isSuperflex: opts.superflex ?? false,
+        scoringSettings: {
+          source: 'af',
+          ppr: pprValue,
+          superflex: opts.superflex ?? false,
+          tePremium: opts.tePremium ?? false,
+          tePremiumMultiplier: opts.tePremium ? opts.tePremiumMultiplier ?? 1.5 : 1,
+        },
+      }
+    },
+  }
+}
+
+const RULES: PresetRule[] = [
+  fbPreset('fb_standard', 'Standard', 'No PPR — classic yardage + TD scoring.', { ppr: 'standard' }),
+  fbPreset('fb_half_ppr', 'Half PPR', '0.5 per reception — balanced modern default.', { ppr: 'half' }),
+  fbPreset('fb_full_ppr', 'Full PPR', '1.0 per reception — WR/TE friendly.', { ppr: 'full' }),
+  fbPreset('fb_te_premium', 'TE Premium', 'Half PPR + boosted TE scoring.', {
+    ppr: 'half',
+    tePremium: true,
+    tePremiumMultiplier: 1.5,
+  }),
+  fbPreset('fb_superflex', 'Superflex', 'Start 2 QBs — superflex scoring defaults.', { ppr: 'half', superflex: true }),
+  fbPreset('fb_2qb', '2QB style', 'Emphasizes QB depth (same superflex slot model).', { ppr: 'half', superflex: true }),
+  {
+    id: 'fb_idp',
+    label: 'IDP balanced',
+    hint: 'Individual defensive players with balanced scoring.',
+    matches: (ctx) => ctx.idpSelected && ctx.sport === 'NFL',
+    build: () => ({
+      scoring: 'IDP',
+      isSuperflex: false,
+      scoringSettings: {
+        source: 'af',
+        preset: 'idp_balanced',
+        ppr: 0.5,
+        superflex: false,
+        tePremium: false,
+        tePremiumMultiplier: 1,
+      },
+    }),
+  },
+  // Non-football: sport-native “points” presets (stored as default + preset key for downstream settings).
+  ...(
+    [
+      { sport: 'NBA' as const, id: 'nba_points', label: 'Points (classic)', hint: 'Fantasy points from NBA stats.' },
+      { sport: 'NCAAB' as const, id: 'ncaab_points', label: 'Points (classic)', hint: 'Fantasy points from college hoops.' },
+      { sport: 'MLB' as const, id: 'mlb_points', label: 'Points (classic)', hint: 'Fantasy points from MLB counting stats.' },
+      { sport: 'NHL' as const, id: 'nhl_points', label: 'Points (classic)', hint: 'Fantasy points from NHL stats.' },
+      { sport: 'SOCCER' as const, id: 'soc_points', label: 'Points (classic)', hint: 'Fantasy points from fixtures.' },
+    ] as const
+  ).map(
+    (row): PresetRule => ({
+      id: row.id,
+      label: row.label,
+      hint: row.hint,
+      matches: (ctx) => ctx.sport === row.sport && !ctx.idpSelected,
+      build: () => ({
+        scoring: 'default',
+        isSuperflex: false,
+        scoringSettings: {
+          preset: row.id,
+          source: 'af',
+          scoringMode: 'points',
+        },
+      }),
+    }),
+  ),
+]
+
+export function listScoringPresetOptions(ctx: PresetCtx): ScoringPresetOption[] {
+  const out: ScoringPresetOption[] = []
+  for (const rule of RULES) {
+    if (rule.matches(ctx)) {
+      out.push({ id: rule.id, label: rule.label, hint: rule.hint })
+    }
+  }
+  return dedupeById(out)
+}
+
+function dedupeById(rows: ScoringPresetOption[]): ScoringPresetOption[] {
+  const seen = new Set<string>()
+  return rows.filter((r) => {
+    if (seen.has(r.id)) return false
+    seen.add(r.id)
+    return true
+  })
+}
+
+export function getDefaultScoringPresetId(ctx: PresetCtx): string {
+  const opts = listScoringPresetOptions(ctx)
+  if (opts.length === 0) return 'fb_half_ppr'
+  if (ctx.idpSelected) {
+    const idp = opts.find((o) => o.id === 'fb_idp')
+    if (idp) return idp.id
+  }
+  const half = opts.find((o) => o.id === 'fb_half_ppr')
+  return half?.id ?? opts[0]!.id
+}
+
+export function findScoringPresetRule(presetId: string): PresetRule | undefined {
+  return RULES.find((r) => r.id === presetId)
+}
+
+export function buildScoringFromPresetId(presetId: string, ctx: PresetCtx): {
+  scoring: string
+  scoringSettings: Record<string, unknown>
+  isSuperflex: boolean
+} {
+  const rule = findScoringPresetRule(presetId)
+  if (!rule || !rule.matches(ctx)) {
+    const fallback = getDefaultScoringPresetId(ctx)
+    const fb = findScoringPresetRule(fallback)
+    if (fb && fb.matches(ctx)) return fb.build(ctx)
+    return {
+      scoring: 'half_ppr',
+      isSuperflex: false,
+      scoringSettings: { source: 'af', ppr: 0.5, superflex: false, tePremium: false, tePremiumMultiplier: 1 },
+    }
+  }
+  return rule.build(ctx)
+}
+
+export function isScoringPresetValidForContext(presetId: string, ctx: PresetCtx): boolean {
+  const rule = findScoringPresetRule(presetId)
+  return Boolean(rule && rule.matches(ctx))
+}

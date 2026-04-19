@@ -1,6 +1,11 @@
 import 'server-only'
 
+import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-messages'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { prisma } from '@/lib/prisma'
+import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { openaiChatText } from '@/lib/openai-client'
 import { runWaiverIntelligenceAnalysis } from '@/lib/ai-tools-waiver/waiver-intelligence'
 import type { WaiverStrategy } from '@/lib/ai-tools-waiver/waiver-intelligence'
@@ -17,10 +22,21 @@ import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from
 import type {
   WarRoomCommandCenterInput,
   WarRoomCommandCenterOutput,
-  WarRoomActionItem,
-  WarRoomConflict,
   WarRoomModuleSnapshot,
 } from './types'
+import type { MatchupPrepDashboardResult, MatchupStrategyModeId, MatchupTimeHorizonId } from '@/lib/matchup-prep-dashboard/types'
+import { runMatchupPrepDashboard } from '@/lib/matchup-prep-dashboard'
+import { computeLineupActionsForUser } from '@/lib/lineup-actions/computeLineupActionsForUser'
+import { attachChimmyAdviceToLineupSummary } from '@/lib/lineup-actions/chimmyLineupAdvice'
+import type { LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
+import { orchestrateWarRoomBrain } from './orchestrateWarRoomBrain'
+import {
+  aggregateSourceFlags,
+  buildWarRoomAiTimeContext,
+  buildWarRoomIngestionHealth,
+  leagueScoringDigestFromLce,
+} from './warRoomOrchestrationContext'
+import { loadTradeValueWarRoomContext } from '@/lib/trade-value-console/war-room-trade-context'
 import type { InjuryImpactDashboardResult } from '@/lib/injury-impact-dashboard/types'
 import type { PowerRankingsDashboardResult } from '@/lib/power-rankings-dashboard/types'
 import type { WaiverIntelligenceResult } from '@/lib/ai-tools-waiver/waiver-intelligence'
@@ -202,149 +218,44 @@ function sportFilterForWaiver(
   return n ?? 'ALL'
 }
 
-function buildActions(args: {
-  startSit: StartSitAnalyzeResult | null
-  waiver: WaiverIntelligenceResult | null
-  injury: InjuryImpactDashboardResult | null
-  trending: TrendingDashboardResult | null
-  power: PowerRankingsDashboardResult | null
-  toggles: WarRoomCommandCenterInput['toggles']
-}): { actions: WarRoomActionItem[]; conflicts: WarRoomConflict[] } {
-  const actions: WarRoomActionItem[] = []
-  const conflicts: WarRoomConflict[] = []
-  let rank = 1
+function leagueScoringNoteFrom(
+  waiver: WaiverIntelligenceResult | null,
+  startSit: StartSitAnalyzeResult | null,
+): string | null {
+  const raw = waiver?.leagueSettingsSnapshot ?? startSit?.leagueSettingsSnapshot
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.scoring === 'string' && r.scoring.trim()) return r.scoring.trim()
+  return null
+}
 
-  const push = (a: Omit<WarRoomActionItem, 'rank'>) => {
-    actions.push({ ...a, rank: rank++ })
+function mapWarRoomStrategyToMatchupStrategy(mode: WarRoomCommandCenterInput['strategyMode']): MatchupStrategyModeId {
+  switch (mode) {
+    case 'conservative':
+      return 'safe_floor'
+    case 'aggressive':
+    case 'win_now':
+    case 'playoff_push':
+      return 'high_upside'
+    case 'rebuilder':
+      return 'injury_protected'
+    case 'streaming_focus':
+      return 'streaming_focus'
+    default:
+      return 'balanced'
   }
+}
 
-  if (args.toggles.includeStartSitRecommendations && args.startSit) {
-    const bs = args.startSit.recommendations.bestStart
-    const bst = args.startSit.recommendations.bestSit
-    if (bs) {
-      push({
-        id: `ss-start-${bs.player.playerId}`,
-        urgency: clamp(bs.confidence, 40, 95),
-        confidence: bs.confidence,
-        title: `Start ${bs.player.name}`,
-        detail: bs.reason,
-        source: 'start_sit',
-        linkTool: 'startSit',
-      })
-    }
-    if (bst) {
-      push({
-        id: `ss-sit-${bst.player.playerId}`,
-        urgency: clamp(bst.confidence * 0.85, 35, 90),
-        confidence: bst.confidence,
-        title: `Sit ${bst.player.name}`,
-        detail: bst.reason,
-        source: 'start_sit',
-        linkTool: 'startSit',
-      })
-    }
+function mapWarRoomTimeToMatchup(h: WarRoomCommandCenterInput['timeHorizon']): MatchupTimeHorizonId {
+  switch (h) {
+    case 'today':
+    case 'this_week':
+      return 'this_matchup'
+    case 'next_2_weeks':
+      return 'next_matchup'
+    default:
+      return 'this_matchup'
   }
-
-  if (args.toggles.includeWaiverSuggestions && args.waiver) {
-    const picks = args.waiver.picks.slice(0, 4)
-    for (const p of picks) {
-      push({
-        id: `waiver-${p.playerId}-${p.rank}`,
-        urgency:
-          p.urgency === 'critical' ? 92 : p.urgency === 'high' ? 78 : p.urgency === 'medium' ? 62 : 48,
-        confidence: clamp(p.confidence, 0, 100),
-        title: `Waiver: ${p.name}`,
-        detail: p.why,
-        source: 'waiver',
-        linkTool: 'waiver',
-        estimatedEdgePts: null,
-      })
-    }
-    const drops = args.waiver.suggestedDrops.slice(0, 2)
-    for (const d of drops) {
-      push({
-        id: `drop-${d.playerId}`,
-        urgency: 55,
-        confidence: 55,
-        title: `Consider dropping ${d.name}`,
-        detail: d.reason,
-        source: 'waiver',
-        linkTool: 'waiver',
-      })
-    }
-  }
-
-  if (args.toggles.includeInjuries && args.injury) {
-    const rosterHits = args.injury.players
-      .filter((x) => x.onRoster)
-      .sort((a, b) => b.impactScore - a.impactScore)
-      .slice(0, 4)
-    for (const pl of rosterHits) {
-      push({
-        id: `inj-${pl.sourceId}`,
-        urgency: clamp(pl.impactScore, 30, 98),
-        confidence: clamp(pl.confidence, 0, 100),
-        title: `${pl.name}: ${pl.statusRaw}`,
-        detail: pl.notes || 'Monitor practice and official designation.',
-        source: 'injury',
-        linkTool: 'injury',
-      })
-    }
-  }
-
-  if (args.toggles.includeTrendingPlayers && args.trending) {
-    const g = args.trending.summary.biggestGainer
-    if (g) {
-      push({
-        id: `trend-${g.playerId}`,
-        urgency: clamp(50 + g.trendScore * 0.08, 40, 88),
-        confidence: clamp(g.confidence, 0, 100),
-        title: `Trending up: ${g.name}`,
-        detail: g.snippet,
-        source: 'trend',
-        linkTool: 'trending',
-      })
-    }
-  }
-
-  if (args.toggles.includePowerRankings && args.power && args.power.analysisScope !== 'none') {
-    const my = args.power.teams.find((t) => t.isCurrentUser)
-    if (my) {
-      push({
-        id: 'power-you',
-        urgency: 48,
-        confidence: 70,
-        title: `Power rank #${my.rank} (${my.momentumLabel})`,
-        detail: my.snippet,
-        source: 'power',
-        linkTool: 'power',
-      })
-    }
-  }
-
-  actions.sort((a, b) => b.urgency - a.urgency)
-  actions.forEach((a, i) => {
-    a.rank = i + 1
-  })
-
-  /* Simple conflict: waiver drop names overlap injury critical roster */
-  const injNames = new Set(
-    (args.injury ? args.injury.players : [])
-      .filter((x) => x.onRoster && x.impactScore >= 70)
-      .map((x) => x.name.toLowerCase()),
-  )
-  for (const d of args.waiver ? args.waiver.suggestedDrops : []) {
-    if (injNames.has(d.name.toLowerCase())) {
-      conflicts.push({
-        id: `cfl-${d.playerId}`,
-        summary: `${d.name}: waiver engine suggested a drop while injury signal is elevated.`,
-        primaryAction: 'Re-check injury designation before dropping.',
-        alternateAction: 'Hold through gameday inactives if uncertain.',
-      })
-    }
-  }
-
-  return { actions: actions.slice(0, 12), conflicts }
 }
 
 function summarizeModulesForAi(m: WarRoomModuleSnapshot): string {
@@ -361,6 +272,21 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
   const portfolio = input.teamContext === 'full_portfolio'
   const leagueId = input.leagueId?.trim() || null
   const hasLeague = Boolean(leagueId) && !portfolio
+
+  if (hasLeague && leagueId) {
+    const access = await assertLeagueMemberWithCode(leagueId, input.userId)
+    if (!access.ok) {
+      const code = access.code
+      const msg = leagueToolAccessUserMessage(code)
+      return { ok: false, error: msg, code, userMessage: msg }
+    }
+  }
+
+  let leagueContextEngine: NormalizedLeagueContext | null = null
+  if (hasLeague && leagueId) {
+    const lce = await resolveNormalizedLeagueContext({ userId: input.userId, leagueId })
+    if (lce.ok) leagueContextEngine = lce.context
+  }
 
   let leagueName: string | null = null
   let leagueSport: SupportedSport | null = null
@@ -389,6 +315,8 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
   let injury: InjuryImpactDashboardResult | null = null
   let trending: TrendingDashboardResult | null = null
   let power: PowerRankingsDashboardResult | null = null
+  let matchupPrep: MatchupPrepDashboardResult | null = null
+  let todayLineup: LineupActionSummaryPayload | null = null
 
   const wf = sportFilterForWaiver(input.sportFilter, leagueSport, portfolio)
   const specId = input.specificTeamExternalId?.trim() || null
@@ -396,7 +324,7 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
 
   const injuryTeamContext = mapInjuryTeamContext(input.teamContext, specId, oppId)
 
-  const [rs, rw, ri, rt, rp] = await Promise.allSettled([
+  const [rs, rw, ri, rt, rp, rmp, rtl] = await Promise.allSettled([
     hasLeague && input.toggles.includeStartSitRecommendations
       ? runStartSitAnalysis({
           userId: input.userId,
@@ -477,6 +405,37 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
           skipAi: true,
         })
       : Promise.resolve(null),
+    hasLeague && leagueId && input.toggles.includeMatchupPrep
+      ? runMatchupPrepDashboard({
+          userId: input.userId,
+          sportFilter: leagueSport ? String(leagueSport).toUpperCase() : 'ALL',
+          leagueId,
+          teamFocus: 'my_team',
+          teamExternalId: specId,
+          opponentExternalId: oppId,
+          timeHorizon: mapWarRoomTimeToMatchup(input.timeHorizon),
+          strategyMode: mapWarRoomStrategyToMatchupStrategy(input.strategyMode),
+          toggles: {
+            includeLiveNews: input.toggles.includeNews,
+            includeInjuries: input.toggles.includeInjuries,
+            includeScheduleAdjustments: true,
+            includeWeather: true,
+            includeStreamingRecommendations: true,
+            includeOpponentTrendAnalysis: true,
+            includePlayoffContext: input.toggles.includePlayoffImpact,
+            includeRookieProspectContext: input.toggles.includeRookieProspectIntel,
+          },
+          skipAi: true,
+        })
+      : Promise.resolve(null),
+    input.toggles.includeTodayActions
+      ? input.precomputedTodayLineup != null
+        ? Promise.resolve(input.precomputedTodayLineup)
+        : (async () => {
+            const s = await computeLineupActionsForUser(input.userId)
+            return attachChimmyAdviceToLineupSummary(s, input.userId)
+          })()
+      : Promise.resolve(null),
   ])
 
   if (rs.status === 'fulfilled' && rs.value && isStartSitOk(rs.value)) {
@@ -519,18 +478,87 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
     dataGaps.push(`Power: ${(rp.value as { error?: string }).error ?? 'unavailable'}`)
   }
 
-  const { actions, conflicts } = buildActions({
+  if (rmp.status === 'fulfilled' && rmp.value && typeof rmp.value === 'object' && 'ok' in rmp.value && (rmp.value as { ok: boolean }).ok) {
+    matchupPrep = rmp.value as MatchupPrepDashboardResult
+  } else if (rmp.status === 'rejected') {
+    dataGaps.push('Matchup Prep failed to load.')
+  } else if (rmp.status === 'fulfilled' && rmp.value && typeof rmp.value === 'object' && 'ok' in rmp.value && !(rmp.value as { ok: boolean }).ok) {
+    dataGaps.push(`Matchup Prep: ${(rmp.value as { error?: string }).error ?? 'unavailable'}`)
+  }
+
+  if (rtl.status === 'fulfilled' && rtl.value) {
+    todayLineup = rtl.value as LineupActionSummaryPayload
+  } else if (rtl.status === 'rejected') {
+    dataGaps.push('Today Actions / lineup scan failed to load.')
+  }
+
+  let tradeValueModule: Record<string, unknown> | null = null
+  let tradeContextOk = false
+  let tradeSkipReason: string | null = null
+  if (!input.toggles.includeTradeSuggestions) {
+    tradeSkipReason = 'toggle off'
+  } else if (!hasLeague || !leagueId) {
+    tradeSkipReason = 'league required'
+  } else {
+    const tv = await loadTradeValueWarRoomContext({ userId: input.userId, leagueId })
+    if (tv.ok) {
+      tradeValueModule = { ...tv } as unknown as Record<string, unknown>
+      tradeContextOk = true
+    } else {
+      dataGaps.push(`Trade Value: ${tv.userMessage}`)
+      tradeSkipReason = tv.userMessage
+    }
+  }
+
+  const leagueScoringDigest = leagueScoringDigestFromLce(leagueContextEngine)
+  const leagueNote = leagueScoringDigest ?? leagueScoringNoteFrom(waiver, startSit)
+
+  const { payload: aiTimePayload, summaryLine: timeSummary } = await buildWarRoomAiTimeContext({
+    userId: input.userId,
+    sportHint: leagueSport,
+    injuryUpdatedAt: injury?.computedAt ?? null,
+    matchupLockAt: matchupPrep?.timeContext?.matchupLockAt ?? null,
+  })
+
+  const ingestionHealth = buildWarRoomIngestionHealth({
+    toggles: input.toggles,
+    hasLeague,
+    rs,
+    rw,
+    ri,
+    rt,
+    rp,
+    rmp,
+    rtl,
+    tradeOk: tradeContextOk,
+    tradeSkippedReason: tradeContextOk ? null : tradeSkipReason,
+  })
+  const aggregatedSourceFlags = aggregateSourceFlags(ingestionHealth)
+
+  const { actions, conflicts, meta: orchestrationMeta } = orchestrateWarRoomBrain({
+    toggles: input.toggles,
+    strategyMode: input.strategyMode,
     startSit,
     waiver,
     injury,
     trending,
     power,
-    toggles: input.toggles,
+    matchupPrep,
+    todayLineup,
+    tradeValue: tradeValueModule,
+    leagueScoringNote: leagueNote,
+    serverTimeIso: computedAt,
+    analysisMode: portfolio ? 'portfolio' : 'league',
+    timeSummary,
+    leagueScoringDigest,
+    ingestionHealth,
+    aggregatedSourceFlags,
   })
 
   const degraded =
     Boolean(injury?.degraded) ||
     Boolean(trending?.degraded) ||
+    Boolean(matchupPrep?.degraded) ||
     dataGaps.length > 0 ||
     (hasLeague && power?.analysisScope === 'none')
 
@@ -545,6 +573,9 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
     injury: injury ? (JSON.parse(JSON.stringify(injury)) as Record<string, unknown>) : null,
     trending: trending ? (JSON.parse(JSON.stringify(trending)) as Record<string, unknown>) : null,
     power: power ? (JSON.parse(JSON.stringify(power)) as Record<string, unknown>) : null,
+    matchupPrep: matchupPrep ? (JSON.parse(JSON.stringify(matchupPrep)) as Record<string, unknown>) : null,
+    todayActions: todayLineup ? (JSON.parse(JSON.stringify(todayLineup)) as Record<string, unknown>) : null,
+    tradeValue: tradeValueModule,
   }
 
   const commandPriority =
@@ -553,6 +584,8 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
   const topActions = actions.slice(0, 3).map((a) => a.title)
 
   let aiSummary: string | null = null
+  let aiStatus: 'ok' | 'skipped' | 'failed' = 'skipped'
+  let aiFailureDetail: string | null = null
   if (!input.skipAi) {
     const ai = await openaiChatText({
       messages: [
@@ -563,43 +596,84 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
         },
         {
           role: 'user',
-          content: `War Room orchestration payload (structured):\n${summarizeModulesForAi(modules)}\nData gaps noted: ${dataGaps.join('; ') || 'none'}\nPrioritized action titles: ${topActions.join(' | ') || 'none'}`,
+          content: `War Room orchestration payload (structured):\n${summarizeModulesForAi(modules)}\nTime context (authoritative): ${JSON.stringify(aiTimePayload).slice(0, 4000)}\nOrchestration meta: ${JSON.stringify(orchestrationMeta).slice(0, 6000)}\nData gaps noted: ${dataGaps.join('; ') || 'none'}\nPrioritized action titles: ${topActions.join(' | ') || 'none'}`,
         },
       ],
       temperature: 0.35,
       maxTokens: 500,
       skipCache: true,
     })
-    aiSummary = ai.ok ? ai.text : null
-    if (!ai.ok) dataGaps.push('AI summary unavailable (provider).')
+    if (ai.ok) {
+      aiSummary = ai.text
+      aiStatus = 'ok'
+    } else {
+      aiStatus = 'failed'
+      aiFailureDetail = (ai as { error?: string }).error ?? 'provider error'
+      dataGaps.push(`AI summary unavailable: ${aiFailureDetail}.`)
+    }
   }
+  // Surface AI status alongside module health so UI can distinguish skipped vs failed.
+  orchestrationMeta.ingestionHealth.push({
+    module: 'ai_summary',
+    status: aiStatus,
+    detail: aiStatus === 'skipped' ? 'skipAi=true' : aiStatus === 'failed' ? aiFailureDetail ?? 'unknown' : undefined,
+  })
 
   const nextMatchupNote =
     startSit?.opponent?.name != null
       ? `Next / current matchup context: vs ${startSit.opponent.name}`
       : startSit?.opponent?.notes?.[0] ?? null
 
-  const chimmyPayload: Record<string, unknown> = {
+  const aiEnvelope = await buildAiToolPayload({
+    userId: input.userId,
     tool: 'war_room_command_center',
-    analysisScope: hasLeague ? 'league' : 'general',
-    leagueId,
-    leagueName,
-    sportLabel,
-    teamContext: input.teamContext,
-    strategyMode: input.strategyMode,
-    timeHorizon: input.timeHorizon,
-    toggles: input.toggles,
-    actions: actions.slice(0, 8).map((a) => ({
-      title: a.title,
-      source: a.source,
-      urgency: a.urgency,
-      confidence: a.confidence,
-    })),
-    conflicts,
-    dataGaps,
-    degraded,
-    computedAt,
-  }
+    mode: hasLeague ? 'league' : 'global',
+    league:
+      hasLeague && leagueId
+        ? {
+            leagueId,
+            leagueName,
+            sport: leagueSport ? String(leagueSport) : String(sportLabel),
+          }
+        : null,
+    data: {},
+    enrichTimeFromLeagueId: hasLeague && leagueId ? leagueId : null,
+    includeStrategicCoaching: hasLeague,
+  })
+
+  const chimmyPayload = attachIntelligenceToChimmyPayload(
+    {
+      tool: 'war_room_command_center',
+      leagueContextEngine,
+      analysisScope: hasLeague ? 'league' : 'general',
+      leagueId,
+      leagueName,
+      sportLabel,
+      teamContext: input.teamContext,
+      strategyMode: input.strategyMode,
+      timeHorizon: input.timeHorizon,
+      toggles: input.toggles,
+      timeEngine: aiTimePayload,
+      actions: actions.slice(0, 8).map((a) => ({
+        title: a.title,
+        source: a.source,
+        urgency: a.urgency,
+        confidence: a.confidence,
+        confidenceNote: a.confidenceNote,
+        sourceTools: a.sourceTools,
+        expectedPayoff: a.expectedPayoff,
+        biggestRisk: a.biggestRisk,
+        reasoning: a.reasoning,
+      })),
+      conflicts,
+      orchestration: orchestrationMeta,
+      dataGaps,
+      degraded,
+      computedAt,
+    },
+    aiEnvelope,
+    { leagueMode: hasLeague, orchestration: 'war_room_command_center' }
+  )
 
   return {
     ok: true,
@@ -621,6 +695,14 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
       topActions,
       dataFreshness: computedAt,
       degraded,
+      biggestRisk: actions.find((x) => x.biggestRisk)?.biggestRisk ?? null,
+      biggestOpportunity: actions.find((x) => x.biggestOpportunity)?.biggestOpportunity ?? null,
+      analysisMode: portfolio ? 'portfolio' : 'league',
+      analysisModeLabel: portfolio
+        ? 'Portfolio / global'
+        : hasLeague
+          ? 'League orchestration'
+          : 'General',
     },
     scores: {
       commandPriority,
@@ -632,7 +714,9 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
     actions,
     conflicts,
     modules,
-    dataGaps,
+    orchestration: orchestrationMeta,
+    // Cap at 24 entries so a cascade of module failures can't balloon the payload or AI prompt.
+    dataGaps: dataGaps.length > 24 ? [...dataGaps.slice(0, 24), `…and ${dataGaps.length - 24} more gaps truncated.`] : dataGaps,
     aiSummary,
     chimmyPayload,
     computedAt,

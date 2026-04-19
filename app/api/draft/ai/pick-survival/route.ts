@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const sys =
     'You are Chimmy. Estimate return probability. JSON: {"probabilityEstimate":0.5,"reasoning":"","factors":[]}'
   try {
-    const text = await draftAiText(sys, JSON.stringify(body ?? {}))
+    const text = await draftAiText(sys, JSON.stringify(body ?? {}), { userId: session.user.id })
     const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
     return NextResponse.json({ result: JSON.parse(cleaned) })
   } catch (e) {

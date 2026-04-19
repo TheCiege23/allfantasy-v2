@@ -1,6 +1,9 @@
 export type {
+  MatchupFloorVsUpside,
   MatchupGamePlanAction,
+  MatchupInjuryPivot,
   MatchupLinkToolId,
+  MatchupPeriodSnapshot,
   MatchupPositionEdge,
   MatchupPrepDashboardError,
   MatchupPrepDashboardInput,
@@ -8,8 +11,12 @@ export type {
   MatchupPrepDashboardResult,
   MatchupPrepToggles,
   MatchupPrepViewTabId,
+  MatchupScoringSummary,
+  MatchupSlotEdge,
+  MatchupStreamingHint,
   MatchupStrategyModeId,
   MatchupTeamFocusId,
   MatchupTimeHorizonId,
+  WinProbabilityModelId,
 } from './types'
 export { runMatchupPrepDashboard } from './runMatchupPrepDashboard'

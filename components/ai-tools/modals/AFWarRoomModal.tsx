@@ -75,6 +75,8 @@ const DEFAULT_TOGGLES: WarRoomToggles = {
   includeRookieProspectIntel: false,
   includePlayoffImpact: true,
   includeDynastyWeighting: true,
+  includeMatchupPrep: true,
+  includeTodayActions: true,
 }
 
 function openTool(tool: string) {
@@ -209,16 +211,66 @@ export function AFWarRoomModal({
     })
   }, [data?.aiSummary, data?.chimmyPayload])
 
-  const headerBadge =
-    data?.overview.degraded || data?.dataGaps?.length ? (
-      <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
-        Partial data
-      </span>
-    ) : (
-      <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
-        Live
-      </span>
-    )
+  const headerBadge = (
+    <span className="flex flex-wrap items-center gap-1">
+      {data?.overview.degraded || data?.dataGaps?.length ? (
+        <span className="rounded border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+          Partial data
+        </span>
+      ) : (
+        <span className="rounded border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase text-emerald-200">
+          Live
+        </span>
+      )}
+      {(() => {
+        const agg = data?.orchestration?.aggregatedSourceFlags
+        if (!agg) return null
+        const counts = agg.moduleCounts
+        const chipBase = 'rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide'
+        const green = 'bg-emerald-500/15 text-emerald-200'
+        const dim = 'bg-white/5 text-white/35'
+        const amber = 'bg-amber-500/12 text-amber-100/90'
+        return (
+          <>
+            <span
+              title={`Projections active in ${counts.withProjections}/${counts.total} modules`}
+              className={`${chipBase} ${agg.projectionLayerReady ? green : dim}`}
+            >
+              Proj {counts.withProjections}/{counts.total}
+            </span>
+            <span
+              title={`Injury/news signal active in ${counts.withInjuryNews}/${counts.total} modules`}
+              className={`${chipBase} ${agg.injuryNewsLayerReady ? green : dim}`}
+            >
+              Inj {counts.withInjuryNews}/{counts.total}
+            </span>
+            <span
+              title={`Weather signal active in ${counts.withWeather}/${counts.total} modules`}
+              className={`${chipBase} ${agg.weatherLayerReady ? green : dim}`}
+            >
+              Wx {counts.withWeather}/{counts.total}
+            </span>
+            <span
+              title={
+                agg.leagueScoringAppliedEverywhere
+                  ? 'League scoring applied across every ingested module'
+                  : `League scoring only on ${counts.withLeagueScoring}/${counts.total} modules — some outputs unscored`
+              }
+              className={`${chipBase} ${agg.leagueScoringAppliedEverywhere ? green : amber}`}
+            >
+              Scoring {counts.withLeagueScoring}/{counts.total}
+            </span>
+            <span
+              title={agg.aiEnvelopeReady ? 'AI envelope present on at least one module' : 'No AI envelope attached'}
+              className={`${chipBase} ${agg.aiEnvelopeReady ? green : dim}`}
+            >
+              AI
+            </span>
+          </>
+        )
+      })()}
+    </span>
+  )
 
   const scopeNote =
     !leagueId.trim() || teamContext === 'full_portfolio' ? (
@@ -238,7 +290,8 @@ export function AFWarRoomModal({
       wide
       loading={loading && !data}
       error={error}
-      empty={false}
+      empty={Boolean(data && !data.actions?.length && !data.aiSummary)}
+      emptyMessage="War Room returned no prioritized actions for this scope — try enabling more modules or picking a specific league."
       headerBadge={headerBadge}
       onRefresh={() => void load()}
       refreshing={loading}
@@ -416,12 +469,40 @@ function WarRoomTabBody({
       }
     | null
   const inj = data.modules.injury as { players?: Array<{ name: string; statusRaw: string; impactScore: number }> } | null
-  const wav = data.modules.waiver as { picks?: Array<{ name: string; why: string; waiverScore: number }> } | null
+  const wav = data.modules.waiver as {
+    picks?: Array<{ name: string; why: string; waiverScore: number }>
+    summaryLine?: string
+    lockStatusLabel?: string | null
+    timeContext?: {
+      userLocalTime?: string
+      userTimezone?: string
+      timezoneMismatch?: boolean
+      waiversProcessAt?: string | null
+    }
+    dataQuality?: 'full' | 'partial' | 'degraded'
+    teamNeeds?: string[]
+    structuredRecommendations?: {
+      bestAddOverall: { name: string; position: string; why: string; confidence: number; faabPct: number; projectedPoints: number | null }
+      faabRecommendation: string
+      bestStreamer: { name: string } | null
+      bestStash: { name: string } | null
+      bestRookieAdd: { name: string } | null
+      dropCandidate: { name: string; reason: string } | null
+    } | null
+  } | null
   const tr = data.modules.trending as {
     risers?: Array<{ name: string; snippet: string; trendScore: number }>
     fallers?: Array<{ name: string; snippet: string }>
   } | null
   const pow = data.modules.power as { teams?: Array<{ teamName: string; rank: number; powerScore: number; isCurrentUser?: boolean }> } | null
+  const tv = data.modules.tradeValue as {
+    ok?: boolean
+    summaryLine?: string
+    scoringLine?: string | null
+    leagueContextResolved?: boolean
+    yourTeamClaimed?: boolean
+    teamCount?: number
+  } | null
 
   if (viewTab === 'overview') {
     return (
@@ -447,16 +528,53 @@ function WarRoomTabBody({
             accent="violet"
           />
         </div>
-        <div className="rounded-xl border border-white/[0.08] bg-[#0d111a] p-3">
+          <div className="rounded-xl border border-white/[0.08] bg-[#0d111a] p-3">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Command overview</p>
-          <p className="mt-1 text-[13px] font-bold text-white/90">
-            {data.overview.teamName || 'Your team'}{' '}
-            <span className="text-white/40">·</span> {data.leagueName || 'General scope'}
+          <p className="mt-1 inline-flex flex-wrap items-center gap-2">
+            <span className="rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-100/90">
+              {data.overview.analysisModeLabel}
+            </span>
+            <span className="text-[13px] font-bold text-white/90">
+              {data.overview.teamName || 'Your team'}{' '}
+              <span className="text-white/40">·</span> {data.leagueName || 'General scope'}
+            </span>
           </p>
           <p className="mt-1 text-[11px] text-white/55">
             Record {data.overview.record ?? '—'} · Standings #{data.overview.standingRank ?? '—'} ·{' '}
             {data.overview.nextMatchupNote ?? 'Matchup context loads with Start/Sit sync.'}
           </p>
+          {data.orchestration.timeContextSummary ? (
+            <p className="mt-2 text-[10px] leading-snug text-cyan-100/85">
+              <span className="font-bold text-white/45">Time · </span>
+              {data.orchestration.timeContextSummary}
+            </p>
+          ) : null}
+          {data.orchestration.leagueScoringDigest ? (
+            <p className="mt-1 text-[10px] text-white/50">
+              <span className="font-bold text-white/35">Scoring · </span>
+              {data.orchestration.leagueScoringDigest}
+            </p>
+          ) : null}
+          {data.orchestration.ingestionHealth?.length ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {data.orchestration.ingestionHealth.map((row) => (
+                <span
+                  key={row.module}
+                  title={row.detail ?? row.status}
+                  className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${
+                    row.status === 'ok'
+                      ? 'border border-emerald-500/25 bg-emerald-500/10 text-emerald-100/90'
+                      : row.status === 'skipped'
+                        ? 'border border-white/10 bg-white/[0.04] text-white/40'
+                        : 'border border-amber-500/30 bg-amber-500/10 text-amber-100/85'
+                  }`}
+                >
+                  {row.module}:{row.status}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <p className="mt-2 text-[9px] leading-relaxed text-white/35">{data.orchestration.prioritizationModel}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {data.overview.topActions.map((a) => (
               <span key={a} className="rounded-md border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-100">
@@ -496,6 +614,68 @@ function WarRoomTabBody({
     return (
       <div className="space-y-2">
         <ToolJumpRow tool="waiver" label="Open Waiver Wire" />
+        {wav?.summaryLine ? (
+          <p className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-3 py-2 text-[11px] leading-snug text-sky-100/90">
+            {wav.summaryLine}
+          </p>
+        ) : null}
+        {wav?.timeContext || wav?.lockStatusLabel ? (
+          <div className="rounded-lg border border-white/[0.06] bg-[#0d111a] px-3 py-2 text-[10px] text-white/45">
+            {wav.timeContext?.userLocalTime ? (
+              <span>
+                Local {wav.timeContext.userLocalTime} ({wav.timeContext.userTimezone ?? '—'})
+              </span>
+            ) : null}
+            {wav.timeContext?.timezoneMismatch ? (
+              <span className="text-amber-200/85"> · device TZ ≠ account TZ</span>
+            ) : null}
+            {wav.timeContext?.waiversProcessAt ? (
+              <span className="mt-1 block text-white/35">Next waiver ref (UTC): {wav.timeContext.waiversProcessAt}</span>
+            ) : null}
+            {wav.lockStatusLabel ? <span className="mt-1 block text-sky-200/75">{wav.lockStatusLabel}</span> : null}
+          </div>
+        ) : null}
+        {wav?.dataQuality === 'degraded' ? (
+          <p className="text-[10px] text-amber-200/85">Waiver data is degraded — verify free-agent pool and league rules before bidding.</p>
+        ) : null}
+        {wav?.teamNeeds && wav.teamNeeds.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {wav.teamNeeds.map((n) => (
+              <span
+                key={n}
+                className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-100/90"
+              >
+                Thin: {n}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {wav?.structuredRecommendations ? (
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-cyan-200/70">Grounded summary</p>
+            <p className="mt-1 text-[11px] font-semibold text-white/88">
+              Best add: {wav.structuredRecommendations.bestAddOverall.name}{' '}
+              <span className="text-white/45">({wav.structuredRecommendations.bestAddOverall.position})</span>
+            </p>
+            <p className="mt-1 text-[10px] leading-snug text-white/55">{wav.structuredRecommendations.faabRecommendation}</p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-white/40">
+              {wav.structuredRecommendations.bestStreamer ? (
+                <span>Streamer: {wav.structuredRecommendations.bestStreamer.name}</span>
+              ) : null}
+              {wav.structuredRecommendations.bestStash ? (
+                <span>Stash: {wav.structuredRecommendations.bestStash.name}</span>
+              ) : null}
+              {wav.structuredRecommendations.bestRookieAdd ? (
+                <span>Rookie: {wav.structuredRecommendations.bestRookieAdd.name}</span>
+              ) : null}
+              {wav.structuredRecommendations.dropCandidate ? (
+                <span className="text-rose-200/80">
+                  Drop: {wav.structuredRecommendations.dropCandidate.name}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
         {(wav?.picks ?? []).slice(0, 6).map((p, i) => (
           <InfoRow key={i} title={p.name} body={`${p.why} · score ${Math.round(p.waiverScore)}`} />
         ))}
@@ -510,9 +690,24 @@ function WarRoomTabBody({
     return (
       <div className="space-y-2">
         <ToolJumpRow tool="trade" label="Open Trade Value" />
+        {tv?.ok ? (
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.05] px-3 py-2">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-cyan-200/75">League trade engine</p>
+            <p className="mt-1 text-[11px] leading-snug text-cyan-100/90">{tv.summaryLine}</p>
+            {tv.scoringLine ? (
+              <p className="mt-1 text-[10px] text-white/45">Normalized scoring: {tv.scoringLine}</p>
+            ) : null}
+            <p className="mt-1 text-[9px] text-white/35">
+              Teams in league: {tv.teamCount ?? '—'} · Engine: {tv.leagueContextResolved ? 'on' : 'partial'}
+            </p>
+            {tv.yourTeamClaimed === false ? (
+              <p className="mt-2 text-[10px] text-amber-200/85">Claim your team to unlock full roster-aware trade pricing.</p>
+            ) : null}
+          </div>
+        ) : null}
         <p className="text-[11px] leading-relaxed text-white/55">
-          Trade targets are analyzed in the Trade Value workspace using your synced roster values. War Room surfaces roster imbalance
-          signals via Power + Waiver modules when enabled.
+          Grade specific deals in Trade Value — valuations use league scoring, projections, injuries, and opponent roster context when
+          you select a league and trading partner.
         </p>
       </div>
     )
@@ -589,6 +784,7 @@ function WarRoomTabBody({
   if (viewTab === 'team_outlook') {
     return (
       <div className="space-y-2 text-[11px] leading-relaxed text-white/65">
+        <ToolJumpRow tool="longTermCoach" label="Long-Term Coach (2–5 yr plan)" />
         <p>
           Power momentum: <span className="text-white/90">{data.overview.momentumLabel ?? '—'}</span> · Injury risk{' '}
           {data.overview.injuryRisk != null ? Math.round(data.overview.injuryRisk) : '—'}
@@ -667,9 +863,21 @@ function ActionQueueList({
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-2">
           <p className="text-[10px] font-bold uppercase text-amber-200/90">Conflicts</p>
           {conflicts.map((c) => (
-            <p key={c.id} className="mt-1 text-[10px] text-amber-100/80">
-              {c.summary}
-            </p>
+            <div key={c.id} className="mt-2 rounded-lg border border-amber-500/15 bg-black/20 px-2 py-1.5">
+              <p className="text-[10px] text-amber-100/85">{c.summary}</p>
+              <p className="mt-1 text-[9px] text-emerald-200/80">
+                Primary: {c.primaryAction}
+              </p>
+              <p className="mt-0.5 text-[9px] text-white/50">Alt: {c.alternateAction}</p>
+              {c.recommendedConfidence != null ? (
+                <p className="mt-0.5 text-[9px] text-white/40">
+                  Confidence in primary: {c.recommendedConfidence}%
+                </p>
+              ) : null}
+              {c.resolutionNote ? (
+                <p className="mt-0.5 text-[9px] text-white/35">{c.resolutionNote}</p>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : null}
@@ -682,8 +890,17 @@ function ActionQueueList({
             <p className="text-[11px] font-bold text-white/90">{a.title}</p>
             <p className="text-[10px] text-white/45">{a.detail}</p>
             <p className="mt-1 text-[9px] uppercase text-white/30">
-              {a.source} · urgency {a.urgency} · conf {a.confidence}
+              {a.source}
+              {a.sourceTools?.length ? ` · tools: ${a.sourceTools.join(', ')}` : ''} · urgency {a.urgency} · conf{' '}
+              {a.confidence}
+              {a.confidenceNote ? ` · ${a.confidenceNote}` : ''}
             </p>
+            {a.reasoning ? <p className="mt-0.5 text-[9px] text-white/40">{a.reasoning}</p> : null}
+            {a.expectedPayoff ? <p className="mt-0.5 text-[9px] text-emerald-200/80">Payoff: {a.expectedPayoff}</p> : null}
+            {a.biggestRisk ? <p className="mt-0.5 text-[9px] text-rose-200/75">Risk: {a.biggestRisk}</p> : null}
+            {a.biggestOpportunity ? (
+              <p className="mt-0.5 text-[9px] text-cyan-200/75">Opportunity: {a.biggestOpportunity}</p>
+            ) : null}
           </div>
           {a.linkTool ? (
             <button

@@ -45,6 +45,29 @@ export type InjuryViewTabId =
 
 export type InjurySeverityBucket = 'out' | 'ir' | 'doubtful' | 'questionable' | 'probable' | 'gtd' | 'suspended' | 'other'
 
+export type InjuryReturnCategory =
+  | 'day_to_day'
+  | 'week_to_week'
+  | 'weeks_window'
+  | 'expected_return_week'
+  | 'ir_return_eligible'
+  | 'season_ending'
+  | 'unknown'
+
+/**
+ * Return-window parsed from injury feed text — a best-effort interpretation, never invented.
+ * `weeks` holds midpoint weeks when a range is stated; null otherwise.
+ * `returnWeek` holds a concrete league week when the feed specifies one.
+ */
+export type InjuryReturnTimeline = {
+  category: InjuryReturnCategory
+  weeks: number | null
+  returnWeek: number | null
+  rawText: string | null
+  /** Human-readable summary for UI. */
+  label: string
+}
+
 export type InjuryImpactDashboardInput = {
   userId: string
   sportFilter: 'ALL' | string
@@ -115,6 +138,8 @@ export type InjuryPlayerIntelRow = {
     why: string
     playerId: string
   }>
+  /** Parsed return-window info; null when feed has no usable text. */
+  returnTimeline?: InjuryReturnTimeline | null
 }
 
 export type InjuryImpactValidation = {
@@ -123,6 +148,19 @@ export type InjuryImpactValidation = {
   projectionLayerReady: boolean
   injuryNewsLayerReady: boolean
   timeContextPresent: boolean
+}
+
+/**
+ * Top-level injury_report feed health — separate from per-row freshness so UI can show
+ * "feed is 12 days stale" when the provider is down, independent of any single player row.
+ */
+export type InjuryFeedFreshness = {
+  latestReportDateIso: string | null
+  staleHours: number | null
+  /** True when the feed's most recent row is older than the configured stale threshold. */
+  stale: boolean
+  /** Sample size of rows examined (useful to distinguish "empty feed" vs "no rows for scope"). */
+  rowsSeen: number
 }
 
 export type InjuryIntegrationHints = {
@@ -155,6 +193,7 @@ export type InjuryImpactDashboardResult = {
   computedAt: string
   timeContext?: AiTimeContextPayload | null
   validation: InjuryImpactValidation
+  feedFreshness: InjuryFeedFreshness
   summaryLine: string
   dataQuality: 'full' | 'partial' | 'degraded'
   integrationHints: InjuryIntegrationHints

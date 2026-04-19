@@ -134,6 +134,14 @@ export default function AdminTools() {
       description: "Sports data, schedules, teams",
       color: "orange"
     },
+    {
+      name: "TheAudioDB",
+      key: "theaudiodb",
+      baseUrl: "www.theaudiodb.com",
+      rateLimit: "100/min",
+      description: "Music metadata service",
+      color: "yellow"
+    },
     { 
       name: "ESPN API", 
       key: "espn",

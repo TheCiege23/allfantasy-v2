@@ -5,7 +5,6 @@ import { Worker, Job, type ConnectionOptions } from "bullmq";
 import { aggregatePlayerStatuses } from "@/lib/autocoach/PlayerStatusAggregator";
 import { runAutoCoachForLeague } from "@/lib/autocoach/AutoCoachEngine";
 import { findLeagueIdsWithPlayerAsStarter } from "@/lib/autocoach/findLeaguesWithStarterPlayer";
-import { isGameSlateStarted } from "@/lib/autocoach/StatusMonitor";
 import type { AutoCoachStatusJobPayload } from "@/lib/jobs/types";
 import { QUEUE_NAMES } from "@/lib/jobs/types";
 import { prisma } from "@/lib/prisma";
@@ -30,10 +29,6 @@ function getConnection(): ConnectionOptions {
 }
 
 async function scanSportAndTriggerAutoCoach(sport: string, gameDate: string): Promise<number> {
-  if (await isGameSlateStarted(sport, gameDate)) {
-    return 0;
-  }
-
   const aggregated = await aggregatePlayerStatuses(sport, gameDate);
   let processed = 0;
 

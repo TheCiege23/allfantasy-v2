@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
 import { getLeagueRole } from '@/lib/league/permissions'
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
 
 export async function assertLeagueMember(leagueId: string, userId: string) {
   const league = await prisma.league.findFirst({
@@ -11,6 +12,37 @@ export async function assertLeagueMember(leagueId: string, userId: string) {
   if (league.userId === userId) return { ok: true as const, league }
   if (league.teams.length > 0) return { ok: true as const, league }
   return { ok: false as const, status: 403 as const }
+}
+
+/**
+ * Same membership rules as assertLeagueMember, with explicit codes for APIs and AI tools.
+ */
+export async function assertLeagueMemberWithCode(
+  leagueId: string,
+  userId: string,
+): Promise<
+  | { ok: true; league: NonNullable<Awaited<ReturnType<typeof prisma.league.findFirst>>> }
+  | { ok: false; code: LeagueToolAccessErrorCode; httpStatus: 400 | 403 | 404 }
+> {
+  const trimmed = leagueId?.trim()
+  if (!trimmed) {
+    return { ok: false, code: 'INVALID_LEAGUE_ID', httpStatus: 400 }
+  }
+
+  const league = await prisma.league.findFirst({
+    where: { id: trimmed },
+    include: { teams: { where: { claimedByUserId: userId } } },
+  })
+  if (!league) {
+    return { ok: false, code: 'LEAGUE_NOT_FOUND', httpStatus: 404 }
+  }
+  if (league.userId === userId) {
+    return { ok: true, league }
+  }
+  if (league.teams.length > 0) {
+    return { ok: true, league }
+  }
+  return { ok: false, code: 'NOT_LEAGUE_MEMBER', httpStatus: 403 }
 }
 
 /** Head commissioner or co-commissioner (settings access). */

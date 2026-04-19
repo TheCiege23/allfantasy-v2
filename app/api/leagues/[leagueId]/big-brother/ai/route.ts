@@ -136,7 +136,7 @@ export async function POST(
   }
 
   try {
-    const { narrative, model } = await generateBigBrotherAI(ctxData, type)
+    const { narrative, model } = await generateBigBrotherAI(ctxData, type, userId)
     return NextResponse.json({
       narrative,
       model,

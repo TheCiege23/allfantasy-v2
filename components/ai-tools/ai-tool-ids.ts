@@ -8,6 +8,7 @@ export type AIToolGridId =
   | 'injury'
   | 'warRoom'
   | 'matchupPrep'
+  | 'longTermCoach'
 
 export const AI_TOOL_IDS: readonly AIToolGridId[] = [
   'startSit',
@@ -18,6 +19,7 @@ export const AI_TOOL_IDS: readonly AIToolGridId[] = [
   'injury',
   'warRoom',
   'matchupPrep',
+  'longTermCoach',
 ] as const
 
 export function isAiToolGridId(v: string | undefined): v is AIToolGridId {

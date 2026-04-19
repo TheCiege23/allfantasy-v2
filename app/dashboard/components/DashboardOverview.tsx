@@ -2,7 +2,9 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
+import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
 import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
@@ -29,6 +31,8 @@ import {
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { interpolateTemplate } from '@/lib/i18n/interpolate'
+import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
+import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -97,6 +101,7 @@ export function DashboardOverview({
 }: DashboardOverviewProps) {
   const { t } = useLanguage()
   const { hasPro } = useEntitlements()
+  const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
@@ -106,6 +111,8 @@ export function DashboardOverview({
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
+  /** First `/api/lineup-check` bootstrap finished (avoids misleading preview counts). */
+  const [lineupReady, setLineupReady] = useState(false)
   const [lineupLoading, setLineupLoading] = useState(false)
 
   const [waiverModalOpen, setWaiverModalOpen] = useState(false)
@@ -116,24 +123,72 @@ export function DashboardOverview({
   const [tradeData, setTradeData] = useState<TradesDashboardResponse | null>(null)
   const [tradeLoading, setTradeLoading] = useState(false)
 
+  /** Aggregated counts for Today strip (matchup DB rows, injury splits, war room). */
+  const [todayCounts, setTodayCounts] = useState<TodayActionsEngineResponse['counts'] | null>(null)
+  /** Primary league id from `/api/dashboard/today-actions` (War Room snapshot + waiver timing). */
+  const [todayPrimaryLeagueId, setTodayPrimaryLeagueId] = useState<string | null>(null)
+  /** Waiver process timing from DB league fields when resolved. */
+  const [todayWaiverTiming, setTodayWaiverTiming] = useState<TodayActionsEngineResponse['waiverTiming'] | null>(null)
+  /** AI Auto Start/Sit Protection snapshot (swap counts + global toggle). */
+  const [todayAutoProtection, setTodayAutoProtection] = useState<
+    TodayActionsEngineResponse['autoStartSitProtection'] | null
+  >(null)
+  /** Time engine envelope from `/api/dashboard/today-actions` (server UTC + account TZ). */
+  const [stripTimeContext, setStripTimeContext] = useState<AiTimeContextPayload | null>(null)
+  const deepLinkLeagueApplied = useRef(false)
+
   /** Increment after legacy rankings import so rank widgets refetch `/api/user/rank`. */
   const [rankRefreshKey, setRankRefreshKey] = useState(0)
 
-  const lineupFetchedAt = useRef<number | null>(null)
-  const waiverFetchedAt = useRef<number | null>(null)
-  const tradeFetchedAt = useRef<number | null>(null)
+  /** Last successful `/api/dashboard/today-actions` refresh (lineup + waivers + trades + counts). */
+  const stripFetchedAt = useRef<number | null>(null)
 
   useEffect(() => {
     if (leagues.length === 0) return
-    void fetch('/api/dashboard/waivers', { cache: 'no-store' })
+    let cancelled = false
+    void fetch('/api/dashboard/today-actions', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
-      .then((d: WaiverDashboardResponse | null) => {
-        if (d) {
-          setWaiverData(d)
-          waiverFetchedAt.current = Date.now()
+      .then((data: TodayActionsEngineResponse | null) => {
+        if (cancelled) return
+        if (data) {
+          setLineupData(data.lineup)
+          setWaiverData(data.waivers)
+          setTradeData(data.trades)
+          setTodayCounts(data.counts)
+          setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
+          setTodayWaiverTiming(data.waiverTiming ?? null)
+          setTodayAutoProtection(data.autoStartSitProtection ?? null)
+          setStripTimeContext(data.aiTimeContext ?? null)
+          stripFetchedAt.current = Date.now()
+        } else {
+          setLineupData(emptyLineupActionSummary())
+          setWaiverData({ totalLeagues: 0, recommendations: [] })
+          setTradeData({ totalPending: 0, trades: [] })
+          setTodayCounts(null)
+          setTodayPrimaryLeagueId(null)
+          setTodayWaiverTiming(null)
+          setTodayAutoProtection(null)
+          setStripTimeContext(null)
+          stripFetchedAt.current = Date.now()
         }
+        setLineupReady(true)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (cancelled) return
+        setLineupData(emptyLineupActionSummary())
+        setWaiverData({ totalLeagues: 0, recommendations: [] })
+        setTradeData({ totalPending: 0, trades: [] })
+        setTodayCounts(null)
+        setTodayPrimaryLeagueId(null)
+        setTodayWaiverTiming(null)
+        setTodayAutoProtection(null)
+        setStripTimeContext(null)
+        stripFetchedAt.current = Date.now()
+        setLineupReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [leagues.length])
 
   useEffect(() => {
@@ -298,124 +353,256 @@ export function DashboardOverview({
     } catch {}
   }
 
+  const refreshTodayActionsBundle = useCallback(() => {
+    return fetch('/api/dashboard/today-actions', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('today-actions'))))
+      .then((data: TodayActionsEngineResponse) => {
+        setLineupData(data.lineup)
+        setWaiverData(data.waivers)
+        setTradeData(data.trades)
+        setTodayCounts(data.counts)
+        setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
+        setTodayWaiverTiming(data.waiverTiming ?? null)
+        setTodayAutoProtection(data.autoStartSitProtection ?? null)
+        setStripTimeContext(data.aiTimeContext ?? null)
+        stripFetchedAt.current = Date.now()
+      })
+  }, [])
+
+  /** Prefer dashboard league selector; fall back to primary league from today-actions for tool context. */
+  const aiToolFocusLeagueId = useMemo(
+    () => selectedLeagueId ?? todayPrimaryLeagueId ?? undefined,
+    [selectedLeagueId, todayPrimaryLeagueId],
+  )
+
+  const stripWaiverTimingHint = useMemo(() => {
+    const w = todayWaiverTiming
+    if (!w?.nextWaiverProcessKnown || !w.waiverTimingHint?.trim()) return null
+    return w.waiverTimingHint.trim()
+  }, [todayWaiverTiming])
+
+  const stripProtectionActivityHint = useMemo(() => {
+    const p = todayAutoProtection
+    if (!p || p.autoSwapsLast24h <= 0) return null
+    return p.autoSwapsLast24h === 1
+      ? '1 AI lineup protection swap in the last 24 hours (see Settings → AI protection for history).'
+      : `${p.autoSwapsLast24h} AI lineup protection swaps in the last 24 hours (see Settings → AI protection for history).`
+  }, [todayAutoProtection])
+
   const handleLineupIssuesClick = useCallback(() => {
     setLineupModalOpen(true)
     const now = Date.now()
     const fresh =
       lineupData !== null &&
-      lineupFetchedAt.current !== null &&
-      now - lineupFetchedAt.current < STRIP_FETCH_STALE_MS
+      stripFetchedAt.current !== null &&
+      now - stripFetchedAt.current < STRIP_FETCH_STALE_MS
     if (fresh) return
     setLineupLoading(true)
-    void fetch('/api/lineup-check', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('lineup-check'))))
-      .then((data: LineupCheckPayload) => {
-        setLineupData(data)
-        lineupFetchedAt.current = Date.now()
-      })
+    void refreshTodayActionsBundle()
       .catch(() => {
-        setLineupData({ totalIssues: 0, leagues: [], scannedLeagues: 0 })
-        lineupFetchedAt.current = Date.now()
+        setLineupData(emptyLineupActionSummary())
+        stripFetchedAt.current = Date.now()
       })
       .finally(() => setLineupLoading(false))
-  }, [lineupData])
+  }, [lineupData, refreshTodayActionsBundle])
 
   const handleWaiverClick = useCallback(() => {
     setWaiverModalOpen(true)
     const now = Date.now()
     const fresh =
       waiverData !== null &&
-      waiverFetchedAt.current !== null &&
-      now - waiverFetchedAt.current < STRIP_FETCH_STALE_MS
+      stripFetchedAt.current !== null &&
+      now - stripFetchedAt.current < STRIP_FETCH_STALE_MS
     if (fresh) return
     setWaiverLoading(true)
-    void fetch('/api/dashboard/waivers', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('waivers'))))
-      .then((d: WaiverDashboardResponse) => {
-        setWaiverData(d)
-        waiverFetchedAt.current = Date.now()
-      })
+    void refreshTodayActionsBundle()
       .catch(() => {
         setWaiverData({ totalLeagues: 0, recommendations: [] })
-        waiverFetchedAt.current = Date.now()
+        stripFetchedAt.current = Date.now()
       })
       .finally(() => setWaiverLoading(false))
-  }, [waiverData])
+  }, [waiverData, refreshTodayActionsBundle])
 
   const handleTradeClick = useCallback(() => {
     setTradeModalOpen(true)
     const now = Date.now()
     const fresh =
       tradeData !== null &&
-      tradeFetchedAt.current !== null &&
-      now - tradeFetchedAt.current < STRIP_FETCH_STALE_MS
+      stripFetchedAt.current !== null &&
+      now - stripFetchedAt.current < STRIP_FETCH_STALE_MS
     if (fresh) return
     setTradeLoading(true)
-    void fetch('/api/dashboard/trades', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('trades'))))
-      .then((d: TradesDashboardResponse) => {
-        setTradeData(d)
-        tradeFetchedAt.current = Date.now()
-      })
+    void refreshTodayActionsBundle()
       .catch(() => {
         setTradeData({ totalPending: 0, trades: [] })
-        tradeFetchedAt.current = Date.now()
+        stripFetchedAt.current = Date.now()
       })
       .finally(() => setTradeLoading(false))
-  }, [tradeData])
+  }, [tradeData, refreshTodayActionsBundle])
+
+  const handleInjuryToolClick = useCallback(() => {
+    if (typeof window === 'undefined') return
+    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.dispatchEvent(
+      new CustomEvent('af-open-ai-tool', {
+        detail: { tool: 'injury', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
+      }),
+    )
+  }, [aiToolFocusLeagueId])
+
+  const handleMatchupPrepToolClick = useCallback(() => {
+    if (typeof window === 'undefined') return
+    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.dispatchEvent(
+      new CustomEvent('af-open-ai-tool', {
+        detail: { tool: 'matchupPrep', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
+      }),
+    )
+  }, [aiToolFocusLeagueId])
+
+  const handleWarRoomToolClick = useCallback(() => {
+    if (typeof window === 'undefined') return
+    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.dispatchEvent(
+      new CustomEvent('af-open-ai-tool', {
+        detail: { tool: 'warRoom', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
+      }),
+    )
+  }, [aiToolFocusLeagueId])
 
   useEffect(() => {
     if (!lineupModalOpen && !waiverModalOpen && !tradeModalOpen) return
     const interval = window.setInterval(() => {
-      if (lineupModalOpen) {
-        void fetch('/api/lineup-check', { cache: 'no-store' })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d: LineupCheckPayload | null) => {
-            if (d) {
-              setLineupData(d)
-              lineupFetchedAt.current = Date.now()
-            }
-          })
-          .catch(() => {})
-      }
-      if (waiverModalOpen) {
-        void fetch('/api/dashboard/waivers', { cache: 'no-store' })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d: WaiverDashboardResponse | null) => {
-            if (d) {
-              setWaiverData(d)
-              waiverFetchedAt.current = Date.now()
-            }
-          })
-          .catch(() => {})
-      }
-      if (tradeModalOpen) {
-        void fetch('/api/dashboard/trades', { cache: 'no-store' })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d: TradesDashboardResponse | null) => {
-            if (d) {
-              setTradeData(d)
-              tradeFetchedAt.current = Date.now()
-            }
-          })
-          .catch(() => {})
-      }
+      void fetch('/api/dashboard/today-actions', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: TodayActionsEngineResponse | null) => {
+          if (!d) return
+          setLineupData(d.lineup)
+          setWaiverData(d.waivers)
+          setTradeData(d.trades)
+          setTodayCounts(d.counts)
+          setTodayPrimaryLeagueId(d.primaryLeagueId ?? null)
+          setTodayWaiverTiming(d.waiverTiming ?? null)
+          setTodayAutoProtection(d.autoStartSitProtection ?? null)
+          setStripTimeContext(d.aiTimeContext ?? null)
+          stripFetchedAt.current = Date.now()
+        })
+        .catch(() => {})
     }, 30_000)
     return () => window.clearInterval(interval)
   }, [lineupModalOpen, waiverModalOpen, tradeModalOpen])
 
-  const lineupChipState =
-    lineupData === null ? 'preview' : lineupData.totalIssues > 0 ? 'issues' : 'clear'
-  const lineupChipCount = lineupData === null ? leagues.length : lineupData.totalIssues
+  useEffect(() => {
+    if (deepLinkLeagueApplied.current || leagues.length === 0) return
+    const q = new URLSearchParams(window.location.search).get('league')?.trim()
+    if (q && leagues.some((l) => l.id === q)) {
+      setSelectedLeagueId(q)
+      deepLinkLeagueApplied.current = true
+    }
+  }, [leagues, setSelectedLeagueId])
+
+  const lineupPrimaryLabel = useMemo(() => {
+    if (!lineupData) return ''
+    return interpolateTemplate(t(lineupData.displayLabelKey), lineupData.displayLabelParams as Record<string, string | number>)
+  }, [lineupData, t])
+
+  const lineupSecondaryFromApi = useMemo(() => {
+    if (!lineupData?.displaySubtextKey || !lineupData.displaySubtextParams) return null
+    return interpolateTemplate(
+      t(lineupData.displaySubtextKey),
+      lineupData.displaySubtextParams as Record<string, string | number>
+    )
+  }, [lineupData, t])
+
+  const lineupUrgentHint = useMemo(() => {
+    if (!lineupData?.urgentSubtextKey || !lineupData.urgentSubtextParams) return null
+    return interpolateTemplate(
+      t(lineupData.urgentSubtextKey),
+      lineupData.urgentSubtextParams as Record<string, string | number>
+    )
+  }, [lineupData, t])
+
+  const lineupClearSubtext = useMemo(() => {
+    if (!lineupData) return null
+    if ((lineupData.totalUnresolvedSlotActions ?? 0) > 0 || (lineupData.scanWarningLeagues ?? 0) > 0) return null
+    const n = lineupData.scannedLeagues ?? 0
+    if (n <= 0) return null
+    return n === 1
+      ? t('dashboard.today.lineupScannedLeaguesOne')
+      : interpolateTemplate(t('dashboard.today.lineupScannedLeaguesMany'), { n })
+  }, [lineupData, t])
+
+  const lineupChipState = useMemo(() => {
+    if (!lineupReady || !lineupData) return 'loading' as const
+    const unresolved = lineupData.totalUnresolvedSlotActions ?? lineupData.totalIssues ?? 0
+    const warn = lineupData.scanWarningLeagues ?? 0
+    if (unresolved > 0 || warn > 0) return 'issues' as const
+    return 'clear' as const
+  }, [lineupReady, lineupData])
+
+  const lineupChipSubtext =
+    lineupChipState === 'clear' ? lineupClearSubtext : lineupSecondaryFromApi
 
   const waiverChipCount = useMemo(() => {
+    if (todayCounts) return todayCounts.waiverPickupSuggestions
     if (!waiverData?.recommendations?.length) return 0
     return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
-  }, [waiverData])
+  }, [todayCounts, waiverData])
 
-  const injuryPulseCount = useMemo(() => waiverData?.injuryPulse?.length ?? 0, [waiverData])
+  const lineupInjuryDecisionsToReview = useMemo(() => {
+    if (todayCounts) return todayCounts.lineupInjuryDecisionsToReview
+    const actions = lineupData?.actions ?? []
+    const inj = new Set(['injured_starter', 'questionable_starter', 'doubtful_starter'])
+    return actions.filter((a) => inj.has(a.reasonType) && a.severity !== 'info').length
+  }, [todayCounts, lineupData])
+
+  const injuryReportRowsInUserSports = useMemo(() => {
+    if (todayCounts) return todayCounts.injuryReportRowsInUserSports
+    return waiverData?.injuryPulse?.length ?? 0
+  }, [todayCounts, waiverData])
+
+  const matchupPrepDecisionsToReview = useMemo(() => {
+    if (todayCounts) return todayCounts.matchupPrepDecisionsToReview
+    const actions = lineupData?.actions ?? []
+    return actions.filter((a) => a.reasonType === 'matchup_prep' || a.sourceModule === 'MatchupPrep').length
+  }, [todayCounts, lineupData])
+
+  const leaguesWithSyncedMatchupData = useMemo(() => {
+    if (todayCounts) return todayCounts.leaguesWithSyncedWeeklyMatchupData
+    return 0
+  }, [todayCounts])
+
+  const warRoomDecisionsToReview = useMemo(() => {
+    if (todayCounts) return todayCounts.warRoomDecisionsToReview
+    const actions = lineupData?.actions ?? []
+    return actions.filter((a) => a.reasonType === 'war_room' || a.sourceModule === 'AFWarRoom').length
+  }, [todayCounts, lineupData])
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
+
+  const todayTimeAuthorityHint = useMemo(() => {
+    const tc = stripTimeContext
+    if (!tc) return null
+    const parts: string[] = []
+    if (tc.timezoneMismatch) {
+      parts.push(
+        `Account timezone (${tc.userTimezone}) differs from this device — lineup locks use server time as source of truth.`,
+      )
+    }
+    if (tc.deviceClockMismatch && tc.clockSkewSeconds != null) {
+      parts.push(`Device clock skew ~${Math.abs(Math.round(tc.clockSkewSeconds))}s detected.`)
+    }
+    if (
+      tc.nextLockTimeUTC &&
+      tc.timeUntilNextLockMs != null &&
+      tc.timeUntilNextLockMs >= 0 &&
+      tc.timeUntilNextLockMs < 1000 * 60 * 60 * 72
+    ) {
+      const m = Math.max(1, Math.floor(tc.timeUntilNextLockMs / 60000))
+      parts.push(`Next lock ~${m}m · local ${tc.userLocalTime}.`)
+    }
+    return parts.length ? parts.join(' ') : null
+  }, [stripTimeContext])
 
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
@@ -598,27 +785,85 @@ export function DashboardOverview({
         <TodayStrip
           leagues={leagues}
           lineupChipState={lineupChipState}
-          lineupCount={lineupChipCount}
+          lineupPrimaryLabel={lineupPrimaryLabel}
+          lineupSubtext={lineupChipSubtext}
+          lineupUrgentHint={lineupUrgentHint}
+          lineupTooltip={t('dashboard.today.lineupChipTooltipDefault')}
           onLineupIssuesClick={handleLineupIssuesClick}
-          waiverCount={waiverChipCount}
+          waiverPickupSuggestions={waiverChipCount}
           onWaiverClick={handleWaiverClick}
-          injuryPulseCount={injuryPulseCount}
+          lineupInjuryDecisionsToReview={lineupInjuryDecisionsToReview}
+          injuryReportRowsInUserSports={injuryReportRowsInUserSports}
+          onInjuryClick={handleInjuryToolClick}
+          matchupPrepDecisionsToReview={matchupPrepDecisionsToReview}
+          leaguesWithSyncedMatchupData={leaguesWithSyncedMatchupData}
+          onMatchupPrepClick={handleMatchupPrepToolClick}
           pendingTradeCount={pendingTradeChipCount}
           onTradesClick={handleTradeClick}
+          warRoomDecisionsToReview={warRoomDecisionsToReview}
+          onWarRoomClick={handleWarRoomToolClick}
+          timeAuthorityHint={todayTimeAuthorityHint}
+          waiverTimingHint={stripWaiverTimingHint}
+          protectionActivityHint={stripProtectionActivityHint}
         />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <PowerRankingsMiniCard leagues={leagues} />
-          <InjuryImpactMiniCard leagues={leagues} />
-          <WarRoomMiniCard leagues={leagues} />
-          <MatchupPrepMiniCard leagues={leagues} />
-        </div>
+        <section className="space-y-3">
+          <div>
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
+              {t('dashboard.overview.leagueIntelligenceTitle')}
+            </p>
+            <p className="mt-1 max-w-xl text-[11px] leading-snug text-white/45">
+              {t('dashboard.overview.leagueIntelligenceSubtitle')}
+            </p>
+          </div>
 
-        <AIToolsGrid leagues={leagues} />
+          {leagues.length > 1 ? (
+            <label className="block max-w-md text-[10px] font-bold uppercase tracking-wide text-white/40">
+              {t('dashboard.overview.leagueSelectorLabel')}
+              <select
+                value={selectedLeagueId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setSelectedLeagueId(id)
+                  try {
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('league', id)
+                    window.history.replaceState({}, '', url.toString())
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0a1220] px-3 py-2 text-[13px] text-white/90"
+              >
+                {leagues.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} ({l.sport})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : leagues.length === 1 && selectedLeague ? (
+            <p className="text-[11px] text-cyan-200/85">
+              <span className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-semibold text-white/90">
+                {selectedLeague.name}
+              </span>{' '}
+              <span className="text-white/45">{String(selectedLeague.sport)}</span>
+            </p>
+          ) : null}
 
-        {leagues.length > 0 && (
-          <StandingsWidget leagueId={leagues[0].id} sport={String(leagues[0].sport)} />
-        )}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <PowerRankingsMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
+            <InjuryImpactMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
+            <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
+            <MatchupPrepMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
+          </div>
+        </section>
+
+        <AIToolsGrid leagues={leagues} selectedLeagueId={selectedLeagueId} />
+
+        {selectedLeague ? (
+          <StandingsWidget leagueId={selectedLeague.id} sport={String(selectedLeague.sport)} />
+        ) : null}
 
         <RankingsCard
           initialRankPayload={initialUserRankPayload}

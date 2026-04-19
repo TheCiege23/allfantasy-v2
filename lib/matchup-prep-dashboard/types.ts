@@ -1,3 +1,6 @@
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import type { AiTimeContextPayload } from '@/lib/time-engine/types'
+
 export type MatchupLinkToolId = 'startSit' | 'trade' | 'waiver' | 'trending' | 'power' | 'injury' | 'warRoom'
 
 export type MatchupTeamFocusId = 'my_team' | 'specific_team'
@@ -47,6 +50,68 @@ export type MatchupPositionEdge = {
   edge: number
 }
 
+export type MatchupSlotEdge = {
+  slotName: string
+  myPoints: number
+  oppPoints: number
+  edge: number
+  myStarterName: string | null
+  oppStarterName: string | null
+}
+
+export type MatchupStreamingHint = {
+  id: string
+  title: string
+  detail: string
+  linkTool: MatchupLinkToolId
+}
+
+export type MatchupScoringSummary = {
+  scoringModel: string
+  receptionFormat: string | null
+  superflex: boolean | null
+  rawScoringColumn: string | null
+}
+
+/** Provider-health flags for UI chips — mirrors other AI tools. */
+export type MatchupPrepSourceFlags = {
+  /** Opponent resolved via Sleeper matchups API or native team_performances row. */
+  opponentResolved: boolean
+  /** My-team Start/Sit projection batch produced at least one row. */
+  myProjectionReady: boolean
+  /** Opponent Start/Sit projection batch produced at least one row. */
+  oppProjectionReady: boolean
+  /** Injury / news signals attached to at least one player on either side. */
+  injuryNewsLayerReady: boolean
+  /** Weather influence captured for at least one game in the matchup. */
+  weatherLayerReady: boolean
+  /** League scoring rules applied via normalized league context. */
+  leagueScoringApplied: boolean
+  /** AI time/league envelope attached to chimmyPayload. */
+  aiEnvelopeReady: boolean
+}
+
+export type MatchupPeriodSnapshot = {
+  season: number
+  week: number
+  weekLabel: string
+  periodSource: string | null
+}
+
+export type WinProbabilityModelId = 'starter_spread_normal' | 'mean_edge_logistic'
+
+export type MatchupFloorVsUpside = {
+  floorLeanPlayer: string | null
+  upsideLeanPlayer: string | null
+  note: string
+}
+
+export type MatchupInjuryPivot = {
+  player: string
+  detail: string
+  urgency: number
+}
+
 export type MatchupGamePlanAction = {
   id: string
   rank: number
@@ -78,6 +143,9 @@ export type MatchupPrepDashboardResult = {
   sport: string | null
   week: number
   weekLabel: string
+  matchupPeriod: MatchupPeriodSnapshot | null
+  scoringSummary: MatchupScoringSummary | null
+  opponentResolution: 'manual' | 'sleeper_matchup' | 'native_performance' | 'none'
   myTeamName: string | null
   oppTeamName: string | null
   myRecord: string | null
@@ -86,13 +154,21 @@ export type MatchupPrepDashboardResult = {
   oppProjectedTotal: number | null
   projectedEdge: number | null
   winProbability: number | null
+  winProbabilityModel: WinProbabilityModelId
+  winProbabilityNotes: string | null
   confidence: number
+  urgencyScore: number
   matchupDifficulty: 'favorable' | 'even' | 'tough'
   positionEdges: MatchupPositionEdge[]
+  slotEdges: MatchupSlotEdge[]
+  floorVsUpside: MatchupFloorVsUpside
+  streamingOpportunities: MatchupStreamingHint[]
   gamePlan: MatchupGamePlanAction[]
   conflicts: Array<{ id: string; summary: string; primary: string; alternate: string }>
   injuryHighlights: Array<{ side: 'you' | 'opp'; name: string; status: string; note: string }>
+  injuryPivots: MatchupInjuryPivot[]
   scheduleNotes: string[]
+  weatherInfluence: Array<{ name: string; team: string; summary: string; risk: string | null }>
   dataGaps: string[]
   degraded: boolean
   modules: {
@@ -101,9 +177,22 @@ export type MatchupPrepDashboardResult = {
   }
   aiSummary: string | null
   chimmyPayload: Record<string, unknown>
+  timeContext: AiTimeContextPayload | null
+  startSitValidation: {
+    my: Record<string, unknown> | null
+    opp: Record<string, unknown> | null
+  }
+  sourceFlags: MatchupPrepSourceFlags
+  /** Time horizons the runner can honor; anything else gets clamped to `this_matchup` with a gap note. */
+  horizonSupported: boolean
   computedAt: string
 }
 
-export type MatchupPrepDashboardError = { ok: false; error: string; code?: 'FORBIDDEN' | 'VALIDATION' }
+export type MatchupPrepDashboardError = {
+  ok: false
+  error: string
+  code?: LeagueToolAccessErrorCode | 'VALIDATION'
+  userMessage?: string
+}
 
 export type MatchupPrepDashboardOutput = MatchupPrepDashboardResult | MatchupPrepDashboardError

@@ -4,6 +4,7 @@
  */
 
 import OpenAI from 'openai'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 import type { SalaryCapAIDeterministicContext } from './SalaryCapAIContext'
 import type { SalaryCapAIContextType } from './SalaryCapAIContext'
 import { buildPromptForType } from './SalaryCapAIPrompts'
@@ -23,14 +24,16 @@ export interface SalaryCapAIResult {
  */
 export async function generateSalaryCapAI(
   ctx: SalaryCapAIDeterministicContext,
-  type: SalaryCapAIContextType
+  type: SalaryCapAIContextType,
+  userId?: string | null
 ): Promise<SalaryCapAIResult> {
   const { system, user } = buildPromptForType(type, ctx)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_tokens: 600,
     temperature: 0.5,

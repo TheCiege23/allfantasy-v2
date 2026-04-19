@@ -29,6 +29,7 @@ export type AIContextSource =
   | "matchup_prep"
   | "power_rankings"
   | "power_rankings_team"
+  | "long_term_coaching"
 
 export type AIChatContext = {
   prompt?: string
@@ -50,6 +51,8 @@ export type AIChatContext = {
   targetUsername?: string
   strategyMode?: string
   source?: AIContextSource
+  /** Injected server Time Engine snapshot when available (never trust device clock alone). */
+  afTimeContext?: Record<string, unknown> | null
   memory?: {
     tone?: string
     detailLevel?: string

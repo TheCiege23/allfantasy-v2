@@ -376,6 +376,21 @@ const PREMIUM_FEATURE_MONETIZATION_MATRIX: readonly PremiumFeatureMonetizationEn
     },
   },
   {
+    key: "league_ai_coaching",
+    title: "League AI Coaching",
+    accessType: "subscription_only",
+    requiredPlanId: "pro",
+    tokenRuleCode: null,
+    lockedReason: "League AI Coaching is part of AF Pro (monthly or yearly).",
+    backendEnforcement: "requireFeatureEntitlement(league_ai_coaching) on POST /api/ai-tools/long-term-coaching; subscription-only (Stripe checkout: af_pro_monthly / af_pro_yearly).",
+    frontendGateBehavior: "FeatureGate on league AI Coaching tab + Long-Term Coach modal.",
+    unavailableBehavior: "disable_with_fallback",
+    surfaceHints: {
+      routes: ["/league/[leagueId]?view=ai_coaching"],
+      components: ["AICoachingTab", "LongTermCoachingModal"],
+    },
+  },
+  {
     key: "guillotine_ai",
     title: "Guillotine AI",
     accessType: "subscription_only",

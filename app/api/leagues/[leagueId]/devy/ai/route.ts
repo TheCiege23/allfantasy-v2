@@ -18,6 +18,7 @@ import {
 } from '@/lib/devy/ai/DevyAIContext'
 import { buildDevyAIPrompt } from '@/lib/devy/ai/DevyAIPrompts'
 import { openaiChatText } from '@/lib/openai-client'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,10 +81,11 @@ export async function POST(
   }
 
   const { system, user } = buildDevyAIPrompt(context as any)
+  const userWithTime = await withOfficialTimeUserMessage(userId, user)
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userWithTime },
     ],
     temperature: 0.5,
     maxTokens: 600,

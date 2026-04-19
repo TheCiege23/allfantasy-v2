@@ -16,7 +16,10 @@ import {
 import { BESTBALL_VARIANTS, isBestBallLeague } from '@/lib/autocoach/bestBallShared'
 import { getNotificationsQueue } from '@/lib/queues/bullmq'
 import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
-import { isGameSlateStarted, toSlateDateUtc } from '@/lib/autocoach/StatusMonitor'
+import { parseAutoCoachUserPreferences } from '@/lib/autocoach/autoCoachPreferences'
+import { getPlayerGameLockStateForAutoCoach } from '@/lib/autocoach/playerGameLock'
+import { pickBestBenchReplacementForAutoCoach } from '@/lib/autocoach/pickBestBenchReplacement'
+import { getServerNowUTC } from '@/lib/time-engine/serverClock'
 import type { AutoCoachSwapResult } from '@/lib/autocoach/types'
 
 export { BESTBALL_VARIANTS, isBestBallLeague }
@@ -110,22 +113,6 @@ function positionFitsSlot(slotLabel: string, playerPos: string): boolean {
   return slot === p
 }
 
-async function projectionScore(playerId: string, sport: string): Promise<number> {
-  const row = await prisma.sportsPlayerRecord.findUnique({
-    where: { id: playerId },
-    select: { adp: true, projections: true },
-  })
-  if (row?.adp != null && Number.isFinite(row.adp)) {
-    return 1000 - row.adp
-  }
-  const proj = row?.projections
-  if (proj && typeof proj === 'object' && !Array.isArray(proj)) {
-    const pts = (proj as Record<string, unknown>).pts ?? (proj as Record<string, unknown>).fantasy_points
-    if (typeof pts === 'number' && Number.isFinite(pts)) return pts
-  }
-  return 0
-}
-
 async function enqueueSwapNotification(
   userId: string,
   leagueId: string,
@@ -145,8 +132,8 @@ async function enqueueSwapNotification(
         userIds: [userId],
         category: 'autocoach',
         type: 'autocoach_swap',
-        title: '⚡ AutoCoach made a swap',
-        body: `${playerOutName} (${status}) ↔ ${playerInName} in ${leagueName}`,
+        title: '⚡ AI Auto Start/Sit Protection',
+        body: `${playerOutName} (${status}) → ${playerInName} · ${leagueName}`,
         severity: 'low',
         actionHref: `/league/${leagueId}?tab=team`,
         actionLabel: 'View lineup',
@@ -169,7 +156,15 @@ export async function executeAutoCoachSwap(
   playerIn: { id: string; name: string; position: string },
   statusSource: string,
   gameStartsAt: Date | null,
-  detectedAt: Date
+  detectedAt: Date,
+  decisionMeta?: {
+    confidence: number
+    expectedPointsDelta: number | null
+    decisionNotes: string | null
+    statusFreshnessAt: Date | null
+    preferenceInfluenced: boolean
+    decisionEngine: string
+  },
 ): Promise<AutoCoachSwapResult> {
   const roster = await prisma.roster.findUnique({
     where: { id: rosterId },
@@ -204,6 +199,7 @@ export async function executeAutoCoachSwap(
 
   const nextPlayerData = buildPlayerDataFromSections(roster.playerData, next)
 
+  const decidedAt = getServerNowUTC()
   const swapLog = await prisma.autoCoachSwapLog.create({
     data: {
       userId,
@@ -220,6 +216,13 @@ export async function executeAutoCoachSwap(
       statusDetectedAt: detectedAt,
       gameStartsAt,
       wasPreGame: true,
+      confidence: decisionMeta?.confidence,
+      expectedPointsDelta: decisionMeta?.expectedPointsDelta ?? undefined,
+      decisionNotes: decisionMeta?.decisionNotes ?? undefined,
+      statusFreshnessAt: decisionMeta?.statusFreshnessAt ?? undefined,
+      serverDecidedAt: decidedAt,
+      preferenceInfluenced: decisionMeta?.preferenceInfluenced ?? false,
+      decisionEngine: decisionMeta?.decisionEngine ?? 'start_sit_projection_v1',
     },
   })
 
@@ -266,6 +269,8 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
       id: true,
       name: true,
       sport: true,
+      season: true,
+      settings: true,
       leagueVariant: true,
       bestBallMode: true,
       autoCoachEnabled: true,
@@ -284,10 +289,6 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
   }
 
   const sport = leagueSportToPlayerSport(league.sport)
-  const slateDate = toSlateDateUtc(new Date())
-  if (await isGameSlateStarted(sport, slateDate)) {
-    return []
-  }
 
   const settingsRows = await prisma.autoCoachSetting.findMany({
     where: {
@@ -306,9 +307,11 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
   for (const setting of settingsRows) {
     const profile = await prisma.userProfile.findUnique({
       where: { userId: setting.userId },
-      select: { autoCoachGlobalEnabled: true },
+      select: { autoCoachGlobalEnabled: true, autoCoachPreferences: true },
     })
     if (profile?.autoCoachGlobalEnabled === false) continue
+
+    const prefs = parseAutoCoachUserPreferences(profile?.autoCoachPreferences ?? null)
 
     const ent = await resolver.resolveForUser(setting.userId, 'pro_autocoach')
     if (!ent.hasAccess) continue
@@ -334,9 +337,13 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
 
       const statusRows = await prisma.sportsPlayer.findMany({
         where: { sport, externalId: { in: starterIds } },
-        select: { externalId: true, name: true, status: true, position: true },
+        select: { externalId: true, name: true, status: true, position: true, team: true, updatedAt: true },
       })
-      const statusById = new Map(statusRows.map((r) => [r.externalId, r]))
+      const statusById = new Map<string, (typeof statusRows)[0]>()
+      for (const r of statusRows) {
+        const cur = statusById.get(r.externalId)
+        if (!cur || r.updatedAt > cur.updatedAt) statusById.set(r.externalId, r)
+      }
 
       let swapped = false
       for (let i = 0; i < starters.length; i++) {
@@ -345,6 +352,14 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
         const row = statusById.get(pid)
         const rawStatus = row?.status ?? ''
         if (!rawStatus || !isSwapEligibleStatus(rawStatus)) continue
+
+        const lock = await getPlayerGameLockStateForAutoCoach({
+          sport,
+          teamAbbr: row?.team,
+          leagueSeason: league.season,
+          leagueSettings: league.settings,
+        })
+        if (lock.lockedBecauseGameStarted) continue
 
         const slotPos = slotLabels[i] ?? String(st.position ?? 'FLEX')
 
@@ -356,27 +371,39 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
           return true
         })
 
-        const scored: { id: string; name: string; position: string; score: number }[] = []
+        const eligibleBench: { id: string; name: string; position: string }[] = []
         for (const b of benchCandidates) {
           const bid = String(b.id)
           const pRow = await prisma.sportsPlayer.findFirst({
             where: { sport, externalId: bid },
+            orderBy: { updatedAt: 'desc' },
             select: { status: true, name: true, position: true },
           })
           const stB = pRow?.status ?? ''
           if (stB && isSwapEligibleStatus(stB)) continue
 
-          const score = await projectionScore(bid, sport)
-          scored.push({
+          eligibleBench.push({
             id: bid,
             name: pRow?.name ?? String(b.id),
             position: String(pRow?.position ?? b.position ?? 'UNK'),
-            score,
           })
         }
 
-        scored.sort((a, b) => b.score - a.score)
-        const pick = scored[0]
+        if (eligibleBench.length === 0) continue
+
+        const ranked = await pickBestBenchReplacementForAutoCoach({
+          userId: setting.userId,
+          leagueId,
+          sport,
+          playerOut: {
+            id: pid,
+            name: row?.name ?? pid,
+            position: String(row?.position ?? st.position ?? 'UNK'),
+          },
+          benchCandidates: eligibleBench,
+        })
+
+        const pick = ranked.pick
         if (!pick) continue
 
         const swap = await executeAutoCoachSwap(
@@ -388,8 +415,21 @@ export async function runAutoCoachForLeague(leagueId: string): Promise<AutoCoach
           { id: pid, name: row?.name ?? pid, status: rawStatus },
           { id: pick.id, name: pick.name, position: pick.position },
           'sports_player_db',
-          null,
-          new Date()
+          lock.nextKickoffUtc,
+          row?.updatedAt ?? new Date(),
+          {
+            confidence: ranked.confidence,
+            expectedPointsDelta: ranked.expectedPointsDelta,
+            decisionNotes: [
+              ranked.decisionNotes,
+              lock.scheduleKnown ? `lock:${lock.reason}` : 'lock:schedule_missing_used_status_only',
+            ]
+              .filter(Boolean)
+              .join(' · '),
+            statusFreshnessAt: row?.updatedAt ?? null,
+            preferenceInfluenced: Boolean(prefs.learnTendencies),
+            decisionEngine: 'start_sit_projection_v1',
+          },
         )
         results.push(swap)
         swapped = true

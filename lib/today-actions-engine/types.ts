@@ -2,6 +2,25 @@ import type { LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 
+/**
+ * Per-signal health status for the Today Actions pipeline. `ok` = fetch succeeded and
+ * value is usable; `failed` = fetch threw / rejected — fallback values were substituted
+ * so the dashboard still renders, but counts for this source are untrusted.
+ */
+export type TodayActionsSignalHealth = {
+  lineup: 'ok' | 'failed'
+  waivers: 'ok' | 'failed'
+  trades: 'ok' | 'failed'
+  waiverTiming: 'ok' | 'failed'
+  matchupSyncedLeagues: 'ok' | 'failed'
+  autoProtection: 'ok' | 'failed'
+  warRoom: 'ok' | 'skipped' | 'failed'
+  /** True when any of the above is not 'ok'. */
+  degraded: boolean
+  /** Human-readable errors keyed by signal — max 4 per signal, sliced for payload safety. */
+  failureDetails: Record<string, string>
+}
+
 export type TodayActionsEngineResponse = {
   serverTimeIso: string
   /** Same time envelope as AI payloads — Today strip + modals stay time-aware. */
@@ -54,4 +73,5 @@ export type TodayActionsEngineResponse = {
     globalEnabled: boolean
     autoSwapsLast24h: number
   }
+  signalHealth: TodayActionsSignalHealth
 }

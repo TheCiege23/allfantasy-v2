@@ -1,3 +1,4 @@
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
 import type { SupportedSport } from '@/lib/sport-scope'
 
 export type TrendSportFilter = 'ALL' | SupportedSport
@@ -9,7 +10,6 @@ export type TrendTypeId =
   | 'start'
   | 'sit'
   | 'trade'
-  | 'search'
   | 'performance'
   | 'usage'
   | 'injury_replacement'
@@ -67,6 +67,10 @@ export type TrendReasonChip =
   | 'Performance Swing'
   | 'Usage Shift'
 
+export type TrendLeagueRelevance = 'on_your_roster' | 'rostered_elsewhere' | 'likely_available' | 'unknown'
+
+export type TrendActionRecommendation = 'add' | 'hold' | 'sell' | 'monitor' | 'watch'
+
 export type TrendPlayerCard = {
   rank: number
   playerId: string
@@ -86,6 +90,37 @@ export type TrendPlayerCard = {
   injuryStatus: string | null
   isRookie: boolean | null
   dataFreshness: string
+  /** League-scored effective projection when normalization resolves */
+  projectedFantasyPoints?: number | null
+  /** Deterministic explanation lines (no invented narratives) */
+  structuredWhy?: string[]
+  identityConfidence?: 'full' | 'degraded' | 'ambiguous'
+  identityNotes?: string[]
+  actionRecommendation?: TrendActionRecommendation
+  leagueRelevance?: TrendLeagueRelevance
+  integrationHints?: {
+    waiverWire: boolean
+    tradeValue: boolean
+    injuryImpact: boolean
+  }
+}
+
+/** Provider-health flags for UI chips — mirrors other AI tools. */
+export type TrendingSourceFlags = {
+  /** FantasyCalc value-trend feed returned rows. */
+  fantasyCalcReady: boolean
+  /** Sleeper `trending_players` table returned rows for this sport window. */
+  sleeperTrendingReady: boolean
+  /** `player_meta_trends` rollup provided additional signals. */
+  metaTrendsReady: boolean
+  /** Normalized projection batch attached to at least one card. */
+  projectionLayerReady: boolean
+  /** Injury / news signal attached to at least one card. */
+  injuryNewsLayerReady: boolean
+  /** League scoring rules applied via normalized league context. */
+  leagueScoringApplied: boolean
+  /** AI time/league envelope attached to chimmyPayload. */
+  aiEnvelopeReady: boolean
 }
 
 export type TrendingDashboardResult = {
@@ -106,12 +141,14 @@ export type TrendingDashboardResult = {
   dataGaps: string[]
   degraded: boolean
   fetchedAt: string
+  sourceFlags: TrendingSourceFlags
 }
 
 export type TrendingDashboardError = {
   ok: false
   error: string
-  code?: 'FORBIDDEN' | 'VALIDATION'
+  code?: LeagueToolAccessErrorCode | 'VALIDATION'
+  userMessage?: string
 }
 
 export type TrendingDashboardOutput = TrendingDashboardResult | TrendingDashboardError

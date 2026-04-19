@@ -12,7 +12,7 @@ const THESPORTSDB_LEAGUE_IDS = {
 } as const
 
 function apiKey(): string {
-  return process.env.THESPORTSDB_API_KEY?.trim() || '123'
+  return process.env.THESPORTSDB_API_KEY?.trim() || process.env.THEAUDIODB_API_KEY?.trim() || '123'
 }
 
 function leagueIdForSport(sport: string): string {

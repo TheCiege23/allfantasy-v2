@@ -647,6 +647,68 @@ model AnalyticsEvent {
   @@index([path, createdAt])
 }
 
+/// Append-only platform learning events (deterministic aggregates — not LLM training).
+model AfLearningEvent {
+  id         String   @id @default(cuid())
+  eventType  String   @map("event_type") @db.VarChar(64)
+  sport      String   @db.VarChar(16)
+  leagueId   String?  @map("league_id") @db.VarChar(64)
+  userId     String?  @map("user_id") @db.VarChar(64)
+  source     String   @default("server") @db.VarChar(32)
+  payload    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([sport, createdAt])
+  @@index([leagueId, createdAt])
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("af_learning_events")
+}
+
+/// App-wide learned features per sport (recomputed from `AfLearningEvent`).
+model AfAppLearningSnapshot {
+  sport       String   @id @db.VarChar(16)
+  features    Json
+  explain     Json?
+  confidence  Float    @default(0)
+  sampleSize  Int      @default(0) @map("sample_size")
+  windowDays  Int      @default(90) @map("window_days")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  computedAt  DateTime @default(now()) @map("computed_at")
+
+  @@map("af_app_learning_snapshots")
+}
+
+/// League-specific learned features (recomputed from events scoped to that league).
+model AfLeagueLearningSnapshot {
+  leagueId    String   @id @map("league_id") @db.VarChar(64)
+  sport       String   @db.VarChar(16)
+  features    Json
+  explain     Json?
+  confidence  Float    @default(0)
+  sampleSize  Int      @default(0) @map("sample_size")
+  windowDays  Int      @default(90) @map("window_days")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  computedAt  DateTime @default(now()) @map("computed_at")
+
+  @@index([sport])
+  @@map("af_league_learning_snapshots")
+}
+
+/// User/manager behavior profile (soft personalization — never overrides injuries/locks/rules).
+model AfUserLearningProfile {
+  userId      String   @id @map("user_id") @db.VarChar(64)
+  features    Json
+  explain     Json?
+  confidence  Float    @default(0)
+  sampleSize  Int      @default(0) @map("sample_size")
+  windowDays  Int      @default(90) @map("window_days")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  computedAt  DateTime @default(now()) @map("computed_at")
+
+  @@map("af_user_learning_profiles")
+}
+
 model TradeNotification {
   id               String    @id @default(uuid())
   userId           String
@@ -3759,6 +3821,14 @@ model UserProfile {
   avatarPreset              String?
   preferredLanguage         String?
   timezone                  String?
+  /// Last device-reported IANA zone (browser `Intl`), for mismatch UX — not authoritative for locks.
+  deviceTimezoneLastSeen    String?             @map("device_timezone_last_seen")
+  /// Last device-reported local time (ISO); compare to server UTC only for skew detection.
+  deviceTimeLastSeen        DateTime?           @map("device_time_last_seen")
+  /// True when account TZ ≠ device TZ or device clock skew exceeds threshold.
+  timeMismatchFlag          Boolean             @default(false) @map("time_mismatch_flag")
+  /// When device time context was last persisted.
+  lastTimeContextAt         DateTime?           @map("last_time_context_at")
   themePreference           String?
   bio                       String?
   preferredSports           Json?
@@ -3786,6 +3856,8 @@ model UserProfile {
   afWarRoomSub              Boolean             @default(false)
   /// Master switch: when false, AutoCoach does not run for any league (per-league prefs preserved).
   autoCoachGlobalEnabled    Boolean             @default(true)
+  /// AI Auto Start/Sit Protection prefs: learning, aggressiveness, notifications (JSON).
+  autoCoachPreferences      Json?               @map("auto_coach_preferences")
   /// Auto sign-out after this many minutes of inactivity (null/0 = off). Allowed: 30, 60, 240, 720, 1440.
   sessionIdleTimeoutMinutes Int?
   rankTier                  String?             @map("rank_tier")
@@ -3932,7 +4004,14 @@ model League {
   starters                              Json?
   status                                String?
   avatarUrl                             String?
+  /// Canonical league snapshot (roster/scoring/draft/waiver/playoff + conceptSetup + conceptRules). Typed in `lib/league-contract/types.ts` (`SettingsSnapshot`).
   settings                              Json?
+  /// Preset-engine fingerprint at create/import (e.g. `af:v2|concept=dynasty|sport=NFL|scoring=fb_half_ppr|draft=snake`).
+  presetKey                             String?                                @db.VarChar(512)
+  /// Scoring preset id from create/import (e.g. `fb_half_ppr`, `nba_points`); detailed rules live in `settings.scoringSettings`.
+  scoringPresetId                       String?                                @db.VarChar(96)
+  /// JSON schema version for `settings` (null = legacy rows before versioning).
+  settingsSnapshotVersion               Int?
   lastSyncedAt                          DateTime?
   syncStatus                            String?
   syncError                             String?
@@ -3969,6 +4048,7 @@ model League {
   irAllowNA                             Boolean                                @default(false)
   irAllowDNR                            Boolean                                @default(false)
   irAllowDoubtful                       Boolean                                @default(false)
+  /// Canonical league concept id (redraft, dynasty, guillotine, survivor, …). Aligns with `SettingsSnapshot.conceptRules` / preset engine.
   leagueType                            String?                                @default("redraft")
   devyYear                              String?
   medianGame                            Boolean                                @default(false)
@@ -4289,6 +4369,13 @@ model AutoCoachSwapLog {
   swapMadeAt       DateTime  @default(now())
   gameStartsAt     DateTime?
   wasPreGame       Boolean   @default(true)
+  confidence       Float?
+  expectedPointsDelta Float? @map("expected_points_delta")
+  decisionEngine   String?   @default("start_sit_projection_v1") @map("decision_engine")
+  preferenceInfluenced Boolean @default(false) @map("preference_influenced")
+  statusFreshnessAt DateTime? @map("status_freshness_at")
+  serverDecidedAt  DateTime? @map("server_decided_at")
+  decisionNotes    String?   @map("decision_notes") @db.Text
   createdAt        DateTime  @default(now())
 
   @@index([userId, leagueId])
@@ -4323,7 +4410,8 @@ model PlayerStatusEvent {
   @@map("player_status_events")
 }
 
-/// Commissioner-managed draft & league draft-time settings (one row per league).
+/// Commissioner-managed draft room + draft-time AI toggles (one row per league).
+/// Canonical draft slice: also stored under `League.settings` as `SettingsSnapshot.draftSettings` — prefer updating both via `lib/league-contract` helpers when changing draft defaults.
 model LeagueSettings {
   id                       String    @id @default(cuid())
   leagueId                 String    @unique

@@ -585,6 +585,7 @@ export async function runStartSitAnalysis(input: {
     includeHealth: false,
     includeTeamContext: true,
     preferredTeamExternalId: input.teamExternalId ?? undefined,
+    includeStrategicCoaching: true,
   })
 
   const lockTimeNote =

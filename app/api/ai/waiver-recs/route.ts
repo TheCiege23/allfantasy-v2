@@ -80,7 +80,7 @@ Provide up to 5 objects. dropPlayer should name a realistic cut from the user's 
 
     const userPayload = `League: ${String(bundle.league.name ?? '')} (${bundle.sport})\nMy roster (sample):\n${JSON.stringify(myRosterNames, null, 2)}\n\nTrending adds / available buzz (names only):\n${JSON.stringify(trendingNames, null, 2)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId: targetUserId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Waiver recommendations failed'

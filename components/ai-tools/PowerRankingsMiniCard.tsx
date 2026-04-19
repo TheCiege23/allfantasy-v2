@@ -17,17 +17,19 @@ function openPowerRankingsModal() {
   window.dispatchEvent(new CustomEvent('af-open-ai-tool', { detail: { tool: 'power' } }))
 }
 
-export function PowerRankingsMiniCard({ leagues }: { leagues: UserLeague[] }) {
-  const [leagueId, setLeagueId] = useState('')
+export function PowerRankingsMiniCard({
+  leagues,
+  selectedLeagueId,
+}: {
+  leagues: UserLeague[]
+  /** Dashboard tool league — shared with Global AI Tools grid */
+  selectedLeagueId: string | null
+}) {
+  const leagueId = selectedLeagueId ?? ''
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<PowerRankingsDashboardResult | null>(null)
   const [snapshotTrail, setSnapshotTrail] = useState<number[] | null>(null)
-
-  useEffect(() => {
-    const first = leagues[0]?.id ?? ''
-    setLeagueId((prev) => (prev && leagues.some((l) => l.id === prev) ? prev : first))
-  }, [leagues])
 
   const activeLeague = useMemo(() => leagues.find((l) => l.id === leagueId) ?? null, [leagues, leagueId])
 
@@ -160,23 +162,6 @@ export function PowerRankingsMiniCard({ leagues }: { leagues: UserLeague[] }) {
           </button>
         </div>
       </div>
-
-      {leagues.length > 1 ? (
-        <label className="mt-3 block text-[10px] font-bold uppercase tracking-wide text-[#5c6480]">
-          League
-          <select
-            value={leagueId}
-            onChange={(e) => setLeagueId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-[#2e3347] bg-[#121725] px-2 py-1.5 text-[12px] text-[#e8eaf6]"
-          >
-            {leagues.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name} ({l.sport})
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
 
       <div className="mt-3 min-h-[52px]">
         {loading && !data ? (

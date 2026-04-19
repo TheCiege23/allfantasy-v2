@@ -24,6 +24,7 @@ export type WaiverLeagueRec = {
   pickups: WaiverPickup[]
   drops: WaiverDrop[]
   chimmyAdvice: string
+  /** UTC ISO for next estimated rolling waiver process when DB `League.timezone` + `waiverProcessTime` resolve; else null. */
   waiverDeadline: string | null
 }
 

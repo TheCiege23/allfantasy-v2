@@ -45,6 +45,7 @@ const API_LABELS: Record<string, string> = {
   fantrax: "Fantrax",
   fantasycalc: "FantasyCalc",
   thesportsdb: "TheSportsDB",
+  theaudiodb: "TheAudioDB",
   espn: "ESPN",
   openai: "OpenAI",
   grok: "Grok",

@@ -11,8 +11,8 @@ export function CreateLeaguePageClient({ userId }: { userId: string }) {
   const router = useRouter()
 
   return (
-    <div className="min-h-screen bg-[#02061a] bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(20,40,100,0.55),rgba(1,4,20,0.96))] text-white">
-      <header className="px-4 pb-2 pt-4">
+    <div className="min-h-screen text-white">
+      <header className="relative z-30 px-4 pb-2 pt-4">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <button
             type="button"

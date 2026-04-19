@@ -44,6 +44,7 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
     }
     const q = new URLSearchParams()
     q.set('created', '1')
+    q.set('guide', 'settings')
     q.set('openChat', 'league')
     if (args.allowInviteLink) q.set('showInvite', '1')
     return `/league/${leagueId}?${q.toString()}`
@@ -55,6 +56,7 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
 
   const q = new URLSearchParams()
   q.set('created', '1')
+  q.set('guide', 'settings')
   q.set('openChat', 'league')
   if (args.allowInviteLink) q.set('showInvite', '1')
   return `/league/${leagueId}?${q.toString()}`

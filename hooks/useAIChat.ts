@@ -33,6 +33,7 @@ const AI_CONTEXT_SOURCES = new Set<AIContextSource>([
   "matchup_prep",
   "power_rankings",
   "power_rankings_team",
+  "long_term_coaching",
 ])
 
 export type AIChatMessage = { role: "user" | "assistant"; content: string }

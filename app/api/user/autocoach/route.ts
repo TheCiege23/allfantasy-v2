@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
+import { parseAutoCoachUserPreferences } from '@/lib/autocoach/autoCoachPreferences'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ export async function GET() {
 
     const profile = await prisma.userProfile.findUnique({
       where: { userId },
-      select: { autoCoachGlobalEnabled: true },
+      select: { autoCoachGlobalEnabled: true, autoCoachPreferences: true },
     })
 
     const settings = await prisma.autoCoachSetting.findMany({
@@ -37,6 +38,7 @@ export async function GET() {
 
     return NextResponse.json({
       globalEnabled: profile?.autoCoachGlobalEnabled ?? true,
+      preferences: parseAutoCoachUserPreferences(profile?.autoCoachPreferences ?? null),
       settings: settings.map((s) => ({
         id: s.id,
         leagueId: s.leagueId,
@@ -60,15 +62,39 @@ export async function POST(req: NextRequest) {
   if (typeof ent !== 'string') return ent
 
   const userId = ent
-  let body: { leagueId?: string; enabled?: boolean }
+  let body: { leagueId?: string; enabled?: boolean; preferences?: Record<string, unknown> }
   try {
-    body = (await req.json()) as { leagueId?: string; enabled?: boolean }
+    body = (await req.json()) as { leagueId?: string; enabled?: boolean; preferences?: Record<string, unknown> }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  let mergedPrefsReturn: ReturnType<typeof parseAutoCoachUserPreferences> | null = null
+  if (body.preferences && typeof body.preferences === 'object' && !Array.isArray(body.preferences)) {
+    const existing = await prisma.userProfile.findUnique({
+      where: { userId },
+      select: { autoCoachPreferences: true },
+    })
+    const prev =
+      existing?.autoCoachPreferences && typeof existing.autoCoachPreferences === 'object' && !Array.isArray(existing.autoCoachPreferences)
+        ? (existing.autoCoachPreferences as Record<string, unknown>)
+        : {}
+    const merged = { ...prev, ...body.preferences }
+    await prisma.userProfile.update({
+      where: { userId },
+      data: { autoCoachPreferences: merged },
+    })
+    mergedPrefsReturn = parseAutoCoachUserPreferences(merged)
+  }
+
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
-  if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
+  if (!leagueId) {
+    if (mergedPrefsReturn) {
+      return NextResponse.json({ ok: true, preferences: mergedPrefsReturn })
+    }
+    return NextResponse.json({ error: 'leagueId or preferences required' }, { status: 400 })
+  }
+
   const enabled = body.enabled === true
 
   const gate = await assertLeagueMember(leagueId, userId)
@@ -109,5 +135,6 @@ export async function POST(req: NextRequest) {
     leagueId: row.leagueId,
     enabled: row.enabled,
     blockedByCommissioner: row.blockedByCommissioner,
+    ...(mergedPrefsReturn ? { preferences: mergedPrefsReturn } : {}),
   })
 }

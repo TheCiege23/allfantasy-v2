@@ -88,8 +88,8 @@ function isCardSelected(card: LeagueTypeCard, state: CreateLeagueV2State): boole
 }
 
 function resolveEffectiveLeagueType(state: CreateLeagueV2State): LeagueTypeId {
-  // IDP maps to redraft internally
-  return state.idpSelected ? 'redraft' : state.leagueType
+  if (state.idpSelected) return 'redraft'
+  return state.leagueType ?? 'redraft'
 }
 
 // ── Video preview components ────────────────────────────────────────
@@ -177,7 +177,10 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     () => getTeamCountOptions(state.sport, effectiveType, state.soccerPipeline),
     [state.sport, effectiveType, state.soccerPipeline]
   )
-  const draftOptions = useMemo(() => getDraftTypeOptions(effectiveType, state.sport), [effectiveType, state.sport])
+  const draftOptions = useMemo(
+    () => getDraftTypeOptions(effectiveType, state.sport),
+    [effectiveType, state.sport]
+  )
   const survivorTribes = useMemo(() => getSurvivorTribeOptions(state.teamCount), [state.teamCount])
   const isSnake = state.draftType === 'snake'
   const isTournament = effectiveType === 'tournament'
@@ -264,7 +267,10 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
         </div>
 
         {/* League type hero video */}
-        <LeagueTypeHeroVideo leagueType={state.idpSelected ? 'idp' : state.leagueType} accent={accent} />
+        <LeagueTypeHeroVideo
+          leagueType={state.idpSelected ? 'idp' : state.leagueType ?? 'redraft'}
+          accent={accent}
+        />
       </GlassCard>
 
       {/* Sport */}

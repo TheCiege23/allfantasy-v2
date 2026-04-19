@@ -9,6 +9,7 @@ import type { DraftTypeId, LeagueTypeId } from '@/lib/league-creation-wizard/typ
 import { useSportRules } from '@/hooks/useSportRules'
 import { StepHeader } from './StepHelp'
 import { getDraftTypeMedia } from '@/lib/league-media/draftTypeMedia'
+import { LeagueStepPreviewVideo, OptionCardMedia } from './OptionCardMedia'
 
 export type DraftTypeSelectorProps = {
   sport: string
@@ -117,29 +118,22 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
                 type="button"
                 onClick={() => onChange(id)}
                 title={DRAFT_TYPE_TOOLTIPS[id]}
-                className={`min-h-[132px] overflow-hidden rounded-2xl border px-0 py-0 text-left transition ${
+                className={`group min-h-[132px] overflow-hidden rounded-2xl border px-0 py-0 text-left transition ${
                   safeValue === id
                     ? 'border-cyan-300 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(0,255,220,0.2)_inset]'
-                    : 'border-white/15 bg-black/25 hover:bg-white/[0.05]'
+                    : 'border-white/15 bg-black/25 hover:bg-white/[0.05] hover:shadow-[0_0_20px_rgba(0,255,220,0.05)]'
                 }`}
               >
-                <div className="relative h-20 w-full bg-black/40">
-                  <video
-                    className="h-full w-full object-cover opacity-90"
-                    src={media.selectionVideo}
-                    poster={media.thumbnail}
-                    muted
-                    loop
-                    playsInline
-                    autoPlay
-                    onError={(event) => {
-                      const el = event.currentTarget
-                      el.poster = media.thumbnailFallback
-                      el.removeAttribute('src')
-                      el.load()
-                    }}
+                <div className="relative h-20 w-full shrink-0 overflow-hidden bg-black/40">
+                  <OptionCardMedia
+                    videoSrc={media.selectionVideo}
+                    posterSrc={media.thumbnail}
+                    fallbackSrc={media.thumbnailFallback}
+                    gradientOverlay={false}
+                    frameClassName="relative h-full min-h-[5rem] w-full overflow-hidden"
+                    mediaClassName="object-cover object-center"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="pointer-events-none absolute inset-0 z-[3] bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
                 </div>
                 <div className="flex items-start gap-2 px-3 pb-3 pt-2">
                   <span
@@ -171,22 +165,11 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
         <p className="text-xs uppercase tracking-[0.14em] text-cyan-200/80">Draft type preview</p>
         <p className="mt-1 text-2xl font-black text-white">{draftTypeLabel(leagueType, safeValue)}</p>
         <p className="mt-1 text-sm text-cyan-200/75">How picks flow in your draft room</p>
-        <video
-          key={previewMedia.selectionVideo}
-          className="mt-3 h-44 w-full rounded-xl border border-white/15 bg-black object-cover"
-          src={previewMedia.selectionVideo}
-          poster={previewMedia.thumbnail}
-          autoPlay
-          loop
-          muted
-          playsInline
-          controls
-          onError={(event) => {
-            const target = event.currentTarget
-            target.poster = previewMedia.thumbnailFallback
-            target.removeAttribute('src')
-            target.load()
-          }}
+        <LeagueStepPreviewVideo
+          videoSrc={previewMedia.selectionVideo}
+          posterSrc={previewMedia.thumbnail}
+          fallbackSrc={previewMedia.thumbnailFallback}
+          description={`${draftTypeLabel(leagueType, safeValue)} draft type preview`}
         />
         <p className="mt-3 text-base text-white/85">{DRAFT_TYPE_DESCRIPTIONS[safeValue]}</p>
       </div>

@@ -73,6 +73,14 @@ export interface UserProfileForSettings {
   avatarPreset: string | null
   preferredLanguage: PreferredLanguage | null
   timezone: string | null
+  /** Time Engine: last device IANA zone from client sync (mismatch UX). */
+  deviceTimezoneLastSeen?: string | null
+  /** Time Engine: last device local instant (skew detection). */
+  deviceTimeLastSeen?: Date | null
+  /** Time Engine: account TZ vs device TZ or clock skew. */
+  timeMismatchFlag?: boolean
+  /** Time Engine: last successful device time POST. */
+  lastTimeContextAt?: Date | null
   themePreference: ThemePreference | null
   phone: string | null
   phoneVerifiedAt: Date | null
@@ -110,6 +118,8 @@ export interface UserProfileForSettings {
   careerLeaguesPlayed?: number | null
   /** ElevenLabs voice id for Chimmy TTS; null = use default / local only before sync. */
   chimmyTtsVoiceId: string | null
+  /** AI Auto Start/Sit Protection (JSON) — learning, aggressiveness, notifications. */
+  autoCoachPreferences?: Record<string, unknown> | null
   settings: UserSettingsRecord | null
   updatedAt: Date
 }

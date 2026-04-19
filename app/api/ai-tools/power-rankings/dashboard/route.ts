@@ -6,6 +6,7 @@ import { runPowerRankingsDashboard } from '@/lib/power-rankings-dashboard'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 import { RANKING_MODE_IDS, type RankingModeId } from '@/lib/power-rankings-dashboard/types'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
@@ -78,7 +79,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/power-rankings/dashb
       })
 
       if (!out.ok) {
-        const status = out.code === 'FORBIDDEN' ? 403 : 400
+        const status = httpStatusForLeagueToolCode(out.code)
         return NextResponse.json(out, { status })
       }
 

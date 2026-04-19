@@ -129,13 +129,15 @@ function* eachDayIso(start: Date, end: Date) {
 export async function fetchTournamentEvents(
   season: number
 ): Promise<TheSportsDbEvent[]> {
-  const apiKey = process.env.THESPORTSDB_API_KEY
+  const apiKey =
+    process.env.THESPORTSDB_API_KEY?.trim() ||
+    process.env.THEAUDIODB_API_KEY?.trim()
   const leagueId = process.env.THESPORTSDB_NCAAM_LEAGUE_ID || NCAAM_LEAGUE_ID
 
   const effectiveKey =
     apiKey ?? (process.env.NODE_ENV === "development" ? "3" : null)
   if (!effectiveKey) {
-    throw new Error("Missing THESPORTSDB_API_KEY (required in production)")
+    throw new Error("Missing THESPORTSDB_API_KEY or THEAUDIODB_API_KEY (required in production)")
   }
 
   const start = new Date(Date.UTC(season, 2, 1))

@@ -19,6 +19,7 @@ import {
   isLeagueTypeAllowedForSport,
 } from '@/lib/league-creation-wizard/league-type-registry';
 import { z } from 'zod';
+import { SETTINGS_SNAPSHOT_VERSION, buildPresetKey } from '@/lib/league-contract';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -57,6 +58,8 @@ const createSchema = z.object({
   inviteSettings: z.record(z.unknown()).optional(),
   /** Soccer only: MLS vs European data pipeline (stored in `settings.soccer_pipeline`). */
   soccerPipeline: z.enum(['mls', 'euro']).optional(),
+  /** Create League v2 unified flow — validated against `lib/league-creation-preset/scoring-presets`. */
+  scoringPresetId: z.string().max(96).optional(),
 });
 
 export async function POST(req: Request) {
@@ -110,6 +113,7 @@ export async function POST(req: Request) {
     salaryCapSettings,
     inviteSettings,
     soccerPipeline: soccerPipelineInput,
+    scoringPresetId: scoringPresetIdInput,
   } = parsed.data;
 
   if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
@@ -209,6 +213,21 @@ export async function POST(req: Request) {
     String(leagueVariantInput ?? '').toUpperCase() === 'DYNASTY_IDP' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'idp' ||
     String(requestedLeagueType ?? '').toLowerCase() === 'dynasty_idp';
+  if (scoringPresetIdInput?.trim()) {
+    const { isScoringPresetValidForContext } = await import('@/lib/league-creation-preset/scoring-presets');
+    const lt = (requestedLeagueType ?? 'redraft') as import('@/lib/league-creation-wizard/types').LeagueTypeId;
+    const ctx = {
+      leagueType: lt,
+      sport: sport as import('@/lib/create-league-v2/state').SupportedSport,
+      idpSelected: isIdpRequested,
+    };
+    if (!isScoringPresetValidForContext(scoringPresetIdInput.trim(), ctx)) {
+      return NextResponse.json(
+        { error: 'Invalid scoring preset for this league concept and sport.' },
+        { status: 400 }
+      );
+    }
+  }
   if (isIdpRequested && sport !== 'NFL') {
     return NextResponse.json(
       { error: 'IDP leagues are only supported for NFL. Please select NFL as the sport.' },
@@ -456,6 +475,9 @@ export async function POST(req: Request) {
     }
     if (settingsWizard && typeof settingsWizard === 'object') {
       Object.assign(initialSettings, settingsWizard);
+    }
+    if (scoringPresetIdInput?.trim()) {
+      (initialSettings as Record<string, unknown>).scoring_preset_id = scoringPresetIdInput.trim();
     }
     if (rosterSettings && typeof rosterSettings === 'object') {
       Object.assign(initialSettings, rosterSettings);
@@ -727,6 +749,18 @@ export async function POST(req: Request) {
         ? 'custom'
         : 'auto';
 
+    (initialSettings as Record<string, unknown>).snapshotVersion = SETTINGS_SNAPSHOT_VERSION;
+
+    const presetKeyCanonical = scoringPresetIdInput?.trim()
+      ? buildPresetKey({
+          concept: String(requestedLeagueType ?? 'redraft'),
+          sport,
+          scoringPresetId: scoringPresetIdInput.trim(),
+          draftType: String(requestedDraftType ?? 'snake'),
+          teamCount: typeof leagueSize === 'number' ? leagueSize : undefined,
+        })
+      : undefined;
+
     const league = await (prisma as any).league.create({
       data: {
         userId: userId,
@@ -744,6 +778,9 @@ export async function POST(req: Request) {
         avatarUrl: isGuillotine ? '/guillotine/Guillotine.png' : undefined,
         timezone: leagueTimezone,
         settings: initialSettings,
+        ...(presetKeyCanonical ? { presetKey: presetKeyCanonical } : {}),
+        ...(scoringPresetIdInput?.trim() ? { scoringPresetId: scoringPresetIdInput.trim() } : {}),
+        settingsSnapshotVersion: SETTINGS_SNAPSHOT_VERSION,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
         ...(effectiveDynasty ? { season: foundingSeason } : {}),
         ...(isSurvivorLeague && typeof leagueSize === 'number'

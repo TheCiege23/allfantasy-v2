@@ -19,6 +19,7 @@ import {
 } from '@/lib/merged-devy-c2c/ai/C2CAIContext'
 import { buildC2CAIPrompt } from '@/lib/merged-devy-c2c/ai/C2CAIPrompts'
 import { openaiChatText } from '@/lib/openai-client'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,10 +92,11 @@ export async function POST(
   }
 
   const { system, user } = buildC2CAIPrompt(context as any)
+  const userWithTime = await withOfficialTimeUserMessage(userId, user)
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userWithTime },
     ],
     temperature: 0.5,
     maxTokens: 600,

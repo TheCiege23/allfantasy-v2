@@ -90,7 +90,7 @@ Each blurb is exactly one sentence. League context: sport=${bundle.sport}, seaso
 
     const userPayload = `League: ${leagueName}\nScoring snapshot (truncated): ${scoring}\n\nTeams:\n${JSON.stringify(teams, null, 2)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Power rankings failed'

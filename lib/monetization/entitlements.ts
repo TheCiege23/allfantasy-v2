@@ -250,9 +250,9 @@ export const ENTITLEMENTS = {
   },
   pro_autocoach: {
     key: 'pro_autocoach',
-    label: 'Chimmy AutoCoach™',
+    label: 'AI Auto Start/Sit Protection',
     description:
-      'AI automatically swaps injured or inactive starters before your games begin. Never forget to check your lineup again.',
+      'Pre-lock automation: swaps clearly unavailable starters using live status and Start/Sit projections. Per-player game locks — not Best Ball, not in-game fixes.',
     requiredPlan: ['af_pro', 'af_supreme'],
     upgradeUrl: '/pro',
     upgradeLabel: 'Get AF Pro',

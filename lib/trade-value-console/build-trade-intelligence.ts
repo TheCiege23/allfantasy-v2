@@ -30,7 +30,7 @@ export function buildTradeIntelligence(args: {
   injuryNotes: string[]
   drivers: DriverLike
   negotiationToolkit: Record<string, unknown> | null
-  opponentRosterTargets?: Array<{ name: string; marketValue: number }>
+  opponentRosterTargets?: Array<{ name: string; marketValue: number; position: string | null }>
   rosterSummary: {
     lineupSimulation: boolean
     yourRosterPlayers: number
@@ -40,23 +40,40 @@ export function buildTradeIntelligence(args: {
   /** Appended sentence from warehouse / LeagueSeason / waivers when data exists */
   structuredContextExtra?: string | null
   syncedDataHighlights?: string[]
+  /** Summed effective weekly projections per side (league-scored when context exists). */
+  projectedImpact: {
+    giveTotal: number | null
+    getTotal: number | null
+    net: number | null
+    summary: string
+  }
+  /** Echo normalized scoring labels for AI (no invented rules). */
+  scoringSummary?: string | null
 }): TradeIntelligence {
-  const whoWinsNow: TradeIntelligence['whoWinsNow'] =
-    args.sideAdvantage === 'you'
-      ? 'you'
-      : args.sideAdvantage === 'opponent'
-        ? 'opponent'
-        : 'even'
+  const marketWho: TradeIntelligence['whoWinsNow'] =
+    args.sideAdvantage === 'you' ? 'you' : args.sideAdvantage === 'opponent' ? 'opponent' : 'even'
 
-  /** Long-term: in dynasty, lean on VORP / narrative; otherwise align with market delta. */
-  let whoWinsLongTerm: TradeIntelligence['whoWinsLongTerm'] = whoWinsNow
+  /** Short-term “win now”: league-scored weekly projection net when present; else market composites. */
+  let whoWinsNow: TradeIntelligence['whoWinsNow'] = marketWho
+  const pn = args.projectedImpact.net
+  if (
+    args.projectedImpact.giveTotal != null &&
+    args.projectedImpact.getTotal != null &&
+    pn != null &&
+    Math.abs(pn) >= 1
+  ) {
+    whoWinsNow = pn > 0 ? 'you' : pn < 0 ? 'opponent' : 'even'
+  }
+
+  /** Long-term: dynasty uses composite % delta; redraft aligns with market tilt (ROS proxy). */
+  let whoWinsLongTerm: TradeIntelligence['whoWinsLongTerm'] = marketWho
   if (args.league?.isDynasty) {
     if (args.percentDiff > 8) whoWinsLongTerm = 'you'
     else if (args.percentDiff < -8) whoWinsLongTerm = 'opponent'
     else whoWinsLongTerm = 'even'
   }
 
-  const fairnessVerdict = `${args.fairnessLabel} · Market delta ≈ ${args.percentDiff}% (composite-based, not invented). Confidence ${Math.round(args.confidenceScore)}%.`
+  const fairnessVerdict = `${args.fairnessLabel} · Market delta ≈ ${args.percentDiff}% (composite-based, not invented). Short-term edge uses weekly projections when available (else market). Confidence ${Math.round(args.confidenceScore)}%.${args.scoringSummary ? ` ${args.scoringSummary}` : ''}`
 
   const tradeWarnings: string[] = []
   for (const w of args.injuryNotes.slice(0, 6)) {
@@ -88,7 +105,12 @@ export function buildTradeIntelligence(args: {
     }
   }
 
-  const alt = args.opponentRosterTargets?.slice(0, 5) ?? []
+  const alt = args.opponentRosterTargets?.slice(0, 8) ?? []
+  const alternateTargets = alt.map((t) => ({
+    name: t.name,
+    marketValue: t.marketValue,
+    position: t.position ?? null,
+  }))
   const alternateTargetsNote =
     alt.length > 0
       ? `Real opponent bench / not-in-deal targets (by market value): ${alt.map((t) => `${t.name} (~${t.marketValue})`).join(' · ')}.`
@@ -128,6 +150,24 @@ export function buildTradeIntelligence(args: {
     rebuilderRecommendation = `Neutral strategy: ${rebuilderRecommendation}`
   }
 
+  const proj = args.projectedImpact
+  const projSentence =
+    proj.giveTotal != null && proj.getTotal != null && proj.net != null
+      ? `League-scored weekly projection stack: you give up ~${proj.giveTotal.toFixed(1)} combined pts, you get ~${proj.getTotal.toFixed(1)} (${proj.net >= 0 ? '+' : ''}${proj.net.toFixed(1)} net). ${proj.summary}`
+      : `Projected weekly impact: ${proj.summary}`
+
+  const why = [
+    fairnessVerdict,
+    projSentence,
+    teamReasoning,
+    contenderRecommendation,
+    rebuilderRecommendation,
+    args.drivers.verdict ? `Engine verdict: ${args.drivers.verdict}` : null,
+    alt.length > 0 ? alternateTargetsNote : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return {
     fairnessVerdict,
     confidenceScore: Math.round(args.confidenceScore),
@@ -138,6 +178,9 @@ export function buildTradeIntelligence(args: {
     tradeWarnings: tradeWarnings.slice(0, 12),
     rebalanceSuggestions: rebalanceSuggestions.slice(0, 10),
     alternateTargetsNote,
+    alternateTargets,
+    why,
+    projectedImpact: proj,
     leagueReasoning,
     teamReasoning,
     leagueHistoryNote: args.leagueHistoryNote,

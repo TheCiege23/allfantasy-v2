@@ -20,6 +20,34 @@ import { AIToolModalShell } from '../AIToolModalShell'
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { positionsForSport } from '@/lib/trending-players/position-filters'
+import type { TrendPlayerCard } from '@/lib/trending-players/types'
+import { parseTrendPlayerId } from '@/lib/trending-players/parseTrendPlayerId'
+
+type OpenAiToolDetail = {
+  tool?: string
+  waiverJump?: { name: string; position?: string }
+  tradePrefillGive?: { name: string; playerId?: string | null; sportHint?: string }
+  injuryFocusName?: string
+}
+
+function openDashboardAiTool(detail: OpenAiToolDetail) {
+  window.dispatchEvent(new CustomEvent('af-open-ai-tool', { detail }))
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  add: 'Add',
+  hold: 'Hold',
+  sell: 'Sell / explore trade',
+  monitor: 'Monitor',
+  watch: 'Watch',
+}
+
+const RELEVANCE_LABEL: Record<string, string> = {
+  on_your_roster: 'On your roster — trend matters for starts/trades.',
+  rostered_elsewhere: 'Rostered in this league — trade or game the wire.',
+  likely_available: 'Not on a synced roster — waiver wire relevant.',
+  unknown: 'Pick a league for roster-aware relevance.',
+}
 
 type SportFilter = 'ALL' | (typeof SUPPORTED_SPORTS)[number]
 
@@ -30,7 +58,6 @@ const TREND_TYPES: Array<{ id: string; label: string }> = [
   { id: 'start', label: 'Start Trends' },
   { id: 'sit', label: 'Sit Trends' },
   { id: 'trade', label: 'Trade Trends' },
-  { id: 'search', label: 'Search Trends' },
   { id: 'performance', label: 'Performance Trends' },
   { id: 'usage', label: 'Usage Trends' },
   { id: 'injury_replacement', label: 'Injury Replacement Trends' },
@@ -59,27 +86,6 @@ const CONTEXT_OPTIONS: Array<{ id: string; label: string }> = [
   { id: 'start_sit_market', label: 'Start/Sit Market' },
 ]
 
-type TrendCard = {
-  rank: number
-  playerId: string
-  sport: string
-  name: string
-  position: string
-  team: string
-  headshotUrl: string | null
-  logoUrl: string | null
-  trendScore: number
-  trendDelta: number
-  confidence: number
-  rosteredPct: number | null
-  snippet: string
-  chips: string[]
-  sources: string[]
-  injuryStatus: string | null
-  isRookie: boolean | null
-  dataFreshness: string
-}
-
 type DashboardPayload = {
   ok: true
   analysisScope: string
@@ -88,16 +94,25 @@ type DashboardPayload = {
   summary: {
     riserCount: number
     fallerCount: number
-    biggestGainer: TrendCard | null
-    biggestFaller: TrendCard | null
+    biggestGainer: TrendPlayerCard | null
+    biggestFaller: TrendPlayerCard | null
   }
-  risers: TrendCard[]
-  fallers: TrendCard[]
+  risers: TrendPlayerCard[]
+  fallers: TrendPlayerCard[]
   aiNarrative: string | null
   chimmyPayload: Record<string, unknown>
   dataGaps: string[]
   degraded: boolean
   fetchedAt: string
+  sourceFlags?: {
+    fantasyCalcReady: boolean
+    sleeperTrendingReady: boolean
+    metaTrendsReady: boolean
+    projectionLayerReady: boolean
+    injuryNewsLayerReady: boolean
+    leagueScoringApplied: boolean
+    aiEnvelopeReady: boolean
+  }
 }
 
 export function TrendingPlayersModal({
@@ -123,7 +138,7 @@ export function TrendingPlayersModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DashboardPayload | null>(null)
-  const [detail, setDetail] = useState<TrendCard | null>(null)
+  const [detail, setDetail] = useState<TrendPlayerCard | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -238,6 +253,25 @@ export function TrendingPlayersModal({
                 Ready
               </span>
             )}
+            {(() => {
+              const sf = data?.sourceFlags
+              if (!sf) return null
+              const chipBase = 'rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide'
+              const green = 'bg-emerald-500/15 text-emerald-200'
+              const dim = 'bg-white/5 text-white/35'
+              const amber = 'bg-amber-500/12 text-amber-100/90'
+              return (
+                <>
+                  <span title={sf.fantasyCalcReady ? 'FantasyCalc value trend feed live' : 'FantasyCalc not contributing'} className={`${chipBase} ${sf.fantasyCalcReady ? green : dim}`}>FC</span>
+                  <span title={sf.sleeperTrendingReady ? 'Sleeper trending_players feed active' : 'Sleeper trending unavailable'} className={`${chipBase} ${sf.sleeperTrendingReady ? green : dim}`}>Sleeper</span>
+                  <span title={sf.metaTrendsReady ? 'player_meta_trends rollup active' : 'Meta trends unavailable'} className={`${chipBase} ${sf.metaTrendsReady ? green : dim}`}>Meta</span>
+                  <span title={sf.projectionLayerReady ? 'League-scored projections attached' : 'No projections attached'} className={`${chipBase} ${sf.projectionLayerReady ? green : dim}`}>Proj</span>
+                  <span title={sf.injuryNewsLayerReady ? 'Injury/news signals attached' : 'No injury/news signals'} className={`${chipBase} ${sf.injuryNewsLayerReady ? green : dim}`}>News</span>
+                  <span title={sf.leagueScoringApplied ? 'League scoring rules applied' : 'No league scoring (global mode)'} className={`${chipBase} ${sf.leagueScoringApplied ? green : amber}`}>{sf.leagueScoringApplied ? 'Scoring' : 'No lg scoring'}</span>
+                  <span title={sf.aiEnvelopeReady ? 'AI envelope attached' : 'AI envelope missing'} className={`${chipBase} ${sf.aiEnvelopeReady ? green : dim}`}>AI</span>
+                </>
+              )
+            })()}
           </span>
         }
         showApiPills={false}
@@ -528,6 +562,20 @@ export function TrendingPlayersModal({
             {detail.injuryStatus ? (
               <p className="mt-2 text-[12px] text-amber-200/90">Injury: {detail.injuryStatus}</p>
             ) : null}
+            {detail.isRookie ? (
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-sky-200/80">Rookie / prospect</p>
+            ) : null}
+            {detail.actionRecommendation ? (
+              <p className="mt-2 text-[11px] text-cyan-100/90">
+                <span className="text-[#5c6480]">Suggested action · </span>
+                {ACTION_LABEL[detail.actionRecommendation] ?? detail.actionRecommendation}
+              </p>
+            ) : null}
+            {detail.leagueRelevance ? (
+              <p className="mt-1 text-[10px] leading-snug text-[#7a849e]">
+                {RELEVANCE_LABEL[detail.leagueRelevance] ?? detail.leagueRelevance}
+              </p>
+            ) : null}
             <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
               <div className="rounded-lg border border-white/[0.06] bg-[#161b22] px-2 py-1.5">
                 <span className="text-[#5c6480]">Δ</span>{' '}
@@ -537,6 +585,12 @@ export function TrendingPlayersModal({
                 <span className="text-[#5c6480]">Confidence</span>{' '}
                 <span className="font-mono font-bold text-white/90">{detail.confidence}%</span>
               </div>
+              {detail.projectedFantasyPoints != null && Number.isFinite(detail.projectedFantasyPoints) ? (
+                <div className="rounded-lg border border-white/[0.06] bg-[#161b22] px-2 py-1.5">
+                  <span className="text-[#5c6480]">Proj (league)</span>{' '}
+                  <span className="font-mono font-bold text-cyan-200/90">{detail.projectedFantasyPoints}</span>
+                </div>
+              ) : null}
               {detail.rosteredPct != null ? (
                 <div className="rounded-lg border border-white/[0.06] bg-[#161b22] px-2 py-1.5">
                   <span className="text-[#5c6480]">Rostered</span>{' '}
@@ -544,6 +598,16 @@ export function TrendingPlayersModal({
                 </div>
               ) : null}
             </div>
+            {detail.structuredWhy?.length ? (
+              <div className="mt-3 rounded-lg border border-white/[0.06] bg-[#0b1020]/80 px-3 py-2">
+                <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-[#5c6480]">Why (structured)</p>
+                <ul className="list-inside list-disc space-y-1 text-[11px] leading-relaxed text-white/75">
+                  {detail.structuredWhy.map((line, i) => (
+                    <li key={`${i}-${line.slice(0, 32)}`}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <p className="mt-3 text-[12px] leading-relaxed text-white/70">{detail.snippet}</p>
             <div className="mt-2 flex flex-wrap gap-1">
               {detail.chips.map((c) => (
@@ -568,13 +632,64 @@ export function TrendingPlayersModal({
                 <Sparkles className="h-3.5 w-3.5" />
                 Ask Chimmy
               </Link>
-              <Link
-                href={`/dashboard?tool=waiver&focus=${encodeURIComponent(detail.playerId)}`}
-                className="inline-flex items-center gap-1 rounded-lg border border-[#2e3347] px-3 py-1.5 text-[11px] text-[#9ba3bf] no-underline hover:border-[#5c6480]"
+              {(detail.integrationHints?.waiverWire ?? true) ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openDashboardAiTool({
+                      tool: 'waiver',
+                      waiverJump: { name: detail.name, position: detail.position },
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#2e3347] px-3 py-1.5 text-[11px] text-[#9ba3bf] hover:border-[#5c6480]"
+                >
+                  Waiver Wire
+                  <ExternalLink className="h-3 w-3 opacity-50" />
+                </button>
+              ) : null}
+              {(detail.integrationHints?.tradeValue ?? true) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { platformId } = parseTrendPlayerId(detail.playerId)
+                    openDashboardAiTool({
+                      tool: 'trade',
+                      tradePrefillGive: {
+                        name: detail.name,
+                        playerId: platformId,
+                        sportHint: String(detail.sport),
+                      },
+                    })
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#2e3347] px-3 py-1.5 text-[11px] text-[#9ba3bf] hover:border-[#5c6480]"
+                >
+                  Trade Value
+                  <ExternalLink className="h-3 w-3 opacity-50" />
+                </button>
+              ) : null}
+              {(detail.integrationHints?.injuryImpact ?? Boolean(detail.injuryStatus?.trim())) ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openDashboardAiTool({
+                      tool: 'injury',
+                      injuryFocusName: detail.name,
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-lg border border-[#2e3347] px-3 py-1.5 text-[11px] text-[#9ba3bf] hover:border-[#5c6480]"
+                >
+                  Injury Impact
+                  <ExternalLink className="h-3 w-3 opacity-50" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => openDashboardAiTool({ tool: 'warRoom' })}
+                className="inline-flex items-center gap-1 rounded-lg border border-cyan-500/25 bg-cyan-500/5 px-3 py-1.5 text-[11px] text-cyan-100/90 hover:border-cyan-400/40"
               >
-                Waiver Wire
+                AF War Room
                 <ExternalLink className="h-3 w-3 opacity-50" />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -594,9 +709,9 @@ function TrendColumn({
   title: string
   accent: 'emerald' | 'red'
   icon: React.ReactNode
-  players: TrendCard[]
+  players: TrendPlayerCard[]
   sportFilter: SportFilter
-  onSelect: (p: TrendCard) => void
+  onSelect: (p: TrendPlayerCard) => void
 }) {
   const border = accent === 'emerald' ? 'border-emerald-500/20 bg-emerald-500/[0.03]' : 'border-red-500/20 bg-red-500/[0.03]'
   const text = accent === 'emerald' ? 'text-emerald-300' : 'text-red-300'
@@ -658,8 +773,16 @@ function TrendColumn({
                     {p.trendDelta}
                   </span>
                   <span className="text-[9px] text-white/35">· {p.confidence}% conf</span>
+                  {p.projectedFantasyPoints != null && Number.isFinite(p.projectedFantasyPoints) ? (
+                    <span className="text-[9px] text-cyan-200/70">· ~{p.projectedFantasyPoints} proj</span>
+                  ) : null}
                   {p.rosteredPct != null ? (
                     <span className="text-[9px] text-white/35">· {p.rosteredPct}% rost</span>
+                  ) : null}
+                  {p.actionRecommendation ? (
+                    <span className="text-[8px] font-bold uppercase tracking-wide text-cyan-200/75">
+                      · {ACTION_LABEL[p.actionRecommendation] ?? p.actionRecommendation}
+                    </span>
                   ) : null}
                 </div>
                 <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-white/45">{p.snippet}</p>

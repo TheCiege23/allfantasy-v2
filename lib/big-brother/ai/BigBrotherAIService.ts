@@ -4,6 +4,7 @@
  */
 
 import { getOpenAIClient, getOpenAIConfig } from '@/lib/openai-client'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 import type { BigBrotherAIContext } from './BigBrotherAIContext'
 import type { BigBrotherAIPromptType } from './BigBrotherAIPrompts'
 import { buildBigBrotherAIPrompt } from './BigBrotherAIPrompts'
@@ -19,7 +20,8 @@ export interface BigBrotherAIResult {
  */
 export async function generateBigBrotherAI(
   ctx: BigBrotherAIContext,
-  type: BigBrotherAIPromptType
+  type: BigBrotherAIPromptType,
+  userId?: string | null
 ): Promise<BigBrotherAIResult> {
   const rosterIds = [
     ctx.hohRosterId,
@@ -36,6 +38,7 @@ export async function generateBigBrotherAI(
   const rosterDisplayNames = await getRosterDisplayNamesForLeague(ctx.leagueId, rosterIds.length ? rosterIds : undefined)
 
   const { system, user } = buildBigBrotherAIPrompt(ctx, type, rosterDisplayNames)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const config = getOpenAIConfig()
   const client = getOpenAIClient()
 
@@ -43,7 +46,7 @@ export async function generateBigBrotherAI(
     model: config.model,
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_completion_tokens: 700,
     temperature: 0.6,

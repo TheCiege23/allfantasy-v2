@@ -14,6 +14,7 @@ const NFL_TABS: TabDef[] = [
   { id: 'trades', label: 'Trades' },
   { id: 'scores', label: 'Scores' },
   { id: 'war_room', label: 'War Room' },
+  { id: 'ai_coaching', label: 'AI Coaching' },
   { id: 'redraft', label: 'Redraft' },
   { id: 'history', label: 'History' },
 ]
@@ -28,6 +29,7 @@ const BASKETBALL_LIKE_TABS: TabDef[] = [
   { id: 'trades', label: 'Trades' },
   { id: 'scores', label: 'Scores' },
   { id: 'war_room', label: 'War Room' },
+  { id: 'ai_coaching', label: 'AI Coaching' },
   { id: 'history', label: 'History' },
 ]
 
@@ -41,6 +43,7 @@ const SOCCER_TABS: TabDef[] = [
   { id: 'transfers', label: 'Transfers' },
   { id: 'table', label: 'Table' },
   { id: 'war_room', label: 'War Room' },
+  { id: 'ai_coaching', label: 'AI Coaching' },
   { id: 'history', label: 'History' },
 ]
 
@@ -54,6 +57,7 @@ const NCAAF_TABS: TabDef[] = [
   { id: 'trades', label: 'Trades' },
   { id: 'scores', label: 'Scores' },
   { id: 'war_room', label: 'War Room' },
+  { id: 'ai_coaching', label: 'AI Coaching' },
   { id: 'history', label: 'History' },
 ]
 
@@ -65,6 +69,7 @@ const PGA_TABS: TabDef[] = [
   { id: 'players', label: 'Players' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'war_room', label: 'War Room' },
+  { id: 'ai_coaching', label: 'AI Coaching' },
   { id: 'history', label: 'History' },
 ]
 
@@ -107,6 +112,7 @@ const LEAGUE_TAB_I18N_KEY: Record<string, string> = {
   trades: 'league.tab.trades',
   scores: 'league.tab.scores',
   war_room: 'league.tab.warRoom',
+  ai_coaching: 'league.tab.aiCoaching',
   history: 'league.tab.history',
   standings: 'league.tab.standings',
   squad: 'league.tab.squad',

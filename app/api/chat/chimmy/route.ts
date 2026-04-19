@@ -18,6 +18,8 @@ import { getInsightBundle } from '@/lib/ai-simulation-integration'
 import type { InsightType } from '@/lib/ai-simulation-integration'
 import { DEFAULT_SPORT, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { loadLeagueSnapshotForUser } from '@/lib/chimmy/chimmy-league-snapshot'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { buildChimmySportDataDigest } from '@/lib/chimmy/chimmy-sport-data-digest'
 import { enrichChatWithData } from '@/lib/chat-data-enrichment'
 import {
@@ -912,6 +914,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const leagueSnapshot =
     leagueId && userId ? await loadLeagueSnapshotForUser(userId, leagueId).catch(() => null) : null
 
+  let normalizedLeagueContext: NormalizedLeagueContext | null = null
+  if (leagueId && userId) {
+    const lce = await resolveNormalizedLeagueContext({ userId, leagueId })
+    if (lce.ok) normalizedLeagueContext = lce.context
+  }
+
   const sportExplicit =
     typeof sportRaw === 'string' && sportRaw.trim().length > 0
       ? normalizeToSupportedSport(sportRaw)
@@ -1140,6 +1148,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           importedAt: leagueSnapshot.importedAt?.toISOString() ?? null,
         })
       : undefined,
+    leagueContextEngine: normalizedLeagueContext ?? undefined,
     contextSnapshot: compactRecord({
       leagueId,
       leagueNameHint: leagueNameHint ?? undefined,

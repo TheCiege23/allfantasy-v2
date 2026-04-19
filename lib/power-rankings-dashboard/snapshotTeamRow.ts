@@ -7,7 +7,10 @@ export type SnapshotTeamRow = {
   rankDelta: number | null
   prevRank: number | null
   momentumLabel?: string
+  /** @deprecated prefer tierLabel */
   tier?: string
+  tierLabel?: string
+  rankThird?: string
   pointsFor?: number
   pointsAgainst?: number
   record?: { wins: number; losses: number; ties: number }

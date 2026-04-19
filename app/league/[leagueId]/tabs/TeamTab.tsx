@@ -495,7 +495,7 @@ export function TeamTab({
               blockedByCommissioner: false,
             }
       )
-      toast.success(next ? 'AutoCoach on' : 'AutoCoach off')
+      toast.success(next ? 'AI Auto Start/Sit Protection on' : 'AI Auto Start/Sit Protection off')
     } finally {
       setAutoCoachLoading(false)
     }
@@ -847,11 +847,13 @@ export function TeamTab({
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-bold text-white">⚡ AutoCoach AI</p>
+              <p className="text-sm font-bold text-white">⚡ AI Auto Start/Sit Protection</p>
               {!hasProAutoCoach ? <SubscriptionGateBadge featureId="pro_autocoach" /> : null}
             </div>
             <p className="mt-0.5 text-xs text-white/50">
-              Auto-swap injured/inactive starters before games. Runs up to 5 minutes before kickoff.
+              Pre-lock automation only: swaps clearly unavailable starters (OUT, inactive, IR, etc.) using live
+              status and the same projection engine as Start/Sit. Each player locks at their own game time — not the
+              first game of the slate. Not Best Ball; no in-game fixes.
             </p>
             {autoCoachRow && autoCoachRow.leagueAutoCoachEnabled === false ? (
               <p className="mt-1 text-[11px] text-amber-400/70">Disabled by league commissioner.</p>

@@ -67,7 +67,7 @@ Tone: clear, inclusive, no insults.`
 
     const userPayload = `League name: ${league.name ?? leagueId}\nSport: ${league.sport}\nOptional week focus: ${body.week ?? 'current'}\nCommissioner extra context:\n${(body.context ?? '').trim() || '(none)'}\n\nSleeper snapshot:\n${sleeperSummary || '(not available)'}\n\nSynced settings (truncated):\n${settingsSnippet}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Commissioner note failed'

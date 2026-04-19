@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma"
 import type { SystemHealthStatus } from "./types"
 import { getSportsAlertLatency } from "./SportsAlertLatencyResolver"
 
-const API_KEYS = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "espn", "openai", "grok"] as const
+const API_KEYS = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "theaudiodb", "espn", "openai", "grok"] as const
 const ENDPOINTS: Record<string, string> = {
   sleeper: "https://api.sleeper.app/v1/state/nfl", // db-first-exception: live provider health probe
   yahoo: "https://fantasysports.yahooapis.com", // db-first-exception: live provider health probe
@@ -15,6 +15,7 @@ const ENDPOINTS: Record<string, string> = {
   fantrax: "https://www.fantrax.com",
   fantasycalc: "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&numTeams=12&ppr=1",
   thesportsdb: "https://www.thesportsdb.com/api/v1/json/3/all_leagues.php",
+  theaudiodb: "https://www.theaudiodb.com/api/v1/json/2/album.php?i=112024",
   espn: "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard", // db-first-exception: live provider health probe
   openai: "https://api.openai.com/v1/models",
   grok: "https://api.x.ai/v1/models",

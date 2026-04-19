@@ -41,15 +41,6 @@ const RANKING_MODES: { id: RankingModeId; label: string }[] = [
   { id: 'all_around', label: 'All-Around' },
 ]
 
-const TIME_WINDOWS: { id: TimeWindowId; label: string }[] = [
-  { id: 'this_week', label: 'This Week' },
-  { id: 'last_2', label: 'Last 2 Weeks' },
-  { id: 'last_4', label: 'Last 4 Weeks' },
-  { id: 'season', label: 'Season' },
-  { id: 'playoff_window', label: 'Playoff Window' },
-  { id: 'dynasty_long', label: 'Dynasty / Long Term' },
-]
-
 const TEAM_CONTEXTS: { id: TeamContextId; label: string }[] = [
   { id: 'full_league', label: 'Full League' },
   { id: 'my_team', label: 'My Team' },
@@ -273,6 +264,25 @@ export function PowerRankingsModal({
             Live
           </span>
         )}
+        {(() => {
+          const sf = data.sourceFlags
+          if (!sf) return null
+          const chipBase = 'rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wide'
+          const green = 'bg-emerald-500/15 text-emerald-200'
+          const dim = 'bg-white/5 text-white/35'
+          const amber = 'bg-amber-500/12 text-amber-100/90'
+          return (
+            <>
+              <span title={sf.standingsReady ? 'Standings (W/L/PF/PA) loaded' : 'Standings unavailable'} className={`${chipBase} ${sf.standingsReady ? green : dim}`}>Stand</span>
+              <span title={sf.rostersReady ? 'Team rosters resolved' : 'Rosters unavailable — standings-only mode'} className={`${chipBase} ${sf.rostersReady ? green : dim}`}>Rost</span>
+              <span title={sf.projectionLayerReady ? 'League-scored projections attached' : 'No projections attached'} className={`${chipBase} ${sf.projectionLayerReady ? green : dim}`}>Proj</span>
+              <span title={sf.injuryNewsLayerReady ? 'Injury-aware signals included' : 'Injuries not blended'} className={`${chipBase} ${sf.injuryNewsLayerReady ? green : dim}`}>Inj</span>
+              <span title={sf.priorSnapshotReady ? 'Prior snapshot found — rank movement is real' : 'No prior snapshot yet — movement will appear next refresh'} className={`${chipBase} ${sf.priorSnapshotReady ? green : dim}`}>Δ</span>
+              <span title={sf.leagueScoringApplied ? 'League scoring rules applied' : 'League scoring not applied'} className={`${chipBase} ${sf.leagueScoringApplied ? green : amber}`}>{sf.leagueScoringApplied ? 'Scoring' : 'No lg scoring'}</span>
+              <span title={sf.aiEnvelopeReady ? 'AI envelope attached' : 'AI envelope missing'} className={`${chipBase} ${sf.aiEnvelopeReady ? green : dim}`}>AI</span>
+            </>
+          )
+        })()}
       </div>
     ) : null
 
@@ -392,20 +402,6 @@ export function PowerRankingsModal({
                 </select>
               </label>
               <label className="block text-[10px] font-bold uppercase tracking-wide text-[#5c6480]">
-                Time window
-                <select
-                  value={timeWindow}
-                  onChange={(e) => setTimeWindow(e.target.value as TimeWindowId)}
-                  className="mt-1 w-full rounded-lg border border-[#2e3347] bg-[#121725] px-2 py-1.5 text-[11px] text-[#e8eaf6]"
-                >
-                  {TIME_WINDOWS.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-[10px] font-bold uppercase tracking-wide text-[#5c6480]">
                 Team context
                 <select
                   value={teamContext}
@@ -517,7 +513,7 @@ export function PowerRankingsModal({
                 <div className="text-right text-[11px] text-white/55">
                   {recordLabel(myRow)} · PF {myRow.pointsFor.toFixed(1)}
                   <br />
-                  <span className="text-violet-200/90">{myRow.tier}</span>
+                  <span className="text-violet-200/90">{myRow.tierLabel}</span>
                 </div>
               </div>
             </div>
@@ -629,7 +625,7 @@ function ViewBody({
                 <MomentumPill label={t.momentumLabel} />
               </div>
               <p className="truncate text-[10px] text-white/45">
-                {recordLabel(t)} · PF {t.pointsFor.toFixed(1)} · {t.tier}
+                {recordLabel(t)} · PF {t.pointsFor.toFixed(1)} · {t.tierLabel}
               </p>
             </div>
             <div className="shrink-0 text-right">
@@ -665,7 +661,7 @@ function ViewBody({
   if (tab === 'tiers') {
     const byTier = new Map<string, EnrichedTeamRow[]>()
     for (const t of teams) {
-      const k = t.tier
+      const k = t.tierLabel
       if (!byTier.has(k)) byTier.set(k, [])
       byTier.get(k)!.push(t)
     }
@@ -722,10 +718,13 @@ function ViewBody({
           <div key={t.rosterId} className="rounded-lg border border-white/[0.06] px-3 py-2">
             <p className="text-[12px] font-semibold text-white/85">{t.teamName}</p>
             <p className="text-[11px] text-white/50">
-              Heuristic playoff outlook score:{' '}
-              {t.playoffOddsPct != null ? `${t.playoffOddsPct.toFixed(0)}%` : 'n/a (use playoff_odds mode or more games played)'}
-              {t.championshipOddsPct != null ? ` · Championship hint ${t.championshipOddsPct.toFixed(0)}%` : ''}
+              Playoff field: {t.playoffFieldStatus === 'inside' ? 'Inside cut' : t.playoffFieldStatus === 'bubble' ? 'Bubble' : t.playoffFieldStatus === 'outside' ? 'Outside cut' : 'Unknown (configure playoff teams in league)'}
+              {' · '}
+              Contender signal: {t.contenderSignal}
             </p>
+            {t.contenderFactors?.rationale ? (
+              <p className="mt-0.5 text-[10px] text-white/55">{t.contenderFactors.rationale}</p>
+            ) : null}
             <p className="mt-1 text-[10px] text-amber-200/80">
               Not sportsbook odds — derived from power components in your league settings.
             </p>
@@ -968,7 +967,7 @@ function TeamDetailDrawer({
         <div className="mt-3 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wide text-violet-300/80">Signals</p>
           <div className="space-y-1 text-[11px] text-white/65">
-            <p>Power {team.powerScore.toFixed(1)} · Momentum {team.momentumLabel} · Tier {team.tier}</p>
+            <p>Power {team.powerScore.toFixed(1)} · Momentum {team.momentumLabel} · {team.tierLabel}</p>
             <p>{team.snippet}</p>
           </div>
         </div>

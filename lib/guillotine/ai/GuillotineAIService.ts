@@ -5,6 +5,7 @@
  */
 
 import OpenAI from 'openai'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 import type { GuillotineAIDeterministicContext } from './GuillotineAIContext'
 import { buildPromptForType } from './GuillotineAIPrompts'
 
@@ -25,14 +26,16 @@ export interface GuillotineAIResult {
  */
 export async function generateGuillotineAI(
   ctx: GuillotineAIDeterministicContext,
-  type: GuillotineAIType
+  type: GuillotineAIType,
+  userId?: string | null
 ): Promise<GuillotineAIResult> {
   const { system, user } = buildPromptForType(type, ctx)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_tokens: 500,
     temperature: 0.5,

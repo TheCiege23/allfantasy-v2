@@ -54,7 +54,7 @@ export async function POST(req: Request) {
 
     const userPayload = `League: ${league.name ?? leagueId}\nSport: ${league.sport}\nSleeper context:\n${sleeperExtra || '(not a Sleeper league or fetch failed)'}\nLocal settings:\n${JSON.stringify(league.settings ?? {}, null, 2).slice(0, 6000)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Draft help failed'

@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +79,21 @@ export async function POST(req: NextRequest) {
       bidAmount: body.bidAmount ?? null,
     },
   })
+
+  void resolveLeagueSport(leagueId).then((sport) =>
+    recordAfLearningEvent({
+      eventType: 'waiver_claim_submitted',
+      sport,
+      leagueId,
+      userId,
+      source: 'redraft_waiver_claim',
+      payload: {
+        claimId: claim.id,
+        bidAmount: body.bidAmount ?? null,
+        hasDrop: Boolean(body.dropPlayerId),
+      },
+    }),
+  )
 
   return NextResponse.json({ claim })
 }

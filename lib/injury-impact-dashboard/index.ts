@@ -3,6 +3,8 @@ export type {
   InjuryImpactDashboardInput,
   InjuryImpactDashboardOutput,
   InjuryImpactDashboardResult,
+  InjuryImpactValidation,
+  InjuryIntegrationHints,
   InjuryPlayerIntelRow,
   InjurySeverityBucket,
   InjuryStatusFilterId,

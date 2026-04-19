@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma"
+import { recordAfLearningEvent } from "@/lib/ai-learning-system/recordEvent"
+import { normalizeToSupportedSport } from "@/lib/sport-scope"
 import type { WaiverClaimInput } from "./types"
 import { isRosterChopped } from "@/lib/guillotine/guillotineGuard"
 import { isRosterCurrentlyEliminated } from "@/lib/survivor/SurvivorRosterState"
@@ -17,7 +19,7 @@ export async function createClaim(
 ) {
   const roster = await (prisma as any).roster.findFirst({
     where: { id: rosterId, leagueId },
-    select: { id: true },
+    select: { id: true, platformUserId: true },
   })
   if (!roster) {
     throw new Error("Roster not found or does not belong to this league")
@@ -65,6 +67,24 @@ export async function createClaim(
       status: "pending",
     },
   })
+
+  const uid = typeof roster.platformUserId === "string" ? roster.platformUserId.trim() : ""
+  if (uid) {
+    const sport = normalizeToSupportedSport(league?.sport ?? undefined)
+    void recordAfLearningEvent({
+      eventType: "waiver_claim_submitted",
+      sport,
+      leagueId,
+      userId: uid,
+      source: "waiver_claim_service",
+      payload: {
+        claimId: created.id,
+        faabBid: input.faabBid ?? null,
+        hasDrop: input.dropPlayerId != null && String(input.dropPlayerId).length > 0,
+      },
+    })
+  }
+
   return created
 }
 

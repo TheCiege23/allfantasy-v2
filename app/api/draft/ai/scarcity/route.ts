@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const sys =
     'You are Chimmy. Analyze positional scarcity. JSON: {"hotPositions":[],"recommendedAction":"","notes":""}'
   try {
-    const text = await draftAiText(sys, JSON.stringify(body ?? {}))
+    const text = await draftAiText(sys, JSON.stringify(body ?? {}), { userId: session.user.id })
     const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
     return NextResponse.json({ result: JSON.parse(cleaned) })
   } catch (e) {

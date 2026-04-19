@@ -55,7 +55,7 @@ ${historyBlock ? `\n\nLEAGUE HISTORY (factor into manager leverage and fairness)
 You receive: ${JSON.stringify(get)}`
 
   try {
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Trade analysis failed'

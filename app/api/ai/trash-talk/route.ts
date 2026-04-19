@@ -43,7 +43,7 @@ Provide 2-4 short lines. Intensity guides tone: mild = light teasing; medium = s
 
     const userPayload = `Target manager display name: ${name}\nRecent performance summary:\n${perf || '(not provided)'}\nIntensity: ${intensity}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId: session.user.id })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Trash talk failed'

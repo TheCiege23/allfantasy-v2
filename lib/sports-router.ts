@@ -618,7 +618,7 @@ async function fetchFromClearSports(
 }
 
 async function fetchFromTheSportsDB(sport: Sport, dataType: DataType, identifier?: string): Promise<unknown | null> {
-  const apiKey = process.env.THESPORTSDB_API_KEY || '3';
+  const apiKey = process.env.THESPORTSDB_API_KEY?.trim() || process.env.THEAUDIODB_API_KEY?.trim() || '3';
   const leagueId = THESPORTSDB_LEAGUE_IDS[sport];
   if (!leagueId) return null;
 

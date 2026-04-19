@@ -5,6 +5,7 @@
  */
 
 import OpenAI from 'openai'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 import type { SurvivorAIDeterministicContext } from './SurvivorAIContext'
 import type { SurvivorAIType } from './SurvivorAIContext'
 import { buildSurvivorAIPrompt } from './SurvivorAIPrompts'
@@ -24,14 +25,16 @@ export interface SurvivorAIResult {
  */
 export async function generateSurvivorAI(
   ctx: SurvivorAIDeterministicContext,
-  type: SurvivorAIType
+  type: SurvivorAIType,
+  userId?: string | null
 ): Promise<SurvivorAIResult> {
   const { system, user } = buildSurvivorAIPrompt(ctx, type)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_tokens: 600,
     temperature: 0.6,

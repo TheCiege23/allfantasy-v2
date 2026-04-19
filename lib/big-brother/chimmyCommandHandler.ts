@@ -113,7 +113,7 @@ function parseNameTokensAfterCommand(rest: string, cmd: string): string[] {
   return tail.split(/\s+/).filter(Boolean)
 }
 
-async function handleExplain(leagueId: string, termRaw: string): Promise<string> {
+async function handleExplain(leagueId: string, termRaw: string, userId: string): Promise<string> {
   const term = termRaw.trim().toLowerCase()
   const keys = Object.keys(BB_RULES_GLOSSARY)
   const direct = keys.find((k) => k === term || term.includes(k) || k.includes(term))
@@ -124,7 +124,7 @@ async function handleExplain(leagueId: string, termRaw: string): Promise<string>
   if (!ctx) return `📖 I couldn’t load league context. Try: ${keys.slice(0, 6).join(', ')}.`
   try {
     const aiCtx = { ...ctx, explainTerm: termRaw.trim() || 'Big Brother rules' }
-    const { narrative } = await generateBigBrotherAI(aiCtx, 'rule_explain')
+    const { narrative } = await generateBigBrotherAI(aiCtx, 'rule_explain', userId)
     return `📖 ${narrative}`
   } catch {
     return `📖 “${termRaw}”: In Big Brother fantasy leagues, rules follow your commissioner’s settings — check the ceremony center and deadlines for what applies this week.`
@@ -310,7 +310,7 @@ export async function processBigBrotherLeagueChatInput(
 
   if (lower.startsWith('explain')) {
     const term = rest.replace(/^explain\s+/i, '').trim() || 'rules'
-    const text = await handleExplain(leagueId, term)
+    const text = await handleExplain(leagueId, term, userId)
     await logBigBrotherChatCommand({
       leagueId,
       userId,

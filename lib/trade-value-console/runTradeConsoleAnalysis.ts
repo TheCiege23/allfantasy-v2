@@ -1073,6 +1073,8 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
         enrichTimeFromLeagueId: input.leagueId ?? null,
         includeTeamContext: true,
         preferredTeamExternalId: input.opponentTeamExternalId ?? null,
+        /** User’s strategic outlook — computed with `teamExternalId: null`, not the trade partner. */
+        includeStrategicCoaching: Boolean(input.leagueId),
       })
       chimmyPayload = attachIntelligenceToChimmyPayload(chimmyPayload, aiEnvelope)
       sourceFlags.aiEnvelopeReady = true

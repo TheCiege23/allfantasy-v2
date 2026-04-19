@@ -21,9 +21,13 @@ export type LoadedTradeLeague = {
 export async function loadLeagueForTrade(args: {
   leagueId: string
   userId: string
+  /** When true, skips `assertLeagueMember` (caller already verified membership, e.g. `assertLeagueMemberWithCode`). */
+  membershipPreverified?: boolean
 }): Promise<LoadedTradeLeague | null> {
-  const access = await assertLeagueMember(args.leagueId, args.userId)
-  if (!access.ok) return null
+  if (!args.membershipPreverified) {
+    const access = await assertLeagueMember(args.leagueId, args.userId)
+    if (!access.ok) return null
+  }
 
   const row = await prisma.league.findFirst({
     where: { id: args.leagueId },

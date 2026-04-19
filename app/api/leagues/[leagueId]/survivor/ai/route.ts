@@ -91,7 +91,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
   }
 
   try {
-    const { narrative, model } = await generateSurvivorAI(deterministic, type)
+    const { narrative, model } = await generateSurvivorAI(deterministic, type, userId)
     return NextResponse.json({
       deterministic: {
         leagueId: deterministic.leagueId,

@@ -4,6 +4,7 @@
  */
 
 import OpenAI from 'openai'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 import type { ZombieAIDeterministicContext } from './ZombieAIContext'
 import type { ZombieAIType } from './ZombieAIContext'
 import type { ZombieUniverseAIDeterministicContext } from './ZombieAIContext'
@@ -25,14 +26,16 @@ export interface ZombieAIResult {
  */
 export async function generateZombieAI(
   ctx: ZombieAIDeterministicContext,
-  type: ZombieAIType
+  type: ZombieAIType,
+  userId?: string | null
 ): Promise<ZombieAIResult> {
   const { system, user } = buildZombieAIPrompt(ctx, type)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_tokens: 500,
     temperature: 0.5,
@@ -49,14 +52,16 @@ export async function generateZombieAI(
  */
 export async function generateZombieUniverseAI(
   ctx: ZombieUniverseAIDeterministicContext,
-  type: ZombieUniverseAIType
+  type: ZombieUniverseAIType,
+  userId?: string | null
 ): Promise<ZombieAIResult> {
   const { system, user } = buildZombieUniverseAIPrompt(ctx, type)
+  const userContent = userId ? await withOfficialTimeUserMessage(userId, user) : user
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userContent },
     ],
     max_tokens: 500,
     temperature: 0.5,

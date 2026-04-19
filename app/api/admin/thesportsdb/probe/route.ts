@@ -29,7 +29,10 @@ export async function GET(req: Request) {
     url.searchParams?.get("season") || new Date().getUTCFullYear()
   )
 
-  const apiKey = process.env.THESPORTSDB_API_KEY || "3"
+  const apiKey =
+    process.env.THESPORTSDB_API_KEY?.trim() ||
+    process.env.THEAUDIODB_API_KEY?.trim() ||
+    "3"
   const leagueId = process.env.THESPORTSDB_NCAAM_LEAGUE_ID || "4607"
 
   const seasonStr = `${season - 1}-${season}`

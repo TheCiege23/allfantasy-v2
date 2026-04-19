@@ -21,6 +21,7 @@ type ShortcutSlug =
   | 'injury'
   | 'warRoom'
   | 'matchupPrep'
+  | 'longTermCoach'
 
 type ShortcutSpec = {
   id: DashboardAIToolId
@@ -37,6 +38,7 @@ const SHORTCUT_SPECS: ShortcutSpec[] = [
   { id: 'injury', slug: 'injury', icon: '🩺' },
   { id: 'warRoom', slug: 'warRoom', icon: '🎯' },
   { id: 'matchupPrep', slug: 'matchupPrep', icon: '⚡' },
+  { id: 'longTermCoach', slug: 'longTermCoach', icon: '🧭' },
 ]
 
 export function AIShortcutsGrid({ leagues }: AIShortcutsGridProps) {

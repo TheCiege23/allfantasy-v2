@@ -3,7 +3,8 @@ import { requireCronAuth } from '@/app/api/cron/_auth'
 import { prisma } from '@/lib/prisma'
 import { getAiQueue } from '@/lib/queues/bullmq'
 import { isBestBallLeague } from '@/lib/autocoach/AutoCoachEngine'
-import { isGameSlateStarted, toSlateDateUtc } from '@/lib/autocoach/StatusMonitor'
+import { toSlateDateUtc } from '@/lib/autocoach/StatusMonitor'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,12 +27,7 @@ export async function GET(req: NextRequest) {
     },
   })
   if (gamesToday === 0) {
-    return NextResponse.json({ enqueuedLeagues: 0, gameSlateStarted: false, note: 'no_games_today' })
-  }
-
-  const slateStarted = await isGameSlateStarted('NFL', today)
-  if (slateStarted) {
-    return NextResponse.json({ enqueuedLeagues: 0, gameSlateStarted: true, note: 'slate_started' })
+    return NextResponse.json({ enqueuedLeagues: 0, note: 'no_games_today' })
   }
 
   const grouped = await prisma.autoCoachSetting.groupBy({
@@ -41,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   const queue = getAiQueue()
   if (!queue) {
-    return NextResponse.json({ enqueuedLeagues: 0, gameSlateStarted: false, note: 'redis_not_configured' })
+    return NextResponse.json({ enqueuedLeagues: 0, note: 'redis_not_configured' })
   }
 
   let delay = 0
@@ -52,6 +48,7 @@ export async function GET(req: NextRequest) {
       where: { id: row.leagueId },
       select: {
         id: true,
+        sport: true,
         leagueVariant: true,
         bestBallMode: true,
         autoCoachEnabled: true,
@@ -60,12 +57,21 @@ export async function GET(req: NextRequest) {
     if (!league || league.autoCoachEnabled === false) continue
     if (isBestBallLeague(league.leagueVariant, league.bestBallMode)) continue
 
+    const sk = normalizeToSupportedSport(String(league.sport))
+    const sportGamesToday = await prisma.sportsGame.count({
+      where: {
+        sport: sk,
+        startTime: { gte: start, lt: end },
+      },
+    })
+    if (sportGamesToday === 0) continue
+
     await queue.add(
       `autocoach-pregame-${league.id}`,
       {
         type: 'autocoach_pregame_scan',
         leagueId: league.id,
-        payload: { gameSlateDate: today, sport: 'NFL' },
+        payload: { gameSlateDate: today, sport: sk },
       },
       { delay, removeOnComplete: true }
     )
@@ -73,5 +79,5 @@ export async function GET(req: NextRequest) {
     enqueuedLeagues += 1
   }
 
-  return NextResponse.json({ enqueuedLeagues, gameSlateStarted: false })
+  return NextResponse.json({ enqueuedLeagues, gameSlateDate: today })
 }

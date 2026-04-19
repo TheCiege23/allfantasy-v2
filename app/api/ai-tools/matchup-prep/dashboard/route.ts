@@ -6,6 +6,7 @@ import { runMatchupPrepDashboard } from '@/lib/matchup-prep-dashboard'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 
@@ -86,7 +87,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/matchup-prep/dashboa
       })
 
       if (!out.ok) {
-        const status = out.code === 'FORBIDDEN' ? 403 : 400
+        const status = httpStatusForLeagueToolCode(out.code)
         return NextResponse.json(out, { status })
       }
 

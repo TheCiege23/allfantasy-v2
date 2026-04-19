@@ -1,36 +1,29 @@
 'use client'
 
 /**
- * Create League v2 — client orchestrator.
- *
- * Handles the 4-page flow state machine, persists draft state to
- * sessionStorage, delegates rendering to per-page components, and submits
- * to the existing `POST /api/league/create` endpoint on the final step.
+ * Create League v2 — unified concept-first flow (single scroll + live summary).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getAccent, PAGE_BG_CLASS, ambientGlowStyle } from '@/lib/create-league-v2/theme'
-import type { V2PageId } from '@/lib/create-league-v2/state'
 import {
   DEFAULT_V2_STATE,
-  V2_PAGES,
-  canAdvance,
   clearPersistedV2State,
   loadPersistedV2State,
   persistV2State,
+  isFormComplete,
+  getEffectiveLeagueType,
   type CreateLeagueV2State,
 } from '@/lib/create-league-v2/state'
 import { submitCreateLeagueV2 } from '@/lib/create-league-v2/submit'
-import { Page1Setup } from '@/components/create-league-v2/Page1Setup'
-import { Page2Identity } from '@/components/create-league-v2/Page2Identity'
-import { Page3Scoring } from '@/components/create-league-v2/Page3Scoring'
-import { Page4Review } from '@/components/create-league-v2/Page4Review'
-import {
-  PrimaryCTA,
-  SecondaryButton,
-  StepProgress,
-} from '@/components/create-league-v2/primitives'
+import { CreateLeagueUnifiedForm } from '@/components/create-league-v2/CreateLeagueUnifiedForm'
+import { CreateLeagueSummaryPanel } from '@/components/create-league-v2/CreateLeagueSummaryPanel'
+import { CreateLeagueHeroMedia } from '@/components/create-league-v2/CreateLeagueHeroMedia'
+import { PrimaryCTA, SecondaryButton } from '@/components/create-league-v2/primitives'
+import { resolveCreateLeagueHeroMedia } from '@/lib/create-league-v2/media-priority'
+import { getSportHue } from '@/lib/create-league-v2/sport-hues'
+import { SPORT_MEDIA } from '@/lib/create-league-v2/theme'
 
 export interface CreateLeagueV2ClientProps {
   userId: string
@@ -38,58 +31,45 @@ export interface CreateLeagueV2ClientProps {
 
 export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientProps) {
   const router = useRouter()
-  const [currentPage, setCurrentPage] = useState<V2PageId>('setup')
   const [state, setState] = useState<CreateLeagueV2State>(DEFAULT_V2_STATE)
   const [hydrated, setHydrated] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [draftSectionVisible, setDraftSectionVisible] = useState(false)
 
-  // Hydrate from sessionStorage once after mount.
   useEffect(() => {
     const persisted = loadPersistedV2State()
-    if (persisted) setState((s) => ({ ...s, ...persisted }))
+    if (persisted) setState((s) => ({ ...s, ...persisted, leagueType: persisted.leagueType ?? null }))
     setHydrated(true)
   }, [])
 
-  // Persist on every change.
   useEffect(() => {
     if (!hydrated) return
     persistV2State(state)
   }, [state, hydrated])
 
-  const accent = useMemo(() => getAccent(state.leagueType), [state.leagueType])
+  const effectiveType = getEffectiveLeagueType(state)
+  const accent = useMemo(() => getAccent(effectiveType ?? undefined), [effectiveType])
 
   const onChange = useCallback((patch: Partial<CreateLeagueV2State>) => {
     setState((prev) => ({ ...prev, ...patch }))
   }, [])
 
-  const goNext = useCallback(() => {
-    const idx = V2_PAGES.indexOf(currentPage)
-    const next = V2_PAGES[idx + 1]
-    if (next) {
-      setCurrentPage(next)
-      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  const heroMedia = useMemo(() => {
+    if (!effectiveType) {
+      const sm = SPORT_MEDIA[state.sport] ?? SPORT_MEDIA.NFL
+      return { ...sm, mediaKey: `sport:${state.sport}`, badge: 'Choose a concept' }
     }
-  }, [currentPage])
+    return resolveCreateLeagueHeroMedia({
+      leagueType: effectiveType,
+      sport: state.sport,
+      draftType: state.draftType,
+      idpSelected: state.idpSelected,
+      draftEmphasis: draftSectionVisible,
+    })
+  }, [effectiveType, state.sport, state.draftType, state.idpSelected, draftSectionVisible])
 
-  const goBack = useCallback(() => {
-    const idx = V2_PAGES.indexOf(currentPage)
-    if (idx > 0) {
-      const prev = V2_PAGES[idx - 1]
-      if (prev) {
-        setCurrentPage(prev)
-        if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-      return
-    }
-    // On setup, back button returns to dashboard.
-    router.push('/dashboard')
-  }, [currentPage, router])
-
-  const jumpTo = useCallback((page: V2PageId) => {
-    setCurrentPage(page)
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const sportHue = getSportHue(state.sport)
 
   const handleSubmit = useCallback(async () => {
     setSubmitting(true)
@@ -109,85 +89,64 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
     }
   }, [state, router])
 
-  const canProceed = canAdvance(currentPage, state)
-  const isFinal = currentPage === 'review'
-  const currentIndex = V2_PAGES.indexOf(currentPage)
+  const canCreate = isFormComplete(state)
 
   return (
-    <div className={PAGE_BG_CLASS}>
-      {/* Ambient accent glow — shifts color with league type */}
+    <div className={`${PAGE_BG_CLASS} relative`}>
+      <div
+        className={`pointer-events-none fixed inset-0 z-0 bg-gradient-to-b ${sportHue.pageGradient}`}
+        aria-hidden
+      />
       <div
         className="pointer-events-none fixed inset-0 z-0 transition-all duration-1000"
         style={ambientGlowStyle(accent.hex)}
         aria-hidden
       />
 
-      <StepProgress current={currentPage} accent={accent} onJump={jumpTo} />
-
-      <main className="relative z-10 mx-auto max-w-3xl px-4 pb-32 pt-8">
-        {/* Header */}
-        <div className="mb-8">
+      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-36 pt-6 lg:pt-10">
+        <div className="mb-8 max-w-3xl">
           <p className={`mb-1.5 text-[11px] font-bold uppercase tracking-[0.22em] ${accent.text} transition-colors duration-500`}>
-            Step {currentIndex + 1} of {V2_PAGES.length}
+            Create league
           </p>
-          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
-            {currentPage === 'setup' && 'Design your league'}
-            {currentPage === 'identity' && 'Give it an identity'}
-            {currentPage === 'scoring' && 'Tune the scoring'}
-            {currentPage === 'review' && 'Review and launch'}
-          </h1>
+          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Design your league</h1>
           <p className="mt-2 text-sm leading-relaxed text-white/50">
-            {currentPage === 'setup' && 'Pick a format, sport, and how you\u2019ll draft.'}
-            {currentPage === 'identity' && 'Name the league and set the ground rules.'}
-            {currentPage === 'scoring' && 'Dial in how points are earned.'}
-            {currentPage === 'review' && 'Last look before your league goes live.'}
+            Concept first, then sport and scoring, teams and name, and draft type. Advanced rules live in League Settings.
           </p>
         </div>
 
-        {/* Page body */}
-        {currentPage === 'setup' ? (
-          <Page1Setup state={state} accent={accent} onChange={onChange} />
-        ) : null}
-        {currentPage === 'identity' ? (
-          <Page2Identity state={state} accent={accent} onChange={onChange} />
-        ) : null}
-        {currentPage === 'scoring' ? (
-          <Page3Scoring state={state} accent={accent} onChange={onChange} />
-        ) : null}
-        {currentPage === 'review' ? (
-          <Page4Review state={state} accent={accent} onJump={jumpTo} />
-        ) : null}
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="space-y-6">
+            <CreateLeagueHeroMedia media={heroMedia} accent={accent} />
 
-        {submitError ? (
-          <div
-            role="alert"
-            className="mt-4 rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200"
-          >
-            {submitError}
+            <CreateLeagueUnifiedForm
+              state={state}
+              accent={accent}
+              onChange={onChange}
+              onDraftSectionVisible={setDraftSectionVisible}
+            />
+
+            {submitError ? (
+              <div
+                role="alert"
+                className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200"
+              >
+                {submitError}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+
+          <CreateLeagueSummaryPanel state={state} accent={accent} />
+        </div>
       </main>
 
-      {/* Sticky bottom bar */}
       <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/[0.06] bg-[#060a18]/90 px-4 py-4 backdrop-blur-2xl shadow-[0_-8px_30px_-10px_rgba(0,0,0,0.6)]">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-          <SecondaryButton onClick={goBack} disabled={submitting}>
-            {currentIndex === 0 ? 'Cancel' : 'Back'}
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <SecondaryButton onClick={() => router.push('/dashboard')} disabled={submitting}>
+            Cancel
           </SecondaryButton>
-          {isFinal ? (
-            <PrimaryCTA
-              accent={accent}
-              onClick={handleSubmit}
-              loading={submitting}
-              disabled={!canProceed}
-            >
-              Create League
-            </PrimaryCTA>
-          ) : (
-            <PrimaryCTA accent={accent} onClick={goNext} disabled={!canProceed}>
-              Continue →
-            </PrimaryCTA>
-          )}
+          <PrimaryCTA accent={accent} onClick={handleSubmit} loading={submitting} disabled={!canCreate}>
+            Create League
+          </PrimaryCTA>
         </div>
       </div>
     </div>

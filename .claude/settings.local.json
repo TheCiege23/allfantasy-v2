@@ -154,7 +154,10 @@
       "Bash(NODE_OPTIONS=--max-old-space-size=8192 npm run build)",
       "mcp__d15da996-2cd1-4bbf-86e8-0b67648f479a__list_teams",
       "mcp__Claude_in_Chrome__find",
-      "mcp__Claude_in_Chrome__get_page_text"
+      "mcp__Claude_in_Chrome__get_page_text",
+      "Bash(git commit -m ' *)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx tsc --noEmit --project tsconfig.json)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ]
   }
 }

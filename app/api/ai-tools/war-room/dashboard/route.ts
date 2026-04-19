@@ -6,6 +6,7 @@ import { runWarRoomCommandCenter } from '@/lib/war-room-command-center'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 
@@ -60,6 +61,8 @@ const bodySchema = z.object({
     includeRookieProspectIntel: z.boolean(),
     includePlayoffImpact: z.boolean(),
     includeDynastyWeighting: z.boolean(),
+    includeMatchupPrep: z.boolean().optional().default(true),
+    includeTodayActions: z.boolean().optional().default(true),
   }),
 })
 
@@ -98,7 +101,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/war-room/dashboard',
       })
 
       if (!out.ok) {
-        const status = out.code === 'FORBIDDEN' ? 403 : 400
+        const status = httpStatusForLeagueToolCode(out.code)
         return NextResponse.json(out, { status })
       }
 

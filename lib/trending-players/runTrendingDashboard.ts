@@ -1,5 +1,8 @@
 import 'server-only'
 
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-messages'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { prisma } from '@/lib/prisma'
 import {
   fetchFantasyCalcValues,
@@ -9,6 +12,10 @@ import {
 } from '@/lib/fantasycalc'
 import { getPlayer } from '@/lib/data/players'
 import { openaiChatText } from '@/lib/openai-client'
+import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
+import { enrichChimmyWithPlayerSportsNorm } from '@/lib/sports-data-normalization'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
 import { loadLeagueForTrade, type LoadedTradeLeague } from '@/lib/trade-value-console/league-loader'
 import { fantasyCalcSettingsFromLeague } from './fantasy-calc-settings'
@@ -23,6 +30,7 @@ import type {
   TrendSportFilter,
   TrendTypeId,
 } from './types'
+import { attachTrendCardProjectionAndLeagueContext } from '@/lib/trending-players/trendCardEnrichment'
 
 const DEFAULT_LIMIT = 8
 
@@ -306,7 +314,10 @@ async function metaCardsForSport(args: {
 
   const out: TrendPlayerCard[] = []
   if (args.rookiesOnly) {
-    args.dataGaps.push('Rookie tagging relies on roster/import metadata when available.')
+    args.dataGaps.push(
+      `Rookie-only filter is unreliable for ${args.sport} meta trends — age/experience metadata isn't captured on sports_players rows, so rookie status can't be confirmed here.`,
+    )
+    return out
   }
   for (const row of rows) {
     if (out.length >= args.limit) break
@@ -404,9 +415,21 @@ export async function runTrendingDashboard(input: {
   let loadedLeague: LoadedTradeLeague | null = null
 
   if (input.leagueId && input.userId) {
-    loadedLeague = await loadLeagueForTrade({ leagueId: input.leagueId, userId: input.userId })
+    const access = await assertLeagueMemberWithCode(input.leagueId, input.userId)
+    if (!access.ok) {
+      const code = access.code
+      const msg = leagueToolAccessUserMessage(code)
+      return { ok: false, error: msg, code, userMessage: msg }
+    }
+    loadedLeague = await loadLeagueForTrade({
+      leagueId: input.leagueId,
+      userId: input.userId,
+      membershipPreverified: true,
+    })
     if (!loadedLeague) {
-      return { ok: false, error: 'League not found or access denied', code: 'FORBIDDEN' }
+      const code: LeagueToolAccessErrorCode = 'LEAGUE_NOT_FOUND'
+      const msg = leagueToolAccessUserMessage(code)
+      return { ok: false, error: msg, code, userMessage: msg }
     }
     leagueName = loadedLeague.name ?? 'League'
     analysisScope = 'league'
@@ -430,11 +453,16 @@ export async function runTrendingDashboard(input: {
   const sportsToRun: SupportedSport[] =
     input.sportFilter === 'ALL' ? [...SUPPORTED_SPORTS] : [normalizeToSupportedSport(input.sportFilter)]
 
-  if (input.trendType === 'search') {
-    dataGaps.push('Search / view interest signals are not wired to an analytics source in this deployment.')
-  }
-
   const fcSettings = fantasyCalcSettingsFromLeague(loadedLeague)
+
+  let trendingLeagueContext: NormalizedLeagueContext | null = null
+  if (input.userId && input.leagueId) {
+    const tr = await resolveNormalizedLeagueContext({
+      userId: input.userId,
+      leagueId: input.leagueId,
+    })
+    if (tr.ok) trendingLeagueContext = tr.context
+  }
 
   /** NFL branch: FantasyCalc + trending_players */
   const runNfl = async () => {
@@ -524,10 +552,42 @@ export async function runTrendingDashboard(input: {
     dataGaps.push('No trend rows returned — connect league imports or ensure player_meta_trends / FantasyCalc data is available.')
   }
 
+  let projectionLayerReady = false
+  if (risers.length > 0 || fallers.length > 0) {
+    const enriched = await attachTrendCardProjectionAndLeagueContext({
+      risers,
+      fallers,
+      leagueId: input.leagueId,
+      userId: input.userId,
+      leagueScoring: trendingLeagueContext?.scoring ?? null,
+      trendType: input.trendType,
+      contextMode: input.contextMode,
+    })
+    risers = enriched.risers
+    fallers = enriched.fallers
+    projectionLayerReady = enriched.projectionLayerReady
+    dataGaps.push(...enriched.dataGaps)
+  }
+
+  const allCards = [...risers, ...fallers]
+  const hasSource = (needle: string) =>
+    allCards.some((c) => c.sources.some((s) => s.toLowerCase().includes(needle)))
+  const fantasyCalcReady = hasSource('fantasycalc')
+  const sleeperTrendingReady = hasSource('trending_players') || hasSource('sleeper')
+  const metaTrendsReady = hasSource('player_meta_trend') || hasSource('meta trend')
+  const injuryNewsLayerReady = allCards.some(
+    (c) =>
+      Boolean(c.injuryStatus?.trim()) ||
+      (c.structuredWhy ?? []).some((w) => /injur|news|designation/i.test(w)),
+  )
+  const leagueScoringApplied = trendingLeagueContext != null
+
   const degraded = dataGaps.length > 0
   let aiNarrative: string | null = null
-  const chimmyPayload: Record<string, unknown> = {
+
+  const chimmyBase: Record<string, unknown> = {
     tool: 'trending_players',
+    leagueContextEngine: trendingLeagueContext,
     analysisScope,
     leagueId: input.leagueId,
     leagueName,
@@ -549,6 +609,11 @@ export async function runTrendingDashboard(input: {
       snippet: r.snippet,
       chips: r.chips,
       sources: r.sources,
+      structuredWhy: r.structuredWhy,
+      projectedFantasyPoints: r.projectedFantasyPoints,
+      actionRecommendation: r.actionRecommendation,
+      leagueRelevance: r.leagueRelevance,
+      integrationHints: r.integrationHints,
     })),
     fallers: fallers.map((r) => ({
       playerId: r.playerId,
@@ -558,8 +623,55 @@ export async function runTrendingDashboard(input: {
       snippet: r.snippet,
       chips: r.chips,
       sources: r.sources,
+      structuredWhy: r.structuredWhy,
+      projectedFantasyPoints: r.projectedFantasyPoints,
+      actionRecommendation: r.actionRecommendation,
+      leagueRelevance: r.leagueRelevance,
+      integrationHints: r.integrationHints,
     })),
     fetchedAt: new Date().toISOString(),
+  }
+
+  let chimmyPayload: Record<string, unknown> = chimmyBase
+  let aiEnvelopeReady = false
+  if (input.userId) {
+    const trendEnvelope = await buildAiToolPayload({
+      userId: input.userId,
+      tool: 'trending_players',
+      mode: analysisScope === 'league' ? 'league' : 'global',
+      league:
+        input.leagueId && loadedLeague
+          ? {
+              leagueId: input.leagueId,
+              leagueName,
+              sport: String(loadedLeague.sport),
+            }
+          : null,
+      data: {},
+    })
+    chimmyPayload = attachIntelligenceToChimmyPayload(chimmyBase, trendEnvelope)
+    aiEnvelopeReady = true
+
+    try {
+      const bySport = new Map<SupportedSport, string[]>()
+      for (const r of [...risers, ...fallers].slice(0, 48)) {
+        const sp = normalizeToSupportedSport(String(r.sport ?? loadedLeague?.sport ?? 'NFL'))
+        const arr = bySport.get(sp) ?? []
+        if (!arr.includes(r.name)) arr.push(r.name)
+        bySport.set(sp, arr)
+      }
+      const groups = [...bySport.entries()].map(([sport, names]) => ({ sport, names: names.slice(0, 24) }))
+      if (groups.length > 0) {
+        chimmyPayload = await enrichChimmyWithPlayerSportsNorm({
+          chimmyPayload,
+          prisma,
+          groups,
+          leagueScoring: trendingLeagueContext?.scoring ?? null,
+        })
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   if (!input.skipAi) {
@@ -587,6 +699,15 @@ export async function runTrendingDashboard(input: {
     dataGaps,
     degraded,
     fetchedAt: new Date().toISOString(),
+    sourceFlags: {
+      fantasyCalcReady,
+      sleeperTrendingReady,
+      metaTrendsReady,
+      projectionLayerReady,
+      injuryNewsLayerReady,
+      leagueScoringApplied,
+      aiEnvelopeReady,
+    },
   }
 
   return result

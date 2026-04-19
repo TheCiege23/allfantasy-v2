@@ -112,7 +112,7 @@ winProbability is 0-100 for the requesting manager. keyMatchups are short bullet
 
     const userPayload = `League: ${String(bundle.league.name ?? '')} (${bundle.sport})\n${JSON.stringify(snapshot, null, 2)}`
 
-    const raw = await callClaudeJson({ system, user: userPayload })
+    const raw = await callClaudeJson({ system, user: userPayload, userId: sessionUserId })
     return NextResponse.json(raw)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Matchup preview failed'

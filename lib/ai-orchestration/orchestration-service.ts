@@ -8,6 +8,7 @@ import type { UnifiedAIRequest, UnifiedAIResponse, UnifiedAIError, ProviderChatR
 import { validateAIRequest } from './request-validator'
 import { getProvider, getAvailableFromRequested, getAvailableProviders } from './provider-registry'
 import { enrichEnvelopeWithSportsData } from './sports-context-enricher'
+import { buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
 import { isModeAllowed, resolveEffectiveMode } from './tool-registry'
 import { runOrchestration } from '@/lib/unified-ai/AIOrchestrator'
 import {
@@ -217,6 +218,12 @@ function buildMessages(
       .map((item) => `- ${item.what} (${item.impact} impact)`)
       .join('\n')
     userParts.push('Missing deterministic data (do not infer):\n' + missingLines)
+  }
+  if (envelope.afTimeContext && typeof envelope.afTimeContext === 'object') {
+    userParts.push(
+      'AllFantasy time context (authoritative for "now", calendar date, and user-local wording — server UTC + account timezone; device fields are diagnostic only):\n' +
+        JSON.stringify(envelope.afTimeContext).slice(0, 3500)
+    )
   }
   if (envelope.userMessage) userParts.push('User: ' + envelope.userMessage)
   if (envelope.promptIntent) userParts.push('Intent: ' + envelope.promptIntent)
@@ -549,6 +556,15 @@ export async function runUnifiedOrchestration(req: UnifiedAIRequest): Promise<Ru
     envelope = await enrichEnvelopeWithSportsData(envelope)
   } catch (_e) {
     // Non-blocking: proceed with unenriched envelope
+  }
+
+  if (envelope.userId && envelope.afTimeContext == null) {
+    try {
+      const tc = await buildAiTimeContextPayload(envelope.userId)
+      envelope = { ...envelope, afTimeContext: tc as unknown as Record<string, unknown> }
+    } catch (_e) {
+      // Non-blocking: orchestration proceeds without time bundle
+    }
   }
 
   const registration = getToolRegistration(envelope.featureType)

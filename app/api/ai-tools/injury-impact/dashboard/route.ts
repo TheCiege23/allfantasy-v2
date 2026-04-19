@@ -6,6 +6,7 @@ import { runInjuryImpactDashboard } from '@/lib/injury-impact-dashboard'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { withApiUsage } from '@/lib/telemetry/usage'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 
@@ -45,7 +46,7 @@ const TIME_HORIZONS = [
 
 const bodySchema = z.object({
   sportFilter: z.enum(SPORT_FILTER as unknown as [string, ...string[]]),
-  leagueId: z.string().max(64).nullable(),
+  leagueId: z.preprocess((v) => (v === '' || v === undefined ? null : v), z.string().max(64).nullable()),
   teamContext: z.enum(TEAM_CONTEXTS),
   specificTeamExternalId: z.string().max(128).nullable().optional(),
   opponentTeamExternalId: z.string().max(128).nullable().optional(),
@@ -97,7 +98,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/injury-impact/dashbo
       })
 
       if (!out.ok) {
-        const status = out.code === 'FORBIDDEN' ? 403 : 400
+        const status = httpStatusForLeagueToolCode(out.code)
         return NextResponse.json(out, { status })
       }
 

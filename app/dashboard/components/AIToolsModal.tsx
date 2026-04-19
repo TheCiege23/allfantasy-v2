@@ -15,6 +15,7 @@ import type { UserLeague } from '@/app/dashboard/types'
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
 import { SUPPORTED_SPORTS, isSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import type { MatchupPrepDashboardResult } from '@/lib/matchup-prep-dashboard/types'
+import type { LongTermCoachingAnalysis } from '@/lib/long-term-coaching/types'
 type LineupIssue = { type: string; message: string; severity: string }
 type LineupCheckLeague = {
   leagueId: string
@@ -33,6 +34,7 @@ export type DashboardAIToolId =
   | 'injury'
   | 'warRoom'
   | 'matchupPrep'
+  | 'longTermCoach'
 
 type SportFilter = 'ALL' | SupportedSport
 
@@ -128,7 +130,8 @@ export function AIToolsModal({ toolId, open, onClose, leagues, toolTitle }: AITo
               toolId === 'trade' ||
               toolId === 'waiver' ||
               toolId === 'power' ||
-              toolId === 'matchupPrep') && (
+              toolId === 'matchupPrep' ||
+              toolId === 'longTermCoach') && (
               <label className="block text-[11px] font-semibold uppercase tracking-wide text-white/45">
                 League
                 <select
@@ -205,6 +208,26 @@ export function AIToolsModal({ toolId, open, onClose, leagues, toolTitle }: AITo
                 </Link>
               </>
             ) : null}
+            {toolId === 'longTermCoach' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('af-open-ai-tool', {
+                      detail: {
+                        tool: 'longTermCoach',
+                        ...(selectedLeague?.id ? { focusLeagueId: selectedLeague.id } : {}),
+                      },
+                    }),
+                  )
+                  onClose()
+                }}
+                className="inline-flex items-center justify-center rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-[13px] font-semibold text-violet-100 hover:bg-violet-500/20"
+                data-testid="ai-tools-modal-open-long-term-coach-full"
+              >
+                Open full Long-Term Coach
+              </button>
+            ) : null}
             <Link
               href={getChimmyChatHrefWithPrompt(buildAskPrompt(toolId, selectedLeague?.name ?? 'my league', sport), chimmyContext)}
               className="inline-flex items-center justify-center rounded-lg bg-cyan-500/90 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400"
@@ -242,6 +265,8 @@ function buildAskPrompt(
       return `Draft prep and multi-year roster planning (AF War Room): what should I prioritize ${sportBit} in ${leagueLabel}?`
     case 'matchupPrep':
       return `Matchup prep for ${leagueLabel} ${sportBit}: use only my synced league rosters, projections, and opponent data — projected edge, win chance, start/sit pivots, and risks before lineup lock.`
+    case 'longTermCoach':
+      return `Long-term dynasty / devy / C2C coaching for ${leagueLabel} ${sportBit}: classify my team, title window, pick capital, and a grounded multi-year plan using my real roster and league scoring — no invented timelines.`
     default:
       return `Fantasy strategy help ${sportBit} for ${leagueLabel}.`
   }
@@ -288,6 +313,10 @@ function ToolBody({
           sport={sport}
           refreshTick={refreshTick}
         />
+      )
+    case 'longTermCoach':
+      return (
+        <LongTermCoachingBody leagueId={leagueId} leagueName={leagueName} hasLeague={hasLeague} refreshTick={refreshTick} />
       )
     default:
       return null
@@ -907,6 +936,107 @@ function MatchupPrepBody({
         </p>
       ) : null}
       <p className="text-[10px] text-white/35">Updated {new Date(d.computedAt).toLocaleString()}</p>
+    </div>
+  )
+}
+
+function LongTermCoachingBody({
+  leagueId,
+  leagueName,
+  hasLeague,
+  refreshTick,
+}: {
+  leagueId: string
+  leagueName: string
+  hasLeague: boolean
+  refreshTick: number
+}) {
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [analysis, setAnalysis] = useState<LongTermCoachingAnalysis | null>(null)
+
+  useEffect(() => {
+    if (!hasLeague || !leagueId) {
+      setAnalysis(null)
+      return
+    }
+    setLoading(true)
+    setErr(null)
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/ai-tools/long-term-coaching', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leagueId,
+            horizonYears: 3,
+            strategyMode: 'auto',
+            teamExternalId: null,
+            skipAi: true,
+          }),
+        })
+        const json = (await res.json()) as { ok?: boolean; analysis?: LongTermCoachingAnalysis; error?: string }
+        if (cancelled) return
+        if (!res.ok || !json.ok || !json.analysis) {
+          setErr(json.error ?? 'Long-term coaching unavailable for this league.')
+          setAnalysis(null)
+          return
+        }
+        setAnalysis(json.analysis)
+      } catch {
+        if (!cancelled) {
+          setErr('Could not load long-term coaching.')
+          setAnalysis(null)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [hasLeague, leagueId, refreshTick])
+
+  if (!hasLeague) {
+    return <p className="text-[13px] text-white/55">Select a league for long-term coaching.</p>
+  }
+  if (loading && !analysis) {
+    return <p className="text-[13px] text-cyan-200/60">Building outlook…</p>
+  }
+  if (err) {
+    return <p className="text-[13px] text-amber-200/85">{err}</p>
+  }
+  const a = analysis
+  if (!a) {
+    return <p className="text-[13px] text-white/55">No data yet.</p>
+  }
+  const fmt = a.signals.strategyClass.replace(/_/g, ' ')
+  const dir = a.plan.recommendedDirection.replace(/_/g, ' ')
+  const tw = a.signals.titleWindowYears
+  return (
+    <div className="space-y-2 rounded-xl border border-white/8 bg-black/30 p-3 text-[12px] text-white/80">
+      <p className="font-semibold text-white">{leagueName}</p>
+      {a.formatWarning ? (
+        <p className="text-[11px] text-amber-200/90">{a.formatWarning}</p>
+      ) : null}
+      <p>
+        <span className="text-white/45">Classification:</span>{' '}
+        <span className="text-violet-200/95">{fmt}</span>
+      </p>
+      <p>
+        <span className="text-white/45">Direction:</span> <span className="text-white/90">{dir}</span>
+      </p>
+      <p>
+        <span className="text-white/45">Title window (est. years):</span>{' '}
+        <span className="tabular-nums text-white/90">{tw != null ? tw : '—'}</span>
+      </p>
+      <p className="text-white/55">
+        Short-term strength {a.signals.shortTermStrengthIndex}/100 · Long-term asset index {a.signals.longTermAssetIndex}/100 ·
+        Pick capital {a.signals.pickCapitalScore.toFixed(0)}
+      </p>
+      <p className="text-[11px] leading-snug text-white/60">{a.plan.currentWindowAssessment}</p>
+      <p className="text-[10px] text-white/35">Updated {new Date(a.computedAt).toLocaleString()}</p>
     </div>
   )
 }

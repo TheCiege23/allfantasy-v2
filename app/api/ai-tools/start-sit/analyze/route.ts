@@ -6,12 +6,16 @@ import { withApiUsage } from '@/lib/telemetry/usage'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { runStartSitAnalysis } from '@/lib/ai-tools-start-sit/runStartSitAnalysis'
 import { SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
+import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
 
 const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 
 const bodySchema = z.object({
   sportFilter: z.enum(SPORT_FILTER as unknown as [string, ...string[]]),
-  leagueId: z.string().min(1).max(64).nullable(),
+  leagueId: z.preprocess(
+    (v) => (v === '' || v === undefined ? null : v),
+    z.union([z.string().min(1).max(64), z.null()]),
+  ),
   week: z.string().min(1).max(16).default('current'),
   mode: z.enum(['balanced', 'safe', 'upside']),
   teamExternalId: z.string().max(128).nullable().optional(),
@@ -48,8 +52,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/start-sit/analyze', 
       })
 
       if (!out.ok) {
-        const status =
-          out.code === 'FORBIDDEN' ? 403 : out.code === 'NO_LEAGUE' || out.code === 'NO_ROSTER' ? 400 : 400
+        const status = httpStatusForLeagueToolCode(out.code as Parameters<typeof httpStatusForLeagueToolCode>[0])
         return NextResponse.json(out, { status })
       }
 

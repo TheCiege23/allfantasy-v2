@@ -1,27 +1,37 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { assertLeagueMember } from '@/lib/league/league-access'
+import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-messages'
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { openaiChatText } from '@/lib/openai-client'
 import { runStartSitAnalysis } from '@/lib/ai-tools-start-sit/runStartSitAnalysis'
 import type { StartSitAnalyzeResult, StartSitPlayerRow } from '@/lib/ai-tools-start-sit/runStartSitAnalysis'
+import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
+import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { resolveMatchupOpponentExternal } from '@/lib/matchup-prep-dashboard/resolveMatchupOpponent'
+import {
+  aggregateStarterBands,
+  buildPositionEdges,
+  buildSlotEdgesFromStartSit,
+  clamp,
+  roundToTenth,
+  sumLineupByPosition,
+  winProbFromMeanEdgeLogistic,
+  winProbabilityFromProjectionSpread,
+} from '@/lib/matchup-prep-dashboard/matchupProjectionMath'
 import type {
+  MatchupFloorVsUpside,
+  MatchupGamePlanAction,
+  MatchupInjuryPivot,
   MatchupPrepDashboardInput,
   MatchupPrepDashboardOutput,
-  MatchupGamePlanAction,
   MatchupPositionEdge,
+  MatchupPrepDashboardResult,
+  MatchupStreamingHint,
+  MatchupStrategyModeId,
 } from './types'
-
-const SLEEPER = 'https://api.sleeper.app/v1'
-
-function clamp(n: number, lo: number, hi: number) {
-  return Math.min(hi, Math.max(lo, n))
-}
-
-function roundToTenth(n: number): number {
-  return Math.round(n * 10) / 10
-}
 
 function isStartSitOk(v: unknown): v is StartSitAnalyzeResult {
   return typeof v === 'object' && v !== null && 'recommendations' in v
@@ -32,35 +42,6 @@ function getStarterIds(playerData: unknown): string[] {
   const s = (playerData as Record<string, unknown>).starters
   if (!Array.isArray(s)) return []
   return s.map((x) => String(x)).filter(Boolean)
-}
-
-function normPos(p: string): string {
-  const u = p.toUpperCase()
-  if (u.includes('QB')) return 'QB'
-  if (u.includes('RB')) return 'RB'
-  if (u.includes('WR')) return 'WR'
-  if (u.includes('TE')) return 'TE'
-  if (u.includes('K')) return 'K'
-  if (u.includes('DEF') || u.includes('DST')) return 'DST'
-  if (u.includes('FLEX')) return 'FLEX'
-  return u.slice(0, 4)
-}
-
-function sumLineup(
-  players: StartSitPlayerRow[],
-  starterIds: Set<string>,
-): { total: number; byPos: Record<string, number> } {
-  const byPos: Record<string, number> = {}
-  let total = 0
-  const useStarters = starterIds.size > 0
-  for (const p of players) {
-    if (p.projectedPoints == null) continue
-    if (useStarters && !starterIds.has(p.playerId)) continue
-    const k = normPos(p.position)
-    byPos[k] = (byPos[k] ?? 0) + p.projectedPoints
-    total += p.projectedPoints
-  }
-  return { total: roundToTenth(total), byPos }
 }
 
 function mapStrategyToStartSitMode(
@@ -78,6 +59,8 @@ function mapStrategyToStartSitMode(
   }
 }
 
+const SUPPORTED_HORIZONS: MatchupPrepDashboardInput['timeHorizon'][] = ['this_matchup', 'next_matchup']
+
 function weekParamFromHorizon(h: MatchupPrepDashboardInput['timeHorizon']): string {
   switch (h) {
     case 'next_matchup':
@@ -88,103 +71,66 @@ function weekParamFromHorizon(h: MatchupPrepDashboardInput['timeHorizon']): stri
   }
 }
 
-type SleeperMatchup = { roster_id?: number; matchup_id?: number; points?: number }
-
-async function resolveSleeperOpponentExternalId(args: {
-  leagueId: string
-  userId: string
-  week: number
-  platformLeagueId: string
-}): Promise<{ opponentExternalId: string | null; opponentName: string | null; notes: string[] }> {
-  const notes: string[] = []
-  try {
-    let owner =
-      (await prisma.userProfile.findUnique({ where: { userId: args.userId }, select: { sleeperUserId: true } }))
-        ?.sleeperUserId?.trim() || args.userId
-    const [rostersRes, matchRes, usersRes] = await Promise.all([
-      fetch(`${SLEEPER}/league/${encodeURIComponent(args.platformLeagueId)}/rosters`, { next: { revalidate: 30 } }),
-      fetch(`${SLEEPER}/league/${encodeURIComponent(args.platformLeagueId)}/matchups/${args.week}`, {
-        next: { revalidate: 30 },
-      }),
-      fetch(`${SLEEPER}/league/${encodeURIComponent(args.platformLeagueId)}/users`, { next: { revalidate: 120 } }),
-    ])
-    const rosters = rostersRes.ok ? ((await rostersRes.json()) as { roster_id?: number; owner_id?: string }[]) : []
-    const matchups = matchRes.ok ? ((await matchRes.json()) as SleeperMatchup[]) : []
-    const users = usersRes.ok
-      ? ((await usersRes.json()) as {
-          user_id?: string
-          display_name?: string
-          metadata?: { team_name?: string }
-        }[])
-      : []
-
-    const mine = Array.isArray(rosters) ? rosters.find((r) => String(r.owner_id) === String(owner)) : undefined
-    const rid = mine?.roster_id
-    if (rid == null) {
-      notes.push('Could not resolve your Sleeper roster for this league week.')
-      return { opponentExternalId: null, opponentName: null, notes }
-    }
-    const row = Array.isArray(matchups) ? matchups.find((m) => m.roster_id === rid) : undefined
-    const mid = row?.matchup_id
-    if (mid == null) {
-      notes.push('Sleeper matchups not available for this week yet.')
-      return { opponentExternalId: null, opponentName: null, notes }
-    }
-    const opp = Array.isArray(matchups) ? matchups.find((m) => m.roster_id !== rid && m.matchup_id === mid) : undefined
-    const oppRoster = opp ? rosters.find((r) => r.roster_id === opp.roster_id) : undefined
-    const oppOwner = oppRoster?.owner_id
-    const u = Array.isArray(users) ? users.find((x) => String(x.user_id) === String(oppOwner)) : undefined
-    const name =
-      u?.metadata?.team_name?.trim() ||
-      u?.display_name?.trim() ||
-      (oppOwner ? `Opponent (${String(oppOwner).slice(0, 8)}…)` : null)
-    const oppRid = opp?.roster_id
-    if (oppRid == null) {
-      notes.push('Opponent roster not found in Sleeper matchups response.')
-      return { opponentName: name, opponentExternalId: null, notes }
-    }
-    const externalId = String(oppRid)
-    const lt = await prisma.leagueTeam.findFirst({
-      where: { leagueId: args.leagueId, externalId },
-      select: { externalId: true },
-    })
-    if (!lt) {
-      notes.push('Opponent Sleeper roster id not yet linked in league_teams — sync may be pending.')
-    }
-    return { opponentExternalId: lt?.externalId ?? externalId, opponentName: name, notes }
-  } catch {
-    notes.push('Sleeper opponent resolution failed.')
-    return { opponentExternalId: null, opponentName: null, notes }
-  }
+function horizonNote(h: MatchupPrepDashboardInput['timeHorizon']): string | null {
+  if (SUPPORTED_HORIZONS.includes(h)) return null
+  return `Time horizon "${h}" is not yet supported — analysis clamped to this matchup. Use Start/Sit "next" or Power Rankings for multi-week outlooks.`
 }
 
-function buildPositionEdges(myBy: Record<string, number>, oppBy: Record<string, number>): MatchupPositionEdge[] {
-  const keys = new Set([...Object.keys(myBy), ...Object.keys(oppBy)])
-  const out: MatchupPositionEdge[] = []
-  for (const position of keys) {
-    const myPoints = roundToTenth(myBy[position] ?? 0)
-    const oppPoints = roundToTenth(oppBy[position] ?? 0)
-    out.push({ position, myPoints, oppPoints, edge: roundToTenth(myPoints - oppPoints) })
+function buildFloorVsUpside(my: StartSitAnalyzeResult, mode: MatchupStrategyModeId): MatchupFloorVsUpside {
+  const sd = my.structuredDecision
+  const floorName = my.recommendations.safest?.player.name ?? sd.safest.name
+  const upName = my.recommendations.upside?.player.name ?? sd.highestUpside.name
+  let note = 'Start/Sit structured picks reflect your league scoring and projections for this period.'
+  if (mode === 'safe_floor' || mode === 'injury_protected') {
+    note = `Lean floor: prioritize ${floorName} where the projection band is tighter.`
+  } else if (mode === 'high_upside' || mode === 'aggressive') {
+    note = `Lean ceiling: ${upName} carries more boom/bust — align with your risk tolerance.`
+  } else if (mode === 'streaming_focus') {
+    note = 'Streaming focus: weakest projected slots are fair game for adds — verify waiver locks in Time context.'
   }
-  out.sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge))
-  return out
-}
-
-function winProbFromEdge(edge: number): number {
-  /* Logistic-style curve: 0 edge -> ~50%, +8 pts -> ~72% */
-  const p = 1 / (1 + Math.exp(-edge / 6.5))
-  return clamp(Math.round(p * 100), 5, 95)
+  return {
+    floorLeanPlayer: floorName !== '—' ? floorName : null,
+    upsideLeanPlayer: upName !== '—' ? upName : null,
+    note,
+  }
 }
 
 function buildGamePlan(args: {
   my: StartSitAnalyzeResult
-  opp: StartSitAnalyzeResult
-  edge: number
+  opp: StartSitAnalyzeResult | null
+  edge: number | null
+  strategyMode: MatchupStrategyModeId
+  toggles: MatchupPrepDashboardInput['toggles']
+  slotEdges: ReturnType<typeof buildSlotEdgesFromStartSit>
+  positionEdges: MatchupPositionEdge[]
 }): MatchupGamePlanAction[] {
   const actions: MatchupGamePlanAction[] = []
   let rank = 1
   const push = (a: Omit<MatchupGamePlanAction, 'rank'>) => {
     actions.push({ ...a, rank: rank++ })
+  }
+
+  const sd = args.my.structuredDecision
+  if (args.strategyMode === 'safe_floor' || args.strategyMode === 'injury_protected') {
+    push({
+      id: 'ss-floor',
+      title: `Floor lean: ${sd.safest.name}`,
+      detail: sd.safest.why,
+      urgency: 76,
+      confidence: sd.safest.confidence,
+      source: 'start_sit',
+      linkTool: 'startSit',
+    })
+  } else if (args.strategyMode === 'high_upside' || args.strategyMode === 'aggressive') {
+    push({
+      id: 'ss-upside',
+      title: `Upside lean: ${sd.highestUpside.name}`,
+      detail: sd.highestUpside.why,
+      urgency: 74,
+      confidence: sd.highestUpside.confidence,
+      source: 'start_sit',
+      linkTool: 'startSit',
+    })
   }
 
   if (args.my.recommendations.bestStart) {
@@ -209,42 +155,155 @@ function buildGamePlan(args: {
       linkTool: 'startSit',
     })
   }
-  if (args.edge < -3) {
+
+  if (sd.weatherNote && args.toggles.includeWeather) {
     push({
-      id: 'underdog',
-      title: 'Underdog projection — lean upside',
-      detail: 'Projected behind opponent; consider ceiling plays where injury risk is acceptable.',
+      id: 'ss-weather',
+      title: 'Weather check (Start/Sit)',
+      detail: sd.weatherNote,
+      urgency: 68,
+      confidence: 60,
+      source: 'start_sit',
+      linkTool: 'startSit',
+    })
+  }
+  if (sd.scoringRuleNote) {
+    push({
+      id: 'ss-scoring',
+      title: 'Scoring format reminder',
+      detail: sd.scoringRuleNote,
+      urgency: 44,
+      confidence: 72,
+      source: 'start_sit',
+      linkTool: 'startSit',
+    })
+  }
+  if (sd.lockTimeNote) {
+    push({
+      id: 'ss-locks',
+      title: 'Lock / waiver timing',
+      detail: sd.lockTimeNote,
       urgency: 70,
-      confidence: 55,
-      source: 'projection',
+      confidence: 65,
+      source: 'schedule',
       linkTool: 'startSit',
     })
-  } else if (args.edge > 3) {
+  }
+
+  if (args.edge != null && args.opp) {
+    if (args.edge < -3) {
+      push({
+        id: 'underdog',
+        title: 'Underdog in projected points',
+        detail:
+          'Mean starter projections trail opponent; use ceiling where injury risk is acceptable — see Start/Sit upside pick.',
+        urgency: 72,
+        confidence: Math.round(clamp(52 + args.my.confidenceScore * 0.15, 40, 78)),
+        source: 'projection',
+        linkTool: 'startSit',
+      })
+    } else if (args.edge > 3) {
+      push({
+        id: 'favorite',
+        title: 'Favorite in projected points',
+        detail:
+          'Mean starter projections lead — safer floors at volatile slots can defend the edge (Start/Sit safest pick).',
+        urgency: 52,
+        confidence: Math.round(clamp(55 + args.my.confidenceScore * 0.12, 42, 80)),
+        source: 'projection',
+        linkTool: 'startSit',
+      })
+    }
+  }
+
+  if (args.toggles.includeInjuries) {
+    const injMy = args.my.players
+      .filter((p) => p.injuryStatus && /out|doubt|quest|ir/i.test(p.injuryStatus))
+      .slice(0, 2)
+    for (const p of injMy) {
+      push({
+        id: `inj-${p.playerId}`,
+        title: `Monitor ${p.name}`,
+        detail: p.injuryNewsSummary ?? p.injuryStatus ?? 'Injury designation',
+        urgency: 72,
+        confidence: p.projectionConfidence ?? 50,
+        source: 'injury',
+        linkTool: 'injury',
+      })
+    }
+  }
+
+  for (const u of args.my.unresolvedDecisions.slice(0, 3)) {
     push({
-      id: 'favorite',
-      title: 'Protect the lead',
-      detail: 'Projected ahead — safer floors at volatile slots can preserve edge.',
-      urgency: 52,
+      id: `unres-${u.slotLabel}-${u.optionA}`,
+      title: `Close call: ${u.slotLabel}`,
+      detail: `${u.optionA} vs ${u.optionB} — ${u.projectedGap} pt projected gap (${u.urgency} urgency).`,
+      urgency: Math.round(clamp(60 + (3 - u.projectedGap) * 8, 50, 92)),
       confidence: 58,
-      source: 'projection',
+      source: 'start_sit',
       linkTool: 'startSit',
     })
   }
 
-  const injMy = args.my.players.filter((p) => p.injuryStatus && /out|doubt|quest|ir/i.test(p.injuryStatus)).slice(0, 2)
-  for (const p of injMy) {
-    push({
-      id: `inj-${p.playerId}`,
-      title: `Monitor ${p.name}`,
-      detail: p.injuryStatus ?? 'Injury designation',
-      urgency: 72,
-      confidence: 50,
-      source: 'injury',
-      linkTool: 'injury',
-    })
+  if (args.toggles.includeStreamingRecommendations && args.slotEdges.length > 0) {
+    const worst = [...args.slotEdges].sort((a, b) => a.edge - b.edge)[0]
+    if (worst && worst.edge < -1.25) {
+      push({
+        id: 'stream-slot',
+        title: `Streaming: ${worst.slotName}`,
+        detail: `Best modeled starter in-slot trails opponent by ${Math.abs(worst.edge).toFixed(1)} pts — check waivers.`,
+        urgency: 66,
+        confidence: 54,
+        source: 'projection',
+        linkTool: 'waiver',
+      })
+    }
   }
 
-  return actions.slice(0, 8)
+  return actions.slice(0, 10)
+}
+
+function buildStreamingHints(
+  positionEdges: MatchupPositionEdge[],
+  slotEdges: ReturnType<typeof buildSlotEdgesFromStartSit>,
+  toggles: MatchupPrepDashboardInput['toggles'],
+): MatchupStreamingHint[] {
+  if (!toggles.includeStreamingRecommendations) return []
+  const out: MatchupStreamingHint[] = []
+  let i = 0
+  for (const e of positionEdges.filter((x) => x.edge < -2).slice(0, 3)) {
+    out.push({
+      id: `pos-${e.position}-${i++}`,
+      title: `${e.position} depth`,
+      detail: `You trail by ~${Math.abs(e.edge).toFixed(1)} pts vs opponent at ${e.position} in mean starter projections.`,
+      linkTool: 'waiver',
+    })
+  }
+  for (const s of slotEdges.filter((x) => x.edge < -1.5).slice(0, 2)) {
+    out.push({
+      id: `slot-${s.slotName}-${i++}`,
+      title: s.slotName,
+      detail: `Slot-modeled gap ${s.edge.toFixed(1)} vs opponent — consider a stream if waivers/FAAB allow.`,
+      linkTool: 'waiver',
+    })
+  }
+  return out
+}
+
+function buildInjuryPivots(my: StartSitAnalyzeResult, toggles: MatchupPrepDashboardInput['toggles']): MatchupInjuryPivot[] {
+  if (!toggles.includeInjuries) return []
+  const out: MatchupInjuryPivot[] = []
+  for (const p of my.players) {
+    if (!p.injuryStatus) continue
+    if (!/quest|doubt|questionable/i.test(p.injuryStatus)) continue
+    out.push({
+      player: p.name,
+      detail: p.injuryNewsSummary ?? p.injuryStatus,
+      urgency: /doubt/i.test(p.injuryStatus) ? 84 : 70,
+    })
+    if (out.length >= 6) break
+  }
+  return out
 }
 
 export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput): Promise<MatchupPrepDashboardOutput> {
@@ -252,16 +311,21 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
   const computedAt = new Date().toISOString()
 
   if (!input.leagueId?.trim()) {
+    const code: LeagueToolAccessErrorCode = 'MISSING_LEAGUE_CONTEXT'
+    const msg = leagueToolAccessUserMessage(code)
     return {
       ok: false,
-      error: 'Select a league for matchup prep.',
-      code: 'VALIDATION',
+      error: msg,
+      code,
+      userMessage: msg,
     }
   }
 
-  const access = await assertLeagueMember(input.leagueId.trim(), input.userId)
+  const access = await assertLeagueMemberWithCode(input.leagueId.trim(), input.userId)
   if (!access.ok) {
-    return { ok: false, error: 'League not found or access denied.', code: 'FORBIDDEN' }
+    const code = access.code
+    const msg = leagueToolAccessUserMessage(code)
+    return { ok: false, error: msg, code, userMessage: msg }
   }
 
   const leagueRow = await prisma.league.findFirst({
@@ -269,7 +333,9 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     include: { teams: true },
   })
   if (!leagueRow) {
-    return { ok: false, error: 'League not found.', code: 'VALIDATION' }
+    const code: LeagueToolAccessErrorCode = 'LEAGUE_NOT_FOUND'
+    const msg = leagueToolAccessUserMessage(code)
+    return { ok: false, error: msg, code, userMessage: msg }
   }
 
   const sport = normalizeToSupportedSport(String(leagueRow.sport))
@@ -281,15 +347,29 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     dataGaps.push('Sport filter does not match league sport — using league data.')
   }
 
-  const weekStr = weekParamFromHorizon(input.timeHorizon)
-  if (input.timeHorizon === 'next_2_matchups' || input.timeHorizon === 'playoff_window' || input.timeHorizon === 'rest_of_season') {
-    dataGaps.push('Horizon uses current/next week scoring only; multi-week aggregation coming with schedule API.')
+  if (
+    input.timeHorizon === 'next_2_matchups' ||
+    input.timeHorizon === 'playoff_window' ||
+    input.timeHorizon === 'rest_of_season'
+  ) {
+    dataGaps.push('Horizon uses current/next week scoring only; multi-week aggregation follows platform schedule.')
   }
 
   const myTeamExt =
     input.teamFocus === 'specific_team' && input.teamExternalId?.trim() ? input.teamExternalId.trim() : null
 
   const mode = mapStrategyToStartSitMode(input.strategyMode)
+
+  const lceFirst = await resolveNormalizedLeagueContext({
+    userId: input.userId,
+    leagueId: input.leagueId.trim(),
+    preferredTeamExternalId: myTeamExt ?? undefined,
+  })
+
+  const weekStr = weekParamFromHorizon(input.timeHorizon)
+  const horizonSupported = SUPPORTED_HORIZONS.includes(input.timeHorizon)
+  const horizonGap = horizonNote(input.timeHorizon)
+  if (horizonGap) dataGaps.push(horizonGap)
 
   const mySs = await runStartSitAnalysis({
     userId: input.userId,
@@ -308,23 +388,28 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     }
   }
 
-  let oppExternal = input.opponentExternalId?.trim() || null
-  const scheduleNotes: string[] = [...mySs.matchupNotes]
+  const seasonYear = lceFirst.ok ? lceFirst.context.season : leagueRow.season
+  const oppResolved = await resolveMatchupOpponentExternal({
+    leagueId: input.leagueId.trim(),
+    userId: input.userId,
+    sport,
+    week: mySs.week,
+    season: seasonYear,
+    platform: String(leagueRow.platform ?? ''),
+    platformLeagueId: leagueRow.platformLeagueId?.trim() ?? null,
+    manualOpponentExternalId: input.opponentExternalId?.trim() ?? null,
+    myTeamExternalId: myTeamExt,
+  })
 
-  if (!oppExternal && leagueRow.platform?.toLowerCase() === 'sleeper' && leagueRow.platformLeagueId && sport === 'NFL') {
-    const resolved = await resolveSleeperOpponentExternalId({
-      leagueId: input.leagueId.trim(),
-      userId: input.userId,
-      week: mySs.week,
-      platformLeagueId: leagueRow.platformLeagueId.trim(),
-    })
-    scheduleNotes.push(...resolved.notes)
-    oppExternal = resolved.opponentExternalId
-    if (!oppExternal) {
-      dataGaps.push('Select an opponent manually if auto-matchup did not resolve.')
-    }
-  } else if (!oppExternal) {
-    dataGaps.push('Opponent auto-select requires Sleeper NFL league with synced matchups — pick opponent from list.')
+  const scheduleNotes: string[] = [...mySs.matchupNotes, ...oppResolved.notes]
+
+  let oppExternal = oppResolved.opponentExternalId
+  if (!oppExternal) {
+    dataGaps.push(
+      oppResolved.source === 'none'
+        ? 'Select an opponent from your league list or fix import/sync so matchups resolve.'
+        : 'Opponent roster id not linked — pick opponent manually if needed.',
+    )
   }
 
   let oppSs: StartSitAnalyzeResult | null = null
@@ -378,18 +463,42 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
 
   const myStarters = new Set(getStarterIds(myRosterRow?.playerData))
   const oppStarters = new Set(getStarterIds(oppRosterRow?.playerData))
+  const myStarterCap = mySs.lineupSlotAnalysis?.length || null
+  const oppStarterCap = oppSs?.lineupSlotAnalysis?.length || myStarterCap
   if (myStarters.size === 0) {
-    dataGaps.push('Starter slots not synced in roster JSON — totals use all projected players (may overcount).')
+    const capNote = myStarterCap ? ` Using top-${myStarterCap} by projection from league lineup template.` : ' Capped at top-9 by projection.'
+    dataGaps.push(`Starter slots not synced in roster JSON.${capNote}`)
   }
 
-  const myLine = sumLineup(mySs.players, myStarters)
-  const oppLine = oppSs ? sumLineup(oppSs.players, oppStarters) : { total: 0, byPos: {} }
+  const myLine = sumLineupByPosition(mySs.players, myStarters, myStarterCap)
+  const oppLine = oppSs
+    ? sumLineupByPosition(oppSs.players, oppStarters, oppStarterCap)
+    : { total: 0, byPos: {}, usedFallback: false }
 
   const myTotal = myLine.total > 0 ? myLine.total : null
   const oppTotal = oppSs && oppLine.total > 0 ? oppLine.total : null
 
   const edge = myTotal != null && oppTotal != null ? roundToTenth(myTotal - oppTotal) : null
-  const winProbability = edge != null ? winProbFromEdge(edge) : null
+
+  const myBands = aggregateStarterBands(mySs.players as StartSitPlayerRow[], myStarters)
+  const oppBands = oppSs ? aggregateStarterBands(oppSs.players as StartSitPlayerRow[], oppStarters) : null
+  const spreadWin =
+    oppBands && myBands.starterCount > 0 && oppBands.starterCount > 0
+      ? winProbabilityFromProjectionSpread({ my: myBands, opp: oppBands })
+      : null
+
+  let winProbability: number | null = null
+  let winModel: MatchupPrepDashboardResult['winProbabilityModel'] = 'mean_edge_logistic'
+  let winNotes: string | null = null
+  if (spreadWin) {
+    winProbability = spreadWin.pct
+    winModel = 'starter_spread_normal'
+    winNotes = `P(win) from starter projection bands (~σ=${spreadWin.combinedSigma.toFixed(2)} pts). Not Vegas — fantasy points only.`
+  } else if (edge != null) {
+    winProbability = winProbFromMeanEdgeLogistic(edge)
+    winModel = 'mean_edge_logistic'
+    winNotes = 'P(win) from mean projected point edge (logistic). Use when starter floor/ceiling bands are thin.'
+  }
 
   let matchupDifficulty: 'favorable' | 'even' | 'tough' = 'even'
   if (edge != null) {
@@ -397,26 +506,38 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     else if (edge <= -3) matchupDifficulty = 'tough'
   }
 
-  const positionEdges = oppSs ? buildPositionEdges(myLine.byPos, oppLine.byPos) : []
+  const positionEdges: MatchupPositionEdge[] = oppSs ? buildPositionEdges(myLine.byPos, oppLine.byPos) : []
+  const slotEdges = oppSs ? buildSlotEdgesFromStartSit(mySs, oppSs) : []
 
   const oppWeaknesses = positionEdges.filter((e) => e.edge > 0).slice(0, 4)
   const oppStrengths = positionEdges.filter((e) => e.edge < 0).slice(0, 4)
 
-  const gamePlan =
-    oppSs != null && edge != null
-      ? buildGamePlan({ my: mySs, opp: oppSs, edge })
-      : buildGamePlan({ my: mySs, opp: mySs, edge: 0 })
+  const gamePlan = buildGamePlan({
+    my: mySs,
+    opp: oppSs,
+    edge,
+    strategyMode: input.strategyMode,
+    toggles: input.toggles,
+    slotEdges,
+    positionEdges,
+  })
+
+  const streamingOpportunities = buildStreamingHints(positionEdges, slotEdges, input.toggles)
+  const injuryPivots = buildInjuryPivots(mySs, input.toggles)
+  const floorVsUpside = buildFloorVsUpside(mySs, input.strategyMode)
 
   const injuryHighlights: Array<{ side: 'you' | 'opp'; name: string; status: string; note: string }> = []
-  for (const p of mySs.players.slice(0, 24)) {
-    if (p.injuryStatus && p.injuryStatus.length > 2) {
-      injuryHighlights.push({ side: 'you', name: p.name, status: p.injuryStatus, note: 'Your roster' })
-    }
-  }
-  if (oppSs) {
-    for (const p of oppSs.players.slice(0, 24)) {
+  if (input.toggles.includeInjuries) {
+    for (const p of mySs.players.slice(0, 28)) {
       if (p.injuryStatus && p.injuryStatus.length > 2) {
-        injuryHighlights.push({ side: 'opp', name: p.name, status: p.injuryStatus, note: 'Opponent roster' })
+        injuryHighlights.push({ side: 'you', name: p.name, status: p.injuryStatus, note: p.injuryNewsSummary ?? 'Your roster' })
+      }
+    }
+    if (oppSs) {
+      for (const p of oppSs.players.slice(0, 28)) {
+        if (p.injuryStatus && p.injuryStatus.length > 2) {
+          injuryHighlights.push({ side: 'opp', name: p.name, status: p.injuryStatus, note: p.injuryNewsSummary ?? 'Opponent roster' })
+        }
       }
     }
   }
@@ -430,12 +551,35 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
       alternate: 'Play safest projected starters across the board.',
     })
   }
+  if (edge != null && edge < -2 && mode === 'safe') {
+    conflicts.push({
+      id: 'c2',
+      summary: 'You project behind but strategy is floor-heavy — you may need ceiling at some slots.',
+      primary: 'Follow upside lean on one flex-eligible spot.',
+      alternate: 'Stay safe and chase volume leaders only.',
+    })
+  }
 
   const confidence = Math.round(
     clamp(
-      (mySs.confidenceScore + (oppSs?.confidenceScore ?? 55)) / 2 - dataGaps.length * 2 - (oppSs ? 0 : 8),
+      (mySs.confidenceScore + (oppSs?.confidenceScore ?? 55)) / 2 -
+        dataGaps.length * 2 -
+        (oppSs ? 0 : 8) -
+        (myStarters.size === 0 ? 5 : 0),
       18,
       92,
+    ),
+  )
+
+  const urgencyScore = Math.round(
+    clamp(
+      52 +
+        (winProbability != null && winProbability < 45 ? 18 : 0) +
+        (edge != null && Math.abs(edge) < 3 ? 12 : 0) +
+        mySs.unresolvedDecisions.length * 6 +
+        injuryPivots.length * 4,
+      22,
+      98,
     ),
   )
 
@@ -454,78 +598,196 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
       })
     : null
 
-  const recStr = (w: number, l: number, t: number) =>
-    `${w}-${l}${t > 0 ? `-${t}` : ''}`
+  const recStr = (w: number, l: number, t: number) => `${w}-${l}${t > 0 ? `-${t}` : ''}`
+
+  const weatherInfluence = input.toggles.includeWeather
+    ? mySs.players
+        .filter(
+          (p) =>
+            p.weatherRiskLevel === 'moderate' ||
+            p.weatherRiskLevel === 'high' ||
+            p.weatherRiskLevel === 'extreme',
+        )
+        .map((p) => ({ name: p.name, team: p.team, summary: p.weatherSummary ?? '', risk: p.weatherRiskLevel }))
+        .filter((x) => x.summary)
+        .slice(0, 10)
+    : []
 
   let aiSummary: string | null = null
   if (!input.skipAi) {
     const payload = {
       week: mySs.week,
+      scoring: lceFirst.ok
+        ? {
+            model: lceFirst.context.scoring.scoringModel,
+            receptionFormat: lceFirst.context.scoring.labels.receptionFormat,
+          }
+        : null,
       myTeam: myLt?.teamName ?? mySs.teamContext.teamName,
-      oppTeam: oppLt?.teamName ?? mySs.opponent?.name,
+      oppTeam: oppLt?.teamName ?? oppResolved.opponentName ?? mySs.opponent?.name,
       myProj: myTotal,
       oppProj: oppTotal,
       edge,
       winProbability,
+      winModel,
       positionEdges: positionEdges.slice(0, 8),
+      slotEdges: slotEdges.slice(0, 8),
+      weatherInfluence,
       dataGaps,
+      startSitSummary: mySs.summary,
     }
     const ai = await openaiChatText({
       messages: [
         {
           role: 'system',
           content:
-            'You are Chimmy. Write 4–6 sentences for fantasy matchup prep. Use ONLY numbers and names from the JSON. Never invent players, injuries, or scores. If opponent data is missing, say so.',
+            'You are Chimmy. Write 4–7 sentences for fantasy matchup prep. Use ONLY numbers and names from the JSON. Never invent players, injuries, or scores. Explain that win chance is derived from projections (not betting odds). If opponent data is missing, say so. If weatherInfluence is present, tie it to those players only.',
         },
-        { role: 'user', content: JSON.stringify(payload).slice(0, 10000) },
+        { role: 'user', content: JSON.stringify(payload).slice(0, 12000) },
       ],
       temperature: 0.35,
-      maxTokens: 450,
+      maxTokens: 500,
       skipCache: true,
     })
     aiSummary = ai.ok ? ai.text : null
     if (!ai.ok) dataGaps.push('AI summary unavailable (provider).')
   }
 
-  const chimmyPayload: Record<string, unknown> = {
-    tool: 'matchup_prep',
+  const mpLce = lceFirst.ok ? lceFirst : await resolveNormalizedLeagueContext({
+    userId: input.userId,
     leagueId: input.leagueId.trim(),
-    leagueName: leagueRow.name,
-    sport,
-    week: mySs.week,
-    myProjectedTotal: myTotal,
-    oppProjectedTotal: oppTotal,
-    edge,
-    winProbability,
-    opponentWeaknesses: oppWeaknesses.map((e) => e.position),
-    opponentStrengths: oppStrengths.map((e) => e.position),
-    dataGaps,
-    degraded,
-    computedAt,
-  }
+    preferredTeamExternalId: myTeamExt ?? undefined,
+  })
 
-  return {
+  const scoringSummary =
+    mpLce.ok
+      ? {
+          scoringModel: mpLce.context.scoring.scoringModel,
+          receptionFormat: mpLce.context.scoring.labels.receptionFormat,
+          superflex: mpLce.context.scoring.labels.isSuperflex,
+          rawScoringColumn: leagueRow.scoring ?? null,
+        }
+      : null
+
+  const matchupPeriod: MatchupPrepDashboardResult['matchupPeriod'] = mpLce.ok
+    ? {
+        season: mpLce.context.season,
+        week: mySs.week,
+        weekLabel: mySs.weekLabel,
+        periodSource: mpLce.context.matchupPeriod.source,
+      }
+    : {
+        season: leagueRow.season,
+        week: mySs.week,
+        weekLabel: mySs.weekLabel,
+        periodSource: null,
+      }
+
+  const matchupEnvelope = await buildAiToolPayload({
+    userId: input.userId,
+    tool: 'matchup_prep',
+    mode: 'league',
+    league: {
+      leagueId: input.leagueId.trim(),
+      leagueName: leagueRow.name,
+      sport: String(sport),
+    },
+    data: {
+      week: mySs.week,
+      weekLabel: mySs.weekLabel,
+      strategyMode: input.strategyMode,
+      timeHorizon: input.timeHorizon,
+      scoringSummary,
+      matchupPeriod,
+      waiverLocks: mpLce.ok ? mpLce.context.waiver : null,
+      standings: {
+        myRecord: myLt ? recStr(myLt.wins, myLt.losses, myLt.ties) : mySs.teamContext.record,
+        oppRecord: oppLt ? recStr(oppLt.wins, oppLt.losses, oppLt.ties) : null,
+      },
+      projectedLineups: {
+        myTotal,
+        oppTotal,
+        edge,
+        winProbability,
+        winProbabilityModel: winModel,
+      },
+      positionEdges: positionEdges.slice(0, 12),
+      slotEdges: slotEdges.slice(0, 16),
+      streamingOpportunities,
+      injuryHighlights: injuryHighlights.slice(0, 14),
+      injuryPivots,
+      weatherInfluence,
+      floorVsUpside,
+      gamePlan: gamePlan.slice(0, 12),
+      dataGaps: dataGaps.slice(0, 14),
+      opponentResolved: Boolean(oppSs),
+      opponentResolution: oppResolved.source,
+      startSitDataQuality: { my: mySs.dataQuality, opp: oppSs?.dataQuality ?? null },
+    },
+    enrichTimeFromLeagueId: input.leagueId.trim(),
+    includeTeamContext: true,
+    includeStrategicCoaching: true,
+  })
+  const chimmyPayload = attachIntelligenceToChimmyPayload(
+    {
+      tool: 'matchup_prep',
+      leagueContextEngine: mpLce.ok ? mpLce.context : null,
+      leagueId: input.leagueId.trim(),
+      leagueName: leagueRow.name,
+      sport,
+      week: mySs.week,
+      weekLabel: mySs.weekLabel,
+      myProjectedTotal: myTotal,
+      oppProjectedTotal: oppTotal,
+      edge,
+      winProbability,
+      winProbabilityModel: winModel,
+      opponentWeaknesses: oppWeaknesses.map((e) => e.position),
+      opponentStrengths: oppStrengths.map((e) => e.position),
+      streamingOpportunities,
+      weatherInfluence,
+      scheduleNotes: scheduleNotes.slice(0, 10),
+      dataGaps,
+      degraded,
+      urgencyScore,
+      computedAt,
+    },
+    matchupEnvelope,
+  )
+
+  const result: MatchupPrepDashboardResult = {
     ok: true,
     analysisScope: 'league',
     leagueName: leagueRow.name,
     sport: String(leagueRow.sport),
     week: mySs.week,
     weekLabel: mySs.weekLabel,
+    matchupPeriod,
+    scoringSummary,
+    opponentResolution: oppResolved.source,
     myTeamName: myLt?.teamName ?? mySs.teamContext.teamName,
-    oppTeamName: oppLt?.teamName ?? mySs.opponent?.name ?? null,
+    oppTeamName: oppLt?.teamName ?? oppResolved.opponentName ?? mySs.opponent?.name ?? null,
     myRecord: myLt ? recStr(myLt.wins, myLt.losses, myLt.ties) : mySs.teamContext.record,
     oppRecord: oppLt ? recStr(oppLt.wins, oppLt.losses, oppLt.ties) : null,
     myProjectedTotal: myTotal,
     oppProjectedTotal: oppTotal,
     projectedEdge: edge,
     winProbability,
+    winProbabilityModel: winModel,
+    winProbabilityNotes: winNotes,
     confidence,
+    urgencyScore,
     matchupDifficulty,
     positionEdges,
+    slotEdges,
+    floorVsUpside,
+    streamingOpportunities,
     gamePlan,
     conflicts,
-    injuryHighlights: injuryHighlights.slice(0, 12),
-    scheduleNotes: scheduleNotes.slice(0, 8),
+    injuryHighlights: injuryHighlights.slice(0, 14),
+    injuryPivots,
+    scheduleNotes: scheduleNotes.slice(0, 10),
+    weatherInfluence,
     dataGaps,
     degraded,
     modules: {
@@ -534,6 +796,26 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     },
     aiSummary,
     chimmyPayload,
+    timeContext: mySs.timeContext,
+    startSitValidation: {
+      my: mySs.validation as unknown as Record<string, unknown>,
+      opp: oppSs ? (oppSs.validation as unknown as Record<string, unknown>) : null,
+    },
+    sourceFlags: {
+      opponentResolved: oppResolved.source !== 'none',
+      myProjectionReady: (mySs.sourceFlags?.sportsDataReady ?? false) && mySs.players.length > 0,
+      oppProjectionReady:
+        Boolean(oppSs) && (oppSs?.sourceFlags?.sportsDataReady ?? false) && (oppSs?.players.length ?? 0) > 0,
+      injuryNewsLayerReady:
+        (mySs.sourceFlags?.injuryNewsLayerReady ?? false) ||
+        (oppSs?.sourceFlags?.injuryNewsLayerReady ?? false),
+      weatherLayerReady: weatherInfluence.length > 0,
+      leagueScoringApplied: Boolean(scoringSummary) && (mySs.sourceFlags?.leagueScoringApplied ?? false),
+      aiEnvelopeReady: Boolean(aiSummary) || chimmyPayload != null,
+    },
+    horizonSupported,
     computedAt,
   }
+
+  return result
 }

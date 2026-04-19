@@ -1,4 +1,7 @@
 import { prisma } from '@/lib/prisma'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { parseSessionKey } from '@/lib/draft/session-key'
 import { pickInRoundForOverall, roundForOverallPick, slotIndexForOverallPick } from '@/lib/draft/snake'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
@@ -119,6 +122,50 @@ export async function executeDraftPick(args: {
       })
     }
   })
+
+  void Promise.resolve()
+    .then(async () => {
+      if (parsed.mode === 'live' && leagueId) {
+        const sport = await resolveLeagueSport(leagueId)
+        await recordAfLearningEvent({
+          eventType: 'draft_pick_made',
+          sport,
+          leagueId,
+          userId: isCpu ? null : userId,
+          source: 'draft_execute_pick',
+          payload: {
+            overallPick,
+            round,
+            pickNumber,
+            playerId,
+            position,
+            autopicked: Boolean(autopicked || isCpu),
+          },
+        })
+      } else if (parsed.mode === 'mock' && roomId) {
+        const room = await prisma.mockDraftRoom.findUnique({
+          where: { id: roomId },
+          select: { sport: true },
+        })
+        await recordAfLearningEvent({
+          eventType: 'draft_pick_made',
+          sport: normalizeToSupportedSport(room?.sport ?? undefined),
+          leagueId: null,
+          userId: isCpu ? null : userId,
+          source: 'draft_execute_pick_mock',
+          payload: {
+            roomId,
+            overallPick,
+            round,
+            pickNumber,
+            playerId,
+            position,
+            autopicked: Boolean(autopicked || isCpu),
+          },
+        })
+      }
+    })
+    .catch((e) => console.warn('[af-learning] draft_pick_made', e))
 
   const teamLabel = pickOrder[slot]?.label ?? onClock
   const sysMsg = `Pick ${round}.${String(pickNumber).padStart(2, '0')} — ${playerName} (${position}) selected by ${teamLabel}`

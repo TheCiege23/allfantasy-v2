@@ -1,4 +1,6 @@
 import type { PowerRankingsOutput, PowerRankingTeam } from '@/lib/league-power-rankings/types'
+import type { LeagueToolAccessErrorCode } from '@/lib/ai-tools/league-tool-context-types'
+import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 
 export type RankingModeId =
   | 'current_power'
@@ -58,22 +60,78 @@ export type PowerRankingsDashboardInput = {
   skipAi?: boolean
 }
 
+/** Rank tertile — data-derived from standings position, not marketing tiers. */
+export type RankThirdLabel = 'upper_third' | 'middle_third' | 'lower_third'
+
+export type PlayoffFieldStatus = 'inside' | 'bubble' | 'outside' | 'unknown'
+
+export type ContenderSignal = 'firm' | 'bubble' | 'longshot'
+
+export type ProjectionTruthSource = 'sleeper_engine' | 'af_normalized' | 'standings_only'
+
 export type EnrichedTeamRow = PowerRankingTeam & {
   teamName: string
   avatarUrl: string | null
   externalId: string | null
   isCurrentUser: boolean
-  tier: string
+  /** Human label from rank tertile */
+  tierLabel: string
+  rankThird: RankThirdLabel
   momentumLabel: 'surging' | 'hot' | 'stable' | 'cold' | 'fading'
   snippet: string
-  playoffOddsPct: number | null
-  championshipOddsPct: number | null
+  /** We do not emit sportsbook-style odds; use `playoffFieldStatus` + standings. */
+  playoffOddsPct: null
+  championshipOddsPct: null
+  playoffFieldStatus: PlayoffFieldStatus
+  contenderSignal: ContenderSignal
+  contenderFactors?: ContenderFactors
+  /** OUT/IR starters currently on this team's roster (null when projections skipped). */
+  injuryDrag?: { outIrCount: number; questionableCount: number } | null
+  /** 0–100 based on projection coverage / engine path */
+  rowConfidence: number
+}
+
+export type PowerRankingsScoringSummary = {
+  scoringModel: string
+  receptionFormat: string | null
+  superflex: boolean | null
+}
+
+/** Provider-health flags for UI chips — mirrors other AI tools. */
+export type PowerRankingsSourceFlags = {
+  /** Standings (W/L/PF/PA) resolved from DB or Sleeper */
+  standingsReady: boolean
+  /** Rosters resolved for roster-strength blend */
+  rostersReady: boolean
+  /** Projection engine attached to at least one team row (league-scored) */
+  projectionLayerReady: boolean
+  /** Injury-aware projections: roster batch saw at least one injury status */
+  injuryNewsLayerReady: boolean
+  /** Prior snapshot found — enables rankDelta movement */
+  priorSnapshotReady: boolean
+  /** League scoring rules applied via normalized league context */
+  leagueScoringApplied: boolean
+  /** AI time/league envelope attached to chimmyPayload */
+  aiEnvelopeReady: boolean
+}
+
+/** Per-team factors that drive contender/pretender classification — all data-derived. */
+export type ContenderFactors = {
+  /** Win% vs expected from PF distribution (1.0 = in-line, >1 = overperforming, <1 = underperforming). */
+  luckFactor: number | null
+  /** Strength of remaining schedule (0–1, higher = tougher). Null when SOS not computed. */
+  remainingSosHigh: boolean | null
+  /** Roster strength percentile within league (0–100) from projection engine. */
+  rosterStrengthPct: number | null
+  /** One-line reason for the classification. */
+  rationale: string
 }
 
 export type PowerRankingsDashboardResult = {
   ok: true
   analysisScope: 'league' | 'none'
-  engine: 'sleeper_v2' | 'league_team_fallback' | 'none'
+  engine: 'sleeper_v2' | 'af_projection_truth' | 'league_team_fallback' | 'none'
+  projectionTruth: ProjectionTruthSource
   leagueName: string | null
   sport: string | null
   season: string | null
@@ -86,8 +144,18 @@ export type PowerRankingsDashboardResult = {
   dataGaps: string[]
   degraded: boolean
   computedAt: string
+  scoringSummary: PowerRankingsScoringSummary | null
+  timeContext: AiTimeContextPayload | null
+  aggregateConfidence: number
+  engineNotes: string[]
+  sourceFlags: PowerRankingsSourceFlags
 }
 
-export type PowerRankingsDashboardError = { ok: false; error: string; code?: 'FORBIDDEN' | 'VALIDATION' }
+export type PowerRankingsDashboardError = {
+  ok: false
+  error: string
+  code?: LeagueToolAccessErrorCode | 'VALIDATION'
+  userMessage?: string
+}
 
 export type PowerRankingsDashboardOutput = PowerRankingsDashboardResult | PowerRankingsDashboardError

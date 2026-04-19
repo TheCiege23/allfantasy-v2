@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
 import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { recordTradeOutcomeForBothManagers } from '@/lib/ai-learning-system/recordTradeParticipants'
+import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +92,17 @@ export async function POST(req: NextRequest) {
     },
   })
 
+  void resolveLeagueSport(leagueId).then((sport) =>
+    recordAfLearningEvent({
+      eventType: 'trade_proposal_created',
+      sport,
+      leagueId,
+      userId,
+      source: 'redraft_league_trade',
+      payload: { tradeId: trade.id },
+    }),
+  )
+
   return NextResponse.json({ trade, meta: legacyMeta })
 }
 
@@ -154,6 +168,32 @@ export async function PATCH(req: NextRequest) {
     where: { id: tradeId },
     data: { status: next },
   })
+
+  if (updated.status === 'accepted') {
+    void recordTradeOutcomeForBothManagers({
+      leagueId: updated.leagueId,
+      eventType: 'trade_accepted',
+      proposerUserId: updated.proposerId,
+      receiverUserId: updated.receiverId,
+      payload: { tradeId: updated.id, source: 'redraft_league_trade' },
+    })
+  } else if (updated.status === 'rejected') {
+    void recordTradeOutcomeForBothManagers({
+      leagueId: updated.leagueId,
+      eventType: 'trade_rejected',
+      proposerUserId: updated.proposerId,
+      receiverUserId: updated.receiverId,
+      payload: { tradeId: updated.id, source: 'redraft_league_trade' },
+    })
+  } else if (updated.status === 'vetoed') {
+    void recordTradeOutcomeForBothManagers({
+      leagueId: updated.leagueId,
+      eventType: 'trade_vetoed',
+      proposerUserId: updated.proposerId,
+      receiverUserId: updated.receiverId,
+      payload: { tradeId: updated.id, source: 'redraft_league_trade' },
+    })
+  }
 
   if (body.action === 'accept' && updated.status === 'accepted') {
     void enqueueCollusionScan(updated.leagueId, updated.id, [

@@ -41,6 +41,7 @@ const AI_SOURCE_TO_TOOL_CONTEXT: Record<string, ToolContextSource> = {
   matchup_prep: 'matchup',
   power_rankings: 'rankings',
   power_rankings_team: 'rankings',
+  long_term_coaching: 'league_forecast',
 }
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {

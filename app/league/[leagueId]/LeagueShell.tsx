@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
 import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
 import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
@@ -46,6 +46,7 @@ import {
   Vote,
   Wand2,
   Zap,
+  Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
@@ -66,6 +67,7 @@ import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
+import { AICoachingTab } from './tabs/AICoachingTab'
 import { HistoryTab } from './tabs/HistoryTab'
 import { StandingsTab } from './tabs/StandingsTab'
 import { FixturesTab } from './tabs/FixturesTab'
@@ -100,6 +102,7 @@ import { ZombieHome } from '@/components/zombie/ZombieHome'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { c2cScoreModeChip, c2cSportPairShort } from '@/lib/c2c/c2cUiLabels'
 import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
+import { PostCreateSetupGuideBanner } from '@/components/league/PostCreateSetupGuideBanner'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
 import {
@@ -376,6 +379,9 @@ export function LeagueShell({
       war_room: 'war_room',
       warroom: 'war_room',
       af_war_room: 'war_room',
+      ai_coaching: 'ai_coaching',
+      coaching: 'ai_coaching',
+      ai_coach: 'ai_coaching',
       draft: 'draft',
       redraft: 'redraft',
       trades: 'trades',
@@ -858,6 +864,12 @@ export function LeagueShell({
               </div>
             ) : null}
 
+            {isCommissioner ? (
+              <Suspense fallback={null}>
+                <PostCreateSetupGuideBanner leagueId={league.id} isCommissioner={isCommissioner} />
+              </Suspense>
+            ) : null}
+
             {/* Live scores strip */}
             <LeagueLiveStrip sport={String(league.sport)} />
 
@@ -1203,6 +1215,8 @@ function LeagueTabRouter({
       )
     case 'war_room':
       return <WarRoomTab league={selectedLeague} sport={sport} />
+    case 'ai_coaching':
+      return <AICoachingTab league={selectedLeague} userTeam={userTeam} sport={sport} />
     case 'history':
       return <HistoryTab league={selectedLeague} />
     case 'settings':
@@ -1246,6 +1260,7 @@ const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
   trades: ArrowLeftRight,
   scores: BarChart3,
   war_room: Telescope,
+  ai_coaching: Brain,
   history: History,
   standings: ListOrdered,
   fixtures: CalendarDays,

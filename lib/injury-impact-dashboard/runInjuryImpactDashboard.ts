@@ -29,6 +29,8 @@ import type {
 import { enrichInjuryRowsWithLeagueProjections } from './injuryProjectionEnrichment'
 import { computeInjuryConfidence, formatInjuryFreshnessNote } from './injuryFreshness'
 import { buildReplacementHint } from './injuryReplacementHints'
+import { parseReturnTimeline } from './returnTimelineParser'
+import type { InjuryFeedFreshness } from './types'
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n))
@@ -500,15 +502,31 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
     }
     row.freshnessNote = formatInjuryFreshnessNote(row)
     row.confidence = computeInjuryConfidence(row)
-    row.replacementHint = buildReplacementHint({
-      sport: row.sport,
-      position: row.position,
-      severity: row.severity,
-      isStarter: row.isStarter,
-    })
+    if (input.toggles.includeHandcuffs) {
+      row.replacementHint = buildReplacementHint({
+        sport: row.sport,
+        position: row.position,
+        severity: row.severity,
+        isStarter: row.isStarter,
+      })
+    } else {
+      row.replacementHint = null
+    }
+    if (input.toggles.includeReturnTimelines !== false) {
+      row.returnTimeline = parseReturnTimeline(row.notes ?? row.gameStatus ?? row.statusRaw, row.severity)
+    }
     if (row.onRoster && sl?.effectiveProjection != null && Number.isFinite(sl.effectiveProjection) && sl.effectiveProjection >= 10) {
       row.impactScore = clamp(row.impactScore + Math.min(10, Math.round(sl.effectiveProjection / 6)), 0, 100)
       row.lineupDisruption = clamp(row.lineupDisruption + 5, 0, 100)
+    }
+    if (
+      input.toggles.includePlayoffImpact &&
+      row.onRoster &&
+      (input.timeHorizon === 'rest_of_season' || input.timeHorizon === 'playoff_window') &&
+      (row.severity === 'out' || row.severity === 'ir' || row.severity === 'doubtful')
+    ) {
+      row.impactScore = clamp(row.impactScore + 6, 0, 100)
+      row.replacementUrgency = clamp(row.replacementUrgency + 10, 0, 100)
     }
   }
   rows.sort((a, b) => b.impactScore - a.impactScore)
@@ -623,6 +641,27 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
     waiverWire: waiverHint,
     matchupPrep: 'Matchup Prep uses the same league for weekly opponent context and lineup pressure.',
     warRoom: 'AF War Room bundles injury intel with Start/Sit, waiver, and trade modules for one league.',
+  }
+
+  const FEED_STALE_HOURS = 48
+  const latestFeedMs = injuryReports.reduce<number | null>((acc, r) => {
+    const t = r.reportDate ? new Date(r.reportDate).getTime() : null
+    if (t == null || !Number.isFinite(t)) return acc
+    return acc == null || t > acc ? t : acc
+  }, null)
+  const staleHours = latestFeedMs != null ? Math.round((Date.now() - latestFeedMs) / 3_600_000) : null
+  const feedFreshness: InjuryFeedFreshness = {
+    latestReportDateIso: latestFeedMs != null ? new Date(latestFeedMs).toISOString() : null,
+    staleHours,
+    stale: staleHours != null && staleHours > FEED_STALE_HOURS,
+    rowsSeen: injuryReports.length,
+  }
+  if (feedFreshness.stale) {
+    dataGaps.push(
+      `Injury feed is ${staleHours}h stale (latest report ${feedFreshness.latestReportDateIso ?? 'n/a'}). Recency-sensitive calls should verify with provider.`,
+    )
+  } else if (feedFreshness.latestReportDateIso == null) {
+    dataGaps.push('No injury_report rows returned for this scope — relying on sports_players injuryStatus only.')
   }
 
   let aiEnvelope: AiToolPayloadEnvelope | null = null
@@ -792,6 +831,7 @@ export async function runInjuryImpactDashboard(input: InjuryImpactDashboardInput
     computedAt: new Date().toISOString(),
     timeContext: aiEnvelope?.time ?? null,
     validation,
+    feedFreshness,
     summaryLine,
     dataQuality,
     integrationHints,

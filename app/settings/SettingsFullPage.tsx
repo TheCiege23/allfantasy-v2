@@ -7,9 +7,11 @@ import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { useSettingsProfile } from "@/hooks/useSettingsProfile"
 import { ConnectedAccountsSettingsSection } from "@/app/settings/components/sections/ConnectedAccountsSettingsSection"
+import { AutoCoachPreferencesPanel } from "@/components/settings/AutoCoachPreferencesPanel"
 import { useEntitlement } from "@/hooks/useEntitlement"
 import { useSubscriptionGateOptional } from "@/hooks/useSubscriptionGate"
 import { SubscriptionGateModal } from "@/components/subscription/SubscriptionGateModal"
+import type { AutoCoachUserPreferences } from "@/lib/autocoach/autoCoachPreferences"
 
 const CARD =
   "rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5 mb-4"
@@ -150,6 +152,34 @@ export default function SettingsFullPage() {
   const [autoCoachGlobal, setAutoCoachGlobal] = useState(true)
   const [autoCoachSaving, setAutoCoachSaving] = useState(false)
   const [autoCoachGateOpen, setAutoCoachGateOpen] = useState(false)
+  const defaultAcPrefs: AutoCoachUserPreferences = useMemo(
+    () => ({
+      learnTendencies: false,
+      aggressiveness: "balanced",
+      questionableAutomation: "never",
+      notifyAutoSwapInApp: true,
+      notifyAutoSwapEmail: false,
+      confidenceThreshold: 65,
+      positionOverrides: {},
+      excludedPlayerIds: [],
+    }),
+    [],
+  )
+  const [acPrefs, setAcPrefs] = useState<AutoCoachUserPreferences>(defaultAcPrefs)
+  const [acPrefsSaving, setAcPrefsSaving] = useState(false)
+  const [swapLogsOpen, setSwapLogsOpen] = useState(false)
+  const [swapLogsLoading, setSwapLogsLoading] = useState(false)
+  const [swapLogs, setSwapLogs] = useState<
+    Array<{
+      id: string
+      swapMadeAt: string
+      leagueId: string
+      playerOutName: string
+      playerInName: string
+      playerOutStatus: string
+      decisionNotes: string | null
+    }>
+  >([])
   const proAutoCoachEnt = useEntitlement("pro_autocoach")
   const gateOptional = useSubscriptionGateOptional()
   const hasProAutoCoach = proAutoCoachEnt.hasAccess("pro_autocoach")
@@ -190,13 +220,19 @@ export default function SettingsFullPage() {
     void (async () => {
       const res = await fetch("/api/user/autocoach", { cache: "no-store" })
       if (!res.ok || cancelled) return
-      const j = (await res.json()) as { globalEnabled?: boolean }
+      const j = (await res.json()) as {
+        globalEnabled?: boolean
+        preferences?: Partial<AutoCoachUserPreferences>
+      }
       if (typeof j.globalEnabled === "boolean") setAutoCoachGlobal(j.globalEnabled)
+      if (j.preferences && typeof j.preferences === "object") {
+        setAcPrefs((prev) => ({ ...defaultAcPrefs, ...prev, ...j.preferences }))
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [session?.user?.id])
+  }, [session?.user?.id, defaultAcPrefs])
 
   useEffect(() => {
     if (!profile) return
@@ -232,6 +268,58 @@ export default function SettingsFullPage() {
       }
     } finally {
       setAutoCoachSaving(false)
+    }
+  }, [])
+
+  const patchAcPrefs = useCallback(
+    async (patch: Partial<AutoCoachUserPreferences>) => {
+      if (!hasProAutoCoach) {
+        if (gateOptional) gateOptional.gate("pro_autocoach")
+        else setAutoCoachGateOpen(true)
+        return
+      }
+      setAcPrefsSaving(true)
+      setAcPrefs((prev) => ({ ...prev, ...patch }))
+      try {
+        const res = await fetch("/api/user/autocoach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preferences: patch }),
+        })
+        if (!res.ok) {
+          toast.error("Could not save lineup protection preferences")
+          const r = await fetch("/api/user/autocoach", { cache: "no-store" })
+          if (r.ok) {
+            const jj = (await r.json()) as { preferences?: Partial<AutoCoachUserPreferences> }
+            if (jj.preferences) setAcPrefs((p) => ({ ...defaultAcPrefs, ...p, ...jj.preferences }))
+          }
+        }
+      } finally {
+        setAcPrefsSaving(false)
+      }
+    },
+    [defaultAcPrefs, gateOptional, hasProAutoCoach],
+  )
+
+  const loadSwapLogs = useCallback(async () => {
+    setSwapLogsLoading(true)
+    try {
+      const res = await fetch("/api/user/autocoach/swap-logs", { cache: "no-store" })
+      if (!res.ok) return
+      const j = (await res.json()) as {
+        swaps?: Array<{
+          id: string
+          swapMadeAt: string
+          leagueId: string
+          playerOutName: string
+          playerInName: string
+          playerOutStatus: string
+          decisionNotes: string | null
+        }>
+      }
+      setSwapLogs(j.swaps ?? [])
+    } finally {
+      setSwapLogsLoading(false)
     }
   }, [])
 
@@ -585,13 +673,15 @@ export default function SettingsFullPage() {
         </section>
 
         <section className={CARD}>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">AutoCoach — All Leagues</h2>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-white/50">
+            AI Auto Start/Sit Protection
+          </h2>
           <p className="mb-3 text-xs text-white/40">
-            Master switch: turn off to pause Chimmy AutoCoach everywhere. When on, your per-league AutoCoach settings
-            apply.
+            Master switch: pause all leagues. When on, enable per league on each team tab. Uses live status and
+            Start/Sit projections; swaps only before each player&apos;s game — not Best Ball, not in-game fixes.
           </p>
           <div className="flex items-center justify-between gap-3 py-1">
-            <span className="text-sm text-white/85">⚡ AutoCoach AI</span>
+            <span className="text-sm text-white/85">Protection active (all leagues)</span>
             <button
               type="button"
               role="switch"
@@ -621,6 +711,56 @@ export default function SettingsFullPage() {
               Requires AF Pro — tap the toggle to see upgrade options.
             </p>
           ) : null}
+
+          <div className="mt-4 border-t border-white/[0.06] pt-3">
+            {hasProAutoCoach && autoCoachGlobal ? (
+              <AutoCoachPreferencesPanel />
+            ) : (
+              <p className="text-[11px] text-white/40">
+                Enable AutoCoach globally above to manage preferences.
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 border-t border-white/[0.06] pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !swapLogsOpen
+                setSwapLogsOpen(next)
+                if (next && swapLogs.length === 0) void loadSwapLogs()
+              }}
+              className="text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+            >
+              {swapLogsOpen ? "Hide" : "View"} recent auto-swaps
+            </button>
+            {swapLogsOpen ? (
+              <div className="mt-2 space-y-2">
+                {swapLogsLoading ? (
+                  <p className="text-[11px] text-white/40">Loading…</p>
+                ) : swapLogs.length === 0 ? (
+                  <p className="text-[11px] text-white/40">No swaps logged yet.</p>
+                ) : (
+                  <ul className="max-h-56 space-y-2 overflow-y-auto text-[11px] text-white/70">
+                    {swapLogs.map((s) => (
+                      <li
+                        key={s.id}
+                        className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-2 py-1.5"
+                      >
+                        <p className="font-medium text-white/85">
+                          {s.playerOutName} ({s.playerOutStatus}) → {s.playerInName}
+                        </p>
+                        <p className="text-white/45">{new Date(s.swapMadeAt).toLocaleString()}</p>
+                        {s.decisionNotes ? (
+                          <p className="mt-0.5 text-white/35">{s.decisionNotes}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : null}
+          </div>
         </section>
 
         {autoCoachGateOpen && !gateOptional ? (

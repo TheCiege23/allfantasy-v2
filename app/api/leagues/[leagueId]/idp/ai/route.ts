@@ -17,6 +17,7 @@ import {
 } from '@/lib/idp/ai/IdpAIContext'
 import { buildIdpAIPrompt } from '@/lib/idp/ai/IdpAIPrompts'
 import { openaiChatText } from '@/lib/openai-client'
+import { withOfficialTimeUserMessage } from '@/lib/time-engine/chimmyPromptPrefix'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,10 +85,11 @@ export async function POST(
   }
 
   const { system, user } = buildIdpAIPrompt(type, context as any)
+  const userWithTime = await withOfficialTimeUserMessage(userId, user)
   const res = await openaiChatText({
     messages: [
       { role: 'system', content: system },
-      { role: 'user', content: user },
+      { role: 'user', content: userWithTime },
     ],
     temperature: 0.5,
     maxTokens: 600,

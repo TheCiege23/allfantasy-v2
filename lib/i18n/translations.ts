@@ -934,6 +934,7 @@ export const translations: Record<string, Record<string, string>> = {
     "league.tab.trades": "Trades",
     "league.tab.scores": "Scores",
     "league.tab.warRoom": "War Room",
+    "league.tab.aiCoaching": "AI Coaching",
     "league.tab.history": "History",
     "league.tab.standings": "Standings",
     "league.tab.squad": "Squad",
@@ -1212,6 +1213,29 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.overview.createLeague": "+ Create League",
     "dashboard.overview.import": "Import",
     "dashboard.overview.findLeague": "Find League",
+    "dashboard.overview.leagueIntelligenceTitle": "League Intelligence",
+    "dashboard.overview.leagueIntelligenceSubtitle":
+      "Live league-specific AI powered by your selected league — pick one league for all widgets below.",
+    "dashboard.overview.leagueSelectorLabel": "League for this section",
+
+    "dashboard.aiTools.globalSectionTitle": "Global AI Tools",
+    "dashboard.aiTools.globalSectionSubtitle":
+      "Standalone AI workspaces — open globally or inherit the league you selected above.",
+    "dashboard.aiTools.contextLeagueMode": "League mode · {{name}}",
+    "dashboard.aiTools.contextGlobalMode": "Global mode — no league selected",
+    "dashboard.aiTools.chipSports": "Sports data",
+    "dashboard.aiTools.chipSportsHint": "Lit when cached player data is available in the database for tools.",
+    "dashboard.aiTools.chipNews": "News",
+    "dashboard.aiTools.chipNewsHint": "Lit when recent news rows exist in the database (not just an API key).",
+    "dashboard.aiTools.chipAi": "AI engine",
+    "dashboard.aiTools.chipAiHint": "Lit when at least one AI provider is configured and available.",
+    "dashboard.aiTools.chipRolling": "Rolling Insights",
+    "dashboard.aiTools.chipRollingHint":
+      "Lit when Rolling Insights is configured and cached player data is flowing (enrichment path live).",
+    "dashboard.aiTools.chipClearSports": "ClearSports",
+    "dashboard.aiTools.chipClearSportsHint":
+      "Lit when ClearSports is configured and cached sports data is available for tools.",
+    "dashboard.aiTools.askChimmy": "Ask Chimmy →",
 
     "dashboard.onboarding.step1.label": "Select favorite sports",
     "dashboard.onboarding.step1.desc":
@@ -1250,6 +1274,31 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.today.checkTrades": "🔄 Check trades",
     "dashboard.today.waiverInjuryPulseOne": "📋 1 injury update",
     "dashboard.today.waiverInjuryPulses": "📋 {{n}} injury updates",
+    "dashboard.today.lineupDecisionsOne": "1 lineup decision to review",
+    "dashboard.today.lineupDecisionsMany": "{{n}} lineup decisions to review",
+    "dashboard.today.lineupsGoodShort": "You're set",
+    "dashboard.today.lineupAcrossLeaguesOne": "Across 1 league",
+    "dashboard.today.lineupAcrossLeaguesMany": "Across {{n}} leagues",
+    "dashboard.today.lineupUrgentOne": "1 lock soon",
+    "dashboard.today.lineupUrgentMany": "{{n}} lock soon",
+    "dashboard.today.lineupChecking": "Checking lineups…",
+    "dashboard.today.lineupChipTooltipDefault":
+      "Unresolved slot decisions from your real lineups — empty slots, illegal positions, inactive starters, and (when enabled) doubtful players. Low-impact or locked players are excluded.",
+    "dashboard.today.lineupScannedLeaguesOne": "Verified 1 league",
+    "dashboard.today.lineupScannedLeaguesMany": "Verified {{n}} leagues",
+    "dashboard.today.lineupScanWarningOne": "1 league couldn't be fully checked",
+    "dashboard.today.lineupScanWarningMany": "{{n}} leagues couldn't be fully checked",
+    "dashboard.today.injuryLineupDecisionOne": "🏥 1 lineup injury decision to review",
+    "dashboard.today.injuryLineupDecisionMany": "🏥 {{n}} lineup injury decisions to review",
+    "dashboard.today.injuryReportFeedOne": "🏥 1 injury report in your sports",
+    "dashboard.today.injuryReportFeedMany": "🏥 {{n}} injury reports in your sports",
+    "dashboard.today.matchupPrepDecisionOne": "🎯 1 matchup prep decision to review",
+    "dashboard.today.matchupPrepDecisionMany": "🎯 {{n}} matchup prep decisions to review",
+    "dashboard.today.matchupDataLeaguesOne": "🎯 Matchup data in 1 league",
+    "dashboard.today.matchupDataLeaguesMany": "🎯 Matchup data in {{n}} leagues",
+    "dashboard.today.warRoomActionOne": "🛡 1 War Room priority",
+    "dashboard.today.warRoomActionMany": "🛡 {{n}} War Room priorities",
+    "dashboard.today.warRoomOpen": "🛡 War Room",
 
     "dashboard.waiverModal.injuryPulseTitle": "Injury pulse",
     "dashboard.waiverModal.injuryPulseHint":
@@ -1293,6 +1342,10 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.shortcut.matchupPrep.desc": "Game script & edges",
     "dashboard.shortcut.matchupPrep.faq":
       "Open the matchup simulator for projections, or Ask Chimmy for pace, volatility, and start/sit edges for this week.",
+    "dashboard.shortcut.longTermCoach.label": "Long-Term Coach",
+    "dashboard.shortcut.longTermCoach.desc": "2–5 year dynasty / devy plan",
+    "dashboard.shortcut.longTermCoach.faq":
+      "Uses your synced roster, scoring, picks, and projections to classify contend vs rebuild and outline a grounded multi-year path — open the full tool for horizons and AI narrative.",
     "dashboard.shortcut.faqAria": "How {{label}} works",
 
     "dashboard.rankings.emptyTitle": "Import your leagues to unlock your ranking",

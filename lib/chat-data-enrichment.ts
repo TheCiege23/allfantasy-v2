@@ -1,9 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { fetchGameWeather, isTeamDome, getVenueForTeam } from '@/lib/openweathermap'
+import { getWeatherForEvent } from '@/lib/weather/weatherService'
+import { resolveVenueForTeam } from '@/lib/weather/venueResolver'
+import { defaultNflGameTime } from '@/lib/weather/defaultGameTimes'
+import { calculateWeatherImpact } from '@/lib/weather/weatherImpactEngine'
 import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { fetchFantasyCalcValues, findPlayerByName, getTrendingPlayers, getValueTier, type FantasyCalcPlayer } from '@/lib/fantasycalc'
 import { getConsensusADP } from '@/lib/multi-platform-adp'
 import { getTrendingAdds, getTrendingDrops, getPlayerName, getAllPlayers } from '@/lib/sleeper-client'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { resolvePlayerInjuryNewsBatch } from '@/lib/news-injury-aggregation/resolveBatch'
 
 export interface ChatDataSources {
   news: { title: string; source: string; publishedAt: string; teams: string[] }[]
@@ -86,6 +92,8 @@ export async function enrichChatWithData(
     sleeperUsername?: string
     includeWeather?: boolean
     includeLiveScores?: boolean
+    /** Defaults to NFL when omitted; used for shared injury/news aggregation. */
+    sport?: string
   }
 ): Promise<{ context: string; sources: ChatDataSources; audit: ChatEnrichmentAudit }> {
   const { players, teams } = extractPlayerAndTeamMentions(userMessage)
@@ -160,6 +168,54 @@ export async function enrichChatWithData(
   if (wantsInjury || teams.length > 0) {
     tasks.push((async () => {
       try {
+        const sport = normalizeToSupportedSport(options?.sport ?? 'NFL')
+
+        if (players.length > 0) {
+          const batch = await resolvePlayerInjuryNewsBatch({
+            prisma,
+            sport,
+            players: players.slice(0, 14).map((name) => ({
+              playerName: name,
+              teamAbbrev: teams[0] ?? null,
+            })),
+            skipNewsContext: players.length > 18,
+          })
+
+          const lines: string[] = []
+          let usedNewsInjuryAgg = false
+          for (const name of players.slice(0, 14)) {
+            const layer = batch.get(name.toLowerCase())
+            if (!layer) continue
+            usedNewsInjuryAgg = true
+            const desc = [
+              layer.playerNewsSummary,
+              layer.conflict ? `CONFLICT: ${layer.conflictDetail ?? 'sources disagree'}` : null,
+              layer.materialProjectionImpact
+                ? `projection multiplier ~${layer.projectionMultiplier.toFixed(2)} vs baseline`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' — ')
+            sources.injuries.push({
+              playerName: layer.playerName,
+              team: layer.teamAbbrev || 'Unknown',
+              status: layer.canonicalStatus,
+              description: desc,
+            })
+            lines.push(
+              `- ${layer.playerName} (${layer.teamAbbrev ?? '?'}): ${layer.canonicalStatus}${
+                layer.practiceReport ? ` · practice ${layer.practiceReport}` : ''
+              }${desc ? ` — ${desc}` : ''}`,
+            )
+          }
+
+          if (lines.length > 0) {
+            if (usedNewsInjuryAgg) enrichSourcesUsed.push('news_injury_aggregation')
+            contextParts.push(`\n## INJURY / NEWS (shared aggregation layer — DB + news pipeline)\n${lines.join('\n')}`)
+            return
+          }
+        }
+
         const whereClause: any = {
           status: { not: 'Active' },
         }
@@ -216,13 +272,29 @@ export async function enrichChatWithData(
             }
             const gw = await fetchGameWeather(team)
             if (!gw) return null
+            let forecastBlurb = ''
+            if (process.env.OPENWEATHERMAP_API_KEY?.trim() && !gw.isDome) {
+              const v = resolveVenueForTeam({ sport: 'NFL', teamAbbrev: team })
+              if (v.kind !== 'none' && !v.dome) {
+                const wx = await getWeatherForEvent({
+                  lat: v.lat,
+                  lng: v.lng,
+                  gameTime: defaultNflGameTime(),
+                  sport: 'NFL',
+                })
+                if (wx) {
+                  const imp = calculateWeatherImpact('NFL', 'QB', wx, 20)
+                  forecastBlurb = ` Sunday-window forecast (${wx.conditionLabel}, ${Math.round(wx.temperatureF)}°F, ${Math.round(wx.windSpeedMph)}mph wind, ~${Math.round(wx.precipChancePct)}% precip): model vs ~20pt QB baseline ${imp.totalAdjustment >= 0 ? '+' : ''}${imp.totalAdjustment.toFixed(1)} pts — ${imp.shortReason}.`
+                }
+              }
+            }
             return {
               team,
               venue: gw.venue,
               isDome: false,
               temp: gw.weather.temp,
               wind: gw.weather.windSpeed,
-              impact: gw.weather.fantasyImpact,
+              impact: gw.weather.fantasyImpact + forecastBlurb,
             }
           })
         )
@@ -231,7 +303,7 @@ export async function enrichChatWithData(
         if (validWeather.length > 0) {
           enrichSourcesUsed.push('weather')
           sources.weather = validWeather
-          contextParts.push(`\n## GAME-DAY WEATHER (from OpenWeatherMap)\n${validWeather.map(w =>
+          contextParts.push(`\n## GAME-DAY WEATHER (OpenWeatherMap — current + typical Sunday forecast window)\n${validWeather.map(w =>
             `- ${w.team} at ${w.venue}: ${w.isDome ? 'DOME (no weather impact)' : `${Math.round(w.temp!)}°F, ${Math.round(w.wind!)} mph wind`}${w.impact ? ' — ' + w.impact : ''}`
           ).join('\n')}`)
         }

@@ -10,6 +10,7 @@ async function checkApiHealth(key: string): Promise<{ status: string; latency?: 
     fantrax: "https://www.fantrax.com",
     fantasycalc: "https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&numTeams=12&ppr=1",
     thesportsdb: "https://www.thesportsdb.com/api/v1/json/3/all_leagues.php",
+    theaudiodb: "https://www.theaudiodb.com/api/v1/json/2/album.php?i=112024",
     openai: "https://api.openai.com/v1/models",
     grok: "https://api.x.ai/v1/models",
   };
@@ -63,6 +64,7 @@ const estimatedCallsPerHour: Record<string, number> = {
   fantrax: 5,
   fantasycalc: 80,
   thesportsdb: 40,
+  theaudiodb: 20,
   espn: 15,
   openai: 200,
   grok: 50,
@@ -70,7 +72,7 @@ const estimatedCallsPerHour: Record<string, number> = {
 
 export const GET = withApiUsage({ endpoint: "/api/admin/api-status", tool: "AdminApiStatus" })(async () => {
   try {
-    const apiKeys = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "espn", "openai", "grok"];
+    const apiKeys = ["sleeper", "yahoo", "mfl", "fantrax", "fantasycalc", "thesportsdb", "theaudiodb", "espn", "openai", "grok"];
 
     const healthResults = await Promise.all(
       apiKeys.map(key => checkApiHealth(key))

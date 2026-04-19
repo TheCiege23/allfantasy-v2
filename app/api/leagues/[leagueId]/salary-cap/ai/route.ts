@@ -77,7 +77,7 @@ export async function POST(
   }
 
   try {
-    const { explanation, model } = await generateSalaryCapAI(deterministic, type)
+    const { explanation, model } = await generateSalaryCapAI(deterministic, type, userId)
     return NextResponse.json({
       deterministic: {
         leagueId: deterministic.leagueId,

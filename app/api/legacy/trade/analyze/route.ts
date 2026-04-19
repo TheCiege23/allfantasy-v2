@@ -412,7 +412,10 @@ function summarizeRoster(roster: RosteredPlayer[]) {
 }
 
 async function lookupSportsDbPlayers(args: { sport: Sport; names: string[] }) {
-  const apiKey = process.env.THESPORTSDB_API_KEY || ''
+  const apiKey =
+    process.env.THESPORTSDB_API_KEY?.trim() ||
+    process.env.THEAUDIODB_API_KEY?.trim() ||
+    ''
   if (!apiKey) return { ok: false, reason: 'missing_api_key', players: [] as any[] }
 
   const uniq = Array.from(new Set(args.names.map((n) => n.trim()).filter(Boolean))).slice(0, 8)

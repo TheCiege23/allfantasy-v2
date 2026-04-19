@@ -5,6 +5,9 @@ import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
 import { applyRedraftTradeCapTransfers, validateRedraftTradeCap } from '@/lib/idp/capEngine'
 import { enqueueCollusionScan } from '@/lib/integrity/enqueueCollusionScan'
+import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
+import { recordTradeOutcomeForBothManagers } from '@/lib/ai-learning-system/recordTradeParticipants'
+import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 
 export const dynamic = 'force-dynamic'
 
@@ -102,6 +105,16 @@ async function finalizeAcceptedTrade(
     data: { status: 'accepted', acceptedAt: new Date(), processedAt: new Date() },
   })
   await upsertDecision(proposal.id, 'accepted', decidedByUserId, decisionReason)
+
+  if (proposerOwnerId && receiverOwnerId) {
+    void recordTradeOutcomeForBothManagers({
+      leagueId: proposal.leagueId,
+      eventType: 'trade_accepted',
+      proposerUserId: proposerOwnerId,
+      receiverUserId: receiverOwnerId,
+      payload: { proposalId: proposal.id, source: 'redraft_trade_proposal' },
+    })
+  }
 
   if (proposerOwnerId && receiverOwnerId) {
     const legacy = await prisma.redraftLeagueTrade.create({
@@ -211,6 +224,23 @@ export async function POST(req: NextRequest) {
       data: { status: 'expired' },
     })
     await upsertDecision(proposal.id, 'expired', userId, 'Proposal expired before action')
+    const expiredProposer = await prisma.redraftRoster.findFirst({
+      where: { id: proposal.proposerRosterId },
+      select: { ownerId: true },
+    })
+    const expiredProposerOwnerId = expiredProposer?.ownerId
+    if (expiredProposerOwnerId) {
+      void resolveLeagueSport(proposal.leagueId).then((sport) =>
+        recordAfLearningEvent({
+          eventType: 'trade_expired',
+          sport,
+          leagueId: proposal.leagueId,
+          userId: expiredProposerOwnerId,
+          source: 'redraft_trade_proposal',
+          payload: { proposalId: proposal.id },
+        }),
+      )
+    }
     return NextResponse.json({ proposal: expired, resolved: true })
   }
 
@@ -234,6 +264,18 @@ export async function POST(req: NextRequest) {
       data: { status: 'cancelled', cancelledAt: new Date(), processedAt: new Date() },
     })
     await upsertDecision(proposal.id, 'cancelled', userId, body.reason)
+    if (proposerOwnerId) {
+      void resolveLeagueSport(proposal.leagueId).then((sport) =>
+        recordAfLearningEvent({
+          eventType: 'trade_cancelled',
+          sport,
+          leagueId: proposal.leagueId,
+          userId: proposerOwnerId,
+          source: 'redraft_trade_proposal',
+          payload: { proposalId: proposal.id },
+        }),
+      )
+    }
     return NextResponse.json({ proposal: cancelled, resolved: true })
   }
 
@@ -250,6 +292,13 @@ export async function POST(req: NextRequest) {
       data: { status: 'rejected', rejectedAt: new Date(), processedAt: new Date() },
     })
     await upsertDecision(proposal.id, 'rejected', userId, body.reason)
+    void recordTradeOutcomeForBothManagers({
+      leagueId: proposal.leagueId,
+      eventType: 'trade_rejected',
+      proposerUserId: proposerOwnerId,
+      receiverUserId: receiverOwnerId,
+      payload: { proposalId: proposal.id, source: 'redraft_trade_proposal' },
+    })
     return NextResponse.json({ proposal: updated, resolved: true })
   }
 
@@ -269,6 +318,13 @@ export async function POST(req: NextRequest) {
       },
     })
     await upsertDecision(proposal.id, 'vetoed', userId, body.reason)
+    void recordTradeOutcomeForBothManagers({
+      leagueId: proposal.leagueId,
+      eventType: 'trade_vetoed',
+      proposerUserId: proposerOwnerId,
+      receiverUserId: receiverOwnerId,
+      payload: { proposalId: proposal.id, source: 'redraft_trade_proposal' },
+    })
     return NextResponse.json({ proposal: updated, resolved: true })
   }
 
@@ -317,6 +373,13 @@ export async function POST(req: NextRequest) {
         data: { status: 'vetoed', processedAt: new Date() },
       })
       await upsertDecision(proposal.id, 'vetoed', userId, `League vote veto threshold reached (${vetoCount}/${threshold})`)
+      void recordTradeOutcomeForBothManagers({
+        leagueId: proposal.leagueId,
+        eventType: 'trade_vetoed',
+        proposerUserId: proposerOwnerId,
+        receiverUserId: receiverOwnerId,
+        payload: { proposalId: proposal.id, source: 'redraft_trade_vote' },
+      })
       return NextResponse.json({ proposal: updated, resolved: true, approveCount, vetoCount, threshold })
     }
 
