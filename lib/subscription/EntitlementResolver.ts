@@ -58,6 +58,15 @@ const PLAN_CODE_TO_ID: Record<string, SubscriptionPlanId> = {
   supreme: "supreme",
 }
 
+/** Valid tier strings for admin-granted subscriptions — mirrors SubscriptionPlanId. */
+const GRANT_TIER_TO_PLAN_ID: Record<string, SubscriptionPlanId> = {
+  pro: "pro",
+  commissioner: "commissioner",
+  war_room: "war_room",
+  all_access: "all_access",
+  supreme: "supreme",
+}
+
 function mapSkuToPlanId(sku: string | null | undefined): SubscriptionPlanId | null {
   if (!sku) return null
   const normalized = sku.trim().toLowerCase()
@@ -106,19 +115,32 @@ export class EntitlementResolver {
       return buildDevAdminEntitlementSnapshot()
     }
 
-    const subscriptions = (await (prisma as any).userSubscription
-      .findMany({
-        where: { userId },
-        include: { plan: { select: { code: true } } },
-        orderBy: [{ currentPeriodEnd: "desc" }, { createdAt: "desc" }],
-      })
-      .catch(() => [])) as DbUserSubscriptionRow[]
+    const now = new Date()
 
-    if (!subscriptions.length) {
+    const [subscriptions, activeGrants] = await Promise.all([
+      (prisma as any).userSubscription
+        .findMany({
+          where: { userId },
+          include: { plan: { select: { code: true } } },
+          orderBy: [{ currentPeriodEnd: "desc" }, { createdAt: "desc" }],
+        })
+        .catch(() => []) as Promise<DbUserSubscriptionRow[]>,
+      (prisma as any).adminSubscriptionGrant
+        .findMany({
+          where: {
+            userId,
+            revokedAt: null,
+            expiresAt: { gt: now },
+          },
+          orderBy: [{ expiresAt: "desc" }],
+          select: { tier: true, expiresAt: true },
+        })
+        .catch(() => []) as Promise<Array<{ tier: string; expiresAt: Date }>>,
+    ])
+
+    if (!subscriptions.length && !activeGrants.length) {
       return { ...EMPTY_ENTITLEMENT }
     }
-
-    const now = new Date()
     const statusCounts: Record<EntitlementStatus, number> = {
       active: 0,
       grace: 0,
@@ -157,8 +179,21 @@ export class EntitlementResolver {
       if (planId) plans.add(planId)
     }
 
-    const overallStatus: EntitlementStatus =
-      statusCounts.active > 0
+    // Admin-granted subscriptions always count as 'active' while not revoked + not expired.
+    let grantBumpedActive = false
+    for (const grant of activeGrants) {
+      const planId = GRANT_TIER_TO_PLAN_ID[grant.tier.trim().toLowerCase()]
+      if (!planId) continue
+      plans.add(planId)
+      grantBumpedActive = true
+      if (!latestCurrentPeriodEnd || grant.expiresAt > latestCurrentPeriodEnd) {
+        latestCurrentPeriodEnd = grant.expiresAt
+      }
+    }
+
+    const overallStatus: EntitlementStatus = grantBumpedActive
+      ? "active"
+      : statusCounts.active > 0
         ? "active"
         : statusCounts.grace > 0
           ? "grace"

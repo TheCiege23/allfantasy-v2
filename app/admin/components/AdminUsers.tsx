@@ -13,11 +13,14 @@ import {
   AlertTriangle,
   Mail,
   Shield,
+  Crown,
 } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
 import { downloadCsv } from "@/lib/admin-dashboard/CsvExport"
+import { GrantSubscriptionDialog } from "./GrantSubscriptionDialog"
+import { BanUserDialog } from "./BanUserDialog"
 
 interface AppUser {
   id: string
@@ -63,9 +66,14 @@ export default function AdminUsers() {
   const [deleteConfirm, setDeleteConfirm] = useState<AppUser | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteResult, setDeleteResult] = useState<{ ok: boolean; message: string } | null>(null)
-  const [moderationAction, setModerationAction] = useState<string | null>(null)
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([])
   const [bulkLoading, setBulkLoading] = useState<string | null>(null)
+  const [grantTarget, setGrantTarget] = useState<AppUser | null>(null)
+  const [banTarget, setBanTarget] = useState<
+    | { mode: "single"; user: AppUser }
+    | { mode: "bulk"; userIds: string[] }
+    | null
+  >(null)
 
   const load = async () => {
     setLoading(true)
@@ -129,58 +137,6 @@ export default function AdminUsers() {
     setSelectedUserIds((prev) => prev.filter((id) => users.some((u) => u.id === id)))
   }, [users])
 
-  const applyModerationAction = async (userId: string, actionType: "ban" | "suspend") => {
-    setModerationAction(`${actionType}-${userId}`)
-    try {
-      const res = await fetch(`/api/admin/moderation/users/${encodeURIComponent(userId)}/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          actionType,
-          reason: actionType === "ban" ? "Admin user management ban" : "Admin user management suspension",
-          expiresAt: actionType === "suspend" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error || `Failed to ${actionType}`)
-      setDeleteResult({ ok: true, message: actionType === "ban" ? "User banned" : "User suspended for 7 days" })
-    } catch (e: any) {
-      setDeleteResult({ ok: false, message: e?.message || `Failed to ${actionType}` })
-    } finally {
-      setModerationAction(null)
-    }
-  }
-
-  const runBulkModerationAction = async (actionType: "ban" | "suspend") => {
-    if (selectedUserIds.length === 0) return
-    setBulkLoading(actionType)
-    try {
-      const results = await Promise.all(
-        selectedUserIds.map(async (id) => {
-          const res = await fetch(`/api/admin/moderation/users/${encodeURIComponent(id)}/action`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              actionType,
-              reason: actionType === "ban" ? "Admin bulk ban" : "Admin bulk suspension",
-              expiresAt: actionType === "suspend" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-            }),
-          })
-          return res.ok
-        })
-      )
-      const okCount = results.filter(Boolean).length
-      setDeleteResult({
-        ok: okCount > 0,
-        message: `${actionType === "ban" ? "Banned" : "Suspended"} ${okCount}/${selectedUserIds.length} selected users`,
-      })
-      setSelectedUserIds([])
-    } catch (e: any) {
-      setDeleteResult({ ok: false, message: e?.message || `Bulk ${actionType} failed` })
-    } finally {
-      setBulkLoading(null)
-    }
-  }
 
   const runBulkUndoModerationAction = async (actionType: "unban" | "unmute" | "unsuspend") => {
     if (selectedUserIds.length === 0) return
@@ -408,23 +364,14 @@ export default function AdminUsers() {
           <span className="text-xs" style={{ color: "var(--muted)" }}>{selectedUserIds.length} selected</span>
           <button
             type="button"
-            onClick={() => runBulkModerationAction("ban")}
-            disabled={bulkLoading != null}
+            onClick={() => setBanTarget({ mode: "bulk", userIds: [...selectedUserIds] })}
+            disabled={bulkLoading != null || selectedUserIds.length === 0}
             className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
             style={{ borderColor: "var(--border)", color: "var(--text)" }}
             data-testid="admin-users-bulk-ban"
+            title="Ban or suspend selected users (pick duration)"
           >
-            {bulkLoading === "ban" ? "Banning..." : "Ban selected"}
-          </button>
-          <button
-            type="button"
-            onClick={() => runBulkModerationAction("suspend")}
-            disabled={bulkLoading != null}
-            className="rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
-            style={{ borderColor: "var(--border)", color: "var(--text)" }}
-            data-testid="admin-users-bulk-suspend"
-          >
-            {bulkLoading === "suspend" ? "Suspending..." : "Suspend selected"}
+            Ban / Suspend selected
           </button>
           <button
             type="button"
@@ -665,22 +612,22 @@ export default function AdminUsers() {
                             Delete
                           </button>
                           <button
-                            onClick={() => applyModerationAction(user.id, "ban")}
-                            disabled={moderationAction === `ban-${user.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-300 border-rose-500/20 bg-rose-500/10 transition hover:bg-rose-500/20 disabled:opacity-50"
-                            data-testid={`admin-users-ban-${user.id}`}
+                            onClick={() => setGrantTarget(user)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-200 transition hover:bg-violet-500/20"
+                            title="Grant a time-boxed subscription (comp / trial / support credit)"
+                            data-testid={`admin-users-grant-${user.id}`}
                           >
-                            {moderationAction === `ban-${user.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
-                            Ban
+                            <Crown className="h-3.5 w-3.5" />
+                            Grant sub
                           </button>
                           <button
-                            onClick={() => applyModerationAction(user.id, "suspend")}
-                            disabled={moderationAction === `suspend-${user.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-amber-300 border-amber-500/20 bg-amber-500/10 transition hover:bg-amber-500/20 disabled:opacity-50"
-                            data-testid={`admin-users-suspend-${user.id}`}
+                            onClick={() => setBanTarget({ mode: "single", user })}
+                            className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-rose-300 border-rose-500/20 bg-rose-500/10 transition hover:bg-rose-500/20"
+                            title="Ban or suspend user (pick duration)"
+                            data-testid={`admin-users-ban-${user.id}`}
                           >
-                            {moderationAction === `suspend-${user.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Shield className="h-3.5 w-3.5" />}
-                            Suspend
+                            <Shield className="h-3.5 w-3.5" />
+                            Ban / Suspend
                           </button>
                           <Link
                             href={`/admin?tab=users&q=${encodeURIComponent(user.email || user.username || user.id)}`}
@@ -789,6 +736,30 @@ export default function AdminUsers() {
           </div>
         </div>
       )}
+
+      {grantTarget ? (
+        <GrantSubscriptionDialog
+          user={{ id: grantTarget.id, email: grantTarget.email, username: grantTarget.username }}
+          onClose={() => setGrantTarget(null)}
+        />
+      ) : null}
+
+      {banTarget ? (
+        <BanUserDialog
+          mode={banTarget.mode}
+          targetLabel={
+            banTarget.mode === "single"
+              ? `${banTarget.user.email} · ${banTarget.user.username}`
+              : `${banTarget.userIds.length} selected user${banTarget.userIds.length === 1 ? "" : "s"}`
+          }
+          targetIds={banTarget.mode === "single" ? [banTarget.user.id] : banTarget.userIds}
+          onClose={() => setBanTarget(null)}
+          onFinished={(result) => {
+            setDeleteResult(result)
+            if (banTarget.mode === "bulk") setSelectedUserIds([])
+          }}
+        />
+      ) : null}
     </div>
   )
 }

@@ -649,14 +649,14 @@ model AnalyticsEvent {
 
 /// Append-only platform learning events (deterministic aggregates — not LLM training).
 model AfLearningEvent {
-  id         String   @id @default(cuid())
-  eventType  String   @map("event_type") @db.VarChar(64)
-  sport      String   @db.VarChar(16)
-  leagueId   String?  @map("league_id") @db.VarChar(64)
-  userId     String?  @map("user_id") @db.VarChar(64)
-  source     String   @default("server") @db.VarChar(32)
-  payload    Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid())
+  eventType String   @map("event_type") @db.VarChar(64)
+  sport     String   @db.VarChar(16)
+  leagueId  String?  @map("league_id") @db.VarChar(64)
+  userId    String?  @map("user_id") @db.VarChar(64)
+  source    String   @default("server") @db.VarChar(32)
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([sport, createdAt])
   @@index([leagueId, createdAt])
@@ -667,29 +667,29 @@ model AfLearningEvent {
 
 /// App-wide learned features per sport (recomputed from `AfLearningEvent`).
 model AfAppLearningSnapshot {
-  sport       String   @id @db.VarChar(16)
-  features    Json
-  explain     Json?
-  confidence  Float    @default(0)
-  sampleSize  Int      @default(0) @map("sample_size")
-  windowDays  Int      @default(90) @map("window_days")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  computedAt  DateTime @default(now()) @map("computed_at")
+  sport      String   @id @db.VarChar(16)
+  features   Json
+  explain    Json?
+  confidence Float    @default(0)
+  sampleSize Int      @default(0) @map("sample_size")
+  windowDays Int      @default(90) @map("window_days")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  computedAt DateTime @default(now()) @map("computed_at")
 
   @@map("af_app_learning_snapshots")
 }
 
 /// League-specific learned features (recomputed from events scoped to that league).
 model AfLeagueLearningSnapshot {
-  leagueId    String   @id @map("league_id") @db.VarChar(64)
-  sport       String   @db.VarChar(16)
-  features    Json
-  explain     Json?
-  confidence  Float    @default(0)
-  sampleSize  Int      @default(0) @map("sample_size")
-  windowDays  Int      @default(90) @map("window_days")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  computedAt  DateTime @default(now()) @map("computed_at")
+  leagueId   String   @id @map("league_id") @db.VarChar(64)
+  sport      String   @db.VarChar(16)
+  features   Json
+  explain    Json?
+  confidence Float    @default(0)
+  sampleSize Int      @default(0) @map("sample_size")
+  windowDays Int      @default(90) @map("window_days")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  computedAt DateTime @default(now()) @map("computed_at")
 
   @@index([sport])
   @@map("af_league_learning_snapshots")
@@ -697,14 +697,14 @@ model AfLeagueLearningSnapshot {
 
 /// User/manager behavior profile (soft personalization — never overrides injuries/locks/rules).
 model AfUserLearningProfile {
-  userId      String   @id @map("user_id") @db.VarChar(64)
-  features    Json
-  explain     Json?
-  confidence  Float    @default(0)
-  sampleSize  Int      @default(0) @map("sample_size")
-  windowDays  Int      @default(90) @map("window_days")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  computedAt  DateTime @default(now()) @map("computed_at")
+  userId     String   @id @map("user_id") @db.VarChar(64)
+  features   Json
+  explain    Json?
+  confidence Float    @default(0)
+  sampleSize Int      @default(0) @map("sample_size")
+  windowDays Int      @default(90) @map("window_days")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  computedAt DateTime @default(now()) @map("computed_at")
 
   @@map("af_user_learning_profiles")
 }
@@ -2659,13 +2659,93 @@ model AppUser {
   userSubscriptions                        UserSubscription[]
   tokenBalance                             UserTokenBalance?
   waiverPickups                            WaiverPickup[]
+  waiverClaimsSubmitted                    WaiverClaim[]                          @relation("WaiverClaimSubmitter")
   walletLedgerEntries                      WalletLedgerEntry[]
   warRoomSnapshots                         WarRoomSnapshot[]
   webPushSubscriptions                     WebPushSubscription[]
   zombieUniversesCommissioned              ZombieUniverse[]                       @relation("ZombieUniverseCommissioner")
   zombieUniversesCreated                   ZombieUniverse[]                       @relation("ZombieUniverseCreator")
+  importRuns                               ImportRun[]
+  importReviewTasks                        ImportReviewTask[]
+  adminSubscriptionGrants                  AdminSubscriptionGrant[]
+  leagueAuditLogs                        LeagueAuditLog[]
 
   @@map("app_users")
+}
+
+/// Admin-managed brand social account (X, Instagram, TikTok, YouTube, LinkedIn, etc.).
+/// Separate from user-scoped `SocialPublishTarget` so brand credentials never bleed
+/// into the user flow. Credentials stored as JSON to accommodate platform differences
+/// (bearer token, OAuth refresh token, etc.).
+model BrandSocialAccount {
+  id                 String   @id @default(cuid())
+  platform           String   @db.VarChar(32)
+  handle             String   @db.VarChar(128)
+  displayName        String?  @db.VarChar(128)
+  credentialsJson    Json?
+  isActive           Boolean  @default(true)
+  connectedByAdminId String
+  connectedByEmail   String   @db.VarChar(255)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  posts              BrandSocialPost[]
+
+  @@unique([platform, handle])
+  @@index([platform, isActive])
+  @@map("brand_social_accounts")
+}
+
+/// A brand post — draft, scheduled, or sent. Each post is tied to a single
+/// `BrandSocialAccount`; cross-posting to multiple accounts = multiple rows with
+/// the same body. Status progression: draft → scheduled → publishing → sent | failed | cancelled.
+model BrandSocialPost {
+  id               String   @id @default(cuid())
+  accountId        String
+  status           String   @db.VarChar(24)
+  body             String
+  mediaUrl         String?
+  scheduledFor     DateTime?
+  publishedAt      DateTime?
+  providerPostId   String?
+  providerResponse Json?
+  failureMessage   String?
+  aiPrompt         String?
+  aiModel          String?
+  createdByAdminId String
+  createdByEmail   String   @db.VarChar(255)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  account          BrandSocialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledFor])
+  @@index([accountId, createdAt])
+  @@map("brand_social_posts")
+}
+
+/// Admin-issued subscription grants (comps, trials, support credits). Entitlement
+/// resolver unions these with webhook-driven userSubscription rows; grants count as
+/// active when `expiresAt > now` and `revokedAt` is null.
+model AdminSubscriptionGrant {
+  id               String    @id @default(cuid())
+  userId           String
+  tier             String    @db.VarChar(32)
+  startsAt         DateTime  @default(now())
+  expiresAt        DateTime
+  grantedByAdminId String
+  grantedByEmail   String    @db.VarChar(255)
+  reason           String?
+  revokedAt        DateTime?
+  revokedReason    String?
+  revokedByAdminId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([tier, expiresAt])
+  @@index([revokedAt])
+  @@map("admin_subscription_grants")
 }
 
 /// Viral Loop Engine (PROMPT 291) — growth attribution: how each user entered (referral, league_invite, draft_share, ai_share, organic).
@@ -3988,6 +4068,18 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+/// Canonical fantasy league lifecycle (draft → season → playoffs → archive).
+enum LeagueLifecycleState {
+  setup
+  pre_draft
+  drafting
+  post_draft
+  in_season
+  playoffs
+  completed
+  archived
+}
+
 model League {
   id                                    String                                 @id @default(uuid())
   userId                                String
@@ -4167,6 +4259,13 @@ model League {
   joinCode                              String?                                @db.VarChar(16)
   /// Commissioner UI language (e.g. en, es).
   language                              String?                                @default("en") @db.VarChar(16)
+  /// Platform lifecycle gate for permissions, automation, and audit (see `server/services/leagueLifecycleService.ts`).
+  lifecycleState                        LeagueLifecycleState                  @default(in_season)
+  /// When true, member-facing moves are blocked unless a commissioner override path is used (still audited).
+  locked                                Boolean                                @default(false)
+  lifecycleMetadata                     Json?
+  /// Commissioner kill-switch — pauses scheduled processing hooks without changing lifecycle phase.
+  emergencyPaused                       Boolean                                @default(false)
   invites                               LeagueInvite[]
   managerClaims                         LeagueManagerClaim[]
   aiCommissionerActionLogs              AiCommissionerActionLog[]
@@ -4270,9 +4369,23 @@ model League {
   waiverClaims                          WaiverClaim[]
   waiverPickups                         WaiverPickup[]
   waiverTransactions                    WaiverTransaction[]
+  waiverRuns                            WaiverRun[]
+  waiverResults                         WaiverResult[]
+  leagueWaiverState                     LeagueWaiverState?
+  weeklyScores                          WeeklyScore[]
+  teamWeekResults                       TeamWeekResult[]
+  fantasyStandings                      FantasyStanding[]
   warRoomSnapshots                      WarRoomSnapshot[]
   zombieConfig                          ZombieLeagueConfig?
   zombieLeague                          ZombieLeague?
+  importRuns                            ImportRun[]
+  importReviewTasks                     ImportReviewTask[]
+  externalEntityMappings                ExternalEntityMapping[]
+  specialtyAutomationRuns               SpecialtyAutomationRun[]
+  specialtyAutomationActions            SpecialtyAutomationAction[]
+  leagueEvents                          LeagueEvent[]
+  specialtyPhaseState                   SpecialtyPhaseState?
+  auditLogs                             LeagueAuditLog[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -4280,8 +4393,104 @@ model League {
   @@index([userId, isDynasty])
   @@index([sport, season])
   @@index([status])
+  @@index([lifecycleState])
   @@index([importBatchId])
   @@map("leagues")
+}
+
+/// Immutable audit trail for league-scoped actions (settings, draft, waivers, scoring, automation, commissioner overrides).
+model LeagueAuditLog {
+  id          String    @id @default(cuid())
+  leagueId    String
+  userId      String?
+  actionType  String    @db.VarChar(128)
+  entityType  String    @db.VarChar(64)
+  entityId    String?   @db.VarChar(128)
+  beforeState Json?
+  afterState  Json?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  league      League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user        AppUser?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, createdAt])
+  @@index([leagueId, actionType])
+  @@map("audit_logs")
+}
+
+/// Canonical import normalization audit trail + idempotent re-import.
+model ImportRun {
+  id               String    @id @default(cuid())
+  userId           String
+  leagueId         String?
+  provider         String    @db.VarChar(32)
+  sourceLeagueId   String    @db.VarChar(128)
+  season           Int
+  status           String    @default("running") @db.VarChar(24)
+  idempotencyKey   String    @unique @db.VarChar(256)
+  rawPayloadHash   String?   @db.VarChar(64)
+  canonicalSummary Json?
+  error            String?   @db.Text
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  user             AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league           League?   @relation(fields: [leagueId], references: [id], onDelete: SetNull)
+  warnings         ImportWarning[]
+  reviewTasks      ImportReviewTask[]
+  entityMappings   ExternalEntityMapping[]
+
+  @@index([userId, startedAt])
+  @@index([provider, sourceLeagueId, season])
+  @@map("import_runs")
+}
+
+model ImportWarning {
+  id       String    @id @default(cuid())
+  runId    String
+  leagueId String?
+  code     String    @db.VarChar(64)
+  message  String    @db.Text
+  severity String    @default("info") @db.VarChar(16)
+  metadata Json?
+  run      ImportRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@map("import_warnings")
+}
+
+model ExternalEntityMapping {
+  id         String     @id @default(cuid())
+  leagueId   String
+  runId      String?
+  provider   String     @db.VarChar(32)
+  entityType String     @db.VarChar(32)
+  sourceId   String     @db.VarChar(128)
+  internalId String?    @db.VarChar(128)
+  confidence Float?
+  metadata   Json?
+  league     League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  run        ImportRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@unique([leagueId, provider, entityType, sourceId])
+  @@index([runId])
+  @@map("external_entity_mappings")
+}
+
+model ImportReviewTask {
+  id         String     @id @default(cuid())
+  leagueId   String
+  userId     String
+  runId      String?
+  taskType   String     @db.VarChar(64)
+  status     String     @default("open") @db.VarChar(24)
+  payload    Json?
+  resolvedAt DateTime?
+  league     League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user       AppUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  run        ImportRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, status])
+  @@map("import_review_tasks")
 }
 
 /// AI integrity monitoring — collusion / tanking flags (no chat content; evidence is on-field only).
@@ -4353,30 +4562,30 @@ model AutoCoachSetting {
 }
 
 model AutoCoachSwapLog {
-  id               String    @id @default(cuid())
-  userId           String
-  leagueId         String
-  rosterId         String
-  slotPosition     String
-  playerOutId      String
-  playerOutName    String
-  playerOutStatus  String
-  playerInId       String
-  playerInName     String
-  playerInPosition String
-  statusSource     String
-  statusDetectedAt DateTime
-  swapMadeAt       DateTime  @default(now())
-  gameStartsAt     DateTime?
-  wasPreGame       Boolean   @default(true)
-  confidence       Float?
-  expectedPointsDelta Float? @map("expected_points_delta")
-  decisionEngine   String?   @default("start_sit_projection_v1") @map("decision_engine")
-  preferenceInfluenced Boolean @default(false) @map("preference_influenced")
-  statusFreshnessAt DateTime? @map("status_freshness_at")
-  serverDecidedAt  DateTime? @map("server_decided_at")
-  decisionNotes    String?   @map("decision_notes") @db.Text
-  createdAt        DateTime  @default(now())
+  id                   String    @id @default(cuid())
+  userId               String
+  leagueId             String
+  rosterId             String
+  slotPosition         String
+  playerOutId          String
+  playerOutName        String
+  playerOutStatus      String
+  playerInId           String
+  playerInName         String
+  playerInPosition     String
+  statusSource         String
+  statusDetectedAt     DateTime
+  swapMadeAt           DateTime  @default(now())
+  gameStartsAt         DateTime?
+  wasPreGame           Boolean   @default(true)
+  confidence           Float?
+  expectedPointsDelta  Float?    @map("expected_points_delta")
+  decisionEngine       String?   @default("start_sit_projection_v1") @map("decision_engine")
+  preferenceInfluenced Boolean   @default(false) @map("preference_influenced")
+  statusFreshnessAt    DateTime? @map("status_freshness_at")
+  serverDecidedAt      DateTime? @map("server_decided_at")
+  decisionNotes        String?   @map("decision_notes") @db.Text
+  createdAt            DateTime  @default(now())
 
   @@index([userId, leagueId])
   @@index([leagueId])
@@ -5320,11 +5529,145 @@ model Roster {
   league               League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   waiverClaims         WaiverClaim[]
   waiverTransactions   WaiverTransaction[]
+  weeklyScores         WeeklyScore[]
+  teamWeekResults      TeamWeekResult[]
+  fantasyStandings     FantasyStanding[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
   @@index([platformUserId])
   @@map("rosters")
+}
+
+/// Per-player fantasy points for a league week (starters drive team total; bench stored for audit).
+model WeeklyScore {
+  id        String   @id @default(uuid())
+  leagueId  String
+  season    Int
+  week      Int
+  rosterId  String
+  playerId  String
+  points    Float
+  isStarter Boolean  @default(true)
+  statLine  Json?
+  createdAt DateTime @default(now())
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster    Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season, week, rosterId, playerId])
+  @@index([leagueId, season, week])
+  @@index([rosterId, season, week])
+  @@map("weekly_scores")
+}
+
+/// Aggregated roster score + H2H result for one week.
+model TeamWeekResult {
+  id               String  @id @default(uuid())
+  leagueId         String
+  season           Int
+  week             Int
+  rosterId         String
+  totalPoints      Float
+  opponentRosterId String?
+  winLoss          String? @db.VarChar(8)
+  status           String  @default("final") @db.VarChar(16)
+  league           League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster           Roster  @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season, week, rosterId])
+  @@index([leagueId, season, week])
+  @@map("team_week_results")
+}
+
+/// Season-to-date standings for AF-native leagues (deterministic engine).
+model FantasyStanding {
+  id            String   @id @default(uuid())
+  leagueId      String
+  season        Int
+  rosterId      String
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  ties          Int      @default(0)
+  pointsFor     Float    @default(0)
+  pointsAgainst Float    @default(0)
+  rank          Int?
+  playoffSeed   Int?
+  updatedAt     DateTime @updatedAt
+  league        League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster        Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, season, rosterId])
+  @@index([leagueId, season, rank])
+  @@map("standings")
+}
+
+/// Audit + idempotency for specialty league automation (guillotine, survivor, BB, …).
+model SpecialtyAutomationRun {
+  id             String                      @id @default(cuid())
+  leagueId       String
+  concept        String                      @db.VarChar(64)
+  triggerType    String                      @db.VarChar(64)
+  status         String                      @default("pending") @db.VarChar(24)
+  idempotencyKey String                      @unique @db.VarChar(256)
+  startedAt      DateTime                    @default(now())
+  completedAt    DateTime?
+  summary        String?                     @db.Text
+  metadata       Json?
+  error          String?                     @db.Text
+  league         League                      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  actions        SpecialtyAutomationAction[]
+
+  @@index([leagueId, startedAt])
+  @@index([leagueId, concept, triggerType])
+  @@map("specialty_automation_runs")
+}
+
+model SpecialtyAutomationAction {
+  id         String                 @id @default(cuid())
+  runId      String
+  leagueId   String
+  actionType String                 @db.VarChar(64)
+  targetType String?                @db.VarChar(32)
+  targetId   String?                @db.VarChar(128)
+  status     String                 @default("pending") @db.VarChar(24)
+  executedAt DateTime?
+  metadata   Json?
+  run        SpecialtyAutomationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  league     League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@index([runId])
+  @@map("specialty_automation_actions")
+}
+
+/// Frontend-visible league feed (automation, eliminations, phase changes).
+model LeagueEvent {
+  id          String   @id @default(cuid())
+  leagueId    String
+  eventType   String   @db.VarChar(64)
+  title       String   @db.VarChar(256)
+  description String?  @db.Text
+  payload     Json?
+  visibility  String   @default("league") @db.VarChar(24)
+  createdAt   DateTime @default(now())
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt])
+  @@index([eventType])
+  @@map("league_events")
+}
+
+model SpecialtyPhaseState {
+  leagueId           String   @id
+  currentPhase       String?  @db.VarChar(64)
+  currentStage       String?  @db.VarChar(64)
+  currentWeekContext Int?
+  pendingActionCount Int      @default(0)
+  metadata           Json?
+  updatedAt          DateTime @updatedAt
+  league             League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("specialty_phase_state")
 }
 
 model LeagueTeam {
@@ -5433,20 +5776,34 @@ model LeagueAuth {
 }
 
 model LeagueWaiverSettings {
-  id                  String    @id @default(uuid())
-  leagueId            String    @unique
-  waiverType          String    @default("standard")
-  processingDayOfWeek Int?
-  processingTimeUtc   String?
-  claimLimitPerPeriod Int?
-  faabBudget          Int?
-  faabResetDate       DateTime?
-  tiebreakRule        String?
-  lockType            String?
-  instantFaAfterClear Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  id                        String    @id @default(uuid())
+  leagueId                  String    @unique
+  waiverType                String    @default("standard")
+  processingDayOfWeek       Int?
+  processingTimeUtc         String?
+  claimLimitPerPeriod       Int?
+  faabBudget                Int?
+  faabResetDate             DateTime?
+  tiebreakRule              String?
+  lockType                  String?
+  instantFaAfterClear       Boolean   @default(true)
+  /// e.g. never | weekly | season_start | redraft
+  faabResetType             String?   @db.VarChar(32)
+  /// e.g. keep_order | reset_to_inverse_standings | reset_to_draft_order
+  waiverOrderResetPolicy    String?   @db.VarChar(48)
+  claimLimitPerWeek         Int?
+  /// Max pending claims per roster for the next batch run (queue depth).
+  claimLimitPerRun          Int?
+  postGameWaiverBehavior    String?   @db.VarChar(48)
+  /// Multiple processing weekdays for daily waivers (JSON array of 0–6 or 1–7 depending on client)
+  processingDays            Json?
+  freeAgentWindowRules      Json?
+  dropRestrictions          Json?
+  commissionerOverrideRules Json?
+  specialtyConceptOverrides Json?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  league                    League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("league_waiver_settings")
 }
@@ -8868,49 +9225,119 @@ model PositionMetaTrend {
 }
 
 model WaiverClaim {
-  id            String    @id @default(uuid())
-  leagueId      String
-  rosterId      String
-  addPlayerId   String
-  dropPlayerId  String?
-  faabBid       Int?
-  priorityOrder Int       @default(0)
-  status        String    @default("pending")
-  processedAt   DateTime?
-  resultMessage String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sportType     String?   @db.VarChar(16)
-  league        League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  roster        Roster    @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  id               String         @id @default(uuid())
+  leagueId         String
+  rosterId         String
+  /// Submitting user (AppUser id), optional for legacy rows
+  userId           String?
+  addPlayerId      String
+  dropPlayerId     String?
+  faabBid          Int?
+  priorityOrder    Int            @default(0)
+  claimType        String         @default("add_drop") @db.VarChar(24)
+  status           String         @default("pending")
+  processedAt      DateTime?
+  resultMessage    String?
+  processingWindow String?        @db.VarChar(64)
+  metadata         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  sportType        String?        @db.VarChar(16)
+  league           League         @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster           Roster         @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  submitter        AppUser?       @relation("WaiverClaimSubmitter", fields: [userId], references: [id], onDelete: SetNull)
+  waiverResults    WaiverResult[]
 
   @@index([leagueId, status])
   @@index([rosterId])
   @@index([leagueId, priorityOrder])
   @@index([leagueId, sportType])
   @@index([sportType, status])
+  @@index([userId])
   @@map("waiver_claims")
 }
 
 model WaiverTransaction {
-  id                   String   @id @default(uuid())
+  id                   String     @id @default(uuid())
   leagueId             String
   rosterId             String
   claimId              String?
+  waiverRunId          String?
   addPlayerId          String
   dropPlayerId         String?
   faabSpent            Int?
   waiverPriorityBefore Int?
-  processedAt          DateTime @default(now())
-  sportType            String?  @db.VarChar(16)
-  league               League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  roster               Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  waiverPriorityAfter  Int?
+  processedAt          DateTime   @default(now())
+  sportType            String?    @db.VarChar(16)
+  league               League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster               Roster     @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  waiverRun            WaiverRun? @relation(fields: [waiverRunId], references: [id], onDelete: SetNull)
 
   @@index([leagueId, processedAt])
   @@index([rosterId])
   @@index([leagueId, sportType])
   @@index([sportType, processedAt])
+  @@index([waiverRunId])
   @@map("waiver_transactions")
+}
+
+/// One processing batch (scheduled, manual, FCFS immediate, etc.).
+model WaiverRun {
+  id                String              @id @default(uuid())
+  leagueId          String
+  runType           String              @default("scheduled") @db.VarChar(24)
+  runAt             DateTime            @default(now())
+  status            String              @default("completed") @db.VarChar(24)
+  processedByUserId String?
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  league            League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  results           WaiverResult[]
+  transactions      WaiverTransaction[]
+
+  @@index([leagueId, runAt])
+  @@map("waiver_runs")
+}
+
+/// Per-claim outcome within a run (audit / feed).
+model WaiverResult {
+  id             String       @id @default(uuid())
+  waiverRunId    String
+  claimId        String?
+  leagueId       String
+  rosterId       String
+  addPlayerId    String
+  dropPlayerId   String?
+  faabDelta      Int?
+  priorityBefore Int?
+  priorityAfter  Int?
+  rosterApplied  Boolean      @default(false)
+  resultType     String       @db.VarChar(24)
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  waiverRun      WaiverRun    @relation(fields: [waiverRunId], references: [id], onDelete: Cascade)
+  league         League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  claim          WaiverClaim? @relation(fields: [claimId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, createdAt])
+  @@index([waiverRunId])
+  @@index([claimId])
+  @@map("waiver_results")
+}
+
+/// Cached waiver order / FAAB snapshot for fast UI and next-run scheduling.
+model LeagueWaiverState {
+  leagueId             String    @id
+  currentPriorityOrder Json?
+  faabState            Json?
+  lastRunAt            DateTime?
+  nextRunAt            DateTime?
+  processingLocked     Boolean   @default(false)
+  updatedAt            DateTime  @updatedAt
+  league               League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("league_waiver_state")
 }
 
 model WaiverPickup {
@@ -9071,6 +9498,16 @@ model DraftSession {
   nextOverallPick        Int                      @default(1)
   /// Display round (1-based).
   currentRoundNum        Int                      @default(1)
+  /// Commissioner user id when `status=paused` (optional audit).
+  pausedByUserId         String?
+  /// First transition to `in_progress` (canonical draft start time).
+  startedAt              DateTime?
+  /// When `status=completed`.
+  completedAt            DateTime?
+  /// rookie | startup | supplemental | dispersal | standard — informational for specialty pools.
+  draftModeLabel         String?                  @db.VarChar(32)
+  /// Dispersal / specialty: { eligibleRosterIds?: string[], protectedPlayerIds?: string[], allowedAssetTypes?: string[] }
+  dispersalPoolConfig    Json?
   /// Chimmy AI auto-pick when timer expires (mirrors LeagueSettings.aiAutoPick at draft start).
   aiAutoPick             Boolean                  @default(false)
   alphabeticalSort       Boolean                  @default(false)
@@ -9100,30 +9537,36 @@ model DraftSession {
 
 /// Single pick in a live draft.
 model DraftPick {
-  id             String       @id @default(uuid())
-  sessionId      String
-  overall        Int
-  round          Int
-  slot           Int
-  rosterId       String
-  displayName    String?
-  playerName     String
-  position       String
-  team           String?
-  byeWeek        Int?
-  playerId       String?
+  id               String       @id @default(uuid())
+  sessionId        String
+  overall          Int
+  round            Int
+  slot             Int
+  rosterId         String
+  displayName      String?
+  playerName       String
+  position         String
+  team             String?
+  byeWeek          Int?
+  playerId         String?
   /// Optional UI metadata when pick was traded: { originalRosterId, previousOwnerName, newOwnerName, showNewOwnerInRed?, tintColor? }
-  tradedPickMeta Json?
+  tradedPickMeta   Json?
+  /// Slot’s original roster before pick trades (audit / dispersal).
+  originalRosterId String?
+  /// player | rookie_pick | devy_pick | dispersal_asset | pick_slot | c2c_college
+  assetType        String?      @default("player") @db.VarChar(24)
+  /// Extra deterministic context (dispersal rules, devy class, etc.).
+  pickMetadata     Json?
   /// Auction: winning bid amount (dollars or nominal units).
-  amount         Int?
-  source         String?      @default("user")
-  createdAt      DateTime     @default(now())
-  roundPick      Int?
-  ownerUserId    String?
-  playerImageUrl String?
-  pickedAt       DateTime?
-  sportType      String?      @db.VarChar(16)
-  session        DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  amount           Int?
+  source           String?      @default("user")
+  createdAt        DateTime     @default(now())
+  roundPick        Int?
+  ownerUserId      String?
+  playerImageUrl   String?
+  pickedAt         DateTime?
+  sportType        String?      @db.VarChar(16)
+  session          DraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, overall])
   @@index([sessionId])
@@ -10168,14 +10611,14 @@ model LeagueGraphSnapshot {
 
 /// Cached weekly power ranking rows per league (for trends / history UI)
 model LeaguePowerRankingSnapshot {
-  id           String   @id @default(cuid())
-  leagueId     String
-  season       Int
-  week         Int
-  rankingMode  String   @default("current_power") @db.VarChar(32)
-  engine       String   @db.VarChar(32)
-  teams        Json
-  computedAt   DateTime @default(now())
+  id          String   @id @default(cuid())
+  leagueId    String
+  season      Int
+  week        Int
+  rankingMode String   @default("current_power") @db.VarChar(32)
+  engine      String   @db.VarChar(32)
+  teams       Json
+  computedAt  DateTime @default(now())
 
   league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { TrendingUp, Users, Calendar, Clock, RefreshCw, Zap, Trophy, Target, ChevronRight, Globe, MapPin, Activity, AlertTriangle, Timer, Play, BarChart3, Database, Cpu, Brain, LayoutGrid, Swords, PenTool } from "lucide-react";
+import { AdminTabUsageCard } from "./AdminTabUsageCard";
 
 type Summary = {
   totalVisits?: number;
@@ -286,7 +287,6 @@ export default function AdminOverview() {
             Platform health and key metrics at a glance
           </p>
         </div>
-
         <button
           onClick={() => { load(); loadRightNow(); loadRegions(); loadPlatformOverview(); }}
           disabled={loading}
@@ -298,6 +298,9 @@ export default function AdminOverview() {
           Refresh
         </button>
       </div>
+
+      {/* Admin tab usage — informs streamlining decisions */}
+      <AdminTabUsageCard />
 
       {/* Platform Overview — 6 KPIs */}
       <div className="rounded-2xl p-4" style={{ background: "var(--panel)", borderWidth: 1, borderStyle: "solid", borderColor: "var(--border)" }}>
