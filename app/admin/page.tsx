@@ -21,6 +21,7 @@ import AdminAuditPanel from "./components/AdminAuditPanel";
 import AdminFeatureToggles from "./components/AdminFeatureToggles";
 import AdminSystemPanel from "./components/AdminSystemPanel";
 import AdminProviderDiagnostics from "./components/AdminProviderDiagnostics";
+import AdminBrandPosts from "./components/AdminBrandPosts";
 import { UsageAnalyticsPanel } from "@/components/admin/UsageAnalyticsPanel";
 import { verifyAdminSessionCookie } from "@/lib/adminSession";
 import { getAdminLoginRedirectUrl, getUnauthorizedFallback } from "@/lib/routing";
@@ -85,6 +86,7 @@ function parseTab(tab?: string | string[]): AdminTab {
     "features",
     "system",
     "providers",
+    "content",
   ];
   return allowed.includes(t as AdminTab) ? (t as AdminTab) : "overview";
 }
@@ -133,6 +135,7 @@ export default async function AdminPage({
       {tab === "features" && <AdminFeatureToggles />}
       {tab === "system" && <AdminSystemPanel />}
       {tab === "providers" && <AdminProviderDiagnostics />}
+      {tab === "content" && <AdminBrandPosts />}
     </AdminLayout>
   );
 }

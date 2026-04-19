@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { AdminTabsBar } from "./AdminTabsBar";
 
-export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "audit" | "features" | "system" | "providers";
+export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "audit" | "features" | "system" | "providers" | "content";
 
 const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus: string }> = {
   overview: {
@@ -136,6 +136,11 @@ const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus:
     description: "OpenAI, DeepSeek, xAI, and ClearSports status, failures, fallback, and latency.",
     focus: "Check configured vs available vs degraded; review failure and fallback summaries.",
   },
+  content: {
+    title: "Content",
+    description: "AI-drafted brand social posts: X, Instagram, TikTok, YouTube, LinkedIn. Drafts → review → publish (phase 2).",
+    focus: "Draft variants, refine, copy/post manually while publish flow ships.",
+  },
 };
 
 const NAV: Array<{
@@ -166,6 +171,7 @@ const NAV: Array<{
   { tab: "system", label: "System", icon: Server, desc: "API & DB health", color: "from-slate-500 to-zinc-600", glow: "slate" },
   { tab: "providers", label: "Providers", icon: Zap, desc: "AI & data diagnostics", color: "from-sky-500 to-indigo-600", glow: "sky" },
   { tab: "tools", label: "Tools", icon: Wrench, desc: "Usage & AI activity", color: "from-fuchsia-500 to-purple-600", glow: "fuchsia" },
+  { tab: "content", label: "Content", icon: Sparkles, desc: "AI brand posts", color: "from-violet-500 to-purple-600", glow: "violet" },
 ];
 
 const LS_COLLAPSED_KEY = "af_admin_sidebar_collapsed";
