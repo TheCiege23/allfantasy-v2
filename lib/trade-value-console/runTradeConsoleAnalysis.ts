@@ -29,7 +29,7 @@ import { logNarrativeValidation } from '@/lib/trade-engine/narrative-validation-
 import { getPlayerValuesContext } from '@/lib/player-values/playerValuesLoader'
 import { normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { prisma } from '@/lib/prisma'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import {
   attachSportsNormalizationToChimmyPayload,
@@ -1073,8 +1073,12 @@ export async function runTradeConsoleAnalysis(input: TradeConsoleAnalyzeInput): 
         enrichTimeFromLeagueId: input.leagueId ?? null,
         includeTeamContext: true,
         preferredTeamExternalId: input.opponentTeamExternalId ?? null,
-        /** User’s strategic outlook — computed with `teamExternalId: null`, not the trade partner. */
-        includeStrategicCoaching: Boolean(input.leagueId),
+        /**
+         * User's strategic outlook — computed with `teamExternalId: null`, not the trade partner.
+         * Gated on dynasty/keeper/devy/C2C so redraft trades don't pay for a 3-year analysis
+         * that won't change the weekly valuation.
+         */
+        includeStrategicCoaching: Boolean(input.leagueId) && leagueWantsLongHorizon(leagueNormCtx),
       })
       chimmyPayload = attachIntelligenceToChimmyPayload(chimmyPayload, aiEnvelope)
       sourceFlags.aiEnvelopeReady = true

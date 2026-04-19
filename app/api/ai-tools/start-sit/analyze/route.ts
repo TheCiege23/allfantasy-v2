@@ -13,7 +13,12 @@ const SPORT_FILTER = ['ALL', ...SUPPORTED_SPORTS] as const
 const bodySchema = z.object({
   sportFilter: z.enum(SPORT_FILTER as unknown as [string, ...string[]]),
   leagueId: z.preprocess(
-    (v) => (v === '' || v === undefined ? null : v),
+    (v) => {
+      if (v === undefined || v === null) return null
+      if (typeof v !== 'string') return v
+      const trimmed = v.trim()
+      return trimmed.length === 0 ? null : trimmed
+    },
     z.union([z.string().min(1).max(64), z.null()]),
   ),
   week: z.string().min(1).max(16).default('current'),
@@ -52,7 +57,7 @@ export const POST = withApiUsage({ endpoint: '/api/ai-tools/start-sit/analyze', 
       })
 
       if (!out.ok) {
-        const status = httpStatusForLeagueToolCode(out.code as Parameters<typeof httpStatusForLeagueToolCode>[0])
+        const status = httpStatusForLeagueToolCode(out.code)
         return NextResponse.json(out, { status })
       }
 

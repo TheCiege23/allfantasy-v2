@@ -19,7 +19,7 @@ import { snapshotFromLoaded } from '@/lib/trade-value-console/quick-badges'
 import { fetchRollingInsights } from '@/lib/upstream-apis'
 import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
 import { enrichChimmyWithPlayerSportsNorm } from '@/lib/sports-data-normalization'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { enrichWaiverCandidatesWithProjections } from '@/lib/ai-tools-waiver/waiverProjectionEnrichment'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS, type SupportedSport } from '@/lib/sport-scope'
@@ -1358,7 +1358,7 @@ export async function runWaiverIntelligenceAnalysis(input: {
       },
       enrichTimeFromLeagueId: input.leagueId ?? null,
       includeTeamContext: true,
-      includeStrategicCoaching: Boolean(part.leagueId),
+      includeStrategicCoaching: Boolean(part.leagueId) && leagueWantsLongHorizon(waiverLce),
     })
     let chimmyPayload = attachIntelligenceToChimmyPayload(
       {

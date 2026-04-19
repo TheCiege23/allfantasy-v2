@@ -424,6 +424,8 @@ export async function runStartSitGlobalAnalysis(input: {
       weatherLayerReady,
       leagueScoringApplied: false,
       aiEnvelopeReady: true,
+      // Global mode can't produce league-bound strategic coaching.
+      strategicCoachingReady: null,
     },
     summary:
       'Sport-level projection snapshot — select a league for roster-aware, scoring-aware recommendations.',

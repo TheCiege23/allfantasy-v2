@@ -8,7 +8,7 @@ import { openaiChatText } from '@/lib/openai-client'
 import { runStartSitAnalysis } from '@/lib/ai-tools-start-sit/runStartSitAnalysis'
 import type { StartSitAnalyzeResult, StartSitPlayerRow } from '@/lib/ai-tools-start-sit/runStartSitAnalysis'
 import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import { normalizeToSupportedSport, SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import { resolveMatchupOpponentExternal } from '@/lib/matchup-prep-dashboard/resolveMatchupOpponent'
 import {
@@ -726,7 +726,9 @@ export async function runMatchupPrepDashboard(input: MatchupPrepDashboardInput):
     },
     enrichTimeFromLeagueId: input.leagueId.trim(),
     includeTeamContext: true,
-    includeStrategicCoaching: true,
+    // Matchup Prep is a weekly opponent-edge tool — skip the 3-year snapshot unless the
+    // league format actually has a multi-year horizon (dynasty/keeper/devy/C2C).
+    includeStrategicCoaching: leagueWantsLongHorizon(mpLce.ok ? mpLce.context : null),
   })
   const chimmyPayload = attachIntelligenceToChimmyPayload(
     {

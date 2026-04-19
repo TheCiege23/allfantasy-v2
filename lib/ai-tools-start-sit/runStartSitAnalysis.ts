@@ -26,7 +26,7 @@ export type {
   StartSitValidationSnapshot,
 } from '@/lib/ai-tools-start-sit/types'
 import { prisma } from '@/lib/prisma'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import { loadLeagueForTrade } from '@/lib/trade-value-console/league-loader'
 import { snapshotFromLoaded } from '@/lib/trade-value-console/quick-badges'
@@ -571,6 +571,11 @@ export async function runStartSitAnalysis(input: {
     lineupBehavior: leagueCtx.lineupBehavior,
   }
 
+  // Gate the long-horizon coaching snapshot to league formats where it's actionable —
+  // dynasty / keeper / devy / contract-to-contract. Redraft and best-ball leagues don't
+  // benefit from a 3-year outlook on a weekly start/sit call, and the analysis is expensive.
+  const wantsLongHorizon = leagueWantsLongHorizon(leagueCtx)
+
   const aiEnvelope = await buildAiToolPayload({
     userId: input.userId,
     tool: 'start_sit',
@@ -585,7 +590,7 @@ export async function runStartSitAnalysis(input: {
     includeHealth: false,
     includeTeamContext: true,
     preferredTeamExternalId: input.teamExternalId ?? undefined,
-    includeStrategicCoaching: true,
+    includeStrategicCoaching: wantsLongHorizon,
   })
 
   const lockTimeNote =
@@ -716,12 +721,16 @@ export async function runStartSitAnalysis(input: {
     projectionBatchPresent: sportsNormBatch != null,
   }
 
+  const strategicCoachingAttached =
+    (aiEnvelope.standard as { strategicCoaching?: unknown } | undefined)?.strategicCoaching != null
   const sourceFlags: StartSitSourceFlags = {
     sportsDataReady: players.length > 0 && sportsNormBatch != null,
     injuryNewsLayerReady: players.some((p) => p.injuryNewsSummary),
     weatherLayerReady: players.some((p) => p.weatherSummary),
     leagueScoringApplied: true,
     aiEnvelopeReady: true,
+    // null = not requested (redraft/best-ball/etc.), true = attached, false = requested but upstream failed.
+    strategicCoachingReady: wantsLongHorizon ? strategicCoachingAttached : null,
   }
 
   let dataQuality: StartSitAnalyzeResult['dataQuality'] = 'full'

@@ -11,6 +11,7 @@ export type {
 
 export { normalizeLeagueScoring } from '@/lib/league-context-engine/normalizeScoring'
 export { resolveMatchupPeriod } from '@/lib/league-context-engine/resolvePeriod'
+export { leagueWantsLongHorizon } from '@/lib/league-context-engine/longHorizonGate'
 export {
   importMappingHealthy,
   resolveNormalizedLeagueContext,

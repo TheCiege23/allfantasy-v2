@@ -48,6 +48,11 @@ export type StartSitSourceFlags = {
   weatherLayerReady: boolean
   leagueScoringApplied: boolean
   aiEnvelopeReady: boolean
+  /**
+   * True when the long-term `strategicCoaching` snapshot was successfully attached to
+   * `aiEnvelope.standard.strategicCoaching`. Null when not requested; false when requested but it failed.
+   */
+  strategicCoachingReady: boolean | null
 }
 
 export type StartSitRec = {

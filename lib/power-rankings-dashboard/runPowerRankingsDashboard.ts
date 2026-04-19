@@ -9,7 +9,7 @@ import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { openaiChatText } from '@/lib/openai-client'
 import { prisma } from '@/lib/prisma'
 import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { buildAfLeaguePowerRankingsOutput } from '@/lib/power-rankings-dashboard/afLeaguePowerTruth'
 import type {
@@ -603,7 +603,9 @@ export async function runPowerRankingsDashboard(input: PowerRankingsDashboardInp
     },
     enrichTimeFromLeagueId: input.leagueId.trim(),
     includeTeamContext: true,
-    includeStrategicCoaching: true,
+    // Only attach the 3-year strategic snapshot for dynasty/keeper/devy/C2C —
+    // redraft rankings don't benefit from a multi-year outlook.
+    includeStrategicCoaching: leagueWantsLongHorizon(prLce.ok ? prLce.context : null),
   })
 
   const chimmyBase: Record<string, unknown> = {

@@ -4,7 +4,7 @@ import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-m
 import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { prisma } from '@/lib/prisma'
 import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
-import { resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
+import { leagueWantsLongHorizon, resolveNormalizedLeagueContext } from '@/lib/league-context-engine'
 import type { NormalizedLeagueContext } from '@/lib/league-context-engine/types'
 import { openaiChatText } from '@/lib/openai-client'
 import { runWaiverIntelligenceAnalysis } from '@/lib/ai-tools-waiver/waiver-intelligence'
@@ -638,7 +638,8 @@ export async function runWarRoomCommandCenter(input: WarRoomCommandCenterInput):
         : null,
     data: {},
     enrichTimeFromLeagueId: hasLeague && leagueId ? leagueId : null,
-    includeStrategicCoaching: hasLeague,
+    // Only attach long-horizon coaching for dynasty/keeper/devy/C2C leagues.
+    includeStrategicCoaching: hasLeague && leagueWantsLongHorizon(leagueContextEngine),
   })
 
   const chimmyPayload = attachIntelligenceToChimmyPayload(

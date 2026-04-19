@@ -325,6 +325,20 @@ export function StartSitModal({
               >
                 AI
               </span>
+              {result.sourceFlags.strategicCoachingReady !== null ? (
+                <span
+                  title={
+                    result.sourceFlags.strategicCoachingReady
+                      ? 'Long-term strategic coaching snapshot attached to AI context'
+                      : 'Strategic coaching snapshot unavailable for this league'
+                  }
+                  className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${
+                    result.sourceFlags.strategicCoachingReady ? 'bg-emerald-500/15 text-emerald-200' : 'bg-white/5 text-white/35'
+                  }`}
+                >
+                  LT
+                </span>
+              ) : null}
             </>
           ) : null}
         </div>
