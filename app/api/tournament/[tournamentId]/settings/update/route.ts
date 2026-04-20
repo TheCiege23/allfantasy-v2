@@ -1,0 +1,186 @@
+/**
+ * Commissioner-only PATCH for tournament-level settings (name, description,
+ * advancement defaults, bubble config). Used by the General / Playoffs /
+ * Advanced tabs of TournamentSettingsModalEditable. Read-only fields that
+ * would orphan in-flight rounds (sport, conferenceCount, leaguesPerConference,
+ * teamsPerLeague) are intentionally NOT accepted here — those require a full
+ * rebalance + redraft flow.
+ */
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { logTournamentAudit } from '@/lib/tournament-mode/TournamentAuditService'
+
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+const NAME_MAX = 120
+const DESCRIPTION_MAX = 1500
+const FAAB_MAX = 10_000
+const BENCH_MAX = 20
+const ADV_MAX = 12
+const BUBBLE_SIZE_MAX = 64
+
+const ALLOWED_DRAFT_TYPES = ['snake', 'auction', '3rd_reversal', 'linear'] as const
+type AllowedDraftType = (typeof ALLOWED_DRAFT_TYPES)[number]
+const ALLOWED_BUBBLE_MODES = ['cumulative_points', 'head_to_head', 'mini_bracket'] as const
+type AllowedBubbleMode = (typeof ALLOWED_BUBBLE_MODES)[number]
+
+function clampInt(v: unknown, min: number, max: number): number | null {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return null
+  return Math.max(min, Math.min(max, Math.floor(n)))
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tournamentId: string }> }) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id ?? null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { tournamentId } = await params
+  const tournament = await prisma.legacyTournament.findUnique({
+    where: { id: tournamentId },
+    select: { creatorId: true, name: true, settings: true, hubSettings: true, status: true },
+  })
+  if (!tournament) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (tournament.creatorId !== userId) {
+    return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = (await req.json()) as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const currentSettings: Record<string, unknown> = (tournament.settings as Record<string, unknown> | null) ?? {}
+  const currentHub: Record<string, unknown> = (tournament.hubSettings as Record<string, unknown> | null) ?? {}
+  const isLocked = Boolean(currentSettings.locked)
+  const isLive = ['elimination', 'finals'].includes(tournament.status ?? '')
+
+  const update: { name?: string; settings?: Record<string, unknown>; hubSettings?: Record<string, unknown> } = {}
+  const settings: Record<string, unknown> = { ...currentSettings }
+  const hubSettings: Record<string, unknown> = { ...currentHub }
+  const changed: string[] = []
+
+  if (typeof body.name === 'string' && body.name.trim().length > 0) {
+    const v = body.name.trim().slice(0, NAME_MAX)
+    if (v !== tournament.name) {
+      update.name = v
+      changed.push('name')
+    }
+  }
+  // Description lives on hubSettings — LegacyTournament has no first-class column for it.
+  if (typeof body.description === 'string') {
+    const v = body.description.slice(0, DESCRIPTION_MAX)
+    if (v !== (typeof currentHub.description === 'string' ? currentHub.description : '')) {
+      hubSettings.description = v
+      changed.push('description')
+    }
+  }
+
+  // ---- Advancement defaults (safe to edit while locked but never mid-elimination) ----
+  if (body.faabBudgetDefault != null) {
+    const v = clampInt(body.faabBudgetDefault, 0, FAAB_MAX)
+    if (v != null && v !== currentSettings.faabBudgetDefault) {
+      settings.faabBudgetDefault = v
+      changed.push('faabBudgetDefault')
+    }
+  }
+  if (body.benchSpotsElimination != null) {
+    const v = clampInt(body.benchSpotsElimination, 0, BENCH_MAX)
+    if (v != null && v !== currentSettings.benchSpotsElimination) {
+      settings.benchSpotsElimination = v
+      changed.push('benchSpotsElimination')
+    }
+  }
+  if (body.advancementPerLeague != null) {
+    const v = clampInt(body.advancementPerLeague, 1, ADV_MAX)
+    if (v != null && v !== currentSettings.advancementPerLeague) {
+      settings.advancementPerLeague = v
+      changed.push('advancementPerLeague')
+    }
+  }
+  if (body.faabResetByRound != null) {
+    const v = Boolean(body.faabResetByRound)
+    if (v !== Boolean(currentSettings.faabResetByRound)) {
+      settings.faabResetByRound = v
+      changed.push('faabResetByRound')
+    }
+  }
+
+  // ---- Draft type — locked once tournament is live to avoid corrupting in-flight rounds ----
+  if (typeof body.draftType === 'string') {
+    const dt = body.draftType.toLowerCase() as AllowedDraftType
+    if (!(ALLOWED_DRAFT_TYPES as readonly string[]).includes(dt)) {
+      return NextResponse.json({ error: `draftType must be one of ${ALLOWED_DRAFT_TYPES.join(', ')}` }, { status: 400 })
+    }
+    if (isLive) {
+      return NextResponse.json({ error: 'Cannot change draftType after elimination has started' }, { status: 400 })
+    }
+    if (dt !== currentSettings.draftType) {
+      settings.draftType = dt
+      changed.push('draftType')
+    }
+  }
+
+  // ---- Bubble config (safe to flip pre-elimination only) ----
+  if (body.bubbleEnabled != null) {
+    if (isLive) {
+      return NextResponse.json({ error: 'Cannot toggle bubble after elimination has started' }, { status: 400 })
+    }
+    const v = Boolean(body.bubbleEnabled)
+    if (v !== Boolean(currentSettings.bubbleEnabled)) {
+      settings.bubbleEnabled = v
+      changed.push('bubbleEnabled')
+    }
+  }
+  if (body.bubbleSize != null) {
+    const v = clampInt(body.bubbleSize, 0, BUBBLE_SIZE_MAX)
+    if (v != null && v !== currentSettings.bubbleSize) {
+      settings.bubbleSize = v
+      changed.push('bubbleSize')
+    }
+  }
+  if (typeof body.bubbleScoringMode === 'string') {
+    const m = body.bubbleScoringMode as AllowedBubbleMode
+    if (!(ALLOWED_BUBBLE_MODES as readonly string[]).includes(m)) {
+      return NextResponse.json({ error: `bubbleScoringMode must be one of ${ALLOWED_BUBBLE_MODES.join(', ')}` }, { status: 400 })
+    }
+    if (m !== currentSettings.bubbleScoringMode) {
+      settings.bubbleScoringMode = m
+      changed.push('bubbleScoringMode')
+    }
+  }
+
+  if (changed.length === 0) {
+    return NextResponse.json({ ok: true, changed: [], message: 'No changes' })
+  }
+
+  // Reject any tournament-name change while the tournament is locked — feels confusing
+  // for participants who already saw posters/announcements with the original name.
+  if (isLocked && (changed.includes('name') || changed.includes('description'))) {
+    return NextResponse.json({ error: 'Tournament is locked — name/description are read-only' }, { status: 400 })
+  }
+
+  if (changed.some((k) => k !== 'name' && k !== 'description')) {
+    update.settings = settings
+  }
+  if (changed.includes('description')) {
+    update.hubSettings = hubSettings
+  }
+
+  await prisma.legacyTournament.update({
+    where: { id: tournamentId },
+    data: update,
+  })
+
+  await logTournamentAudit(tournamentId, 'bulk_update', {
+    actorId: userId,
+    metadata: { fields: changed, source: 'settings_modal' },
+  }).catch(() => {})
+
+  return NextResponse.json({ ok: true, changed })
+}

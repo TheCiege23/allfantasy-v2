@@ -108,6 +108,62 @@ export function TournamentSettingsModalEditable({
   const [saving, setSaving] = useState(false)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
   const [leagueSettings, setLeagueSettings] = useState<Record<string, any>>({})
+  const [rebalancing, setRebalancing] = useState(false)
+  // Tournament-level edits collected by the General/Playoffs/Advanced tabs.
+  // Keys must match the body shape accepted by /api/tournament/[id]/settings/update.
+  const [tournamentEdits, setTournamentEdits] = useState<Record<string, unknown>>({})
+
+  const setTournamentEdit = (key: string, value: unknown) => {
+    setTournamentEdits((prev) => ({ ...prev, [key]: value }))
+  }
+  const tournamentEditValue = (key: string, fallback: unknown): unknown =>
+    Object.prototype.hasOwnProperty.call(tournamentEdits, key) ? tournamentEdits[key] : fallback
+
+  const saveTournamentEdits = async () => {
+    if (Object.keys(tournamentEdits).length === 0) {
+      toast.message('No changes to save')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tournament/${tournamentId}/settings/update`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tournamentEdits),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Failed to update tournament')
+        return
+      }
+      toast.success(`Saved ${Array.isArray(data.changed) ? data.changed.length : 0} field(s)`)
+      setTournamentEdits({})
+    } catch (err) {
+      console.error('[tournament-settings-save]', err)
+      toast.error('Something went wrong')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRebalance = async () => {
+    if (!confirm('Redistribute rosters across feeder leagues so every league reaches its target size? Only works before tournament lock.')) return
+    setRebalancing(true)
+    try {
+      const res = await fetch(`/api/tournament/${tournamentId}/rebalance`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error(data?.error ?? 'Rebalance failed')
+        return
+      }
+      toast.success(`Moved ${data.moved ?? 0} roster(s)`)
+    } catch (err) {
+      console.error('[tournament-rebalance]', err)
+      toast.error('Rebalance failed')
+    } finally {
+      setRebalancing(false)
+    }
+  }
 
   const leaguesByConf = useMemo(() => {
     const m = new Map<string, typeof tournamentLeagues>()
@@ -221,12 +277,20 @@ export function TournamentSettingsModalEditable({
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {tab === 'general' ? (
             <>
-              <Section title="Tournament structure">
+              <Section title="Tournament identity">
+                <SettingRow
+                  label="Tournament name"
+                  value={String(tournamentEditValue('name', shell.name) ?? '')}
+                  onChange={(v) => setTournamentEdit('name', v)}
+                />
+                <SettingRow
+                  label="Description"
+                  value={String(tournamentEditValue('description', (ctx as any).legacyTournament?.description ?? '') ?? '')}
+                  onChange={(v) => setTournamentEdit('description', v)}
+                />
+              </Section>
+              <Section title="Tournament structure (read-only)">
                 <dl className="grid gap-2 text-[13px]">
-                  <div className="flex justify-between gap-4 p-2 rounded-lg border border-white/10 bg-black/10">
-                    <dt className="text-[var(--tournament-text-dim)]">Name</dt>
-                    <dd className="text-right font-medium text-white">{shell.name}</dd>
-                  </div>
                   <div className="flex justify-between gap-4 p-2 rounded-lg border border-white/10 bg-black/10">
                     <dt className="text-[var(--tournament-text-dim)]">Sport</dt>
                     <dd className="text-right text-white">{shell.sport}</dd>
@@ -242,7 +306,18 @@ export function TournamentSettingsModalEditable({
                     </dd>
                   </div>
                 </dl>
+                <p className="mt-2 text-[10px] text-[var(--tournament-text-dim)]">
+                  Sport and structure cannot be changed mid-tournament — they would orphan in-flight rounds.
+                </p>
               </Section>
+              <button
+                onClick={() => void saveTournamentEdits()}
+                disabled={saving}
+                className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-cyan-700 disabled:opacity-50"
+                data-testid="tournament-settings-save-general"
+              >
+                {saving ? 'Saving…' : 'Save tournament details'}
+              </button>
             </>
           ) : null}
 
@@ -502,21 +577,37 @@ export function TournamentSettingsModalEditable({
           ) : null}
 
           {tab === 'leagues' ? (
-            <Section title="League names">
-              {conferences.map((c) => (
-                <div key={c.id} className="mb-4">
-                  <p className="mb-2 text-[12px] font-bold text-cyan-200/90">{c.name}</p>
-                  <ul className="space-y-1">
-                    {(leaguesByConf.get(c.id) ?? []).map((l) => (
-                      <li key={l.id} className="text-[13px] text-white/90">
-                        {l.name}{' '}
-                        <span className="text-[11px] text-[var(--tournament-text-dim)]">({l.status})</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </Section>
+            <>
+              <Section title="League names">
+                {conferences.map((c) => (
+                  <div key={c.id} className="mb-4">
+                    <p className="mb-2 text-[12px] font-bold text-cyan-200/90">{c.name}</p>
+                    <ul className="space-y-1">
+                      {(leaguesByConf.get(c.id) ?? []).map((l) => (
+                        <li key={l.id} className="text-[13px] text-white/90">
+                          {l.name}{' '}
+                          <span className="text-[11px] text-[var(--tournament-text-dim)]">({l.status})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </Section>
+              <Section title="Rebalance feeder leagues">
+                <p className="mb-3 text-[12px] text-[var(--tournament-text-mid)]">
+                  Move rosters between feeder leagues so each league reaches its target size. Only works
+                  before the tournament is locked.
+                </p>
+                <button
+                  onClick={() => void handleRebalance()}
+                  disabled={rebalancing}
+                  className="rounded-lg bg-cyan-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-cyan-700 disabled:opacity-50"
+                  data-testid="tournament-settings-rebalance"
+                >
+                  {rebalancing ? 'Rebalancing…' : 'Rebalance now'}
+                </button>
+              </Section>
+            </>
           ) : null}
 
           {tab === 'rounds' ? (
@@ -540,19 +631,86 @@ export function TournamentSettingsModalEditable({
           ) : null}
 
           {tab === 'playoffs' ? (
-            <Section title="Playoff settings">
-              <p className="text-[13px] text-[var(--tournament-text-mid)]">
-                Playoff format, advancement rules, and bracket settings can be customized here.
-              </p>
-            </Section>
+            <>
+              <Section title="Advancement defaults">
+                <SettingRow
+                  label="Advancing per league (next round)"
+                  value={Number(tournamentEditValue('advancementPerLeague', (ctx as any).legacyTournament?.settings?.advancementPerLeague ?? 4))}
+                  onChange={(v) => setTournamentEdit('advancementPerLeague', Number(v))}
+                  type="number"
+                />
+                <SettingRow
+                  label="Bench spots in elimination rounds"
+                  value={Number(tournamentEditValue('benchSpotsElimination', (ctx as any).legacyTournament?.settings?.benchSpotsElimination ?? 2))}
+                  onChange={(v) => setTournamentEdit('benchSpotsElimination', Number(v))}
+                  type="number"
+                />
+                <SettingRow
+                  label="FAAB budget per round"
+                  value={Number(tournamentEditValue('faabBudgetDefault', (ctx as any).legacyTournament?.settings?.faabBudgetDefault ?? 100))}
+                  onChange={(v) => setTournamentEdit('faabBudgetDefault', Number(v))}
+                  type="number"
+                />
+                <SettingRow
+                  label="Reset FAAB every round"
+                  value={Boolean(tournamentEditValue('faabResetByRound', (ctx as any).legacyTournament?.settings?.faabResetByRound ?? true))}
+                  onChange={(v) => setTournamentEdit('faabResetByRound', Boolean(v))}
+                  type="checkbox"
+                />
+              </Section>
+              <Section title="Bubble round (pre-elimination only)">
+                <SettingRow
+                  label="Enable bubble round"
+                  value={Boolean(tournamentEditValue('bubbleEnabled', (ctx as any).legacyTournament?.settings?.bubbleEnabled ?? false))}
+                  onChange={(v) => setTournamentEdit('bubbleEnabled', Boolean(v))}
+                  type="checkbox"
+                />
+                <SettingRow
+                  label="Bubble size per conference"
+                  value={Number(tournamentEditValue('bubbleSize', (ctx as any).legacyTournament?.settings?.bubbleSize ?? 0))}
+                  onChange={(v) => setTournamentEdit('bubbleSize', Number(v))}
+                  type="number"
+                />
+              </Section>
+              <button
+                onClick={() => void saveTournamentEdits()}
+                disabled={saving}
+                className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-cyan-700 disabled:opacity-50"
+                data-testid="tournament-settings-save-playoffs"
+              >
+                {saving ? 'Saving…' : 'Save playoff settings'}
+              </button>
+            </>
           ) : null}
 
           {tab === 'advanced' ? (
-            <Section title="Advanced settings">
-              <p className="text-[12px] text-[var(--tournament-text-dim)]">
-                Advanced tournament configuration and automation options.
-              </p>
-            </Section>
+            <>
+              <Section title="Draft type (locked once elimination starts)">
+                <p className="mb-2 text-[11px] text-[var(--tournament-text-dim)]">
+                  Applies to every redraft from this point forward — feeder league draft sessions inherit it.
+                </p>
+                <select
+                  value={String(tournamentEditValue('draftType', (ctx as any).legacyTournament?.settings?.draftType ?? 'snake'))}
+                  onChange={(e) => setTournamentEdit('draftType', e.target.value)}
+                  aria-label="Draft type"
+                  className="w-full rounded border border-white/20 bg-black/30 px-2 py-1.5 text-[13px] text-white"
+                  data-testid="tournament-settings-draft-type"
+                >
+                  <option value="snake">Snake</option>
+                  <option value="auction">Auction</option>
+                  <option value="3rd_reversal">Snake — 3rd round reversal</option>
+                  <option value="linear">Linear</option>
+                </select>
+              </Section>
+              <button
+                onClick={() => void saveTournamentEdits()}
+                disabled={saving}
+                className="w-full rounded-lg bg-cyan-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-cyan-700 disabled:opacity-50"
+                data-testid="tournament-settings-save-advanced"
+              >
+                {saving ? 'Saving…' : 'Save advanced settings'}
+              </button>
+            </>
           ) : null}
         </div>
       </div>

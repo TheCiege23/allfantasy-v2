@@ -99,8 +99,60 @@ export async function resolveBubble(tournamentId: string): Promise<void> {
     const mode = shell.bubbleScoringMode
     let winners: string[] = []
     if (mode === 'cumulative_points') {
-      const snap = (group.bubbleScoringSnapshot as Record<string, number> | null) ?? {}
-      const sorted = [...group.participantIds].sort((a, b) => (snap[b] ?? 0) - (snap[a] ?? 0))
+      // The snapshot stored at openBubblePhase is the *baseline* — each participant's
+      // pointsFor at the moment the bubble opened. We score the bubble window by
+      // diffing current pointsFor (which calculateLeagueStandings re-aggregates after
+      // each round) against that baseline. That way ranking reflects how much each
+      // participant scored *during* the bubble, not their pre-bubble total.
+      const baseline = (group.bubbleScoringSnapshot as Record<string, number> | null) ?? {}
+      const tlps = await prisma.tournamentLeagueParticipant.findMany({
+        where: {
+          participantId: { in: group.participantIds },
+          tournamentLeagueId: { in: leagueIds },
+        },
+        select: { participantId: true, pointsFor: true },
+      })
+      const currentByPid = new Map<string, number>()
+      for (const r of tlps) {
+        // Sum across rows in case the participant somehow appears in multiple bubble leagues.
+        currentByPid.set(r.participantId, (currentByPid.get(r.participantId) ?? 0) + r.pointsFor)
+      }
+      const bubbleScores: Record<string, number> = {}
+      for (const pid of group.participantIds) {
+        const before = baseline[pid] ?? 0
+        const after = currentByPid.get(pid) ?? before
+        bubbleScores[pid] = Math.max(0, after - before)
+      }
+      const sorted = [...group.participantIds].sort((a, b) => (bubbleScores[b] ?? 0) - (bubbleScores[a] ?? 0))
+      const half = Math.max(1, Math.floor(group.participantIds.length / 2))
+      winners = sorted.slice(0, half)
+      // Persist the bubble-window deltas back onto the group so the audit/UI shows
+      // the actual bubble performance, not the pre-bubble snapshot.
+      await prisma.tournamentAdvancementGroup.update({
+        where: { id: group.id },
+        data: { bubbleScoringSnapshot: bubbleScores },
+      })
+    } else if (mode === 'head_to_head' || mode === 'mini_bracket') {
+      // These modes need a real bubble schedule (mini-fixture or sub-bracket) which
+      // hasn't shipped yet — fall back to cumulative bubble-window points so the
+      // round still resolves deterministically instead of locking the tournament.
+      const baseline = (group.bubbleScoringSnapshot as Record<string, number> | null) ?? {}
+      const tlps = await prisma.tournamentLeagueParticipant.findMany({
+        where: {
+          participantId: { in: group.participantIds },
+          tournamentLeagueId: { in: leagueIds },
+        },
+        select: { participantId: true, pointsFor: true },
+      })
+      const currentByPid = new Map<string, number>()
+      for (const r of tlps) {
+        currentByPid.set(r.participantId, (currentByPid.get(r.participantId) ?? 0) + r.pointsFor)
+      }
+      const sorted = [...group.participantIds].sort(
+        (a, b) =>
+          ((currentByPid.get(b) ?? 0) - (baseline[b] ?? 0)) -
+          ((currentByPid.get(a) ?? 0) - (baseline[a] ?? 0)),
+      )
       const half = Math.max(1, Math.floor(group.participantIds.length / 2))
       winners = sorted.slice(0, half)
     } else {
