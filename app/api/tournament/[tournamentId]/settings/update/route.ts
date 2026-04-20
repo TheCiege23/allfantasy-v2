@@ -22,9 +22,17 @@ const BENCH_MAX = 20
 const ADV_MAX = 12
 const BUBBLE_SIZE_MAX = 64
 
-const ALLOWED_DRAFT_TYPES = ['snake', 'auction', '3rd_reversal', 'linear'] as const
+// Mirror the validation surface of /api/tournament/create — only snake +
+// auction are runnable by TournamentRedraftService today. Allowing 3rd_reversal
+// or linear here would let a commissioner store a value the redraft engine
+// silently downgrades back to snake on every round.
+const ALLOWED_DRAFT_TYPES = ['snake', 'auction'] as const
 type AllowedDraftType = (typeof ALLOWED_DRAFT_TYPES)[number]
-const ALLOWED_BUBBLE_MODES = ['cumulative_points', 'head_to_head', 'mini_bracket'] as const
+// Only `cumulative_points` is exposed for now: head_to_head and mini_bracket
+// would need real sub-bracket pairings (not yet shipped) — bubbleEngine falls
+// through to the same cumulative-window scoring for them, so blocking here
+// keeps the commissioner from picking a mode whose UI isn't implemented.
+const ALLOWED_BUBBLE_MODES = ['cumulative_points'] as const
 type AllowedBubbleMode = (typeof ALLOWED_BUBBLE_MODES)[number]
 
 function clampInt(v: unknown, min: number, max: number): number | null {

@@ -47,6 +47,7 @@ import {
   Wand2,
   Zap,
   Brain,
+  Swords,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
@@ -105,11 +106,14 @@ import { RenewLeagueBanner } from '@/components/league/RenewLeagueBanner'
 import { PostCreateSetupGuideBanner } from '@/components/league/PostCreateSetupGuideBanner'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
 import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
+import { TournamentIntroVideoOverlay } from '@/components/tournament/TournamentIntroVideoOverlay'
 import {
   SpecialtyLeagueHomeHero,
   type TournamentHeroContext,
 } from '@/components/league-home/SpecialtyLeagueHomeHero'
 import { DevyLeagueHomeHero } from '@/components/devy/DevyLeagueHomeHero'
+import { applyMatchupPrimaryTab, shouldUseMatchupInsteadOfDraft } from '@/lib/matchup-center/tabTransition'
+import { MatchupTabContainer } from '@/components/matchup-center/MatchupTabContainer'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -216,6 +220,7 @@ export function LeagueShell({
   const { summary: capSummary } = useIdpCapSummary(league.id, capRosterId)
   const idpCapEnabled = Boolean(capSummary)
   const { t, language } = useLanguage()
+  const shouldUseMatchupPrimary = shouldUseMatchupInsteadOfDraft(league.lifecycleState)
   const tabDefs = useMemo(() => {
     let base = getLeagueTabs(String(league.sport))
     if (league.bestBallMode) {
@@ -273,15 +278,17 @@ export function LeagueShell({
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
     const withSettings = [...base, { id: 'settings', label: '⚙ Settings' }]
-    return localizeLeagueTabs(withSettings, t)
+    return localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t)
   }, [
     league.sport,
+    league.lifecycleState,
     league.leagueType,
     league.keeperPhaseActive,
     league.bestBallMode,
     league.guillotineMode,
     league.leagueVariant,
     isCommissioner,
+    shouldUseMatchupPrimary,
     t,
     language,
   ])
@@ -374,7 +381,7 @@ export function LeagueShell({
       team: 'team',
       roster: 'team',
       squad: 'squad',
-      matchup: 'scores',
+      matchup: 'matchup',
       scores: 'scores',
       war_room: 'war_room',
       warroom: 'war_room',
@@ -382,7 +389,7 @@ export function LeagueShell({
       ai_coaching: 'ai_coaching',
       coaching: 'ai_coaching',
       ai_coach: 'ai_coaching',
-      draft: 'draft',
+      draft: shouldUseMatchupPrimary ? 'matchup' : 'draft',
       redraft: 'redraft',
       trades: 'trades',
       league: 'league',
@@ -437,7 +444,7 @@ export function LeagueShell({
     if (!target) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (ids.has(target)) setActiveTab(target)
-  }, [searchParams, tabDefs, league.sport])
+  }, [searchParams, tabDefs, league.sport, shouldUseMatchupPrimary])
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<string | null>(null)
@@ -634,9 +641,6 @@ export function LeagueShell({
     setSettingsInitialPanel(null)
   }
 
-  const specialtyImmersive =
-    league.leagueVariant === 'survivor' || league.leagueVariant === 'big_brother'
-
   const specialtyAtmosphereMood = useMemo(() => {
     if (league.leagueVariant === 'survivor') {
       if (activeTab === 'survivor_tribal') return 'tribal'
@@ -687,12 +691,20 @@ export function LeagueShell({
 
   const showSpecialtyHero = specialtyHeroVariant !== null
 
+  // `specialtyImmersive` controls the global immersive atmosphere layer (full-viewport
+  // background + AppShell padding tweaks). Tournament leagues opt in once their
+  // tournament context resolves so the bracket-themed background reaches every tab.
+  const specialtyImmersive =
+    league.leagueVariant === 'survivor' ||
+    league.leagueVariant === 'big_brother' ||
+    Boolean(tournamentHeroContext)
+
   const showDevyHero =
     league.leagueType === 'devy' || (devyConfig !== null && devyConfig !== 'none')
 
   const draftTabForHero = useMemo(() => {
     const ids = new Set(tabDefs.map((x) => x.id))
-    const prefer = ['draft', 'roster', 'squad', 'leaderboard', 'my-picks'] as const
+    const prefer = ['matchup', 'draft', 'roster', 'squad', 'leaderboard', 'my-picks'] as const
     for (const id of prefer) {
       if (ids.has(id)) return id
     }
@@ -712,8 +724,21 @@ export function LeagueShell({
     <>
       {specialtyImmersive ? (
         <SpecialtyLeagueAtmosphere
-          variant={league.leagueVariant === 'survivor' ? 'survivor' : 'big_brother'}
+          variant={
+            league.leagueVariant === 'survivor'
+              ? 'survivor'
+              : league.leagueVariant === 'big_brother'
+                ? 'big_brother'
+                : 'tournament'
+          }
           mood={specialtyAtmosphereMood}
+        />
+      ) : null}
+      {tournamentHeroContext ? (
+        <TournamentIntroVideoOverlay
+          leagueId={league.id}
+          tournamentId={tournamentHeroContext.tournamentId}
+          tournamentName={tournamentHeroContext.tournamentName}
         />
       ) : null}
       <AppShell
@@ -1099,6 +1124,8 @@ function LeagueTabRouter({
   const sport = selectedLeague.sport
 
   switch (activeTab) {
+    case 'matchup':
+      return <MatchupTabContainer league={selectedLeague} />
     case 'draft':
       return (
         <DraftTab
@@ -1249,6 +1276,7 @@ function LeagueTabRouter({
 }
 
 const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
+  matchup: Swords,
   draft: LayoutGrid,
   redraft: RotateCcw,
   team: User,

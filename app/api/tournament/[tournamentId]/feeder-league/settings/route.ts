@@ -40,13 +40,23 @@ export async function PATCH(
   }
 
   try {
-    // Verify tournament ownership
-    const tournament = await prisma.legacyTournament.findUnique({
-      where: { id: tournamentId },
-      select: { creatorId: true },
-    })
+    // Authorize against either schema. The legacy LegacyTournament uses
+    // creatorId, while the newer TournamentShell exposes commissionerId — we
+    // accept either so commissioners of new-style tournaments aren't locked
+    // out of the feeder-league settings UI.
+    const [legacy, shell] = await Promise.all([
+      prisma.legacyTournament.findUnique({
+        where: { id: tournamentId },
+        select: { creatorId: true },
+      }),
+      (prisma as any).tournamentShell
+        ?.findUnique?.({ where: { id: tournamentId }, select: { commissionerId: true, createdBy: true } })
+        .catch(() => null),
+    ])
 
-    if (!tournament || tournament.creatorId !== userId) {
+    const ownerId =
+      legacy?.creatorId ?? shell?.commissionerId ?? shell?.createdBy ?? null
+    if (!ownerId || ownerId !== userId) {
       return NextResponse.json({ error: 'Not authorized as tournament commissioner' }, { status: 403 })
     }
 

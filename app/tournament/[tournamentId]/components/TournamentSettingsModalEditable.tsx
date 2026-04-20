@@ -698,8 +698,6 @@ export function TournamentSettingsModalEditable({
                 >
                   <option value="snake">Snake</option>
                   <option value="auction">Auction</option>
-                  <option value="3rd_reversal">Snake — 3rd round reversal</option>
-                  <option value="linear">Linear</option>
                 </select>
               </Section>
               <button
