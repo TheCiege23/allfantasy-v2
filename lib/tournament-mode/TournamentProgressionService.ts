@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { runPostCreateInitialization } from '@/lib/league-defaults-orchestrator/LeagueDefaultsOrchestrator'
 import { getUniversalStandingsRaw, applyConferenceRankingAndCutLine } from './TournamentStandingsService'
 import { getBubbleSlotsPerConference, getEliminationLeagueCountPerConference, ELIMINATION_LEAGUE_SIZE } from './advancement-rules'
-import { getQualificationCutSlotsPerConference } from './tournament-sport-cutoffs'
+import { getQualificationCutSlotsPerConference, getRoundWindow } from './tournament-sport-cutoffs'
 import { LATER_ROUND_NAMES, TOURNAMENT_LEAGUE_VARIANT } from './constants'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -243,14 +243,17 @@ export async function runQualificationAdvancement(tournamentId: string): Promise
     data: { status: 'completed' },
   })
 
+  // Sport-aware first elimination window. NFL stays at 10–13, but NBA/NHL/MLB/SOCCER
+  // get round boundaries that fit their actual season length.
+  const round1Window = getRoundWindow(sport, 1, false)
   await prisma.legacyTournamentRound.create({
     data: {
       tournamentId,
       roundIndex: 1,
       phase: 'elimination',
       name: 'Elimination Round 1',
-      startWeek: 10,
-      endWeek: 14,
+      startWeek: round1Window.startWeek,
+      endWeek: round1Window.endWeek,
       status: 'active',
       settings: {
         advancementCount: 4,

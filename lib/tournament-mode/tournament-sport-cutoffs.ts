@@ -67,3 +67,95 @@ export function getQualificationCutSlotsPerConference(
   const total = qualificationAdvancementTotal ?? getQualificationAdvancementTotal(sport, participantPoolSize)
   return Math.max(1, Math.floor(total / Math.max(1, conferenceCount)))
 }
+
+/**
+ * Sport-aware "regular-season weekly buckets" used for tournament round windowing.
+ * These are *fantasy weeks* (the unit standings/matchups are aggregated by) — they
+ * intentionally compress long daily-fixture sports (NBA, NHL, MLB) into a smaller
+ * weekly grid so a tournament can still resolve in a reasonable number of rounds.
+ */
+const SPORT_SEASON_WEEKS: Record<string, number> = {
+  NFL: 18,
+  NCAAF: 15,
+  NBA: 24,
+  NHL: 26,
+  MLB: 27,
+  NCAAB: 19,
+  SOCCER: 38,
+}
+
+/**
+ * Default fantasy-week the qualification round closes / playoffs open. NFL's product
+ * convention has been week 10 (the historical playoff-start week); other sports are
+ * scaled to the analogous point in their season.
+ */
+const SPORT_PLAYOFF_START_WEEK: Record<string, number> = {
+  NFL: 10,
+  NCAAF: 9,
+  NBA: 16,
+  NHL: 18,
+  MLB: 18,
+  NCAAB: 13,
+  SOCCER: 26,
+}
+
+/** Default round window length (weeks per elimination round) for each sport. */
+const SPORT_ROUND_LENGTH_WEEKS: Record<string, number> = {
+  NFL: 3,
+  NCAAF: 2,
+  NBA: 2,
+  NHL: 2,
+  MLB: 2,
+  NCAAB: 2,
+  SOCCER: 3,
+}
+
+function normalizeSportKey(sport: string | null | undefined): string {
+  const s = (normalizeToSupportedSport(sport ?? 'NFL') ?? 'NFL') as LeagueSport
+  return s
+}
+
+/** Total fantasy weeks in the regular season for the given sport (clamped to ≥ 4). */
+export function getSeasonWeekCount(sport: string | null | undefined): number {
+  const s = normalizeSportKey(sport)
+  return Math.max(4, SPORT_SEASON_WEEKS[s] ?? SPORT_SEASON_WEEKS.NFL!)
+}
+
+/** Fantasy week the qualification round ends and playoffs/elimination open. */
+export function getPlayoffStartWeek(sport: string | null | undefined): number {
+  const s = normalizeSportKey(sport)
+  const total = getSeasonWeekCount(s)
+  const start = SPORT_PLAYOFF_START_WEEK[s] ?? SPORT_PLAYOFF_START_WEEK.NFL!
+  return Math.max(2, Math.min(total - 2, start))
+}
+
+/** Default length (in fantasy weeks) of a single elimination round. */
+export function getRoundLengthWeeks(sport: string | null | undefined): number {
+  const s = normalizeSportKey(sport)
+  return Math.max(1, SPORT_ROUND_LENGTH_WEEKS[s] ?? SPORT_ROUND_LENGTH_WEEKS.NFL!)
+}
+
+/**
+ * Compute the [startWeek, endWeek] window for an elimination round at index N
+ * (0 = qualification, 1 = first elimination, etc.). The championship round always
+ * runs through the season's final week regardless of `roundLength`.
+ */
+export function getRoundWindow(
+  sport: string | null | undefined,
+  roundIndex: number,
+  isChampionship = false,
+): { startWeek: number; endWeek: number } {
+  const total = getSeasonWeekCount(sport)
+  const playoffStart = getPlayoffStartWeek(sport)
+  const len = getRoundLengthWeeks(sport)
+
+  if (roundIndex <= 0) {
+    return { startWeek: 1, endWeek: Math.max(2, playoffStart - 1) }
+  }
+  const startWeek = playoffStart + (roundIndex - 1) * len
+  const endWeek = isChampionship ? total : Math.min(total, startWeek + len - 1)
+  return {
+    startWeek: Math.min(startWeek, total - 1),
+    endWeek: Math.max(startWeek, endWeek),
+  }
+}

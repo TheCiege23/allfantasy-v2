@@ -12,6 +12,7 @@ import { LATER_ROUND_NAMES, TOURNAMENT_LEAGUE_VARIANT } from './constants'
 import { markEliminated, markRoundCompleted, archiveRound } from './TournamentEliminationEngine'
 import { scheduleRedraftForRound, applyFaabResetForRound, applyBenchSpotsForRound } from './TournamentRedraftService'
 import { logTournamentAudit } from './TournamentAuditService'
+import { getRoundWindow } from './tournament-sport-cutoffs'
 import type { TournamentSettings } from './types'
 
 export interface CondenseRoundResult {
@@ -318,16 +319,18 @@ export async function condenseRound(
   await markRoundCompleted(tournamentId, fromRoundIndex)
   await archiveRound(tournamentId, fromRoundIndex)
 
-  // Create new round record
-  const weekStart = fromRoundIndex === 0 ? 10 : 10 + fromRoundIndex * 3
+  // Create new round record. Window comes from sport-aware helpers — NFL stays
+  // on its 10/13/16-style cadence, but NBA/NHL/MLB/SOCCER get their own season
+  // boundaries instead of being shoehorned into NFL's 17-week schedule.
+  const window = getRoundWindow(sport, newRoundIndex, isChampionship)
   await prisma.legacyTournamentRound.create({
     data: {
       tournamentId,
       roundIndex: newRoundIndex,
       phase,
       name: isChampionship ? 'Championship' : phase === 'elite_eight' ? 'Elite Eight' : `Elimination Round ${newRoundIndex}`,
-      startWeek: weekStart,
-      endWeek: isChampionship ? 17 : weekStart + 3,
+      startWeek: window.startWeek,
+      endWeek: window.endWeek,
       status: 'active',
       settings: {
         advancementCount: advancementPerLeague,

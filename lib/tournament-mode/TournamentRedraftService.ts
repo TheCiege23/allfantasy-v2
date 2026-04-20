@@ -8,6 +8,24 @@ import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageServ
 
 const SYSTEM_USER_ID = 'system'
 
+/** Map any legacy draft-type spellings to the canonical LeagueSettings.draftType values. */
+function canonicalizeDraftType(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const v = raw.trim().toLowerCase()
+  if (v === 'auction') return 'auction'
+  if (v === 'snake' || v === 'serpentine') return 'snake'
+  if (v === '3rd_reversal' || v === 'third_round_reversal' || v === '3rr') return '3rd_reversal'
+  if (v === 'linear' || v === 'straight') return 'linear'
+  return null
+}
+
+/** Pull the canonical draftType the tournament was created with. */
+function readTournamentDraftType(settings: unknown): string | null {
+  if (!settings || typeof settings !== 'object') return null
+  const s = settings as Record<string, unknown>
+  return canonicalizeDraftType(typeof s.draftType === 'string' ? s.draftType : null)
+}
+
 /** Create draft sessions for all leagues in a round (pre_draft). No draft pick trading; order from roster list. */
 export async function scheduleRedraftForRound(
   tournamentId: string,
@@ -15,8 +33,9 @@ export async function scheduleRedraftForRound(
 ): Promise<{ scheduled: number; leagueIds: string[] }> {
   const tournament = await prisma.legacyTournament.findUnique({
     where: { id: tournamentId },
-    select: { name: true, creatorId: true },
+    select: { name: true, creatorId: true, settings: true },
   })
+  const tournamentDraftType = readTournamentDraftType(tournament?.settings)
   const leagues = await prisma.legacyTournamentLeague.findMany({
     where: { tournamentId, roundIndex },
     select: { leagueId: true },
@@ -25,6 +44,18 @@ export async function scheduleRedraftForRound(
   let scheduled = 0
   for (const leagueId of leagueIds) {
     try {
+      // Force the tournament's draftType onto the feeder league's LeagueSettings
+      // before we materialise the DraftSession. Without this, getOrCreateDraftSession
+      // reads the league's own draftType (typically the original Round 1 setting),
+      // which silently downgrades auction tournaments to snake on every redraft.
+      if (tournamentDraftType) {
+        await prisma.leagueSettings
+          .updateMany({
+            where: { leagueId, draftType: { not: tournamentDraftType } },
+            data: { draftType: tournamentDraftType },
+          })
+          .catch(() => {})
+      }
       const { created } = await getOrCreateDraftSession(leagueId)
       if (created) {
         scheduled++
