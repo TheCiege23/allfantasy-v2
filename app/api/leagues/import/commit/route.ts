@@ -12,10 +12,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireVerifiedUser } from '@/lib/auth-guard'
 import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
-import {
-  ImportedLeagueConflictError,
-  persistImportedLeagueFromNormalization,
-} from '@/lib/league-import/ImportedLeagueCommitService'
+import { buildCanonicalImportBundle } from '@/lib/league-import/canonicalImportNormalizer'
+import { ImportedLeagueConflictError } from '@/lib/league-import/ImportedLeagueCommitService'
+import { persistImportWithCanonicalAudit } from '@/lib/league-import/importPersistenceService'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 
@@ -70,10 +69,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const persisted = await persistImportedLeagueFromNormalization({
+    const canonical = buildCanonicalImportBundle(result.normalized)
+    const { persisted, runId } = await persistImportWithCanonicalAudit({
       userId: auth.userId,
       provider,
       normalized: result.normalized,
+      canonical,
       allowUpdateExisting: false,
     })
 
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
       sport: persisted.league.sport,
       league: persisted.league,
       historicalBackfill: persisted.historicalBackfill,
+      importRunId: runId,
     })
   } catch (error) {
     if (error instanceof ImportedLeagueConflictError) {

@@ -15,6 +15,7 @@ This file is the umbrella rule. Detailed directives are split into focused alway
 
 Also enforce existing always-on companion rules:
 
+- `workspace-structure.mdc` for repo path conventions and extending existing entry points (no `allfantasy/web` / `web/src`)
 - `sport-scope.mdc` for mandatory 7-sport support and sport source-of-truth usage
 - `sleeper-hybrid-visual-direction.mdc` for product UI direction
 

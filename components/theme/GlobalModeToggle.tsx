@@ -10,7 +10,9 @@ export function GlobalModeToggle() {
   /** Right-rail profile footer (username + settings) sits bottom-right; fixed toggle covered the gear. */
   if (pathname?.startsWith("/dashboard") || pathname?.startsWith("/league/")) return null
 
-  const createLeagueRoute = pathname === '/create-league' || pathname === '/leagues/create'
+  /** Canonical `/create-league`; legacy `/leagues/create` and `/create-league/v2` redirect but may flash on client. */
+  const createLeagueRoute =
+    pathname.startsWith('/create-league') || pathname === '/leagues/create'
 
   return (
     <div

@@ -3,6 +3,8 @@
  * with source tracking for sync and history.
  */
 
+import type { SettingsSnapshot } from '@/lib/league-contract/types'
+
 export const IMPORT_PROVIDERS = ['sleeper', 'espn', 'yahoo', 'fantrax', 'mfl', 'fleaflicker'] as const
 export type ImportProvider = (typeof IMPORT_PROVIDERS)[number]
 
@@ -160,4 +162,57 @@ export interface ExternalIdentityMapping {
   entity_type: 'player' | 'manager' | 'team' | 'league'
   af_id?: string | null
   stable_key?: string
+}
+
+export type ImportWarningSeverity = 'info' | 'warn' | 'error'
+
+export interface ImportWarningRecord {
+  code: string
+  message: string
+  severity: ImportWarningSeverity
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Canonical AllFantasy bundle — aligns imported leagues with native `SettingsSnapshot` + `conceptRules`.
+ */
+/** Deterministic flags derived from normalized payload (for UI + downstream engines). */
+export interface DerivedImportFlags {
+  idp: boolean
+  salaryCap: boolean
+  devy: boolean
+  c2c: boolean
+  bestBall: boolean
+  dynasty: boolean
+  tournament: boolean
+}
+
+/** Canonical import provenance — mirrors league `platform` / `platformLeagueId` intent. */
+export interface ImportMetadataBundle {
+  importSource: ImportProvider
+  externalLeagueId: string
+  externalSeasonId?: string | null
+  importBatchId?: string | null
+  normalizedAt: string
+  normalizationVersion: string
+}
+
+export interface CanonicalImportBundle {
+  settingsSnapshot: SettingsSnapshot
+  inferredConcept: string
+  inferredLeagueType: string
+  scoringPresetId: string
+  draftType: string
+  presetKey: string | null
+  leagueTypeColumn: string | null
+  derivedFlags: DerivedImportFlags
+  importMetadata: ImportMetadataBundle
+  warnings: ImportWarningRecord[]
+  reviewRequired: boolean
+  reviewReasons: string[]
+  meta: {
+    provider: ImportProvider
+    sourceLeagueId: string
+    confidence: Record<string, number>
+  }
 }

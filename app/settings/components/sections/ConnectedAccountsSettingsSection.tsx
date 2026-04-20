@@ -123,34 +123,12 @@ export function ConnectedAccountsSettingsSection({
     setLinkingProvider(provider)
 
     try {
-      const redirectTo = "http://localhost:5173/settings"
-
-      const linker = (supabase.auth as {
-        linkIdentity?: (params: {
-          provider: "discord" | "spotify"
-          options?: { redirectTo?: string }
-        }) => Promise<{ data: unknown; error: { message?: string } | null }>
-      }).linkIdentity
-
-      if (!linker) {
-        setStatusTone("error")
-        setStatusMessage("Provider linking is not available in this environment.")
-        return
-      }
-
-      const { error } = await linker({
-        provider,
-        options: { redirectTo },
-      })
-
-      if (error) {
-        setStatusTone("error")
-        setStatusMessage(error.message ?? `Failed to connect ${provider}.`)
-      }
+      // Redirect to the custom OAuth flow routes
+      const authRoute = provider === "discord" ? "/api/auth/discord" : "/api/auth/spotify"
+      window.location.href = authRoute
     } catch (error) {
       setStatusTone("error")
       setStatusMessage(error instanceof Error ? error.message : `Failed to connect ${provider}.`)
-    } finally {
       setLinkingProvider(null)
     }
   }

@@ -1,8 +1,10 @@
 import 'server-only'
 
-import type { LeagueSport, Prisma } from '@prisma/client'
+import type { LeagueLifecycleState, LeagueSport, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { resolveLeagueAccess } from '@/lib/league-access'
+import { getLeagueRole } from '@/lib/league/permissions'
+import { getAllowedActions } from '@/server/services/leagueLifecycleService'
 import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
 import { getLeagueScoringConfig } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 import { getPlayoffConfigForLeague } from '@/lib/playoff-defaults/PlayoffConfigResolver'
@@ -67,6 +69,9 @@ type LeagueContext = {
     scoring: string | null
     isDynasty: boolean
     platformLeagueId: string
+    lifecycleState: LeagueLifecycleState
+    locked: boolean
+    emergencyPaused: boolean
   }
   isCommissioner: boolean
   currentRoster: {
@@ -123,6 +128,25 @@ function isLeagueTopTab(value: string | null | undefined): value is LeagueTopTab
 function toJsonRecord(value: Prisma.JsonValue | null | undefined): JsonRecord {
   if (!value || Array.isArray(value) || typeof value !== 'object') return {}
   return value as JsonRecord
+}
+
+/** Sleeper hub: `settings.leg`; some snapshots expose top-level `leg`. */
+function resolveCurrentWeekFromLeagueSettings(settings: Prisma.JsonValue | null | undefined): number | null {
+  const root = toJsonRecord(settings)
+  const nested =
+    root.settings && typeof root.settings === 'object' && !Array.isArray(root.settings)
+      ? (root.settings as Record<string, unknown>)
+      : null
+  for (const leg of [nested?.leg, root.leg]) {
+    if (typeof leg === 'number' && Number.isFinite(leg) && leg >= 1) {
+      return Math.min(Math.floor(leg), 53)
+    }
+    if (typeof leg === 'string') {
+      const n = Number.parseInt(leg, 10)
+      if (Number.isFinite(n) && n >= 1) return Math.min(n, 53)
+    }
+  }
+  return null
 }
 
 function toStringArray(value: unknown): string[] {
@@ -312,6 +336,9 @@ async function loadLeagueContext(leagueId: string, userId: string): Promise<Leag
         scoring: true,
         isDynasty: true,
         platformLeagueId: true,
+        lifecycleState: true,
+        locked: true,
+        emergencyPaused: true,
       },
     }),
     prisma.roster.findFirst({
@@ -1829,6 +1856,12 @@ export async function getLeagueHomeData(
   const powerRankings = buildPowerRankingsCard(standings)
 
   const settings = toJsonRecord(context.league.settings)
+  const leagueRole = await getLeagueRole(leagueId, userId)
+  const lifecycleSnap = getAllowedActions({
+    lifecycleState: context.league.lifecycleState,
+    locked: context.league.locked,
+    emergencyPaused: context.league.emergencyPaused,
+  })
 
   return {
     league: {
@@ -1841,11 +1874,19 @@ export async function getLeagueHomeData(
       leagueVariant: context.league.leagueVariant,
       leagueType: typeof settings.league_type === 'string' ? settings.league_type : null,
       isDynasty: context.league.isDynasty,
+      currentWeek: resolveCurrentWeekFromLeagueSettings(context.league.settings),
+      lifecycle: {
+        state: lifecycleSnap.state,
+        locked: lifecycleSnap.locked,
+        emergencyPaused: lifecycleSnap.emergencyPaused,
+        allowedActions: lifecycleSnap.actions,
+      },
     },
     variant,
     introVideo,
     currentUserId: userId,
     isCommissioner: context.isCommissioner,
+    leagueRole,
     activeTab,
     teamsInDraftOrder: standings,
     standings,

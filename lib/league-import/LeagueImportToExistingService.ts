@@ -7,8 +7,10 @@ import type { LeagueSport } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getOrCreateDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
-import type { ImportProvider, NormalizedImportResult } from './types'
+import type { CanonicalImportBundle, ImportProvider, NormalizedImportResult } from './types'
 import { bootstrapLeagueFromImport } from './LeagueCreationBootstrapService'
+import { mergeCanonicalBundleIntoLeagueSettingsJson } from '@/lib/league-import/ImportedLeagueCommitService'
+import { SETTINGS_SNAPSHOT_VERSION } from '@/lib/league-contract/types'
 
 export interface ExistingLeagueImportApplyOptions {
   leagueStructure: boolean
@@ -283,6 +285,8 @@ export async function applyImportedLeagueToExistingLeague(args: {
   provider: ImportProvider
   normalized: NormalizedImportResult
   apply?: Partial<ExistingLeagueImportApplyOptions>
+  /** When set, merges the same canonical `SettingsSnapshot` layers as native import commit. */
+  canonicalBundle?: CanonicalImportBundle
 }): Promise<ApplyImportedLeagueToExistingResult> {
   const apply = resolveApplyOptions(args.apply)
   const league = await prisma.league.findUnique({
@@ -292,7 +296,10 @@ export async function applyImportedLeagueToExistingLeague(args: {
   if (!league) throw new Error('League not found')
 
   const currentSettings = (league.settings as Record<string, unknown>) ?? {}
-  const nextSettings = buildNextLeagueSettings(currentSettings, args.normalized, args.provider, apply)
+  let nextSettings = buildNextLeagueSettings(currentSettings, args.normalized, args.provider, apply)
+  if (args.canonicalBundle) {
+    nextSettings = mergeCanonicalBundleIntoLeagueSettingsJson(nextSettings, args.canonicalBundle)
+  }
   const updateData: Record<string, unknown> = {
     settings: nextSettings,
     updatedAt: new Date(),
@@ -312,6 +319,15 @@ export async function applyImportedLeagueToExistingLeague(args: {
   }
   if (apply.scoringRules) {
     updateData.scoring = args.normalized.league.scoring ?? args.normalized.scoring?.scoring_format ?? null
+  }
+  if (args.canonicalBundle) {
+    const c = args.canonicalBundle
+    updateData.presetKey = c.presetKey ?? undefined
+    updateData.scoringPresetId = c.scoringPresetId ?? undefined
+    updateData.settingsSnapshotVersion = SETTINGS_SNAPSHOT_VERSION
+    if (c.leagueTypeColumn) {
+      updateData.leagueType = c.leagueTypeColumn
+    }
   }
   await (prisma as any).league.update({
     where: { id: league.id },

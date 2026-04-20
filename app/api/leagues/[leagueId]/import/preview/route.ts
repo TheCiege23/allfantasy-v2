@@ -8,9 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { assertCommissioner } from '@/lib/commissioner/permissions'
-import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
-import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
+import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
+import { orchestrateImportPreview } from '@/lib/league-import/importOrchestrator'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import {
@@ -48,10 +47,9 @@ export async function POST(
 
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
-  try {
-    await assertCommissioner(leagueId, userId)
-  } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const gate = await assertLeagueActionGate(leagueId, userId, 'import_sync')
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
   }
 
   const body = await req.json().catch(() => ({}))
@@ -69,21 +67,22 @@ export async function POST(
     return NextResponse.json({ error: `Import from ${provider} is not yet available.` }, { status: 400 })
   }
 
-  const result = await runImportedLeagueNormalizationPipeline({
+  const result = await orchestrateImportPreview({
     provider,
     sourceId,
     userId,
   })
-  if (!result.success) {
+  if (!result.ok) {
     return NextResponse.json(
       { error: result.error },
-      { status: mapImportPreviewErrorStatus(result.code) }
+      { status: mapImportPreviewErrorStatus(result.code ?? 'NORMALIZATION_FAILED') }
     )
   }
 
-  const preview = buildImportedLeaguePreview(result.normalized)
+  const preview = result.preview
   return NextResponse.json({
     preview,
+    canonical: result.canonicalPreview,
     apply: { ...DEFAULT_EXISTING_LEAGUE_IMPORT_OPTIONS, ...apply },
     importData: {
       leagueStructure: true,

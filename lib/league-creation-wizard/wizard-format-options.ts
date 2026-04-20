@@ -26,7 +26,7 @@ export interface WizardFormatOptions {
   survivorTribeNameMode: SurvivorTribeNameMode
   survivorCustomTribeNamesLines: string
   survivorCommissionerRole: SurvivorCommissionerRole
-  /** Survivor — optional season headline (e.g. Heroes vs Villains), matches `/leagues/create` Rules step */
+  /** Survivor — optional season headline (e.g. Heroes vs Villains), matches Create League Rules step */
   survivorSeasonThemeLabel: string
   /** Survivor — catalog weekly challenges vs manual (default on) */
   survivorChallengesSystemRun: boolean

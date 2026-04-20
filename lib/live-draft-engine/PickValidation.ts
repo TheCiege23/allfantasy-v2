@@ -57,6 +57,8 @@ export interface ValidateDevyInput {
   currentRound: number
   playerName: string
   position?: string
+  /** When `promoted_devy`, devy rounds accept graduated NFL promotions only. */
+  source?: string | null
   devyConfig: { enabled: boolean; devyRounds: number[] } | null
 }
 
@@ -100,6 +102,15 @@ export async function validateDevyEligibilityAsync(
     },
   })
   const isDevyRound = input.devyConfig.devyRounds.includes(input.currentRound)
+  if (isDevyRound && String(input.source ?? '').toLowerCase() === 'promoted_devy') {
+    if (!devy) {
+      return { valid: false, error: 'Promotion pick must match a known devy record.' }
+    }
+    if (!devy.graduatedToNFL) {
+      return { valid: false, error: 'Promotion picks require a player who has graduated to the pros.' }
+    }
+    return { valid: true }
+  }
   if (isDevyRound) {
     if (!devy || devy.graduatedToNFL) {
       return { valid: false, error: 'This round is devy-only. Select a devy-eligible (college) player.' }

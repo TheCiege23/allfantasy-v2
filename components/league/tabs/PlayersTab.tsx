@@ -10,6 +10,7 @@ import {
   TrendingUp,
   UserPlus,
 } from 'lucide-react'
+import { LeagueTradePanel } from '@/components/league-trade'
 import PlayerHeadshot from '@/components/league/PlayerHeadshot'
 import { ActiveTradeCard, TradeBlockCarousel } from '@/components/league/TradeCard'
 import type {
@@ -332,6 +333,7 @@ export default function PlayersTab({
 
       {subtab === 'trade' ? (
         <div className="space-y-6">
+          <LeagueTradePanel leagueId={leagueId} />
           <div className="flex items-center justify-between">
             <h2 className="text-[26px] font-semibold text-white">Trade Block</h2>
             <Link

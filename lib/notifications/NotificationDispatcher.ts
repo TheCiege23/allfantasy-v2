@@ -19,8 +19,12 @@ export type DispatchNotificationParams = {
   body?: string
   actionHref?: string
   actionLabel?: string
+  /** When set, stored on `PlatformNotification.leagueId` for filtering and analytics. */
+  leagueId?: string | null
   meta?: Record<string, unknown>
   severity?: "low" | "medium" | "high"
+  /** When set, `PlatformNotification.sourceKey` = `${dedupePrefix}:${userId}` to reduce duplicate in-app rows. */
+  dedupePrefix?: string
   /**
    * Opt-out specific transport channels for this dispatch call.
    * Used by ChimmyAlertEngine to respect per-alert channel filtering
@@ -43,8 +47,10 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
     body,
     actionHref,
     actionLabel,
+    leagueId,
     meta,
     severity = "medium",
+    dedupePrefix,
     skipChannels,
   } = params
 
@@ -80,11 +86,13 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
       if (catPrefs.inApp && availability.inApp) {
         await createPlatformNotification({
           userId,
+          leagueId: leagueId ?? (meta && typeof meta.leagueId === "string" ? meta.leagueId : undefined),
           productType,
           type,
           title,
           body: body ?? undefined,
           severity,
+          sourceKey: dedupePrefix ? `${dedupePrefix}:${userId}` : undefined,
           meta: {
             ...(meta ?? {}),
             ...(actionHref && { actionHref, actionLabel: actionLabel ?? "Open" }),

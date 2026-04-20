@@ -32,8 +32,18 @@ export type LeagueWaiverSettingsInput = {
   processingDayOfWeek?: number | null
   processingTimeUtc?: string | null
   claimLimitPerPeriod?: number | null
+  claimLimitPerWeek?: number | null
+  claimLimitPerRun?: number | null
   faabBudget?: number | null
   faabResetDate?: string | Date | null
+  faabResetType?: string | null
+  waiverOrderResetPolicy?: string | null
+  postGameWaiverBehavior?: string | null
+  processingDays?: unknown
+  freeAgentWindowRules?: unknown
+  dropRestrictions?: unknown
+  commissionerOverrideRules?: unknown
+  specialtyConceptOverrides?: unknown
   tiebreakRule?: TiebreakRule | string | null
   lockType?: string | null
   instantFaAfterClear?: boolean
@@ -44,6 +54,9 @@ export type WaiverClaimInput = {
   dropPlayerId?: string | null
   faabBid?: number | null
   priorityOrder?: number
+  userId?: string | null
+  claimType?: string
+  metadata?: Record<string, unknown> | null
 }
 
 export type ProcessedClaimResult = {
@@ -54,4 +67,5 @@ export type ProcessedClaimResult = {
   dropPlayerId?: string | null
   faabSpent?: number | null
   message?: string
+  waiverRunId?: string
 }

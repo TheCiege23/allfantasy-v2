@@ -18,7 +18,10 @@ async function getFromUnifiedTable(appUserId: string, limit: number): Promise<Pl
       severity: (row.severity || 'low') as PlatformNotification['severity'],
       read: Boolean(row.readAt),
       createdAt: new Date(row.createdAt).toISOString(),
-      meta: (row.meta as Record<string, unknown> | null) || undefined,
+      meta: {
+        ...((row.meta as Record<string, unknown> | null) || {}),
+        ...(row.leagueId ? { leagueId: String(row.leagueId) } : {}),
+      },
     }))
   } catch {
     return null
@@ -134,23 +137,35 @@ export async function markAllPlatformNotificationsRead(appUserId: string): Promi
 
 export async function createPlatformNotification(params: {
   userId: string
+  leagueId?: string | null
   productType?: 'shared' | 'app' | 'bracket' | 'legacy'
   type: string
   title: string
   body?: string
   severity?: 'low' | 'medium' | 'high'
   meta?: Record<string, unknown>
+  /** Unique per notification; duplicate inserts are skipped (idempotent fan-out). */
+  sourceKey?: string | null
 }): Promise<boolean> {
   try {
+    if (params.sourceKey) {
+      const existing = await (prisma as any).platformNotification.findUnique({
+        where: { sourceKey: params.sourceKey },
+        select: { id: true },
+      })
+      if (existing) return true
+    }
     await (prisma as any).platformNotification.create({
       data: {
         userId: params.userId,
+        leagueId: params.leagueId ?? undefined,
         productType: params.productType || 'shared',
         type: params.type,
         title: params.title,
         body: params.body || null,
         severity: params.severity || 'low',
         meta: params.meta || undefined,
+        sourceKey: params.sourceKey ?? undefined,
       },
     })
     return true

@@ -5,10 +5,13 @@ import { prisma } from "@/lib/prisma"
 import {
   createClaim,
   getClaimsByRoster,
+  getEffectiveLeagueWaiverSettings,
   getPendingClaims,
   getProcessedClaimsAndTransactions,
 } from "@/lib/waiver-wire"
 import { validateAiActionExecution } from '@/lib/ai/action-validation'
+import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
+import { logAction } from '@/server/services/auditService'
 
 export async function GET(
   req: NextRequest,
@@ -62,6 +65,11 @@ export async function POST(
     return NextResponse.json({ error: aiValidation.error }, { status: aiValidation.status })
   }
 
+  const gate = await assertLeagueActionGate(leagueId, userId, 'waiver_claim_submit')
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
+  }
+
   const addPlayerId = body.addPlayerId ?? body.add_player_id
   if (!addPlayerId) return NextResponse.json({ error: "addPlayerId required" }, { status: 400 })
 
@@ -79,8 +87,47 @@ export async function POST(
       dropPlayerId: body.dropPlayerId ?? body.drop_player_id ?? null,
       faabBid: body.faabBid ?? body.faab_bid ?? null,
       priorityOrder: body.priorityOrder ?? body.priority_order,
+      userId,
+      claimType: typeof body.claimType === "string" ? body.claimType : "add_drop",
+      metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : undefined,
     })
-    return NextResponse.json({ claim })
+
+    void logAction({
+      leagueId,
+      userId,
+      actionType: 'waiver_claim_submit',
+      entityType: 'waiver',
+      entityId: claim.id,
+      afterState: { addPlayerId: String(addPlayerId), rosterId: roster.id },
+    }).catch(() => {})
+
+    void import('@/lib/league-notifications/realtimeHint').then(({ publishLeagueRealtimeHint }) =>
+      publishLeagueRealtimeHint(leagueId, 'waiver_claim_submitted', 'New waiver claim', {
+        claimId: claim.id,
+        rosterId: roster.id,
+      }),
+    )
+
+    const eff = await getEffectiveLeagueWaiverSettings(leagueId)
+    let fcfsProcessWarning: string | undefined
+    if (eff.waiverType === "fcfs") {
+      try {
+        const { processWaiverClaimsForLeague } = await import("@/lib/waiver-wire/process-engine")
+        await processWaiverClaimsForLeague(leagueId, {
+          runType: "fcfs_immediate",
+          processedByUserId: userId,
+        })
+      } catch (err) {
+        fcfsProcessWarning = err instanceof Error ? err.message : "FCFS processing failed"
+        console.error("[waiver-wire] FCFS immediate processing error", err)
+      }
+    }
+
+    return NextResponse.json({
+      claim,
+      fcfsProcessedImmediately: eff.waiverType === "fcfs" && !fcfsProcessWarning,
+      ...(fcfsProcessWarning ? { fcfsProcessWarning } : {}),
+    })
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to create claim"
     if (message.includes("does not belong to this league") || message.includes("Roster not found")) {
@@ -88,6 +135,21 @@ export async function POST(
     }
     if (message.includes("eliminated")) {
       return NextResponse.json({ error: message }, { status: 403 })
+    }
+    if (message.includes("locked")) {
+      return NextResponse.json({ error: message }, { status: 423 })
+    }
+    if (
+      message.includes("Claim limit") ||
+      message.includes("maximum pending") ||
+      message.includes("temporarily blocked") ||
+      message.includes("cannot be submitted") ||
+      message.includes("submission window") ||
+      message.includes("Waiver claims are closed") ||
+      message.includes("Waiver submissions are") ||
+      message.includes("frozen for this league")
+    ) {
+      return NextResponse.json({ error: message }, { status: 400 })
     }
     throw e
   }

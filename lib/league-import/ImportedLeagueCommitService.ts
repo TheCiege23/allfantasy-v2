@@ -1,8 +1,9 @@
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { deriveImportStatsFromNormalized } from '@/lib/rank/deriveImportStatsFromNormalized'
+import { SETTINGS_SNAPSHOT_VERSION } from '@/lib/league-contract/types'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
-import type { ImportProvider, NormalizedImportResult } from './types'
+import type { CanonicalImportBundle, ImportProvider, NormalizedImportResult } from './types'
 
 export class ImportedLeagueConflictError extends Error {}
 
@@ -11,6 +12,8 @@ export interface PersistImportedLeagueOptions {
   provider: ImportProvider
   normalized: NormalizedImportResult
   allowUpdateExisting?: boolean
+  /** When set, merges canonical `SettingsSnapshot` + concept rules into `League.settings` and top-level league fields. */
+  canonicalBundle?: CanonicalImportBundle
 }
 
 export interface PersistImportedLeagueResult {
@@ -76,6 +79,40 @@ function buildImportedLeagueSettings(normalized: NormalizedImportResult): Record
   }
 }
 
+/** Merges canonical snapshot slices + `importCanonical` into arbitrary league `settings` JSON (e.g. existing-league import). */
+export function mergeCanonicalBundleIntoLeagueSettingsJson(
+  base: Record<string, unknown>,
+  bundle: CanonicalImportBundle,
+): Record<string, unknown> {
+  const snap = bundle.settingsSnapshot
+  return {
+    ...base,
+    snapshotVersion: SETTINGS_SNAPSHOT_VERSION,
+    rosterSettings: snap.rosterSettings ?? (base as { rosterSettings?: unknown }).rosterSettings,
+    scoringSettings: snap.scoringSettings ?? (base as { scoringSettings?: unknown }).scoringSettings,
+    draftSettings: snap.draftSettings ?? (base as { draftSettings?: unknown }).draftSettings,
+    waiverSettings: snap.waiverSettings ?? (base as { waiverSettings?: unknown }).waiverSettings,
+    playoffSettings: snap.playoffSettings ?? (base as { playoffSettings?: unknown }).playoffSettings,
+    conceptRules: snap.conceptRules ?? (base as { conceptRules?: unknown }).conceptRules,
+    commissionerSettings: snap.commissionerSettings ?? (base as { commissionerSettings?: unknown }).commissionerSettings,
+    mediaSettings: snap.mediaSettings ?? (base as { mediaSettings?: unknown }).mediaSettings,
+    visualTheme: snap.visualTheme ?? (base as { visualTheme?: unknown }).visualTheme,
+    importCanonical: {
+      presetKey: bundle.presetKey,
+      scoringPresetId: bundle.scoringPresetId,
+      draftType: bundle.draftType,
+      inferredConcept: bundle.inferredConcept,
+    },
+  }
+}
+
+function mergeCanonicalBundleIntoSettings(
+  normalized: NormalizedImportResult,
+  bundle: CanonicalImportBundle,
+): Record<string, unknown> {
+  return mergeCanonicalBundleIntoLeagueSettingsJson(buildImportedLeagueSettings(normalized), bundle)
+}
+
 async function runHistoricalBackfill(args: {
   provider: ImportProvider
   leagueId: string
@@ -138,7 +175,7 @@ async function runHistoricalBackfill(args: {
 export async function persistImportedLeagueFromNormalization(
   options: PersistImportedLeagueOptions
 ): Promise<PersistImportedLeagueResult> {
-  const { userId, provider, normalized, allowUpdateExisting = false } = options
+  const { userId, provider, normalized, allowUpdateExisting = false, canonicalBundle } = options
   const platformLeagueId = normalized.source.source_league_id
   const seasonYear =
     typeof normalized.league.season === 'number' && Number.isFinite(normalized.league.season)
@@ -174,6 +211,10 @@ export async function persistImportedLeagueFromNormalization(
       }
     : {}
 
+  const settingsJson = canonicalBundle
+    ? mergeCanonicalBundleIntoSettings(normalized, canonicalBundle)
+    : buildImportedLeagueSettings(normalized)
+
   const leaguePayload = {
     name: normalized.league.name,
     platform: provider,
@@ -186,9 +227,13 @@ export async function persistImportedLeagueFromNormalization(
     rosterSize: normalized.league.rosterSize ?? undefined,
     starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
     avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
-    settings: buildImportedLeagueSettings(normalized),
+    settings: settingsJson,
     syncStatus: 'pending',
     leagueVariant: resolvedVariant,
+    leagueType: canonicalBundle?.leagueTypeColumn ?? undefined,
+    presetKey: canonicalBundle?.presetKey ?? undefined,
+    scoringPresetId: canonicalBundle?.scoringPresetId ?? undefined,
+    settingsSnapshotVersion: canonicalBundle ? SETTINGS_SNAPSHOT_VERSION : undefined,
     importBatchId: normalized.source.import_batch_id ?? undefined,
     importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
     ...importStatsPatch,

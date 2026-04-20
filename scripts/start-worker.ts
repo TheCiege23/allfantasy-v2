@@ -5,9 +5,10 @@ import { startDevyWorker, stopDevyWorker } from "../lib/workers/devy-worker"
 import { startPowerRankingsWorker, stopPowerRankingsWorker } from "../lib/workers/power-rankings-worker"
 import { startIntegrityWorker, stopIntegrityWorker } from "../lib/workers/integrity-worker"
 import { startAutoCoachStatusWorker, stopAutoCoachStatusWorker } from "../lib/workers/autocoach-status-worker"
+import { startLeagueEngineWorker, stopLeagueEngineWorker } from "../lib/workers/league-engine-worker"
 
 console.log(
-  "[Worker] Starting background job workers (simulations, notifications, ai, devy, power-rankings, integrity, autocoach-status)...",
+  "[Worker] Starting background job workers (simulations, notifications, ai, devy, power-rankings, integrity, autocoach-status, league-engine)...",
 )
 
 startSimulationWorker()
@@ -17,6 +18,7 @@ startDevyWorker()
 startPowerRankingsWorker()
 startIntegrityWorker()
 startAutoCoachStatusWorker()
+startLeagueEngineWorker()
 
 async function shutdown() {
   console.log("[Worker] Shutting down...")
@@ -28,6 +30,7 @@ async function shutdown() {
     stopPowerRankingsWorker(),
     stopIntegrityWorker(),
     stopAutoCoachStatusWorker(),
+    stopLeagueEngineWorker(),
   ])
   process.exit(0)
 }

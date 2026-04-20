@@ -1,6 +1,6 @@
 /**
  * Resolves hero / background video for Create League v2.
- * Priority: league concept → draft type (when emphasizing draft) → sport.
+ * Priority (fixed): (1) league concept clip → (2) draft-type clip → (3) sport loop.
  */
 
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
@@ -23,14 +23,15 @@ function asMediaFromDraft(base: string): MediaAsset {
 }
 
 /**
- * @param draftEmphasis — when true (e.g. user is configuring draft type), prefer draft-type clip.
+ * Hero media resolution. Always tries concept first, then draft format, then sport.
+ * `draftEmphasis` is kept for analytics / future use; it does not override priority order.
  */
 export function resolveCreateLeagueHeroMedia(args: {
   leagueType: LeagueTypeId
   sport: SupportedSport
   draftType: WizardDraftType
   idpSelected: boolean
-  /** True while user is interacting with draft section */
+  /** Kept for callers (scroll/draft section visibility); does not change priority order. */
   draftEmphasis: boolean
 }): ResolvedCreateLeagueMedia {
   const conceptKey = args.idpSelected ? 'idp' : args.leagueType
@@ -42,20 +43,20 @@ export function resolveCreateLeagueHeroMedia(args: {
 
   const sport = SPORT_MEDIA[args.sport] ?? SPORT_MEDIA.NFL
 
-  if (args.draftEmphasis) {
+  if (concept?.video) {
+    return {
+      ...concept,
+      mediaKey: `concept:${conceptKey}`,
+      badge: undefined,
+    }
+  }
+
+  if (draftClip?.video) {
     return {
       ...draftClip,
       mediaKey: `draft:${effective}`,
       poster: draftRow.thumbnail,
       badge: 'Draft format',
-    }
-  }
-
-  if (concept?.video) {
-    return {
-      ...concept,
-      mediaKey: `concept:${conceptKey}`,
-      badge: LEAGUE_TYPE_MEDIA[args.leagueType] ? undefined : undefined,
     }
   }
 

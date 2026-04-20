@@ -4,7 +4,8 @@ const {
   getServerSessionMock,
   requireVerifiedUserMock,
   runImportedLeagueNormalizationPipelineMock,
-  persistImportedLeagueFromNormalizationMock,
+  buildCanonicalImportBundleMock,
+  persistImportWithCanonicalAuditMock,
   leagueFindFirstMock,
   leagueCreateMock,
   leagueFindUniqueMock,
@@ -14,7 +15,35 @@ const {
   getServerSessionMock: vi.fn(),
   requireVerifiedUserMock: vi.fn(),
   runImportedLeagueNormalizationPipelineMock: vi.fn(),
-  persistImportedLeagueFromNormalizationMock: vi.fn(),
+  buildCanonicalImportBundleMock: vi.fn(() => ({
+    inferredConcept: 'dynasty',
+    inferredLeagueType: 'dynasty',
+    scoringPresetId: 'fb_half_ppr',
+    draftType: 'snake',
+    presetKey: 'test-preset',
+    leagueTypeColumn: 'dynasty',
+    derivedFlags: {
+      idp: false,
+      salaryCap: false,
+      devy: false,
+      c2c: false,
+      bestBall: false,
+      dynasty: true,
+      tournament: false,
+    },
+    importMetadata: {
+      importSource: 'sleeper',
+      externalLeagueId: '12345',
+      normalizedAt: new Date().toISOString(),
+      normalizationVersion: '2',
+    },
+    warnings: [],
+    reviewRequired: false,
+    reviewReasons: [],
+    settingsSnapshot: { snapshotVersion: 1 },
+    meta: { provider: 'sleeper', sourceLeagueId: '12345', confidence: {} },
+  })),
+  persistImportWithCanonicalAuditMock: vi.fn(),
   leagueFindFirstMock: vi.fn(),
   leagueCreateMock: vi.fn(),
   leagueFindUniqueMock: vi.fn(),
@@ -58,9 +87,16 @@ vi.mock('@/lib/league-import/ImportedLeagueNormalizationPipeline', () => ({
   runImportedLeagueNormalizationPipeline: runImportedLeagueNormalizationPipelineMock,
 }))
 
+vi.mock('@/lib/league-import/canonicalImportNormalizer', () => ({
+  buildCanonicalImportBundle: buildCanonicalImportBundleMock,
+}))
+
+vi.mock('@/lib/league-import/importPersistenceService', () => ({
+  persistImportWithCanonicalAudit: persistImportWithCanonicalAuditMock,
+}))
+
 vi.mock('@/lib/league-import/ImportedLeagueCommitService', () => ({
   ImportedLeagueConflictError: ImportedLeagueConflictErrorMock,
-  persistImportedLeagueFromNormalization: persistImportedLeagueFromNormalizationMock,
 }))
 
 describe('POST /api/league/create Sleeper import flow', () => {
@@ -124,10 +160,13 @@ describe('POST /api/league/create Sleeper import flow', () => {
         },
       },
     })
-    persistImportedLeagueFromNormalizationMock.mockResolvedValue({
-      league: { id: 'league-1', name: 'Imported Sleeper League', sport: 'NFL' },
-      historicalBackfill: { status: 'queued' },
-      existed: false,
+    persistImportWithCanonicalAuditMock.mockResolvedValue({
+      persisted: {
+        league: { id: 'league-1', name: 'Imported Sleeper League', sport: 'NFL' },
+        historicalBackfill: { status: 'queued' },
+        existed: false,
+      },
+      runId: 'run-1',
     })
 
     const { POST } = await import('@/app/api/league/create/route')
@@ -146,6 +185,7 @@ describe('POST /api/league/create Sleeper import flow', () => {
     await expect(res.json()).resolves.toEqual({
       league: { id: 'league-1', name: 'Imported Sleeper League', sport: 'NFL' },
       historicalBackfill: { status: 'queued' },
+      importRunId: 'run-1',
     })
 
     expect(runImportedLeagueNormalizationPipelineMock).toHaveBeenCalledWith({
@@ -153,7 +193,7 @@ describe('POST /api/league/create Sleeper import flow', () => {
       sourceId: '12345',
       userId: 'u1',
     })
-    expect(persistImportedLeagueFromNormalizationMock).toHaveBeenCalledWith({
+    expect(persistImportWithCanonicalAuditMock).toHaveBeenCalledWith({
       userId: 'u1',
       provider: 'sleeper',
       normalized: expect.objectContaining({
@@ -164,6 +204,7 @@ describe('POST /api/league/create Sleeper import flow', () => {
           imported_at: '2026-03-20T00:00:00.000Z',
         }),
       }),
+      canonical: expect.any(Object),
       allowUpdateExisting: false,
     })
   })
@@ -208,7 +249,7 @@ describe('POST /api/league/create Sleeper import flow', () => {
         },
       },
     })
-    persistImportedLeagueFromNormalizationMock.mockRejectedValue(
+    persistImportWithCanonicalAuditMock.mockRejectedValue(
       new ImportedLeagueConflictErrorMock('This league already exists in your account')
     )
 

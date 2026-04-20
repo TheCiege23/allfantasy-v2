@@ -75,11 +75,19 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
   processingDayOfWeek: number | null
   processingTimeUtc: string | null
   claimLimitPerPeriod: number | null
+  claimLimitPerWeek: number | null
+  claimLimitPerRun: number | null
   faabBudget: number | null
   faabResetDate: Date | null
+  faabResetType: string | null
+  waiverOrderResetPolicy: string | null
+  postGameWaiverBehavior: string | null
+  processingDays: unknown | null
+  freeAgentWindowRules: unknown | null
   tiebreakRule: string | null
   lockType: string | null
   instantFaAfterClear: boolean
+  specialtyConceptOverrides: unknown | null
 }> {
   const [league, row] = await Promise.all([
     (prisma as any).league.findUnique({
@@ -95,11 +103,19 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
       processingDayOfWeek: row.processingDayOfWeek ?? null,
       processingTimeUtc: row.processingTimeUtc ?? null,
       claimLimitPerPeriod: row.claimLimitPerPeriod ?? null,
+      claimLimitPerWeek: row.claimLimitPerWeek ?? null,
+      claimLimitPerRun: row.claimLimitPerRun ?? null,
       faabBudget: row.faabBudget ?? null,
       faabResetDate: row.faabResetDate ?? null,
+      faabResetType: row.faabResetType ?? null,
+      waiverOrderResetPolicy: row.waiverOrderResetPolicy ?? null,
+      postGameWaiverBehavior: row.postGameWaiverBehavior ?? null,
+      processingDays: row.processingDays ?? null,
+      freeAgentWindowRules: row.freeAgentWindowRules ?? null,
       tiebreakRule: row.tiebreakRule ?? null,
       lockType: row.lockType ?? null,
       instantFaAfterClear: row.instantFaAfterClear ?? true,
+      specialtyConceptOverrides: row.specialtyConceptOverrides ?? null,
     }
   }
   const sport = (league?.sport as string) || DEFAULT_SPORT
@@ -121,11 +137,19 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
       (Array.isArray(defaults.processing_days) && defaults.processing_days.length > 0 ? defaults.processing_days[0] : null),
     processingTimeUtc: overrides.processingTimeUtc ?? defaults.processing_time_utc ?? null,
     claimLimitPerPeriod: overrides.claimLimitPerPeriod ?? defaults.max_claims_per_period ?? null,
+    claimLimitPerWeek: null,
+    claimLimitPerRun: null,
     faabBudget: overrides.faabBudget ?? defaults.FAAB_budget_default ?? null,
     faabResetDate: null,
+    faabResetType: null,
+    waiverOrderResetPolicy: null,
+    postGameWaiverBehavior: null,
+    processingDays: null,
+    freeAgentWindowRules: null,
     tiebreakRule: resolvedTiebreakRule,
     lockType: resolvedLockType,
     instantFaAfterClear: resolvedInstantFa,
+    specialtyConceptOverrides: null,
   }
 }
 
@@ -166,6 +190,10 @@ export async function upsertLeagueWaiverSettings(
       input.processingTimeUtc === undefined ? fallbackProcessingTime : input.processingTimeUtc,
     claimLimitPerPeriod:
       input.claimLimitPerPeriod === undefined ? fallbackClaimLimit : input.claimLimitPerPeriod,
+    claimLimitPerWeek:
+      input.claimLimitPerWeek === undefined ? (existing?.claimLimitPerWeek ?? null) : input.claimLimitPerWeek,
+    claimLimitPerRun:
+      input.claimLimitPerRun === undefined ? (existing?.claimLimitPerRun ?? null) : input.claimLimitPerRun,
     faabBudget:
       input.faabBudget === undefined ? fallbackFaabBudget : input.faabBudget,
     faabResetDate:
@@ -174,6 +202,27 @@ export async function upsertLeagueWaiverSettings(
         : input.faabResetDate
           ? new Date(input.faabResetDate)
           : null,
+    faabResetType: input.faabResetType === undefined ? (existing?.faabResetType ?? null) : input.faabResetType,
+    waiverOrderResetPolicy:
+      input.waiverOrderResetPolicy === undefined
+        ? (existing?.waiverOrderResetPolicy ?? null)
+        : input.waiverOrderResetPolicy,
+    postGameWaiverBehavior:
+      input.postGameWaiverBehavior === undefined
+        ? (existing?.postGameWaiverBehavior ?? null)
+        : input.postGameWaiverBehavior,
+    processingDays: input.processingDays === undefined ? (existing?.processingDays ?? null) : input.processingDays,
+    freeAgentWindowRules:
+      input.freeAgentWindowRules === undefined ? (existing?.freeAgentWindowRules ?? null) : input.freeAgentWindowRules,
+    dropRestrictions: input.dropRestrictions === undefined ? (existing?.dropRestrictions ?? null) : input.dropRestrictions,
+    commissionerOverrideRules:
+      input.commissionerOverrideRules === undefined
+        ? (existing?.commissionerOverrideRules ?? null)
+        : input.commissionerOverrideRules,
+    specialtyConceptOverrides:
+      input.specialtyConceptOverrides === undefined
+        ? (existing?.specialtyConceptOverrides ?? null)
+        : input.specialtyConceptOverrides,
     tiebreakRule:
       input.tiebreakRule === undefined ? fallbackTiebreak : input.tiebreakRule,
     lockType:

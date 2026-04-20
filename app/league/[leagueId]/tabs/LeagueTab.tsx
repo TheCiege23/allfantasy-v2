@@ -9,6 +9,8 @@ import type { LeagueDashboardView } from '@/app/league/[leagueId]/league-dashboa
 import { DraftTab } from '@/app/league/[leagueId]/tabs/DraftTab'
 import { LeagueHomeHero } from '@/components/league-home/LeagueHomeHero'
 import { LeagueHomeQuickCards } from '@/components/league-home/LeagueHomeQuickCards'
+import LeagueScoringPreviews from '@/components/league/LeagueScoringPreviews'
+import SpecialtyLeagueAutomationSection from '@/components/specialty-automation/SpecialtyLeagueAutomationSection'
 import { isExcludedFromHomeHero, resolveLeagueAccent } from '@/lib/league-home/accent-resolver'
 import { resolveLeagueMedia } from '@/lib/league-home/league-media-resolver'
 
@@ -30,6 +32,15 @@ type ScoringRowProps = {
   value: string
   highlight?: boolean
   valueTone: 'positive' | 'negative' | 'neutral'
+}
+
+function showSpecialtyAutomationStrip(league: UserLeague): boolean {
+  const lt = String((league as { leagueType?: string | null }).leagueType ?? '').toLowerCase()
+  const v = String(league.leagueVariant ?? '').toLowerCase()
+  if (v && v !== 'standard' && v !== 'redraft' && v !== '') return true
+  return ['guillotine', 'survivor', 'zombie', 'tournament', 'big_brother', 'devy', 'c2c', 'royal', 'pirate', 'vampire', 'koth', 'king'].some(
+    (k) => lt.includes(k),
+  )
 }
 
 function ScoringRow({ label, value, highlight, valueTone }: ScoringRowProps) {
@@ -69,6 +80,13 @@ export function LeagueTab({
   userTeam = null,
 }: LeagueTabProps) {
   const scoring = leagueDashboard.scoring
+  const previewSeason =
+    typeof league.season === 'number'
+      ? league.season
+      : typeof league.season === 'string'
+        ? Number.parseInt(league.season, 10) || new Date().getFullYear()
+        : new Date().getFullYear()
+  const previewWeek = league.currentWeek ?? 1
 
   // Hero is gated — Tournament hubs, Zombie universes (beta_trio / alpha_hex),
   // and Big Brother leagues use their own specialty homepages.
@@ -103,6 +121,16 @@ export function LeagueTab({
             myTeamId={userTeam?.id ?? null}
           />
         </>
+      ) : null}
+      <LeagueScoringPreviews leagueId={league.id} season={previewSeason} week={previewWeek} />
+      {showSpecialtyAutomationStrip(league) ? (
+        <SpecialtyLeagueAutomationSection
+          leagueId={league.id}
+          season={previewSeason}
+          week={previewWeek}
+          isCommissioner={Boolean(isCommissioner)}
+          conceptLabel={String((league as { leagueType?: string | null }).leagueType ?? 'Specialty format')}
+        />
       ) : null}
       <DraftTab
         mode="league"

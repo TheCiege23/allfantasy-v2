@@ -3,8 +3,15 @@
  */
 
 import "server-only";
-import { getNotificationsQueue, getAiQueue, getSimulationQueue, getDevyQueue } from "@/lib/queues/bullmq";
-import type { NotificationJobPayload, DevyJobPayload } from "./types";
+import {
+  getNotificationsQueue,
+  getAiQueue,
+  getSimulationQueue,
+  getDevyQueue,
+  getLeagueEngineQueue,
+} from "@/lib/queues/bullmq";
+import { DEFAULT_LEAGUE_ENGINE_QUEUE_OPTIONS } from "@/lib/league-engine-performance/jobCatalog";
+import type { NotificationJobPayload, DevyJobPayload, LeagueEngineJobPayload } from "./types";
 import type { AiJobPayload } from "./types";
 import type { SimulationJobPayload } from "./types";
 
@@ -126,6 +133,40 @@ export async function enqueueDevy(
       payload.type,
       payload,
       { ...DEFAULT_JOB_OPTS, jobId: options?.jobId, delay: options?.delay }
+    );
+    return { ok: true, jobId: job.id ?? "" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: message };
+  }
+}
+
+export type EnqueueLeagueEngineResult =
+  | { ok: true; jobId: string }
+  | { ok: false; error: string };
+
+/**
+ * Enqueue durable league-engine work (waiver batch, scoring, automation, import resync).
+ * Prefer `idempotencyKey` + `jobId` for dedupe when Redis is shared across web and workers.
+ */
+export async function enqueueLeagueEngineJob(
+  payload: LeagueEngineJobPayload,
+  options?: { jobId?: string; delay?: number; priority?: number }
+): Promise<EnqueueLeagueEngineResult> {
+  const queue = getLeagueEngineQueue();
+  if (!queue) {
+    return { ok: false, error: "League engine queue not configured (Redis required)." };
+  }
+  try {
+    const job = await queue.add(
+      payload.kind,
+      payload,
+      {
+        ...DEFAULT_LEAGUE_ENGINE_QUEUE_OPTIONS,
+        jobId: options?.jobId ?? payload.idempotencyKey,
+        delay: options?.delay,
+        priority: options?.priority,
+      }
     );
     return { ok: true, jobId: job.id ?? "" };
   } catch (e) {

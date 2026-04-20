@@ -1,0 +1,176 @@
+/**
+ * Create League (canonical) — request validation before preset engine + transaction.
+ */
+
+import { z } from 'zod'
+import type { LeagueSport } from '@prisma/client'
+import { getTeamCountOptions } from '@/lib/create-league-v2/rules-engine'
+import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+import {
+  isDraftTypeAllowedForFormat,
+  isLeagueFormatAllowedForSport,
+} from '@/lib/league/format-engine'
+import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
+import type { SupportedSport } from '@/lib/create-league-v2/state'
+import type { ValidationIssue } from '@/lib/league-creation/canonical/types'
+
+/** Maps execution modes (offline/auto/team) to a core draft id for format-engine checks. */
+export function normalizeDraftTypeForEngine(draftType: string): string {
+  const x = String(draftType).trim().toLowerCase()
+  if (x === 'offline' || x === 'auto' || x === 'team') return 'snake'
+  return x
+}
+
+export const FORBIDDEN_CREATE_LEAGUE_USER_KEYS = [
+  'userId',
+  'user_id',
+  'commissionerUserId',
+  'commissionerId',
+  'ownerUserId',
+  'appUserId',
+] as const
+
+export function stripForbiddenCreateLeagueFields(input: unknown): {
+  body: unknown
+  strippedKeys: string[]
+} {
+  if (!input || typeof input !== 'object') {
+    return { body: input, strippedKeys: [] }
+  }
+  const o = { ...(input as Record<string, unknown>) }
+  const strippedKeys: string[] = []
+  for (const k of FORBIDDEN_CREATE_LEAGUE_USER_KEYS) {
+    if (k in o && o[k] !== undefined) {
+      strippedKeys.push(k)
+      delete o[k]
+    }
+  }
+  return { body: o, strippedKeys }
+}
+
+const SPORTS = z.enum(['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER'])
+
+export const createLeagueBodySchema = z.object({
+  concept: z.string().min(1).max(64),
+  sport: SPORTS,
+  scoringPreset: z.string().min(1).max(96).trim(),
+  teamCount: z.number().int().min(2).max(256),
+  draftType: z.string().min(1).max(32),
+  leagueName: z.string().min(1).max(100).trim(),
+  conceptSetup: z.record(z.unknown()).optional().nullable(),
+  soccerPipeline: z.enum(['mls', 'euro']).optional().nullable(),
+  timezone: z.string().min(1).max(64).optional(),
+  language: z.enum(['en', 'es']).optional(),
+  tradeReviewMode: z.enum(['commissioner', 'league_vote', 'instant', 'none']).optional(),
+})
+
+export type ValidatedCreateLeagueBody = z.infer<typeof createLeagueBodySchema> & {
+  sport: LeagueSport
+}
+
+export type ValidateCreateLeagueResult =
+  | { ok: true; data: ValidatedCreateLeagueBody }
+  | { ok: false; error: string; status: number; errors: ValidationIssue[] }
+
+function issuesFromZod(err: z.ZodError): ValidationIssue[] {
+  return err.issues.map((i) => ({
+    path: i.path.join('.') || 'request',
+    message: i.message,
+    code: i.code,
+  }))
+}
+
+/**
+ * Structural + business validation (format-engine allowlists, team counts).
+ */
+export function validateCreatePayload(input: unknown): ValidateCreateLeagueResult {
+  const stripped = stripForbiddenCreateLeagueFields(input)
+  const parsed = createLeagueBodySchema.safeParse(stripped.body)
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid request',
+      status: 400,
+      errors: issuesFromZod(parsed.error),
+    }
+  }
+
+  const data = parsed.data as ValidatedCreateLeagueBody
+  const sport = normalizeToSupportedSport(data.sport)
+
+  if (sport === 'SOCCER' && !data.soccerPipeline) {
+    return {
+      ok: false,
+      error: 'Soccer requires soccerPipeline (mls or euro)',
+      status: 400,
+      errors: [{ path: 'soccerPipeline', message: 'Choose MLS or European pipeline for Soccer' }],
+    }
+  }
+  if (sport !== 'SOCCER' && data.soccerPipeline) {
+    return {
+      ok: false,
+      error: 'soccerPipeline is only valid for Soccer',
+      status: 400,
+      errors: [{ path: 'soccerPipeline', message: 'Remove soccerPipeline unless sport is SOCCER' }],
+    }
+  }
+
+  const normalized = normalizeConceptToFormat(data.concept)
+  if (!normalized) {
+    return {
+      ok: false,
+      error: 'Unknown league concept',
+      status: 400,
+      errors: [{ path: 'concept', message: 'Invalid or unsupported concept' }],
+    }
+  }
+
+  const formatId = normalized.formatId
+
+  if (!isLeagueFormatAllowedForSport(sport, formatId)) {
+    return {
+      ok: false,
+      error: 'This concept is not available for the selected sport',
+      status: 400,
+      errors: [{ path: 'concept', message: `Concept "${formatId}" is not valid for ${sport}` }],
+    }
+  }
+
+  const engineDraft = normalizeDraftTypeForEngine(data.draftType)
+  if (!isDraftTypeAllowedForFormat(sport, formatId, engineDraft)) {
+    return {
+      ok: false,
+      error: 'Invalid draft type for this concept and sport',
+      status: 400,
+      errors: [
+        {
+          path: 'draftType',
+          message: `Draft type "${data.draftType}" is not allowed for ${formatId} / ${sport}`,
+        },
+      ],
+    }
+  }
+
+  const teamOpts = getTeamCountOptions(sport as SupportedSport, formatId as LeagueTypeId, data.soccerPipeline ?? null)
+
+  if (!teamOpts.includes(data.teamCount)) {
+    return {
+      ok: false,
+      error: 'Invalid team count for this concept and sport',
+      status: 400,
+      errors: [
+        {
+          path: 'teamCount',
+          message: `Team count must be one of: ${teamOpts.join(', ')}`,
+        },
+      ],
+    }
+  }
+
+  if (stripped.strippedKeys.length > 0) {
+    // non-fatal — caller may log
+  }
+
+  return { ok: true, data: { ...data, sport } }
+}

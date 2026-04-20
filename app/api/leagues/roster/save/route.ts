@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
+import type { Prisma } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
 import { handleInvalidationTrigger } from '@/lib/trade-engine/caching'
 import { isRosterChopped } from '@/lib/guillotine/guillotineGuard'
@@ -7,11 +8,8 @@ import { getSpecialtySpecByVariant } from '@/lib/specialty-league/registry'
 import { recordTrendSignalsAndUpdate } from '@/lib/player-trend'
 import { resolveSportForTrend } from '@/lib/player-trend/SportTrendContextResolver'
 import { prisma } from '@/lib/prisma'
-import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
-import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
-import { validateRosterSectionsAgainstTemplate } from '@/lib/roster/LineupTemplateValidation'
-import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import { validateAiActionExecution } from '@/lib/ai/action-validation'
+import { persistRosterLineupWithEngine } from '@/lib/roster-lineup-engine/lineupService'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -175,21 +173,8 @@ export async function POST(req: NextRequest) {
     typeof editingWeekRaw === 'number' && Number.isFinite(editingWeekRaw)
       ? Math.max(1, Math.floor(editingWeekRaw))
       : weekFromLeagueSettings(league.settings)
-  const leagueWeek = weekFromLeagueSettings(league.settings)
-  const lock = evaluateLineupLock({
-    sport: String(league.sport ?? 'NFL'),
-    now: new Date(),
-    leagueWeek,
-    editingWeek,
-  })
-  if (lock.locked) {
-    return NextResponse.json(
-      { error: lock.reason ?? 'Lineup is locked for this period.' },
-      { status: 403 },
-    )
-  }
 
-  const memberRoster = await (prisma as any).roster.findFirst({
+  const memberRoster = await prisma.roster.findFirst({
     where: { leagueId, platformUserId: userId },
     select: { id: true },
   })
@@ -211,6 +196,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Roster not found' }, { status: 404 })
   }
 
+  if (!canActAsCommissioner && memberRoster && targetRosterId !== memberRoster.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const chopped = await isRosterChopped(leagueId, targetRosterId)
   if (chopped) {
     return NextResponse.json(
@@ -230,7 +219,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const currentRoster = await (prisma as any).roster.findUnique({
+  const currentRoster = await prisma.roster.findUnique({
     where: { id: targetRosterId },
     select: { id: true, leagueId: true, playerData: true },
   })
@@ -248,31 +237,32 @@ export async function POST(req: NextRequest) {
       lineup_updated_at: new Date().toISOString(),
     }
   } else if (rosterState && typeof rosterState === 'object') {
-    nextPlayerData = buildPersistedRosterData(rosterState, currentRoster.playerData)
+    nextPlayerData = buildPersistedRosterData(rosterState, currentRoster.playerData) as Prisma.JsonObject
   }
 
-  try {
-    const formatType = getFormatTypeForVariant(
-      String(league.sport ?? 'NFL'),
-      (league.leagueVariant as string | null) ?? undefined
-    )
-    const template = await getRosterTemplateForLeague(
-      String(league.sport ?? 'NFL') as any,
-      formatType,
-      leagueId
-    )
-    const validationError = validateRosterSectionsAgainstTemplate(nextPlayerData, template)
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
-    }
-  } catch {
-    // Non-fatal: do not block roster save if template lookup fails.
-  }
-
-  await (prisma as any).roster.update({
-    where: { id: targetRosterId },
-    data: { playerData: nextPlayerData as any },
+  const leagueRow = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { season: true },
   })
+  const season = leagueRow?.season ?? new Date().getFullYear()
+
+  const persisted = await persistRosterLineupWithEngine({
+    leagueId,
+    rosterId: targetRosterId,
+    actorUserId: userId,
+    nextPlayerData:
+      nextPlayerData && typeof nextPlayerData === 'object' && !Array.isArray(nextPlayerData)
+        ? (nextPlayerData as Record<string, unknown>)
+        : {},
+    season,
+    week: editingWeek,
+    source: 'user_save',
+    skipLockCheck: false,
+  })
+
+  if (!persisted.ok) {
+    return NextResponse.json({ error: persisted.error }, { status: persisted.status ?? 400 })
+  }
 
   const prevStarters = extractStarterIds({}, currentRoster.playerData)
   const nextStarters = extractStarterIds(body, nextPlayerData)
@@ -316,6 +306,13 @@ export async function POST(req: NextRequest) {
   }
 
   handleInvalidationTrigger('roster_change', leagueId)
+
+  void import('@/lib/league-notifications/realtimeHint').then(({ publishLeagueRealtimeHint }) =>
+    publishLeagueRealtimeHint(leagueId, 'lineup_updated', 'Roster or lineup updated', {
+      rosterId: targetRosterId,
+      week: editingWeek,
+    }),
+  )
 
   return NextResponse.json({ ok: true, rosterId: targetRosterId })
 }

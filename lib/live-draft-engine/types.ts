@@ -53,6 +53,14 @@ export interface DraftSessionSnapshot {
   devy?: DevySessionSnapshot
   /** C2C draft: college vs pro rounds. */
   c2c?: C2CSessionSnapshot
+  /** rookie | startup | supplemental | dispersal | standard — from draft session. */
+  draftModeLabel?: string | null
+  /** Dispersal / specialty pool rules when configured on the session. */
+  dispersalPool?: {
+    eligibleRosterIds?: string[]
+    protectedPlayerIds?: string[]
+    allowedAssetTypes?: string[]
+  } | null
   /** Whether any AI provider is currently available for orphan AI drafter mode. */
   orphanAiProviderAvailable?: boolean
   /** Effective orphan drafter mode after provider fallback ('cpu' when AI unavailable). */

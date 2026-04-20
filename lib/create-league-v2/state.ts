@@ -2,7 +2,7 @@
  * Create League v2 — client-side state shape (concept-first unified flow).
  *
  * Collects: concept → sport + scoring preset → teams + name → draft type.
- * On submit, translates into the existing `POST /api/league/create` payload shape.
+ * On submit, translates into `POST /api/leagues` (canonical) or `POST /api/tournament/create`.
  */
 
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'

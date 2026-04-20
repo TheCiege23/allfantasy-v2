@@ -15,6 +15,7 @@ import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
 import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
+import { LiveDraftStatusColumn } from '@/components/draft/live/LiveDraftStatusColumn'
 
 const DraftPickTradePanel = dynamic(
   () => import('@/components/app/draft-room/DraftPickTradePanel').then((m) => ({ default: m.DraftPickTradePanel })),
@@ -1135,6 +1136,7 @@ export function DraftRoomPageClient({
       setPickError(null)
       setPickSubmitting(true)
       try {
+        const note = player.display?.metadata?.eligibilityNote?.toLowerCase() ?? ''
         const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/pick`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1143,6 +1145,10 @@ export function DraftRoomPageClient({
             position: player.position,
             team: player.team ?? null,
             byeWeek: player.byeWeek ?? null,
+            playerId: player.display?.playerId ?? player.id ?? null,
+            pickMetadata: {
+              isRookie: note.includes('rookie') ? true : undefined,
+            },
             source: player.graduatedToNFL
               ? 'promoted_devy'
               : player.poolType === 'college'
@@ -1164,6 +1170,19 @@ export function DraftRoomPageClient({
       }
     },
     [leagueId],
+  )
+
+  const handlePoolPreviewSelect = useCallback(
+    (rawId: string) => {
+      const player = players.find(
+        (p) =>
+          (p.display?.playerId && p.display.playerId === rawId) ||
+          (p.id && p.id === rawId) ||
+          p.name === rawId
+      )
+      if (player) void handleMakePick(player)
+    },
+    [players, handleMakePick],
   )
 
   const handleDraftIntelPick = useCallback(() => {
@@ -1991,25 +2010,41 @@ export function DraftRoomPageClient({
         />
       }
       draftBoard={
-        <div style={draftBoardSurfaceStyle}>
-          <DraftBoard
-            picks={session.picks ?? []}
-            slotOrder={slotOrder}
-            tradedPicks={(session as any).tradedPicks ?? []}
-            teamCount={session.teamCount}
-            rounds={session.rounds}
-            draftType={session.draftType}
-            thirdRoundReversal={session.thirdRoundReversal}
-            tradedPickColorMode={tradedPickColorMode}
-            showNewOwnerInRed={showNewOwnerInRed}
-            keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
-            devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
-            c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
-            currentOverallPick={currentPick?.overall ?? null}
-            currentUserRosterId={currentUserRosterId ?? null}
-            aiManagedRosterIds={aiManagedRosterIds}
-            orderSourceLabel={boardOrderSourceLabel}
+        <div
+          className="flex min-h-0 flex-col gap-2 p-2 lg:flex-row lg:gap-3 lg:p-3"
+          style={draftBoardSurfaceStyle}
+        >
+          <LiveDraftStatusColumn
+            session={session as DraftSessionSnapshot}
+            queueEntries={queueFiltered}
+            leagueId={leagueId}
+            isCommissioner={isCommissioner}
+            onSessionUpdated={fetchSession}
+            poolPreview={draftPool?.entries ?? null}
+            onPoolPreviewSelect={handlePoolPreviewSelect}
+            poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
+            showTimer={!isAuction}
           />
+          <div className="min-w-0 flex-1 overflow-auto">
+            <DraftBoard
+              picks={session.picks ?? []}
+              slotOrder={slotOrder}
+              tradedPicks={(session as any).tradedPicks ?? []}
+              teamCount={session.teamCount}
+              rounds={session.rounds}
+              draftType={session.draftType}
+              thirdRoundReversal={session.thirdRoundReversal}
+              tradedPickColorMode={tradedPickColorMode}
+              showNewOwnerInRed={showNewOwnerInRed}
+              keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
+              devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
+              c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
+              currentOverallPick={currentPick?.overall ?? null}
+              currentUserRosterId={currentUserRosterId ?? null}
+              aiManagedRosterIds={aiManagedRosterIds}
+              orderSourceLabel={boardOrderSourceLabel}
+            />
+          </div>
         </div>
       }
       auctionStrip={

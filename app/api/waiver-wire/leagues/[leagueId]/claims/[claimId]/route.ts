@@ -18,14 +18,22 @@ export async function PATCH(
   if (!roster) return NextResponse.json({ error: "Roster not found" }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
-  const updated = await updateClaim(params.claimId, params.leagueId, roster.id, {
-    addPlayerId: body.addPlayerId,
-    dropPlayerId: body.dropPlayerId,
-    faabBid: body.faabBid,
-    priorityOrder: body.priorityOrder,
-  })
-  if (!updated) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
-  return NextResponse.json({ claim: updated })
+  try {
+    const updated = await updateClaim(params.claimId, params.leagueId, roster.id, {
+      addPlayerId: body.addPlayerId,
+      dropPlayerId: body.dropPlayerId,
+      faabBid: body.faabBid,
+      priorityOrder: body.priorityOrder,
+    })
+    if (!updated) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
+    return NextResponse.json({ claim: updated })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to update claim"
+    if (message.includes("locked")) {
+      return NextResponse.json({ error: message }, { status: 423 })
+    }
+    throw e
+  }
 }
 
 export async function DELETE(
@@ -41,7 +49,15 @@ export async function DELETE(
   })
   if (!roster) return NextResponse.json({ error: "Roster not found" }, { status: 404 })
 
-  const ok = await cancelClaim(params.claimId, params.leagueId, roster.id)
-  if (!ok) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
-  return NextResponse.json({ status: "ok" })
+  try {
+    const ok = await cancelClaim(params.claimId, params.leagueId, roster.id)
+    if (!ok) return NextResponse.json({ error: "Claim not found or not pending" }, { status: 404 })
+    return NextResponse.json({ status: "ok" })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to cancel claim"
+    if (message.includes("locked")) {
+      return NextResponse.json({ error: message }, { status: 423 })
+    }
+    throw e
+  }
 }

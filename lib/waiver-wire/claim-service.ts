@@ -6,6 +6,14 @@ import { isRosterChopped } from "@/lib/guillotine/guillotineGuard"
 import { isRosterCurrentlyEliminated } from "@/lib/survivor/SurvivorRosterState"
 import { validateDevyWaiverClaim } from "@/lib/devy/waiver/DevyWaiverRules"
 import { isWaiverFrozenForRoster } from "@/lib/survivor/SurvivorEffectEngine"
+import { getEffectiveLeagueWaiverSettings } from "./settings-service"
+import {
+  assertClaimWithinLimits,
+  assertClaimWithinPerRunLimit,
+  assertWaiverSubmissionWindow,
+  conceptOverridesBlockWaivers,
+} from "./waiver-validation"
+import { getLeagueWaiverState } from "./waiver-state-service"
 
 /**
  * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
@@ -40,9 +48,41 @@ export async function createClaim(
     throw new Error("This roster's waiver moves are frozen by an active Survivor idol effect")
   }
 
+  const leagueLock = await getLeagueWaiverState(leagueId).catch(() => null)
+  if (leagueLock?.processingLocked) {
+    throw new Error("Waiver adds and edits are locked until the commissioner unlocks processing.")
+  }
+
   const devyCheck = await validateDevyWaiverClaim({ leagueId, addPlayerId: input.addPlayerId })
   if (!devyCheck.allowed) {
     throw new Error(devyCheck.reason ?? "This player cannot be claimed via waivers.")
+  }
+
+  const settings = await getEffectiveLeagueWaiverSettings(leagueId)
+  const conceptBlock = conceptOverridesBlockWaivers(settings.specialtyConceptOverrides)
+  if (conceptBlock) {
+    throw new Error(conceptBlock)
+  }
+  const limitCheck = await assertClaimWithinLimits(
+    leagueId,
+    rosterId,
+    settings.claimLimitPerWeek,
+    settings.claimLimitPerPeriod,
+  )
+  if (!limitCheck.ok) {
+    throw new Error(limitCheck.message)
+  }
+  const perRunCheck = await assertClaimWithinPerRunLimit(leagueId, rosterId, settings.claimLimitPerRun)
+  if (!perRunCheck.ok) {
+    throw new Error(perRunCheck.message)
+  }
+  const windowCheck = assertWaiverSubmissionWindow({
+    freeAgentWindowRules: settings.freeAgentWindowRules ?? null,
+    processingDays: settings.processingDays ?? null,
+    lockType: settings.lockType ?? null,
+  })
+  if (!windowCheck.ok) {
+    throw new Error(windowCheck.message)
   }
 
   const league = await (prisma as any).league.findUnique({
@@ -55,16 +95,21 @@ export async function createClaim(
     _max: { priorityOrder: true },
   })
   const priorityOrder = (maxOrder?._max?.priorityOrder ?? -1) + 1
+  const submitterId =
+    typeof input.userId === "string" && input.userId.trim() ? input.userId.trim() : null
   const created = await (prisma as any).waiverClaim.create({
     data: {
       leagueId,
       sportType: league?.sport ?? null,
       rosterId,
+      userId: submitterId,
       addPlayerId: input.addPlayerId,
       dropPlayerId: input.dropPlayerId ?? null,
       faabBid: input.faabBid ?? null,
       priorityOrder: input.priorityOrder ?? priorityOrder,
+      claimType: input.claimType ?? "add_drop",
       status: "pending",
+      metadata: input.metadata === undefined || input.metadata === null ? undefined : (input.metadata as object),
     },
   })
 
@@ -116,6 +161,10 @@ export async function updateClaim(
     where: { id: claimId, leagueId, rosterId, status: "pending" },
   })
   if (!existing) return null
+  const leagueLock = await getLeagueWaiverState(leagueId).catch(() => null)
+  if (leagueLock?.processingLocked) {
+    throw new Error("Waiver adds and edits are locked until the commissioner unlocks processing.")
+  }
   const survivorEliminated = await isRosterCurrentlyEliminated(leagueId, rosterId).catch(() => false)
   if (survivorEliminated) {
     throw new Error("This Survivor manager has been eliminated and cannot edit waiver claims")
@@ -141,6 +190,10 @@ export async function cancelClaim(claimId: string, leagueId: string, rosterId: s
     where: { id: claimId, leagueId, rosterId, status: "pending" },
   })
   if (!existing) return false
+  const leagueLock = await getLeagueWaiverState(leagueId).catch(() => null)
+  if (leagueLock?.processingLocked) {
+    throw new Error("Waiver adds and edits are locked until the commissioner unlocks processing.")
+  }
   await (prisma as any).waiverClaim.update({
     where: { id: claimId },
     data: { status: "cancelled" },

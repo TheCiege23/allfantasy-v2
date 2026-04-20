@@ -26,13 +26,29 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {
       const enc = new TextEncoder()
+      let closed = false
+      let iv: ReturnType<typeof setInterval> | null = null
+      let hb: ReturnType<typeof setInterval> | null = null
+      let endTimer: ReturnType<typeof setTimeout> | null = null
+      const shutdown = () => {
+        closed = true
+        if (iv) clearInterval(iv)
+        if (hb) clearInterval(hb)
+        if (endTimer) clearTimeout(endTimer)
+      }
       const send = (data: unknown) => {
-        controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+        if (closed) return
+        try {
+          controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`))
+        } catch {
+          shutdown()
+        }
       }
       send({ type: 'connected', leagueId })
 
       const seen = new Set<string>()
       const tick = async () => {
+        if (closed) return
         const rows = await prisma.zombieEventAnimation.findMany({
           where: {
             leagueId,
@@ -61,17 +77,19 @@ export async function GET(req: NextRequest) {
       }
 
       void tick()
-      const iv = setInterval(() => void tick(), 4000)
-      const hb = setInterval(() => send({ type: 'heartbeat', t: Date.now() }), 5000)
-      setTimeout(() => {
-        clearInterval(iv)
-        clearInterval(hb)
+      iv = setInterval(() => void tick(), 4000)
+      hb = setInterval(() => send({ type: 'heartbeat', t: Date.now() }), 5000)
+      endTimer = setTimeout(() => {
+        shutdown()
         try {
           controller.close()
         } catch {
           /* ignore */
         }
       }, 300_000)
+    },
+    cancel() {
+      // Client disconnected; stop timers to avoid enqueue-after-close errors.
     },
   })
 

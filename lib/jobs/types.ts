@@ -9,6 +9,8 @@ export const QUEUE_NAMES = {
   DEVY: "devy",
   INTEGRITY: "integrity",
   AUTOCOACH_STATUS: "autocoach_status",
+  /** Heavy league-engine work: waivers, scoring batches, automation, import resync (BullMQ). */
+  LEAGUE_ENGINE: "league_engine",
 } as const
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES]
@@ -98,4 +100,23 @@ export interface AutoCoachStatusJobPayload {
   sport?: string
   playerId?: string
   gameDate?: string
+}
+
+/** Processed by `lib/workers/league-engine-worker.ts` — keep payloads JSON-serializable. */
+export type LeagueEngineJobKind =
+  | "waiver_process"
+  | "scoring_week"
+  | "standings_refresh"
+  | "specialty_automation"
+  | "import_resync"
+  | "notification_fanout"
+  | "stat_correction"
+
+export interface LeagueEngineJobPayload {
+  kind: LeagueEngineJobKind
+  /** Required for all kinds except optional fanout-only jobs that are global. */
+  leagueId?: string
+  idempotencyKey?: string
+  /** Kind-specific parameters (season, week, trigger id, etc.). */
+  payload?: Record<string, unknown>
 }

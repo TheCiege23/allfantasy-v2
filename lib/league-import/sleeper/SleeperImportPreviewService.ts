@@ -1,4 +1,5 @@
-import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
+import { toCanonicalImportPreviewJson } from '@/lib/league-import/canonicalImportNormalizer'
+import { orchestrateImportPreview } from '@/lib/league-import/importOrchestrator'
 import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
 
 export type SleeperImportPreviewFailureCode =
@@ -10,6 +11,7 @@ export type SleeperImportPreviewFailureCode =
 export interface SleeperImportPreviewSuccess {
   success: true
   preview: ReturnType<typeof buildImportedLeaguePreview>
+  canonical: ReturnType<typeof toCanonicalImportPreviewJson>
 }
 
 export interface SleeperImportPreviewFailure {
@@ -22,18 +24,27 @@ export async function getSleeperImportPreview(args: {
   sourceId: string
   userId?: string
 }): Promise<SleeperImportPreviewSuccess | SleeperImportPreviewFailure> {
-  const normalized = await runImportedLeagueNormalizationPipeline({
+  if (!args.userId) {
+    return { success: false, error: 'Unauthorized', code: 'UNAUTHORIZED' }
+  }
+
+  const out = await orchestrateImportPreview({
     provider: 'sleeper',
     sourceId: args.sourceId,
     userId: args.userId,
   })
 
-  if (!normalized.success) {
-    return normalized
+  if (!out.ok) {
+    return {
+      success: false,
+      error: out.error,
+      code: (out.code as SleeperImportPreviewFailureCode) ?? 'NORMALIZATION_FAILED',
+    }
   }
 
   return {
     success: true,
-    preview: buildImportedLeaguePreview(normalized.normalized),
+    preview: out.preview,
+    canonical: out.canonicalPreview,
   }
 }

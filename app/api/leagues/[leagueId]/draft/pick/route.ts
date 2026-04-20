@@ -18,6 +18,8 @@ import {
   notifyOnTheClockAfterPick,
 } from '@/lib/draft-notifications'
 import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
+import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
+import { logAction } from '@/server/services/auditService'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,6 +68,17 @@ export async function POST(
       ? rawSource
       : 'user'
 
+  const gate = await assertLeagueActionGate(leagueId, userId, 'draft_pick', {
+    treatAsElevated: source === 'commissioner',
+  })
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
+  }
+
+  const rawMeta = body.pickMetadata ?? body.pick_metadata
+  const pickMetadata =
+    rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? (rawMeta as Record<string, unknown>) : null
+
   const result = await submitPick({
     leagueId,
     playerName: String(playerName).trim(),
@@ -76,11 +89,47 @@ export async function POST(
     rosterId: effectiveRosterId,
     source,
     tradedPicks: body.tradedPicks ?? body.traded_picks ?? undefined,
+    madeByUserId: userId,
+    pickMetadata,
+    assetType: body.assetType ?? body.asset_type ?? undefined,
   })
 
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 })
   }
+
+  void logAction({
+    leagueId,
+    userId,
+    actionType: 'draft_pick',
+    entityType: 'draft',
+    entityId: leagueId,
+    afterState: {
+      playerName: String(playerName).trim(),
+      rosterId: effectiveRosterId,
+      source,
+      pick: result.snapshot ?? null,
+    },
+  }).catch(() => {})
+
+  void import('@/lib/league-events/publisher')
+    .then(({ publishLeagueFanoutEvent }) =>
+      publishLeagueFanoutEvent({
+        leagueId,
+        eventType: 'draft_pick',
+        title: 'Draft pick',
+        message: `${String(playerName).trim()} (${String(position).trim()}) was drafted.`,
+        category: 'draft_alerts',
+        visibility: 'all_members',
+        actorUserId: userId,
+        meta: { rosterId: effectiveRosterId, source },
+        dedupeKey: result.snapshot?.rosterId
+          ? `draftpick:${leagueId}:${effectiveRosterId}:${String(playerName).trim()}`
+          : `draftpick:${leagueId}:${Date.now()}`,
+        skipNotifications: true,
+      }),
+    )
+    .catch(() => {})
 
   void notifyOnTheClockAfterPick(leagueId)
   void notifyDraftIntelPickConfirmation(leagueId, effectiveRosterId, String(playerName).trim()).catch(() => {})

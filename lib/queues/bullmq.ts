@@ -181,6 +181,10 @@ export function getAutoCoachStatusQueue(): Queue | null {
   return getQueue(QUEUE_NAMES.AUTOCOACH_STATUS);
 }
 
+export function getLeagueEngineQueue(): Queue | null {
+  return getQueue(QUEUE_NAMES.LEAGUE_ENGINE);
+}
+
 /**
  * Named exports to support existing route imports like:
  * import { simulationQueue, redis } from "@/lib/queues/bullmq"

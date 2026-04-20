@@ -1,5 +1,9 @@
 export * from "./types"
 export {
+  assertClaimWithinPerRunLimit,
+  assertWaiverSubmissionWindow,
+} from "./waiver-validation"
+export {
   getLeagueWaiverSettings,
   getEffectiveLeagueWaiverSettings,
   upsertLeagueWaiverSettings,

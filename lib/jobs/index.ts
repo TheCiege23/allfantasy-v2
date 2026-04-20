@@ -9,14 +9,18 @@ export type {
   AiJobType,
   AiJobPayload,
   SimulationJobPayload,
+  LeagueEngineJobKind,
+  LeagueEngineJobPayload,
 } from "./types";
 export {
   enqueueNotification,
   enqueueAi,
   enqueueSimulation,
+  enqueueLeagueEngineJob,
 } from "./enqueue";
 export type {
   EnqueueNotificationResult,
   EnqueueAiResult,
   EnqueueSimulationResult,
+  EnqueueLeagueEngineResult,
 } from "./enqueue";

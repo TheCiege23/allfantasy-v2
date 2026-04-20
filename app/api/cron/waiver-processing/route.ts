@@ -13,6 +13,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await runWaiverProcessingWorker()
+    console.log(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        source: 'league_engine',
+        subsystem: 'cron',
+        action: 'waiver_processing',
+        ok: true,
+        extra: { processedLeagues: result.processedLeagues },
+      }),
+    )
     return NextResponse.json({ ok: true, result })
   } catch (error) {
     console.error('[cron/waiver-processing]', error)

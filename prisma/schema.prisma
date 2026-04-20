@@ -2669,6 +2669,7 @@ model AppUser {
   importReviewTasks                        ImportReviewTask[]
   adminSubscriptionGrants                  AdminSubscriptionGrant[]
   leagueAuditLogs                        LeagueAuditLog[]
+  afLeagueTradesProposed                 AfLeagueTrade[]
 
   @@map("app_users")
 }
@@ -4397,6 +4398,10 @@ model League {
   waiverClaims                          WaiverClaim[]
   waiverPickups                         WaiverPickup[]
   waiverTransactions                    WaiverTransaction[]
+  afLeagueTrades                      AfLeagueTrade[]
+  afRosterLineupAssignments             AfRosterLineupAssignment[]
+  afRosterMoveHistory                   AfRosterMoveHistory[]
+  afLineupLockStates                    AfLineupLockState[]
   waiverRuns                            WaiverRun[]
   waiverResults                         WaiverResult[]
   leagueWaiverState                     LeagueWaiverState?
@@ -4415,6 +4420,7 @@ model League {
   specialtyPhaseState                   SpecialtyPhaseState?
   auditLogs                             LeagueAuditLog[]
   statReprocessLogs                     StatReprocessLog[]
+  platformNotifications                 PlatformNotification[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -5575,11 +5581,82 @@ model Roster {
   weeklyScores         WeeklyScore[]
   teamWeekResults      TeamWeekResult[]
   fantasyStandings     FantasyStanding[]
+  afTradesAsProposer   AfLeagueTrade[]     @relation("AfLeagueTradeProposerRoster")
+  afTradesAsReceiver   AfLeagueTrade[]     @relation("AfLeagueTradeReceiverRoster")
+  afTradeVotesCast     AfLeagueTradeVote[]
+  afLineupAssignments  AfRosterLineupAssignment[]
+  afRosterMoveHistory  AfRosterMoveHistory[]
+  afLineupLockStates   AfLineupLockState[]
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
+  @@index([leagueId, updatedAt])
   @@index([platformUserId])
   @@map("rosters")
+}
+
+/// Normalized weekly lineup rows (mirrors `Roster.playerData.lineup_sections`) for scoring queries and audits.
+model AfRosterLineupAssignment {
+  id        String   @id @default(cuid())
+  leagueId  String
+  rosterId  String
+  season    Int
+  week      Int
+  section   String   @db.VarChar(16)
+  slotIndex Int      @default(0)
+  playerId  String   @db.VarChar(128)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster    Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([rosterId, season, week, playerId])
+  @@index([leagueId, season, week])
+  @@index([rosterId, season, week])
+  @@map("af_roster_lineup_assignments")
+}
+
+/// Immutable roster / lineup change log (user saves, commissioner overrides, imports).
+model AfRosterMoveHistory {
+  id          String   @id @default(cuid())
+  leagueId    String
+  rosterId    String
+  season      Int
+  week        Int
+  actorUserId String?  @db.VarChar(128)
+  source      String   @db.VarChar(32)
+  moveSummary String?  @db.VarChar(512)
+  beforeHash  String?  @db.VarChar(64)
+  afterHash   String?  @db.VarChar(64)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster      Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, rosterId, createdAt])
+  @@index([leagueId, season, week])
+  @@map("af_roster_move_history")
+}
+
+/// Cached lineup lock snapshot per roster/week (optional; may be computed on read).
+model AfLineupLockState {
+  id              String   @id @default(cuid())
+  leagueId        String
+  rosterId        String
+  season          Int
+  week            Int
+  globalLocked    Boolean  @default(false)
+  lockedPlayerIds Json?
+  policy          String?  @db.VarChar(64)
+  reason          String?  @db.VarChar(512)
+  computedAt      DateTime @default(now())
+  metadata        Json?
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster          Roster   @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@unique([rosterId, season, week])
+  @@index([leagueId, season, week])
+  @@map("af_lineup_lock_state")
 }
 
 /// Per-player fantasy points for a league week (starters drive team total; bench stored for audit).
@@ -9325,6 +9402,107 @@ model WaiverTransaction {
   @@map("waiver_transactions")
 }
 
+/// In-season canonical trade (platform `Roster` rows). Distinct from legacy `LeagueTrade` (Sleeper import) and `redraft_trade_proposals`.
+model AfLeagueTrade {
+  id                   String    @id @default(uuid())
+  leagueId             String
+  proposedByUserId     String
+  proposerRosterId     String
+  receiverRosterId     String
+  parentTradeId        String?
+  rootTradeId          String?
+  status               String    @default("pending") @db.VarChar(32)
+  reviewType           String    @default("commissioner") @db.VarChar(24)
+  processingDelayHours Int?
+  vetoThresholdPercent Int?
+  acceptedAt           DateTime?
+  rejectedAt           DateTime?
+  cancelledAt          DateTime?
+  processedAt          DateTime?
+  scheduledProcessAt   DateTime?
+  expiresAt            DateTime?
+  metadata             Json      @default("{}")
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  league           League                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  proposedBy       AppUser                  @relation(fields: [proposedByUserId], references: [id], onDelete: Cascade)
+  proposerRoster   Roster                   @relation("AfLeagueTradeProposerRoster", fields: [proposerRosterId], references: [id], onDelete: Cascade)
+  receiverRoster   Roster                   @relation("AfLeagueTradeReceiverRoster", fields: [receiverRosterId], references: [id], onDelete: Cascade)
+  parentTrade      AfLeagueTrade?           @relation("AfLeagueTradeCounterChain", fields: [parentTradeId], references: [id], onDelete: SetNull)
+  counterOffers    AfLeagueTrade[]          @relation("AfLeagueTradeCounterChain")
+  items            AfLeagueTradeItem[]
+  statusHistory    AfLeagueTradeStatusHistory[]
+  votes            AfLeagueTradeVote[]
+  processingEvents AfLeagueTradeProcessingEvent[]
+
+  @@index([leagueId, status])
+  @@index([proposerRosterId])
+  @@index([receiverRosterId])
+  @@index([parentTradeId])
+  @@index([expiresAt])
+  @@map("af_league_trades")
+}
+
+model AfLeagueTradeItem {
+  id             String        @id @default(uuid())
+  tradeId        String
+  itemType       String        @db.VarChar(32)
+  itemReference  String?
+  fromRosterId   String
+  toRosterId     String
+  faabAmount     Int?
+  metadata       Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  trade          AfLeagueTrade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId])
+  @@index([fromRosterId, toRosterId])
+  @@map("af_league_trade_items")
+}
+
+model AfLeagueTradeStatusHistory {
+  id          String        @id @default(uuid())
+  tradeId     String
+  fromStatus  String?       @db.VarChar(32)
+  toStatus    String        @db.VarChar(32)
+  actorUserId String?
+  reason      String?
+  metadata    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  trade       AfLeagueTrade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, createdAt])
+  @@map("af_league_trade_status_history")
+}
+
+model AfLeagueTradeVote {
+  id            String        @id @default(uuid())
+  tradeId       String
+  voterRosterId String
+  vote          String        @db.VarChar(24)
+  reason        String?
+  createdAt     DateTime      @default(now())
+  trade         AfLeagueTrade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  voterRoster   Roster        @relation(fields: [voterRosterId], references: [id], onDelete: Cascade)
+
+  @@unique([tradeId, voterRosterId])
+  @@index([tradeId, vote])
+  @@map("af_league_trade_votes")
+}
+
+model AfLeagueTradeProcessingEvent {
+  id         String        @id @default(uuid())
+  tradeId    String
+  eventType  String        @db.VarChar(48)
+  payload    Json          @default("{}")
+  createdAt  DateTime      @default(now())
+  trade      AfLeagueTrade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([tradeId, createdAt])
+  @@map("af_league_trade_processing_events")
+}
+
 /// One processing batch (scheduled, manual, FCFS immediate, etc.).
 model WaiverRun {
   id                String              @id @default(uuid())
@@ -10024,6 +10202,8 @@ model PlatformNotification {
   id          String    @id @default(uuid())
   sourceKey   String?   @unique
   userId      String
+  /// Optional league scope for filtering / analytics (in-app league alerts).
+  leagueId    String?
   productType String    @default("shared")
   type        String
   title       String
@@ -10033,9 +10213,11 @@ model PlatformNotification {
   createdAt   DateTime  @default(now())
   readAt      DateTime?
   user        AppUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league      League?   @relation(fields: [leagueId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([userId, readAt])
+  @@index([userId, leagueId, createdAt])
   @@map("platform_notifications")
 }
 

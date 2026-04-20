@@ -23,6 +23,7 @@ import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { draftOrderSlotsToSlotOrder } from '@/lib/league/league-settings-draft-sync'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
+import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
 
 export async function getOrCreateDraftSession(leagueId: string): Promise<{
   session: { id: string; leagueId: string; status: string; slotOrder: unknown; teamCount: number; rounds: number; draftType: string; thirdRoundReversal: boolean; timerSeconds: number | null; timerEndAt: Date | null; pausedRemainingSeconds: number | null; version: number; updatedAt: Date }
@@ -331,6 +332,8 @@ export async function buildSessionSnapshot(
     slotOrder
   )
 
+  const dispersalPool = parseDispersalPoolConfig((session as { dispersalPoolConfig?: unknown }).dispersalPoolConfig)
+
   return {
     id: session.id,
     leagueId: session.leagueId,
@@ -355,12 +358,16 @@ export async function buildSessionSnapshot(
     devy,
     commissionerAiDraft,
     c2c,
+    draftModeLabel: (session as { draftModeLabel?: string | null }).draftModeLabel ?? null,
+    dispersalPool,
   }
 }
 
 export async function startDraftSession(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'pre_draft') return false
+
+  const startedAtNow = new Date()
 
   const ls = await prisma.leagueSettings.findUnique({ where: { leagueId } })
   if (ls) {
@@ -371,6 +378,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
         cpuAutoPick: ls.cpuAutoPick,
         playerPool: ls.playerPool,
         alphabeticalSort: ls.alphabeticalSort,
+        startedAt: session.startedAt ?? startedAtNow,
         version: { increment: 1 },
       },
     })
@@ -391,7 +399,12 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
     }
     await prisma.draftSession.update({
       where: { id: session.id },
-      data: { status: 'in_progress', pausedRemainingSeconds: null, version: { increment: 1 } },
+      data: {
+        status: 'in_progress',
+        pausedRemainingSeconds: null,
+        startedAt: session.startedAt ?? startedAtNow,
+        version: { increment: 1 },
+      },
     })
     return true
   }
@@ -400,12 +413,18 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
   const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
   await prisma.draftSession.update({
     where: { id: session.id },
-    data: { status: 'in_progress', timerEndAt, pausedRemainingSeconds: null, version: { increment: 1 } },
+    data: {
+      status: 'in_progress',
+      timerEndAt,
+      pausedRemainingSeconds: null,
+      startedAt: session.startedAt ?? startedAtNow,
+      version: { increment: 1 },
+    },
   })
   return true
 }
 
-export async function pauseDraftSession(leagueId: string): Promise<boolean> {
+export async function pauseDraftSession(leagueId: string, pausedByUserId?: string | null): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'in_progress') return false
   const now = new Date()
@@ -414,7 +433,13 @@ export async function pauseDraftSession(leagueId: string): Promise<boolean> {
     : session.timerSeconds ?? 0
   await prisma.draftSession.update({
     where: { id: session.id },
-    data: { status: 'paused', timerEndAt: null, pausedRemainingSeconds: remaining, version: { increment: 1 } },
+    data: {
+      status: 'paused',
+      timerEndAt: null,
+      pausedRemainingSeconds: remaining,
+      pausedByUserId: pausedByUserId ?? null,
+      version: { increment: 1 },
+    },
   })
   return true
 }
@@ -437,6 +462,7 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
       status: 'in_progress',
       timerEndAt,
       pausedRemainingSeconds: null,
+      pausedByUserId: null,
       ...(auctionState
         ? {
             auctionState: {
@@ -469,6 +495,7 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
       status: 'in_progress',
       timerEndAt,
       pausedRemainingSeconds: null,
+      pausedByUserId: null,
       ...(auctionState
         ? {
             auctionState: {
@@ -545,7 +572,14 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
   if (count < totalPicks) return false
   await prisma.draftSession.update({
     where: { id: session.id },
-    data: { status: 'completed', timerEndAt: null, pausedRemainingSeconds: null, version: { increment: 1 } },
+    data: {
+      status: 'completed',
+      timerEndAt: null,
+      pausedRemainingSeconds: null,
+      pausedByUserId: null,
+      completedAt: new Date(),
+      version: { increment: 1 },
+    },
   })
   import('@/lib/live-draft-engine/RosterAssignmentService').then((m) => m.finalizeRosterAssignments(leagueId)).catch(() => {})
   import('@/lib/survivor/SurvivorDraftBootstrapService').then((m) => m.runSurvivorPostDraftBootstrap(leagueId)).catch(() => {})

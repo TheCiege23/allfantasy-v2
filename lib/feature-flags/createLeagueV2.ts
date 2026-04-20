@@ -1,13 +1,13 @@
 /**
- * Feature flag for the premium Create League v2 flow.
+ * Env / query helpers for the Create League flow (same UI as `/create-league`).
  *
- * Enabled when any of the following is true:
- *   - `NEXT_PUBLIC_CREATE_LEAGUE_V2=1` (global rollout, visible to client)
- *   - `CREATE_LEAGUE_V2=1` (server-only toggle, useful for smoke tests)
- *   - URL has `?v2=1` (per-request override, for internal preview)
+ * Canonical route: **`/create-league`**. The old `/create-league/v2` path
+ * permanently redirects there with query strings preserved.
  *
- * Keep the check cheap — it runs on every request to `/create-league/v2`
- * and inside any component that wants to show a "Try the new flow" nudge.
+ * These toggles are still useful for experiments or client-side nudges:
+ *   - `NEXT_PUBLIC_CREATE_LEAGUE_V2=1`
+ *   - `CREATE_LEAGUE_V2=1`
+ *   - `?v2=1` on the URL
  */
 
 export const CREATE_LEAGUE_V2_FLAG_NAME = 'create_league_v2'

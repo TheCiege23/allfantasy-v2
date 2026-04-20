@@ -6,6 +6,8 @@ import {
   generateDraftRecapArtifact,
   generateWeeklyLeagueArtifacts,
 } from '@/lib/league/format-artifact-service'
+import { buildWaiverCronIdempotencyKey } from '@/lib/league-engine-performance/idempotencyKeys'
+import { createEngineTimer, logLeagueEngineBatchSummary, logLeagueEngineEvent } from '@/lib/league-engine-performance/observability'
 
 export function resolveSeasonWeek(input?: {
   season?: number | null
@@ -24,6 +26,7 @@ export async function runScoringWorker(options?: {
   weekOrRound?: number | null
   lockScores?: boolean
 }) {
+  const timer = createEngineTimer()
   const period = resolveSeasonWeek(options)
   const leagues = await prisma.league.findMany({
     where: options?.leagueIds?.length ? { id: { in: options.leagueIds } } : undefined,
@@ -41,6 +44,18 @@ export async function runScoringWorker(options?: {
       })
     )
   }
+
+  logLeagueEngineEvent({
+    subsystem: 'scoring',
+    action: 'run_scoring_worker',
+    durationMs: timer.elapsedMs(),
+    ok: true,
+    extra: {
+      processedLeagues: results.length,
+      season: period.season,
+      weekOrRound: period.weekOrRound,
+    },
+  })
 
   return {
     ...period,
@@ -78,6 +93,7 @@ export async function runWeeklyLeagueAutomation(options?: {
 }
 
 export async function runWaiverProcessingWorker(options?: { leagueIds?: string[] }) {
+  const timer = createEngineTimer()
   const pending = await prisma.waiverClaim.findMany({
     where: {
       status: 'pending',
@@ -91,11 +107,33 @@ export async function runWaiverProcessingWorker(options?: { leagueIds?: string[]
   const leagueIds = Array.from(new Set(pending.map((claim) => claim.leagueId)))
   const results = []
   for (const leagueId of leagueIds) {
+    const idempotencyKey = buildWaiverCronIdempotencyKey(leagueId)
+    const leagueTimer = createEngineTimer()
+    const claims = await processWaiverClaimsForLeague(leagueId, {
+      idempotencyKey,
+      runType: 'scheduled',
+    })
+    logLeagueEngineEvent({
+      subsystem: 'waiver',
+      action: 'process_league_waivers',
+      leagueId,
+      durationMs: leagueTimer.elapsedMs(),
+      idempotencyKey,
+      ok: true,
+      extra: { resultCount: claims.length },
+    })
     results.push({
       leagueId,
-      claims: await processWaiverClaimsForLeague(leagueId),
+      claims,
     })
   }
+
+  logLeagueEngineBatchSummary({
+    subsystem: 'waiver',
+    action: 'waiver_processing_worker',
+    processed: leagueIds.length,
+    durationMs: timer.elapsedMs(),
+  })
 
   return {
     processedLeagues: leagueIds.length,

@@ -12,6 +12,11 @@ import PlayersTab from '@/components/league/tabs/PlayersTab'
 import LeagueTab from '@/components/league/tabs/LeagueTab'
 import IntroVideoModal from '@/components/league/IntroVideoModal'
 import type { LeagueHomeData, LeagueTopTab } from '@/components/league/types'
+import LeagueStatusBar from '@/components/league/LeagueStatusBar'
+import CommissionerControlsPanel from '@/components/league/CommissionerControlsPanel'
+import AuditLogViewer from '@/components/league/AuditLogViewer'
+import LeagueActivityFeed from '@/components/league/LeagueActivityFeed'
+import { useLeagueLifecycleApiSync } from '@/hooks/useLeagueLifecycleApiSync'
 
 const TOP_TABS: LeagueTopTab[] = ['DRAFT', 'TEAM', 'PLAYERS', 'LEAGUE']
 
@@ -31,6 +36,8 @@ export default function LeagueHomeClient({
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<LeagueTopTab>(data.activeTab)
   const [showIntroVideo, setShowIntroVideo] = useState(Boolean(data.introVideo?.shouldAutoOpen))
+  /** Bumps audit log + league activity feed after commissioner actions. */
+  const [leagueLiveRefresh, setLeagueLiveRefresh] = useState(0)
 
   const updateTab = useCallback(
     (tab: LeagueTopTab) => {
@@ -44,6 +51,11 @@ export default function LeagueHomeClient({
 
   const resolvedTab = useMemo(() => safeTab(searchParams?.get('tab'), activeTab), [activeTab, searchParams])
   const needsTeamDot = data.roster.overRosterLimitBy > 0 || data.trades.activeTrades.length > 0
+
+  const { lifecycle: lifecycleLive, permissions: lifecyclePermissions } = useLeagueLifecycleApiSync(
+    data.league.id,
+    data.league.lifecycle,
+  )
 
   useEffect(() => {
     setShowIntroVideo(Boolean(data.introVideo?.shouldAutoOpen))
@@ -65,6 +77,17 @@ export default function LeagueHomeClient({
       <LeagueTabs activeTab={resolvedTab} onChange={updateTab} showTeamDot={needsTeamDot} />
 
       <main className="mx-auto max-w-md px-4 pb-[148px] pt-5">
+        <LeagueStatusBar snapshot={lifecycleLive} currentWeek={data.league.currentWeek} />
+        <CommissionerControlsPanel
+          leagueId={data.league.id}
+          season={data.league.season}
+          leagueRole={data.leagueRole}
+          lifecycle={lifecycleLive}
+          permissionsFromApi={lifecyclePermissions}
+          onSuccessfulAction={() => setLeagueLiveRefresh((n) => n + 1)}
+        />
+        <AuditLogViewer leagueId={data.league.id} refreshSignal={leagueLiveRefresh} />
+        <LeagueActivityFeed leagueId={data.league.id} refreshSignal={leagueLiveRefresh} />
         {resolvedTab === 'DRAFT' ? (
           <DraftTab
             teams={data.teamsInDraftOrder}
@@ -87,6 +110,8 @@ export default function LeagueHomeClient({
         {resolvedTab === 'LEAGUE' ? (
           <LeagueTab
             leagueId={data.league.id}
+            season={data.league.season}
+            currentWeek={data.league.currentWeek}
             standings={data.standings}
             activity={data.activity}
             bracket={data.bracket}

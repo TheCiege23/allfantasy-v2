@@ -8,8 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
 import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
+import { buildCanonicalImportBundle } from '@/lib/league-import/canonicalImportNormalizer'
+import { recordCanonicalImportAuditForExistingLeague } from '@/lib/league-import/importPersistenceService'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import {
@@ -47,10 +49,9 @@ export async function POST(
 
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
-  try {
-    await assertCommissioner(leagueId, userId)
-  } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const gate = await assertLeagueActionGate(leagueId, userId, 'import_sync')
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
   }
 
   const body = await req.json().catch(() => ({}))
@@ -81,15 +82,52 @@ export async function POST(
   }
 
   try {
+    const canonical = buildCanonicalImportBundle(result.normalized)
     const applied = await applyImportedLeagueToExistingLeague({
       leagueId,
       provider,
       normalized: result.normalized,
       apply,
+      canonicalBundle: canonical,
     })
+    const audit = await recordCanonicalImportAuditForExistingLeague({
+      userId,
+      leagueId,
+      provider,
+      normalized: result.normalized,
+      canonical,
+    })
+
+    void import('@/lib/league-events/publisher')
+      .then(({ publishLeagueFanoutEvent }) =>
+        publishLeagueFanoutEvent({
+          leagueId,
+          eventType: 'import_completed',
+          title: 'Import completed',
+          message: `External league data was imported (${provider}).`,
+          category: 'league_announcements',
+          visibility: 'all_members',
+          actorUserId: userId,
+          meta: { provider, importRunId: audit.runId },
+          dedupeKey: `import:${leagueId}:${audit.runId}`,
+        }),
+      )
+      .catch(() => {})
+
     return NextResponse.json({
       ok: true,
       ...applied,
+      importRunId: audit.runId,
+      canonical: {
+        inferredConcept: canonical.inferredConcept,
+        inferredLeagueType: canonical.inferredLeagueType,
+        scoringPresetId: canonical.scoringPresetId,
+        draftType: canonical.draftType,
+        presetKey: canonical.presetKey,
+        reviewRequired: canonical.reviewRequired,
+        reviewReasons: canonical.reviewReasons,
+        warnings: canonical.warnings,
+      },
     })
   } catch (e) {
     return NextResponse.json(

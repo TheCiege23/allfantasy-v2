@@ -63,6 +63,14 @@ const FALLBACK_STARTER_POSITIONS = [
   "SUPERFLEX", "FLEX",
 ]
 
+export type LineupLockPayload = {
+  locked: boolean
+  reason?: string
+  policy?: string
+  lockedPlayerIds?: string[]
+  perPlayerReasons?: Record<string, string>
+}
+
 export type RosterManagerOptions = {
   leagueId?: string
 }
@@ -262,6 +270,8 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null)
+  const [lineupLock, setLineupLock] = useState<LineupLockPayload | null>(null)
+  const [canEditLineup, setCanEditLineup] = useState(true)
 
   const loadAvailablePlayers = useCallback(async () => {
     if (!options.leagueId) {
@@ -305,6 +315,8 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       setLeagueSport('NFL')
       setSlotLimits(DEFAULT_SLOT_LIMITS)
       setStarterAllowedPositions(FALLBACK_STARTER_POSITIONS)
+      setLineupLock(null)
+      setCanEditLineup(true)
       return
     }
     try {
@@ -325,6 +337,24 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
           ? data.sport.toUpperCase()
           : 'NFL'
       )
+      const lockRaw = data?.lineupLock as LineupLockPayload | null | undefined
+      setLineupLock(
+        lockRaw && typeof lockRaw === "object"
+          ? {
+              locked: Boolean(lockRaw.locked),
+              reason: typeof lockRaw.reason === "string" ? lockRaw.reason : undefined,
+              policy: typeof lockRaw.policy === "string" ? lockRaw.policy : undefined,
+              lockedPlayerIds: Array.isArray(lockRaw.lockedPlayerIds)
+                ? lockRaw.lockedPlayerIds.map(String)
+                : undefined,
+              perPlayerReasons:
+                lockRaw.perPlayerReasons && typeof lockRaw.perPlayerReasons === "object"
+                  ? (lockRaw.perPlayerReasons as Record<string, string>)
+                  : undefined,
+            }
+          : null
+      )
+      setCanEditLineup(data?.canEditLineup !== false)
       setExistingPlayerData(data?.roster ?? null)
       setRoster(buildRosterStateFromPlayerData(data?.roster))
       setSaveError(null)
@@ -357,6 +387,10 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
 
   const movePlayer = useCallback(
     (playerId: string, toSlot: RosterSectionKey) => {
+      if (!canEditLineup) {
+        setSaveError("Lineup is locked for this period.")
+        return false
+      }
       if (!roster) return false
       let moved: RosterPlayer | null = null
 
@@ -399,11 +433,15 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       }
       return false
     },
-    [roster, slotLimits, starterAllowedPositions],
+    [roster, slotLimits, starterAllowedPositions, canEditLineup],
   )
 
   const swapPlayers = useCallback(
     (aId: string, bId: string) => {
+      if (!canEditLineup) {
+        setSaveError("Lineup is locked for this period.")
+        return false
+      }
       if (!roster) return false
       const next: RosterState = { ...roster, starters: [...roster.starters], bench: [...roster.bench], ir: [...roster.ir], taxi: [...roster.taxi], devy: [...roster.devy] }
 
@@ -455,11 +493,12 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       void autoSave(next)
       return true
     },
-    [roster, slotLimits, starterAllowedPositions],
+    [roster, slotLimits, starterAllowedPositions, canEditLineup],
   )
 
   const dropPlayer = useCallback(
     (playerId: string) => {
+      if (!canEditLineup) return
       if (!roster) return
       const next: RosterState = {
         starters: [],
@@ -478,11 +517,12 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       setRoster(next)
       void autoSave(next)
     },
-    [roster],
+    [roster, canEditLineup],
   )
 
   const addPlayer = useCallback(
     (player: RosterPlayer, toSlot: RosterSectionKey = "bench") => {
+      if (!canEditLineup) return
       if (!roster) return
       const exists = SECTION_KEYS.some((key) => roster[key].some((p) => p.id === player.id))
       if (exists) return
@@ -505,7 +545,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
       setRoster(next)
       void autoSave(next)
     },
-    [roster, slotLimits, starterAllowedPositions],
+    [roster, slotLimits, starterAllowedPositions, canEditLineup],
   )
 
   const autoSave = useCallback(
@@ -547,7 +587,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
         setSaving(false)
       }
     },
-    [options.leagueId, existingPlayerData, rosterId, loadAvailablePlayers],
+    [options.leagueId, existingPlayerData, rosterId, loadAvailablePlayers, canEditLineup],
   )
 
   const addPlayerFromPool = useCallback(
@@ -576,6 +616,10 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
   )
 
   const optimizeLineup = useCallback(() => {
+    if (!canEditLineup) {
+      setSaveError("Lineup is locked for this period.")
+      return
+    }
     if (!roster) return
     const startersTarget = slotLimits.starters > 0 ? slotLimits.starters : 9
     const allPlayers = dedupePlayers([
@@ -640,7 +684,7 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
     }
     setRoster(next)
     void autoSave(next)
-  }, [roster, slotLimits, starterAllowedPositions, autoSave])
+  }, [roster, slotLimits, starterAllowedPositions, autoSave, canEditLineup])
 
   const reload = useCallback(async () => {
     await Promise.all([loadRoster(), loadAvailablePlayers()])
@@ -657,6 +701,8 @@ export function useRosterManager(options: RosterManagerOptions = {}) {
     saving,
     saveError,
     lastSavedAt,
+    lineupLock,
+    canEditLineup,
     movePlayer,
     swapPlayers,
     dropPlayer,

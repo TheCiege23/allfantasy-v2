@@ -24,6 +24,10 @@ import {
   FantraxImportConnectionError,
   FantraxImportLeagueNotFoundError,
 } from './fantrax/FantraxLeagueFetchService'
+import {
+  fetchFleaflickerLeagueForImport,
+  FleaflickerImportLeagueNotFoundError,
+} from './fleaflicker/FleaflickerLeagueFetchService'
 import { runImportNormalizationPipeline } from './ImportNormalizationPipeline'
 import type { ImportProvider, NormalizedImportResult } from './types'
 
@@ -101,6 +105,9 @@ export async function runImportedLeagueNormalizationPipeline(
         }
       }
       payload = await fetchFantraxLeagueForImport(input.userId, sourceId)
+    } else if (provider === 'fleaflicker') {
+      /** Public JSON API — no OAuth; optional `userId` ignored for fetch. */
+      payload = await fetchFleaflickerLeagueForImport(sourceId)
     } else {
       return {
         success: false,
@@ -137,6 +144,9 @@ export async function runImportedLeagueNormalizationPipeline(
       return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
     }
     if (e instanceof FantraxImportLeagueNotFoundError) {
+      return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
+    }
+    if (e instanceof FleaflickerImportLeagueNotFoundError) {
       return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
     }
     const message = e instanceof Error ? e.message : 'Import normalization failed'

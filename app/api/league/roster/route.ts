@@ -7,6 +7,7 @@ import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegis
 import { getCachedSleeperUserId, setCachedSleeperUserId } from '@/lib/league/sleeper-user-cache'
 import { expandStarterSlots } from '@/lib/league/lineup-expand-template'
 import { evaluateLineupLock } from '@/lib/league/lineup-lock'
+import { resolveFullLineupLockContext } from '@/lib/roster-lineup-engine/lineupLockService'
 
 const SLEEPER = 'https://api.sleeper.app/v1' // db-first-exception: base URL constant, fetch calls use template literals
 const CACHE = { next: { revalidate: 300 } } as const
@@ -83,6 +84,9 @@ export async function GET(req: NextRequest) {
       settings: true,
       sport: true,
       leagueVariant: true,
+      season: true,
+      lifecycleState: true,
+      lockAllMoves: true,
     },
   })
 
@@ -142,11 +146,19 @@ export async function GET(req: NextRequest) {
     }
 
     const leagueWeek = weekFromLeagueSettings(league.settings)
-    const lock = evaluateLineupLock({
+    const lockCtx = await resolveFullLineupLockContext({
+      leagueId,
+      rosterId: roster.id,
       sport: leagueSport,
-      now: new Date(),
+      leagueVariant,
+      settings: league.settings,
       leagueWeek,
       editingWeek: leagueWeek,
+      season: league.season ?? new Date().getFullYear(),
+      now: new Date(),
+      playerData: roster.playerData,
+      lockAllMoves: league.lockAllMoves,
+      lifecycleState: league.lifecycleState,
     })
 
     return NextResponse.json({
@@ -164,9 +176,15 @@ export async function GET(req: NextRequest) {
       leagueWeek,
       maxWeek: 18,
       starterSlots,
-      lineupLock: lock,
-      canEditLineup: !lock.locked,
-      lineupLockHelp: lock.reason,
+      lineupLock: {
+        locked: lockCtx.locked,
+        reason: lockCtx.reason,
+        policy: lockCtx.policy,
+        lockedPlayerIds: lockCtx.lockedPlayerIds,
+        perPlayerReasons: lockCtx.perPlayerReasons,
+      },
+      canEditLineup: !lockCtx.locked,
+      lineupLockHelp: lockCtx.reason,
     })
   }
 

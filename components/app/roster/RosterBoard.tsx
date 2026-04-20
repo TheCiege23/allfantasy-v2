@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ChevronsDown, Users, Activity, Info, ArrowRightLeft } from "lucide-react"
 import { useRosterManager, type RosterPlayer, type RosterSectionKey } from "./useRosterManager"
+import LineupLockBanner from "./LineupLockBanner"
 import { teamLogoUrl } from "@/lib/media-url"
 import PlayerCardAnalytics from "@/components/player-card/PlayerCardAnalytics"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
@@ -52,6 +53,8 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
     saving,
     saveError,
     lastSavedAt,
+    lineupLock,
+    canEditLineup,
     slotLimits,
     availablePlayers,
     poolLoading,
@@ -168,7 +171,8 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
           <button
             type="button"
             onClick={optimizeLineup}
-            className="inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-cyan-100 hover:bg-cyan-500/20"
+            disabled={!canEditLineup}
+            className="inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Activity className="h-3 w-3" />
             <span>Optimize lineup</span>
@@ -188,6 +192,8 @@ export default function RosterBoard({ leagueId }: RosterBoardProps) {
           )}
         </div>
       </header>
+
+      <LineupLockBanner lineupLock={lineupLock} canEditLineup={canEditLineup} />
 
       {activeSwap && (
         <div className="rounded-xl border border-sky-300/30 bg-[#0b1630]/95 px-2.5 py-2 text-[10px] sm:text-[11px] text-sky-100">

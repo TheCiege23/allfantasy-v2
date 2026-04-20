@@ -2,6 +2,7 @@
 
 /**
  * Create League v2 — unified concept-first flow (single scroll + live summary).
+ * Wired to POST /api/leagues (canonical) + tournament create when applicable.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -16,10 +17,9 @@ import {
   getEffectiveLeagueType,
   type CreateLeagueV2State,
 } from '@/lib/create-league-v2/state'
-import { submitCreateLeagueV2 } from '@/lib/create-league-v2/submit'
+import { submitCreateLeagueV2, type CreateLeagueFieldErrors } from '@/lib/create-league-v2/submit'
 import { CreateLeagueUnifiedForm } from '@/components/create-league-v2/CreateLeagueUnifiedForm'
-import { CreateLeagueSummaryPanel } from '@/components/create-league-v2/CreateLeagueSummaryPanel'
-import { CreateLeagueHeroMedia } from '@/components/create-league-v2/CreateLeagueHeroMedia'
+import { CreateLeagueSummary, CreateLeagueMedia } from '@/components/create-league'
 import { PrimaryCTA, SecondaryButton } from '@/components/create-league-v2/primitives'
 import { resolveCreateLeagueHeroMedia } from '@/lib/create-league-v2/media-priority'
 import { getSportHue } from '@/lib/create-league-v2/sport-hues'
@@ -35,6 +35,7 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   const [hydrated, setHydrated] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<CreateLeagueFieldErrors | null>(null)
   const [draftSectionVisible, setDraftSectionVisible] = useState(false)
 
   useEffect(() => {
@@ -52,6 +53,8 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   const accent = useMemo(() => getAccent(effectiveType ?? undefined), [effectiveType])
 
   const onChange = useCallback((patch: Partial<CreateLeagueV2State>) => {
+    setSubmitError(null)
+    setFieldErrors(null)
     setState((prev) => ({ ...prev, ...patch }))
   }, [])
 
@@ -74,10 +77,14 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   const handleSubmit = useCallback(async () => {
     setSubmitting(true)
     setSubmitError(null)
+    setFieldErrors(null)
     try {
       const result = await submitCreateLeagueV2(state)
       if (!result.ok) {
         setSubmitError(result.error ?? 'Something went wrong creating your league.')
+        if (result.fieldErrors && Object.keys(result.fieldErrors).length > 0) {
+          setFieldErrors(result.fieldErrors)
+        }
         return
       }
       clearPersistedV2State()
@@ -90,6 +97,11 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
   }, [state, router])
 
   const canCreate = isFormComplete(state)
+
+  const topError =
+    submitError ??
+    fieldErrors?.general ??
+    null
 
   return (
     <div className={`${PAGE_BG_CLASS} relative`}>
@@ -105,41 +117,45 @@ export function CreateLeagueV2Client({ userId: _userId }: CreateLeagueV2ClientPr
 
       <main className="relative z-10 mx-auto max-w-6xl px-4 pb-36 pt-6 lg:pt-10">
         <div className="mb-8 max-w-3xl">
-          <p className={`mb-1.5 text-[11px] font-bold uppercase tracking-[0.22em] ${accent.text} transition-colors duration-500`}>
+          <p
+            className={`mb-1.5 text-[11px] font-bold uppercase tracking-[0.22em] ${sportHue.labelClass} transition-colors duration-500`}
+          >
             Create league
           </p>
           <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Design your league</h1>
           <p className="mt-2 text-sm leading-relaxed text-white/50">
-            Concept first, then sport and scoring, teams and name, and draft type. Advanced rules live in League Settings.
+            Concept first, then sport and scoring, teams and name, and draft type. Advanced rules live in League
+            Settings.
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
-            <CreateLeagueHeroMedia media={heroMedia} accent={accent} />
+            <CreateLeagueMedia media={heroMedia} accent={accent} />
 
             <CreateLeagueUnifiedForm
               state={state}
               accent={accent}
               onChange={onChange}
               onDraftSectionVisible={setDraftSectionVisible}
+              fieldErrors={fieldErrors}
             />
 
-            {submitError ? (
+            {topError ? (
               <div
                 role="alert"
                 className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200"
               >
-                {submitError}
+                {topError}
               </div>
             ) : null}
           </div>
 
-          <CreateLeagueSummaryPanel state={state} accent={accent} />
+          <CreateLeagueSummary state={state} accent={accent} />
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-white/[0.06] bg-[#060a18]/90 px-4 py-4 backdrop-blur-2xl shadow-[0_-8px_30px_-10px_rgba(0,0,0,0.6)]">
+      <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-cyan-500/10 bg-[#060a18]/92 px-4 py-4 backdrop-blur-2xl shadow-[0_-8px_30px_-10px_rgba(0,0,0,0.6)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
           <SecondaryButton onClick={() => router.push('/dashboard')} disabled={submitting}>
             Cancel

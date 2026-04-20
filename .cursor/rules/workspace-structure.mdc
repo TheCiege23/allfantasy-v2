@@ -1,0 +1,17 @@
+---
+description: Use this repo’s paths only — no alternate web/ tree; extend existing entry points
+alwaysApply: true
+---
+
+# Workspace structure (this repository)
+
+## Do
+
+- **Use paths that exist in this workspace**: `app/`, `components/`, `lib/`, `server/`, `hooks/`, `prisma/`, etc.
+- **Follow established folder patterns** for each feature (e.g. waiver wire under `components/waiver-wire/`, league routes under `app/league/...`).
+- **Extend the feature’s current entry point** (page, client, API route) when adding behavior instead of introducing a parallel surface.
+
+## Do not
+
+- **Reference or mirror paths** such as `allfantasy/web` or `web/src` — they are not part of this codebase layout.
+- **Duplicate pages or routes** under a second tree when an entry point already exists for that feature.

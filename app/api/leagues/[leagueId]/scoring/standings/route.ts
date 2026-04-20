@@ -1,0 +1,52 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { buildRosterLabelMap } from '@/lib/scoring-engine/resolveTeamLabels'
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { leagueId: string } },
+) {
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const leagueId = params.leagueId
+  const league = await prisma.league.findFirst({
+    where: { id: leagueId },
+    select: { id: true, season: true, userId: true, teams: { select: { platformUserId: true } } },
+  })
+  if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const memberIds = new Set(
+    league.teams.map((t) => t.platformUserId).filter((x): x is string => Boolean(x)),
+  )
+  if (league.userId !== session.user.id && !memberIds.has(session.user.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const sp = req.nextUrl.searchParams
+  const season = Math.max(2000, Math.min(2100, Number(sp.get('season')) || league.season))
+
+  const [rows, labels] = await Promise.all([
+    prisma.fantasyStanding.findMany({
+      where: { leagueId, season },
+      orderBy: [{ rank: 'asc' }],
+    }),
+    buildRosterLabelMap(leagueId),
+  ])
+
+  const standings = rows.map((r) => ({
+    rosterId: r.rosterId,
+    teamName: labels.get(r.rosterId) ?? r.rosterId,
+    wins: r.wins,
+    losses: r.losses,
+    ties: r.ties,
+    pointsFor: r.pointsFor,
+    pointsAgainst: r.pointsAgainst,
+    rank: r.rank,
+    playoffSeed: r.playoffSeed,
+  }))
+
+  return NextResponse.json({ season, standings })
+}

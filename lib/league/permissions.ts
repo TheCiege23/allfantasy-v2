@@ -1,12 +1,19 @@
 import { prisma } from '@/lib/prisma'
 
-export type LeagueRole = 'commissioner' | 'co_commissioner' | 'member' | null
+export type LeagueRole = 'commissioner' | 'co_commissioner' | 'member' | 'viewer' | null
 
 /**
  * Returns the role of userId in leagueId.
- * Returns null if the user is not a member of that league.
+ * Head commissioner is always the AllFantasy league owner (`League.userId`), regardless of imported Sleeper flags.
  */
 export async function getLeagueRole(leagueId: string, userId: string): Promise<LeagueRole> {
+  const league = await prisma.league.findFirst({
+    where: { id: leagueId },
+    select: { userId: true },
+  })
+  if (!league) return null
+  if (league.userId === userId) return 'commissioner'
+
   const team = await prisma.leagueTeam.findFirst({
     where: {
       leagueId,
@@ -15,21 +22,24 @@ export async function getLeagueRole(leagueId: string, userId: string): Promise<L
     select: {
       isCommissioner: true,
       isCoCommissioner: true,
+      role: true,
     },
   })
 
-  if (!team) {
-    const league = await prisma.league.findFirst({
-      where: { id: leagueId, userId },
-      select: { isCommissioner: true },
-    })
-    if (league?.isCommissioner) return 'commissioner'
-    return null
+  if (team) {
+    if (team.role === 'viewer') return 'viewer'
+    if (team.isCommissioner) return 'commissioner'
+    if (team.isCoCommissioner) return 'co_commissioner'
+    return 'member'
   }
 
-  if (team.isCommissioner) return 'commissioner'
-  if (team.isCoCommissioner) return 'co_commissioner'
-  return 'member'
+  const roster = await prisma.roster.findFirst({
+    where: { leagueId, platformUserId: userId },
+    select: { id: true },
+  })
+  if (roster) return 'member'
+
+  return null
 }
 
 /**

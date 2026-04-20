@@ -1,9 +1,12 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ImportProvider } from '@/lib/league-import/types'
 import { IMPORT_PROVIDER_UI_OPTIONS } from '@/lib/league-import/provider-ui-config'
 import type { ImportPreviewResponse } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
+import CanonicalImportSummaryCard, {
+  type CanonicalPreview,
+} from '@/components/league-import/CanonicalImportSummaryCard'
 
 type ApplyOptions = {
   leagueStructure: boolean
@@ -27,6 +30,7 @@ const PROVIDER_HELP: Partial<Record<ImportProvider, string>> = {
   yahoo: 'Yahoo league key (e.g. 461.l.12345) or numeric league id',
   fantrax: 'Fantrax source id (or legacy resolver source)',
   mfl: 'MyFantasyLeague id (or season:id)',
+  fleaflicker: 'League id from URL, or NFL:12345 / NBA:99:2024 (sport, id, season)',
 }
 
 export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
@@ -34,10 +38,13 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
   const [sourceId, setSourceId] = useState('')
   const [apply, setApply] = useState<ApplyOptions>(DEFAULT_APPLY_OPTIONS)
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null)
+  const [canonical, setCanonical] = useState<CanonicalPreview | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [resultMessage, setResultMessage] = useState<string | null>(null)
+  const [openReviewCount, setOpenReviewCount] = useState<number | null>(null)
+  const [recentWarningCount, setRecentWarningCount] = useState<number | null>(null)
 
   const availableProviders = useMemo(
     () => IMPORT_PROVIDER_UI_OPTIONS.filter((opt) => opt.available),
@@ -47,6 +54,34 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
   const setApplyField = useCallback((key: keyof ApplyOptions, value: boolean) => {
     setApply((prev) => ({ ...prev, [key]: value }))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const revRes = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/import/review`)
+        const rev = await revRes.json().catch(() => ({}))
+        const warnRes = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/import/warnings`)
+        const warn = warnRes.ok ? await warnRes.json().catch(() => ({})) : {}
+        if (cancelled) return
+        const tasks = Array.isArray(rev.tasks) ? rev.tasks : []
+        setOpenReviewCount(tasks.filter((t: { status?: string }) => t.status === 'open').length)
+        if (warnRes.ok && Array.isArray(warn.warnings)) {
+          setRecentWarningCount(Math.min(warn.warnings.length, 99))
+        } else {
+          setRecentWarningCount(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setOpenReviewCount(null)
+          setRecentWarningCount(null)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId])
 
   const loadPreview = useCallback(async () => {
     if (!leagueId || !sourceId.trim()) return
@@ -67,9 +102,11 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
       if (!res.ok) {
         setError(json.error ?? 'Failed to fetch import preview')
         setPreview(null)
+        setCanonical(null)
         return
       }
       setPreview((json.preview as ImportPreviewResponse) ?? null)
+      setCanonical((json.canonical as CanonicalPreview) ?? null)
       if (json.apply && typeof json.apply === 'object') {
         setApply({
           leagueStructure: (json.apply as ApplyOptions).leagueStructure !== false,
@@ -82,6 +119,7 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
     } catch {
       setError('Failed to fetch import preview')
       setPreview(null)
+      setCanonical(null)
     } finally {
       setLoadingPreview(false)
     }
@@ -126,6 +164,16 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
         <p className="mt-1 text-xs text-white/65">
           Deterministically import league structure, rosters, draft picks, scoring rules, and league name from supported platforms.
         </p>
+        {openReviewCount !== null && openReviewCount > 0 ? (
+          <p className="mt-2 rounded-lg border border-amber-400/20 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-100/90" data-testid="import-open-review-banner">
+            {openReviewCount} open import review task{openReviewCount === 1 ? '' : 's'} — resolve in League Settings when mappings look correct.
+          </p>
+        ) : null}
+        {recentWarningCount !== null && recentWarningCount > 0 && (openReviewCount ?? 0) === 0 ? (
+          <p className="mt-2 text-xs text-white/45" data-testid="import-recent-warnings-note">
+            {recentWarningCount} recorded import notice{recentWarningCount === 1 ? '' : 's'} (see warnings API / support).
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
@@ -168,6 +216,8 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
           {loadingPreview ? 'Loading preview…' : 'Fetch import preview'}
         </button>
       </div>
+
+      {canonical ? <CanonicalImportSummaryCard canonical={canonical} /> : null}
 
       {preview ? (
         <div className="space-y-3 rounded-lg border border-white/10 bg-black/30 p-3">

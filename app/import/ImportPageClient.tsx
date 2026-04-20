@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import SleeperImportForm from "@/components/SleeperImportForm";
+import CanonicalImportSummaryCard, {
+  type CanonicalPreview,
+} from "@/components/league-import/CanonicalImportSummaryCard";
 import { UnifiedImportPanel } from "@/components/UnifiedImportPanel";
 import { fetchImportPreview } from "@/lib/league-import/LeagueCreationImportSubmissionService";
 import type { ImportProvider } from '@/lib/league-import/types';
@@ -21,7 +24,11 @@ export function ImportPageClient({
   const router = useRouter();
   const [loadingProvider, setLoadingProvider] = useState<ImportProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [previewInfo, setPreviewInfo] = useState<{ provider: ImportProvider; leagueName: string } | null>(null);
+  const [previewInfo, setPreviewInfo] = useState<{
+    provider: ImportProvider;
+    leagueName: string;
+    canonical: CanonicalPreview | null;
+  } | null>(null);
 
   async function handleUnifiedImport(provider: ImportProvider, sourceInput: string) {
     setLoadingProvider(provider);
@@ -32,9 +39,13 @@ export function ImportPageClient({
       if (!preview.ok) {
         throw new Error(preview.error || "Preview failed");
       }
-      const payload = preview.data as { league?: { name?: string } } | undefined;
+      const payload = preview.data as {
+        league?: { name?: string };
+        canonical?: CanonicalPreview | null;
+      } | undefined;
       const leagueName = payload?.league?.name?.trim() || "League";
-      setPreviewInfo({ provider, leagueName });
+      const canonical = payload?.canonical ?? null;
+      setPreviewInfo({ provider, leagueName, canonical });
     } catch (e: any) {
       setError(e instanceof Error ? e.message : 'Import failed. Please try again.');
     } finally {
@@ -96,6 +107,11 @@ export function ImportPageClient({
             <p className="mb-3 text-[13px] text-white/75">
               {previewInfo.leagueName} ({previewInfo.provider})
             </p>
+            {previewInfo.canonical ? (
+              <div className="mb-3">
+                <CanonicalImportSummaryCard canonical={previewInfo.canonical} />
+              </div>
+            ) : null}
             <p className="mb-3 text-[12px] text-white/45">
               Continue in Create League to finish importing this league into AllFantasy, or use League Sync for ongoing sync.
             </p>

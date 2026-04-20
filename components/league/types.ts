@@ -10,6 +10,19 @@ export type LeagueRecord = {
   ties: number
 }
 
+export type LeagueLifecycleSnapshot = {
+  state: string
+  locked: boolean
+  emergencyPaused: boolean
+  allowedActions: string[]
+}
+
+/** Authoritative role flags from GET `/api/leagues/:id/lifecycle` (preferred over SSR `leagueRole` when present). */
+export type LeagueLifecyclePermissions = {
+  isElevatedCommissioner: boolean
+  isHeadCommissioner: boolean
+}
+
 export type LeagueHeaderInfo = {
   id: string
   name: string
@@ -20,6 +33,10 @@ export type LeagueHeaderInfo = {
   leagueVariant: string | null
   leagueType: string | null
   isDynasty: boolean
+  /** Sleeper-style scoring week when present in league settings JSON (e.g. `settings.leg`). */
+  currentWeek?: number | null
+  /** Canonical lifecycle + permission hints for League Status Bar / commissioner UI. */
+  lifecycle?: LeagueLifecycleSnapshot
 }
 
 export type LeagueTeamRow = {
@@ -301,6 +318,8 @@ export type LeagueHomeData = {
   introVideo: LeagueIntroVideoData | null
   currentUserId: string
   isCommissioner: boolean
+  /** Resolved role for permission gating in the shell. */
+  leagueRole: 'commissioner' | 'co_commissioner' | 'member' | 'viewer' | null
   activeTab: LeagueTopTab
   teamsInDraftOrder: LeagueTeamRow[]
   standings: LeagueTeamRow[]

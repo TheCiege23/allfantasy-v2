@@ -98,7 +98,7 @@ export async function POST(
   if (draftSession && draftSession.status !== 'pre_draft') {
     try {
       if (action === 'pause') {
-        const ok = await pauseDraftSession(params.leagueId)
+        const ok = await pauseDraftSession(params.leagueId, userId)
         if (!ok) return NextResponse.json({ error: 'Cannot pause', platformSupported: true }, { status: 400 })
         const session = await buildSessionSnapshot(params.leagueId)
         return NextResponse.json({ status: 'acknowledged', action, platformSupported: true, session })

@@ -543,7 +543,7 @@ export class DraftWorker {
 
   async pauseDraft(draftId: string): Promise<void> {
     const context = await this.getContext(draftId)
-    const paused = await pauseDraftSession(context.leagueId)
+    const paused = await pauseDraftSession(context.leagueId, this.options.viewerUserId ?? null)
     if (!paused) {
       throw new Error('Unable to pause draft')
     }
@@ -619,6 +619,7 @@ export class DraftWorker {
       playerId: player.playerId,
       byeWeek: player.byeWeek,
       rosterId: snapshot.currentPick.rosterId,
+      madeByUserId: userId,
       source: player.pickSource ?? (commissioner ? 'commissioner' : 'user'),
     })
 
@@ -746,6 +747,7 @@ export class DraftWorker {
       team: fallback.team,
       playerId: fallback.playerId,
       rosterId: teamId,
+      madeByUserId: null,
       source: 'auto',
     })
 

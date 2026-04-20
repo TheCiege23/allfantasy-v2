@@ -5,11 +5,11 @@ import { leagueToolAccessUserMessage } from '@/lib/ai-tools/league-tool-access-m
 import { assertLeagueMemberWithCode } from '@/lib/league/league-access'
 import { prisma } from '@/lib/prisma'
 import {
-  fetchFantasyCalcValues,
   getTrendingPlayers as fcSortByTrend,
   type FantasyCalcPlayer,
   type FantasyCalcSettings,
 } from '@/lib/fantasycalc'
+import { readFantasyCalcValuesFromDb } from '@/lib/fantasycalc-db'
 import { getPlayer } from '@/lib/data/players'
 import { openaiChatText } from '@/lib/openai-client'
 import { attachIntelligenceToChimmyPayload, buildAiToolPayload } from '@/lib/intelligence'
@@ -110,9 +110,14 @@ async function enrichHeadshot(playerId: string): Promise<{ headshotUrl: string |
   }
 }
 
-async function cardFromFcPlayer(p: FantasyCalcPlayer, rank: number, trendType: TrendTypeId): Promise<TrendPlayerCard> {
+async function cardFromFcPlayer(
+  p: FantasyCalcPlayer,
+  rank: number,
+  trendType: TrendTypeId,
+  includeEnrichment: boolean,
+): Promise<TrendPlayerCard> {
   const playerId = `NFL:${p.player.sleeperId}`
-  const enrich = await enrichHeadshot(playerId)
+  const enrich = includeEnrichment ? await enrichHeadshot(playerId) : { headshotUrl: null, logoUrl: null, injury: null }
   const conf = Math.min(
     95,
     Math.max(
@@ -174,14 +179,20 @@ async function buildNflFromFantasyCalc(args: {
   rookiesOnly: boolean
   trendType: TrendTypeId
   limit: number
+  includeEnrichment: boolean
   dataGaps: string[]
 }): Promise<{ risers: TrendPlayerCard[]; fallers: TrendPlayerCard[] }> {
   let players: FantasyCalcPlayer[] = []
   try {
-    players = await fetchFantasyCalcValues(args.settings)
+    const cached = await readFantasyCalcValuesFromDb(args.settings, { allowStale: true })
+    players = cached.players
   } catch (e) {
     console.warn('[trending-players] FantasyCalc fetch failed', e)
-    args.dataGaps.push('FantasyCalc API unavailable — NFL value trends skipped.')
+    args.dataGaps.push('FantasyCalc cache unavailable — NFL value trends skipped.')
+    return { risers: [], fallers: [] }
+  }
+  if (players.length === 0) {
+    args.dataGaps.push('FantasyCalc valuation cache is empty — run sync-fantasycalc-valuations to restore NFL value trends.')
     return { risers: [], fallers: [] }
   }
   const pool = filterFcPool(players, args.position, args.rookiesOnly)
@@ -191,14 +202,12 @@ async function buildNflFromFantasyCalc(args: {
   }
   const upPool = sortFcForTrendType(pool, args.trendType, 'up').slice(0, args.limit)
   const downPool = sortFcForTrendType(pool, args.trendType, 'down').slice(0, args.limit)
-  const risers: TrendPlayerCard[] = []
-  const fallers: TrendPlayerCard[] = []
-  for (let i = 0; i < upPool.length; i++) {
-    risers.push(await cardFromFcPlayer(upPool[i], i + 1, args.trendType))
-  }
-  for (let i = 0; i < downPool.length; i++) {
-    fallers.push(await cardFromFcPlayer(downPool[i], i + 1, args.trendType))
-  }
+  const risers = await Promise.all(
+    upPool.map((player, i) => cardFromFcPlayer(player, i + 1, args.trendType, args.includeEnrichment)),
+  )
+  const fallers = await Promise.all(
+    downPool.map((player, i) => cardFromFcPlayer(player, i + 1, args.trendType, args.includeEnrichment)),
+  )
   return { risers, fallers }
 }
 
@@ -206,6 +215,7 @@ async function buildNflFromTrendingTable(args: {
   position: string
   rookiesOnly: boolean
   limit: number
+  includeEnrichment: boolean
   dataGaps: string[]
 }): Promise<{ risers: TrendPlayerCard[]; fallers: TrendPlayerCard[] }> {
   const [addLeaders, dropLeaders] = await Promise.all([
@@ -227,7 +237,7 @@ async function buildNflFromTrendingTable(args: {
 
   async function mapRow(r: (typeof addLeaders)[0], rank: number, direction: 'up' | 'down'): Promise<TrendPlayerCard | null> {
     const playerId = `NFL:${r.sleeperId}`
-    const enrich = await enrichHeadshot(playerId)
+    const enrich = args.includeEnrichment ? await enrichHeadshot(playerId) : { headshotUrl: null, logoUrl: null, injury: null }
     const pos = r.position ?? '—'
     if (args.position !== 'ALL' && !matchesPositionFilter(pos, args.position, 'NFL')) return null
     return {
@@ -456,7 +466,7 @@ export async function runTrendingDashboard(input: {
   const fcSettings = fantasyCalcSettingsFromLeague(loadedLeague)
 
   let trendingLeagueContext: NormalizedLeagueContext | null = null
-  if (input.userId && input.leagueId) {
+  if (input.userId && input.leagueId && !input.skipAi) {
     const tr = await resolveNormalizedLeagueContext({
       userId: input.userId,
       leagueId: input.leagueId,
@@ -471,6 +481,7 @@ export async function runTrendingDashboard(input: {
         position: input.position,
         rookiesOnly: rookiesEffective,
         limit,
+        includeEnrichment: !input.skipAi,
         dataGaps,
       })
       if (t.risers.length + t.fallers.length === 0) {
@@ -480,6 +491,7 @@ export async function runTrendingDashboard(input: {
           rookiesOnly: rookiesEffective,
           trendType: input.trendType,
           limit,
+          includeEnrichment: !input.skipAi,
           dataGaps,
         })
         risers.push(...fb.risers)
@@ -495,6 +507,7 @@ export async function runTrendingDashboard(input: {
         rookiesOnly: rookiesEffective,
         trendType: input.trendType,
         limit,
+        includeEnrichment: !input.skipAi,
         dataGaps,
       })
       risers.push(...fb.risers)
@@ -553,7 +566,8 @@ export async function runTrendingDashboard(input: {
   }
 
   let projectionLayerReady = false
-  if (risers.length > 0 || fallers.length > 0) {
+  // UI dashboard requests pass skipAi=true and do not require heavy projection/context enrichment.
+  if (!input.skipAi && (risers.length > 0 || fallers.length > 0)) {
     const enriched = await attachTrendCardProjectionAndLeagueContext({
       risers,
       fallers,
@@ -634,7 +648,7 @@ export async function runTrendingDashboard(input: {
 
   let chimmyPayload: Record<string, unknown> = chimmyBase
   let aiEnvelopeReady = false
-  if (input.userId) {
+  if (input.userId && !input.skipAi) {
     const trendEnvelope = await buildAiToolPayload({
       userId: input.userId,
       tool: 'trending_players',

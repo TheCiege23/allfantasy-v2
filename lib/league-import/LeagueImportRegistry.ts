@@ -28,5 +28,12 @@ export function getSupportedProviders(): readonly ImportProvider[] {
 }
 
 export function hasFullAdapter(provider: ImportProvider): boolean {
-  return provider === 'sleeper' || provider === 'yahoo' || provider === 'espn' || provider === 'mfl' || provider === 'fantrax'
+  return (
+    provider === 'sleeper' ||
+    provider === 'yahoo' ||
+    provider === 'espn' ||
+    provider === 'mfl' ||
+    provider === 'fantrax' ||
+    provider === 'fleaflicker'
+  )
 }

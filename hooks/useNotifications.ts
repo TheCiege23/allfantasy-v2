@@ -9,6 +9,7 @@ import {
   getNotificationReadEndpoint,
   NOTIFICATIONS_READ_ALL_ENDPOINT,
 } from '@/lib/notification-center'
+import { addStateRefreshListener } from '@/lib/state-consistency/state-events'
 
 export function useNotifications(
   limit = 8,
@@ -46,9 +47,13 @@ export function useNotifications(
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       void load()
     }, 60_000)
+    const unsub = addStateRefreshListener(['leagues', 'all'], () => {
+      void load()
+    })
     return () => {
       mounted = false
       clearInterval(timer)
+      unsub()
     }
   }, [load])
 

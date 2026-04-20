@@ -157,7 +157,10 @@
       "mcp__Claude_in_Chrome__get_page_text",
       "Bash(git commit -m ' *)",
       "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx tsc --noEmit --project tsconfig.json)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(xargs -I {} ls prisma/migrations/{})",
+      "Bash(grep -rln \"publishProvider\\\\|social.*post\\\\|brand.*post\\\\|x\\\\\\\\.com\\\\|twitter\" lib/fantasy-media lib/automated-blog)",
+      "Bash(grep -n \"grid-cols-2 gap-2 sm:grid-cols-4\\\\|<Sparkles className\\\\|Draft \\\\${variantsCount}\\\\|drafts\\\\\\\\.map\" app/admin/components/AdminBrandPosts.tsx)"
     ]
   }
 }

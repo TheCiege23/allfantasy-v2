@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { RefreshCw, DollarSign, ListOrdered, CheckCircle, Loader2, Trash2, ArrowUpDown, MessageSquare, GitCompare } from "lucide-react"
+import { RefreshCw, CheckCircle, Loader2, MessageSquare, GitCompare } from "lucide-react"
 import { toast } from "sonner"
 import WaiverFilters from "@/components/waiver-wire/WaiverFilters"
 import WaiverPlayerRow from "@/components/waiver-wire/WaiverPlayerRow"
@@ -23,7 +23,6 @@ import {
   getWaiverWatchlistStorageKey,
   resetWaiverFilters,
 } from "@/lib/waiver-wire/WaiverUIStateService"
-import { parseOptionalNumber } from "@/lib/waiver-wire/WaiverClaimFlowController"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { useUserTimezone } from "@/hooks/useUserTimezone"
@@ -31,6 +30,11 @@ import { useAIAssistantAvailability } from "@/hooks/useAIAssistantAvailability"
 import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
 import { usePlayerComparisonUIOptional } from "@/components/player-comparison-ui"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
+import FaabBudgetCard from "@/components/waivers/FaabBudgetCard"
+import WaiverPriorityCard from "@/components/waivers/WaiverPriorityCard"
+import CommissionerWaiverControls from "@/components/waivers/CommissionerWaiverControls"
+import PendingClaimsList, { buildPendingClaimPatch } from "@/components/waivers/PendingClaimsList"
+import WaiverResultsFeed from "@/components/waivers/WaiverResultsFeed"
 
 type WaiverSettings = {
   leagueId?: string
@@ -183,24 +187,29 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
   const [waiverAiLoading, setWaiverAiLoading] = useState(false)
   const [waiverAiError, setWaiverAiError] = useState("")
   const [waiverAiAnalysis, setWaiverAiAnalysis] = useState<WaiverEngineAnalysis | null>(null)
+  const [nextRunAt, setNextRunAt] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!leagueId) return
     setLoading(true)
     setLoadError("")
     try {
-      const [settingsRes, claimsRes, playersRes, rosterRes, historyRes] = await Promise.all([
+      const [settingsRes, claimsRes, playersRes, rosterRes, historyRes, stateRes] = await Promise.all([
         fetch(`/api/waiver-wire/leagues/${leagueId}/settings`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/claims`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/players?limit=80`),
         fetch(`/api/league/roster?leagueId=${leagueId}`),
         fetch(`/api/waiver-wire/leagues/${leagueId}/claims?type=history&limit=30`),
+        fetch(`/api/waiver-wire/leagues/${leagueId}/state`),
       ])
       const settingsData = await settingsRes.json().catch(() => ({}))
       const claimsData = await claimsRes.json().catch(() => ({}))
       const playersData = await playersRes.json().catch(() => ({}))
       const rosterData = await rosterRes.json().catch(() => ({}))
       const historyData = await historyRes.json().catch(() => ({}))
+      const stateData = await stateRes.json().catch(() => ({}))
+      const nr = stateData?.state?.nextRunAt
+      setNextRunAt(typeof nr === "string" ? nr : nr instanceof Date ? nr.toISOString() : nr != null ? String(nr) : null)
       if (!settingsRes.ok) setSettings(null)
       else setSettings(settingsData)
       if (!claimsRes.ok) setClaims([])
@@ -316,6 +325,10 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
         }),
       })
       if (res.ok) {
+        const json = await res.json().catch(() => ({}))
+        if (typeof json?.fcfsProcessWarning === "string" && json.fcfsProcessWarning.trim()) {
+          toast.warning(`Claim saved; processing warning: ${json.fcfsProcessWarning}`)
+        }
         setDrawerOpen(false)
         setDrawerPlayer(null)
         load()
@@ -600,23 +613,19 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
           <p className="text-xs text-white/60">
             Browse free agents, submit claims, and track your FAAB and priority with rule-aware waiver tools.
           </p>
+          {nextRunAt && (
+            <p className="text-[11px] text-white/45" data-testid="waiver-next-run-hint">
+              Next scheduled run: {formatInTimezone(nextRunAt)}
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          {isFaab && faabRemaining != null && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-200 sm:text-sm">
-              <DollarSign className="h-3.5 w-3.5" />
-              FAAB: {faabRemaining}
-            </span>
-          )}
-          {waiverPriority != null && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-black/30 px-2.5 py-1 text-xs text-white/80 sm:text-sm">
-              <ListOrdered className="h-3.5 w-3.5" />
-              Waiver priority: {waiverPriority}
-            </span>
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {isFaab && <FaabBudgetCard faabRemaining={faabRemaining} budgetCap={settings?.faabBudget ?? null} />}
+          <WaiverPriorityCard waiverPriority={waiverPriority} />
           <span className="inline-flex items-center gap-1 rounded-lg border border-fuchsia-400/30 bg-fuchsia-500/10 px-2.5 py-1 text-xs text-fuchsia-100 sm:text-sm">
             Watchlist: {watchlistPlayerIds.length}
           </span>
+          <CommissionerWaiverControls leagueId={leagueId} onAfterAction={() => load()} />
           <button
             type="button"
             onClick={() => load()}
@@ -799,196 +808,65 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       )}
 
       {activeTab === "pending" && (
-        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
-          <div className="mb-2 flex items-center justify-between text-xs text-white/60">
-            <span>Manage claim order, bids, and drops before processing.</span>
-            <span className="inline-flex items-center gap-1">
-              <ArrowUpDown className="h-3 w-3" />
-              Drag/prioritize in your host app; use numbers here to hint preferred order.
-            </span>
-          </div>
-          <ul className="space-y-2">
-            {claims.length === 0 ? (
-              <li className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_PENDING_TITLE}</li>
-            ) : (
-              claims.map((c, idx) => (
-                <li
-                  key={c.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2"
-                >
-                  <div className="flex min-w-0 flex-1 flex-col gap-1 text-xs text-white/80">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <ListOrdered className="h-4 w-4 text-white/50" />
-                      <span className="text-sm text-white">
-                        #{idx + 1} Add {c.addPlayerId}
-                      </span>
-                      {c.dropPlayerId && <span className="text-xs text-white/60">Drop {c.dropPlayerId}</span>}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-white/50">Drop</span>
-                        <select
-                          value={pendingEdits[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? "")}
-                          aria-label={`Pending claim drop player ${c.id}`}
-                          data-testid={`waiver-claim-drop-edit-${c.id}`}
-                          onChange={(e) =>
-                            setPendingEdits((prev) => ({
-                              ...prev,
-                              [c.id]: {
-                                faabBid:
-                                  prev[c.id]?.faabBid ??
-                                  (c.faabBid != null ? c.faabBid.toString() : ""),
-                                priority:
-                                  prev[c.id]?.priority ??
-                                  (c.priorityOrder ?? idx + 1).toString(),
-                                dropPlayerId: e.target.value,
-                              },
-                            }))
-                          }
-                          className="rounded border border-white/25 bg-black/40 px-1.5 py-0.5 text-[11px] text-white outline-none"
-                        >
-                          <option value="">No drop</option>
-                          {rosterPlayers.map((rp) => (
-                            <option key={rp.id} value={rp.id}>
-                              {rp.name || rp.id}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-white/50">Priority</span>
-                        <input
-                          type="number"
-                          min={0}
-                          className="w-14 rounded border border-white/25 bg-black/40 px-1.5 py-0.5 text-[11px] text-white outline-none"
-                          value={pendingEdits[c.id]?.priority ?? (c.priorityOrder ?? idx + 1).toString()}
-                          onChange={(e) =>
-                            setPendingEdits((prev) => ({
-                              ...prev,
-                              [c.id]: {
-                                faabBid:
-                                  prev[c.id]?.faabBid ??
-                                  (c.faabBid != null ? c.faabBid.toString() : ""),
-                                priority: e.target.value,
-                                dropPlayerId: prev[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? ""),
-                              },
-                            }))
-                          }
-                        />
-                      </div>
-                      {isFaab && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-white/50">Bid</span>
-                          <input
-                            type="number"
-                            min={0}
-                            className="w-16 rounded border border-white/25 bg-black/40 px-1.5 py-0.5 text-[11px] text-white outline-none"
-                            value={pendingEdits[c.id]?.faabBid ?? (c.faabBid != null ? c.faabBid.toString() : "")}
-                            onChange={(e) =>
-                              setPendingEdits((prev) => ({
-                                ...prev,
-                                [c.id]: {
-                                  faabBid: e.target.value,
-                                  priority:
-                                    prev[c.id]?.priority ??
-                                    (c.priorityOrder ?? idx + 1).toString(),
-                                  dropPlayerId: prev[c.id]?.dropPlayerId ?? (c.dropPlayerId ?? ""),
-                                },
-                              }))
-                            }
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const edit = pendingEdits[c.id]
-                        const nextPriority = edit?.priority ?? (c.priorityOrder ?? idx + 1).toString()
-                        const nextBidRaw = edit?.faabBid ?? (c.faabBid != null ? c.faabBid.toString() : "")
-                        const nextDropPlayerId = edit?.dropPlayerId ?? (c.dropPlayerId ?? "")
-                        const patch: { faabBid?: number | null; priorityOrder?: number | null; dropPlayerId?: string | null } = {}
-                        if (nextPriority !== "") patch.priorityOrder = parseOptionalNumber(nextPriority) || 0
-                        if (isFaab && nextBidRaw !== "") patch.faabBid = parseOptionalNumber(nextBidRaw) || 0
-                        patch.dropPlayerId = nextDropPlayerId || null
-                        void updateClaimById(c.id, patch)
-                      }}
-                      data-testid={`waiver-claim-save-${c.id}`}
-                      className="rounded border border-cyan-400/60 px-2 py-1 text-xs text-cyan-200 hover:bg-cyan-500/20"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cancelClaimById(c.id)}
-                      data-testid={`waiver-claim-cancel-${c.id}`}
-                      className="rounded border border-red-400/40 px-2 py-1 text-xs text-red-300 hover:bg-red-500/20"
-                    >
-                      <Trash2 className="mr-1 inline h-3 w-3" />
-                      Cancel
-                    </button>
-                  </div>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
+        <PendingClaimsList
+          claims={claims}
+          isFaab={isFaab}
+          rosterPlayers={rosterPlayers}
+          pendingEdits={pendingEdits}
+          setPendingEdits={setPendingEdits}
+          onSave={(claimId, idx, c) => {
+            const patch = buildPendingClaimPatch(c, idx, pendingEdits[claimId], isFaab)
+            void updateClaimById(claimId, patch)
+          }}
+          onCancel={cancelClaimById}
+        />
       )}
 
       {activeTab === "history" && (
         <div className="rounded-xl border border-white/10 bg-black/20 p-4">
           <h3 className="mb-2 text-sm font-semibold text-white">Processed claims</h3>
-          <ul className="space-y-1.5 text-sm">
-            {history.transactions.length === 0 && history.claims.length === 0 ? (
-              <li className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_HISTORY_TITLE}</li>
-            ) : (
-              <>
-                {history.transactions.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-white/90"
-                  >
-                    <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />
-                    <span>
-                      {t.isDefensiveAdd && <span className="mr-1 rounded bg-amber-500/20 px-1 text-amber-300 text-xs">Defensive add</span>}
-                      Add {t.addPlayerId}
-                      {t.dropPlayerId && (
-                        <>
-                          {" · "}
-                          {t.isDefensiveDrop && <span className="mr-1 rounded bg-amber-500/20 px-1 text-amber-300 text-xs">Defensive drop</span>}
-                          Drop {t.dropPlayerId}
-                        </>
-                      )}
-                    </span>
-                    {t.faabSpent != null && <span className="text-cyan-300">${t.faabSpent}</span>}
-                    <span className="ml-auto text-xs text-white/50">
-                      {formatInTimezone(t.processedAt)}
-                    </span>
-                  </li>
-                ))}
-                {history.claims.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-white/90"
-                  >
-                    <span className="h-4 w-4 rounded-full border border-red-400/60 text-[10px] leading-4 text-red-300 text-center">
-                      !
-                    </span>
-                    <span>
-                      Failed claim for {c.addPlayerId}
-                      {c.dropPlayerId && <> · Drop {c.dropPlayerId}</>}
-                    </span>
-                    {c.faabBid != null && <span className="text-cyan-300">${c.faabBid}</span>}
-                    <span className="ml-auto text-xs text-white/50">
-                      {c.status || "failed"}
-                    </span>
-                  </li>
-                ))}
-              </>
-            )}
-          </ul>
+          {history.transactions.length === 0 && history.claims.length === 0 ? (
+            <p className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_HISTORY_TITLE}</p>
+          ) : (
+            <div className="space-y-4">
+              {history.transactions.length > 0 && (
+                <WaiverResultsFeed
+                  transactions={history.transactions.map((t) => ({
+                    id: t.id,
+                    addPlayerId: t.addPlayerId,
+                    dropPlayerId: t.dropPlayerId,
+                    faabSpent: t.faabSpent,
+                    processedAt: t.processedAt,
+                    addPlayerPosition: t.addPlayerPosition,
+                    dropPlayerPosition: t.dropPlayerPosition,
+                    isDefensiveAdd: t.isDefensiveAdd,
+                    isDefensiveDrop: t.isDefensiveDrop,
+                  }))}
+                  formatTime={formatInTimezone}
+                />
+              )}
+              {history.claims.length > 0 && (
+                <ul className="space-y-1.5 text-sm" data-testid="waiver-history-failed-claims">
+                  {history.claims.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-white/90"
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-400/60 text-[10px] leading-none text-red-300">
+                        !
+                      </span>
+                      <span>
+                        Failed claim for {c.addPlayerId}
+                        {c.dropPlayerId && <> · Drop {c.dropPlayerId}</>}
+                      </span>
+                      {c.faabBid != null && <span className="text-cyan-300">${c.faabBid}</span>}
+                      <span className="ml-auto text-xs text-white/50">{c.status || "failed"}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       )}
 

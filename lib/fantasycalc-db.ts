@@ -1,5 +1,3 @@
-import 'server-only'
-
 import { prisma } from '@/lib/prisma'
 import type { FantasyCalcPlayer, FantasyCalcSettings } from '@/lib/fantasycalc'
 import { fetchFantasyCalcValues } from '@/lib/fantasycalc'

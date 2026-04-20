@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
 import {
   pauseDraftSession,
   resumeDraftSession,
@@ -101,10 +101,9 @@ export async function POST(
   const { leagueId } = await ctx.params
   if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
 
-  try {
-    await assertCommissioner(leagueId, userId)
-  } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const gate = await assertLeagueActionGate(leagueId, userId, 'draft_commissioner_control')
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
   }
 
   const body = await req.json().catch(() => ({}))
@@ -128,7 +127,7 @@ export async function POST(
     }
 
     if (action === 'pause') {
-      const ok = await pauseDraftSession(leagueId)
+      const ok = await pauseDraftSession(leagueId, userId)
       if (!ok) return NextResponse.json({ error: 'Cannot pause draft' }, { status: 400 })
       const { notifyDraftPaused } = await import('@/lib/draft-notifications')
       notifyDraftPaused(leagueId).catch(() => {})

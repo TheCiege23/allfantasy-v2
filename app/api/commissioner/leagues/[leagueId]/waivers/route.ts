@@ -5,6 +5,7 @@ import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getEffectiveLeagueWaiverSettings, upsertLeagueWaiverSettings } from '@/lib/waiver-wire'
 import { getPendingClaims, getProcessedClaimsAndTransactions } from '@/lib/waiver-wire'
 import { processWaiverClaimsForLeague } from '@/lib/waiver-wire/process-engine'
+import { setWaiverProcessingLocked } from '@/lib/waiver-wire/waiver-state-service'
 
 export async function GET(
   req: NextRequest,
@@ -57,8 +58,18 @@ export async function PUT(
     processingDayOfWeek: body.processingDayOfWeek,
     processingTimeUtc: body.processingTimeUtc,
     claimLimitPerPeriod: body.claimLimitPerPeriod,
+    claimLimitPerWeek: body.claimLimitPerWeek,
+    claimLimitPerRun: body.claimLimitPerRun,
     faabBudget: body.faabBudget,
     faabResetDate: body.faabResetDate,
+    faabResetType: body.faabResetType,
+    waiverOrderResetPolicy: body.waiverOrderResetPolicy,
+    postGameWaiverBehavior: body.postGameWaiverBehavior,
+    processingDays: body.processingDays,
+    freeAgentWindowRules: body.freeAgentWindowRules,
+    dropRestrictions: body.dropRestrictions,
+    commissionerOverrideRules: body.commissionerOverrideRules,
+    specialtyConceptOverrides: body.specialtyConceptOverrides,
     tiebreakRule: body.tiebreakRule,
     lockType: body.lockType,
     instantFaAfterClear: body.instantFaAfterClear,
@@ -66,9 +77,9 @@ export async function PUT(
   return NextResponse.json(settings)
 }
 
-/** Trigger manual waiver run (commissioner only) */
+/** Manual waiver run, or lock/unlock processing (commissioner only) */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { leagueId: string } }
 ) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -81,6 +92,21 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const results = await processWaiverClaimsForLeague(params.leagueId)
+  const body = await req.json().catch(() => ({}))
+  const action = typeof body?.action === 'string' ? body.action : ''
+
+  if (action === 'lock_waivers') {
+    await setWaiverProcessingLocked(params.leagueId, true)
+    return NextResponse.json({ status: 'ok', processingLocked: true })
+  }
+  if (action === 'unlock_waivers') {
+    await setWaiverProcessingLocked(params.leagueId, false)
+    return NextResponse.json({ status: 'ok', processingLocked: false })
+  }
+
+  const results = await processWaiverClaimsForLeague(params.leagueId, {
+    processedByUserId: userId,
+    runType: 'manual',
+  })
   return NextResponse.json({ status: 'ok', processed: results.length, results })
 }

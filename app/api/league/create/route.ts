@@ -336,23 +336,27 @@ export async function POST(req: Request) {
         );
       }
 
-      const {
-        ImportedLeagueConflictError,
-        persistImportedLeagueFromNormalization,
-      } = await import('@/lib/league-import/ImportedLeagueCommitService');
+      const { buildCanonicalImportBundle } = await import('@/lib/league-import/canonicalImportNormalizer');
+      const { persistImportWithCanonicalAudit } = await import('@/lib/league-import/importPersistenceService');
+      const { ImportedLeagueConflictError } = await import('@/lib/league-import/ImportedLeagueCommitService');
+
       let persisted:
         | {
             league: { id: string; name: string; sport: string };
             historicalBackfill: unknown;
+            importRunId: string;
           }
         | null = null;
       try {
-        persisted = await persistImportedLeagueFromNormalization({
+        const canonical = buildCanonicalImportBundle(result.normalized);
+        const { persisted: p, runId } = await persistImportWithCanonicalAudit({
           userId: verifiedAuth.userId,
           provider: 'sleeper',
           normalized: result.normalized,
+          canonical,
           allowUpdateExisting: false,
         });
+        persisted = { ...p, importRunId: runId };
       } catch (error) {
         if (error instanceof ImportedLeagueConflictError) {
           return NextResponse.json({ error: error.message }, { status: 409 });
@@ -363,6 +367,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         league: persisted.league,
         historicalBackfill: persisted.historicalBackfill,
+        importRunId: persisted.importRunId,
       });
     }
 

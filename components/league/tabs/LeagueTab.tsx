@@ -9,6 +9,7 @@ import ActivityFeed from '@/components/league/ActivityFeed'
 import WeeklyStoryline from '@/components/league/WeeklyStoryline'
 import HypeWeekPreview from '@/components/league/HypeWeekPreview'
 import PowerRankings from '@/components/league/PowerRankings'
+import LeagueScoringPreviews from '@/components/league/LeagueScoringPreviews'
 import type {
   LeagueActivityItem,
   LeagueMatchupPreviewCardData,
@@ -20,6 +21,8 @@ import type {
 
 export default function LeagueTab({
   leagueId,
+  season,
+  currentWeek,
   standings,
   activity,
   bracket,
@@ -29,6 +32,8 @@ export default function LeagueTab({
   constitution,
 }: {
   leagueId: string
+  season?: number | null
+  currentWeek?: number | null
   standings: LeagueTeamRow[]
   activity: LeagueActivityItem[]
   bracket: LeaguePlayoffBracketData
@@ -41,6 +46,11 @@ export default function LeagueTab({
 
   return (
     <div className="space-y-6">
+      <LeagueScoringPreviews
+        leagueId={leagueId}
+        season={season ?? new Date().getFullYear()}
+        week={currentWeek ?? 1}
+      />
       <WeeklyStoryline item={constitution} />
       <WeeklyStoryline item={storyline} />
       <HypeWeekPreview item={matchupPreview} />

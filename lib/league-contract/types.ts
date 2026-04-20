@@ -55,6 +55,7 @@ export interface RosterSettingsSlice {
 export interface ScoringSettingsSlice {
   format?: string
   scoringTemplateId?: string
+  /** Passed to `server/services/scoringEngine` — supports `thresholdBonuses`, `positionMultipliers`, `idpStatAllowlist`, `matchupTiebreaker`, `standingsTiebreakerOrder`. */
   rules?: Record<string, unknown>
   source?: string
   preset?: string

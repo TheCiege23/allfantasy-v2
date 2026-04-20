@@ -5,8 +5,11 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { assertDraftSessionBelongsToLeague } from '@/lib/engine-testing/hardening/engineInvariants'
+import { logEngineInvariantOptional } from '@/lib/engine-testing/runtime/invariantRuntime'
 import { computeTimerEndAt } from './DraftTimerService'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
+import { validateSpecialtyDraftPools } from './SpecialtyDraftPoolValidation'
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
@@ -27,8 +30,13 @@ export interface SubmitPickInput {
   byeWeek?: number | null
   playerId?: string | null
   rosterId?: string | null
+  /** User who submitted the pick (manager or commissioner). */
+  madeByUserId?: string | null
   source?: 'user' | 'auto' | 'commissioner' | 'keeper' | 'devy' | 'college' | 'promoted_devy'
   tradedPicks?: { round: number; originalRosterId: string; previousOwnerName: string; newRosterId: string; newOwnerName: string }[]
+  /** Override asset classification (dispersal, pick_slot, etc.). */
+  assetType?: 'player' | 'rookie_pick' | 'devy_pick' | 'dispersal_asset' | 'pick_slot' | 'c2c_college'
+  pickMetadata?: Record<string, unknown> | null
 }
 
 export interface SubmitPickResult {
@@ -46,6 +54,15 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     include: { picks: { orderBy: { overall: 'asc' } } },
   })
   if (!session) return { success: false, error: 'Draft session not found' }
+
+  logEngineInvariantOptional(
+    assertDraftSessionBelongsToLeague({
+      sessionLeagueId: session.leagueId,
+      expectedLeagueId: input.leagueId,
+    }),
+    'submitPick.draft_session_league',
+    { leagueId: input.leagueId, sessionId: session.id },
+  )
 
   const slotOrder = (session.slotOrder as unknown as SlotOrderEntry[]) ?? []
   const tradedPicksRaw = (session as any).tradedPicks
@@ -130,7 +147,13 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     if (!c2cValidation.valid) return { success: false, error: c2cValidation.error }
   } else if (devyConfig?.enabled) {
     const devyValidation = await validateDevyEligibilityAsync(
-      { currentRound: roundForEligibility, playerName: input.playerName, position: input.position, devyConfig },
+      {
+        currentRound: roundForEligibility,
+        playerName: input.playerName,
+        position: input.position,
+        source: input.source,
+        devyConfig,
+      },
       prisma
     )
     if (!devyValidation.valid) return { success: false, error: devyValidation.error }
@@ -138,6 +161,29 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 
   const owner = resolvePickOwner(round, slot, slotOrder, input.tradedPicks ?? tradedPicks)
   const displayName = owner?.displayName ?? current.displayName
+  const slotOriginalRosterId = slotOrder.find((s) => s.slot === slot)?.rosterId ?? onClockRosterId
+
+  let assetType: string = input.assetType ?? 'player'
+  if (!input.assetType) {
+    if (input.source === 'devy' || input.source === 'promoted_devy') assetType = 'devy_pick'
+    else if (input.source === 'college') assetType = 'c2c_college'
+    else assetType = 'player'
+  }
+
+  const specialtyPool = validateSpecialtyDraftPools({
+    draftModeLabel: (session as { draftModeLabel?: string | null }).draftModeLabel,
+    dispersalPoolConfig: (session as { dispersalPoolConfig?: unknown }).dispersalPoolConfig,
+    playerPool: session.playerPool ?? 'all',
+    effectiveRosterId,
+    onClockRosterId,
+    playerId: input.playerId,
+    playerName: input.playerName,
+    position: input.position,
+    assetType,
+    pickMetadata: input.pickMetadata ?? undefined,
+    commissionerOverride: input.source === 'commissioner',
+  })
+  if (!specialtyPool.valid) return { success: false, error: specialtyPool.error }
   const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
   let tradedPickMeta = owner?.tradedPickMeta ? { ...owner.tradedPickMeta } : null
   if (tradedPickMeta) {
@@ -171,6 +217,7 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
           round,
           slot,
           rosterId: effectiveRosterId,
+          originalRosterId: slotOriginalRosterId,
           displayName,
           playerName: input.playerName.trim(),
           position: input.position,
@@ -179,6 +226,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
           playerId: input.playerId ?? null,
           tradedPickMeta: tradedPickMeta ? (tradedPickMeta as any) : undefined,
           source: input.source ?? 'user',
+          assetType,
+          ...(input.pickMetadata != null
+            ? { pickMetadata: input.pickMetadata as Prisma.InputJsonValue }
+            : {}),
+          ownerUserId: input.madeByUserId ?? null,
         },
       })
       await (tx as any).draftSession.update({

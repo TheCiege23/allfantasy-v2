@@ -11,8 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { requireVerifiedUser } from '@/lib/auth-guard'
-import { runImportedLeagueNormalizationPipeline } from '@/lib/league-import/ImportedLeagueNormalizationPipeline'
-import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
+import { orchestrateImportPreview } from '@/lib/league-import/importOrchestrator'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import { getSleeperImportPreview } from '@/lib/league-import/sleeper/SleeperImportPreviewService'
@@ -66,21 +65,26 @@ export async function POST(req: NextRequest) {
         { status: mapImportPreviewErrorStatus(sleeperPreview.code) }
       )
     }
-    return NextResponse.json(sleeperPreview.preview)
+    return NextResponse.json({
+      ...sleeperPreview.preview,
+      canonical: sleeperPreview.canonical,
+    })
   }
 
-  const result = await runImportedLeagueNormalizationPipeline({
+  const result = await orchestrateImportPreview({
     provider,
     sourceId,
     userId: auth.userId,
   })
-  if (!result.success) {
+  if (!result.ok) {
     return NextResponse.json(
       { error: result.error },
-      { status: mapImportPreviewErrorStatus(result.code) }
+      { status: mapImportPreviewErrorStatus(result.code ?? 'NORMALIZATION_FAILED') }
     )
   }
 
-  const preview = buildImportedLeaguePreview(result.normalized)
-  return NextResponse.json(preview)
+  return NextResponse.json({
+    ...result.preview,
+    canonical: result.canonicalPreview,
+  })
 }
