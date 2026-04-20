@@ -54,6 +54,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Zombie leagues cannot enable playoffs.' }, { status: 400 })
   }
 
+  // Paid leagues must declare a supported payment provider. Until LeagueSafe /
+  // FanCred checkout integrations exist as actual server flows we still gate
+  // creation on a known provider so we don't accept paid leagues that have
+  // no path to collect or pay out.
+  const isPaid = Boolean(body.isPaid)
+  if (isPaid) {
+    const provider = typeof body.paymentProvider === 'string' ? body.paymentProvider.toLowerCase() : null
+    if (!provider || !['leaguesafe', 'fancred'].includes(provider)) {
+      return NextResponse.json(
+        { error: "Paid zombie leagues require paymentProvider: 'leaguesafe' or 'fancred'." },
+        { status: 400 },
+      )
+    }
+    const buyIn = typeof body.buyIn === 'number' ? body.buyIn : null
+    if (buyIn == null || !Number.isFinite(buyIn) || buyIn <= 0) {
+      return NextResponse.json(
+        { error: 'Paid leagues require a buyIn amount greater than zero.' },
+        { status: 400 },
+      )
+    }
+  }
+
   // Force the underlying League to snake + no-playoffs so downstream draft +
   // standings code can't disagree with the zombie config.
   await prisma.leagueSettings
