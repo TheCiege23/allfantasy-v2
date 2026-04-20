@@ -2673,6 +2673,34 @@ model AppUser {
   @@map("app_users")
 }
 
+/// Cadence config for `AutomatedBlogEngine` — /api/cron/blog-autogen picks up
+/// active rows whose `lastRunAt + cadenceDays` has elapsed, runs generateAndSaveDraft
+/// with the configured sport/category/topicHint, and records the outcome. Drafts land
+/// in the existing blog article table for human review; when `autoPublish` is true the
+/// cron also calls the publish path inline after generation.
+model AutomatedBlogSchedule {
+  id                 String    @id @default(cuid())
+  sport              String    @db.VarChar(16)
+  category           String    @db.VarChar(64)
+  topicHint          String?
+  cadenceDays        Int       @default(7)
+  isActive           Boolean   @default(true)
+  autoPublish        Boolean   @default(false)
+  lastRunAt          DateTime?
+  lastRunStatus      String?   @db.VarChar(16)
+  lastRunArticleId   String?
+  lastRunError       String?
+  runCount           Int       @default(0)
+  createdByAdminId   String
+  createdByEmail     String    @db.VarChar(255)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([sport, category])
+  @@index([isActive, lastRunAt])
+  @@map("automated_blog_schedules")
+}
+
 /// Admin-managed brand social account (X, Instagram, TikTok, YouTube, LinkedIn, etc.).
 /// Separate from user-scoped `SocialPublishTarget` so brand credentials never bleed
 /// into the user flow. Credentials stored as JSON to accommodate platform differences
@@ -4386,6 +4414,7 @@ model League {
   leagueEvents                          LeagueEvent[]
   specialtyPhaseState                   SpecialtyPhaseState?
   auditLogs                             LeagueAuditLog[]
+  statReprocessLogs                     StatReprocessLog[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -4416,6 +4445,20 @@ model LeagueAuditLog {
   @@index([leagueId, createdAt])
   @@index([leagueId, actionType])
   @@map("audit_logs")
+}
+
+/// Idempotent stat-correction / week reprocess marker (deterministic replays).
+model StatReprocessLog {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(256)
+  leagueId  String
+  season    Int
+  week      Int
+  createdAt DateTime @default(now())
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, season, week])
+  @@map("stat_reprocess_logs")
 }
 
 /// Canonical import normalization audit trail + idempotent re-import.

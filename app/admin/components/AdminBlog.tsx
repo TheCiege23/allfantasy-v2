@@ -20,6 +20,7 @@ import {
 import { BLOG_CATEGORY_LABELS } from "@/lib/automated-blog/types";
 import type { BlogCategory } from "@/lib/automated-blog/types";
 import { toast } from "sonner";
+import { BlogSchedulesPanel } from "./BlogSchedulesPanel";
 
 type ArticleSummary = {
   articleId: string;
@@ -301,6 +302,9 @@ export default function AdminBlog() {
           Refresh
         </button>
       </div>
+
+      {/* Auto-blog schedules — drives /api/cron/blog-autogen */}
+      <BlogSchedulesPanel />
 
       {/* Generate section */}
       <div className="rounded-2xl border border-white/10 bg-gray-800/30 backdrop-blur p-6">
