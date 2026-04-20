@@ -17,6 +17,7 @@ import { DraftHeader } from './DraftHeader'
 import { DraftResultsView } from './DraftResultsView'
 import { DraftSettingsModal } from './DraftSettingsModal'
 import { DraftTimerBar } from './DraftTimerBar'
+import { ManagerStrip } from './ManagerStrip'
 import { PlayerPool } from './PlayerPool'
 import { QueuePanel } from './QueuePanel'
 import { RosterPanel } from './RosterPanel'
@@ -94,7 +95,35 @@ export function DraftShell({
   const [queue, setQueue] = useState<DraftPlayerRow[]>([])
   const [autopick, setAutopick] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [chatTab, setChatTab] = useState<'room' | 'chimmy'>('room')
+  const [rightTab, setRightTab] = useState<'queue' | 'roster' | 'chat' | 'ai'>('queue')
+  const [leagueMeta, setLeagueMeta] = useState<{
+    name: string | null
+    avatarsByOwnerId: Record<string, string | null>
+  }>({ name: null, avatarsByOwnerId: {} })
+
+  // Lightweight league-name + manager-avatar fetch for league drafts.
+  useEffect(() => {
+    if (!leagueId) return
+    let cancelled = false
+    void fetch(`/api/league/detail?leagueId=${encodeURIComponent(leagueId)}`, {
+      credentials: 'include',
+      cache: 'no-store',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { name?: string; teams?: Array<{ platformUserId?: string | null; claimedByUserId?: string | null; avatarUrl?: string | null }> } | null) => {
+        if (cancelled || !j) return
+        const map: Record<string, string | null> = {}
+        for (const team of j.teams ?? []) {
+          const id = team.claimedByUserId ?? team.platformUserId ?? null
+          if (id && team.avatarUrl) map[id] = team.avatarUrl
+        }
+        setLeagueMeta({ name: j.name ?? null, avatarsByOwnerId: map })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId])
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/draft/room/state?sessionId=${encodeURIComponent(sessionId)}`)
@@ -230,6 +259,29 @@ export function DraftShell({
   }
 
   const onClockLabel = order[slotIdx]?.label ?? '—'
+  const selfIndex = order.findIndex((s) => s.id === userId)
+  const enrichedOrder = useMemo<DraftPickOrderEntry[]>(() => {
+    if (!Object.keys(leagueMeta.avatarsByOwnerId).length) return order
+    return order.map((s) => ({ ...s, avatarUrl: s.avatarUrl ?? leagueMeta.avatarsByOwnerId[s.id] ?? null }))
+  }, [order, leagueMeta])
+
+  const headerTitle =
+    leagueMeta.name ??
+    (mode === 'mock' ? t('draftRoom.legacy.mockDraft') : t('draftRoom.legacy.liveDraft'))
+  const headerSubtitle = useMemo(() => {
+    const parts: string[] = []
+    if (state.timerSeconds) {
+      const sec = state.timerSeconds
+      if (sec >= 3600) parts.push(`${Math.round(sec / 3600)} Hours Per Pick`)
+      else if (sec >= 60) parts.push(`${Math.round(sec / 60)} Min Per Pick`)
+      else parts.push(`${sec}s Per Pick`)
+    }
+    if (state.numTeams) parts.push(`${state.numTeams} Teams`)
+    if (state.numRounds) parts.push(`${state.numRounds} Rounds`)
+    return parts.join(' · ')
+  }, [state.timerSeconds, state.numTeams, state.numRounds])
+
+  const draftActive = state.status === 'active'
 
   return (
     <motion.div
@@ -238,15 +290,35 @@ export function DraftShell({
       animate={{ opacity: 1 }}
     >
       <DraftHeader
-        title={mode === 'mock' ? t('draftRoom.legacy.mockDraft') : t('draftRoom.legacy.liveDraft')}
-        subtitle={
-          leagueId
-            ? `${t('draftRoom.legacy.leaguePrefix')} ${leagueId.slice(0, 8)}…`
-            : roomId
-              ? `${t('draftRoom.legacy.roomPrefix')} ${roomId.slice(0, 8)}…`
-              : undefined
+        title={headerTitle}
+        subtitle={headerSubtitle}
+        isCommissioner={isCommissioner}
+        onOpenSettings={() => setSettingsOpen(true)}
+        centerSlot={
+          draftActive ? (
+            <DraftTimerBar
+              timerEndsAt={state.timerEndsAt}
+              timerPaused={state.timerPaused}
+              onTheClockLabel={onClockLabel}
+              isCommissioner={isCommissioner}
+              onPause={() =>
+                void fetch('/api/draft/timer/pause', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId }),
+                }).then(() => load())
+              }
+              onResume={() =>
+                void fetch('/api/draft/timer/resume', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId }),
+                }).then(() => load())
+              }
+              autopickActive={autopick}
+            />
+          ) : null
         }
-        onOpenSettings={mode === 'mock' ? () => setSettingsOpen(true) : undefined}
         rightSlot={
           <div className="flex items-center gap-2">
             <AutopickToggle enabled={autopick} onChange={(v) => void toggleAutopick(v)} />
@@ -275,42 +347,26 @@ export function DraftShell({
         </div>
       ) : null}
 
-      <div className="border-b border-white/[0.06] px-3 py-2">
-        <DraftTimerBar
-          timerEndsAt={state.timerEndsAt}
-          timerPaused={state.timerPaused}
-          onTheClockLabel={onClockLabel}
-          isCommissioner={isCommissioner}
-          onPause={() =>
-            void fetch('/api/draft/timer/pause', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId }),
-            }).then(() => load())
-          }
-          onResume={() =>
-            void fetch('/api/draft/timer/resume', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId }),
-            }).then(() => load())
-          }
-          autopickActive={autopick}
+      <div className="border-b border-white/[0.06] bg-[#0a1228]/40">
+        <ManagerStrip
+          slots={enrichedOrder}
+          onClockIndex={draftActive ? slotIdx : undefined}
+          selfIndex={selfIndex >= 0 ? selfIndex : undefined}
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden px-2 py-2">
+      <div className="px-2 py-2">
         <DraftBoard
           numTeams={state.numTeams}
           numRounds={state.numRounds}
-          pickOrder={order}
+          pickOrder={enrichedOrder}
           picks={picks}
           currentOverall={currentOverall}
         />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 px-2 pb-4 lg:grid-cols-10 lg:gap-3">
-        <div className="lg:col-span-4">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 px-2 pb-4 lg:grid-cols-2">
+        <div className="min-h-[320px]">
           <PlayerPool
             draftedIds={draftedIds}
             onDraft={(p) => void onDraft(p)}
@@ -318,35 +374,46 @@ export function DraftShell({
             canDraft={canDraft}
           />
         </div>
-        <div className="lg:col-span-2">
-          <QueuePanel sessionId={sessionId} queue={queue} onQueueChange={setQueue} />
-        </div>
-        <div className="lg:col-span-2">
-          <RosterPanel myPicks={myPicks} />
-        </div>
-        <div className="flex min-h-[280px] flex-col gap-2 lg:col-span-2">
-          <div className="flex gap-1 border-b border-white/[0.06] pb-1">
-            <button
-              type="button"
-              onClick={() => setChatTab('room')}
-              className={`rounded px-2 py-1 text-[10px] font-semibold ${
-                chatTab === 'room' ? 'bg-white/10 text-white' : 'text-white/40'
-              }`}
-            >
-              {t('draftRoom.legacy.draftChat')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setChatTab('chimmy')}
-              className={`rounded px-2 py-1 text-[10px] font-semibold ${
-                chatTab === 'chimmy' ? 'bg-cyan-500/20 text-cyan-200' : 'text-white/40'
-              }`}
-            >
-              {t('draftRoom.legacy.chimmyChat')}
-            </button>
+        <div
+          className="flex min-h-[320px] flex-col rounded-lg border border-white/[0.08] bg-[#0d1117]"
+          data-testid="draft-right-panel"
+        >
+          <div role="tablist" className="flex gap-1 border-b border-white/[0.06] px-2 pt-2">
+            {([
+              { key: 'queue', label: t('draftRoom.legacy.queueTab') ?? 'Queue' },
+              { key: 'roster', label: t('draftRoom.legacy.rosterTab') ?? 'Roster' },
+              { key: 'chat', label: t('draftRoom.legacy.draftChat') ?? 'Chat' },
+              { key: 'ai', label: 'AI' },
+            ] as const).map((tab) => {
+              const active = rightTab === tab.key
+              const isAi = tab.key === 'ai'
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setRightTab(tab.key)}
+                  data-testid={`draft-right-tab-${tab.key}`}
+                  className={`rounded-t px-3 py-1.5 text-[11px] font-semibold transition ${
+                    active
+                      ? isAi
+                        ? 'bg-cyan-500/20 text-cyan-200'
+                        : 'bg-white/10 text-white'
+                      : 'text-white/45 hover:text-white/70'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
-          <div className="min-h-0 flex-1">
-            {chatTab === 'room' ? (
+          <div className="min-h-0 flex-1 p-2" data-testid={`draft-right-tab-content-${rightTab}`}>
+            {rightTab === 'queue' ? (
+              <QueuePanel sessionId={sessionId} queue={queue} onQueueChange={setQueue} />
+            ) : rightTab === 'roster' ? (
+              <RosterPanel myPicks={myPicks} />
+            ) : rightTab === 'chat' ? (
               <DraftChatPanel sessionId={sessionId} mode={mode} />
             ) : (
               <ChimmyDraftChat

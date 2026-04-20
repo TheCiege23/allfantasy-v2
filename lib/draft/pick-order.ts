@@ -6,6 +6,8 @@ export type DraftPickOrderSlot = {
   id: string
   label: string
   isCpu?: boolean
+  /** Optional avatar for league drafts. Mocks/CPUs render initials when absent. */
+  avatarUrl?: string | null
 }
 
 /** Commissioner draft order row stored in LeagueSettings.draftOrderSlots JSON. */
