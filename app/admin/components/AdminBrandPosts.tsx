@@ -11,6 +11,11 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Save,
+  Send,
+  Trash2,
+  CalendarClock,
+  PlugZap,
 } from "lucide-react"
 import {
   BRAND_PLATFORMS,
@@ -20,6 +25,7 @@ import {
   type BrandPlatform,
   type BrandPostStatus,
 } from "@/lib/brand-social/types"
+import { BrandAccountsPanel } from "./BrandAccountsPanel"
 
 type Post = {
   id: string
@@ -49,6 +55,31 @@ type DraftResponse = {
   variants: BrandDraftVariant[]
 }
 
+type BrandAccount = {
+  id: string
+  platform: string
+  handle: string
+  displayName: string | null
+  isActive: boolean
+}
+
+type SaveIntent = "save_draft" | "schedule" | "publish_now"
+
+function formatVariantForPost(v: BrandDraftVariant): string {
+  const hashtags =
+    v.hashtags.length > 0
+      ? v.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")
+      : ""
+  return [v.body, hashtags].filter(Boolean).join("\n\n")
+}
+
+/** Format local datetime-input value from current time + offset minutes. */
+function defaultScheduleValue(offsetMinutes = 60): string {
+  const d = new Date(Date.now() + offsetMinutes * 60 * 1000)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 const TONES = [
   { id: "neutral", label: "Neutral" },
   { id: "hype", label: "Hype" },
@@ -72,6 +103,57 @@ export default function AdminBrandPosts() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loadingPosts, setLoadingPosts] = useState(false)
   const [postsError, setPostsError] = useState<string | null>(null)
+
+  const [accounts, setAccounts] = useState<BrandAccount[]>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("")
+  const [scheduleAt, setScheduleAt] = useState<string>(() => defaultScheduleValue(60))
+
+  /** Per-variant action state so we can spin the right button. */
+  const [savingAction, setSavingAction] = useState<
+    | { variantIndex: number; intent: SaveIntent }
+    | null
+  >(null)
+  const [actionResult, setActionResult] = useState<
+    | { ok: boolean; text: string }
+    | null
+  >(null)
+
+  const [rowAction, setRowAction] = useState<string | null>(null)
+
+  const loadAccounts = useCallback(async () => {
+    setLoadingAccounts(true)
+    try {
+      const res = await fetch("/api/admin/brand-posts/accounts", { cache: "no-store" })
+      const data = await res.json()
+      if (res.ok && data.ok) {
+        setAccounts(data.accounts ?? [])
+      } else {
+        setAccounts([])
+      }
+    } catch {
+      setAccounts([])
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadAccounts()
+  }, [loadAccounts])
+
+  // Filter the account dropdown to the currently-selected compose platform.
+  const accountsForPlatform = accounts.filter((a) => a.platform === platform && a.isActive)
+  // Auto-pick the first viable account when platform changes or accounts load.
+  useEffect(() => {
+    if (accountsForPlatform.length === 0) {
+      setSelectedAccountId("")
+      return
+    }
+    if (!accountsForPlatform.some((a) => a.id === selectedAccountId)) {
+      setSelectedAccountId(accountsForPlatform[0].id)
+    }
+  }, [accountsForPlatform, selectedAccountId])
 
   const loadPosts = useCallback(async () => {
     setLoadingPosts(true)
@@ -128,11 +210,8 @@ export default function AdminBrandPosts() {
   async function copyVariant(i: number) {
     const v = drafts[i]
     if (!v) return
-    const text = [v.body, v.hashtags.length > 0 ? v.hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ") : ""]
-      .filter(Boolean)
-      .join("\n\n")
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(formatVariantForPost(v))
       setCopiedIndex(i)
       setTimeout(() => setCopiedIndex((c) => (c === i ? null : c)), 1500)
     } catch {
@@ -140,7 +219,113 @@ export default function AdminBrandPosts() {
     }
   }
 
+  /** Save / schedule / publish a single variant. Returns the created post id on success. */
+  async function persistVariant(i: number, intent: SaveIntent) {
+    const v = drafts[i]
+    if (!v) return
+    if (!selectedAccountId) {
+      setActionResult({ ok: false, text: "Pick a connected brand account first." })
+      return
+    }
+    const scheduledFor =
+      intent === "schedule"
+        ? new Date(scheduleAt).toISOString()
+        : undefined
+
+    setSavingAction({ variantIndex: i, intent })
+    setActionResult(null)
+    try {
+      const res = await fetch("/api/admin/brand-posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: selectedAccountId,
+          body: formatVariantForPost(v),
+          aiPrompt: brief.trim() || undefined,
+          aiModel: "claude-haiku-4-5-20251001",
+          intent,
+          scheduledFor,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Save failed")
+
+      if (intent === "publish_now") {
+        const pub = data.publish
+        if (pub?.ok && pub.result?.ok) {
+          setActionResult({ ok: true, text: `Published to ${platform}.` })
+        } else if (pub?.result?.ok === false) {
+          setActionResult({ ok: false, text: `Saved, but publish failed: ${pub.result.message}` })
+        } else {
+          setActionResult({ ok: false, text: pub?.error || "Saved but publish state unclear." })
+        }
+      } else if (intent === "schedule") {
+        setActionResult({ ok: true, text: `Scheduled for ${new Date(scheduledFor!).toLocaleString()}.` })
+      } else {
+        setActionResult({ ok: true, text: "Saved as draft." })
+      }
+
+      await loadPosts()
+    } catch (e: any) {
+      setActionResult({ ok: false, text: e?.message || "Save failed" })
+    } finally {
+      setSavingAction(null)
+    }
+  }
+
+  async function rowPublish(id: string) {
+    setRowAction(`publish-${id}`)
+    try {
+      const res = await fetch(`/api/admin/brand-posts/${id}/publish`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) {
+        setActionResult({ ok: false, text: data?.error || "Publish failed" })
+      } else if (data?.result?.ok) {
+        setActionResult({ ok: true, text: "Published." })
+      } else {
+        setActionResult({ ok: false, text: data?.result?.message || "Publish failed" })
+      }
+      await loadPosts()
+    } finally {
+      setRowAction(null)
+    }
+  }
+
+  async function rowCancel(id: string) {
+    setRowAction(`cancel-${id}`)
+    try {
+      const res = await fetch(`/api/admin/brand-posts/${id}/cancel`, { method: "POST" })
+      const data = await res.json()
+      if (!res.ok) {
+        setActionResult({ ok: false, text: data?.error || "Cancel failed" })
+      } else {
+        setActionResult({ ok: true, text: "Cancelled." })
+      }
+      await loadPosts()
+    } finally {
+      setRowAction(null)
+    }
+  }
+
+  async function rowDelete(id: string) {
+    if (!window.confirm("Delete this post? Drafts, scheduled, and failed rows only.")) return
+    setRowAction(`delete-${id}`)
+    try {
+      const res = await fetch(`/api/admin/brand-posts/${id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) {
+        setActionResult({ ok: false, text: data?.error || "Delete failed" })
+      } else {
+        setActionResult({ ok: true, text: "Deleted." })
+      }
+      await loadPosts()
+    } finally {
+      setRowAction(null)
+    }
+  }
+
   const charLimit = PLATFORM_CHAR_LIMITS[platform]
+  const accountSelectReady = accountsForPlatform.length > 0
 
   return (
     <div className="space-y-6">
@@ -151,8 +336,9 @@ export default function AdminBrandPosts() {
             Content
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-            Draft brand posts with AI → review → publish to your social accounts. Brand accounts are managed
-            separately from user accounts; connecting new accounts and publishing ship in the next phase.
+            Connect brand accounts, draft posts with AI, and publish now or on a schedule. X is wired for real
+            publish (OAuth 1.0a or OAuth 2.0); IG / TikTok / YouTube / LinkedIn return a structured
+            &ldquo;no_publisher&rdquo; failure until their adapters ship.
           </p>
         </div>
         <button
@@ -166,6 +352,9 @@ export default function AdminBrandPosts() {
           Refresh
         </button>
       </div>
+
+      {/* Brand account connections */}
+      <BrandAccountsPanel onChanged={loadAccounts} />
 
       {/* Compose — AI draft */}
       <div
@@ -293,6 +482,70 @@ export default function AdminBrandPosts() {
           ) : null}
         </form>
 
+        {/* Post-draft action bar: pick target account + schedule time. */}
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="block text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+            <span className="flex items-center gap-1">
+              <PlugZap className="h-3 w-3" />
+              Post to account
+            </span>
+            <select
+              value={selectedAccountId}
+              onChange={(e) => setSelectedAccountId(e.target.value)}
+              disabled={loadingAccounts || !accountSelectReady}
+              className="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
+              style={{ background: "var(--surface, #121725)", borderColor: "var(--border)", color: "var(--text)" }}
+            >
+              {!accountSelectReady ? (
+                <option value="">No {PLATFORM_LABELS[platform]} accounts connected</option>
+              ) : (
+                accountsForPlatform.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    @{a.handle}
+                    {a.displayName ? ` — ${a.displayName}` : ""}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <label className="block text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+            <span className="flex items-center gap-1">
+              <CalendarClock className="h-3 w-3" />
+              Schedule for (when using Schedule)
+            </span>
+            <input
+              type="datetime-local"
+              value={scheduleAt}
+              onChange={(e) => setScheduleAt(e.target.value)}
+              className="mt-1 w-full rounded-lg border px-2 py-2 text-sm"
+              style={{ background: "var(--surface, #121725)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
+          </label>
+        </div>
+
+        {!accountSelectReady ? (
+          <p
+            className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100"
+          >
+            No connected {PLATFORM_LABELS[platform]} brand accounts yet. You can still draft, but Save / Schedule / Publish
+            need an account. Account connection ships in Phase A3.
+          </p>
+        ) : null}
+
+        {actionResult ? (
+          <div
+            role="alert"
+            className={`mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-xs ${
+              actionResult.ok
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                : "border-rose-500/30 bg-rose-500/10 text-rose-200"
+            }`}
+          >
+            {actionResult.ok ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+            <span>{actionResult.text}</span>
+          </div>
+        ) : null}
+
         {drafts.length > 0 ? (
           <div className="mt-4 space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
@@ -333,11 +586,32 @@ export default function AdminBrandPosts() {
                 >
                   {v.charCount} / {charLimit} chars {v.withinLimit ? "" : "— over limit"}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <VariantAction
+                    label="Save draft"
+                    icon={<Save className="h-3 w-3" />}
+                    busy={savingAction?.variantIndex === i && savingAction?.intent === "save_draft"}
+                    disabled={!accountSelectReady || !v.withinLimit}
+                    onClick={() => persistVariant(i, "save_draft")}
+                  />
+                  <VariantAction
+                    label="Schedule"
+                    icon={<CalendarClock className="h-3 w-3" />}
+                    busy={savingAction?.variantIndex === i && savingAction?.intent === "schedule"}
+                    disabled={!accountSelectReady || !v.withinLimit}
+                    onClick={() => persistVariant(i, "schedule")}
+                  />
+                  <VariantAction
+                    label="Publish now"
+                    icon={<Send className="h-3 w-3" />}
+                    busy={savingAction?.variantIndex === i && savingAction?.intent === "publish_now"}
+                    disabled={!accountSelectReady || !v.withinLimit}
+                    onClick={() => persistVariant(i, "publish_now")}
+                    primary
+                  />
+                </div>
               </div>
             ))}
-            <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-              Save / publish / schedule flow ships in the next phase — for now, copy the best variant and post manually.
-            </p>
           </div>
         ) : null}
       </div>
@@ -375,42 +649,144 @@ export default function AdminBrandPosts() {
                   <th className="px-3 py-2 text-left" style={{ color: "var(--muted)" }}>Account</th>
                   <th className="px-3 py-2 text-left" style={{ color: "var(--muted)" }}>Body</th>
                   <th className="px-3 py-2 text-left" style={{ color: "var(--muted)" }}>Scheduled / Sent</th>
+                  <th className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {posts.map((p) => (
-                  <tr key={p.id} className="border-t" style={{ borderColor: "var(--border)" }}>
-                    <td className="px-3 py-2">
-                      <StatusPill status={p.status} />
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--text)" }}>
-                      {p.account?.platform ? `${PLATFORM_LABELS[p.account.platform as BrandPlatform] ?? p.account.platform}` : "—"}
-                      {" · "}
-                      <span style={{ color: "var(--muted)" }}>
-                        @{p.account?.handle ?? "unknown"}
-                      </span>
-                    </td>
-                    <td className="max-w-[32ch] truncate px-3 py-2" style={{ color: "var(--text)" }} title={p.body}>
-                      {p.body}
-                    </td>
-                    <td className="px-3 py-2" style={{ color: "var(--muted)" }}>
-                      {p.publishedAt
-                        ? new Date(p.publishedAt).toLocaleString()
-                        : p.scheduledFor
-                          ? `→ ${new Date(p.scheduledFor).toLocaleString()}`
-                          : "—"}
-                      {p.failureMessage ? (
-                        <p className="text-[10px] text-rose-300">{p.failureMessage}</p>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                {posts.map((p) => {
+                  const canPublish = p.status === "draft" || p.status === "scheduled" || p.status === "failed"
+                  const canCancel = p.status === "scheduled" || p.status === "draft"
+                  const canDelete = p.status !== "sent" && p.status !== "publishing"
+                  return (
+                    <tr key={p.id} className="border-t" style={{ borderColor: "var(--border)" }}>
+                      <td className="px-3 py-2">
+                        <StatusPill status={p.status} />
+                      </td>
+                      <td className="px-3 py-2" style={{ color: "var(--text)" }}>
+                        {p.account?.platform ? `${PLATFORM_LABELS[p.account.platform as BrandPlatform] ?? p.account.platform}` : "—"}
+                        {" · "}
+                        <span style={{ color: "var(--muted)" }}>
+                          @{p.account?.handle ?? "unknown"}
+                        </span>
+                      </td>
+                      <td className="max-w-[32ch] truncate px-3 py-2" style={{ color: "var(--text)" }} title={p.body}>
+                        {p.body}
+                      </td>
+                      <td className="px-3 py-2" style={{ color: "var(--muted)" }}>
+                        {p.publishedAt
+                          ? new Date(p.publishedAt).toLocaleString()
+                          : p.scheduledFor
+                            ? `→ ${new Date(p.scheduledFor).toLocaleString()}`
+                            : "—"}
+                        {p.failureMessage ? (
+                          <p className="text-[10px] text-rose-300">{p.failureMessage}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex flex-wrap justify-end gap-1">
+                          {canPublish ? (
+                            <RowBtn
+                              label={p.status === "failed" ? "Retry" : "Publish"}
+                              icon={<Send className="h-3 w-3" />}
+                              busy={rowAction === `publish-${p.id}`}
+                              disabled={rowAction != null}
+                              onClick={() => rowPublish(p.id)}
+                            />
+                          ) : null}
+                          {canCancel ? (
+                            <RowBtn
+                              label="Cancel"
+                              icon={<XCircle className="h-3 w-3" />}
+                              busy={rowAction === `cancel-${p.id}`}
+                              disabled={rowAction != null}
+                              onClick={() => rowCancel(p.id)}
+                            />
+                          ) : null}
+                          {canDelete ? (
+                            <RowBtn
+                              label="Delete"
+                              icon={<Trash2 className="h-3 w-3" />}
+                              busy={rowAction === `delete-${p.id}`}
+                              disabled={rowAction != null}
+                              onClick={() => rowDelete(p.id)}
+                              danger
+                            />
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
     </div>
+  )
+}
+
+function VariantAction({
+  label,
+  icon,
+  busy,
+  disabled,
+  primary,
+  onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  busy: boolean
+  disabled?: boolean
+  primary?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy || disabled}
+      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold disabled:opacity-50 ${
+        primary
+          ? "border-violet-500/40 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25"
+          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
+      }`}
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : icon}
+      {busy ? `…${label}` : label}
+    </button>
+  )
+}
+
+function RowBtn({
+  label,
+  icon,
+  busy,
+  disabled,
+  danger,
+  onClick,
+}: {
+  label: string
+  icon: React.ReactNode
+  busy: boolean
+  disabled?: boolean
+  danger?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy || disabled}
+      className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold disabled:opacity-50 ${
+        danger
+          ? "border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
+      }`}
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : icon}
+      {label}
+    </button>
   )
 }
 
