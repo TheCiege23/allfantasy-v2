@@ -1,13 +1,65 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { IDPMatchupView } from '@/app/idp/components/IDPMatchupView'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { StartVsComparisonLauncher } from '@/components/app/player-comparison/StartVsComparisonLauncher'
 import { GameWeatherInline } from '@/components/sports/GameWeatherInline'
+import { TeamLogo } from '@/app/components/TeamLogo'
 import type { GameWeather } from '@/hooks/usePhase1Data'
+
+type LiveScoreGame = {
+  gameId: string
+  homeTeam: string
+  homeTeamFull: string
+  homeScore: number
+  awayTeam: string
+  awayTeamFull: string
+  awayScore: number
+  status: string
+  statusDetail: string
+  period: number
+  clock: string
+  completed: boolean
+  startTime: string
+  venue: string | null
+  broadcast: string | null
+  week: number | null
+}
+
+type LiveScoresPayload = {
+  sport: string
+  scores: LiveScoreGame[]
+  count: number
+  source: string
+  hasLiveGames: boolean
+  fetchedAt: string | null
+}
+
+function formatKickoff(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function statusLabel(g: LiveScoreGame): { label: string; tone: 'live' | 'final' | 'upcoming' } {
+  if (g.completed || g.status === 'STATUS_FINAL') return { label: 'Final', tone: 'final' }
+  if (g.status === 'STATUS_IN_PROGRESS' || g.status === 'STATUS_HALFTIME') {
+    return {
+      label: g.status === 'STATUS_HALFTIME' ? 'Halftime' : g.clock || `Q${g.period}`,
+      tone: 'live',
+    }
+  }
+  return { label: formatKickoff(g.startTime), tone: 'upcoming' }
+}
 
 export type ScoresTabProps = {
   league: UserLeague
@@ -99,6 +151,44 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
   const [scoresNav, setScoresNav] = useState<'leaders' | 'matchups'>('leaders')
   const { players } = useSleeperPlayers(resolved)
 
+  // Live scores from RI → ESPN → DB cache via /api/sports/live-scores.
+  const [scoresLoading, setScoresLoading] = useState(true)
+  const [scoresError, setScoresError] = useState<string | null>(null)
+  const [scoresPayload, setScoresPayload] = useState<LiveScoresPayload | null>(null)
+
+  const loadScores = useCallback(async () => {
+    setScoresLoading(true)
+    setScoresError(null)
+    try {
+      const r = await fetch(`/api/sports/live-scores?sport=${encodeURIComponent(resolved)}`, {
+        cache: 'no-store',
+      })
+      const j = (await r.json().catch(() => null)) as LiveScoresPayload | null
+      if (!r.ok || !j || !Array.isArray(j.scores)) {
+        setScoresPayload(null)
+        setScoresError('Could not load live scores.')
+      } else {
+        setScoresPayload(j)
+      }
+    } catch (e) {
+      setScoresPayload(null)
+      setScoresError(e instanceof Error ? e.message : 'Could not load live scores.')
+    } finally {
+      setScoresLoading(false)
+    }
+  }, [resolved])
+
+  useEffect(() => {
+    void loadScores()
+  }, [loadScores])
+
+  // Auto-refresh while live games are in progress.
+  useEffect(() => {
+    if (!scoresPayload?.hasLiveGames) return
+    const id = setInterval(() => void loadScores(), 60_000)
+    return () => clearInterval(id)
+  }, [scoresPayload?.hasLiveGames, loadScores])
+
   // Weather data for inline display
   const [weatherData, setWeatherData] = useState<GameWeather[]>([])
   useEffect(() => {
@@ -110,6 +200,14 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
       })
       .catch(() => {})
   }, [resolved])
+
+  const gamesForWeek = useMemo<LiveScoreGame[]>(() => {
+    const all = scoresPayload?.scores ?? []
+    if (!all.length) return []
+    const matchingWeek = all.filter((g) => g.week === week)
+    // If RI/ESPN didn't tag week numbers, just show whatever is in the feed.
+    return matchingWeek.length > 0 ? matchingWeek : all
+  }, [scoresPayload, week])
 
   const pills = useMemo(() => positionPillsForSport(sportU), [sportU])
 
@@ -226,8 +324,72 @@ export function ScoresTab({ league, sport, idpLeagueUi = false }: ScoresTabProps
                   })}
                 </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <GameDayLeadersEmpty sportU={sportU} />
+              <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 md:px-5">
+                {scoresLoading ? (
+                  <p className="px-2 py-10 text-center text-sm text-white/40">Loading games…</p>
+                ) : scoresError ? (
+                  <p className="px-2 py-10 text-center text-sm text-amber-300/85">{scoresError}</p>
+                ) : gamesForWeek.length === 0 ? (
+                  <GameDayLeadersEmpty sportU={sportU} />
+                ) : (
+                  <ul className="grid gap-2 md:grid-cols-2" data-testid="scores-games-list">
+                    {gamesForWeek.map((g) => {
+                      const status = statusLabel(g)
+                      const toneClass =
+                        status.tone === 'live'
+                          ? 'bg-rose-500/15 text-rose-200 ring-1 ring-rose-400/30'
+                          : status.tone === 'final'
+                            ? 'bg-white/[0.05] text-white/60 ring-1 ring-white/[0.08]'
+                            : 'bg-cyan-500/10 text-cyan-100/85 ring-1 ring-cyan-500/25'
+                      const homeWin = g.completed && g.homeScore > g.awayScore
+                      const awayWin = g.completed && g.awayScore > g.homeScore
+                      return (
+                        <li
+                          key={g.gameId}
+                          className="rounded-xl border border-white/[0.07] bg-[#0a1228] p-3"
+                          data-testid={`scores-game-${g.gameId}`}
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${toneClass}`}>
+                              {status.label}
+                            </span>
+                            {g.broadcast ? (
+                              <span className="truncate text-[10px] text-white/40">{g.broadcast}</span>
+                            ) : null}
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className={`flex items-center justify-between gap-2 ${awayWin ? 'text-white' : 'text-white/75'}`}>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <TeamLogo teamAbbr={g.awayTeam} sport={resolved} size={20} />
+                                <span className="truncate text-[13px] font-semibold">{g.awayTeamFull || g.awayTeam}</span>
+                              </span>
+                              <span className="shrink-0 text-[15px] font-bold tabular-nums">
+                                {status.tone === 'upcoming' ? '—' : g.awayScore}
+                              </span>
+                            </div>
+                            <div className={`flex items-center justify-between gap-2 ${homeWin ? 'text-white' : 'text-white/75'}`}>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <TeamLogo teamAbbr={g.homeTeam} sport={resolved} size={20} />
+                                <span className="truncate text-[13px] font-semibold">{g.homeTeamFull || g.homeTeam}</span>
+                              </span>
+                              <span className="shrink-0 text-[15px] font-bold tabular-nums">
+                                {status.tone === 'upcoming' ? '—' : g.homeScore}
+                              </span>
+                            </div>
+                          </div>
+                          {g.venue ? (
+                            <p className="mt-2 text-[10px] text-white/35">{g.venue}</p>
+                          ) : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                {scoresPayload?.source ? (
+                  <p className="mt-3 px-1 text-center text-[10px] text-white/30">
+                    Source: {scoresPayload.source.replace(/_/g, ' ')} · {scoresPayload.scores.length} games
+                  </p>
+                ) : null}
               </div>
             </>
           ) : idpLeagueUi ? (
