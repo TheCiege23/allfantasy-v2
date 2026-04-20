@@ -5,8 +5,13 @@ import { prisma } from '@/lib/prisma'
 import { createZombieLeague } from '@/lib/zombie/setupEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getLeagueRole } from '@/lib/league/permissions'
+import { isZombieEligibleLeagueSport } from '@/lib/zombie/zombie-sport-eligibility'
 
 export const dynamic = 'force-dynamic'
+
+/** Zombie leagues are limited to these team counts at create time. */
+const ZOMBIE_ALLOWED_TEAM_COUNTS = [8, 10, 12, 14, 16] as const
+type ZombieAllowedTeamCount = (typeof ZOMBIE_ALLOWED_TEAM_COUNTS)[number]
 
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
@@ -16,7 +21,54 @@ export async function POST(req: Request) {
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId : null
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
-  const sport = normalizeToSupportedSport(typeof body.sport === 'string' ? body.sport : 'NFL')
+  const sportRaw = typeof body.sport === 'string' ? body.sport : 'NFL'
+  if (!isZombieEligibleLeagueSport(sportRaw.toUpperCase())) {
+    return NextResponse.json({ error: `Zombie leagues do not support sport "${sportRaw}".` }, { status: 400 })
+  }
+  const sport = normalizeToSupportedSport(sportRaw)
+
+  const teamCountRaw = typeof body.teamCount === 'number' ? body.teamCount : null
+  if (teamCountRaw == null || !(ZOMBIE_ALLOWED_TEAM_COUNTS as readonly number[]).includes(teamCountRaw)) {
+    return NextResponse.json(
+      { error: `teamCount must be one of ${ZOMBIE_ALLOWED_TEAM_COUNTS.join(', ')}` },
+      { status: 400 },
+    )
+  }
+  const teamCount = teamCountRaw as ZombieAllowedTeamCount
+
+  // Snake-only — auction (and any other non-snake) is not supported by the
+  // weekly resolution engine. Reject early instead of silently coercing so
+  // the caller sees the broken assumption.
+  const requestedDraft =
+    typeof body.draftType === 'string' ? body.draftType.toLowerCase() : 'snake'
+  if (requestedDraft && requestedDraft !== 'snake') {
+    return NextResponse.json(
+      { error: 'Zombie leagues only support snake drafts (auction not supported).' },
+      { status: 400 },
+    )
+  }
+
+  // Zombie leagues run a flat regular season — playoffs would conflict with
+  // the survivor / elimination resolution engine.
+  if (body.playoffEnabled === true || body.playoffsEnabled === true) {
+    return NextResponse.json({ error: 'Zombie leagues cannot enable playoffs.' }, { status: 400 })
+  }
+
+  // Force the underlying League to snake + no-playoffs so downstream draft +
+  // standings code can't disagree with the zombie config.
+  await prisma.leagueSettings
+    .updateMany({
+      where: { leagueId },
+      data: { draftType: 'snake' },
+    })
+    .catch(() => {})
+  await prisma.league
+    .update({
+      where: { id: leagueId },
+      data: { playoffStartWeek: null, playoffWeeksPerRound: null },
+    })
+    .catch(() => {})
+
   const universeId = typeof body.universeId === 'string' ? body.universeId : undefined
   const tierId = typeof body.tierId === 'string' ? body.tierId : undefined
 
@@ -25,7 +77,7 @@ export async function POST(req: Request) {
       leagueId,
       name: typeof body.name === 'string' ? body.name : null,
       sport,
-      teamCount: typeof body.teamCount === 'number' ? body.teamCount : 20,
+      teamCount,
       isPaid: Boolean(body.isPaid),
       buyInAmount: typeof body.buyIn === 'number' ? body.buyIn : null,
       whispererSelectionMode:

@@ -47,7 +47,9 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   nfl: {
     sport: 'nfl',
     label: 'NFL',
-    positions: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'],
+    // Zombie spec: QB + RB + WR + TE + FLEX×4 + SUPER_FLEX. No K, no DEF.
+    // Bench is the residual after the 9 starter slots.
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
     rosterSize: 15,
     starterCount: 9,
     benchCount: 6,
@@ -88,10 +90,11 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   nba: {
     sport: 'nba',
     label: 'NBA',
-    positions: ['PG', 'SG', 'SF', 'PF', 'C', 'UTIL', 'UTIL', 'UTIL'],
-    rosterSize: 13,
-    starterCount: 8,
-    benchCount: 5,
+    // Zombie analogue of the NFL shape: 5 core positions + FLEX×4 + SUPER_FLEX.
+    positions: ['PG', 'SG', 'SF', 'PF', 'C', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+    rosterSize: 14,
+    starterCount: 10,
+    benchCount: 4,
     irSlots: 2,
     lineupFrequency: 'daily',
     scoringWindow: 'Daily slates; weekly aggregate determines matchup winner',
@@ -129,10 +132,12 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   mlb: {
     sport: 'mlb',
     label: 'MLB',
-    positions: ['C', '1B', '2B', '3B', 'SS', 'OF', 'OF', 'OF', 'UTIL', 'SP', 'SP', 'RP', 'RP'],
-    rosterSize: 20,
-    starterCount: 13,
-    benchCount: 7,
+    // Zombie analogue of NFL shape — core positionless skater group + FLEX×4 + SUPER_FLEX
+    // (FLEX = any non-pitcher; SUPER_FLEX = any player including pitcher).
+    positions: ['C', '1B', '2B', '3B', 'SS', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+    rosterSize: 16,
+    starterCount: 10,
+    benchCount: 6,
     irSlots: 3,
     lineupFrequency: 'daily',
     scoringWindow: 'Daily games; weekly aggregate determines matchup winner',
@@ -170,10 +175,11 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   nhl: {
     sport: 'nhl',
     label: 'NHL',
-    positions: ['C', 'C', 'LW', 'RW', 'D', 'D', 'UTIL', 'G', 'G'],
+    // Zombie analogue: 5 core skater positions + FLEX×4 + SUPER_FLEX (SF allows G).
+    positions: ['C', 'LW', 'RW', 'D', 'D', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
     rosterSize: 14,
-    starterCount: 9,
-    benchCount: 5,
+    starterCount: 10,
+    benchCount: 4,
     irSlots: 2,
     lineupFrequency: 'daily',
     scoringWindow: 'Daily games; weekly aggregate determines matchup winner',
@@ -211,7 +217,8 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   ncaaf: {
     sport: 'ncaaf',
     label: 'College Football',
-    positions: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DEF'],
+    // Mirrors NFL zombie roster: QB + RB + WR + TE + FLEX×4 + SUPER_FLEX.
+    positions: ['QB', 'RB', 'WR', 'TE', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
     rosterSize: 15,
     starterCount: 9,
     benchCount: 6,
@@ -252,10 +259,11 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   ncaab: {
     sport: 'ncaab',
     label: 'College Basketball',
-    positions: ['PG', 'SG', 'SF', 'PF', 'C', 'UTIL', 'UTIL'],
-    rosterSize: 12,
-    starterCount: 7,
-    benchCount: 5,
+    // Mirrors NBA zombie shape.
+    positions: ['PG', 'SG', 'SF', 'PF', 'C', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+    rosterSize: 14,
+    starterCount: 10,
+    benchCount: 4,
     irSlots: 2,
     lineupFrequency: 'daily',
     scoringWindow: 'Daily games; weekly aggregate determines matchup winner',
@@ -293,10 +301,11 @@ export const ZOMBIE_SPORT_CONFIGS: Record<string, ZombieSportConfig> = {
   soccer: {
     sport: 'soccer',
     label: 'Soccer',
-    positions: ['GK', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'FWD', 'FWD', 'FWD'],
-    rosterSize: 18,
-    starterCount: 11,
-    benchCount: 7,
+    // Zombie analogue: GK + DEF + MID + FWD + FLEX×4 + SUPER_FLEX (SF allows GK).
+    positions: ['GK', 'DEF', 'MID', 'FWD', 'FLEX', 'FLEX', 'FLEX', 'FLEX', 'SUPER_FLEX'],
+    rosterSize: 14,
+    starterCount: 9,
+    benchCount: 5,
     irSlots: 2,
     lineupFrequency: 'weekly',
     scoringWindow: 'Matchweek games (Sat-Mon for most leagues)',

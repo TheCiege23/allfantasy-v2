@@ -10,8 +10,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
+const ZOMBIE_ALLOWED_TEAM_COUNTS = [8, 10, 12, 14, 16] as const
+
+// `single_gamma` is included so the same endpoint can produce a one-league
+// "universe" — the response surfaces primaryLeagueId and the client routes the
+// user straight to /league/[id] (no commissioner dashboard for solo zombie).
 const schema = z.object({
-  zombieUniverseTier: z.enum(['beta_trio', 'alpha_hex']),
+  zombieUniverseTier: z.enum(['single_gamma', 'beta_trio', 'alpha_hex']),
   /** Same JSON shape as `POST /api/league/create` (native manual path). */
   leagueCreatePayload: z.record(z.unknown()),
 })
@@ -42,7 +47,33 @@ export async function POST(req: Request) {
   const sportRaw = leagueCreatePayload.sport
   const sport = typeof sportRaw === 'string' ? sportRaw.toUpperCase() : 'NFL'
   if (!isZombieEligibleLeagueSport(sport)) {
-    return NextResponse.json({ error: 'Zombie universes cannot use Soccer as the sport.' }, { status: 400 })
+    return NextResponse.json({ error: `Sport "${sportRaw}" is not eligible for Zombie universes.` }, { status: 400 })
+  }
+
+  // Snake-only — auction is rejected here so the per-league /api/league/create
+  // call below never receives a draftType the zombie engine can't run.
+  const requestedDraft =
+    typeof leagueCreatePayload.draftType === 'string'
+      ? leagueCreatePayload.draftType.toLowerCase()
+      : 'snake'
+  if (requestedDraft !== 'snake') {
+    return NextResponse.json(
+      { error: 'Zombie universes only support snake drafts (auction not supported).' },
+      { status: 400 },
+    )
+  }
+  // Reject any client attempt to enable playoffs on a zombie league.
+  if (leagueCreatePayload.playoffEnabled === true || leagueCreatePayload.playoffsEnabled === true) {
+    return NextResponse.json({ error: 'Zombie leagues cannot enable playoffs.' }, { status: 400 })
+  }
+  // Team count must be one of the allowed values; default to 12 when omitted.
+  const requestedTeamCount =
+    typeof leagueCreatePayload.leagueSize === 'number' ? leagueCreatePayload.leagueSize : 12
+  if (!(ZOMBIE_ALLOWED_TEAM_COUNTS as readonly number[]).includes(requestedTeamCount)) {
+    return NextResponse.json(
+      { error: `Team count must be one of ${ZOMBIE_ALLOWED_TEAM_COUNTS.join(', ')}.` },
+      { status: 400 },
+    )
   }
 
   const baseName =
@@ -129,10 +160,22 @@ export async function POST(req: Request) {
     }
   }
 
+  // For solo zombie ("single_gamma"), tell the client to land on the standard
+  // /league/[id] dashboard — there is no commissioner dashboard for one-league
+  // universes per product spec.
+  const requiresUniverseDashboard = zombieUniverseTier !== 'single_gamma'
+
   return NextResponse.json({
     success: true,
     universeId: universe.id,
     leagues: created,
     primaryLeagueId: created[0]?.leagueId ?? null,
+    requiresUniverseDashboard,
+    redirectTo:
+      requiresUniverseDashboard
+        ? `/zombie/universe/${universe.id}`
+        : created[0]?.leagueId
+          ? `/league/${created[0].leagueId}`
+          : null,
   })
 }

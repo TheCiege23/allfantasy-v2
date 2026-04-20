@@ -1,6 +1,6 @@
 'use client'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -72,6 +72,7 @@ type UniverseHubPayload = {
 export default function ZombieUniverseHubPage() {
   const { universeId } = useParams<{ universeId: string }>() ?? ({} as { universeId: string })
   const [data, setData] = useState<UniverseHubPayload | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
     if (!universeId) return
@@ -80,6 +81,16 @@ export default function ZombieUniverseHubPage() {
       .then(setData)
       .catch(() => setData(null))
   }, [universeId])
+
+  // Solo zombie universes (single_gamma tier) skip the universe hub entirely —
+  // there's nothing to commission across multiple leagues, so route the user
+  // straight to the standard league dashboard.
+  useEffect(() => {
+    const leagues = data?.universe?.leagues ?? []
+    if (leagues.length === 1 && leagues[0]?.leagueId) {
+      router.replace(`/league/${encodeURIComponent(leagues[0].leagueId)}`)
+    }
+  }, [data?.universe?.leagues, router])
 
   const preset = useMemo(() => getZombieSportHeroPreset(data?.universe?.sport), [data?.universe?.sport])
 
