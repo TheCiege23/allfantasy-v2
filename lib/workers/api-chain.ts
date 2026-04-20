@@ -406,10 +406,16 @@ export async function fetchWithChain(
   // 2. CACHE MISS — RI primary; ClearSports/TheSportsDB/api-sports fill gaps; Sleeper last for NFL injuries/players/images.
   let result: ChainFetchResult | null = null
 
-  const skipGameLikeFallbacks = dt === 'scores' || dt === 'live_game' || dt === 'games'
   const isImageDt = dt === 'player_headshots' || dt === 'team_logos'
+  // For `scores`, providers without a 'scores' endpoint can still surface useful
+  // game state via their `games` shape (TSDB eventsnextleague, api-sports games).
+  // For raw `live_game` we still skip fallbacks — none of the secondary providers
+  // expose true live in-play deltas.
+  const skipGameLikeFallbacks = dt === 'live_game' || dt === 'games'
+  const fallbackDt = dt === 'scores' ? 'games' : dt
 
   const baseParams: ApiFetchParams = { ...params, sport: chainSport, dataType: dt, query: merged }
+  const fallbackParams: ApiFetchParams = { ...baseParams, dataType: fallbackDt }
 
   // Provider priority per product requirement:
   //   Rolling Insights → TheSportsDB → API-Sports → ClearSports → Sleeper → ESPN
@@ -429,20 +435,20 @@ export async function fetchWithChain(
       result =
         result && isPopulatedResult(result.data)
           ? result
-          : (await tryProviderBlock(theSportsDbProvider, baseParams)) ?? result
+          : (await tryProviderBlock(theSportsDbProvider, fallbackParams)) ?? result
       result =
         result && isPopulatedResult(result.data)
           ? result
-          : (await tryProviderBlock(apiSportsProvider, baseParams)) ?? result
+          : (await tryProviderBlock(apiSportsProvider, fallbackParams)) ?? result
       result =
         result && isPopulatedResult(result.data)
           ? result
-          : (await tryProviderBlock(clearSportsProvider, baseParams)) ?? result
+          : (await tryProviderBlock(clearSportsProvider, fallbackParams)) ?? result
       // CFBD fallback for NCAAF teams/schedule/games
       result =
         result && isPopulatedResult(result.data)
           ? result
-          : (await tryProviderBlock(cfbdProvider, baseParams)) ?? result
+          : (await tryProviderBlock(cfbdProvider, fallbackParams)) ?? result
     }
 
     result =
