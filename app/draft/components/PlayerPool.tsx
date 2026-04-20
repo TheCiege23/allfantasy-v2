@@ -7,6 +7,23 @@ import type { DraftPlayerRow } from '../types'
 
 const POS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'] as const
 
+/**
+ * Map Sleeper / RI status strings to a short uppercase chip + tone.
+ * Returns null when the player is healthy / has no flag.
+ */
+function injuryChip(status: string | null | undefined): { label: string; tone: 'out' | 'doubt' | 'quest' | 'probable' } | null {
+  if (!status) return null
+  const s = status.trim().toLowerCase()
+  if (s === 'active' || s === 'healthy' || s === 'available') return null
+  if (s.startsWith('o') || s === 'ir' || s === 'pup' || s === 'sus' || s === 'suspended') {
+    return { label: s === 'ir' ? 'IR' : s === 'pup' ? 'PUP' : s.startsWith('s') ? 'SUS' : 'OUT', tone: 'out' }
+  }
+  if (s.startsWith('d')) return { label: 'D', tone: 'doubt' }
+  if (s.startsWith('q')) return { label: 'Q', tone: 'quest' }
+  if (s.startsWith('p')) return { label: 'P', tone: 'probable' }
+  return { label: status.slice(0, 3).toUpperCase(), tone: 'quest' }
+}
+
 type Props = {
   draftedIds: Set<string>
   onDraft: (p: DraftPlayerRow) => void
@@ -115,19 +132,42 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerCli
             {filtered.slice(0, 200).map((p, idx) => (
               <tr key={p.id} className="border-t border-white/[0.04] hover:bg-white/[0.03]">
                 <td className="px-2 py-1 text-white/35">{idx + 1}</td>
-                <td className="max-w-[140px] truncate px-2 py-1 font-medium text-white/90">
-                  {onPlayerClick ? (
-                    <button
-                      type="button"
-                      onClick={() => onPlayerClick(p.id)}
-                      className="truncate text-left hover:text-cyan-300 hover:underline"
-                      data-testid={`draft-player-row-${p.id}`}
-                    >
-                      {p.name}
-                    </button>
-                  ) : (
-                    p.name
-                  )}
+                <td className="max-w-[160px] px-2 py-1 font-medium text-white/90">
+                  <div className="flex items-center gap-1.5">
+                    {onPlayerClick ? (
+                      <button
+                        type="button"
+                        onClick={() => onPlayerClick(p.id)}
+                        className="min-w-0 truncate text-left hover:text-cyan-300 hover:underline"
+                        data-testid={`draft-player-row-${p.id}`}
+                      >
+                        {p.name}
+                      </button>
+                    ) : (
+                      <span className="min-w-0 truncate">{p.name}</span>
+                    )}
+                    {(() => {
+                      const chip = injuryChip(p.status)
+                      if (!chip) return null
+                      const toneClass =
+                        chip.tone === 'out'
+                          ? 'bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/40'
+                          : chip.tone === 'doubt'
+                            ? 'bg-orange-500/15 text-orange-200 ring-1 ring-orange-500/35'
+                            : chip.tone === 'quest'
+                              ? 'bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/35'
+                              : 'bg-white/[0.06] text-white/55 ring-1 ring-white/15'
+                      return (
+                        <span
+                          className={`shrink-0 rounded-full px-1.5 py-0 text-[8px] font-bold uppercase tracking-wide ${toneClass}`}
+                          title={p.status ?? ''}
+                          data-testid={`draft-player-injury-${p.id}`}
+                        >
+                          {chip.label}
+                        </span>
+                      )
+                    })()}
+                  </div>
                 </td>
                 <td className="px-2 py-1 text-white/55">{p.position}</td>
                 <td className="px-2 py-1 text-white/45">{p.adp}</td>

@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { draftAiText } from '@/lib/draft/ai-claude'
+import { buildDraftAiContext, collectAiContextPlayerNames } from '@/lib/draft/ai-context'
 
 export const dynamic = 'force-dynamic'
 
-const SYS = `You are Chimmy, AllFantasy's AI draft assistant. Reply with JSON only: {"recommendations":[{"player":"","reason":""}],"summary":""} with top 3 picks.`
+const SYS = `You are Chimmy, AllFantasy's AI draft assistant. Weigh the supplied news and injury report when ranking. Reply with JSON only: {"recommendations":[{"player":"","reason":""}],"summary":""} with top 3 picks. Reasons should reference the latest news/injury context when it is relevant.`
 
 export async function POST(req: Request) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
@@ -14,12 +15,22 @@ export async function POST(req: Request) {
   }
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
+  const sport = typeof body?.sport === 'string' ? body.sport : null
+  const enrichment = await buildDraftAiContext({
+    sport,
+    playerNames: collectAiContextPlayerNames(body),
+  })
+
   const ctx = JSON.stringify(body ?? {})
   try {
-    const text = await draftAiText(SYS, `Draft context:\n${ctx}`, { userId: session.user.id })
+    const text = await draftAiText(
+      SYS,
+      `Draft context (state, picks, queue, etc.):\n${ctx}\n${enrichment.promptSection}`,
+      { userId: session.user.id },
+    )
     const cleaned = text.replace(/```json\n?|\n?```/g, '').trim()
     const parsed = JSON.parse(cleaned) as unknown
-    return NextResponse.json({ result: parsed })
+    return NextResponse.json({ result: parsed, contextSources: { news: enrichment.news.length, injuries: enrichment.injuries.length } })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'AI error'
     return NextResponse.json({ error: msg }, { status: 502 })

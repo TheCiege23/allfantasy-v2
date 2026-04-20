@@ -45,6 +45,8 @@ export type DraftPlayerRow = {
   position: string
   team: string
   imageUrl?: string | null
+  /** Sleeper/RI injury/availability code (e.g. "Questionable", "IR", "Out"). */
+  status?: string | null
   adp: number
   proj: number
   bye: number | null
