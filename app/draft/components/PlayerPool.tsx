@@ -12,9 +12,11 @@ type Props = {
   onDraft: (p: DraftPlayerRow) => void
   onQueue: (p: DraftPlayerRow) => void
   canDraft: boolean
+  /** When provided, the player name renders as a button that opens the player detail modal. */
+  onPlayerClick?: (playerId: string) => void
 }
 
-export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
+export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerClick }: Props) {
   const { t } = useLanguage()
   const [players, setPlayers] = useState<DraftPlayerRow[]>([])
   const [pos, setPos] = useState<string>('ALL')
@@ -113,7 +115,20 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft }: Props) {
             {filtered.slice(0, 200).map((p, idx) => (
               <tr key={p.id} className="border-t border-white/[0.04] hover:bg-white/[0.03]">
                 <td className="px-2 py-1 text-white/35">{idx + 1}</td>
-                <td className="max-w-[140px] truncate px-2 py-1 font-medium text-white/90">{p.name}</td>
+                <td className="max-w-[140px] truncate px-2 py-1 font-medium text-white/90">
+                  {onPlayerClick ? (
+                    <button
+                      type="button"
+                      onClick={() => onPlayerClick(p.id)}
+                      className="truncate text-left hover:text-cyan-300 hover:underline"
+                      data-testid={`draft-player-row-${p.id}`}
+                    >
+                      {p.name}
+                    </button>
+                  ) : (
+                    p.name
+                  )}
+                </td>
                 <td className="px-2 py-1 text-white/55">{p.position}</td>
                 <td className="px-2 py-1 text-white/45">{p.adp}</td>
                 <td className="whitespace-nowrap px-2 py-1">

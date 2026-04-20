@@ -14,6 +14,7 @@ import { DraftBoard } from './DraftBoard'
 import { DraftChatPanel } from './DraftChatPanel'
 import { ChimmyDraftChat } from './ChimmyDraftChat'
 import { DraftHeader } from './DraftHeader'
+import { DraftPlayerModal } from './DraftPlayerModal'
 import { DraftResultsView } from './DraftResultsView'
 import { DraftSettingsModal } from './DraftSettingsModal'
 import { DraftTimerBar } from './DraftTimerBar'
@@ -96,6 +97,7 @@ export function DraftShell({
   const [autopick, setAutopick] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [rightTab, setRightTab] = useState<'queue' | 'roster' | 'chat' | 'ai'>('queue')
+  const [activePlayerId, setActivePlayerId] = useState<string | null>(null)
   const [leagueMeta, setLeagueMeta] = useState<{
     name: string | null
     avatarsByOwnerId: Record<string, string | null>
@@ -372,6 +374,7 @@ export function DraftShell({
             onDraft={(p) => void onDraft(p)}
             onQueue={onQueueAdd}
             canDraft={canDraft}
+            onPlayerClick={(id) => setActivePlayerId(id)}
           />
         </div>
         <div
@@ -420,6 +423,7 @@ export function DraftShell({
                 sessionId={sessionId}
                 context={{
                   userName,
+                  userId,
                   state,
                   picks,
                 }}
@@ -435,6 +439,13 @@ export function DraftShell({
         roomId={roomId}
         inviteCode={inviteCode ?? null}
         onStart={() => void startDraft()}
+      />
+
+      <DraftPlayerModal
+        open={Boolean(activePlayerId)}
+        playerId={activePlayerId}
+        sport="NFL"
+        onClose={() => setActivePlayerId(null)}
       />
     </motion.div>
   )
