@@ -129,6 +129,8 @@ export type ToolAIEntryKey =
   | "bracket_intelligence"
   | "simulation"
   | "matchup"
+  | "league_matchup_ai"
+  | "league_start_sit_ai"
   | "commentary"
   | "story_creator"
   | "content"

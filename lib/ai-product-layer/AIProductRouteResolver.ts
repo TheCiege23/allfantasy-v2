@@ -48,6 +48,8 @@ const FEATURE_ROUTES: Record<string, string> = {
   bracket_intelligence: '/brackets',
   simulation: '/app/simulation-lab',
   matchup: '/app/matchup-simulation',
+  league_matchup_ai: '/ai',
+  league_start_sit_ai: '/ai',
   commentary: `${AF_LEGACY}?tab=overview`,
   story_creator: `${AF_LEGACY}?tab=overview`,
   content: '/social-clips',
@@ -79,6 +81,12 @@ export function getAIProductHrefForFeature(featureKey: ToolAIEntryKey | string, 
   }
   if (featureKey === 'draft_helper' && context?.leagueId) {
     return `/app/league/${encodeURIComponent(context.leagueId)}/draft`;
+  }
+  if ((featureKey === 'league_matchup_ai' || featureKey === 'league_start_sit_ai') && context?.leagueId) {
+    return appendAIProductContextToHref(
+      `/league/${encodeURIComponent(context.leagueId)}?view=matchup`,
+      context,
+    );
   }
   if ((featureKey === 'matchup' || featureKey === 'simulation') && context?.leagueId) {
     return `/league/${encodeURIComponent(context.leagueId)}?tab=Matchups`;

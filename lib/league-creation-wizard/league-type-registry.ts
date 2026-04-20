@@ -1,11 +1,16 @@
 /**
  * League types, draft types, and valid combinations for the creation wizard.
- * Delegates to the central format engine so create flow, imports, defaults,
- * and validation resolve from one shared source of truth.
+ * Delegates draft-type allowlists to `lib/draft-types/draftTypeRegistry` + format-engine
+ * so create flow, imports, defaults, and validation resolve from one shared contract.
  */
 
 import type { LeagueSport } from '@prisma/client'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import {
+  DRAFT_TYPE_LABELS as REGISTRY_DRAFT_LABELS,
+  listAllFormatDraftTypeIds,
+  listCreateLeagueWireDraftTypeIds,
+} from '@/lib/draft-types/draftTypeRegistry'
 import {
   getAllowedDraftTypesForFormat,
   getFormatsForSport,
@@ -25,26 +30,20 @@ export const LEAGUE_TYPE_LABELS: Record<LeagueTypeId, string> = listLeagueFormat
   {} as Record<LeagueTypeId, string>
 )
 
-const ALL_DRAFT_TYPES = new Set<DraftTypeId>()
-for (const format of listLeagueFormats()) {
-  for (const draftType of format.draftTypes) {
-    ALL_DRAFT_TYPES.add(draftType as DraftTypeId)
-  }
-}
+/** All canonical format draft ids (union across formats) — labels for wizard controls. */
+export const DRAFT_TYPE_LABELS: Record<DraftTypeId, string> = listAllFormatDraftTypeIds().reduce(
+  (acc, id) => {
+    acc[id] = REGISTRY_DRAFT_LABELS[id] ?? String(id).replace(/_/g, ' ')
+    return acc
+  },
+  {} as Record<DraftTypeId, string>
+)
 
-export const DRAFT_TYPE_IDS: DraftTypeId[] = Array.from(ALL_DRAFT_TYPES)
-
-export const DRAFT_TYPE_LABELS: Record<DraftTypeId, string> = {
-  snake: 'Snake',
-  linear: 'Linear',
-  auction: 'Auction',
-  slow_draft: 'Slow Draft',
-  mock_draft: 'Mock Draft',
-  devy_snake: 'Devy Snake',
-  devy_auction: 'Devy Auction',
-  c2c_snake: 'C2C Snake',
-  c2c_auction: 'C2C Auction',
-}
+/**
+ * Legacy POST /api/league/create allowlist: canonical format draft ids + execution modes
+ * (`offline` | `auto` | `team`).
+ */
+export const DRAFT_TYPE_IDS: readonly string[] = listCreateLeagueWireDraftTypeIds()
 
 /** League types that imply dynasty (multi-year roster). */
 const DYNASTY_LEAGUE_TYPES: LeagueTypeId[] = ['dynasty', 'devy', 'c2c']
@@ -58,7 +57,7 @@ const DEVY_LEAGUE_TYPES: LeagueTypeId[] = ['devy', 'dynasty']
 /** League types that support C2C. */
 const C2C_LEAGUE_TYPES: LeagueTypeId[] = ['c2c']
 
-/** Draft types that are "live" league draft (not mock). */
+/** Draft types that are "live" league draft (not mock). Excludes mock_draft by design for this helper. */
 const LIVE_DRAFT_TYPES: DraftTypeId[] = [
   'snake',
   'linear',
@@ -111,31 +110,15 @@ export function getAllowedSportsForLeagueType(leagueType: LeagueTypeId): LeagueS
   return format ? (format.supportedSports as LeagueSport[]) : [...SUPPORTED_SPORTS]
 }
 
-/** Guillotine: snake, linear, auction, and mock draft only (no slow_draft). 3RR applies only to snake (UI). */
-const GUILLOTINE_DRAFT_TYPES: DraftTypeId[] = ['snake', 'linear', 'auction', 'mock_draft']
-
 /**
- * Draft types allowed for a league type.
- * Mock draft stays available across league types as a practice engine mode.
- * Guillotine supports snake/linear/auction and mock draft only.
+ * Draft types allowed for a league type and sport.
+ * Single source: format-engine resolution matrix (backed by `draftTypeRegistry`).
  */
 export function getAllowedDraftTypesForLeagueType(
   leagueType: LeagueTypeId,
   sport: LeagueSport | string = 'NFL'
 ): DraftTypeId[] {
-  if (leagueType === 'guillotine') return [...GUILLOTINE_DRAFT_TYPES]
-  if (leagueType === 'zombie') return ['snake', 'auction']
-  if (leagueType === 'survivor') return ['snake', 'auction']
-  if (leagueType === 'devy') return ['devy_snake', 'devy_auction']
-  if (leagueType === 'c2c') return ['c2c_snake', 'c2c_auction']
   return getAllowedDraftTypesForFormat(sport, leagueType) as DraftTypeId[]
-}
-
-/** Roster modes allowed for Guillotine (redraft / best_ball only). */
-export const GUILLOTINE_ALLOWED_ROSTER_MODES = ['redraft', 'best_ball'] as const
-
-export function getGuillotineAllowedRosterModes(): readonly string[] {
-  return GUILLOTINE_ALLOWED_ROSTER_MODES
 }
 
 /**

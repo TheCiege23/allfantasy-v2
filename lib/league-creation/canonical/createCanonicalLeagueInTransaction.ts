@@ -13,6 +13,7 @@ import type { SoccerPipeline } from '@/lib/redraft-creation/sport-config'
 import { soccerPipelineToPrismaVariant } from '@/lib/redraft-creation/create-redraft-league'
 import type { PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 import type { ValidatedCreateLeagueBody } from '@/lib/league-creation/canonical/validateCreateLeague'
+import { mapCanonicalDraftTypeToEngineCore } from '@/lib/draft-types/draftTypeRegistry'
 
 type Tx = Prisma.TransactionClient
 
@@ -51,14 +52,6 @@ async function uniqueJoinCode(tx: Tx): Promise<string> {
     }
   }
   throw new Error('Unable to generate join code')
-}
-
-function mapToCoreDraftSessionType(d: string): 'snake' | 'linear' | 'auction' {
-  const x = d.toLowerCase()
-  if (x === 'offline' || x === 'auto') return 'snake'
-  if (x.includes('auction')) return 'auction'
-  if (x === 'linear') return 'linear'
-  return 'snake'
 }
 
 function leagueModeColumns(formatId: LeagueFormatId): Partial<Prisma.LeagueUncheckedCreateInput> {
@@ -101,7 +94,7 @@ export async function createCanonicalLeagueInTransaction(
     free_agent_unlock_behavior?: string
   }
 
-  const coreDraft = mapToCoreDraftSessionType(body.draftType)
+  const coreDraft = mapCanonicalDraftTypeToEngineCore(body.draftType)
   const timerSeconds = draftDefaults.timer_seconds_default ?? 90
   const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
   const isOffline = body.draftType.toLowerCase() === 'offline'

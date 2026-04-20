@@ -6,7 +6,9 @@ import {
   getSupportedSports,
   getValidPositions,
   getValidRosterSlotNames,
+  isDraftTypeAllowedForSport,
 } from '@/lib/sport-rules-engine'
+import { PLATFORM_SPORT_RULES_DRAFT_TYPES } from '@/lib/draft-types/draftTypeRegistry'
 
 describe('SportRulesEngine', () => {
   it('supports all required sports', () => {
@@ -32,9 +34,17 @@ describe('SportRulesEngine', () => {
 
   it('returns sport-scoped draft options including mock draft mode', () => {
     const nflDraftTypes = getAllowedDraftTypesForSport('NFL')
+    expect(nflDraftTypes).toEqual([...PLATFORM_SPORT_RULES_DRAFT_TYPES])
     expect(nflDraftTypes).toEqual(
       expect.arrayContaining(['snake', 'linear', 'auction', 'slow_draft', 'mock_draft'])
     )
+  })
+
+  it('maps specialty and execution ids to sport-rules bases for validation', () => {
+    expect(isDraftTypeAllowedForSport('NFL', 'devy_snake')).toBe(true)
+    expect(isDraftTypeAllowedForSport('NFL', 'c2c_auction')).toBe(true)
+    expect(isDraftTypeAllowedForSport('NFL', 'offline')).toBe(true)
+    expect(isDraftTypeAllowedForSport('NFL', 'mock_draft')).toBe(true)
   })
 
   it('returns scoring and player pool rules for soccer', () => {

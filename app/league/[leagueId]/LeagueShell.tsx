@@ -314,53 +314,58 @@ export function LeagueShell({
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
+    if (shouldUseMatchupPrimary) return
     if (!league.guillotineMode || guillotineLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has('guillotine')) return
     setActiveTab('guillotine')
     guillotineLandingApplied.current = true
-  }, [league.id, league.guillotineMode, tabDefs, searchParams])
+  }, [league.id, league.guillotineMode, tabDefs, searchParams, shouldUseMatchupPrimary])
 
   /** Survivor leagues default to the Survivor hub (once per visit) when no deep link. */
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
+    if (shouldUseMatchupPrimary) return
     if (league.guillotineMode) return
     if (league.leagueVariant !== 'survivor' || survivorLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has('survivor')) return
     setActiveTab('survivor')
     survivorLandingApplied.current = true
-  }, [league.id, league.leagueVariant, tabDefs, searchParams])
+  }, [league.id, league.leagueVariant, tabDefs, searchParams, shouldUseMatchupPrimary])
 
   /** Zombie leagues default to the Zombie hub (once per visit) when no deep link. */
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
+    if (shouldUseMatchupPrimary) return
     if (league.guillotineMode) return
     if (league.leagueVariant !== 'zombie' || zombieLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has('zombie')) return
     setActiveTab('zombie')
     zombieLandingApplied.current = true
-  }, [league.id, league.leagueVariant, league.guillotineMode, tabDefs, searchParams])
+  }, [league.id, league.leagueVariant, league.guillotineMode, tabDefs, searchParams, shouldUseMatchupPrimary])
 
   /** Big Brother leagues default to the Big Brother hub. */
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
+    if (shouldUseMatchupPrimary) return
     if (league.leagueVariant !== 'big_brother' || bigBrotherLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
     if (!ids.has('big_brother')) return
     setActiveTab('big_brother')
     bigBrotherLandingApplied.current = true
-  }, [league.id, league.leagueVariant, tabDefs, searchParams])
+  }, [league.id, league.leagueVariant, tabDefs, searchParams, shouldUseMatchupPrimary])
 
   /** IDP leagues default to the IDP hub. */
   const idpLandingApplied = useRef(false)
   useEffect(() => {
     const deepLink = searchParams?.get('view') ?? searchParams?.get('tab')
     if (deepLink?.trim()) return
+    if (shouldUseMatchupPrimary) return
     if (league.leagueVariant !== 'idp' && league.leagueVariant !== 'dynasty_idp') return
     if (idpLandingApplied.current) return
     const ids = new Set(tabDefs.map((t) => t.id))
@@ -1029,8 +1034,7 @@ export function LeagueShell({
               initialActivePanel={settingsInitialPanel}
               onGoToDraftTab={() => {
                 closeLeagueSettingsModal()
-                const ids = tabDefs.map((t) => t.id)
-                setActiveTab(ids.includes('draft') ? 'draft' : ids[0] ?? 'draft')
+                setActiveTab(tabDefs[0]?.id ?? 'draft')
               }}
             />,
             document.body,

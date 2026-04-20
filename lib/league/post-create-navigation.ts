@@ -1,63 +1,74 @@
 /**
  * Canonical “first URL” after a successful league/tournament create.
- * Keeps `/create-league` submit, My Leagues entry, and list routing aligned.
+ * All native leagues with a `League.id` land on `/league/[leagueId]` — specialty behavior
+ * is driven by `league.leagueType`, `settings`, and `conceptRules`, not separate app roots.
+ *
+ * Query flags:
+ * - `created=1` — post-create handoff; league page may skip legacy tournament redirect.
+ * - `tournamentHub=<tournamentId>` — feeder/hub context for in-shell tournament UI.
+ * - `guide=settings` — setup guide affordance.
+ * - `openChat=league` — open league chat.
+ * - `showInvite=1` — invite panel when applicable.
  */
 
 export type PostCreateLeagueHomeArgs = {
-  /** New `League.id` from `/api/league/create`. Omit only when navigating purely by `tournamentId`. */
+  /** Canonical `League.id` — required for all routes except missing-id fallback. */
   leagueId?: string
-  /** Wizard `leagueType` / format id (e.g. `tournament`, `survivor`, `redraft`). */
+  /** Wizard / format id (e.g. `tournament`, `survivor`, `redraft`). */
   leagueType: string
-  /** From `/api/tournament/create` when `leagueType === 'tournament'`. */
+  /** From `/api/tournament/create` — stored as `tournamentHub` query for in-shell context. */
   tournamentId?: string | null
-  /** Mirrors wizard invite step — adds `showInvite=1` for standard league home. */
+  /** Mirrors wizard invite step — adds `showInvite=1`. */
   allowInviteLink?: boolean
-  /** Zombie universe tier from create wizard — multi-league packs go to commissioner tools. */
+  /** Zombie multi-pack hint — surfaced via query for first-run banners only; shell still `/league/...`. */
   zombieUniverseTier?: 'single_gamma' | 'beta_trio' | 'alpha_hex' | null
 }
 
-/**
- * Build post-submit navigation URL: tournament hub → `/tournament/...`, survivor → `/survivor/...`,
- * all other formats → `/league/...` with `created` + `openChat` query flags.
- */
-export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): string {
-  const lt = String(args.leagueType ?? '').trim().toLowerCase()
-  const tid = typeof args.tournamentId === 'string' ? args.tournamentId.trim() : ''
-
-  if (lt === 'tournament' && tid) {
-    return `/app/tournament/${tid}/commissioner?created=1`
-  }
-
-  const leagueId = typeof args.leagueId === 'string' ? args.leagueId.trim() : ''
-  if (!leagueId) {
-    return '/dashboard'
-  }
-
-  if (lt === 'survivor') {
-    return `/survivor/${leagueId}/commissioner?created=1`
-  }
-
-  if (lt === 'zombie') {
-    const tier = args.zombieUniverseTier ?? 'single_gamma'
-    if (tier === 'beta_trio' || tier === 'alpha_hex') {
-      return `/zombie/${leagueId}/settings?created=1`
-    }
-    const q = new URLSearchParams()
-    q.set('created', '1')
-    q.set('guide', 'settings')
-    q.set('openChat', 'league')
-    if (args.allowInviteLink) q.set('showInvite', '1')
-    return `/league/${leagueId}?${q.toString()}`
-  }
-
-  if (lt === 'big_brother') {
-    return `/big-brother/${leagueId}/command?created=1`
-  }
-
-  const q = new URLSearchParams()
+function appendCommonLeagueQuery(q: URLSearchParams, args: PostCreateLeagueHomeArgs): void {
   q.set('created', '1')
   q.set('guide', 'settings')
   q.set('openChat', 'league')
   if (args.allowInviteLink) q.set('showInvite', '1')
-  return `/league/${leagueId}?${q.toString()}`
+  const zt = args.zombieUniverseTier
+  if (zt === 'beta_trio' || zt === 'alpha_hex') {
+    q.set('zombieTier', zt)
+  }
+}
+
+/**
+ * Build post-submit navigation URL.
+ * Primary destination: `/league/[leagueId]?...` for every format with a league row.
+ * Tournament hubs: pass `tournamentId` so the shell can link hub tools without leaving the league route.
+ */
+export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): string {
+  const lt = String(args.leagueType ?? '').trim().toLowerCase()
+  const tid = typeof args.tournamentId === 'string' ? args.tournamentId.trim() : ''
+  const leagueId = typeof args.leagueId === 'string' ? args.leagueId.trim() : ''
+
+  if (!leagueId) {
+    // Tournament create must return `leagueIds[0]`; if not, safe fallback.
+    if (lt === 'tournament' && tid) {
+      return `/app/tournament/${encodeURIComponent(tid)}/commissioner?created=1`
+    }
+    return '/dashboard'
+  }
+
+  const q = new URLSearchParams()
+  appendCommonLeagueQuery(q, args)
+
+  if (lt === 'tournament' && tid) {
+    q.set('tournamentHub', tid)
+  }
+
+  return `/league/${encodeURIComponent(leagueId)}?${q.toString()}`
+}
+
+/**
+ * When true, `/league/[leagueId]` should not auto-redirect to `/tournament/...` so the
+ * canonical league shell renders for post-create handoff.
+ */
+export function isPostCreateLeagueShellHandoff(searchParams: Record<string, string | string[] | undefined>): boolean {
+  const raw = searchParams.created
+  const v = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined
+  return v === '1' || v === 'true'
 }

@@ -8,9 +8,15 @@
 
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
-import { getAllowedSportsForLeagueType, getAllowedDraftTypesForLeagueType } from '@/lib/league-creation-wizard/league-type-registry'
+import { getAllowedSportsForLeagueType } from '@/lib/league-creation-wizard/league-type-registry'
 import { getTeamCountOptionsForSport } from '@/lib/league-creation-wizard/sport-team-limits'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import {
+  getDraftTypeUiHint,
+  getDraftTypeUiLabel,
+  resolveEffectiveDraftTypeForConcept,
+} from '@/lib/draft-types/draftTypeRegistry'
+import { getAllowedDraftTypesForFormat } from '@/lib/league/format-engine'
 
 // ── Sport filtering ─────────────────────────────────────────────────
 
@@ -141,7 +147,6 @@ export function getDefaultTeamCount(
  * we always offer `team`, `auto`, and `offline` as universal execution modes because
  * they describe *how* the draft runs, not who's eligible.
  */
-const CORE_DRAFT_IDS = ['snake', 'linear', 'auction'] as const
 const EXECUTION_DRAFT_IDS = ['team', 'auto', 'offline'] as const
 
 /** Widened string type so the UI can accept the execution modes that aren't in Prisma's DraftTypeId. */
@@ -153,61 +158,34 @@ export interface DraftTypeOption {
   hint: string
 }
 
-/** Draft types to show in the UI for a given league type. */
-export function getDraftTypeOptions(leagueType: LeagueTypeId, _sport?: SupportedSport): DraftTypeOption[] {
-  const allowed = getAllowedDraftTypesForLeagueType(leagueType)
-
-  // For devy/c2c the registry returns devy_snake/c2c_snake etc. — map to base types
-  const baseTypes = allowed.map((dt) => {
-    if (dt === 'devy_snake' || dt === 'c2c_snake') return 'snake'
-    if (dt === 'devy_auction' || dt === 'c2c_auction') return 'auction'
-    return dt
-  })
-
-  const seen = new Set<string>()
+/** Draft types to show in the UI for a given league type + sport (canonical ids from support matrix). */
+export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSport = 'NFL'): DraftTypeOption[] {
+  const allowed = getAllowedDraftTypesForFormat(sport, leagueType)
   const result: DraftTypeOption[] = []
 
-  // Core draft types (filtered by what the registry allows for this league type)
-  for (const dt of baseTypes) {
-    if (!(CORE_DRAFT_IDS as readonly string[]).includes(dt) || seen.has(dt)) continue
-    seen.add(dt)
+  for (const dt of allowed) {
     result.push({
       id: dt as WizardDraftTypeId,
-      label: leagueType === 'salary_cap' && dt === 'auction' ? 'Salary Cap Auction' : DRAFT_LABELS[dt] ?? dt,
-      hint: DRAFT_HINTS[dt] ?? '',
+      label: getDraftTypeUiLabel(dt, leagueType),
+      hint: getDraftTypeUiHint(dt),
     })
   }
 
-  // Universal execution modes (apply to every league type)
   for (const dt of EXECUTION_DRAFT_IDS) {
-    if (seen.has(dt)) continue
-    seen.add(dt)
     result.push({
       id: dt,
-      label: DRAFT_LABELS[dt] ?? dt,
-      hint: DRAFT_HINTS[dt] ?? '',
+      label:
+        dt === 'team' ? 'Team' : dt === 'auto' ? 'Auto' : 'Offline',
+      hint:
+        dt === 'team'
+          ? 'Co-managed by multiple users'
+          : dt === 'auto'
+            ? 'CPU drafts for everyone'
+            : 'Track an in-person draft',
     })
   }
 
   return result
-}
-
-const DRAFT_LABELS: Record<string, string> = {
-  snake: 'Snake',
-  linear: 'Linear',
-  auction: 'Auction',
-  team: 'Team',
-  auto: 'Auto',
-  offline: 'Offline',
-}
-
-const DRAFT_HINTS: Record<string, string> = {
-  snake: 'Reverse each round',
-  linear: 'Same order each round',
-  auction: 'Bid on every player',
-  team: 'Co-managed by multiple users',
-  auto: 'CPU drafts for everyone',
-  offline: 'Track an in-person draft',
 }
 
 /** Is a specific draft type allowed for this league type? */
@@ -218,20 +196,9 @@ export function isDraftTypeAllowedForType(draftType: WizardDraftTypeId | string,
 
 // ── Effective draft type mapping ────────────────────────────────────
 
-/**
- * Map the user-facing base draft type (snake/auction) to the actual
- * backend draft type ID for devy/c2c league types.
- */
+/** Map wizard selection to canonical API draft ids (devy/c2c specialty variants). */
 export function resolveEffectiveDraftType(leagueType: LeagueTypeId, baseDraftType: WizardDraftTypeId | string): string {
-  if (leagueType === 'devy') {
-    if (baseDraftType === 'auction') return 'devy_auction'
-    return 'devy_snake'
-  }
-  if (leagueType === 'c2c') {
-    if (baseDraftType === 'auction') return 'c2c_auction'
-    return 'c2c_snake'
-  }
-  return baseDraftType
+  return resolveEffectiveDraftTypeForConcept(leagueType, String(baseDraftType))
 }
 
 // ── Survivor tribe helpers ──────────────────────────────────────────
@@ -244,7 +211,14 @@ export function getSurvivorTribeOptions(teamCount: number): number[] {
 // ── 3RR availability ────────────────────────────────────────────────
 
 export function isThirdRoundReversalAvailable(draftType: WizardDraftTypeId | string): boolean {
-  return draftType === 'snake'
+  const x = String(draftType).toLowerCase()
+  return (
+    x === 'snake' ||
+    x === 'devy_snake' ||
+    x === 'c2c_snake' ||
+    x === 'slow_draft' ||
+    x === 'mock_draft'
+  )
 }
 
 // ── IDP helpers ─────────────────────────────────────────────────────

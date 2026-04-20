@@ -1,12 +1,9 @@
 'use client'
 
 import { Label } from '@/components/ui/label'
-import {
-  DRAFT_TYPE_LABELS,
-  getAllowedDraftTypesForLeagueType,
-} from '@/lib/league-creation-wizard/league-type-registry'
+import { getDraftTypeUiLabel } from '@/lib/draft-types/draftTypeRegistry'
 import type { DraftTypeId, LeagueTypeId } from '@/lib/league-creation-wizard/types'
-import { useSportRules } from '@/hooks/useSportRules'
+import { getAllowedDraftTypesForFormat } from '@/lib/league/format-engine'
 import { StepHeader } from './StepHelp'
 import { getDraftTypeMedia } from '@/lib/league-media/draftTypeMedia'
 import { LeagueStepPreviewVideo, OptionCardMedia } from './OptionCardMedia'
@@ -59,32 +56,11 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
  * Integrates with live draft engines and mock draft engine paths.
  */
 function draftTypeLabel(leagueType: LeagueTypeId, id: DraftTypeId): string {
-  if (leagueType === 'devy') {
-    if (id === 'devy_snake') return 'Snake'
-    if (id === 'devy_auction') return 'Auction'
-  }
-  if (leagueType === 'c2c') {
-    if (id === 'c2c_snake') return 'Snake'
-    if (id === 'c2c_auction') return 'Auction'
-  }
-  return DRAFT_TYPE_LABELS[id]
+  return getDraftTypeUiLabel(id, leagueType)
 }
 
 export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftTypeSelectorProps) {
-  const { rules } = useSportRules(sport, null)
-  const allowedByLeagueType = getAllowedDraftTypesForLeagueType(leagueType, sport)
-  const allowedBySport = rules?.draft.allowedDraftTypes ?? allowedByLeagueType
-  const allowed = (() => {
-    const normalizedSportAllowed = new Set(
-      allowedBySport.flatMap((id) => {
-        if (id === 'snake') return ['snake', 'devy_snake', 'c2c_snake']
-        if (id === 'auction') return ['auction', 'devy_auction', 'c2c_auction']
-        return [id]
-      })
-    )
-    const intersected = allowedByLeagueType.filter((id) => normalizedSportAllowed.has(id))
-    return intersected.length > 0 ? intersected : allowedByLeagueType
-  })()
+  const allowed = getAllowedDraftTypesForFormat(sport, leagueType) as DraftTypeId[]
   const safeValue = allowed.includes(value) ? value : allowed[0]!
   const previewMedia = getDraftTypeMedia(safeValue)
   return (

@@ -4,6 +4,7 @@
  */
 
 import type { LeagueSport } from '@prisma/client'
+import type { PlatformSportRulesDraftTypeId } from '@/lib/draft-types/draftTypeRegistry'
 
 export type SportKey = LeagueSport | string
 
@@ -56,14 +57,17 @@ export interface PlayerPoolRules {
   devyEligible: boolean
 }
 
+/** Default pick-order mode when sport defaults do not specify another id. */
+export type SportRulesDefaultDraftType = Exclude<PlatformSportRulesDraftTypeId, 'mock_draft'>
+
 /** Draft options for a sport. */
 export interface DraftOptionRules {
   sport: string
   formatType: string
-  /** Allowed draft types for this sport. */
-  allowedDraftTypes: ('snake' | 'linear' | 'auction' | 'slow_draft' | 'mock_draft')[]
+  /** Allowed draft types for this sport (aligned with `PLATFORM_SPORT_RULES_DRAFT_TYPES` in draft-type registry). */
+  allowedDraftTypes: PlatformSportRulesDraftTypeId[]
   /** Default draft type to pre-select for this sport. */
-  defaultDraftType: 'snake' | 'linear' | 'auction' | 'slow_draft'
+  defaultDraftType: SportRulesDefaultDraftType
   roundsDefault: number
   roundsMin: number
   roundsMax: number

@@ -10,6 +10,10 @@ import {
   isDraftTypeAllowedForFormat,
   isLeagueFormatAllowedForSport,
 } from '@/lib/league/format-engine'
+import {
+  normalizeDraftTypeForEngineValidation,
+  resolveEffectiveDraftTypeForConcept,
+} from '@/lib/draft-types/draftTypeRegistry'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
@@ -17,9 +21,7 @@ import type { ValidationIssue } from '@/lib/league-creation/canonical/types'
 
 /** Maps execution modes (offline/auto/team) to a core draft id for format-engine checks. */
 export function normalizeDraftTypeForEngine(draftType: string): string {
-  const x = String(draftType).trim().toLowerCase()
-  if (x === 'offline' || x === 'auto' || x === 'team') return 'snake'
-  return x
+  return normalizeDraftTypeForEngineValidation(draftType)
 }
 
 export const FORBIDDEN_CREATE_LEAGUE_USER_KEYS = [
@@ -137,7 +139,8 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
     }
   }
 
-  const engineDraft = normalizeDraftTypeForEngine(data.draftType)
+  const engineBase = normalizeDraftTypeForEngineValidation(data.draftType)
+  const engineDraft = resolveEffectiveDraftTypeForConcept(formatId as LeagueTypeId, engineBase)
   if (!isDraftTypeAllowedForFormat(sport, formatId, engineDraft)) {
     return {
       ok: false,

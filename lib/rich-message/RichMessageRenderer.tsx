@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import Image from "next/image"
 import type { PlatformChatMessage } from "@/types/platform-shared"
 import { getSafeMessageMediaUrl } from "./safeMedia"
 
@@ -30,9 +31,12 @@ export function RichMessageRenderer({ message, onImageClick, className, style }:
       if (url) {
         return (
           <div className={className} style={style}>
-            <img
+            <Image
               src={url}
               alt={typeof payload?.caption === "string" ? payload.caption : "Media"}
+              width={800}
+              height={600}
+              unoptimized
               className="max-w-full max-h-[280px] rounded-lg object-contain cursor-pointer"
               loading="lazy"
               onClick={() => onImageClick?.(url)}
@@ -56,9 +60,12 @@ export function RichMessageRenderer({ message, onImageClick, className, style }:
     }
     return (
       <div className={className} style={style}>
-        <img
+        <Image
           src={url}
           alt={alt || (type === "gif" ? "GIF" : "Image")}
+          width={800}
+          height={600}
+          unoptimized
           className="max-w-full max-h-[280px] rounded-lg object-contain cursor-pointer"
           loading="lazy"
           onClick={() => onImageClick?.(url)}

@@ -16,6 +16,18 @@ const LINKS: Array<Omit<AIToolDiscoveryLink, 'href'> & { featureKey: ToolAIEntry
   { label: 'Waiver AI', description: 'Waiver recommendations', featureKey: 'waiver_ai', category: 'tool' },
   { label: 'Rankings AI', description: 'Power rankings and explanations', featureKey: 'rankings', category: 'tool' },
   { label: 'Draft Helper', description: 'Draft picks and war room help', featureKey: 'draft_helper', category: 'tool' },
+  {
+    label: 'League Matchup AI',
+    description: 'Head-to-head AI breakdown in the league hub',
+    featureKey: 'league_matchup_ai',
+    category: 'tool',
+  },
+  {
+    label: 'Start/Sit AI',
+    description: 'Compare two starters with multi-model analysis',
+    featureKey: 'league_start_sit_ai',
+    category: 'tool',
+  },
   { label: 'Psychological Profiles', description: 'Manager behavior and rivalry insights', featureKey: 'psychological_profiles', category: 'governance' },
   { label: 'Story Creator', description: 'Legacy, rivalry, and prestige narratives', featureKey: 'story_creator', category: 'story' },
   { label: 'Content Generator', description: 'Social, media, and blog generation', featureKey: 'content', category: 'media' },

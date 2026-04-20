@@ -8,6 +8,7 @@ import { getLeagueTypeMedia, normalizeLeagueTypeKey } from '@/lib/league-media/l
 import { resolveFormatRosterDefaults, type FormatRosterModifierId } from './roster-defaults'
 import { resolveFormatScoringDefaults, type FormatScoringModifierId } from './scoring-defaults'
 import { resolveKeeperPolicy } from './keeper-policy'
+import { DRAFT_TYPES_BY_LEAGUE_FORMAT } from '@/lib/draft-types/draftTypeRegistry'
 
 export type LeagueFormatId =
   | 'redraft'
@@ -77,12 +78,7 @@ export type LeagueFormatResolution = {
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
 /** Survivor fantasy format is not offered for Soccer in create flows. */
 const SURVIVOR_ELIGIBLE_SPORTS = ALL_SPORTS.filter((s) => s !== 'SOCCER') as LeagueSport[]
-const FOOTBALL_BASKETBALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'NCAAF', 'NCAAB']
 const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
-const DRAFT_TYPES_STANDARD: LeagueDraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
-
-/** Survivor: startup draft is snake or auction only (no linear/slow/mock in create flow). */
-const DRAFT_TYPES_SURVIVOR: LeagueDraftTypeId[] = ['snake', 'auction']
 
 const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
   redraft: {
@@ -91,7 +87,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Seasonal leagues with a fresh player pool each year.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.redraft] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: ['superflex', 'idp', 'te_premium'],
     capabilities: {
@@ -108,7 +104,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Carry rosters year to year with deeper benches and future planning.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'dynasty',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.dynasty] as LeagueDraftTypeId[],
     defaultModifiers: ['taxi'],
     supportedModifiers: ['superflex', 'idp', 'te_premium', 'taxi'],
     capabilities: {
@@ -125,7 +121,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Seasonal play with controlled carryover into the next draft.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'keeper',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.keeper] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: ['superflex', 'te_premium'],
     capabilities: {
@@ -142,7 +138,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Automatic weekly lineup optimization with no manual sit/start decisions.',
     supportedSports: BEST_BALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.best_ball] as LeagueDraftTypeId[],
     defaultModifiers: ['best_ball'],
     supportedModifiers: ['best_ball', 'superflex', 'te_premium'],
     capabilities: {
@@ -159,7 +155,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Lowest score each period gets chopped and their roster is released.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: ['snake', 'linear', 'auction', 'mock_draft'],
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.guillotine] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {
@@ -176,7 +172,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Progressive elimination with specialty rules and weekly survival logic.',
     supportedSports: SURVIVOR_ELIGIBLE_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_SURVIVOR,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.survivor] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {
@@ -193,7 +189,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Bracket-style league orchestration layered on top of a core league.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.tournament] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: [],
     capabilities: {
@@ -211,7 +207,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     /** NFL/NCAAF and NBA/NCAAB prospect pipelines — not offered for MLB/NHL/Soccer. */
     supportedSports: ['NFL', 'NCAAF', 'NBA', 'NCAAB'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['devy_snake', 'devy_auction'],
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.devy] as LeagueDraftTypeId[],
     defaultModifiers: ['devy', 'taxi'],
     supportedModifiers: ['devy', 'taxi', 'superflex', 'te_premium'],
     capabilities: {
@@ -229,7 +225,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     /** NFL/NCAAF and NBA/NCAAB — not offered for MLB/NHL/Soccer. */
     supportedSports: ['NFL', 'NCAAF', 'NBA', 'NCAAB'],
     defaultRosterMode: 'dynasty',
-    draftTypes: ['c2c_snake', 'c2c_auction'],
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.c2c] as LeagueDraftTypeId[],
     defaultModifiers: ['c2c', 'taxi'],
     supportedModifiers: ['c2c', 'taxi', 'superflex', 'te_premium'],
     capabilities: {
@@ -248,7 +244,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     supportedSports: ZOMBIE_ELIGIBLE_LEAGUE_SPORTS,
     defaultRosterMode: 'redraft',
     /** Snake / auction only at create; slow-draft removed as a discrete type (use timer presets). */
-    draftTypes: ['snake', 'auction'],
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.zombie] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: ['idp', 'te_premium'],
     capabilities: {
@@ -265,7 +261,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Contract and cap-sheet management with deterministic legality checks.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'dynasty',
-    draftTypes: ['auction', 'slow_draft', 'mock_draft'],
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.salary_cap] as LeagueDraftTypeId[],
     defaultModifiers: ['salary_cap'],
     supportedModifiers: ['salary_cap', 'superflex', 'te_premium', 'taxi'],
     capabilities: {
@@ -282,7 +278,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     description: 'Social-strategy elimination: HOH nominations, Veto competitions, private eviction voting, and jury finale.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
-    draftTypes: DRAFT_TYPES_STANDARD,
+    draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.big_brother] as LeagueDraftTypeId[],
     defaultModifiers: [],
     supportedModifiers: ['superflex', 'te_premium'],
     capabilities: {

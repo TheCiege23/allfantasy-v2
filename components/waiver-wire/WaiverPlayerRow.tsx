@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Plus, TrendingUp } from "lucide-react"
 import { teamLogoUrl } from "@/lib/media-url"
 
@@ -49,10 +50,13 @@ export default function WaiverPlayerRow({
           {pos}
         </div>
         {logo ? (
-          <img
+          <Image
             src={logo}
             alt={`${team} logo`}
             data-testid={`waiver-player-team-logo-${player.id}`}
+            width={28}
+            height={28}
+            unoptimized
             className="h-7 w-7 rounded object-contain"
             loading="lazy"
           />

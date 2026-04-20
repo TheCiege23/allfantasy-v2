@@ -10,6 +10,8 @@
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, V2PageId } from '@/lib/create-league-v2/state'
 import { getEffectiveLeagueType, isFootballLike } from '@/lib/create-league-v2/state'
+import { isThirdRoundReversalAvailable } from '@/lib/create-league-v2/rules-engine'
+import { getDraftTypeUiLabel } from '@/lib/draft-types/draftTypeRegistry'
 import { GlassCard, InnerPanel } from './primitives'
 
 const LEAGUE_TYPE_LABEL: Record<string, string> = {
@@ -30,18 +32,6 @@ const LEAGUE_TYPE_LABEL: Record<string, string> = {
 const SOCCER_PIPELINE_LABEL: Record<string, string> = {
   mls: 'MLS (North America)',
   euro: 'European (Top 5)',
-}
-
-const DRAFT_TYPE_LABEL: Record<string, string> = {
-  snake: 'Snake',
-  linear: 'Linear',
-  auction: 'Auction',
-  slow_draft: 'Slow Draft',
-  mock_draft: 'Mock',
-  devy_snake: 'Devy Snake',
-  devy_auction: 'Devy Auction',
-  c2c_snake: 'C2C Snake',
-  c2c_auction: 'C2C Auction',
 }
 
 const SCORING_LABEL = {
@@ -192,9 +182,13 @@ export function Page4Review({ state, accent, onJump }: Page4ReviewProps) {
             <Row
               label="Draft Type"
               accent={accent}
-              value={<Badge accent={accent}>{DRAFT_TYPE_LABEL[state.draftType] ?? state.draftType}</Badge>}
+              value={
+                <Badge accent={accent}>
+                  {getDraftTypeUiLabel(String(state.draftType), lt ?? undefined)}
+                </Badge>
+              }
             />
-            {state.draftType === 'snake' ? (
+            {isThirdRoundReversalAvailable(state.draftType) ? (
               <Row
                 label="3RR"
                 accent={accent}

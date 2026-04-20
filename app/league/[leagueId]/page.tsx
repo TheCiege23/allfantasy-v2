@@ -9,6 +9,7 @@ import type { LeagueSeasonSnapshot } from '@/lib/league/sort-teams-standings'
 import { buildLeagueDashboardView } from '@/lib/league/league-dashboard-view'
 import type { LeagueDashboardView } from './league-dashboard-types'
 import { resolveTournamentDestinationFromLeagueSettings } from '@/lib/dashboard/league-list-destination'
+import { isPostCreateLeagueShellHandoff } from '@/lib/league/post-create-navigation'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,10 +91,11 @@ export default async function LeaguePage({
     redirect('/dashboard')
   }
 
-  // Redirect tournament hub / feeder leagues to tournament home (same rules as My Leagues list links)
+  // Redirect tournament hub rows to `/tournament/...` for list parity — skip on post-create handoff
+  // so every format lands in the canonical league shell first (`?created=1`).
   const leagueSettings = league.settings && typeof league.settings === 'object' ? league.settings as Record<string, unknown> : {}
   const tournamentHref = resolveTournamentDestinationFromLeagueSettings(leagueSettings)
-  if (tournamentHref) {
+  if (tournamentHref && !isPostCreateLeagueShellHandoff(sp)) {
     redirect(tournamentHref)
   }
 

@@ -11,6 +11,9 @@ const {
   validateLeagueSettingsMock,
   validateLeagueFeatureFlagsMock,
   runPostCreateInitializationMock,
+  executeCanonicalLeagueCreationMock,
+  resolveAppUserIdForLeagueCreateMock,
+  runLegacyWizardSpecialtyBootstrapsMock,
 } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn(),
   leagueFindFirstMock: vi.fn(),
@@ -22,6 +25,9 @@ const {
   validateLeagueSettingsMock: vi.fn(),
   validateLeagueFeatureFlagsMock: vi.fn(),
   runPostCreateInitializationMock: vi.fn(),
+  executeCanonicalLeagueCreationMock: vi.fn(),
+  resolveAppUserIdForLeagueCreateMock: vi.fn(),
+  runLegacyWizardSpecialtyBootstrapsMock: vi.fn(),
 }))
 
 vi.mock('next-auth', () => ({
@@ -67,12 +73,44 @@ vi.mock('@/lib/sport-defaults/SportFeatureFlagsService', () => ({
   validateLeagueFeatureFlags: validateLeagueFeatureFlagsMock,
 }))
 
+vi.mock('@/lib/league-creation/canonical/executeCanonicalLeagueCreation', () => ({
+  executeCanonicalLeagueCreation: executeCanonicalLeagueCreationMock,
+}))
+
+vi.mock('@/lib/redraft-creation/resolve-app-user-for-league', () => ({
+  resolveAppUserIdForLeagueCreate: resolveAppUserIdForLeagueCreateMock,
+}))
+
+vi.mock('@/lib/league-creation/legacyWizardSpecialtyBootstraps', () => ({
+  runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate: runLegacyWizardSpecialtyBootstrapsMock,
+}))
+
 describe('POST /api/league/create sport defaults integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
     getServerSessionMock.mockResolvedValue({ user: { id: 'u1' } })
     leagueFindFirstMock.mockResolvedValue(null)
+    resolveAppUserIdForLeagueCreateMock.mockResolvedValue({ ok: true, appUserId: 'u1', resolvedVia: 'id' })
+    executeCanonicalLeagueCreationMock.mockImplementation(async (args: { body: { sport: string } }) => ({
+      ok: true as const,
+      response: {
+        success: true,
+        league: {
+          id: `league-${String(args.body.sport).toLowerCase()}`,
+          leagueName: 'Test',
+          concept: 'redraft',
+          sport: String(args.body.sport),
+          teamCount: 12,
+          draftType: 'snake',
+          scoringPreset: 'fb_half_ppr',
+          status: 'setup',
+          presetKey: 'pk',
+        },
+        homepageUrl: '/league/test',
+      },
+    }))
+    runLegacyWizardSpecialtyBootstrapsMock.mockResolvedValue(undefined)
     leagueFindUniqueMock.mockImplementation(({ where }: { where: { id: string } }) => {
       const id = String(where?.id ?? '')
       const raw = id.replace(/^league-/i, '')
@@ -80,7 +118,14 @@ describe('POST /api/league/create sport defaults integration', () => {
         raw.toLowerCase() === 'soccer'
           ? 'SOCCER'
           : raw.toUpperCase()
-      return Promise.resolve({ sport, leagueVariant: null })
+      return Promise.resolve({
+        id,
+        name: 'Test League',
+        sport,
+        leagueVariant: null,
+        leagueSize: 12,
+        settings: {},
+      })
     })
     leagueWaiverSettingsFindUniqueMock.mockResolvedValue(null)
     leagueWaiverSettingsUpsertMock.mockResolvedValue({ id: 'lws-1' })
@@ -175,51 +220,17 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(json?.league?.sport).toBe(sport)
     }
 
-    expect(getCreationPayloadAndSettingsMock).toHaveBeenCalledTimes(sports.length)
-    for (const sport of sports) {
-      expect(getCreationPayloadAndSettingsMock).toHaveBeenCalledWith(
-        sport,
-        undefined,
-        expect.objectContaining({ superflex: false, roster_mode: undefined })
-      )
-    }
-
-    expect(leagueCreateMock).toHaveBeenCalledTimes(sports.length)
-    const createPayloads = leagueCreateMock.mock.calls.map((c) => c[0]?.data)
-    for (const payload of createPayloads) {
-      expect(payload.settings).toEqual(
+    /** Manual leagues use POST /api/leagues canonical pipeline (executeCanonicalLeagueCreation), not orchestrator + prisma.league.create. */
+    expect(getCreationPayloadAndSettingsMock).not.toHaveBeenCalled()
+    expect(leagueCreateMock).not.toHaveBeenCalled()
+    expect(executeCanonicalLeagueCreationMock).toHaveBeenCalledTimes(sports.length)
+    sports.forEach((sport, i) => {
+      expect(executeCanonicalLeagueCreationMock.mock.calls[i]?.[0]).toEqual(
         expect.objectContaining({
-          sport_type: payload.sport,
-          playoff_team_count: 6,
-          matchup_frequency: 'weekly',
-          schedule_unit: 'week',
-          trade_review_mode: 'commissioner',
-          standings_tiebreakers: ['points_for', 'head_to_head'],
-          draft_type: expect.any(String),
-          draft_rounds: expect.any(Number),
-          waiver_type: expect.any(String),
+          body: expect.objectContaining({ sport, teamCount: 12 }),
         })
       )
-      expect(payload.isCommissioner).toBe(true)
-    }
-
-    const mlbPayload = createPayloads.find((p) => p.sport === 'MLB')
-    expect(mlbPayload?.settings).toEqual(
-      expect.objectContaining({
-        regular_season_length: 26,
-        lock_time_behavior: 'slate_lock',
-        injury_slot_behavior: 'ir_only',
-      })
-    )
-
-    const nflPayload = createPayloads.find((p) => p.sport === 'NFL')
-    expect(nflPayload?.settings).toEqual(
-      expect.objectContaining({
-        regular_season_length: 18,
-        lock_time_behavior: 'first_game',
-        injury_slot_behavior: 'ir_or_out',
-      })
-    )
+    })
   })
 
   it('persists NFL variant matrix and Soccer standard variant', async () => {
@@ -240,7 +251,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.sport} ${c.variant} League`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueVariant: c.variant,
           leagueSize: 12,
@@ -311,7 +323,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -380,7 +393,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -450,7 +464,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -522,7 +537,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -592,7 +608,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -662,7 +679,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -732,7 +750,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -803,7 +822,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -874,7 +894,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -944,7 +965,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1015,7 +1037,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1087,7 +1110,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1109,14 +1133,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: zombie+slow_draft and survivor+auction', async () => {
+  it('supports next paths: zombie+auction and survivor+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'zombie',
-        draftType: 'slow_draft',
+        draftType: 'auction',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1125,8 +1149,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'zombie',
               format_id: 'zombie',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
             })
           )
         },
@@ -1157,7 +1181,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1227,7 +1252,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1297,7 +1323,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1367,7 +1394,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1438,7 +1466,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1509,7 +1538,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1579,7 +1609,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1601,14 +1632,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: zombie+linear and salary_cap+auction', async () => {
+  it('supports next paths: zombie+snake and salary_cap+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'zombie',
-        draftType: 'linear',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1617,8 +1648,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'zombie',
               format_id: 'zombie',
-              draft_type: 'linear',
-              requested_draft_type: 'linear',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -1649,7 +1680,8 @@ describe('POST /api/league/create sport defaults integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `${c.leagueType} ${c.draftType} path`,
-          platform: 'manual',
+          platform: 'espn',
+          platformLeagueId: 'espn-import-defaults-test',
           sport: c.sport,
           leagueType: c.leagueType,
           draftType: c.draftType,
@@ -1678,7 +1710,8 @@ describe('POST /api/league/create sport defaults integration', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'Survivor automation test',
-        platform: 'manual',
+        platform: 'espn',
+        platformLeagueId: 'espn-import-defaults-test',
         sport: 'NBA',
         leagueType: 'survivor',
         draftType: 'snake',

@@ -4,6 +4,12 @@
 
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { logAction } from '@/server/services/auditService'
+import {
+  type ApplyPostDraftLifecycleResult,
+  applyDraftingLifecycleOnDraftResetInTransaction,
+  applyPostDraftLifecycleInTransaction,
+} from '@/server/services/leagueLifecycleService'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { resolvePickOwner } from './PickOwnershipResolver'
@@ -565,22 +571,46 @@ export async function undoLastPick(leagueId: string): Promise<boolean> {
 }
 
 export async function completeDraftSession(leagueId: string): Promise<boolean> {
-  const session = await prisma.draftSession.findUnique({ where: { leagueId } })
-  if (!session) return false
-  const totalPicks = session.rounds * session.teamCount
-  const count = await prisma.draftPick.count({ where: { sessionId: session.id } })
-  if (count < totalPicks) return false
-  await prisma.draftSession.update({
-    where: { id: session.id },
-    data: {
-      status: 'completed',
-      timerEndAt: null,
-      pausedRemainingSeconds: null,
-      pausedByUserId: null,
-      completedAt: new Date(),
-      version: { increment: 1 },
-    },
+  const outcome = await prisma.$transaction(async (tx) => {
+    const session = await tx.draftSession.findUnique({ where: { leagueId } })
+    if (!session) return { ok: false as const, lifecycle: null as ApplyPostDraftLifecycleResult | null }
+
+    const totalPicks = session.rounds * session.teamCount
+    const count = await tx.draftPick.count({ where: { sessionId: session.id } })
+    if (count < totalPicks) return { ok: false as const, lifecycle: null }
+
+    const completedAt = session.completedAt ?? new Date()
+    await tx.draftSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'completed',
+        timerEndAt: null,
+        pausedRemainingSeconds: null,
+        pausedByUserId: null,
+        completedAt,
+        version: { increment: 1 },
+      },
+    })
+
+    const lifecycle = await applyPostDraftLifecycleInTransaction(tx as Prisma.TransactionClient, leagueId)
+    return { ok: true as const, lifecycle }
   })
+
+  if (!outcome.ok) return false
+
+  if (outcome.lifecycle?.applied && outcome.lifecycle.commissionerUserId && outcome.lifecycle.from != null && outcome.lifecycle.to != null) {
+    void logAction({
+      leagueId,
+      userId: outcome.lifecycle.commissionerUserId,
+      actionType: 'lifecycle_transition',
+      entityType: 'league',
+      entityId: leagueId,
+      beforeState: { lifecycleState: outcome.lifecycle.from },
+      afterState: { lifecycleState: outcome.lifecycle.to },
+      metadata: { source: 'draft_completion' },
+    }).catch(() => {})
+  }
+
   import('@/lib/live-draft-engine/RosterAssignmentService').then((m) => m.finalizeRosterAssignments(leagueId)).catch(() => {})
   import('@/lib/survivor/SurvivorDraftBootstrapService').then((m) => m.runSurvivorPostDraftBootstrap(leagueId)).catch(() => {})
   // Post-draft manager rankings (PROMPT 231): compute in background so /draft-results loads fast
@@ -600,7 +630,7 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
 export async function resetDraftSession(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session) return false
-  await prisma.$transaction(async (tx) => {
+  const outcome = await prisma.$transaction(async (tx) => {
     await tx.draftPick.deleteMany({ where: { sessionId: session.id } })
     await tx.draftSession.update({
       where: { id: session.id },
@@ -616,6 +646,21 @@ export async function resetDraftSession(leagueId: string): Promise<boolean> {
         updatedAt: new Date(),
       },
     })
+    return applyDraftingLifecycleOnDraftResetInTransaction(tx as Prisma.TransactionClient, leagueId)
   })
+
+  if (outcome.applied && outcome.commissionerUserId && outcome.from != null && outcome.to != null) {
+    void logAction({
+      leagueId,
+      userId: outcome.commissionerUserId,
+      actionType: 'lifecycle_transition',
+      entityType: 'league',
+      entityId: leagueId,
+      beforeState: { lifecycleState: outcome.from },
+      afterState: { lifecycleState: outcome.to },
+      metadata: { source: 'draft_reset' },
+    }).catch(() => {})
+  }
+
   return true
 }

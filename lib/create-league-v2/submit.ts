@@ -8,8 +8,29 @@
 
 import type { CreateLeagueV2State } from './state'
 import { getEffectiveLeagueType, isFootballLike } from './state'
+import { resolveEffectiveDraftType, isThirdRoundReversalAvailable } from '@/lib/create-league-v2/rules-engine'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+
+/** Execution modes must stay verbatim on the wire so persistence keeps isOffline / isAuto flags. */
+const EXECUTION_DRAFT_IDS = new Set(['offline', 'auto', 'team'])
+
+/**
+ * Maps wizard draft ids to format-engine ids for POST /api/leagues.
+ * Devy/C2C: snake → devy_snake / c2c_snake, auction → devy_auction / c2c_auction (see resolveEffectiveDraftType).
+ */
+function canonicalDraftTypeForApi(state: CreateLeagueV2State): string {
+  const lt = getEffectiveLeagueType(state) as LeagueTypeId
+  const raw = state.draftType
+  const lower = String(raw).toLowerCase()
+  if (lt !== 'devy' && lt !== 'c2c') {
+    return raw
+  }
+  if (EXECUTION_DRAFT_IDS.has(lower)) {
+    return raw
+  }
+  return resolveEffectiveDraftType(lt, raw)
+}
 
 /** Maps API validation `path` (e.g. teamCount) → message for inline UI. */
 export type CreateLeagueFieldErrors = Partial<Record<string, string>>
@@ -44,9 +65,11 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
   if (lt === 'survivor') {
     conceptSetup.survivorTribeCount = state.survivorTribeCount
   }
-  if (isFootballLike(state.sport) && state.thirdRoundReversal && state.draftType === 'snake') {
+  if (isFootballLike(state.sport) && state.thirdRoundReversal && isThirdRoundReversalAvailable(state.draftType)) {
     conceptSetup.thirdRoundReversal = true
   }
+
+  const apiDraftType = canonicalDraftTypeForApi(state)
 
   const tradeReviewMode =
     state.tradeReviewMode === 'none'
@@ -60,7 +83,7 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
     sport: state.sport,
     scoringPreset: state.scoringPresetId,
     teamCount: state.teamCount,
-    draftType: state.draftType,
+    draftType: apiDraftType,
     leagueName: state.name.trim(),
     timezone: state.timezone,
     language: state.language === 'es' ? 'es' : 'en',
@@ -94,12 +117,24 @@ function parseRedirectUrl(state: CreateLeagueV2State, json: Record<string, unkno
   const lt = getEffectiveLeagueType(state) ?? 'redraft'
   if (typeof json.homepageUrl === 'string' && json.homepageUrl.length > 0) return json.homepageUrl
 
+  const leagueIds = json.leagueIds
+  const firstFeederLeagueId =
+    Array.isArray(leagueIds) && leagueIds.length > 0 && typeof leagueIds[0] === 'string'
+      ? leagueIds[0]
+      : undefined
+
   if (typeof json.tournamentId === 'string') {
-    return buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId: json.tournamentId })
+    return buildPostCreateLeagueHomeHref({
+      leagueType: 'tournament',
+      leagueId: firstFeederLeagueId,
+      tournamentId: json.tournamentId,
+      allowInviteLink: true,
+    })
   }
 
   const leagueId =
     (typeof json.leagueId === 'string' ? json.leagueId : null) ??
+    firstFeederLeagueId ??
     (json.league && typeof json.league === 'object' && json.league !== null && 'id' in json.league
       ? String((json.league as { id: string }).id)
       : null)
@@ -117,7 +152,10 @@ function parseRedirectUrl(state: CreateLeagueV2State, json: Record<string, unkno
 
 function parseLeagueId(json: Record<string, unknown>): string | undefined {
   if (typeof json.leagueId === 'string') return json.leagueId
-  if (typeof json.tournamentId === 'string') return json.tournamentId
+  const leagueIds = json.leagueIds
+  if (Array.isArray(leagueIds) && leagueIds.length > 0 && typeof leagueIds[0] === 'string') {
+    return leagueIds[0]
+  }
   if (json.league && typeof json.league === 'object' && json.league !== null && 'id' in json.league) {
     return String((json.league as { id: string }).id)
   }

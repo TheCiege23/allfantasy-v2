@@ -3,7 +3,7 @@
  * Integrates with settings snapshots, engines, and commissioner overrides (see `commissionerService.ts`).
  */
 
-import type { League, LeagueLifecycleState } from '@prisma/client'
+import type { League, LeagueLifecycleState, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { logAction } from '@/server/services/auditService'
 
@@ -342,4 +342,133 @@ export async function assertLifecycleActionAllowed(
   }
 
   return { ok: true }
+}
+
+// ── Draft completion ↔ lifecycle (dashboard Matchup tab) ─────────────────
+
+function mergeLifecycleMetadata(
+  existing: Prisma.JsonValue | null | undefined,
+  patch: Record<string, unknown>,
+): Prisma.InputJsonValue {
+  const base =
+    existing && typeof existing === 'object' && !Array.isArray(existing)
+      ? (existing as Record<string, unknown>)
+      : {}
+  return { ...base, ...patch } as Prisma.InputJsonValue
+}
+
+/**
+ * When every pick is in, move the league to `post_draft` so `LeagueShell` promotes Matchup over Draft.
+ * Uses a forced transition when the state machine does not allow setup/pre_draft → post_draft directly,
+ * since a completed draft is authoritative.
+ */
+export function resolveLifecycleTransitionAfterDraftCompletes(
+  current: LeagueLifecycleState,
+): { target: LeagueLifecycleState; force: boolean } | null {
+  if (
+    current === 'post_draft' ||
+    current === 'in_season' ||
+    current === 'playoffs' ||
+    current === 'completed' ||
+    current === 'archived'
+  ) {
+    return null
+  }
+
+  const target: LeagueLifecycleState = 'post_draft'
+  const check = validateTransition(current, target)
+  if (check.ok) {
+    return { target, force: false }
+  }
+  return { target, force: true }
+}
+
+export type ApplyPostDraftLifecycleResult = {
+  applied: boolean
+  from?: LeagueLifecycleState
+  to?: LeagueLifecycleState
+  commissionerUserId?: string
+}
+
+/**
+ * Idempotent: if the league is already post_draft or later, no update.
+ * Call inside the same transaction that marks `DraftSession` completed.
+ */
+export async function applyPostDraftLifecycleInTransaction(
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+): Promise<ApplyPostDraftLifecycleResult> {
+  const league = await tx.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, userId: true, lifecycleState: true, lifecycleMetadata: true },
+  })
+  if (!league) {
+    return { applied: false }
+  }
+
+  const current = getLeagueLifecycleState(league)
+  const resolved = resolveLifecycleTransitionAfterDraftCompletes(current)
+  if (!resolved) {
+    return { applied: false, from: current, commissionerUserId: league.userId }
+  }
+
+  const { target } = resolved
+  await tx.league.update({
+    where: { id: leagueId },
+    data: {
+      lifecycleState: target,
+      lifecycleMetadata: mergeLifecycleMetadata(league.lifecycleMetadata, {
+        lastTransitionAt: new Date().toISOString(),
+        lastTransitionFrom: current,
+        draftCompletionAuto: true,
+      }),
+    },
+  })
+
+  return { applied: true, from: current, to: target, commissionerUserId: league.userId }
+}
+
+/**
+ * When a commissioner resets an in-app draft after completion, move lifecycle back toward draft so
+ * the Draft tab can lead again. Only downgrades from `post_draft` → `drafting` (valid transition).
+ */
+export function resolveLifecycleTransitionAfterDraftReset(
+  current: LeagueLifecycleState,
+): LeagueLifecycleState | null {
+  if (current !== 'post_draft') return null
+  const check = validateTransition(current, 'drafting')
+  return check.ok ? 'drafting' : null
+}
+
+export async function applyDraftingLifecycleOnDraftResetInTransaction(
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+): Promise<ApplyPostDraftLifecycleResult> {
+  const league = await tx.league.findUnique({
+    where: { id: leagueId },
+    select: { id: true, userId: true, lifecycleState: true, lifecycleMetadata: true },
+  })
+  if (!league) {
+    return { applied: false }
+  }
+
+  const current = getLeagueLifecycleState(league)
+  const next = resolveLifecycleTransitionAfterDraftReset(current)
+  if (!next) {
+    return { applied: false, from: current, commissionerUserId: league.userId }
+  }
+
+  await tx.league.update({
+    where: { id: leagueId },
+    data: {
+      lifecycleState: next,
+      lifecycleMetadata: mergeLifecycleMetadata(league.lifecycleMetadata, {
+        lastTransitionAt: new Date().toISOString(),
+        lastTransitionFrom: current,
+        draftResetAuto: true,
+      }),
+    },
+  })
+
+  return { applied: true, from: current, to: next, commissionerUserId: league.userId }
 }

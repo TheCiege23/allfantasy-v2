@@ -13,6 +13,11 @@ import { getSportConfig } from '@/lib/multi-sport/SportRegistry'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import type { SportType } from '@/lib/multi-sport/sport-types'
 import { toSportType } from '@/lib/multi-sport/sport-types'
+import {
+  PLATFORM_SPORT_RULES_DRAFT_TYPES,
+  mapDraftTypeToSportRulesBase,
+  type PlatformSportRulesDraftTypeId,
+} from '@/lib/draft-types/draftTypeRegistry'
 import type {
   SportRules,
   RosterRules,
@@ -37,25 +42,6 @@ const POOL_SIZE_BY_SPORT: Record<string, number> = {
 
 /** Sports that support devy/college pool. */
 const DEVY_ELIGIBLE_SPORTS = new Set(['NFL', 'NBA'])
-
-const DEFAULT_SPORT_DRAFT_TYPES: DraftOptionRules['allowedDraftTypes'] = [
-  'snake',
-  'linear',
-  'auction',
-  'slow_draft',
-  'mock_draft',
-]
-
-/** Explicit per-sport draft matrix so league creation can stay sport-driven. */
-const DRAFT_TYPES_BY_SPORT: Record<string, DraftOptionRules['allowedDraftTypes']> = {
-  NFL: [...DEFAULT_SPORT_DRAFT_TYPES],
-  NHL: [...DEFAULT_SPORT_DRAFT_TYPES],
-  NBA: [...DEFAULT_SPORT_DRAFT_TYPES],
-  MLB: [...DEFAULT_SPORT_DRAFT_TYPES],
-  NCAAB: [...DEFAULT_SPORT_DRAFT_TYPES],
-  NCAAF: [...DEFAULT_SPORT_DRAFT_TYPES],
-  SOCCER: [...DEFAULT_SPORT_DRAFT_TYPES],
-}
 
 function toSportTypeSafe(sport: string): SportType {
   const u = sport?.trim().toUpperCase()
@@ -155,10 +141,13 @@ function buildPlayerPoolRules(sport: SportType): PlayerPoolRules {
 function buildDraftOptionRules(sport: SportType, formatType: string): DraftOptionRules {
   const format = getFormatTypeForVariant(sport, formatType || null) === 'IDP' ? 'IDP' : undefined
   const def = getDraftDefaults(sport, format)
-  const allowedDraftTypes = DRAFT_TYPES_BY_SPORT[sport] ?? [...DEFAULT_SPORT_DRAFT_TYPES]
+  const allowedDraftTypes = [...PLATFORM_SPORT_RULES_DRAFT_TYPES]
   const roundsDefault = def.rounds_default ?? 15
-  const requestedDefault = (def.draft_type as DraftOptionRules['defaultDraftType']) ?? 'snake'
-  const defaultDraftType = allowedDraftTypes.includes(requestedDefault) ? requestedDefault : 'snake'
+  const mappedDefault = mapDraftTypeToSportRulesBase(String(def.draft_type ?? 'snake')) ?? 'snake'
+  const defaultDraftType: DraftOptionRules['defaultDraftType'] =
+    mappedDefault !== 'mock_draft' && allowedDraftTypes.includes(mappedDefault)
+      ? (mappedDefault as DraftOptionRules['defaultDraftType'])
+      : 'snake'
   return {
     sport,
     formatType: formatType || 'standard',
@@ -252,8 +241,10 @@ export function isDraftTypeAllowedForSport(
   formatType?: string | null
 ): boolean {
   if (!draftType?.trim()) return false
+  const base = mapDraftTypeToSportRulesBase(draftType)
+  if (base == null) return false
   const allowed = getAllowedDraftTypesForSport(sport, formatType)
-  return allowed.includes(draftType.trim().toLowerCase() as DraftOptionRules['allowedDraftTypes'][number])
+  return allowed.includes(base as PlatformSportRulesDraftTypeId)
 }
 
 /**

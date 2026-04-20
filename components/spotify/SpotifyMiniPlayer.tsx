@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX, X } from 'lucide-react'
 
 type PlaybackState = {
@@ -119,7 +120,14 @@ export function SpotifyMiniPlayer() {
     <div className="fixed bottom-0 inset-x-0 z-50 border-t border-white/10 bg-[#0a1220]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-screen-xl items-center gap-3 px-4 py-2">
         {playback?.albumArt && (
-          <img src={playback.albumArt} alt="" className="h-10 w-10 shrink-0 rounded" />
+          <Image
+            src={playback.albumArt}
+            alt="Album art"
+            width={40}
+            height={40}
+            unoptimized
+            className="h-10 w-10 shrink-0 rounded"
+          />
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-white">

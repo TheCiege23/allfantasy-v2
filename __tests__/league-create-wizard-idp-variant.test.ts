@@ -146,7 +146,8 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'IDP Wizard League',
-        platform: 'manual',
+        platform: 'espn',
+        platformLeagueId: 'espn-idp-wizard-test',
         sport: 'NFL',
         leagueType: 'dynasty',
         leagueVariant: 'DYNASTY_IDP',
@@ -233,7 +234,8 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: 'Soccer Wizard League',
-        platform: 'manual',
+        platform: 'espn',
+        platformLeagueId: 'espn-soccer-wizard-test',
         sport: 'SOCCER',
         leagueType: 'redraft',
         leagueVariant: 'STANDARD',

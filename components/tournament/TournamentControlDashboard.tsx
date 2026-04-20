@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Copy, ChevronLeft, RefreshCw, MessageSquare, Sparkles, Lock, Palette, Scale, FileText, ChevronDown, Trophy, ArrowRight, AlertTriangle } from 'lucide-react'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
@@ -67,7 +67,7 @@ export function TournamentControlDashboard({
   const [crowning, setCrowning] = useState(false)
   const [crownResult, setCrownResult] = useState<string | null>(null)
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/control`, { cache: 'no-store' })
@@ -79,11 +79,11 @@ export function TournamentControlDashboard({
     } finally {
       setLoading(false)
     }
-  }
+  }, [tournamentId])
 
   useEffect(() => {
-    load()
-  }, [tournamentId])
+    void load()
+  }, [load])
 
   async function regenerateInvite(leagueId: string) {
     setRegenerating(leagueId)

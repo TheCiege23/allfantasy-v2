@@ -18,6 +18,7 @@ export type CanonicalDraftType =
   | 'c2c_auction'
   | 'offline'
   | 'auto'
+  | 'team'
 
 export interface CreateLeagueRequestBody {
   concept: string

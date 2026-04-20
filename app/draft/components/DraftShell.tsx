@@ -174,7 +174,10 @@ export function DraftShell({
 
   const draftedIds = useMemo(() => new Set(picks.map((p) => p.playerId).filter(Boolean) as string[]), [picks])
 
-  const order = (state?.pickOrder ?? []) as DraftPickOrderEntry[]
+  const order = useMemo(
+    () => (state?.pickOrder ?? []) as DraftPickOrderEntry[],
+    [state?.pickOrder],
+  )
   const currentOverall = state?.currentPick ?? 1
   const numT = state?.numTeams ?? 12
   const slotIdx = slotIndexForOverallPick(currentOverall, numT)
@@ -187,6 +190,31 @@ export function DraftShell({
     }
     return picks.filter((p) => p.currentOwnerId === userId)
   }, [picks, userId, mode])
+
+  const onClockLabel = order[slotIdx]?.label ?? '—'
+  const selfIndex = order.findIndex((s) => s.id === userId)
+  const enrichedOrder = useMemo<DraftPickOrderEntry[]>(() => {
+    if (!Object.keys(leagueMeta.avatarsByOwnerId).length) return order
+    return order.map((s) => ({ ...s, avatarUrl: s.avatarUrl ?? leagueMeta.avatarsByOwnerId[s.id] ?? null }))
+  }, [order, leagueMeta])
+
+  const headerTitle =
+    leagueMeta.name ??
+    (mode === 'mock' ? t('draftRoom.legacy.mockDraft') : t('draftRoom.legacy.liveDraft'))
+  const headerSubtitle = useMemo(() => {
+    const parts: string[] = []
+    if (state?.timerSeconds) {
+      const sec = state.timerSeconds
+      if (sec >= 3600) parts.push(`${Math.round(sec / 3600)} Hours Per Pick`)
+      else if (sec >= 60) parts.push(`${Math.round(sec / 60)} Min Per Pick`)
+      else parts.push(`${sec}s Per Pick`)
+    }
+    if (state?.numTeams) parts.push(`${state.numTeams} Teams`)
+    if (state?.numRounds) parts.push(`${state.numRounds} Rounds`)
+    return parts.join(' · ')
+  }, [state?.timerSeconds, state?.numTeams, state?.numRounds])
+
+  const draftActive = state?.status === 'active'
 
   const onDraft = async (p: DraftPlayerRow) => {
     const r = await fetch('/api/draft/pick/make', {
@@ -259,31 +287,6 @@ export function DraftShell({
       </div>
     )
   }
-
-  const onClockLabel = order[slotIdx]?.label ?? '—'
-  const selfIndex = order.findIndex((s) => s.id === userId)
-  const enrichedOrder = useMemo<DraftPickOrderEntry[]>(() => {
-    if (!Object.keys(leagueMeta.avatarsByOwnerId).length) return order
-    return order.map((s) => ({ ...s, avatarUrl: s.avatarUrl ?? leagueMeta.avatarsByOwnerId[s.id] ?? null }))
-  }, [order, leagueMeta])
-
-  const headerTitle =
-    leagueMeta.name ??
-    (mode === 'mock' ? t('draftRoom.legacy.mockDraft') : t('draftRoom.legacy.liveDraft'))
-  const headerSubtitle = useMemo(() => {
-    const parts: string[] = []
-    if (state.timerSeconds) {
-      const sec = state.timerSeconds
-      if (sec >= 3600) parts.push(`${Math.round(sec / 3600)} Hours Per Pick`)
-      else if (sec >= 60) parts.push(`${Math.round(sec / 60)} Min Per Pick`)
-      else parts.push(`${sec}s Per Pick`)
-    }
-    if (state.numTeams) parts.push(`${state.numTeams} Teams`)
-    if (state.numRounds) parts.push(`${state.numRounds} Rounds`)
-    return parts.join(' · ')
-  }, [state.timerSeconds, state.numTeams, state.numRounds])
-
-  const draftActive = state.status === 'active'
 
   return (
     <motion.div

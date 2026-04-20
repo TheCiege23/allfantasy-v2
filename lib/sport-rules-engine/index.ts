@@ -21,4 +21,5 @@ export type {
   ScoringFormatOption,
   PlayerPoolRules,
   DraftOptionRules,
+  SportRulesDefaultDraftType,
 } from './types'

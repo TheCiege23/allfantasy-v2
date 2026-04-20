@@ -8,6 +8,12 @@ import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mod
 import type { TournamentSettings } from '@/lib/tournament-mode/types'
 import { z } from 'zod'
 
+/**
+ * Tournament hub creation — uses `TournamentCreationService` (not POST /api/leagues).
+ * Returns `leagueIds` so clients can navigate to `/league/[firstFeederId]?tournamentHub=...`
+ * for the unified league shell; hub tools remain available from settings / tournament routes.
+ */
+
 const VALID_POOL_SIZES = new Set(TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED)
 
 const createBodySchema = z.object({

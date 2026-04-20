@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { AppHeader } from "./AppHeader"
 import MobileBottomTabs from "@/components/navigation/MobileBottomTabs"
@@ -74,7 +74,7 @@ export function ResponsiveNavSystem({
 
   const leagueId = extractLeagueIdFromPath(pathname)
 
-  const openChimmy = () => {
+  const openChimmy = useCallback(() => {
     try {
       window.localStorage.setItem(CHIMMY_SHORTCUT_HINT_SEEN_KEY, "1")
     } catch {
@@ -93,7 +93,7 @@ export function ResponsiveNavSystem({
     }
 
     router.push("/ai-chat")
-  }
+  }, [isAdmin, router, leagueId, isCommissionerInLeague])
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -227,7 +227,7 @@ export function ResponsiveNavSystem({
 
     window.addEventListener("keydown", onShortcut)
     return () => window.removeEventListener("keydown", onShortcut)
-  }, [isAuthenticated, chimmyShortcutsEnabled, isAdmin, isCommissionerInLeague, leagueId, pathname])
+  }, [isAuthenticated, chimmyShortcutsEnabled, openChimmy])
 
   useEffect(() => {
     if (!mobileMenuOpen && !searchOpen) return

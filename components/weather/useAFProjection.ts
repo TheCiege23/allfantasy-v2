@@ -52,6 +52,23 @@ export function useAFProjection(params: UseAFProjectionParams) {
     fetched: boolean
   }>({ loading: false, data: null, fetched: false })
 
+  const {
+    playerId,
+    playerName,
+    sport,
+    position,
+    baselineProjection,
+    lat,
+    lng,
+    gameTime,
+    isIndoor,
+    isDome,
+    roofClosed,
+    week,
+    season,
+    eventId,
+  } = params
+
   const cacheKey = buildCacheKey(params)
 
   const fetchProjection = useCallback(async () => {
@@ -69,20 +86,20 @@ export function useAFProjection(params: UseAFProjectionParams) {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          playerId: params.playerId,
-          playerName: params.playerName,
-          sport: params.sport,
-          position: params.position,
-          baselineProjection: Number(params.baselineProjection),
-          lat: params.lat ?? undefined,
-          lng: params.lng ?? undefined,
-          gameTime: params.gameTime ?? undefined,
-          isIndoor: params.isIndoor,
-          isDome: params.isDome,
-          roofClosed: params.roofClosed,
-          week: params.week,
-          season: params.season,
-          eventId: params.eventId,
+          playerId,
+          playerName,
+          sport,
+          position,
+          baselineProjection: Number(baselineProjection),
+          lat: lat ?? undefined,
+          lng: lng ?? undefined,
+          gameTime: gameTime ?? undefined,
+          isIndoor,
+          isDome,
+          roofClosed,
+          week,
+          season,
+          eventId,
         }),
       })
 
@@ -110,7 +127,7 @@ export function useAFProjection(params: UseAFProjectionParams) {
       )
       setState({ loading: false, data: fallback, fetched: true })
     }
-  }, [cacheKey])
+  }, [cacheKey, playerId, playerName, sport, position, baselineProjection, lat, lng, gameTime, isIndoor, isDome, roofClosed, week, season, eventId])
 
   return {
     loading: state.loading,

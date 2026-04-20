@@ -97,8 +97,17 @@ export function TournamentCreateWizard() {
         return
       }
       const tournamentId = typeof data?.tournamentId === 'string' ? data.tournamentId : ''
+      const leagueIds = data?.leagueIds as string[] | undefined
+      const feederLeagueId = Array.isArray(leagueIds) && typeof leagueIds[0] === 'string' ? leagueIds[0] : undefined
       if (tournamentId) {
-        router.push(buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId }))
+        router.push(
+          buildPostCreateLeagueHomeHref({
+            leagueType: 'tournament',
+            leagueId: feederLeagueId,
+            tournamentId,
+            allowInviteLink: true,
+          })
+        )
       } else {
         setError('Tournament created but no ID returned')
       }

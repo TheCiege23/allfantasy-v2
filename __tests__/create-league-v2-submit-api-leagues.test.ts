@@ -143,4 +143,89 @@ describe('submitCreateLeagueV2 → /api/leagues', () => {
     expect(body).toHaveProperty('settings')
     expect(body).not.toHaveProperty('concept')
   })
+
+  it('maps devy snake → devy_snake and devy auction → devy_auction', async () => {
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'devy',
+        sport: 'NFL',
+        draftType: 'snake',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('devy_snake')
+
+    vi.mocked(fetch).mockClear()
+    mockFetchSuccess()
+
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'devy',
+        sport: 'NFL',
+        draftType: 'auction',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('devy_auction')
+  })
+
+  it('maps c2c snake → c2c_snake and c2c auction → c2c_auction', async () => {
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'c2c',
+        sport: 'NFL',
+        draftType: 'snake',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('c2c_snake')
+
+    vi.mocked(fetch).mockClear()
+    mockFetchSuccess()
+
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'c2c',
+        sport: 'NFL',
+        draftType: 'auction',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('c2c_auction')
+  })
+
+  it('keeps dynasty and redraft draft ids as snake (no devy/c2c prefix)', async () => {
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'dynasty',
+        draftType: 'snake',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('snake')
+
+    vi.mocked(fetch).mockClear()
+    mockFetchSuccess()
+
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'redraft',
+        draftType: 'snake',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('snake')
+  })
+
+  it('preserves offline for devy (execution mode) without remapping to devy_snake string', async () => {
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'devy',
+        sport: 'NFL',
+        draftType: 'offline',
+        scoringPresetId: 'fb_half_ppr',
+      }),
+    )
+    expect(lastFetchBody().draftType).toBe('offline')
+  })
 })

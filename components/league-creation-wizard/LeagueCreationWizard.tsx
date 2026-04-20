@@ -813,18 +813,26 @@ export function LeagueCreationWizard({
           }),
           credentials: 'same-origin',
         })
-        const { ok, data, errorMessage } = await readFetchJson<{ tournamentId?: string }>(res)
+        const { ok, data, errorMessage } = await readFetchJson<{ tournamentId?: string; leagueIds?: string[] }>(res)
         if (!ok) {
           setError(errorMessage ?? 'Failed to create tournament')
           return
         }
         const tournamentId = data?.tournamentId
+        const feederLeagueId = data?.leagueIds?.[0]
         if (tournamentId) {
           if (typeof window !== 'undefined') {
             window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
           }
           onSuccess?.(tournamentId)
-          router.push(buildPostCreateLeagueHomeHref({ leagueType: 'tournament', tournamentId }))
+          router.push(
+            buildPostCreateLeagueHomeHref({
+              leagueType: 'tournament',
+              leagueId: feederLeagueId,
+              tournamentId,
+              allowInviteLink: state.privacySettings.allowInviteLink,
+            })
+          )
         } else {
           setError('Tournament created but no ID returned')
         }

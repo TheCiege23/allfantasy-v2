@@ -102,6 +102,7 @@ export function getLeagueTabs(sport: string): TabDef[] {
 
 /** Maps tab id → i18n key under translations.en (`league.tab.*`). */
 const LEAGUE_TAB_I18N_KEY: Record<string, string> = {
+  matchup: 'league.tab.matchup',
   draft: 'league.tab.draft',
   redraft: 'league.tab.redraft',
   team: 'league.tab.team',

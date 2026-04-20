@@ -182,7 +182,12 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     [effectiveType, state.sport]
   )
   const survivorTribes = useMemo(() => getSurvivorTribeOptions(state.teamCount), [state.teamCount])
-  const isSnake = state.draftType === 'snake'
+  const isSnake =
+    state.draftType === 'snake' ||
+    state.draftType === 'devy_snake' ||
+    state.draftType === 'c2c_snake' ||
+    state.draftType === 'slow_draft' ||
+    state.draftType === 'mock_draft'
   const isTournament = effectiveType === 'tournament'
   const isSurvivor = effectiveType === 'survivor'
   const isSoccer = state.sport === 'SOCCER'

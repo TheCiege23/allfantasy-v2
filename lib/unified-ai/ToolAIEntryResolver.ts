@@ -146,6 +146,18 @@ const TOOL_ENTRIES: Record<ToolAIEntryKey, Omit<ToolAIEntry, "key">> = {
     featureType: "matchup",
     typicalIntent: "explain",
   },
+  league_matchup_ai: {
+    label: "League Matchup Command AI",
+    apiPath: "/api/leagues/[leagueId]/ai/matchup",
+    featureType: "league_matchup_ai",
+    typicalIntent: "recommend",
+  },
+  league_start_sit_ai: {
+    label: "League Start/Sit AI",
+    apiPath: "/api/leagues/[leagueId]/ai/start-sit",
+    featureType: "league_start_sit_ai",
+    typicalIntent: "recommend",
+  },
   content: {
     label: "Content",
     apiPath: "/api/social-clips/ai/generate",
