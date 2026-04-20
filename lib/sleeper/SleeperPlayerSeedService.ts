@@ -248,8 +248,11 @@ export async function seedSleeperPlayers(input: {
     expiresAt,
   }))
 
+  // ID format must match sports-data-importer (`${sport}:${rawId}`) so that
+  // downstream lookups like getPlayer("NFL:4017") resolve regardless of which
+  // importer wrote the row last.
   const sportsPlayerRecordRows = players.map((player) => ({
-    id: player.playerId,
+    id: `${sport}:${player.playerId}`,
     sport,
     name: player.name,
     team: player.team,

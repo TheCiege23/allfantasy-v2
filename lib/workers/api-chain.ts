@@ -21,6 +21,7 @@ import { rollingInsightsProvider } from '@/lib/workers/providers/rolling-insight
 import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
 import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
 import { cfbdProvider } from '@/lib/workers/providers/cfbd'
+import { espnProvider } from '@/lib/workers/providers/espn'
 import { persistNormalizedSportsRows } from '@/lib/workers/sports-cache-persist'
 
 function isPopulatedResult(value: unknown): boolean {
@@ -410,6 +411,10 @@ export async function fetchWithChain(
 
   const baseParams: ApiFetchParams = { ...params, sport: chainSport, dataType: dt, query: merged }
 
+  // Provider priority per product requirement:
+  //   Rolling Insights → TheSportsDB → API-Sports → ClearSports → Sleeper → ESPN
+  // Image data types still prefer ClearSports/TheSportsDB for headshot/logo coverage,
+  // because RI's image endpoints are inconsistent.
   if (isImageDt) {
     result =
       (await tryProviderBlock(clearSportsProvider, baseParams)) ??
@@ -424,15 +429,15 @@ export async function fetchWithChain(
       result =
         result && isPopulatedResult(result.data)
           ? result
+          : (await tryProviderBlock(theSportsDbProvider, baseParams)) ?? result
+      result =
+        result && isPopulatedResult(result.data)
+          ? result
           : (await tryProviderBlock(apiSportsProvider, baseParams)) ?? result
       result =
         result && isPopulatedResult(result.data)
           ? result
           : (await tryProviderBlock(clearSportsProvider, baseParams)) ?? result
-      result =
-        result && isPopulatedResult(result.data)
-          ? result
-          : (await tryProviderBlock(theSportsDbProvider, baseParams)) ?? result
       // CFBD fallback for NCAAF teams/schedule/games
       result =
         result && isPopulatedResult(result.data)
@@ -444,6 +449,12 @@ export async function fetchWithChain(
       result && isPopulatedResult(result.data)
         ? result
         : (await tryProviderBlock(sleeperChainProvider, baseParams)) ?? result
+
+    // ESPN final fallback (news/injuries only — see espnProvider.supports)
+    result =
+      result && isPopulatedResult(result.data)
+        ? result
+        : (await tryProviderBlock(espnProvider, baseParams)) ?? result
   }
 
   if (!result || !isPopulatedResult(result.data)) {

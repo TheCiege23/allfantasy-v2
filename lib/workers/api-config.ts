@@ -23,6 +23,8 @@ export type ApiProviderName =
   | 'cfbd'
   /** Final fantasy-data fallback (NFL player pool + injury_status from public players feed). */
   | 'sleeper'
+  /** Public ESPN site API — news/injuries last-resort fallback. */
+  | 'espn'
 
 /** Cache TTLs in seconds — drives all cache expiry (DB-first). */
 export const API_CHAIN_TTLS = {
