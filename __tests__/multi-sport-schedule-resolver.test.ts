@@ -43,7 +43,7 @@ describe('MultiSportScheduleResolver', () => {
 
     expect(findUniqueMock).toHaveBeenCalledWith({
       where: {
-        uniq_schedule_template_sport_format: {
+        sportType_formatType: {
           sportType: 'NHL',
           formatType: 'STANDARD',
         },

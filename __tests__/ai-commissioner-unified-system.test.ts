@@ -15,6 +15,7 @@ const runAICommissionerCycleMock = vi.fn()
 const toConfigViewMock = vi.fn()
 const analyzeLeagueGovernanceMock = vi.fn()
 const createPlatformNotificationMock = vi.fn()
+const resolveForUserMock = vi.fn()
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -56,6 +57,12 @@ vi.mock('@/lib/platform/notification-service', () => ({
   createPlatformNotification: createPlatformNotificationMock,
 }))
 
+vi.mock('@/lib/subscription/EntitlementResolver', () => ({
+  EntitlementResolver: class {
+    resolveForUser = resolveForUserMock
+  },
+}))
+
 describe('UnifiedCommissionerSystem', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -63,6 +70,16 @@ describe('UnifiedCommissionerSystem', () => {
     appendAICommissionerActionLogMock.mockResolvedValue(undefined)
     createPlatformNotificationMock.mockResolvedValue(undefined)
     engagementCreateMock.mockResolvedValue(undefined)
+    resolveForUserMock.mockResolvedValue({
+      entitlement: {
+        plans: ['commissioner'],
+        status: 'active',
+        currentPeriodEnd: null,
+        gracePeriodEnd: null,
+      },
+      hasAccess: true,
+      message: 'Access granted.',
+    })
     ensureAICommissionerConfigMock.mockResolvedValue({
       remindersEnabled: true,
       collusionMonitoringEnabled: true,
@@ -89,6 +106,16 @@ describe('UnifiedCommissionerSystem', () => {
   })
 
   it('blocks subscription-gated unified actions for non-subscribers', async () => {
+    resolveForUserMock.mockResolvedValueOnce({
+      entitlement: {
+        plans: [],
+        status: 'none',
+        currentPeriodEnd: null,
+        gracePeriodEnd: null,
+      },
+      hasAccess: false,
+      message: 'Upgrade to access this feature.',
+    })
     leagueFindUniqueMock.mockResolvedValue({
       id: 'league-1',
       sport: 'NFL',

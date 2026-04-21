@@ -4,6 +4,7 @@ import { createMockNextRequest } from '@/__tests__/helpers/createMockNextRequest
 const getServerSessionMock = vi.fn()
 const validateActionExecutionServerSideMock = vi.fn()
 const executeAIActionMock = vi.fn()
+const recordUnifiedMemoryInteractionMock = vi.fn()
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -19,6 +20,10 @@ vi.mock('@/lib/chimmy-actions/AIActionServerValidation', () => ({
 
 vi.mock('@/lib/chimmy-actions/AIActionBindingService', () => ({
   executeAIAction: executeAIActionMock,
+}))
+
+vi.mock('@/lib/ai-memory/unified-memory-system', () => ({
+  recordUnifiedMemoryInteraction: recordUnifiedMemoryInteractionMock,
 }))
 
 function buildPayload() {
@@ -112,6 +117,7 @@ describe('POST /api/ai/actions/execute contract', () => {
         },
       },
     })
+    recordUnifiedMemoryInteractionMock.mockResolvedValue(undefined)
   })
 
   it('returns 401 when unauthenticated', async () => {

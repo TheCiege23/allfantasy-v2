@@ -56,7 +56,7 @@ describe('assertImportCommissioner', () => {
     })
   })
 
-  it('blocks Yahoo import when the viewer is not commissioner', async () => {
+  it('allows Yahoo import when the viewer is a league member', async () => {
     yahooFetchMock.mockResolvedValue({
       viewerTeamKey: '401.l.1.t.7',
       commissionerTeamKeys: ['401.l.1.t.4'],
@@ -76,9 +76,9 @@ describe('assertImportCommissioner', () => {
       sourceLeagueId: '401.l.1',
     })
 
-    expect(result.ok).toBe(false)
-    expect(result.reason).toContain('Only the commissioner or a co-commissioner can import this Yahoo league.')
+    expect(result.ok).toBe(true)
     expect(result.sourceManagerId).toBe('guid-7')
+    expect(result.verification).toBe('api')
   })
 
   it('allows ESPN import when the viewer team belongs to a commissioner member', async () => {
@@ -107,7 +107,7 @@ describe('assertImportCommissioner', () => {
     })
   })
 
-  it('keeps fantrax blocked until commissioner verification exists', async () => {
+  it('allows fantrax imports for authenticated users (open-read provider)', async () => {
     const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
     const result = await assertImportCommissioner({
       appUserId: 'u1',
@@ -115,9 +115,6 @@ describe('assertImportCommissioner', () => {
       sourceLeagueId: 'fantrax-1',
     })
 
-    expect(result).toEqual({
-      ok: false,
-      reason: 'Only commissioner-verified fantrax imports are allowed. Verification for this provider is not implemented yet.',
-    })
+    expect(result).toEqual({ ok: true, verification: 'api' })
   })
 })

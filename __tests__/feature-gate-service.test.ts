@@ -24,7 +24,7 @@ describe("FeatureGateService", () => {
 
     expect(decision.allowed).toBe(true)
     expect(decision.requiredPlan).toBe("AF Pro")
-    expect(resolveForUserMock).toHaveBeenCalledWith("u1", "ai_chat")
+    expect(resolveForUserMock).toHaveBeenCalledWith("u1", "ai_chat", undefined)
   })
 
   it("throws typed error when user lacks entitlement", async () => {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const playerFindFirstMock = vi.fn()
 const playerCareerProjectionFindFirstMock = vi.fn()
 const playerMetaTrendFindUniqueMock = vi.fn()
+const playerSeasonStatsFindManyMock = vi.fn()
 const openaiChatTextMock = vi.fn()
 const getPlayerMetaTrendsForMetaMock = vi.fn()
 const getPlayerAnalyticsMock = vi.fn()
@@ -18,6 +19,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     playerMetaTrend: {
       findUnique: playerMetaTrendFindUniqueMock,
+    },
+    playerSeasonStats: {
+      findMany: playerSeasonStatsFindManyMock,
     },
   },
 }))
@@ -46,6 +50,7 @@ describe('PlayerCardAnalyticsService', () => {
     playerFindFirstMock.mockResolvedValue(null)
     playerCareerProjectionFindFirstMock.mockResolvedValue(null)
     playerMetaTrendFindUniqueMock.mockResolvedValue(null)
+    playerSeasonStatsFindManyMock.mockResolvedValue([])
   })
 
   it('returns all analytics sections when core data exists', async () => {

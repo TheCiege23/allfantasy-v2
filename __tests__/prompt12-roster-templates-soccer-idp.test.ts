@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { getRosterTemplateDefinition, getSlotNamesForSport } from '@/lib/roster-defaults/RosterDefaultsRegistry'
 import {
   getAllowedPositionsForSlot,
@@ -7,6 +7,14 @@ import {
 } from '@/lib/roster-defaults/PositionEligibilityResolver'
 import { validateRoster, canAddPlayerToSlot } from '@/lib/roster-defaults/RosterValidationEngine'
 import { getRosterTemplate } from '@/lib/multi-sport/RosterTemplateService'
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    rosterTemplate: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+  },
+}))
 
 describe('Prompt 12 — Default Roster Templates for Soccer + NFL IDP', () => {
   describe('Soccer Roster Template Definitions', () => {

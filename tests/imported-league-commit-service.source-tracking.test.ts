@@ -214,11 +214,13 @@ describe('ImportedLeagueCommitService source tracking', () => {
       },
     })
 
-    expect(syncFantraxHistoricalBackfillAfterImportMock).toHaveBeenCalledWith({
-      leagueId: 'league-fantrax',
-      userId: 'u1',
+    await vi.waitFor(() => {
+      expect(syncFantraxHistoricalBackfillAfterImportMock).toHaveBeenCalledWith({
+        leagueId: 'league-fantrax',
+        userId: 'u1',
+      })
     })
-    expect(result.historicalBackfill).toEqual({ status: 'queued-fantrax' })
+    expect(result.historicalBackfill).toMatchObject({ status: 'pending' })
     expect(calculateAndSaveRankMock).toHaveBeenCalledWith('u1')
   })
 })

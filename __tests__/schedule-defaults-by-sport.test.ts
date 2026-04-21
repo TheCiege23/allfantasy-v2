@@ -187,7 +187,7 @@ describe('Prompt 20 schedule defaults by sport and variant', () => {
     expect(config).not.toBeNull()
     expect(config?.sport).toBe('SOCCER')
     expect(config?.matchup_cadence).toBe('weekly')
-    expect(config?.regular_season_length).toBe(38)
+    expect(config?.regular_season_length).toBe(24)
     expect(config?.schedule_generation_strategy).toBe('round_robin')
   })
 

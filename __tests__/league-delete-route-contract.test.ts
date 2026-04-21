@@ -6,6 +6,8 @@ const leagueFindFirstMock = vi.fn()
 const leagueDeleteManyMock = vi.fn()
 const sleeperLeagueFindFirstMock = vi.fn()
 const sleeperLeagueDeleteManyMock = vi.fn()
+const legacyTournamentFindFirstMock = vi.fn()
+const legacyTournamentDeleteManyMock = vi.fn()
 const transactionMock = vi.fn()
 
 vi.mock('next-auth', () => ({
@@ -26,6 +28,10 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: sleeperLeagueFindFirstMock,
       deleteMany: sleeperLeagueDeleteManyMock,
     },
+    legacyTournament: {
+      findFirst: legacyTournamentFindFirstMock,
+      deleteMany: legacyTournamentDeleteManyMock,
+    },
     $transaction: transactionMock,
   },
 }))
@@ -38,6 +44,8 @@ describe('DELETE /api/league/[leagueId] contract', () => {
 
     leagueDeleteManyMock.mockResolvedValue({ count: 1 })
     sleeperLeagueDeleteManyMock.mockResolvedValue({ count: 1 })
+    legacyTournamentFindFirstMock.mockResolvedValue(null)
+    legacyTournamentDeleteManyMock.mockResolvedValue({ count: 0 })
 
     transactionMock.mockImplementation(async (ops: Array<Promise<unknown>>) => Promise.all(ops))
   })
@@ -70,6 +78,7 @@ describe('DELETE /api/league/[leagueId] contract', () => {
       removed: {
         leagueRows: 0,
         sleeperLeagueRows: 0,
+        tournamentRows: 0,
       },
     })
     expect(leagueDeleteManyMock).not.toHaveBeenCalled()
@@ -96,6 +105,7 @@ describe('DELETE /api/league/[leagueId] contract', () => {
       removed: {
         leagueRows: 1,
         sleeperLeagueRows: 1,
+        tournamentRows: 0,
       },
     })
 
@@ -141,6 +151,7 @@ describe('DELETE /api/league/[leagueId] contract', () => {
       removed: {
         leagueRows: 1,
         sleeperLeagueRows: 1,
+        tournamentRows: 0,
       },
     })
 

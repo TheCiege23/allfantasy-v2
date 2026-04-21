@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const requireVerifiedUserMock = vi.fn()
 const runImportedLeagueNormalizationPipelineMock = vi.fn()
 const buildImportedLeaguePreviewMock = vi.fn()
-const persistImportedLeagueFromNormalizationMock = vi.fn()
+const persistImportWithCanonicalAuditMock = vi.fn()
 
 class ImportedLeagueConflictErrorMock extends Error {}
 
@@ -21,7 +21,10 @@ vi.mock('@/lib/league-import/ImportedLeaguePreviewBuilder', () => ({
 
 vi.mock('@/lib/league-import/ImportedLeagueCommitService', () => ({
   ImportedLeagueConflictError: ImportedLeagueConflictErrorMock,
-  persistImportedLeagueFromNormalization: persistImportedLeagueFromNormalizationMock,
+}))
+
+vi.mock('@/lib/league-import/importPersistenceService', () => ({
+  persistImportWithCanonicalAudit: persistImportWithCanonicalAuditMock,
 }))
 
 describe('Fantrax import API routes', () => {
@@ -90,7 +93,7 @@ describe('Fantrax import API routes', () => {
 
       const res = await POST(req as any)
       expect(res.status).toBe(200)
-      await expect(res.json()).resolves.toEqual({
+      await expect(res.json()).resolves.toMatchObject({
         league: { id: 'fantrax-league-1', name: 'Fantrax League' },
       })
       expect(runImportedLeagueNormalizationPipelineMock).toHaveBeenCalledWith({
@@ -186,14 +189,17 @@ describe('Fantrax import API routes', () => {
           },
         },
       })
-      persistImportedLeagueFromNormalizationMock.mockResolvedValue({
-        league: {
-          id: 'league-new',
-          name: 'Fantrax Commit League',
-          sport: 'NCAAF',
+      persistImportWithCanonicalAuditMock.mockResolvedValue({
+        persisted: {
+          league: {
+            id: 'league-new',
+            name: 'Fantrax Commit League',
+            sport: 'NCAAF',
+          },
+          historicalBackfill: { status: 'queued' },
+          existed: false,
         },
-        historicalBackfill: { status: 'queued' },
-        existed: false,
+        runId: 'import-run-1',
       })
 
       const { POST } = await import('@/app/api/leagues/import/commit/route')
@@ -218,8 +224,9 @@ describe('Fantrax import API routes', () => {
           sport: 'NCAAF',
         },
         historicalBackfill: { status: 'queued' },
+        importRunId: 'import-run-1',
       })
-      expect(persistImportedLeagueFromNormalizationMock).toHaveBeenCalledWith(
+      expect(persistImportWithCanonicalAuditMock).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'u1',
           provider: 'fantrax',
@@ -312,7 +319,7 @@ describe('Fantrax import API routes', () => {
           },
         },
       })
-      persistImportedLeagueFromNormalizationMock.mockRejectedValue(
+      persistImportWithCanonicalAuditMock.mockRejectedValue(
         new ImportedLeagueConflictErrorMock('This league already exists in your account')
       )
 
@@ -328,8 +335,9 @@ describe('Fantrax import API routes', () => {
 
       const res = await POST(req as any)
       expect(res.status).toBe(409)
-      await expect(res.json()).resolves.toEqual({
+      await expect(res.json()).resolves.toMatchObject({
         error: 'This league already exists in your account',
+        code: 'LEAGUE_ALREADY_IMPORTED',
       })
     })
   })

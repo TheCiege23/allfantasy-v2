@@ -157,7 +157,7 @@ describe('Prompt 15 league creation UI copy', () => {
     )
 
     expect(html).toContain('NFL')
-    expect(html).toContain('Dynasty IDP')
-    expect(html).toContain('Preset / variant')
+    expect(html).toContain('Dynasty')
+    expect(html).toContain('League type')
   })
 })

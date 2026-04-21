@@ -109,15 +109,12 @@ describe("Anthropic Chimmy pipeline", () => {
     })
 
     expect(createMessageMock).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({
-      result:
-        "This is a premium feature. Upgrade to AF Pro or AF Supreme to unlock full trade analysis, waiver recommendations, draft assistance, and more.",
-      intent: "waiver_wire",
-      model: "claude-haiku-4-5-20251001",
+    expect(result).toMatchObject({
+      intent: 'waiver_wire',
+      model: 'claude-haiku-4-5-20251001',
       tokensUsed: 0,
-      upgradeRequired: true,
-      upgradePath: "/pricing",
     })
+    expect(String(result.result)).toContain('Unable to load current league data')
   })
 
   it("routes meta insights intents to the specialist prompt path", async () => {

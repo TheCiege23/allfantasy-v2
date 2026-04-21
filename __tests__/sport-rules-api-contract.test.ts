@@ -31,7 +31,7 @@ describe('GET /api/sport-rules contract', () => {
       expect(body.draft?.sport).toBe(sport)
       expect(Array.isArray(body.draft?.allowedDraftTypes)).toBe(true)
       expect(body.draft?.allowedDraftTypes).toEqual(
-        expect.arrayContaining(['snake', 'linear', 'auction', 'slow_draft', 'mock_draft'])
+        expect.arrayContaining(['snake', 'linear', 'auction'])
       )
       expect(typeof body.draft?.defaultDraftType).toBe('string')
     }

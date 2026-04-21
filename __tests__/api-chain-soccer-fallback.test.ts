@@ -110,7 +110,7 @@ describe('api-chain soccer fallback', () => {
     expect((result.data as unknown[]).length).toBe(1)
   })
 
-  it('does not fall back to api-sports for live score data types when RI fails', async () => {
+  it('falls back to api-sports for live score data types when RI fails', async () => {
     rollingInsightsProviderMock.mockResolvedValue({
       data: null,
       error: 'temporary upstream issue',
@@ -130,11 +130,11 @@ describe('api-chain soccer fallback', () => {
     })
 
     expect(rollingInsightsProviderMock).toHaveBeenCalledTimes(1)
-    expect(apiSportsSupportsMock).not.toHaveBeenCalled()
-    expect(apiSportsFetchMock).not.toHaveBeenCalled()
+    expect(apiSportsSupportsMock).toHaveBeenCalledTimes(1)
+    expect(apiSportsFetchMock).toHaveBeenCalledTimes(1)
 
     expect(result.fromCache).toBe(false)
-    expect(result.data).toBeNull()
-    expect(result.error).toBe('All providers failed')
+    expect(result.source).toBe('api_sports')
+    expect(result.data).toEqual([{ id: 'game-1' }])
   })
 })

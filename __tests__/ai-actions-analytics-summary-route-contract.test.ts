@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockNextRequest } from '@/__tests__/helpers/createMockNextRequest'
 
 const getServerSessionMock = vi.fn()
-const getChimmyLearningSnapshotMock = vi.fn()
+const getChimmyLearningSnapshotServerMock = vi.fn()
 
 vi.mock('next-auth', () => ({
   getServerSession: getServerSessionMock,
@@ -12,19 +12,15 @@ vi.mock('@/lib/auth', () => ({
   authOptions: {},
 }))
 
-vi.mock('@/lib/chimmy-actions', async () => {
-  const actual = await vi.importActual<any>('@/lib/chimmy-actions')
-  return {
-    ...actual,
-    getChimmyLearningSnapshot: getChimmyLearningSnapshotMock,
-  }
-})
+vi.mock('@/lib/chimmy-actions/server-store', () => ({
+  getChimmyLearningSnapshotServer: getChimmyLearningSnapshotServerMock,
+}))
 
 describe('GET /api/ai/actions/analytics/summary contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getServerSessionMock.mockResolvedValue({ user: { id: 'user-1' } })
-    getChimmyLearningSnapshotMock.mockResolvedValue({
+    getChimmyLearningSnapshotServerMock.mockResolvedValue({
       totals: {
         shown: 10,
         clicked: 6,
@@ -71,7 +67,7 @@ describe('GET /api/ai/actions/analytics/summary contract', () => {
       },
     })
 
-    expect(getChimmyLearningSnapshotMock).toHaveBeenCalledWith('user-1', {
+    expect(getChimmyLearningSnapshotServerMock).toHaveBeenCalledWith('user-1', {
       limit: 250,
       includeSavedRecommendations: true,
     })
