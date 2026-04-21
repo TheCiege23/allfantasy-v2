@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
+import { useDraftCountdownSeconds } from '@/lib/draft/useDraftCountdown'
 import type { TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export type DraftTopBarProps = {
@@ -38,6 +39,8 @@ export type DraftTopBarProps = {
   overallPickNumber: number | null
   timerStatus: 'running' | 'paused' | 'expired' | 'none'
   timerRemainingSeconds: number | null
+  /** When timer is running, anchor countdown to this ISO time (smooth 1s ticks). */
+  timerEndAtIso?: string | null
   timerSeconds?: number | null
   isCommissioner: boolean
   draftStatus: string
@@ -171,6 +174,7 @@ export function DraftTopBar({
   overallPickNumber,
   timerStatus,
   timerRemainingSeconds,
+  timerEndAtIso = null,
   timerSeconds = null,
   isCommissioner,
   draftStatus,
@@ -204,6 +208,7 @@ export function DraftTopBar({
   onlineCount,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
+  const liveRemaining = useDraftCountdownSeconds(timerStatus, timerEndAtIso ?? undefined, timerRemainingSeconds)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<'idle' | 'copied'>('idle')
@@ -248,12 +253,19 @@ export function DraftTopBar({
     return () => window.removeEventListener('mousedown', handlePointerDown)
   }, [menuOpen])
 
+  const effectiveRemaining =
+    timerStatus === 'running' && timerEndAtIso != null && timerEndAtIso !== ''
+      ? liveRemaining
+      : timerRemainingSeconds
+
   const timerDisplay =
-    timerStatus === 'none' || (timerRemainingSeconds == null && timerStatus !== 'paused')
+    timerStatus === 'none' || (effectiveRemaining == null && timerStatus !== 'paused' && timerStatus !== 'expired')
       ? '-'
-      : timerStatus === 'paused' && timerRemainingSeconds == null
+      : timerStatus === 'paused' && effectiveRemaining == null
         ? t('draftRoom.topBar.timerPaused')
-        : formatTimerRemaining(timerRemainingSeconds ?? 0)
+        : timerStatus === 'expired'
+          ? formatTimerRemaining(0)
+          : formatTimerRemaining(effectiveRemaining ?? 0)
 
   const timerSummary = useMemo(() => formatTimerSummary(timerSeconds), [timerSeconds])
   const statusLabel = translateDraftStatus(draftStatus, t)

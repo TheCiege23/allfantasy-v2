@@ -16,10 +16,20 @@ export function OnTheClockPanel({
       </div>
     )
   }
-  if (status === 'pre_draft' || !currentPick) {
+  if (status === 'pre_draft') {
     return (
       <div className="rounded-2xl border border-white/10 bg-[#0a1228]/80 px-4 py-4 text-center text-sm text-white/55">
         Waiting for draft to start…
+      </div>
+    )
+  }
+
+  if (!currentPick) {
+    return (
+      <div className="rounded-2xl border border-amber-400/25 bg-[#0a1228]/80 px-4 py-4 text-center text-sm text-amber-100/90">
+        {status === 'in_progress'
+          ? 'Syncing current pick…'
+          : 'Waiting for the board…'}
       </div>
     )
   }

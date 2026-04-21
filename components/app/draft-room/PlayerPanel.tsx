@@ -187,16 +187,33 @@ function PlayerListVirtualized({
                   >
                     Nominate
                   </button>
-                ) : canDraft ? (
+                ) : (
                   <button
                     type="button"
-                    onClick={() => onDraftRequest(p)}
+                    disabled={!canDraft || draftedNames.has(p.name)}
+                    title={
+                      draftedNames.has(p.name)
+                        ? 'Player already drafted'
+                        : !canDraft
+                          ? 'Not your turn'
+                          : 'Draft this player'
+                    }
+                    onClick={() => {
+                      if (!canDraft || draftedNames.has(p.name)) return
+                      onDraftRequest(p)
+                    }}
                     data-testid={`draft-player-button-${virtualRow.index}`}
-                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-cyan-300/35 bg-cyan-500/12 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/20 touch-manipulation"
+                    className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs touch-manipulation ${
+                      draftedNames.has(p.name)
+                        ? 'cursor-not-allowed border-white/10 bg-white/5 text-white/35'
+                        : !canDraft
+                          ? 'cursor-not-allowed border-white/10 bg-black/25 text-white/35'
+                          : 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/20'
+                    }`}
                   >
-                    Draft
+                    {draftedNames.has(p.name) ? 'Drafted' : 'Draft'}
                   </button>
-                ) : undefined
+                )
               }
               secondaryAction={
                 <button
@@ -251,7 +268,7 @@ function PlayerPanelInner({
   const [sortBy, setSortBy] = useState<SortKey>('adp')
   const [showRosterView, setShowRosterView] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerEntry | null>(null)
-  const [pendingPick, setPendingPick] = useState<{ mode: 'draft' | 'nominate'; player: PlayerEntry } | null>(null)
+  const [pendingNomination, setPendingNomination] = useState<PlayerEntry | null>(null)
   const [watchlistOnly, setWatchlistOnly] = useState(false)
   const [rookiesOnly, setRookiesOnly] = useState(false)
   const [hideDrafted, setHideDrafted] = useState(true)
@@ -734,9 +751,9 @@ function PlayerPanelInner({
             canDraft={canDraft}
             canNominate={canNominate}
             useAiAdp={useAiAdp}
-            onDraftRequest={(player) => setPendingPick({ mode: 'draft', player })}
+            onDraftRequest={onMakePick}
             onAddToQueue={onAddToQueue}
-            onNominateRequest={(player) => setPendingPick({ mode: 'nominate', player })}
+            onNominateRequest={(player) => setPendingNomination(player)}
             onPlayerSelect={setSelectedPlayer}
             scrollRef={scrollRef}
             compareAnchor={compareAnchor}
@@ -744,12 +761,12 @@ function PlayerPanelInner({
           />
         )}
       </div>
-      {pendingPick && (
+      {pendingNomination && (
         <div className="border-t border-white/8 bg-[#050c1d] p-2.5 space-y-2" data-testid="draft-pick-confirmation">
           <p className="text-xs text-white/80">
-            Confirm {pendingPick.mode === 'nominate' ? 'nomination' : 'pick'}:
+            Confirm nomination:
             <span className="ml-1 font-medium text-cyan-200">
-              {getPickConfirmationLabel(pendingPick.player.name, pendingPick.player.position, pendingPick.player.team)}
+              {getPickConfirmationLabel(pendingNomination.name, pendingNomination.position, pendingNomination.team)}
             </span>
           </p>
           <div className="flex items-center gap-2">
@@ -757,12 +774,8 @@ function PlayerPanelInner({
               type="button"
               data-testid="draft-confirm-pick-button"
               onClick={() => {
-                if (pendingPick.mode === 'nominate') {
-                  onNominate?.(pendingPick.player)
-                } else {
-                  onMakePick(pendingPick.player)
-                }
-                setPendingPick(null)
+                onNominate?.(pendingNomination)
+                setPendingNomination(null)
               }}
               className="rounded border border-cyan-300/35 bg-cyan-500/12 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20"
             >
@@ -771,7 +784,7 @@ function PlayerPanelInner({
             <button
               type="button"
               data-testid="draft-cancel-pick-button"
-              onClick={() => setPendingPick(null)}
+              onClick={() => setPendingNomination(null)}
               className="rounded border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
             >
               Cancel

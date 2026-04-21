@@ -31,6 +31,12 @@ export type DraftManagerStripProps = {
   claimSlotLoadingRosterId?: string | null
 }
 
+function normalizeManagerKey(value: string): string {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+}
+
 function managerInitials(value: string): string {
   const parts = value
     .split(/\s+/)
@@ -142,11 +148,13 @@ export function DraftManagerStrip({
                   <p className="truncate text-[9px] text-red-300 sm:text-[10px]" title={`Now: ${manager.tradedPickMeta.newOwnerName}`}>
                     Now {manager.tradedPickMeta.newOwnerName}
                   </p>
-                ) : manager.teamName ? (
+                ) : manager.teamName &&
+                  normalizeManagerKey(manager.teamName) !== normalizeManagerKey(displayHandle) ? (
                   <p className="truncate text-[9px] text-white/32 sm:text-[10px]">{manager.teamName}</p>
                 ) : null}
 
-                {!manager.teamName ? (
+                {!manager.teamName &&
+                normalizeManagerKey(displayHandle) !== normalizeManagerKey(`Team ${manager.slot}`) ? (
                   <p className="truncate text-[9px] text-white/32 sm:text-[10px]">Team {manager.slot}</p>
                 ) : null}
 

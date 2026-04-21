@@ -1,6 +1,7 @@
 'use client'
 
 import type { TimerState } from '@/lib/live-draft-engine/types'
+import { useDraftCountdownSeconds } from '@/lib/draft/useDraftCountdown'
 
 export function DraftTimer({
   timer,
@@ -9,15 +10,18 @@ export function DraftTimer({
   timer: TimerState
   className?: string
 }) {
-  const sec = timer.remainingSeconds
+  const liveSec = useDraftCountdownSeconds(timer.status, timer.timerEndAt, timer.remainingSeconds)
+  const sec = liveSec ?? timer.remainingSeconds
   const label =
     timer.status === 'paused'
       ? 'Paused'
-      : timer.status === 'none' || timer.status === 'expired'
+      : timer.status === 'none'
         ? '—'
-        : sec != null
-          ? `${sec}s`
-          : '—'
+        : timer.status === 'expired'
+          ? '0:00'
+          : sec != null
+            ? `${sec}s`
+            : '—'
 
   return (
     <div

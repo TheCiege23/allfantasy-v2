@@ -6,7 +6,6 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { DraftRoomShell, type MobileDraftTab } from '@/components/app/draft-room/DraftRoomShell'
 import { DraftTopBar } from '@/components/app/draft-room/DraftTopBar'
-import { DraftManagerStrip } from '@/components/app/draft-room/DraftManagerStrip'
 import { DraftBoard } from '@/components/app/draft-room/DraftBoard'
 import { DraftTeamStrip, type DraftTeamStripTeamMeta } from '@/components/app/draft-room/DraftTeamStrip'
 import { PickTradeHistoryModal } from '@/components/app/draft-room/PickTradeHistoryModal'
@@ -1192,15 +1191,25 @@ export function DraftRoomPageClient({
 
   useEffect(() => {
     if (typeof document === 'undefined') return
-    const onVisibility = () => {
+    const compute = () => {
       const hidden = document.hidden
-      setPollInterval(hidden ? POLL_MS_BACKGROUND : POLL_MS)
-      if (!hidden) refetchOnceRef.current?.()
+      if (hidden) {
+        setPollInterval(POLL_MS_BACKGROUND)
+        return
+      }
+      refetchOnceRef.current?.()
+      const active = session?.status === 'in_progress'
+      const ts = session?.timer?.status
+      if (active && (ts === 'running' || ts === 'expired')) {
+        setPollInterval(2000)
+      } else {
+        setPollInterval(POLL_MS)
+      }
     }
-    document.addEventListener('visibilitychange', onVisibility)
-    onVisibility()
-    return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [])
+    compute()
+    document.addEventListener('visibilitychange', compute)
+    return () => document.removeEventListener('visibilitychange', compute)
+  }, [session?.status, session?.timer?.status])
 
   useEffect(() => {
     if (!leagueId) return
@@ -1296,6 +1305,7 @@ export function DraftRoomPageClient({
 
   const handleStartDraft = useCallback(async () => {
     try {
+      setPickError(null)
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1307,9 +1317,11 @@ export function DraftRoomPageClient({
         setSession(data.session)
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
+        setPickError(typeof data?.error === 'string' ? data.error : 'Could not start the draft. Check that the draft order is set and try again.')
       }
     } catch (_) {
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
+      setPickError('Could not start the draft. Try again.')
     }
   }, [leagueId])
 
@@ -1517,6 +1529,14 @@ export function DraftRoomPageClient({
   const handleMakePick = useCallback(
     async (player: PlayerEntry) => {
       setPickError(null)
+      const offlineCommissioner = draftUISettings?.executionMode === 'offline' && isCommissioner
+      if (!offlineCommissioner) {
+        const cp = session?.currentPick
+        if (!cp || !currentUserRosterId || cp.rosterId !== currentUserRosterId) {
+          setPickError('You can only draft when your team is on the clock.')
+          return
+        }
+      }
       setPickSubmitting(true)
       try {
         const note = player.display?.metadata?.eligibilityNote?.toLowerCase() ?? ''
@@ -1561,7 +1581,13 @@ export function DraftRoomPageClient({
         setPickSubmitting(false)
       }
     },
-    [leagueId],
+    [
+      leagueId,
+      draftUISettings?.executionMode,
+      isCommissioner,
+      session?.currentPick,
+      currentUserRosterId,
+    ],
   )
 
   const handlePoolPreviewSelect = useCallback(
@@ -1918,7 +1944,14 @@ export function DraftRoomPageClient({
     ]
   }, [chatMessages, isCurrentUserOnClock, recommendationResult?.recommendation, currentPick?.overall])
   const currentRoster: Array<{ playerName: string; position: string; team: string | null }> = []
-  const canDraft = currentPick != null && pickSubmitting === false
+  const commissionerOfflinePick =
+    Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
+  const canDraft =
+    session != null &&
+    session.status === 'in_progress' &&
+    currentPick != null &&
+    pickSubmitting === false &&
+    (commissionerOfflinePick || isCurrentUserOnClock)
   const nextQueuedAvailable = queueFiltered.length > 0 && canDraft ? queueFiltered[0] : null
 
   const isAuctionDraft = session?.draftType === 'auction'
@@ -2193,19 +2226,6 @@ export function DraftRoomPageClient({
       </div>
     )
   }
-
-  const managerSlots = slotOrder.map((entry) => {
-    const team = resolveManagerChromeTeam(entry, leagueTeams)
-    return {
-      slot: entry.slot,
-      rosterId: entry.rosterId,
-      displayName: entry.displayName,
-      teamName: team?.teamName ?? null,
-      handle: team?.ownerName ?? entry.displayName,
-      avatarUrl: team?.avatarUrl ?? null,
-      isCommissioner: Boolean(team?.isCommissioner || team?.isCoCommissioner),
-    }
-  })
 
   const isAuction = session.draftType === 'auction'
   const auctionSnapshot = (session as any).auction
@@ -2584,6 +2604,7 @@ export function DraftRoomPageClient({
             overallPickNumber={currentPick?.overall ?? null}
             timerStatus={session.timer?.status ?? 'none'}
             timerRemainingSeconds={session.timer?.remainingSeconds ?? null}
+            timerEndAtIso={session.timer?.timerEndAt ?? null}
             timerSeconds={session.timerSeconds ?? null}
             timerMode={draftUISettings?.timerMode ?? 'per_pick'}
             autoPickEnabled={autoPickEnabled}
@@ -2626,18 +2647,7 @@ export function DraftRoomPageClient({
           />
         </>
       }
-      managerStrip={
-        <DraftManagerStrip
-          managers={managerSlots}
-          activeRosterId={currentPick?.rosterId ?? null}
-          tradedPickColorMode={tradedPickColorMode}
-          showNewOwnerInRed={showNewOwnerInRed}
-          orderSourceLabel={boardOrderSourceLabel}
-          claimableRosterIds={!currentUserRosterId ? claimableRosterIds : []}
-          onClaimSlot={!currentUserRosterId ? handleClaimSlot : undefined}
-          claimSlotLoadingRosterId={claimSlotLoadingRosterId}
-        />
-      }
+      managerStrip={null}
       draftBoard={
         <div
           className="flex min-h-0 flex-col gap-1.5 p-1.5 lg:flex-row lg:gap-2.5 lg:p-2.5"
