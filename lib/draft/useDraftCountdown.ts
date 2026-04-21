@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /**
  * Client-side display tick for draft timers. **Never** decrement a stored second count.
@@ -20,16 +20,18 @@ export function useDraftCountdownSeconds(
     return () => window.clearInterval(id)
   }, [timerStatus, timerEndAtIso])
 
-  // `tick` is not read here but triggers re-renders so `Date.now()` stays fresh while running.
-  void tick
+  return useMemo(() => {
+    // Invalidate when `tick` bumps (interval) so `Date.now()` is recomputed ~4×/s while running.
+    void tick
 
-  if (timerStatus === 'paused') return serverRemainingSeconds ?? null
-  if (timerStatus === 'expired') return 0
-  if (timerStatus === 'none') return serverRemainingSeconds ?? null
-  if (timerStatus === 'running' && timerEndAtIso) {
-    const end = new Date(timerEndAtIso).getTime()
-    if (!Number.isFinite(end)) return serverRemainingSeconds ?? null
-    return Math.max(0, Math.ceil((end - Date.now()) / 1000))
-  }
-  return serverRemainingSeconds ?? null
+    if (timerStatus === 'paused') return serverRemainingSeconds ?? null
+    if (timerStatus === 'expired') return 0
+    if (timerStatus === 'none') return serverRemainingSeconds ?? null
+    if (timerStatus === 'running' && timerEndAtIso) {
+      const end = new Date(timerEndAtIso).getTime()
+      if (!Number.isFinite(end)) return serverRemainingSeconds ?? null
+      return Math.max(0, Math.ceil((end - Date.now()) / 1000))
+    }
+    return serverRemainingSeconds ?? null
+  }, [timerStatus, timerEndAtIso, serverRemainingSeconds, tick])
 }
