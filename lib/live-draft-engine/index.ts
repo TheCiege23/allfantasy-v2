@@ -1,5 +1,7 @@
 /**
  * Live draft engine — session, order, timer, pick submission, validation, ownership.
+ *
+ * NOTE: Only client-safe exports included here. Server-only services must be imported directly.
  */
 
 export * from './types'
@@ -10,10 +12,5 @@ export * from './DraftTimerService'
 export * from './CurrentOnTheClockResolver'
 export * from './PickValidation'
 export * from './PickOwnershipResolver'
-export * from './DraftSessionService'
-export * from './PickSubmissionService'
-export * from './RosterAssignmentService'
-export * from './DraftPickTradeService'
-export * from './auction'
-export * from './slow-draft'
-export * from './keeper'
+
+
