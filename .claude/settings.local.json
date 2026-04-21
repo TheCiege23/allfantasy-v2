@@ -174,7 +174,8 @@
       "Bash(wait)",
       "Bash(echo \"STATUS=$?\")",
       "Bash(npx vitest *)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
     ]
   }
 }
