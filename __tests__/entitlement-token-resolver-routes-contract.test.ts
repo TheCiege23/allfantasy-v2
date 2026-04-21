@@ -60,7 +60,7 @@ describe("Resolver-backed entitlement/token routes", () => {
       hasAccess: false,
       message: "Upgrade to access this feature.",
     })
-    expect(entitlementResolveForUserMock).toHaveBeenCalledWith("u1", "ai_chat")
+    expect(entitlementResolveForUserMock).toHaveBeenCalledWith("u1", "ai_chat", undefined)
   })
 
   it("tokens balance route delegates to resolver and preserves shape", async () => {
@@ -71,6 +71,6 @@ describe("Resolver-backed entitlement/token routes", () => {
       balance: 0,
       updatedAt: "2026-03-30T00:00:00.000Z",
     })
-    expect(tokenResolveForUserMock).toHaveBeenCalledWith("u1")
+    expect(tokenResolveForUserMock).toHaveBeenCalledWith("u1", undefined)
   })
 })

@@ -11,10 +11,10 @@ export const NOTIFICATION_GROUP_ORDER: NotificationGroupKey[] = [
   "earlier",
 ]
 
-export function getGroupKey(dateStr: string): NotificationGroupKey {
+export function getGroupKey(dateStr: string, now?: Date): NotificationGroupKey {
   const d = new Date(dateStr)
-  const now = new Date()
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const ref = now ?? new Date()
+  const startOfToday = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate())
   const startOfYesterday = new Date(startOfToday)
   startOfYesterday.setDate(startOfYesterday.getDate() - 1)
   if (d >= startOfToday) return "today"
@@ -23,7 +23,8 @@ export function getGroupKey(dateStr: string): NotificationGroupKey {
 }
 
 export function groupNotifications(
-  notifications: PlatformNotification[]
+  notifications: PlatformNotification[],
+  now?: Date
 ): Record<NotificationGroupKey, PlatformNotification[]> {
   const groups: Record<NotificationGroupKey, PlatformNotification[]> = {
     today: [],
@@ -36,7 +37,7 @@ export function groupNotifications(
     return bTime - aTime
   })
   for (const n of sorted) {
-    const key = getGroupKey(n.createdAt)
+    const key = getGroupKey(n.createdAt, now)
     groups[key].push(n)
   }
   return groups

@@ -76,7 +76,7 @@ export const DRAFT_TYPES_BY_LEAGUE_FORMAT: Record<DraftMatrixLeagueFormatId, rea
   devy: ['devy_snake', 'devy_linear', 'devy_auction'],
   c2c: ['c2c_snake', 'c2c_linear', 'c2c_auction'],
   zombie: ['snake'],
-  salary_cap: ['snake', 'auction'],
+  salary_cap: ['auction'],
   big_brother: DRAFT_TYPES_BIG_BROTHER,
 }
 

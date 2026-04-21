@@ -2100,6 +2100,20 @@ export function DraftRoomPageClient({
   }, [canDraft, isCurrentUserOnClock, pickSubmitting, autoPickEnabled, autoPickFromQueue, awayMode, currentPick?.overall, handleAutopickExpired, session?.timer?.status])
   const tradedPickColorMode = draftUISettings?.tradedPickColorModeEnabled ?? false
   const showNewOwnerInRed = draftUISettings?.tradedPickOwnerNameRedEnabled ?? false
+  const teamMetaByRoster = useMemo<Record<string, DraftTeamStripTeamMeta>>(() => {
+    const map: Record<string, DraftTeamStripTeamMeta> = {}
+    for (const entry of slotOrder) {
+      const team = resolveManagerChromeTeam(entry, leagueTeams)
+      map[entry.rosterId] = {
+        rosterId: entry.rosterId,
+        teamName: team?.teamName ?? null,
+        ownerName: team?.ownerName ?? entry.displayName ?? null,
+        avatarUrl: team?.avatarUrl ?? null,
+        isOrphan: Array.isArray(orphanRosterIds) && orphanRosterIds.includes(entry.rosterId),
+      }
+    }
+    return map
+  }, [slotOrder, leagueTeams, orphanRosterIds])
 
   if (loading && !session) {
     return (
@@ -2122,21 +2136,6 @@ export function DraftRoomPageClient({
       </div>
     )
   }
-
-  const teamMetaByRoster = useMemo<Record<string, DraftTeamStripTeamMeta>>(() => {
-    const map: Record<string, DraftTeamStripTeamMeta> = {}
-    for (const entry of slotOrder) {
-      const team = resolveManagerChromeTeam(entry, leagueTeams)
-      map[entry.rosterId] = {
-        rosterId: entry.rosterId,
-        teamName: team?.teamName ?? null,
-        ownerName: team?.ownerName ?? entry.displayName ?? null,
-        avatarUrl: team?.avatarUrl ?? null,
-        isOrphan: Array.isArray(orphanRosterIds) && orphanRosterIds.includes(entry.rosterId),
-      }
-    }
-    return map
-  }, [slotOrder, leagueTeams, orphanRosterIds])
 
   const managerSlots = slotOrder.map((entry) => {
     const team = resolveManagerChromeTeam(entry, leagueTeams)

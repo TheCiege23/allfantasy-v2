@@ -28,7 +28,9 @@ function makeNotification(overrides: Partial<PlatformNotification> = {}): Platfo
 
 describe("notification center services", () => {
   it("groups notifications by recency and keeps newest first in each group", () => {
+    // Use a fixed noon reference to avoid midnight-flakiness
     const now = new Date()
+    now.setHours(12, 0, 0, 0)
     const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString()
     const oneHourAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000).toISOString()
     const yesterday = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString()
@@ -38,7 +40,7 @@ describe("notification center services", () => {
       makeNotification({ id: "today-older", createdAt: threeHoursAgo }),
       makeNotification({ id: "today-newer", createdAt: oneHourAgo }),
       makeNotification({ id: "yesterday", createdAt: yesterday }),
-    ])
+    ], now)
 
     expect(NOTIFICATION_GROUP_ORDER).toEqual(["today", "yesterday", "earlier"])
     expect(groups.today.map((item) => item.id)).toEqual(["today-newer", "today-older"])

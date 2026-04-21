@@ -59,6 +59,7 @@ const prismaMock = {
   },
   league: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
   },
   $transaction: vi.fn(),
 }

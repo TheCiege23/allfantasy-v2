@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
 
-vi.mock('@/components/chimmy-surfaces', () => ({
-  ChimmyAlertPreferencesPanel: () => <div data-testid="chimmy-alert-preferences-panel">chimmy panel</div>,
+vi.mock('@/components/chimmy-surfaces/ChimmyAlertPreferencesPanel', () => ({
+  default: () => <div data-testid="chimmy-alert-preferences-panel">chimmy panel</div>,
 }))
 
 import AlertSettingsClient from '@/app/alerts/settings/AlertSettingsClient'

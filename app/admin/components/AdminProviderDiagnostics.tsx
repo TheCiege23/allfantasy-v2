@@ -172,10 +172,10 @@ export default function AdminProviderDiagnostics() {
   const [historySearch, setHistorySearch] = useState("");
 
   useEffect(() => {
-    const rawStatus = searchParams.get("csHistoryStatus");
+    const rawStatus = searchParams?.get("csHistoryStatus");
     const status = rawStatus === "errors" || rawStatus === "clean" ? rawStatus : "all";
-    const season = searchParams.get("csHistorySeason") || "all";
-    const query = searchParams.get("csHistoryQuery") || "";
+    const season = searchParams?.get("csHistorySeason") || "all";
+    const query = searchParams?.get("csHistoryQuery") || "";
 
     setHistoryStatusFilter((prev) => (prev === status ? prev : status));
     setHistorySeasonFilter((prev) => (prev === season ? prev : season));
@@ -187,7 +187,7 @@ export default function AdminProviderDiagnostics() {
   useEffect(() => {
     if (!historyFiltersHydratedRef.current) return;
 
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
     const trimmedQuery = historySearch.trim();
 
     if (historyStatusFilter === "all") params.delete("csHistoryStatus");
@@ -200,10 +200,12 @@ export default function AdminProviderDiagnostics() {
     else params.set("csHistoryQuery", trimmedQuery);
 
     const nextQuery = params.toString();
-    const currentQuery = searchParams.toString();
+    const currentQuery = searchParams?.toString() ?? "";
     if (nextQuery === currentQuery) return;
 
-    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    const basePath = pathname ?? "/admin";
+
+    router.replace(nextQuery ? `${basePath}?${nextQuery}` : basePath, { scroll: false });
   }, [historySearch, historySeasonFilter, historyStatusFilter, pathname, router, searchParams]);
 
   const clearSportsHistoryGroups = useMemo<ClearSportsHistoryGroup[]>(() => {

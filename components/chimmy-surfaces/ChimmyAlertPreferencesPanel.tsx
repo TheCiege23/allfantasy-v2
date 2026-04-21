@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useChimmyAlertPreferences } from '@/hooks/useChimmyAlertPreferences'
 import type { ChimmyAlertClass, ChimmyAlertUserPreferences } from '@/lib/chimmy-alerts/types'
 

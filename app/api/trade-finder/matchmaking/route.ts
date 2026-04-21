@@ -123,7 +123,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       return NextResponse.json({ error: 'User not found in this league' }, { status: 404 })
     }
 
-    const leagueSport = String((league as Record<string, unknown>)?.sport ?? 'nfl').toLowerCase()
+    const leagueSport = String(league.sport ?? 'nfl').toLowerCase()
     const sportPlayers = await getPlayersBySport(leagueSport).catch(() => ({} as Record<string, any>))
 
     const leagueSettings = league.settings || {}

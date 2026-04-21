@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const userSubscriptionFindManyMock = vi.hoisted(() => vi.fn())
+const adminSubscriptionGrantFindManyMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     userSubscription: {
       findMany: userSubscriptionFindManyMock,
+    },
+    adminSubscriptionGrant: {
+      findMany: adminSubscriptionGrantFindManyMock,
     },
   },
 }))
@@ -14,6 +18,7 @@ describe("EntitlementResolver", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     delete process.env.DEV_ADMIN_USER_IDS
+    adminSubscriptionGrantFindManyMock.mockResolvedValue([])
   })
 
   it("returns none when user has no subscriptions", async () => {

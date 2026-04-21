@@ -17,6 +17,7 @@ const prismaMock = {
   league: {
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
   },
   redraftSeason: {
     findFirst: vi.fn(),
@@ -110,6 +111,9 @@ describe('Redraft multi-sport route parity', () => {
         },
         redraftMatchup: {
           create: vi.fn().mockResolvedValue({ id: 'm-1' }),
+        },
+        guillotineSeason: {
+          findFirst: vi.fn().mockResolvedValue(null),
         },
       }
       return cb(tx)

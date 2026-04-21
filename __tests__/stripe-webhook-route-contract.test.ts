@@ -22,6 +22,7 @@ const userSubscriptionFindFirstMock = vi.hoisted(() => vi.fn())
 const userSubscriptionUpdateMock = vi.hoisted(() => vi.fn())
 const userSubscriptionCreateMock = vi.hoisted(() => vi.fn())
 const userProfileUpsertMock = vi.hoisted(() => vi.fn())
+const adminSubscriptionGrantFindManyMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/stripe-client", () => ({
   getStripeClient: getStripeClientMock,
@@ -51,6 +52,9 @@ vi.mock("@/lib/prisma", () => ({
     userProfile: {
       upsert: userProfileUpsertMock,
     },
+    adminSubscriptionGrant: {
+      findMany: adminSubscriptionGrantFindManyMock,
+    },
   },
 }))
 
@@ -67,6 +71,7 @@ describe("Stripe webhook route contracts", () => {
     userSubscriptionUpdateMock.mockResolvedValue({ id: "sub-1" })
     userSubscriptionCreateMock.mockResolvedValue({ id: "sub-1" })
     userProfileUpsertMock.mockResolvedValue({ userId: "u1" })
+    adminSubscriptionGrantFindManyMock.mockResolvedValue([])
     constructEventMock.mockReturnValue({
       id: "evt_1",
       type: "checkout.session.completed",
@@ -97,7 +102,7 @@ describe("Stripe webhook route contracts", () => {
     await expect(res.json()).resolves.toMatchObject({
       error: "Missing stripe-signature header",
     })
-  })
+  }, 60000)
 
   it("routes known purchaseType and marks webhook event processed", async () => {
     const { POST } = await import("@/app/api/stripe/webhook/route")

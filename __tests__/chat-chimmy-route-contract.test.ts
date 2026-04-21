@@ -12,6 +12,10 @@ const buildChimmyConversationIdMock = vi.fn()
 const buildAgentPromptMock = vi.fn()
 const inferAgentFromMessageMock = vi.fn()
 const getChimmyMemoryContextMock = vi.fn()
+const resolveNormalizedLeagueContextMock = vi.fn()
+const resolveChimmyPersonalizationProfileMock = vi.fn()
+const prismaUserProfileFindUniqueMock = vi.fn()
+const prismaAiCustomRuleFindManyMock = vi.fn()
 const previewSpendMock = vi.fn()
 const spendTokensForRuleMock = vi.fn()
 const refundSpendByLedgerMock = vi.fn()
@@ -48,8 +52,16 @@ vi.mock("@/lib/ai-simulation-integration", () => ({
   getInsightBundle: vi.fn(),
 }))
 
-vi.mock("@/lib/sport-scope", () => ({
-  normalizeToSupportedSport: (value?: string | null) => value ?? "NFL",
+vi.mock("@/lib/sport-scope", async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>
+  return {
+    ...actual,
+    normalizeToSupportedSport: (value?: string | null) => value ?? "NFL",
+  }
+})
+
+vi.mock("@/lib/league-context-engine", () => ({
+  resolveNormalizedLeagueContext: resolveNormalizedLeagueContextMock,
 }))
 
 vi.mock("@/lib/ai-memory/chimmy-memory-context", () => ({
@@ -90,6 +102,17 @@ vi.mock("@/lib/supabaseClient", () => ({
   },
 }))
 
+vi.mock("@/lib/chimmy-personalization/service", () => ({
+  resolveChimmyPersonalizationProfile: resolveChimmyPersonalizationProfileMock,
+}))
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    userProfile: { findUnique: prismaUserProfileFindUniqueMock },
+    aICustomRule: { findMany: prismaAiCustomRuleFindManyMock },
+  },
+}))
+
 function buildMultipartRequest(formData?: FormData) {
   return createMockNextRequest("http://localhost/api/chat/chimmy", {
     method: "POST",
@@ -111,6 +134,10 @@ describe("POST /api/chat/chimmy contract", () => {
     buildAgentPromptMock.mockImplementation(async ({ userMessage }: { userMessage: string }) => userMessage)
     inferAgentFromMessageMock.mockReturnValue("trade_analyzer")
     getChimmyMemoryContextMock.mockResolvedValue({ promptSection: "" })
+    resolveNormalizedLeagueContextMock.mockResolvedValue({ ok: true, context: {} })
+    resolveChimmyPersonalizationProfileMock.mockResolvedValue(null)
+    prismaUserProfileFindUniqueMock.mockResolvedValue(null)
+    prismaAiCustomRuleFindManyMock.mockResolvedValue([])
     previewSpendMock.mockResolvedValue({
       ruleCode: "ai_chimmy_chat_message",
       tokenCost: 1,
