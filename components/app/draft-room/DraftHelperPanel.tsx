@@ -13,6 +13,8 @@ import type { LiveDraftBrainEnvelope } from '@/lib/live-draft-brain/schemas'
 import type { LiveDraftBrainInput } from '@/lib/live-draft-brain'
 import { WarRoomPanel } from '@/components/war-room/WarRoomPanel'
 import ChimmyChatPanel from '@/components/chimmy/ChimmyChatPanel'
+import { DraftWarRoom, type DraftWarRoomSnapshot } from '@/components/draft/ai/DraftWarRoom'
+import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -89,6 +91,17 @@ export type DraftHelperPanelProps = {
     orphanAiEnabled: boolean
     commissionerAiManagersCount: number
   } | null
+  /** Live War Room (AI draft assistant) — optional; renders above legacy helper when provided. */
+  warRoom?: {
+    snapshot: DraftWarRoomSnapshot | null
+    loading: boolean
+    error: string | null
+    canDraft: boolean
+    onRefresh: (force?: boolean) => void
+    resolvePlayer: (name: string, position: string) => PlayerEntry | null
+    onDraftPlayer: (player: PlayerEntry) => void
+    onQueuePlayer: (player: PlayerEntry) => void
+  } | null
 }
 
 export function DraftHelperPanel({
@@ -126,6 +139,7 @@ export function DraftHelperPanel({
   chimmyToolSummary = null,
   sportsFeed = null,
   aiFeatureStatus = null,
+  warRoom = null,
 }: DraftHelperPanelProps) {
   const [warRoomOpen, setWarRoomOpen] = useState(false)
   const { t } = useLanguage()
@@ -200,6 +214,23 @@ export function DraftHelperPanel({
         />
       </div>
       <div className="flex-1 overflow-auto p-2">
+        {warRoom && leagueId ? (
+          <div className="mb-3">
+            <DraftWarRoom
+              sport={sport}
+              leagueId={leagueId}
+              data={warRoom.snapshot}
+              loading={warRoom.loading}
+              error={warRoom.error}
+              canDraft={warRoom.canDraft}
+              onRefresh={warRoom.onRefresh}
+              onVisible={() => warRoom.onRefresh(true)}
+              resolvePlayerEntry={warRoom.resolvePlayer}
+              onDraftPlayer={warRoom.onDraftPlayer}
+              onAddToQueue={warRoom.onQueuePlayer}
+            />
+          </div>
+        ) : null}
         {liveBrain && (
           <div className="mb-3">
             <DraftLiveBrainPremiumBlock liveBrain={liveBrain} onPlayerClick={onPlayerClick} />

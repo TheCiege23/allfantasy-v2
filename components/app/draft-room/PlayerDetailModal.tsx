@@ -18,6 +18,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X, Star, Flame } from 'lucide-react'
+import type { NormalizedDraftRoomPlayer } from '@/lib/players/normalizePlayer'
+import { getPlayerImage, preloadPlayerImage } from '@/lib/players/getPlayerImage'
 
 export interface PlayerDetailPlayer {
   id?: string | null
@@ -50,6 +52,8 @@ export interface PlayerDetailModalProps {
   open: boolean
   onClose: () => void
   player: PlayerDetailPlayer
+  /** Canonical draft-room shape (stats line, news, projection) — optional enricher. */
+  normalized?: NormalizedDraftRoomPlayer | null
   sport: string
   leagueContext?: LeagueContext | null
   onAddToQueue?: () => void
@@ -157,7 +161,7 @@ function statusBadgeClass(status: string | null | undefined): string {
 }
 
 export function PlayerDetailModal(props: PlayerDetailModalProps) {
-  const { open, onClose, player, sport, leagueContext, onAddToQueue, onMakePick, canDraft, isWatchlisted, onToggleWatchlist } = props
+  const { open, onClose, player, normalized = null, sport, leagueContext, onAddToQueue, onMakePick, canDraft, isWatchlisted, onToggleWatchlist } = props
 
   const currentYear = new Date().getUTCFullYear()
   const availableYears = useMemo(
@@ -255,6 +259,16 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
     return () => window.removeEventListener('keydown', handleKey)
   }, [open, handleKey])
 
+  const headerImageUrl = useMemo(() => {
+    const fromNorm = normalized ? getPlayerImage(normalized) : null
+    return fromNorm ?? player.headshotUrl ?? null
+  }, [normalized, player.headshotUrl])
+
+  useEffect(() => {
+    if (!open || !headerImageUrl) return
+    preloadPlayerImage(headerImageUrl)
+  }, [open, headerImageUrl])
+
   if (!open) return null
 
   const colSet = columnSetForPosition(player.position)
@@ -263,12 +277,12 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex items-start justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={onClose}
       data-testid="player-detail-modal"
     >
       <div
-        className="relative my-8 flex max-h-[calc(100vh-4rem)] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0a1228] to-[#040915] shadow-2xl"
+        className="relative my-4 flex max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0a1228] to-[#040915] shadow-2xl animate-in zoom-in-95 fade-in duration-200 sm:my-8 sm:max-h-[calc(100vh-4rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -286,10 +300,10 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
           <div className="relative border-b border-white/8 bg-gradient-to-r from-[#081428] via-[#0a1530] to-[#081428] px-6 py-5">
             <div className="flex items-start gap-5">
               <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                {player.headshotUrl ? (
+                {headerImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={player.headshotUrl}
+                    src={headerImageUrl}
                     alt=""
                     className="h-full w-full object-cover"
                     onError={(e) => {
@@ -305,12 +319,15 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                       .join('')}
                   </div>
                 )}
-                {player.teamLogoUrl ? (
+                {(normalized?.teamLogoUrl ?? player.teamLogoUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={player.teamLogoUrl}
+                    src={normalized?.teamLogoUrl ?? player.teamLogoUrl ?? ''}
                     alt=""
                     className="absolute left-1 top-1 h-7 w-7 rounded-md border border-white/10 bg-black/60 object-contain p-0.5"
+                    onError={(e) => {
+                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                    }}
                   />
                 ) : null}
               </div>
@@ -418,6 +435,49 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
               </div>
             </div>
           </div>
+
+          {normalized ? (
+            <div className="border-b border-white/8 px-6 py-4 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">Stat summary</p>
+                <p className="mt-1 text-sm text-white/85">{normalized.stats?.summary ?? 'No stats available'}</p>
+              </div>
+              {normalized.projection != null && Number.isFinite(normalized.projection) && (
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-cyan-200/80">Projection</p>
+                  <p className="mt-0.5 text-lg font-bold tabular-nums text-cyan-100">{normalized.projection.toFixed(1)}</p>
+                </div>
+              )}
+              {normalized.stats?.season && Object.keys(normalized.stats.season).length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">Key stats</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {Object.entries(normalized.stats.season).map(([k, v]) => (
+                      <div key={k} className="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1.5">
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/45">{k}</p>
+                        <p className="mt-0.5 text-sm font-bold text-white">{String(v)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {normalized.news && normalized.news.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">Headlines</p>
+                  <ul className="mt-2 space-y-2">
+                    {normalized.news.slice(0, 8).map((n) => (
+                      <li key={n.id} className="rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-[13px] text-white/88">
+                        {n.title}
+                        {n.publishedAt ? (
+                          <span className="mt-1 block text-[10px] text-white/40">{n.publishedAt}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : null}
 
           {/* Year tabs */}
           <div className="flex items-center gap-2 border-b border-white/8 px-6 pt-4">

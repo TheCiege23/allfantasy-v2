@@ -25,6 +25,7 @@ import { RosterPanel } from './RosterPanel'
 import { AutopickToggle } from './AutopickToggle'
 import { motion } from 'framer-motion'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { DraftSimulationQuickBar } from '@/components/ai/sim/DraftSimulationQuickBar'
 
 type Props = {
   mode: DraftMode
@@ -371,6 +372,14 @@ export function DraftShell({
           currentOverall={currentOverall}
         />
       </div>
+
+      {draftActive ? (
+        <DraftSimulationQuickBar
+          myPicks={myPicks}
+          numTeams={state.numTeams}
+          queuePreview={queue.slice(0, 3).map((q) => ({ id: q.id, name: q.name, position: q.position }))}
+        />
+      ) : null}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 px-2 pb-4 lg:grid-cols-2">
         <div className="min-h-[320px]">

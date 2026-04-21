@@ -912,6 +912,133 @@ model AIMemoryEvent {
   @@index([expiresAt])
 }
 
+/// Structured platform events for ML-style aggregation (AllFantasy AI intelligence layer).
+model AiPlatformEvent {
+  id             String   @id @default(cuid())
+  eventType      String   @map("event_type")
+  userId         String?  @map("user_id")
+  leagueId       String?  @map("league_id")
+  season         Int?
+  sport          String?
+  leagueType     String?  @map("league_type")
+  draftType      String?  @map("draft_type")
+  scoringProfile String?  @map("scoring_profile")
+  payload        Json     @default("{}")
+  dedupeKey      String?  @unique @map("dedupe_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([leagueId])
+  @@index([createdAt])
+  @@index([sport, season])
+  @@map("ai_platform_events")
+}
+
+/// Rolling player market signals derived from events + ADP inputs.
+model AiPlayerMarketMetric {
+  id                   String   @id @default(cuid())
+  playerId             String   @map("player_id")
+  sport                String
+  season               Int
+  adpAvg               Float?   @map("adp_avg")
+  adpTrend7d           Float?   @map("adp_trend_7d")
+  adpTrend30d          Float?   @map("adp_trend_30d")
+  draftCount           Int      @default(0) @map("draft_count")
+  waiverAddCount       Int      @default(0) @map("waiver_add_count")
+  waiverBidAvg         Float?   @map("waiver_bid_avg")
+  tradeInclusionCount  Int      @default(0) @map("trade_inclusion_count")
+  tradeAcceptRate      Float?   @map("trade_accept_rate")
+  dropRate             Float?   @map("drop_rate")
+  rosterRate           Float?   @map("roster_rate")
+  startRate            Float?   @map("start_rate")
+  benchRate            Float?   @map("bench_rate")
+  volatilityScore      Float?   @map("volatility_score")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([playerId, sport, season])
+  @@index([sport, season])
+  @@map("ai_player_market_metrics")
+}
+
+/// Aggregated behavior by sport + league archetype + scoring profile.
+model AiLeagueTypeMetric {
+  id                     String   @id @default(cuid())
+  sport                  String
+  leagueType             String   @map("league_type")
+  scoringProfile         String   @default("") @map("scoring_profile")
+  positionValueWeights   Json     @default("{}") @map("position_value_weights")
+  rookieValueWeight      Float?   @map("rookie_value_weight")
+  pickValueCurve         Json     @default("{}") @map("pick_value_curve")
+  waiverAggressionScore  Float?   @map("waiver_aggression_score")
+  tradeAggressionScore   Float?   @map("trade_aggression_score")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@unique([sport, leagueType, scoringProfile])
+  @@index([sport])
+  @@map("ai_league_type_metrics")
+}
+
+/// Learned user tendencies (complements AIUserProfile.strategyBias).
+model AiUserTendency {
+  id                     String   @id @default(cuid())
+  userId                 String   @map("user_id")
+  sport                  String   @default("")
+  preferredPositions     Json     @default("{}") @map("preferred_positions")
+  earlyRoundBehavior     Json     @default("{}") @map("early_round_behavior")
+  rookieBiasScore        Float?   @map("rookie_bias_score")
+  riskToleranceScore     Float?   @map("risk_tolerance_score")
+  tradeAggressionScore   Float?   @map("trade_aggression_score")
+  waiverActivityScore    Float?   @map("waiver_activity_score")
+  qbWaitScore            Float?   @map("qb_wait_score")
+  rbHeavyScore           Float?   @map("rb_heavy_score")
+  wrHeavyScore           Float?   @map("wr_heavy_score")
+  zeroRbScore            Float?   @map("zero_rb_score")
+  heroRbScore            Float?   @map("hero_rb_score")
+  aiFollowRate           Float?   @map("ai_follow_rate")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, sport])
+  @@index([userId])
+  @@index([sport])
+  @@map("ai_user_tendencies")
+}
+
+/// Tracks AI recommendations and outcomes for evaluation loops.
+model AiRecommendationOutcome {
+  id                    String    @id @default(cuid())
+  recommendationId      String    @map("recommendation_id")
+  type                  String
+  userId                String?   @map("user_id")
+  leagueId              String?   @map("league_id")
+  recommendationPayload Json      @default("{}") @map("recommendation_payload")
+  followed              Boolean?
+  outcomeScore          Float?    @map("outcome_score")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  resolvedAt            DateTime? @map("resolved_at")
+
+  @@index([recommendationId])
+  @@index([userId])
+  @@index([leagueId])
+  @@index([type])
+  @@map("ai_recommendation_outcomes")
+}
+
+/// Cached LLM + deterministic outlook payloads per player + context hash.
+model AiPlayerOutlookCache {
+  id                 String   @id @default(cuid())
+  playerId           String   @map("player_id")
+  sport              String
+  leagueContextHash  String   @map("league_context_hash")
+  outlookPayload     Json     @map("outlook_payload")
+  expiresAt          DateTime @map("expires_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([playerId, sport, leagueContextHash])
+  @@index([expiresAt])
+  @@map("ai_player_outlooks_cache")
+}
+
 model AIUserFeedback {
   id            String   @id @default(uuid())
   userId        String

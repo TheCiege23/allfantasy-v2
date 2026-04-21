@@ -148,9 +148,9 @@ function TopIconToggle({
       type="button"
       onClick={onClick}
       data-testid={dataTestId}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 ${
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 active:scale-[0.96] ${
         active
-          ? 'border-[#7d8cff] bg-[#8f9cff]/16 text-[#dbe1ff]'
+          ? 'border-[#7d8cff] bg-[#8f9cff]/16 text-[#dbe1ff] shadow-[0_0_16px_rgba(143,156,255,0.2)]'
           : 'border-white/10 bg-[#7180a8]/18 text-white/78 hover:bg-[#7b89af]/26'
       }`}
       aria-pressed={active}
@@ -286,7 +286,7 @@ export function DraftTopBar({
           onClick={onStartDraft}
           disabled={commissionerLoading}
           data-testid="draft-topbar-start-draft"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#aeb7ff]/35 bg-[#9ca9ff] px-6 py-3 text-sm font-semibold text-[#0a1030] shadow-[0_12px_24px_rgba(156,169,255,0.24)] transition hover:bg-[#b5bdff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 disabled:opacity-55"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-[#aeb7ff]/40 bg-gradient-to-r from-[#9ca9ff] to-[#8b7fd8] px-6 py-3 text-sm font-semibold text-[#0a1030] shadow-[0_12px_36px_rgba(139,127,216,0.35)] transition duration-150 hover:brightness-110 hover:shadow-[0_14px_40px_rgba(156,169,255,0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60 active:scale-[0.98] disabled:opacity-55"
         >
           <Grid2x2 className="h-4 w-4" />
           START DRAFT
@@ -301,7 +301,7 @@ export function DraftTopBar({
           onClick={onResume}
           disabled={commissionerLoading}
           data-testid="draft-topbar-resume-draft"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-emerald-400/35 bg-emerald-500/18 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/50 disabled:opacity-55"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-emerald-400/40 bg-gradient-to-br from-emerald-500/25 to-emerald-600/15 px-5 py-3 text-sm font-semibold text-emerald-100 shadow-[0_8px_28px_rgba(16,185,129,0.2)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/50 active:scale-[0.98] disabled:opacity-55"
         >
           <Sparkles className="h-4 w-4" />
           RESUME DRAFT
@@ -310,8 +310,8 @@ export function DraftTopBar({
     }
 
     return (
-      <div className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/75">
-        <Clock className="h-4 w-4 text-cyan-300" />
+      <div className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-3 text-sm text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm">
+        <Clock className="h-4 w-4 shrink-0 text-cyan-300/90" />
         <span className="font-medium">{statusLabel}</span>
       </div>
     )
@@ -336,15 +336,21 @@ export function DraftTopBar({
         : t('draftRoom.topBar.cpuManager')
 
   return (
-    <header className={`border-b border-white/8 bg-[#060b19] px-3 ${prefs.compact ? 'pb-2 pt-2' : 'pb-2.5 pt-2.5'} sm:px-4 ${prefs.focus ? 'shadow-[inset_0_-1px_0_rgba(125,140,255,0.18)]' : ''}`}>
-      <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-start lg:gap-3">
+    <header
+      className={`relative border-b border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814] px-3 backdrop-blur-xl sm:px-4 ${prefs.compact ? 'pb-2 pt-2' : 'pb-3 pt-2.5'} ${prefs.focus ? 'shadow-[inset_0_-1px_0_rgba(125,140,255,0.22)]' : ''}`}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/25 to-transparent"
+        aria-hidden
+      />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-start lg:gap-4">
         <div className="min-w-0">
           <div className="flex items-start gap-3">
             {backHref ? (
               <Link
                 href={backHref}
                 data-testid="draft-back-button"
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/78 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/[0.06] text-white/78 shadow-sm transition duration-150 hover:bg-white/12 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
                 aria-label={t('draftRoom.topBar.back')}
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -357,7 +363,7 @@ export function DraftTopBar({
                 src={leagueLogoUrl}
                 alt=""
                 aria-hidden
-                className="h-9 w-9 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] object-cover"
+                className="h-10 w-10 shrink-0 rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.08] to-white/[0.02] object-cover shadow-[0_4px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
                 data-testid="draft-topbar-league-logo"
                 onError={(e) => {
                   ;(e.currentTarget as HTMLImageElement).style.display = 'none'
@@ -367,14 +373,19 @@ export function DraftTopBar({
 
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="truncate text-xl font-semibold tracking-tight text-white">{leagueName}</h1>
+                <h1 className="truncate text-xl font-bold tracking-tight text-white drop-shadow-sm sm:text-[1.35rem]">
+                  {leagueName}
+                </h1>
                 {onlineCount != null && onlineCount > 0 && (
                   <span
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold text-emerald-100 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
                     title={`${onlineCount} manager${onlineCount === 1 ? '' : 's'} online`}
                     data-testid="draft-topbar-online-count"
                   >
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/50 opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                    </span>
                     {onlineCount}
                   </span>
                 )}
@@ -396,7 +407,7 @@ export function DraftTopBar({
                     void handleCopyInvite('inline')
                   }}
                   data-testid="draft-copy-invite-inline"
-                  className="inline-flex items-center gap-1 text-[#c6d0ff] transition hover:text-white"
+                  className="inline-flex items-center gap-1 text-[#c6d0ff] transition duration-150 hover:text-white"
                 >
                   Invite Leaguemates
                   <Copy className="h-3.5 w-3.5" />
@@ -406,34 +417,50 @@ export function DraftTopBar({
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5">
             {pickLabel ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1.5">
-                <Hash className="h-3.5 w-3.5 text-cyan-300" />
-                <span className="text-sm font-medium text-white">{pickLabel}</span>
-                {overallPickNumber != null ? <span className="text-[11px] text-white/45">#{overallPickNumber}</span> : null}
+              <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.12] to-[#0a1528]/90 px-3.5 py-2 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15">
+                <Hash className="h-4 w-4 shrink-0 text-cyan-300" />
+                <span className="text-base font-bold tracking-tight text-white sm:text-lg">{pickLabel}</span>
+                {overallPickNumber != null ? (
+                  <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/60">
+                    #{overallPickNumber}
+                  </span>
+                ) : null}
               </div>
             ) : null}
 
             {currentManagerOnClock ? (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-cyan-400/8 px-3 py-1.5">
-                <User className="h-3.5 w-3.5 text-cyan-300" />
-                <span className="text-sm font-medium text-cyan-100" data-testid="draft-topbar-on-clock-manager">
+              <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-400/25 bg-gradient-to-br from-violet-500/[0.14] to-[#0a1228]/95 px-3.5 py-2 shadow-[0_6px_28px_rgba(139,92,246,0.15)] ring-1 ring-violet-400/10">
+                <User className="h-4 w-4 shrink-0 text-violet-300" />
+                <span
+                  className="min-w-0 truncate text-base font-bold text-white sm:text-lg"
+                  data-testid="draft-topbar-on-clock-manager"
+                >
                   {currentManagerOnClock}
                 </span>
-                <span className="text-[10px] text-cyan-200/70">
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-violet-200/75">
                   {isOrphanOnClock ? orphanModeLabel : t('draftRoom.topBar.onTheClock')}
                 </span>
               </div>
             ) : null}
 
             <div
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition-all ${TIMER_COLORS[timerStatus]} ${urgentLowTimer ? 'ring-2 ring-amber-400/50 shadow-[0_0_22px_rgba(251,191,36,0.32)]' : ''}`}
+              className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 py-2 transition-all duration-200 ${TIMER_COLORS[timerStatus]} ${
+                urgentLowTimer
+                  ? 'relative z-0 scale-105 shadow-[0_0_40px_rgba(251,191,36,0.45)] ring-2 ring-amber-400/60 animate-pulse sm:min-w-[7.5rem] sm:justify-center'
+                  : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+              }`}
               title={`${timerModeLabel} · Auto-pick ${autoPickEnabled ? 'on' : 'off'}`}
             >
-              <Clock className={`h-3.5 w-3.5 ${urgentLowTimer ? 'text-amber-200' : ''}`} aria-hidden />
+              <Clock
+                className={`h-4 w-4 shrink-0 ${urgentLowTimer ? 'text-amber-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]' : ''}`}
+                aria-hidden
+              />
               <span
-                className={`font-medium tabular-nums ${urgentLowTimer ? 'text-xl text-amber-50 animate-pulse sm:text-2xl' : 'text-sm'}`}
+                className={`font-bold tabular-nums tracking-tight transition-all duration-200 ${
+                  urgentLowTimer ? 'text-2xl text-amber-50 sm:text-3xl' : 'text-sm font-semibold'
+                }`}
                 data-testid="draft-topbar-timer-value"
               >
                 {timerDisplay}
@@ -442,22 +469,20 @@ export function DraftTopBar({
           </div>
         </div>
 
-        <div className="flex items-start justify-start lg:justify-center">
-          {centerCta}
-        </div>
+        <div className="flex items-start justify-start lg:justify-center">{centerCta}</div>
 
         <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
           <div
-            className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+            className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] transition duration-150 ${
               autoPickEnabled
-                ? 'border-emerald-400/35 bg-emerald-500/12 text-emerald-100'
+                ? 'border-emerald-400/40 bg-emerald-500/14 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
                 : 'border-white/14 bg-white/6 text-white/62'
             }`}
             data-testid="draft-topbar-autopick-pill"
             title="Autopick state"
           >
             <span
-              className={`h-2 w-2 rounded-full ${autoPickEnabled ? 'bg-emerald-300' : 'bg-white/35'}`}
+              className={`h-2 w-2 rounded-full ${autoPickEnabled ? 'bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-white/35'}`}
               aria-hidden
             />
             Auto-pick {autoPickEnabled ? 'On' : 'Off'}
@@ -505,12 +530,12 @@ export function DraftTopBar({
               type="button"
               onClick={onTradesClick}
               data-testid="draft-open-trades-button"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/85 transition hover:bg-[#7b89af]/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/12 bg-[#7180a8]/20 px-3 text-[11px] font-medium text-white/90 shadow-sm transition duration-150 hover:border-cyan-400/30 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
               Trades
               {pendingTradesCount > 0 ? (
-                <span className="rounded-full border border-cyan-400/30 bg-cyan-500/15 px-1.5 py-0.5 text-[10px] text-cyan-100">
+                <span className="rounded-full border border-cyan-400/35 bg-cyan-500/18 px-1.5 py-0.5 text-[10px] font-bold text-cyan-100">
                   {pendingTradesCount}
                 </span>
               ) : null}
@@ -523,7 +548,7 @@ export function DraftTopBar({
               onClick={onResync}
               disabled={resyncLoading}
               data-testid="draft-resync-button"
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/82 transition hover:bg-[#7b89af]/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-55"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/12 bg-[#7180a8]/20 px-3 text-[11px] font-medium text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-55 active:scale-95"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${resyncLoading ? 'animate-spin' : ''}`} />
               Resync
@@ -534,7 +559,7 @@ export function DraftTopBar({
             <Link
               href={leagueDraftSettingsHref}
               data-testid="draft-topbar-league-draft-settings"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
               aria-label={t('draftRoom.topBar.aria.leagueDraftSettings')}
               title={t('draftRoom.topBar.leagueDraftSettings')}
             >
@@ -546,7 +571,7 @@ export function DraftTopBar({
               onClick={onCommissionerOpen}
               data-testid="draft-open-commissioner-controls"
               disabled={commissionerLoading}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-55"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 disabled:opacity-55 active:scale-95"
               aria-label={t('draftRoom.topBar.aria.commissioner')}
               title={t('draftRoom.topBar.commissioner')}
             >
@@ -559,7 +584,7 @@ export function DraftTopBar({
               type="button"
               onClick={() => setMenuOpen((prev) => !prev)}
               data-testid="draft-topbar-menu-toggle"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
               aria-expanded={menuOpen}
               aria-label="Draft options"
             >
@@ -568,7 +593,7 @@ export function DraftTopBar({
 
             {menuOpen ? (
               <div
-                className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#2d384f]/96 p-2 shadow-[0_24px_60px_rgba(0,0,0,0.45)] backdrop-blur"
+                className="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-white/12 bg-[#1d2638]/96 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                 data-testid="draft-topbar-menu"
               >
                 <button
@@ -577,7 +602,7 @@ export function DraftTopBar({
                     void handleCopyInvite('menu')
                   }}
                   data-testid="draft-topbar-copy-invite"
-                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                 >
                   <Copy className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                   <span>
@@ -596,7 +621,7 @@ export function DraftTopBar({
                       setMenuOpen(false)
                     }}
                     data-testid="draft-topbar-set-order"
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <LayoutGrid className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>
@@ -614,7 +639,7 @@ export function DraftTopBar({
                       setMenuOpen(false)
                     }}
                     data-testid="draft-topbar-open-settings"
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Settings2 className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>
@@ -634,7 +659,7 @@ export function DraftTopBar({
                       setMenuOpen(false)
                     }}
                     data-testid="draft-topbar-menu-start"
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Sparkles className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>
@@ -655,7 +680,7 @@ export function DraftTopBar({
                       }
                       setMenuOpen(false)
                     }}
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Clock className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>
@@ -677,7 +702,7 @@ export function DraftTopBar({
                       setMenuOpen(false)
                     }}
                     disabled={runAiPickLoading}
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6 disabled:opacity-55"
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8 disabled:opacity-55"
                   >
                     <Sparkles className="mt-0.5 h-4 w-4 text-violet-200" />
                     <span>
@@ -700,7 +725,7 @@ export function DraftTopBar({
                           onResetTimer()
                           setMenuOpen(false)
                         }}
-                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/82 transition hover:bg-white/10"
+                        className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/82 transition duration-150 hover:bg-white/12"
                       >
                         Reset Timer
                       </button>
@@ -712,7 +737,7 @@ export function DraftTopBar({
                           onUndoPick()
                           setMenuOpen(false)
                         }}
-                        className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-100 transition hover:bg-red-500/18"
+                        className="rounded-xl border border-red-400/25 bg-red-500/12 px-3 py-2 text-xs text-red-100 transition duration-150 hover:bg-red-500/20"
                       >
                         Undo Pick
                       </button>
@@ -732,13 +757,13 @@ export function DraftTopBar({
       </div>
 
       {showUseQueue && onUseQueue ? (
-        <div className="mt-2 flex justify-start lg:justify-end">
+        <div className="mt-3 flex justify-start lg:justify-end">
           <button
             type="button"
             onClick={onUseQueue}
             disabled={useQueueLoading}
             data-testid="draft-use-queue-button"
-            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-500/12 px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 disabled:opacity-55"
+            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-full border border-cyan-300/35 bg-gradient-to-r from-cyan-500/18 to-violet-500/12 px-4 py-2 text-xs font-semibold text-cyan-100 shadow-[0_8px_28px_rgba(34,211,238,0.15)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 disabled:opacity-55 active:scale-[0.98]"
           >
             <Sparkles className="h-3.5 w-3.5" />
             {useQueueLoading ? 'Using Queue...' : t('draftRoom.topBar.useQueue')}

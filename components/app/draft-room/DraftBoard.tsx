@@ -160,6 +160,12 @@ function DraftBoardInner({
     return 'none'
   }
 
+  const lastFilledPickOverall = useMemo(() => {
+    const filled = picks.filter((p) => p.playerName?.trim())
+    if (filled.length === 0) return null
+    return filled[filled.length - 1].overall
+  }, [picks])
+
   const pickByKey = useMemo(() => {
     const map: Record<string, DraftPickSnapshot> = {}
     for (const pick of picks) {
@@ -315,14 +321,18 @@ function DraftBoardInner({
 
   return (
     <section
-      className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]"
+      className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_20px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)]"
       data-testid="draft-board"
     >
-      <div className="border-b border-white/8 px-3 py-2 text-xs text-white/70">
+      <div
+        className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent"
+        aria-hidden
+      />
+      <div className="border-b border-white/[0.07] bg-[#060d1e]/80 px-3 py-2.5 text-xs text-white/70 backdrop-blur-sm sm:px-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-white">Draft board</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-white/55">
+            <span className="text-sm font-bold tracking-tight text-white drop-shadow-sm">Draft board</span>
+            <span className="rounded-full border border-white/12 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60 shadow-sm">
               {boardModeLabel}
             </span>
             {tradedPicks.length > 0 ? (
@@ -331,21 +341,21 @@ function DraftBoardInner({
                   type="button"
                   onClick={onOpenTradeHistory}
                   data-testid="draft-board-open-trade-history"
-                  className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/90 transition hover:bg-amber-500/20"
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2.5 py-1 text-[10px] font-medium text-amber-100/95 shadow-[0_0_16px_rgba(251,191,36,0.12)] transition duration-150 hover:bg-amber-500/22"
                   title="View pick trade history"
                 >
                   <ArrowLeftRight className="h-3 w-3" />
                   {tradedPicks.length} traded {tradedPicks.length === 1 ? 'pick' : 'picks'}
                 </button>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/85">
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/88">
                   <ArrowLeftRight className="h-3 w-3" />
                   {tradedPicks.length} traded {tradedPicks.length === 1 ? 'pick' : 'picks'}
                 </span>
               )
             ) : null}
             {draftType === 'auction' ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100/85">
+              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-500/12 px-2 py-1 text-[10px] font-medium text-cyan-100/90 shadow-[0_0_14px_rgba(34,211,238,0.12)]">
                 <Gavel className="h-3 w-3" />
                 {picks.length} sold
               </span>
@@ -359,7 +369,7 @@ function DraftBoardInner({
                 data-testid="draft-board-prev-round"
                 onClick={() => setSelectedRound((prev) => Math.max(1, prev - 1))}
                 disabled={!navigation.canGoPrev}
-                className="rounded border border-white/15 bg-black/20 px-2 py-1 text-[10px] text-white/70 transition hover:bg-white/10 disabled:opacity-40"
+                className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white/75 shadow-sm transition duration-150 hover:bg-white/12 active:scale-95 disabled:opacity-40"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
               </button>
@@ -367,7 +377,7 @@ function DraftBoardInner({
                 value={navigation.round}
                 data-testid="draft-board-round-selector"
                 onChange={(event) => setSelectedRound(Math.max(1, Number(event.target.value) || 1))}
-                className="rounded border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white"
+                className="rounded-lg border border-white/15 bg-black/35 px-2 py-1 text-[10px] text-white shadow-inner"
                 aria-label="Draft board round selector"
               >
                 {Array.from({ length: rounds }, (_, index) => index + 1).map((round) => (
@@ -381,7 +391,7 @@ function DraftBoardInner({
                 data-testid="draft-board-next-round"
                 onClick={() => setSelectedRound((prev) => Math.min(rounds, prev + 1))}
                 disabled={!navigation.canGoNext}
-                className="rounded border border-white/15 bg-black/20 px-2 py-1 text-[10px] text-white/70 transition hover:bg-white/10 disabled:opacity-40"
+                className="rounded-lg border border-white/15 bg-black/30 px-2 py-1 text-[10px] text-white/75 shadow-sm transition duration-150 hover:bg-white/12 active:scale-95 disabled:opacity-40"
               >
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -389,7 +399,7 @@ function DraftBoardInner({
                 type="button"
                 data-testid="draft-board-toggle-view-mode"
                 onClick={() => setViewMode((prev) => (prev === 'all' ? 'single' : 'all'))}
-                className="rounded border border-cyan-300/35 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100 transition hover:bg-cyan-500/20"
+                className="rounded-lg border border-cyan-400/40 bg-cyan-500/12 px-2.5 py-1 text-[10px] font-medium text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.1)] transition duration-150 hover:bg-cyan-500/22 active:scale-95"
               >
                 {viewMode === 'all' ? 'Focus round' : 'All rounds'}
               </button>
@@ -402,7 +412,7 @@ function DraftBoardInner({
                     setSelectedRound(Math.min(rounds, Math.max(1, round)))
                     setViewMode('single')
                   }}
-                  className="rounded border border-emerald-400/35 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-100 transition hover:bg-emerald-500/20"
+                  className="rounded-lg border border-emerald-400/40 bg-emerald-500/12 px-2 py-1 text-[10px] font-medium text-emerald-100 shadow-[0_0_14px_rgba(16,185,129,0.12)] transition duration-150 hover:bg-emerald-500/22"
                 >
                   Current
                 </button>
@@ -413,7 +423,7 @@ function DraftBoardInner({
       </div>
 
       <div
-        className="border-b border-white/8 px-3 py-1.5 text-[10px] text-white/45"
+        className="border-b border-white/[0.06] bg-black/20 px-3 py-2 text-[10px] text-white/50 sm:px-4"
         data-testid="draft-board-round-label"
       >
         {draftType === 'auction'
@@ -424,15 +434,15 @@ function DraftBoardInner({
       </div>
 
       {draftType === 'auction' ? (
-        <div className="overflow-auto px-2 py-2">
+        <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div
-            className="grid gap-2"
+            className="grid min-w-min gap-3"
             style={{ gridTemplateColumns: `repeat(${Math.max(1, auctionColumns.length)}, minmax(136px, 1fr))` }}
           >
             {auctionColumns.map((column) => (
               <section
                 key={column.rosterId}
-                className="overflow-hidden rounded-xl border bg-[#0a1227]"
+                className="snap-start overflow-hidden rounded-xl border bg-[#0a1227] shadow-[0_8px_30px_rgba(0,0,0,0.35)] transition duration-150 hover:shadow-[0_12px_40px_rgba(0,0,0,0.45)]"
                 style={{
                   borderColor: withAlpha(column.tintHex, 0.22),
                   backgroundColor: withAlpha(column.tintHex, 0.05),
@@ -462,7 +472,7 @@ function DraftBoardInner({
                       return (
                         <div
                           key={`${column.rosterId}-open-${index + 1}`}
-                          className="flex min-h-[60px] items-end rounded-lg border border-white/8 bg-[#11192d] px-2 py-1.5 text-[10px] text-white/22"
+                          className="flex min-h-[60px] items-end rounded-lg border border-dashed border-white/[0.08] bg-[#0d1424]/90 px-2 py-1.5 text-[10px] text-white/30"
                         >
                           Open slot {index + 1}
                         </div>
@@ -475,6 +485,8 @@ function DraftBoardInner({
                         key={pick.overall}
                         pick={pick}
                         isEmpty={false}
+                        sport={sport}
+                        isRecentPick={Boolean(pick.playerName?.trim() && pick.overall === lastFilledPickOverall)}
                         tradedPickColorMode={tradedPickColorMode}
                         showNewOwnerInRed={showNewOwnerInRed}
                         pickHighlight={pickHighlight(existing)}
@@ -507,20 +519,20 @@ function DraftBoardInner({
           </div>
         </div>
       ) : (
-        <div className="overflow-auto px-2 py-2">
+        <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div className="min-w-max">
             <div
-              className="sticky top-0 z-10 grid gap-1 border-b border-white/10 bg-[#070f24]/95 pb-1 backdrop-blur-sm sm:gap-1.5"
+              className="sticky top-0 z-10 grid gap-1 border-b border-white/[0.08] bg-[#070f24]/90 pb-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.35)] backdrop-blur-md sm:gap-1.5"
               style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
               data-testid="draft-board-team-header"
             >
-              <div className="flex h-8 items-center justify-center rounded-md border border-white/10 bg-[#0a1228] text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+              <div className="flex h-9 items-center justify-center rounded-lg border border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] text-[10px] font-bold uppercase tracking-[0.16em] text-white/50 shadow-inner">
                 Rd
               </div>
               {orderedSlots.map((entry) => (
                 <div
                   key={entry.rosterId}
-                  className="flex h-8 min-w-0 items-center rounded-md border border-white/10 bg-[#0a1228] px-2"
+                  className="flex h-9 min-w-0 items-center rounded-lg border border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] px-2 shadow-sm"
                 >
                   <span className="mr-1 shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
                     {entry.slot}
@@ -532,19 +544,19 @@ function DraftBoardInner({
               ))}
             </div>
 
-            <div className="space-y-1.5 pt-1.5">
+            <div className="space-y-2 pt-2">
               {visibleRounds.map((round) => (
                 <section key={round} data-testid={`draft-board-round-${round}`}>
-                  <div
-                    className="grid gap-1 sm:gap-1.5"
-                    style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
-                  >
+                    <div
+                      className="grid gap-1.5 sm:gap-2"
+                      style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
+                    >
                     {(() => {
                       const reversed = isSnakeRoundReversed(round, draftType, thirdRoundReversal)
                       const isSnake = draftType === 'snake'
                       return (
                         <div
-                          className="flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-md border border-white/12 bg-[#0a1228] text-[10px] text-white/70 sm:min-h-[56px]"
+                          className="flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-lg border border-white/[0.1] bg-gradient-to-br from-[#0d1629] to-[#0a1228] text-[10px] text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:min-h-[56px]"
                           title={
                             isSnake
                               ? reversed
@@ -590,6 +602,8 @@ function DraftBoardInner({
                           pick={pick}
                           isEmpty={!pick.playerName}
                           isCurrentPick={isCurrentPick}
+                          sport={sport}
+                          isRecentPick={Boolean(pick.playerName?.trim() && overall === lastFilledPickOverall)}
                           tradedPickColorMode={tradedPickColorMode}
                           showNewOwnerInRed={showNewOwnerInRed}
                           isDevyRound={devyRounds.includes(round) && !pick.playerName}

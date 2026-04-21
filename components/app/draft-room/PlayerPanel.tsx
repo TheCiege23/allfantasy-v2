@@ -2,17 +2,18 @@
 
 import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Search, User, Plus, GitCompare } from 'lucide-react'
+import { Search, User, Plus, GitCompare, X } from 'lucide-react'
 import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
 import { PlayerDetailModal } from './PlayerDetailModal'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
+import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
-const PLAYER_ROW_ESTIMATE_HEIGHT = 56
+const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 const DRAFT_WATCHLIST_STORAGE_KEY = 'af:draft-room-watchlist-v1'
 
 /** Align with draft room session: drafted name set is normalized lowercase. */
@@ -82,6 +83,8 @@ export type PlayerPanelProps = {
   selectedPlayerTarget?: { name: string; position: string; team?: string | null } | null
   /** League context for premium comparison (coach lens when API supports it). */
   leagueId?: string
+  /** War Room AI row hints keyed by `name|position` (lowercase). */
+  aiRowBadges?: Record<string, 'ai_pick' | 'value' | 'risky'>
 }
 
 type SortKey = 'adp' | 'name'
@@ -99,12 +102,15 @@ function PlayerListVirtualized({
   scrollRef,
   compareAnchor,
   onCompareTap,
+  draftSport,
+  aiRowBadges,
 }: {
   filtered: PlayerEntry[]
   draftedNames: Set<string>
   canDraft: boolean
   canNominate: boolean
   useAiAdp: boolean
+  draftSport: string
   onDraftRequest: (player: PlayerEntry) => void
   onAddToQueue: (player: PlayerEntry) => void
   onNominateRequest?: (player: PlayerEntry) => void
@@ -112,6 +118,7 @@ function PlayerListVirtualized({
   scrollRef: React.RefObject<HTMLDivElement | null>
   compareAnchor: PlayerEntry | null
   onCompareTap: (player: PlayerEntry) => void
+  aiRowBadges?: Record<string, 'ai_pick' | 'value' | 'risky'>
 }) {
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -151,6 +158,8 @@ function PlayerListVirtualized({
               team={p.team}
               adp={useAiAdp ? p.aiAdp : p.adp}
               byeWeek={p.byeWeek}
+              draftSport={draftSport}
+              aiWarRoomBadge={aiRowBadges?.[`${p.name.trim().toLowerCase()}|${p.position.trim().toLowerCase()}`] ?? null}
               isDrafted={isPlayerNameDrafted(p.name, draftedNames)}
               variant="row"
               isDevy={p.isDevy}
@@ -167,10 +176,10 @@ function PlayerListVirtualized({
                   type="button"
                   onClick={() => onCompareTap(p)}
                   data-testid={`draft-compare-player-${virtualRow.index}`}
-                  className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 inline-flex items-center justify-center rounded-lg border px-2 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45 ${
+                  className={`inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-lg border px-2 transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45 active:scale-95 sm:min-w-0 sm:px-2 ${
                     compareAnchor?.name === p.name
-                      ? 'border-amber-400/55 bg-amber-500/15 text-amber-100'
-                      : 'border-white/15 bg-black/20 text-white/70 hover:bg-white/10'
+                      ? 'border-amber-400/60 bg-gradient-to-br from-amber-500/20 to-amber-600/10 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.15)]'
+                      : 'border-white/15 bg-black/25 text-white/75 hover:border-white/28 hover:bg-white/12'
                   }`}
                   aria-label={
                     compareAnchor?.name === p.name
@@ -188,7 +197,7 @@ function PlayerListVirtualized({
                     type="button"
                     onClick={() => onNominateRequest(p)}
                     data-testid={`draft-nominate-player-${virtualRow.index}`}
-                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50"
+                    className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-lg border border-amber-400/45 bg-gradient-to-br from-amber-500/18 to-amber-600/8 px-3 py-2 text-xs font-semibold text-amber-100 shadow-[0_4px_20px_rgba(245,158,11,0.15)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-95 sm:min-w-0 sm:px-2 sm:py-1"
                   >
                     Nominate
                   </button>
@@ -208,12 +217,12 @@ function PlayerListVirtualized({
                       onDraftRequest(p)
                     }}
                     data-testid={`draft-player-button-${virtualRow.index}`}
-                    className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 ${
+                    className={`inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-lg border px-3 py-2 text-xs font-semibold transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 active:scale-95 sm:min-w-0 sm:px-2 sm:py-1 ${
                       isPlayerNameDrafted(p.name, draftedNames)
-                        ? 'cursor-not-allowed border-white/10 bg-white/5 text-white/35'
+                        ? 'cursor-not-allowed border-white/10 bg-white/[0.04] text-white/30'
                         : !canDraft
-                          ? 'cursor-not-allowed border-white/10 bg-black/25 text-white/35'
-                          : 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/20'
+                          ? 'cursor-not-allowed border-white/10 bg-black/30 text-white/32'
+                          : 'border-cyan-400/45 bg-gradient-to-br from-cyan-500/22 to-violet-600/15 text-cyan-50 shadow-[0_4px_22px_rgba(34,211,238,0.2)] hover:brightness-110 hover:shadow-[0_6px_28px_rgba(34,211,238,0.28)]'
                     }`}
                   >
                     {isPlayerNameDrafted(p.name, draftedNames) ? 'Drafted' : 'Draft'}
@@ -225,7 +234,7 @@ function PlayerListVirtualized({
                   type="button"
                   onClick={() => onAddToQueue(p)}
                   data-testid={`draft-queue-add-${virtualRow.index}`}
-                  className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-white/15 bg-black/20 text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+                  className="inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-lg border border-white/16 bg-black/25 text-white/75 transition duration-150 hover:border-cyan-400/25 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
                   aria-label={`Add ${p.name} to queue`}
                 >
                   <Plus className="h-4 w-4" />
@@ -262,6 +271,7 @@ function PlayerPanelInner({
   formatType,
   selectedPlayerTarget = null,
   leagueId,
+  aiRowBadges,
 }: PlayerPanelProps) {
   const { t } = useLanguage()
   const compareUi = usePlayerComparisonUIOptional()
@@ -299,6 +309,11 @@ function PlayerPanelInner({
   const watchKeyFor = useCallback((p: PlayerEntry) => {
     return [String(p.id ?? '').trim(), p.name.trim().toLowerCase(), p.position.trim().toLowerCase(), String(p.team ?? '').trim().toLowerCase()].join('|')
   }, [])
+
+  const selectedNormalized = useMemo(
+    () => (selectedPlayer ? normalizePlayer(selectedPlayer) : null),
+    [selectedPlayer],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -464,204 +479,212 @@ function PlayerPanelInner({
   }, [])
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-player-panel">
-      <div className="sticky top-0 z-20 border-b border-white/10 bg-[#060d1e]/98 shadow-[0_10px_28px_rgba(0,0,0,0.45)] backdrop-blur-md">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-2">
-        <div className="flex flex-1 min-h-[44px] items-center gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 touch-manipulation transition focus-within:border-cyan-400/35 focus-within:ring-1 focus-within:ring-cyan-400/25">
-          <Search className="h-4 w-4 shrink-0 text-white/50" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search players..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
-            aria-label="Search players"
-            data-testid="draft-player-search-input"
-          />
-        </div>
-        <select
-          value={positionFilter}
-          onChange={(e) => {
-            const v = e.target.value
-            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: v })
-            setPositionFilter(v)
-          }}
-          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          aria-label="Position filter"
-          data-testid="draft-position-filter"
-        >
-          {positionOptions.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        <select
-          value={teamFilter}
-          onChange={(e) => {
-            const v = e.target.value
-            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
-            setTeamFilter(v)
-          }}
-          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-          aria-label="Team filter"
-          data-testid="draft-team-filter"
-        >
-          {teamOptions.slice(0, 32).map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
-        {showPoolFilter && (
-          <select
-            value={poolFilter}
-            onChange={(e) => {
-              const v = e.target.value as 'All' | 'Pro' | 'Devy' | 'College'
-              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
-              setPoolFilter(v)
-            }}
-            className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-            aria-label="Pool filter"
-            data-testid="draft-pool-filter"
-          >
-            <option value="All">All</option>
-            {c2cConfig?.enabled ? (
-              <>
-                <option value="College">College</option>
-                <option value="Pro">Pro</option>
-              </>
-            ) : (
-              <>
-                <option value="Pro">Pro</option>
-                <option value="Devy">Devy</option>
-              </>
-            )}
-          </select>
-        )}
-      </div>
-      {isCollegeRound && (
-        <div className="border-b border-violet-400/20 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-100">
-          College round (C2C) — select a college-eligible player.
-        </div>
-      )}
-      {isProRound && (
-        <div className="border-b border-cyan-400/20 bg-cyan-500/8 px-2 py-1 text-[10px] text-cyan-100">
-          Pro round (C2C) — select an NFL player.
-        </div>
-      )}
-      {isDevyRound && (
-        <div className="border-b border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100">
-          Devy round — select a college/devy-eligible player.
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-white/8 px-2 py-1.5">
-        <span className="text-[10px] text-white/50">Sort:</span>
-        <button
-          type="button"
-          onClick={() => {
-            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'adp' })
-            setSortBy('adp')
-          }}
-          data-testid="draft-sort-adp"
-          className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${sortBy === 'adp' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
-        >
-          ADP
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'name' })
-            setSortBy('name')
-          }}
-          data-testid="draft-sort-name"
-          className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${sortBy === 'name' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
-        >
-          Name
-        </button>
-        {useAiAdp && (
-          <span className="rounded border border-cyan-300/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-100" title="Player order uses AI ADP">
-            AI ADP
-          </span>
-        )}
-        {onUseAiAdpChange && (
-          <label className="min-h-[44px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation">
+    <section
+      className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_16px_48px_rgba(0,0,0,0.4)]"
+      data-testid="draft-player-panel"
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400/15 to-transparent" aria-hidden />
+      <div className="sticky top-0 z-20 border-b border-white/[0.08] bg-[#060d1e]/92 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] p-2.5 sm:p-3">
+          <div className="flex min-h-[44px] flex-1 items-center gap-2 rounded-xl border border-white/14 bg-[#0a1228]/95 px-3 py-2 shadow-inner touch-manipulation transition duration-150 focus-within:border-cyan-400/40 focus-within:ring-2 focus-within:ring-cyan-400/20">
+            <Search className="h-4 w-4 shrink-0 text-white/50" />
             <input
-              type="checkbox"
-              checked={useAiAdp}
-              onChange={(e) => {
-                if (leagueId) {
-                  sendProductAnalyticsBeacon(DRAFT_ROOM.AI_ADP_SORT, { leagueId, enabled: e.target.checked })
-                }
-                onUseAiAdpChange(e.target.checked)
-              }}
-              className="rounded border-white/20 w-4 h-4 shrink-0"
-              aria-label="Use AI ADP for sort order"
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search players..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+              aria-label="Search players"
+              data-testid="draft-player-search-input"
             />
-            Use AI ADP
-          </label>
+          </div>
+          <select
+            value={positionFilter}
+            onChange={(e) => {
+              const v = e.target.value
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: v })
+              setPositionFilter(v)
+            }}
+            className="min-h-[44px] rounded-xl border border-white/14 bg-[#0a1228]/95 px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            aria-label="Position filter"
+            data-testid="draft-position-filter"
+          >
+            {positionOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={teamFilter}
+            onChange={(e) => {
+              const v = e.target.value
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
+              setTeamFilter(v)
+            }}
+            className="min-h-[44px] rounded-xl border border-white/14 bg-[#0a1228]/95 px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+            aria-label="Team filter"
+            data-testid="draft-team-filter"
+          >
+            {teamOptions.slice(0, 32).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          {showPoolFilter && (
+            <select
+              value={poolFilter}
+              onChange={(e) => {
+                const v = e.target.value as 'All' | 'Pro' | 'Devy' | 'College'
+                if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
+                setPoolFilter(v)
+              }}
+              className="min-h-[44px] rounded-xl border border-white/14 bg-[#0a1228]/95 px-3 py-2 text-sm text-white shadow-sm touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+              aria-label="Pool filter"
+              data-testid="draft-pool-filter"
+            >
+              <option value="All">All</option>
+              {c2cConfig?.enabled ? (
+                <>
+                  <option value="College">College</option>
+                  <option value="Pro">Pro</option>
+                </>
+              ) : (
+                <>
+                  <option value="Pro">Pro</option>
+                  <option value="Devy">Devy</option>
+                </>
+              )}
+            </select>
+          )}
+        </div>
+        {isCollegeRound && (
+          <div className="border-b border-violet-400/20 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-100">
+            College round (C2C) — select a college-eligible player.
+          </div>
         )}
-        {aiAdpUnavailable && (
-          <span className="text-[10px] text-amber-400/90" title={aiAdpUnavailableMessage ?? undefined}>
-            AI ADP data not ready
-          </span>
+        {isProRound && (
+          <div className="border-b border-cyan-400/20 bg-cyan-500/8 px-2 py-1 text-[10px] text-cyan-100">
+            Pro round (C2C) — select an NFL player.
+          </div>
         )}
-        {useAiAdp && aiAdpStaleWarning && !aiAdpUnavailable && (
-          <span className="text-[10px] text-amber-300/90" title="AI ADP is stale and will refresh after the daily job">
-            Stale snapshot
-          </span>
+        {isDevyRound && (
+          <div className="border-b border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100">
+            Devy round — select a college/devy-eligible player.
+          </div>
         )}
-        {useAiAdp && aiAdpLowSampleWarning && !aiAdpUnavailable && (
-          <span className="text-[10px] text-amber-400/90" title="Some ADP values based on few drafts">
-            Low sample
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={() => setShowRosterView((v) => !v)}
-          data-testid="draft-toggle-roster-view"
-          className="ml-auto min-h-[40px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-        >
-          <User className="h-3.5 w-3.5" />
-          {showRosterView ? 'Pool' : 'My roster'}
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-2 py-1.5 text-[10px] text-white/55">
-        <span>{filtered.length} players available</span>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-white/[0.06] bg-black/10 px-2 py-2 sm:px-3">
+          <span className="text-[10px] text-white/50">Sort:</span>
           <button
             type="button"
-            data-testid="draft-filter-watchlist-only"
-            onClick={() => setWatchlistOnly((v) => !v)}
-            className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            onClick={() => {
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'adp' })
+              setSortBy('adp')
+            }}
+            data-testid="draft-sort-adp"
+            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'adp' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
           >
-            Watchlist
+            ADP
           </button>
           <button
             type="button"
-            data-testid="draft-filter-hide-drafted"
-            onClick={() => setHideDrafted((v) => !v)}
-            className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            onClick={() => {
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'name' })
+              setSortBy('name')
+            }}
+            data-testid="draft-sort-name"
+            className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.98] ${sortBy === 'name' ? 'border border-cyan-400/35 bg-gradient-to-r from-cyan-500/18 to-cyan-500/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.12)]' : 'border border-transparent text-white/72 hover:bg-white/10'}`}
           >
-            Hide drafted
+            Name
           </button>
-          {(devyConfig?.enabled || c2cConfig?.enabled) ? (
+          {useAiAdp && (
+            <span className="rounded border border-cyan-300/25 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-100" title="Player order uses AI ADP">
+              AI ADP
+            </span>
+          )}
+          {onUseAiAdpChange && (
+            <label className="min-h-[44px] flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-[10px] text-white/70 hover:bg-white/5 touch-manipulation transition">
+              <input
+                type="checkbox"
+                checked={useAiAdp}
+                onChange={(e) => {
+                  if (leagueId) {
+                    sendProductAnalyticsBeacon(DRAFT_ROOM.AI_ADP_SORT, { leagueId, enabled: e.target.checked })
+                  }
+                  onUseAiAdpChange(e.target.checked)
+                }}
+                className="rounded border-white/20 w-4 h-4 shrink-0"
+                aria-label="Use AI ADP for sort order"
+              />
+              Use AI ADP
+            </label>
+          )}
+          {aiAdpUnavailable && (
+            <span className="text-[10px] text-amber-400/90" title={aiAdpUnavailableMessage ?? undefined}>
+              AI ADP data not ready
+            </span>
+          )}
+          {useAiAdp && aiAdpStaleWarning && !aiAdpUnavailable && (
+            <span className="text-[10px] text-amber-300/90" title="AI ADP is stale and will refresh after the daily job">
+              Stale snapshot
+            </span>
+          )}
+          {useAiAdp && aiAdpLowSampleWarning && !aiAdpUnavailable && (
+            <span className="text-[10px] text-amber-400/90" title="Some ADP values based on few drafts">
+              Low sample
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowRosterView((v) => !v)}
+            data-testid="draft-toggle-roster-view"
+            className="ml-auto min-h-[40px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 transition"
+          >
+            <User className="h-3.5 w-3.5" />
+            {showRosterView ? 'Pool' : 'My roster'}
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-2 py-1.5 text-[10px] text-white/55">
+          <span>{filtered.length} players available</span>
+          <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              data-testid="draft-filter-rookies-only"
-              onClick={() => setRookiesOnly((v) => !v)}
-              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              data-testid="draft-filter-watchlist-only"
+              onClick={() => setWatchlistOnly((v) => !v)}
+              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
             >
-              Rookies only
+              Watchlist
             </button>
-          ) : null}
+            <button
+              type="button"
+              data-testid="draft-filter-hide-drafted"
+              onClick={() => setHideDrafted((v) => !v)}
+              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            >
+              Hide drafted
+            </button>
+            {devyConfig?.enabled || c2cConfig?.enabled ? (
+              <button
+                type="button"
+                data-testid="draft-filter-rookies-only"
+                onClick={() => setRookiesOnly((v) => !v)}
+                className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              >
+                Rookies only
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            data-testid="draft-clear-filters"
+            onClick={clearAllFilters}
+            className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
+          >
+            Clear filters
+          </button>
         </div>
-        <button
-          type="button"
-          data-testid="draft-clear-filters"
-          onClick={clearAllFilters}
-          className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
-        >
-          Clear filters
-        </button>
-      </div>
       </div>
       {compareAnchor && (
         <div
@@ -669,15 +692,14 @@ function PlayerPanelInner({
           data-testid="draft-compare-anchor-hint"
         >
           <span>
-            Compare: <span className="font-semibold text-white">{compareAnchor.name}</span> — tap another player, or tap
-            again to cancel.
+            Compare: <span className="font-semibold text-white">{compareAnchor.name}</span> — tap another player, or tap again to cancel.
           </span>
           <button
             type="button"
             onClick={() => setCompareAnchor(null)}
-            className="shrink-0 rounded border border-amber-400/35 bg-black/20 px-2 py-1 text-[10px] text-amber-50 hover:bg-black/35"
+            className="shrink-0 rounded border border-amber-400/35 bg-black/20 px-2 py-1 text-[10px] text-amber-50 hover:bg-black/35 transition"
           >
-            Cancel
+            <X className="h-3 w-3" />
           </button>
         </div>
       )}
@@ -685,6 +707,7 @@ function PlayerPanelInner({
         <PlayerDetailModal
           open={true}
           onClose={() => setSelectedPlayer(null)}
+          normalized={selectedNormalized}
           player={{
             id: (() => {
               const candidates = [selectedPlayer.id, selectedPlayer.display?.playerId]
@@ -702,8 +725,8 @@ function PlayerPanelInner({
             team: selectedPlayer.team ?? null,
             byeWeek: selectedPlayer.byeWeek ?? null,
             adp: useAiAdp ? (selectedPlayer.aiAdp ?? null) : (selectedPlayer.adp ?? null),
-            headshotUrl: selectedPlayer.display?.assets?.headshotUrl ?? null,
-            teamLogoUrl: selectedPlayer.display?.assets?.teamLogoUrl ?? null,
+            headshotUrl: selectedNormalized?.imageUrl ?? selectedPlayer.display?.assets?.headshotUrl ?? null,
+            teamLogoUrl: selectedNormalized?.teamLogoUrl ?? selectedPlayer.display?.assets?.teamLogoUrl ?? null,
             status: selectedPlayer.display?.metadata?.injuryStatus ?? null,
             college: selectedPlayer.school ?? selectedPlayer.display?.metadata?.collegeOrPipeline ?? null,
             age: selectedPlayer.display?.metadata?.age ?? null,
@@ -734,7 +757,10 @@ function PlayerPanelInner({
           }}
         />
       )}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain p-2">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-auto overscroll-contain bg-[#050a14]/40 p-2 sm:p-3"
+      >
         {loading ? (
           <div className="space-y-2 py-1" aria-busy="true" aria-label={t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}>
             <p className="sr-only">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
@@ -760,7 +786,7 @@ function PlayerPanelInner({
               currentRoster.map((p, i) => (
                 <li
                   key={`${p.playerName}-${i}`}
-                className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#0a1228] px-2 py-1.5 text-[11px]"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-[#0a1228] px-2 py-1.5 text-[11px] hover:border-white/20 transition"
                 >
                   <span className="font-medium text-white">{p.playerName}</span>
                   <span className="text-white/55">{p.position}{p.team ? ` · ${p.team}` : ''}</span>
@@ -788,6 +814,7 @@ function PlayerPanelInner({
             canDraft={canDraft}
             canNominate={canNominate}
             useAiAdp={useAiAdp}
+            draftSport={sport}
             onDraftRequest={onMakePick}
             onAddToQueue={onAddToQueue}
             onNominateRequest={(player) => setPendingNomination(player)}
@@ -795,6 +822,7 @@ function PlayerPanelInner({
             scrollRef={scrollRef}
             compareAnchor={compareAnchor}
             onCompareTap={onCompareTap}
+            aiRowBadges={aiRowBadges}
           />
         )}
       </div>
@@ -814,7 +842,7 @@ function PlayerPanelInner({
                 onNominate?.(pendingNomination)
                 setPendingNomination(null)
               }}
-              className="rounded border border-cyan-300/35 bg-cyan-500/12 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20"
+              className="rounded border border-cyan-300/35 bg-cyan-500/12 px-3 py-1.5 text-xs text-cyan-100 hover:bg-cyan-500/20 transition"
             >
               Confirm
             </button>
@@ -822,7 +850,7 @@ function PlayerPanelInner({
               type="button"
               data-testid="draft-cancel-pick-button"
               onClick={() => setPendingNomination(null)}
-              className="rounded border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"
+              className="rounded border border-white/15 bg-black/20 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 transition"
             >
               Cancel
             </button>

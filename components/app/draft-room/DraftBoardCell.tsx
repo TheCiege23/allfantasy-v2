@@ -6,6 +6,8 @@ import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { buildDraftPlayerDisplayModel } from '@/lib/draft-sports-models/build-display-model'
+import { normalizePlayer } from '@/lib/players/normalizePlayer'
+import { getPlayerImage } from '@/lib/players/getPlayerImage'
 
 export type DraftBoardCellPick = {
   overall: number
@@ -51,17 +53,17 @@ function TinyHeadshot({
     return (
       <LazyDraftImage
         src={src}
-        alt={name ?? ''}
-        width={18}
-        height={18}
-        className="rounded-full object-cover bg-white/10"
+        alt=""
+        width={22}
+        height={22}
+        className="rounded-full object-cover bg-white/10 ring-1 ring-white/10"
         lazy
         onError={() => setImgError(true)}
       />
     )
   }
   return (
-    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-white/10 text-[9px] font-semibold text-white/70">
+    <span className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white/12 text-[9px] font-bold text-white/80 ring-1 ring-white/10">
       {String(name ?? '?').charAt(0).toUpperCase()}
     </span>
   )
@@ -79,7 +81,7 @@ function TinyTeamLogo({
     return (
       <LazyDraftImage
         src={src}
-        alt={team ?? ''}
+        alt=""
         width={14}
         height={14}
         className="rounded object-contain"
@@ -89,8 +91,8 @@ function TinyTeamLogo({
     )
   }
   return (
-    <span className="inline-flex h-[14px] w-[14px] items-center justify-center rounded bg-white/10 text-[8px] font-medium text-white/70">
-      {team ? team.slice(0, 2).toUpperCase() : '-'}
+    <span className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded border border-white/12 bg-[#0a1228] px-0.5 text-[7px] font-bold text-white/75">
+      {team ? team.slice(0, 3).toUpperCase() : '—'}
     </span>
   )
 }
@@ -101,6 +103,10 @@ export type DraftBoardCellProps = {
   pick: DraftBoardCellPick
   isEmpty: boolean
   isCurrentPick?: boolean
+  /** Latest completed pick — subtle highlight */
+  isRecentPick?: boolean
+  /** Resolved league sport for assets */
+  sport?: string | null
   tradedPickColorMode?: boolean
   showNewOwnerInRed?: boolean
   isDevyRound?: boolean
@@ -119,8 +125,9 @@ export type DraftBoardCellProps = {
 }
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
-  if (tone === 'user') return 'ring-1 ring-amber-400/45 border-amber-400/35 shadow-[0_0_12px_rgba(251,191,36,0.12)]'
-  if (tone === 'ai') return 'ring-1 ring-sky-400/40 border-sky-400/30 shadow-[0_0_14px_rgba(56,189,248,0.14)]'
+  if (tone === 'user')
+    return 'ring-1 ring-amber-400/50 border-amber-400/40 shadow-[0_4px_20px_rgba(251,191,36,0.18)]'
+  if (tone === 'ai') return 'ring-1 ring-sky-400/45 border-sky-400/35 shadow-[0_4px_22px_rgba(56,189,248,0.2)]'
   return ''
 }
 
@@ -142,10 +149,24 @@ function StatusBadge({
   )
 }
 
+function PositionBadge({ pos }: { pos: string | null }) {
+  const p = (pos ?? '—').trim().slice(0, 4).toUpperCase()
+  return (
+    <span
+      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/15 px-1 py-0.5 text-[8px] font-bold text-cyan-100 shadow-sm"
+      title={pos ?? undefined}
+    >
+      {p}
+    </span>
+  )
+}
+
 function DraftBoardCellInner({
   pick,
   isEmpty,
   isCurrentPick = false,
+  isRecentPick = false,
+  sport = null,
   tradedPickColorMode = false,
   showNewOwnerInRed = false,
   isDevyRound = false,
@@ -155,22 +176,33 @@ function DraftBoardCellInner({
   onTradeFromCell,
   onViewTradeHistory,
 }: DraftBoardCellProps) {
-  const assets = React.useMemo(() => {
-    const sport = normalizeToSupportedSport(pick.sport ?? DEFAULT_SPORT)
-    const display = buildDraftPlayerDisplayModel({
+  const sportNorm = normalizeToSupportedSport(pick.sport ?? sport ?? DEFAULT_SPORT)
+
+  const normalized = React.useMemo(() => {
+    if (isEmpty || !pick.playerName?.trim()) return null
+    const built = buildDraftPlayerDisplayModel({
       playerName: pick.playerName ?? '',
       position: pick.position ?? '-',
       team: pick.team ?? null,
       playerId: pick.playerId ?? null,
       byeWeek: pick.byeWeek ?? null,
       injuryStatus: pick.injuryStatus ?? null,
-      sport,
+      sport: sportNorm,
     })
-    return {
-      headshotUrl: display.assets.headshotUrl ?? null,
-      teamLogoUrl: display.assets.teamLogoUrl ?? null,
-    }
-  }, [pick.playerName, pick.position, pick.team, pick.playerId, pick.byeWeek, pick.injuryStatus, pick.sport])
+    return normalizePlayer({ display: built, sport: sportNorm })
+  }, [
+    isEmpty,
+    pick.playerName,
+    pick.position,
+    pick.team,
+    pick.playerId,
+    pick.byeWeek,
+    pick.injuryStatus,
+    sportNorm,
+  ])
+
+  const headshotSrc = normalized ? getPlayerImage(normalized) : null
+  const teamLogoSrc = normalized?.teamLogoUrl ?? null
 
   const tint =
     tradedPickColorMode && pick.tradedPickMeta?.tintColor
@@ -191,14 +223,20 @@ function DraftBoardCellInner({
   const showTradeChip = Boolean(isEmpty && ownerLabel && pick.tradedPickMeta?.newOwnerName)
   const compactLabel = compactPickLabel(pick.pickLabel)
 
+  const ariaLabel = isEmpty
+    ? `Draft pick ${compactLabel}, empty slot`
+    : `${pick.playerName ?? 'Player'}, ${pick.position ?? ''}, ${pick.team ?? ''}, pick ${compactLabel}`
+
   return (
     <div
-      className={`relative flex h-[64px] min-h-[64px] flex-col overflow-hidden rounded-md border px-1.5 pb-1 pt-1 text-[10px] transition-colors hover:border-white/20 sm:h-[68px] sm:min-h-[68px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
+      className={`relative flex h-[64px] min-h-[64px] flex-col overflow-hidden rounded-lg border px-1.5 pb-1 pt-1 text-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-0.5 hover:border-white/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.35)] sm:h-[68px] sm:min-h-[68px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
-          ? 'border-cyan-300/60 bg-cyan-500/12 ring-1 ring-cyan-300/35'
-          : `border-white/10 bg-[#232c40] ${highlightClass(pickHighlight)}`
+          ? 'border-cyan-300/80 bg-gradient-to-br from-cyan-500/20 via-[#1a2a44] to-[#1e3a52] shadow-[0_0_36px_rgba(34,211,238,0.48)] ring-2 ring-cyan-400/60'
+          : isRecentPick
+            ? 'border-amber-400/45 bg-gradient-to-br from-amber-500/[0.14] to-[#232c40] ring-1 ring-amber-400/40 shadow-[0_0_22px_rgba(251,191,36,0.22)]'
+            : `border-white/[0.11] bg-gradient-to-b from-[#2a354c] to-[#232c40] ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -206,6 +244,9 @@ function DraftBoardCellInner({
       data-slot={pick.slot}
       data-owner-roster={pick.ownerRosterId ?? ''}
       data-testid={`draft-board-cell-${pick.overall}`}
+      data-recent={isRecentPick ? 'true' : 'false'}
+      role="group"
+      aria-label={ariaLabel}
     >
       {onTradeFromCell ? (
         <button
@@ -217,7 +258,7 @@ function DraftBoardCellInner({
           data-testid={`draft-board-cell-trade-${pick.overall}`}
           title="Offer pick trade"
           aria-label="Offer pick trade for this slot"
-          className="absolute right-0.5 top-0.5 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/12 bg-[#0a1228]/95 text-white/55 shadow-sm backdrop-blur-sm transition hover:border-cyan-400/35 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+          className="absolute right-0.5 top-0.5 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/14 bg-[#0a1228]/95 text-white/60 shadow-sm backdrop-blur-sm transition duration-150 hover:border-cyan-400/40 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 active:scale-90"
         >
           <ArrowLeftRight className="h-3 w-3" />
         </button>
@@ -232,7 +273,7 @@ function DraftBoardCellInner({
           data-testid={`draft-board-cell-history-${pick.overall}`}
           title="View trade history for this pick"
           aria-label="View trade history for this pick"
-          className={`absolute ${onTradeFromCell ? 'right-0.5 top-7' : 'right-0.5 top-0.5'} z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/25 bg-amber-500/10 text-amber-200/80 shadow-sm backdrop-blur-sm transition hover:border-amber-300/45 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50`}
+          className={`absolute ${onTradeFromCell ? 'right-0.5 top-7' : 'right-0.5 top-0.5'} z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/30 bg-amber-500/12 text-amber-200/85 shadow-sm backdrop-blur-sm transition duration-150 hover:border-amber-300/50 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90`}
         >
           <History className="h-3 w-3" />
         </button>
@@ -243,8 +284,8 @@ function DraftBoardCellInner({
         aria-hidden
       />
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
+      <div className="flex items-start justify-between gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-0.5">
           {pick.isKeeper ? <StatusBadge label="K" className="bg-emerald-500/18 text-emerald-100" /> : null}
           {pick.isDevyPick ? <StatusBadge label="D" className="bg-violet-500/18 text-violet-100" /> : null}
           {pick.isCollegePick ? <StatusBadge label="C" className="bg-violet-500/18 text-violet-100" /> : null}
@@ -262,59 +303,71 @@ function DraftBoardCellInner({
           ) : null}
         </div>
 
-        <span className="tabular-nums text-[9px] font-semibold text-white/48">{compactLabel}</span>
+        <span className="tabular-nums text-[9px] font-semibold text-white/48" aria-hidden>
+          {compactLabel}
+        </span>
       </div>
 
       {isEmpty ? (
-        <div className="mt-auto flex items-end justify-between gap-2">
-          <div className="flex items-center gap-1 text-white/28">
-            {emptyCellDirection === 'reverse' ? (
-              <ArrowLeft className="h-3 w-3" aria-hidden />
-            ) : (
-              <ArrowRight className="h-3 w-3" aria-hidden />
-            )}
-            {isCollegeRound ? (
-              <StatusBadge label="College" className="bg-violet-500/18 text-violet-100" />
-            ) : isDevyRound ? (
-              <StatusBadge label="Devy" className="bg-violet-500/18 text-violet-100" />
-            ) : null}
-          </div>
-
-          {pick.tradedPickMeta?.previousOwnerName ? (
-            <span
-              className="max-w-[56px] truncate text-[8px] text-white/24"
-              title={`Originally ${pick.tradedPickMeta.previousOwnerName}`}
-            >
-              from {pick.tradedPickMeta.previousOwnerName}
-            </span>
-          ) : null}
-        </div>
-      ) : (
-        <div className="mt-1 flex flex-1 flex-col justify-between">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <TinyHeadshot name={pick.playerName} src={assets.headshotUrl} />
-            <TinyTeamLogo team={pick.team} src={assets.teamLogoUrl} />
-            <span className="truncate font-semibold text-white" title={pick.playerName ?? undefined}>
-              {pick.playerName}
-            </span>
-          </div>
-
-          <div className="mt-1 flex items-end justify-between gap-2">
-            <div className="min-w-0">
-              {(pick.position || pick.team) ? (
-                <p className="truncate text-[9px] text-white/56">
-                  {[pick.position, pick.team].filter(Boolean).join(' / ')}
-                </p>
-              ) : null}
-              {pick.byeWeek != null && pick.byeWeek > 0 ? (
-                <p className="text-[8px] text-white/34">Bye {pick.byeWeek}</p>
+        <div className="mt-auto flex min-h-0 flex-1 flex-col justify-end gap-0.5">
+          <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-white/22">Open</p>
+          <div className="flex items-end justify-between gap-2">
+            <div className="flex items-center gap-1 text-white/28">
+              {emptyCellDirection === 'reverse' ? (
+                <ArrowLeft className="h-3 w-3" aria-hidden />
+              ) : (
+                <ArrowRight className="h-3 w-3" aria-hidden />
+              )}
+              {isCollegeRound ? (
+                <StatusBadge label="College" className="bg-violet-500/18 text-violet-100" />
+              ) : isDevyRound ? (
+                <StatusBadge label="Devy" className="bg-violet-500/18 text-violet-100" />
               ) : null}
             </div>
 
+            {pick.tradedPickMeta?.previousOwnerName ? (
+              <span
+                className="max-w-[56px] truncate text-[8px] text-white/24"
+                title={`Originally ${pick.tradedPickMeta.previousOwnerName}`}
+              >
+                from {pick.tradedPickMeta.previousOwnerName}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-0.5 overflow-hidden">
+          <div className="flex min-w-0 items-start gap-1.5">
+            <div className="relative shrink-0">
+              <TinyHeadshot name={pick.playerName} src={headshotSrc} />
+              <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/12 bg-[#232c40] p-px">
+                <TinyTeamLogo team={pick.team} src={teamLogoSrc} />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1">
+                <span className="truncate font-semibold leading-tight text-white" title={pick.playerName ?? undefined}>
+                  {pick.playerName}
+                </span>
+                <PositionBadge pos={pick.position} />
+              </div>
+              <p className="truncate text-[9px] text-white/55">
+                {(pick.team ?? '—').toString()}
+                {pick.byeWeek != null && pick.byeWeek > 0 ? ` · Bye ${pick.byeWeek}` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-end justify-between gap-1">
+            <div className="min-w-0 truncate text-[8px] text-white/38">
+              {normalized?.stats?.summary ? (
+                <span title={normalized.stats.summary}>{normalized.stats.summary}</span>
+              ) : null}
+            </div>
             <div className="shrink-0 text-right">
               {pick.amount != null && pick.amount > 0 ? (
                 <span className="inline-flex items-center gap-1 rounded bg-amber-500/16 px-1.5 py-0.5 text-[8px] font-semibold text-amber-100">
-                  <Gavel className="h-2.5 w-2.5" />
+                  <Gavel className="h-2.5 w-2.5" aria-hidden />
                   ${pick.amount}
                 </span>
               ) : ownerLabel ? (
@@ -332,7 +385,7 @@ function DraftBoardCellInner({
 
           {pick.tradedPickMeta?.previousOwnerName ? (
             <span
-              className="mt-1 truncate text-[8px] text-amber-200/78"
+              className="truncate text-[8px] text-amber-200/78"
               title={`Traded from ${pick.tradedPickMeta.previousOwnerName}`}
             >
               Traded from {pick.tradedPickMeta.previousOwnerName}
@@ -340,7 +393,7 @@ function DraftBoardCellInner({
           ) : null}
 
           {pick.injuryStatus ? (
-            <span className="mt-0.5 truncate text-[8px] text-amber-300/90" title={pick.injuryStatus}>
+            <span className="truncate text-[8px] text-amber-300/90" title={pick.injuryStatus}>
               {pick.injuryStatus}
             </span>
           ) : null}

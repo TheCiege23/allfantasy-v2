@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ArrowUpRight, Newspaper, Repeat2, Rows3 } from 'lucide-react'
+import { TeamSeasonSimPanel } from '@/components/ai/sim/TeamSeasonSimPanel'
 import PlayerHeadshot from '@/components/league/PlayerHeadshot'
 import PlayerRow from '@/components/league/PlayerRow'
 import DevyRosterSection from '@/components/league/DevyRosterSection'
@@ -35,10 +36,13 @@ export default function TeamTab({
   leagueId,
   roster,
   variant,
+  leagueSize = 12,
 }: {
   leagueId: string
   roster: LeagueRosterCard
   variant: LeagueVariantSummary
+  /** Total teams in the league (for simulation fill). */
+  leagueSize?: number
 }) {
   return (
     <div className="space-y-5">
@@ -74,6 +78,8 @@ export default function TeamTab({
         <span>✦ Ask Chimmy about your lineup</span>
         <ArrowUpRight className="h-4 w-4" />
       </Link>
+
+      <TeamSeasonSimPanel roster={roster} leagueSize={leagueSize} />
 
       {roster.sections.map((section) => (
         <section key={section.id} className="space-y-3">

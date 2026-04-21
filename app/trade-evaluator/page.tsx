@@ -6,6 +6,7 @@ export const runtime = "nodejs"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { TradeSimulationStrip } from "@/components/ai/sim/TradeSimulationStrip"
 import { InContextMonetizationCard } from "@/components/monetization/InContextMonetizationCard"
 import { usePlayerComparisonUIOptional } from "@/components/player-comparison-ui"
 import { DEFAULT_SPORT, SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from "@/lib/sport-scope"
@@ -1108,6 +1109,16 @@ function TradeHubInner() {
             <p className="text-xs text-white/35">Add at least one player, pick, or FAAB on both sides to enable analysis.</p>
           ) : null}
         </div>
+
+        {canEvaluate ? (
+          <TradeSimulationStrip
+            senderTeamName={sender.teamName.trim() || "Sender Team"}
+            receiverTeamName={receiver.teamName.trim() || "Receiver Team"}
+            senderPlayers={sender.players}
+            receiverPlayers={receiver.players}
+            leagueSize={12}
+          />
+        ) : null}
 
         {error ? (
           <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">

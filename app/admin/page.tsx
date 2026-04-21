@@ -98,6 +98,9 @@ export default async function AdminPage({
 }: {
   searchParams?: { tab?: string };
 }) {
+  if (searchParams?.tab === "ai_dashboard") {
+    redirect("/admin/ai-dashboard");
+  }
   const tab = parseTab(searchParams?.tab);
   const me = await getMe();
   if (!me?.user) redirect(getAdminLoginRedirectUrl(`/admin?tab=${tab}`));

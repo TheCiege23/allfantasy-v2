@@ -1,6 +1,7 @@
 'use client'
 
 import type { DraftPickSnapshot, DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
+import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { getUpcomingPickOwners } from '@/lib/live-draft-engine/DraftOrderService'
 import { CommissionerDraftControls } from './CommissionerDraftControls'
 import { DraftQueue } from './DraftQueue'
@@ -15,6 +16,8 @@ export type LiveDraftStatusColumnProps = {
   session: DraftSessionSnapshot
   queueEntries: QueueEntry[]
   leagueId: string
+  /** League sport (for pick history / player headshots) */
+  sport?: string
   isCommissioner: boolean
   onSessionUpdated?: () => void
   /** First rows from the normalized pool for quick-add (optional). */
@@ -45,17 +48,17 @@ function CurrentPickMeta({ session }: { session: DraftSessionSnapshot }) {
   const pir = pickIndexInRound(cp.overall, session.teamCount)
   return (
     <div
-      className="rounded-xl border border-white/[0.08] bg-[#0a1228]/80 px-2.5 py-1.5 text-center"
+      className="rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-500/[0.12] via-[#0a1228]/95 to-[#070d18]/95 px-3 py-2.5 text-center shadow-[0_8px_32px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/10"
       data-testid="draft-live-current-pick-meta"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">Round and pick</p>
-      <p className="mt-1 text-[12px] leading-snug text-white/80">
-        Round <span className="font-semibold text-cyan-100/90">{cp.round}</span>
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200/70">Round and pick</p>
+      <p className="mt-1.5 text-[13px] font-medium leading-snug text-white/90">
+        Round <span className="font-bold text-cyan-100">{cp.round}</span>
         <span className="text-white/35"> · </span>
-        Pick <span className="font-semibold text-cyan-100/90">{pir}</span>
+        Pick <span className="font-bold text-cyan-100">{pir}</span>
         <span className="text-white/45"> / {session.teamCount}</span>
       </p>
-      <p className="mt-1 font-mono text-[11px] text-white/45">Overall #{cp.overall}</p>
+      <p className="mt-1 font-mono text-[11px] font-medium text-white/50">Overall #{cp.overall}</p>
     </div>
   )
 }
@@ -68,7 +71,7 @@ function UpcomingOnDeck({ session }: { session: DraftSessionSnapshot }) {
   if (nextOverall > totalPicks) {
     return (
       <div
-        className="rounded-2xl border border-white/[0.08] bg-[#070d18]/90 px-2.5 py-2 text-center text-[12px] text-white/45"
+        className="rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-500/[0.08] to-[#070d18]/95 px-3 py-2.5 text-center text-[12px] font-medium text-amber-100/80 shadow-[0_6px_24px_rgba(245,158,11,0.1)]"
         data-testid="draft-upcoming-on-deck"
       >
         Final pick approaching
@@ -86,18 +89,27 @@ function UpcomingOnDeck({ session }: { session: DraftSessionSnapshot }) {
   )
   if (upcoming.length === 0) return null
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#070d18]/90" data-testid="draft-upcoming-on-deck">
-      <div className="border-b border-white/[0.06] px-2.5 py-1.5">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-white/45">Next up</p>
+    <div
+      className="overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#0c1528] to-[#070d18]/98 shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
+      data-testid="draft-upcoming-on-deck"
+    >
+      <div className="border-b border-white/[0.06] bg-black/20 px-3 py-2">
+        <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-white/55">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400/40 opacity-50" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
+          </span>
+          Next up
+        </p>
       </div>
-      <ol className="space-y-1 px-2.5 py-1.5">
+      <ol className="space-y-0.5 px-2.5 py-2">
         {upcoming.map((u, i) => (
           <li
             key={`${u.rosterId}-${i}`}
-            className="flex items-center justify-between gap-2 text-[12px] text-white/88"
+            className="flex items-center justify-between gap-2 rounded-lg px-1.5 py-1.5 text-[12px] text-white/90 transition duration-150 hover:bg-white/[0.04]"
           >
-            <span className="shrink-0 font-medium text-cyan-100/90">Team {u.slot}</span>
-            <span className="min-w-0 flex-1 truncate text-right text-white/75">{u.displayName}</span>
+            <span className="shrink-0 rounded-md bg-white/[0.06] px-1.5 py-0.5 font-bold text-cyan-100">T{u.slot}</span>
+            <span className="min-w-0 flex-1 truncate text-right font-medium text-white/82">{u.displayName}</span>
           </li>
         ))}
       </ol>
@@ -117,19 +129,25 @@ function MyRosterSidebarSummary({
   if (!hasRoster) return null
   const recent = picks.slice(-4).reverse()
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#070d18]/90" data-testid="draft-sidebar-my-roster">
-      <div className="border-b border-white/[0.06] px-3 py-2">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-white/45">My roster</p>
-        <p className="text-[12px] text-cyan-100/90">
+    <div
+      className="rounded-2xl border border-violet-400/15 bg-gradient-to-b from-[#0c1528] to-[#070d18]/95 shadow-[0_10px_36px_rgba(0,0,0,0.35)]"
+      data-testid="draft-sidebar-my-roster"
+    >
+      <div className="border-b border-white/[0.06] bg-black/15 px-3 py-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/50">My roster</p>
+        <p className="mt-0.5 text-[13px] font-semibold text-cyan-100/95">
           {picks.length} / {rounds} picks
         </p>
       </div>
       {recent.length === 0 ? (
-        <p className="px-3 py-3 text-center text-[12px] text-white/38">No picks yet</p>
+        <p className="px-3 py-4 text-center text-[12px] text-white/40">No picks yet</p>
       ) : (
         <ul className="max-h-[200px] divide-y divide-white/[0.05] overflow-y-auto">
           {recent.map((p) => (
-            <li key={p.id} className="flex items-start justify-between gap-2 px-3 py-2 text-[11px]">
+            <li
+              key={p.id}
+              className="flex items-start justify-between gap-2 px-3 py-2.5 text-[11px] transition duration-150 hover:bg-white/[0.03]"
+            >
               <span className="shrink-0 font-mono text-cyan-300/70">{p.pickLabel}</span>
               <span className="min-w-0 flex-1 text-right">
                 <span className="font-medium text-white/90">{p.playerName}</span>
@@ -151,6 +169,7 @@ export function LiveDraftStatusColumn({
   session,
   queueEntries,
   leagueId,
+  sport = DEFAULT_SPORT,
   isCommissioner,
   onSessionUpdated,
   poolPreview,
@@ -174,7 +193,7 @@ export function LiveDraftStatusColumn({
 
   return (
     <div
-      className="flex flex-col gap-1.5 lg:min-w-[260px] lg:max-w-[min(340px,32vw)]"
+      className="flex flex-col gap-2.5 lg:min-w-[260px] lg:max-w-[min(340px,32vw)]"
       data-testid="draft-live-status-column"
     >
       {showSnakeCompact ? <CurrentPickMeta session={session} /> : null}
@@ -187,7 +206,7 @@ export function LiveDraftStatusColumn({
         <DraftTeamSidebar slotOrder={session.slotOrder} onClockRosterId={onClockId} />
       ) : null}
 
-      <PickHistory picks={session.picks ?? []} max={20} />
+      <PickHistory picks={session.picks ?? []} max={20} sport={sport} />
 
       {showSnakeCompact ? (
         <MyRosterSidebarSummary

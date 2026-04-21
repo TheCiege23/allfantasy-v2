@@ -19,6 +19,7 @@ import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
 import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
+import type { DraftWarRoomSnapshot } from '@/components/draft/ai/DraftWarRoom'
 import { LiveDraftStatusColumn } from '@/components/draft/live/LiveDraftStatusColumn'
 
 const DraftPickTradePanel = dynamic(
@@ -47,6 +48,7 @@ import {
   isPickCommitAllowed,
   isPickCommitAllowedByName,
 } from '@/lib/live-draft-engine'
+import { getUpcomingPickOwners } from '@/lib/live-draft-engine/DraftOrderService'
 import type { DraftIntelState } from '@/lib/draft-intelligence'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
@@ -231,6 +233,9 @@ export function DraftRoomPageClient({
   } | null>(null)
   const [recommendationLoading, setRecommendationLoading] = useState(false)
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
+  const [warRoomData, setWarRoomData] = useState<DraftWarRoomSnapshot | null>(null)
+  const [warRoomLoading, setWarRoomLoading] = useState(false)
+  const [warRoomError, setWarRoomError] = useState<string | null>(null)
   const [liveBrainEnvelope, setLiveBrainEnvelope] = useState<LiveDraftBrainEnvelope | null>(null)
   const [runAiPickLoading, setRunAiPickLoading] = useState(false)
   const [resyncLoading, setResyncLoading] = useState(false)
@@ -1099,6 +1104,8 @@ export function DraftRoomPageClient({
     formatType,
   ])
   const recommendationRequestKeyRef = useRef('')
+  const warRoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const warRoomCacheRef = useRef<Map<string, DraftWarRoomSnapshot>>(new Map())
 
   useEffect(() => {
     if (!session?.currentPick || !session.teamCount || players.length === 0) return
@@ -2022,6 +2029,190 @@ export function DraftRoomPageClient({
     isAuctionDraft && currentUserRosterId != null && auctionNominator?.rosterId === currentUserRosterId
   )
 
+  const resolvePlayerFromPool = useCallback(
+    (name: string, position: string) =>
+      players.find(
+        (p) =>
+          p.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+          p.position.trim().toLowerCase() === position.trim().toLowerCase(),
+      ) ?? null,
+    [players],
+  )
+
+  const aiRowBadges = useMemo(() => {
+    if (!warRoomData?.bestPick) return undefined
+    const out: Record<string, 'ai_pick' | 'value' | 'risky'> = {}
+    const key = (n: string, pos: string) => `${n.trim().toLowerCase()}|${pos.trim().toLowerCase()}`
+    out[key(warRoomData.bestPick.name, warRoomData.bestPick.position)] =
+      warRoomData.risk === 'high' ? 'risky' : 'ai_pick'
+    for (const alt of warRoomData.alternatives ?? []) {
+      const k = key(alt.name, alt.position)
+      if (!out[k]) out[k] = 'value'
+    }
+    return out
+  }, [warRoomData])
+
+  const fetchWarRoom = useCallback(
+    async (force?: boolean) => {
+      if (!session?.currentPick || !session.teamCount || players.length === 0) return
+      if (session.status !== 'in_progress') return
+      if (session.draftType === 'auction' && !isMyTurnToNominateDraft) return
+
+      const cacheKey = `${session.currentPick.overall}|${session.picks?.length ?? 0}|${currentUserRosterId ?? ''}`
+      if (force) warRoomCacheRef.current.delete(cacheKey)
+      if (!force && warRoomCacheRef.current.has(cacheKey)) {
+        setWarRoomData(warRoomCacheRef.current.get(cacheKey)!)
+        setWarRoomLoading(false)
+        return
+      }
+
+      setWarRoomLoading(true)
+      setWarRoomError(null)
+      try {
+        const myRoster =
+          session.picks?.filter((p) => p.rosterId === currentUserRosterId).map((p) => ({
+            position: p.position,
+            team: p.team ?? null,
+            byeWeek: p.byeWeek ?? null,
+          })) ?? []
+        const available = players
+          .filter((p) => !draftedNames.has(normalizeDraftedPlayerName(p.name)))
+          .map((p) => ({
+            name: p.name,
+            position: p.position,
+            team: p.team ?? null,
+            adp: draftUISettings?.aiAdpEnabled && p.aiAdp != null ? p.aiAdp : p.adp,
+          }))
+        if (available.length === 0) {
+          setWarRoomData(null)
+          setWarRoomError(null)
+          setWarRoomLoading(false)
+          return
+        }
+        const recentPicks = (session.picks ?? []).slice(-14).map((p) => ({
+          playerName: p.playerName,
+          position: p.position,
+          team: p.team ?? null,
+          pickLabel: p.pickLabel,
+        }))
+        const totalPicks = session.rounds * session.teamCount
+        const upcoming = getUpcomingPickOwners(
+          session.currentPick.overall + 1,
+          8,
+          session.teamCount,
+          session.draftType,
+          session.thirdRoundReversal,
+          session.slotOrder,
+          totalPicks,
+        )
+        const aiAdpByKey =
+          draftUISettings?.aiAdpEnabled && leagueAiAdp?.entries?.length
+            ? expandAiAdpKeysForLookup(leagueAiAdp.entries)
+            : {}
+        const res = await fetch('/api/ai/draft/recommend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leagueId,
+            availablePlayers: available,
+            userRoster: myRoster,
+            recentPicks,
+            nextTeams: upcoming.map((u) => u.displayName),
+            round: session.currentPick.round,
+            pick: session.currentPick.slot,
+            pickInRound: session.currentPick.slot,
+            totalTeams: session.teamCount,
+            sport: effectiveDraftSport,
+            draftType: session.draftType,
+            isDynasty,
+            isSuperflex: isSuperflexFormat,
+            isSF: isSuperflexFormat,
+            rosterSlots: effectiveRosterSlots,
+            aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
+            mode: 'needs',
+            currentPick: {
+              overall: session.currentPick.overall,
+              round: session.currentPick.round,
+              slot: session.currentPick.slot,
+              rosterId: session.currentPick.rosterId,
+            },
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || !data.ok) {
+          setWarRoomError(typeof data.error === 'string' ? data.error : 'War room unavailable')
+          setWarRoomData(null)
+          return
+        }
+        const riskRaw = String(data.risk ?? '').toLowerCase()
+        const risk: DraftWarRoomSnapshot['risk'] =
+          riskRaw === 'low' || riskRaw === 'medium' || riskRaw === 'high' ? riskRaw : 'medium'
+        const snap: DraftWarRoomSnapshot = {
+          bestPick: data.bestPick,
+          confidence: Number(data.confidence) || 0,
+          reasoning: Array.isArray(data.reasoning) ? data.reasoning : [],
+          strategyTip: String(data.strategyTip ?? ''),
+          risk,
+          riskNote: String(data.riskNote ?? ''),
+          alternatives: Array.isArray(data.alternatives) ? data.alternatives : [],
+          teamNeedSummary: typeof data.teamNeedSummary === 'string' ? data.teamNeedSummary : undefined,
+          fallback: Boolean(data.fallback),
+        }
+        warRoomCacheRef.current.set(cacheKey, snap)
+        setWarRoomData(snap)
+      } catch (e) {
+        setWarRoomError(e instanceof Error ? e.message : 'War room failed')
+        setWarRoomData(null)
+      } finally {
+        setWarRoomLoading(false)
+      }
+    },
+    [
+      session,
+      players,
+      draftedNames,
+      draftUISettings?.aiAdpEnabled,
+      leagueAiAdp,
+      effectiveDraftSport,
+      effectiveRosterSlots,
+      isSuperflexFormat,
+      isDynasty,
+      currentUserRosterId,
+      leagueId,
+      isMyTurnToNominateDraft,
+    ],
+  )
+
+  const scheduleWarRoomFetch = useCallback(
+    (force?: boolean) => {
+      if (warRoomDebounceRef.current) clearTimeout(warRoomDebounceRef.current)
+      warRoomDebounceRef.current = setTimeout(() => {
+        warRoomDebounceRef.current = null
+        void fetchWarRoom(force)
+      }, 420)
+    },
+    [fetchWarRoom],
+  )
+
+  useEffect(() => {
+    if (!session?.currentPick || !session.teamCount || players.length === 0) return
+    if (session.status !== 'in_progress') return
+    scheduleWarRoomFetch(false)
+    return () => {
+      if (warRoomDebounceRef.current) clearTimeout(warRoomDebounceRef.current)
+    }
+  }, [
+    session?.currentPick?.overall,
+    session?.picks?.length,
+    session?.status,
+    session?.draftType,
+    session?.teamCount,
+    players.length,
+    currentUserRosterId,
+    isMyTurnToNominateDraft,
+    scheduleWarRoomFetch,
+  ])
+
   const playerPoolNode = useMemo(
     () => (
       <SportAwareDraftRoom
@@ -2058,6 +2249,7 @@ export function DraftRoomPageClient({
         formatType={formatType === 'IDP' || Boolean((draftPool as { isIdp?: boolean } | null)?.isIdp) ? 'IDP' : undefined}
         selectedPlayerTarget={helperSelectedPlayer}
         leagueId={leagueId}
+        aiRowBadges={aiRowBadges}
       />
     ),
     [
@@ -2083,6 +2275,7 @@ export function DraftRoomPageClient({
       formatType,
       helperSelectedPlayer,
       leagueId,
+      aiRowBadges,
     ]
   )
 
@@ -2732,6 +2925,7 @@ export function DraftRoomPageClient({
             session={session as DraftSessionSnapshot}
             queueEntries={queueFiltered}
             leagueId={leagueId}
+            sport={effectiveDraftSport}
             isCommissioner={isCommissioner}
             onSessionUpdated={fetchSession}
             poolPreview={draftPool?.entries ?? null}
@@ -2862,6 +3056,16 @@ export function DraftRoomPageClient({
             draftExplanationEnabled: draftAiExplanationEnabled,
             orphanAiEnabled: Boolean(draftUISettings?.orphanTeamAiManagerEnabled),
             commissionerAiManagersCount: (commissionerAiDraft?.assignedAiTeams ?? []).filter((team) => team.active).length,
+          }}
+          warRoom={{
+            snapshot: warRoomData,
+            loading: warRoomLoading,
+            error: warRoomError,
+            canDraft,
+            onRefresh: scheduleWarRoomFetch,
+            resolvePlayer: resolvePlayerFromPool,
+            onDraftPlayer: handleMakePick,
+            onQueuePlayer: handleAddToQueue,
           }}
         />
       }

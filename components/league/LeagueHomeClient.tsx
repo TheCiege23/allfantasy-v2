@@ -101,7 +101,14 @@ export default function LeagueHomeClient({
           />
         ) : null}
 
-        {resolvedTab === 'TEAM' ? <TeamTab leagueId={data.league.id} roster={data.roster} variant={data.variant} /> : null}
+        {resolvedTab === 'TEAM' ? (
+          <TeamTab
+            leagueId={data.league.id}
+            roster={data.roster}
+            variant={data.variant}
+            leagueSize={data.league.leagueSize ?? data.standings.length ?? 12}
+          />
+        ) : null}
 
         {resolvedTab === 'PLAYERS' ? (
           <PlayersTab leagueId={data.league.id} players={data.players} trades={data.trades} />

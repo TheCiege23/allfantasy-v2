@@ -112,6 +112,31 @@ export async function POST(
     },
   }).catch(() => {})
 
+  void import('@/lib/ai/events/recordAiEvent')
+    .then(({ recordAiEvent }) =>
+      import('@/lib/ai/events/aiEventTypes').then(({ AI_EVENT_TYPES }) => {
+        const snap = result.snapshot as { overall?: number; round?: number } | null | undefined
+        recordAiEvent({
+          eventType: source === 'auto' ? AI_EVENT_TYPES.AUTO_PICK_MADE : AI_EVENT_TYPES.DRAFT_PICK_MADE,
+          userId,
+          leagueId,
+          season: new Date().getFullYear(),
+          payload: {
+            playerName: String(playerName).trim(),
+            position: String(position).trim(),
+            rosterId: effectiveRosterId,
+            source,
+            playerId: body.playerId ?? body.player_id ?? null,
+            overallPick: snap?.overall,
+            round: snap?.round,
+            isRookie: Boolean(pickMetadata && (pickMetadata as { isRookie?: boolean }).isRookie),
+          },
+          dedupeKey: snap?.overall != null ? `draft:${leagueId}:${snap.overall}` : null,
+        })
+      }),
+    )
+    .catch(() => {})
+
   void import('@/lib/league-events/publisher')
     .then(({ publishLeagueFanoutEvent }) =>
       publishLeagueFanoutEvent({

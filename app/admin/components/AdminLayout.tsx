@@ -31,10 +31,11 @@ import {
   Zap,
   ScrollText,
   LifeBuoy,
+  LineChart,
 } from "lucide-react";
 import { AdminTabsBar } from "./AdminTabsBar";
 
-export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "operations" | "moderation" | "audit" | "features" | "system" | "providers" | "content";
+export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "operations" | "moderation" | "audit" | "features" | "system" | "providers" | "content" | "ai_dashboard";
 
 const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus: string }> = {
   overview: {
@@ -147,6 +148,11 @@ const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus:
     description: "AI-drafted brand social posts: X, Instagram, TikTok, YouTube, LinkedIn. Drafts → review → publish (phase 2).",
     focus: "Draft variants, refine, copy/post manually while publish flow ships.",
   },
+  ai_dashboard: {
+    title: "AI Outcomes",
+    description: "Internal AI accuracy, follow rates, and recommendation outcomes across features.",
+    focus: "Use filters to isolate sport, feature family, and trust segments.",
+  },
 };
 
 const NAV: Array<{
@@ -179,6 +185,7 @@ const NAV: Array<{
   { tab: "providers", label: "Providers", icon: Zap, desc: "AI & data diagnostics", color: "from-sky-500 to-indigo-600", glow: "sky" },
   { tab: "tools", label: "Tools", icon: Wrench, desc: "Usage & AI activity", color: "from-fuchsia-500 to-purple-600", glow: "fuchsia" },
   { tab: "content", label: "Content", icon: Sparkles, desc: "AI brand posts", color: "from-violet-500 to-purple-600", glow: "violet" },
+  { tab: "ai_dashboard", label: "AI Outcomes", icon: LineChart, desc: "Accuracy & outcomes", color: "from-emerald-500 to-teal-600", glow: "emerald" },
 ];
 
 const LS_COLLAPSED_KEY = "af_admin_sidebar_collapsed";
@@ -259,6 +266,10 @@ export default function AdminLayout({
 
   const tabBarItems = useMemo(() => NAV.map((n) => ({ key: n.tab, label: n.label })), []);
   const handleMobileTabChange = (t: AdminTab) => {
+    if (t === "ai_dashboard") {
+      router.replace("/admin/ai-dashboard");
+      return;
+    }
     router.replace(baseHref(t));
   };
 
@@ -317,10 +328,11 @@ export default function AdminLayout({
   }) => {
     const Icon = item.icon;
     const isActive = item.tab === activeTab;
+    const href = item.tab === "ai_dashboard" ? "/admin/ai-dashboard" : baseHref(item.tab);
 
     return (
       <Link
-        href={baseHref(item.tab)}
+        href={href}
         onClick={onClick}
         className={[
           "group relative flex items-center gap-3.5 rounded-xl px-3 py-3 transition-all duration-300",
@@ -606,10 +618,12 @@ export default function AdminLayout({
                 const Icon = item.icon;
                 const isActive = item.tab === activeTab;
 
+                const href = item.tab === "ai_dashboard" ? "/admin/ai-dashboard" : baseHref(item.tab);
+
                 return (
                   <Link
                     key={item.tab}
-                    href={baseHref(item.tab)}
+                    href={href}
                     onClick={() => setPaletteOpen(false)}
                     className={[
                       "flex items-center gap-4 rounded-xl px-4 py-3 transition-all",
