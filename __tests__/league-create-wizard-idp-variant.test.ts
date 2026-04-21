@@ -254,7 +254,7 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
     expect(runPostCreateInitializationMock).toHaveBeenCalledWith('league-soccer-1', 'SOCCER', 'STANDARD')
   })
 
-  it('rejects Soccer when an NFL-only IDP preset is requested', async () => {
+  it('rejects Soccer when an IDP preset is requested', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const req = new Request('http://localhost/api/league/create', {
@@ -273,7 +273,7 @@ describe('POST /api/league/create wizard NFL DYNASTY_IDP', () => {
     const data = await res.json()
 
     expect(res.status).toBe(400)
-    expect(data.error).toContain('IDP leagues are only supported for NFL')
+    expect(data.error).toContain('IDP leagues are supported only for NFL and NCAAF')
     expect(leagueCreateMock).toHaveBeenCalledTimes(0)
   })
 })

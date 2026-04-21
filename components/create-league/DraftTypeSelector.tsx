@@ -6,7 +6,9 @@ import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
   getDraftTypeOptions,
+  getIdpDraftTypeOptions,
   isDraftTypeAllowedForType,
+  isIdpDraftTypeAllowed,
   isThirdRoundReversalAvailable,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, Segmented, Toggle } from '@/components/create-league-v2/primitives'
@@ -31,7 +33,11 @@ export function DraftTypeSelector({
   const draftSectionRef = useRef<HTMLDivElement | null>(null)
   const [draftInView, setDraftInView] = useState(false)
 
-  const draftOptions = effectiveType ? getDraftTypeOptions(effectiveType, state.sport) : []
+  const draftOptions = effectiveType
+    ? state.idpSelected
+      ? getIdpDraftTypeOptions()
+      : getDraftTypeOptions(effectiveType, state.sport)
+    : []
   const localizedDraftOptions = useMemo(
     () => draftOptions.map((opt) => localizeDraftTypeOption(t, opt)),
     [draftOptions, t],
@@ -68,7 +74,10 @@ export function DraftTypeSelector({
             hint: dt.hint,
           }))}
           value={
-            effectiveType && isDraftTypeAllowedForType(state.draftType, effectiveType)
+            effectiveType &&
+            (state.idpSelected
+              ? isIdpDraftTypeAllowed(state.draftType)
+              : isDraftTypeAllowedForType(state.draftType, effectiveType))
               ? state.draftType
               : draftOptions[0]?.id ?? 'snake'
           }

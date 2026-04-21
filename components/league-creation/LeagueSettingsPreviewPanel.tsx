@@ -6,6 +6,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { LeagueCreationPresetPayload } from '@/hooks/useSportPreset';
+import { supportsIdpLeagueSport } from '@/lib/sport-scope';
 
 export interface LeagueSettingsPreviewPanelProps {
   preset: LeagueCreationPresetPayload | null;
@@ -46,7 +47,7 @@ export function LeagueSettingsPreviewPanel({
     .join(' ')
     .toUpperCase();
   const isSoccer = sportUpper === 'SOCCER';
-  const isNflIdp = sportUpper === 'NFL' && variantText.includes('IDP');
+  const isFootballIdp = supportsIdpLeagueSport(sportUpper) && variantText.includes('IDP');
 
   const rosterSlots = preset.roster?.starter_slots
     ? Object.entries(preset.roster.starter_slots)
@@ -68,8 +69,8 @@ export function LeagueSettingsPreviewPanel({
   const playerPoolType =
     isSoccer
       ? 'Soccer players (GKP/GK, DEF, MID, FWD)'
-      : isNflIdp
-        ? 'NFL offensive + IDP defenders (DL, LB, DB, IDP FLEX)'
+      : isFootballIdp
+        ? `${sportUpper} offensive + IDP defenders (DL, LB, DB, IDP FLEX)`
         : sportUpper === 'NFL'
           ? 'NFL offensive + DST'
           : `${sportUpper || 'Sport'} players`;
@@ -130,8 +131,8 @@ export function LeagueSettingsPreviewPanel({
   const contextMessage =
     isSoccer
       ? 'Soccer is a separate sport selection, so this preview uses soccer-specific roster slots, scoring, and player pools.'
-      : isNflIdp
-        ? 'IDP keeps NFL as the sport, but expands the preset to include defensive starters, defenders in the player pool, and IDP scoring.'
+      : isFootballIdp
+        ? `IDP keeps ${sportUpper} as the sport, but expands the preset to include defensive starters, defenders in the player pool, and IDP scoring.`
         : null;
 
   return (

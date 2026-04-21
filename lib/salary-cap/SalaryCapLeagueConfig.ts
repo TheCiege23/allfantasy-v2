@@ -43,13 +43,14 @@ function toMode(s: unknown): SalaryCapMode {
 }
 
 function toStartupDraftType(s: unknown): StartupDraftType {
-  if (s === 'snake' || s === 'linear') return s
+  if (s === 'snake') return 'snake'
   return 'auction'
 }
 
 function toFutureDraftType(s: unknown): FutureDraftType {
   if (s === 'auction' || s === 'weighted_lottery') return s
-  return 'linear'
+  // 'linear' is legacy — normalize to 'snake' (snake rookie-scale contracts)
+  return 'snake'
 }
 
 export async function getSalaryCapConfig(leagueId: string): Promise<SalaryCapConfig | null> {

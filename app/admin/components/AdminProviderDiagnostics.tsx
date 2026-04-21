@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   RefreshCw,
   ChevronDown,
@@ -42,6 +43,21 @@ type DraftAutomationDiagnosticsPayload = {
     deterministicSharePct: number;
   } | null;
   executionMatrix: DraftAutomationMatrixEntry[];
+};
+
+type ClearSportsHistoryRow = NonNullable<ProviderDiagnosticsPayload["clearSportsSyncHistory"]>[number];
+
+type ClearSportsHistoryGroup = {
+  id: string;
+  entityFamily: string;
+  season: string;
+  sportLabel: string;
+  latestAt: number;
+  totalImported: number;
+  totalCacheWrites: number;
+  totalErrors: number;
+  errorCount: number;
+  rows: ClearSportsHistoryRow[];
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -135,14 +151,153 @@ function formatLatencyTrend(trend: string) {
 }
 
 export default function AdminProviderDiagnostics() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const historyFiltersHydratedRef = useRef(false);
+
   const [data, setData] = useState<ProviderDiagnosticsPayload | null>(null);
   const [draftAutomation, setDraftAutomation] = useState<DraftAutomationDiagnosticsPayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [importRunning, setImportRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
   const [draftAutomationError, setDraftAutomationError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [failuresOpen, setFailuresOpen] = useState(false);
   const [fallbacksOpen, setFallbacksOpen] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState<Set<string>>(new Set());
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "errors" | "clean">("all");
+  const [historySeasonFilter, setHistorySeasonFilter] = useState<string>("all");
+  const [historySearch, setHistorySearch] = useState("");
+
+  useEffect(() => {
+    const rawStatus = searchParams.get("csHistoryStatus");
+    const status = rawStatus === "errors" || rawStatus === "clean" ? rawStatus : "all";
+    const season = searchParams.get("csHistorySeason") || "all";
+    const query = searchParams.get("csHistoryQuery") || "";
+
+    setHistoryStatusFilter((prev) => (prev === status ? prev : status));
+    setHistorySeasonFilter((prev) => (prev === season ? prev : season));
+    setHistorySearch((prev) => (prev === query ? prev : query));
+
+    historyFiltersHydratedRef.current = true;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!historyFiltersHydratedRef.current) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmedQuery = historySearch.trim();
+
+    if (historyStatusFilter === "all") params.delete("csHistoryStatus");
+    else params.set("csHistoryStatus", historyStatusFilter);
+
+    if (historySeasonFilter === "all") params.delete("csHistorySeason");
+    else params.set("csHistorySeason", historySeasonFilter);
+
+    if (!trimmedQuery) params.delete("csHistoryQuery");
+    else params.set("csHistoryQuery", trimmedQuery);
+
+    const nextQuery = params.toString();
+    const currentQuery = searchParams.toString();
+    if (nextQuery === currentQuery) return;
+
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+  }, [historySearch, historySeasonFilter, historyStatusFilter, pathname, router, searchParams]);
+
+  const clearSportsHistoryGroups = useMemo<ClearSportsHistoryGroup[]>(() => {
+    const rows = data?.clearSportsSyncHistory ?? [];
+    const groups = new Map<string, {
+      entityFamily: string;
+      season: string;
+      sports: Set<string>;
+      latestAt: number;
+      totalImported: number;
+      totalCacheWrites: number;
+      totalErrors: number;
+      errorCount: number;
+      rows: ClearSportsHistoryRow[];
+    }>();
+
+    for (const row of rows) {
+      const entityFamily = row.entityType.split(":")[0] || row.entityType;
+      const season = row.key || "-";
+      const sport = row.sport || "GLOBAL";
+      const groupId = `${entityFamily}::${season}`;
+
+      const current = groups.get(groupId) ?? {
+        entityFamily,
+        season,
+        sports: new Set<string>(),
+        latestAt: 0,
+        totalImported: 0,
+        totalCacheWrites: 0,
+        totalErrors: 0,
+        errorCount: 0,
+        rows: [],
+      };
+
+      current.sports.add(sport);
+      current.latestAt = Math.max(current.latestAt, row.updatedAt);
+      current.totalImported += row.recordsImported;
+      current.totalCacheWrites += row.recordsUpdated;
+      current.totalErrors += row.recordsSkipped;
+      if (row.lastError) current.errorCount += 1;
+      current.rows.push(row);
+      groups.set(groupId, current);
+    }
+
+    return Array.from(groups.entries())
+      .map(([id, group]) => ({
+        id,
+        entityFamily: group.entityFamily,
+        season: group.season,
+        sportLabel:
+          group.sports.size === 1
+            ? Array.from(group.sports)[0]
+            : `${group.sports.size} sports`,
+        latestAt: group.latestAt,
+        totalImported: group.totalImported,
+        totalCacheWrites: group.totalCacheWrites,
+        totalErrors: group.totalErrors,
+        errorCount: group.errorCount,
+        rows: group.rows.sort((a, b) => b.updatedAt - a.updatedAt),
+      }))
+      .sort((a, b) => b.latestAt - a.latestAt);
+  }, [data?.clearSportsSyncHistory]);
+
+  const clearSportsHistorySeasonOptions = useMemo(() => {
+    const values = new Set<string>();
+    for (const group of clearSportsHistoryGroups) {
+      if (group.season && group.season !== "-") values.add(group.season);
+    }
+    return Array.from(values).sort((a, b) => b.localeCompare(a));
+  }, [clearSportsHistoryGroups]);
+
+  const filteredClearSportsHistoryGroups = useMemo(() => {
+    const query = historySearch.trim().toLowerCase();
+
+    return clearSportsHistoryGroups.filter((group) => {
+      if (historyStatusFilter === "errors" && group.errorCount === 0) return false;
+      if (historyStatusFilter === "clean" && group.errorCount > 0) return false;
+      if (historySeasonFilter !== "all" && group.season !== historySeasonFilter) return false;
+
+      if (!query) return true;
+
+      const inHeader =
+        group.entityFamily.toLowerCase().includes(query) ||
+        group.sportLabel.toLowerCase().includes(query);
+      if (inHeader) return true;
+
+      return group.rows.some(
+        (row) =>
+          row.entityType.toLowerCase().includes(query) ||
+          String(row.sport || "GLOBAL").toLowerCase().includes(query) ||
+          String(row.lastError || "").toLowerCase().includes(query),
+      );
+    });
+  }, [clearSportsHistoryGroups, historySearch, historySeasonFilter, historyStatusFilter]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -190,8 +345,44 @@ export default function AdminProviderDiagnostics() {
     load();
   }, [load]);
 
+  const runClearSportsImport = useCallback(async () => {
+    setImportRunning(true);
+    setImportMessage(null);
+    try {
+      const res = await fetch('/api/admin/clearsports/import', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ syncType: 'all' }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || 'ClearSports import failed');
+      }
+      const endpointCount = Number(json?.summary?.fetchedEndpoints ?? 0);
+      const cacheWrites = Number(json?.summary?.cacheWrites ?? 0);
+      setImportMessage(`ClearSports import complete: ${endpointCount} endpoints, ${cacheWrites} cache writes.`);
+      await load();
+    } catch (e: unknown) {
+      setImportMessage(e instanceof Error ? e.message : 'ClearSports import failed');
+    } finally {
+      setImportRunning(false);
+    }
+  }, [load]);
+
   const toggle = (id: string) => {
     setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleHistory = (id: string) => {
+    setHistoryExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -213,16 +404,33 @@ export default function AdminProviderDiagnostics() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh status
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={runClearSportsImport}
+            disabled={loading || importRunning}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 text-sm font-medium text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
+          >
+            <Activity className={`h-4 w-4 ${importRunning ? 'animate-pulse' : ''}`} />
+            {importRunning ? 'Importing ClearSports…' : 'Run ClearSports Import'}
+          </button>
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/90 hover:bg-white/10 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh status
+          </button>
+        </div>
       </div>
+
+      {importMessage && (
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+          {importMessage}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200 flex items-center gap-2">
@@ -414,6 +622,162 @@ export default function AdminProviderDiagnostics() {
                 );
               })}
             </ul>
+          </section>
+
+          <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">
+            <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-white/5 bg-white/[0.03]">
+              <span className="text-sm font-semibold text-white/90">ClearSports import history</span>
+              <span className="text-xs text-white/50">
+                {filteredClearSportsHistoryGroups.length} of {clearSportsHistoryGroups.length} grouped rows
+              </span>
+            </div>
+
+            {clearSportsHistoryGroups.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-3 sm:grid-cols-3">
+                <label className="text-xs text-white/70">
+                  <span className="mb-1 block text-white/50">Status</span>
+                  <select
+                    value={historyStatusFilter}
+                    onChange={(e) => setHistoryStatusFilter(e.target.value as "all" | "errors" | "clean")}
+                    className="h-9 w-full rounded-lg border border-white/15 bg-black/30 px-2 text-xs text-white outline-none focus:border-cyan-400/50"
+                  >
+                    <option value="all">All</option>
+                    <option value="errors">Errors only</option>
+                    <option value="clean">Clean only</option>
+                  </select>
+                </label>
+
+                <label className="text-xs text-white/70">
+                  <span className="mb-1 block text-white/50">Season</span>
+                  <select
+                    value={historySeasonFilter}
+                    onChange={(e) => setHistorySeasonFilter(e.target.value)}
+                    className="h-9 w-full rounded-lg border border-white/15 bg-black/30 px-2 text-xs text-white outline-none focus:border-cyan-400/50"
+                  >
+                    <option value="all">All seasons</option>
+                    {clearSportsHistorySeasonOptions.map((season) => (
+                      <option key={season} value={season}>
+                        {season}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-xs text-white/70">
+                  <span className="mb-1 block text-white/50">Search</span>
+                  <input
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="Entity, sport, or error text"
+                    className="h-9 w-full rounded-lg border border-white/15 bg-black/30 px-2 text-xs text-white placeholder:text-white/35 outline-none focus:border-cyan-400/50"
+                  />
+                </label>
+              </div>
+            )}
+
+            {clearSportsHistoryGroups.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-white/50">No ClearSports sync history yet.</div>
+            ) : filteredClearSportsHistoryGroups.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-white/50">No history rows match the current filters.</div>
+            ) : (
+              <ul className="divide-y divide-white/5">
+                {filteredClearSportsHistoryGroups.map((group) => {
+                  const isOpen = historyExpanded.has(group.id);
+                  const hasErrors = group.errorCount > 0;
+
+                  return (
+                    <li key={group.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleHistory(group.id)}
+                        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.04] transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {isOpen ? (
+                            <ChevronDown className="h-4 w-4 text-white/50 shrink-0" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-white/50 shrink-0" />
+                          )}
+                          <span className="text-sm font-medium text-white/90">{group.entityFamily}</span>
+                          <span className="text-xs rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/65">
+                            Season {group.season}
+                          </span>
+                          <span className="text-xs rounded-full border border-white/15 bg-white/5 px-2 py-0.5 text-white/65">
+                            {group.sportLabel}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-white/70">
+                          <span>Imported {group.totalImported}</span>
+                          <span>Writes {group.totalCacheWrites}</span>
+                          <span>Errors {group.totalErrors}</span>
+                          <span className="text-white/50">{formatTime(group.latestAt)}</span>
+                          {hasErrors ? (
+                            <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-300">
+                              Issues
+                            </span>
+                          ) : (
+                            <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                              Clean
+                            </span>
+                          )}
+                        </div>
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 pb-4 pl-10">
+                          <div className="overflow-x-auto rounded-lg border border-white/10">
+                            <table className="min-w-full divide-y divide-white/10 text-xs">
+                              <thead className="bg-white/[0.03] text-white/50 uppercase tracking-wide">
+                                <tr>
+                                  <th className="px-3 py-2 text-left">Entity</th>
+                                  <th className="px-3 py-2 text-left">Sport</th>
+                                  <th className="px-3 py-2 text-left">Updated</th>
+                                  <th className="px-3 py-2 text-left">Imported</th>
+                                  <th className="px-3 py-2 text-left">Writes</th>
+                                  <th className="px-3 py-2 text-left">Errors</th>
+                                  <th className="px-3 py-2 text-left">Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-white/75">
+                                {group.rows.map((row, index) => {
+                                  const hasError = Boolean(row.lastError);
+                                  return (
+                                    <tr key={`${group.id}-${row.entityType}-${index}`} className="align-top">
+                                      <td className="px-3 py-2 font-medium text-white/90">{row.entityType}</td>
+                                      <td className="px-3 py-2 text-white/60">{row.sport || "GLOBAL"}</td>
+                                      <td className="px-3 py-2 text-white/60">{formatTime(row.updatedAt)}</td>
+                                      <td className="px-3 py-2">{row.recordsImported}</td>
+                                      <td className="px-3 py-2">{row.recordsUpdated}</td>
+                                      <td className="px-3 py-2">{row.recordsSkipped}</td>
+                                      <td className="px-3 py-2">
+                                        {hasError ? (
+                                          <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-300">
+                                            Error
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-300">
+                                            Success
+                                          </span>
+                                        )}
+                                        {hasError && (
+                                          <p className="mt-1 max-w-[360px] truncate text-[11px] text-red-200/80" title={row.lastError || undefined}>
+                                            {row.lastError}
+                                          </p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
 
           <section className="rounded-xl border border-white/10 overflow-hidden bg-white/[0.02]">

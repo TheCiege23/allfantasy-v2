@@ -11,7 +11,7 @@ import type { PricedAsset } from '@/lib/trade-finder/candidate-generator'
 import type { LeagueIntelligence, ManagerProfile } from '@/lib/trade-engine/types'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import {
-  getAllPlayers,
+  getPlayersBySport,
   getLeagueInfo,
   getLeagueRosters,
   getLeagueTransactions,
@@ -123,7 +123,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       return NextResponse.json({ error: 'User not found in this league' }, { status: 404 })
     }
 
-    const nflPlayers = await getAllPlayers().catch(() => ({} as Record<string, any>))
+    const leagueSport = String((league as Record<string, unknown>)?.sport ?? 'nfl').toLowerCase()
+    const sportPlayers = await getPlayersBySport(leagueSport).catch(() => ({} as Record<string, any>))
 
     const leagueSettings = league.settings || {}
     const rosterPositions: string[] = league.roster_positions || []
@@ -147,7 +148,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       const user = userMap.get(r.owner_id || '')
       const starters = new Set(r.starters || [])
       const players: RosteredPlayer[] = (r.players || []).map((pid: string) => {
-        const p = nflPlayers[pid]
+        const p = sportPlayers[pid]
         const slot = starters.has(pid) ? 'Starter' as const :
           (r.reserve || []).includes(pid) ? 'IR' as const :
           (r.taxi || []).includes(pid) ? 'Taxi' as const :
@@ -415,14 +416,14 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
       if (p.suggestedOffer) {
         for (const a of [...p.suggestedOffer.userGives, ...p.suggestedOffer.partnerGives]) {
           if (!a.isPick) {
-            allOfferAssets.push({ assetId: a.assetId, teamAbbr: nflPlayers[a.assetId]?.team || null, isPick: false })
+            allOfferAssets.push({ assetId: a.assetId, teamAbbr: sportPlayers[a.assetId]?.team || null, isPick: false })
           }
         }
       }
     }
 
     const mediaMap = await attachPlayerMediaBatch(
-      allOfferAssets.map(a => ({ playerId: a.assetId, teamAbbr: a.teamAbbr, sport: 'nfl' }))
+      allOfferAssets.map(a => ({ playerId: a.assetId, teamAbbr: a.teamAbbr, sport: leagueSport }))
     )
 
     const enrichAsset = (a: { assetId: string; name: string; value: number; position: string; isPick: boolean }) => {
@@ -432,7 +433,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
           playerId: a.assetId,
           fullName: a.name,
           teamAbbr: null,
-          sport: 'nfl' as const,
+          sport: leagueSport,
           media: { headshotUrl: null, teamLogoUrl: null },
         }
       }
@@ -441,8 +442,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-finder/matchmaking", to
         ...a,
         playerId: a.assetId,
         fullName: a.name,
-        teamAbbr: resolved?.teamAbbr || nflPlayers[a.assetId]?.team || null,
-        sport: 'nfl' as const,
+        teamAbbr: resolved?.teamAbbr || sportPlayers[a.assetId]?.team || null,
+        sport: leagueSport,
         media: resolved?.media || { headshotUrl: null, teamLogoUrl: null },
       }
     }

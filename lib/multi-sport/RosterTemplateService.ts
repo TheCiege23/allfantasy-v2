@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { getPositionsForSport } from './SportRegistry'
 import { toSportType, type SportType } from './sport-types'
 import { getRosterDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export interface RosterTemplateSlotDto {
   slotName: string
@@ -522,16 +523,20 @@ export async function getRosterTemplate(
     }
   }
 
-  if (leagueId && sport === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'idp')) {
+  if (
+    leagueId &&
+    supportsIdpLeagueSport(sport) &&
+    (normalizedFormat === 'IDP' || normalizedFormat === 'idp' || normalizedFormat === 'DYNASTY_IDP')
+  ) {
     try {
       const { getRosterDefaultsForIdpLeague } = await import('@/lib/idp/IDPLeagueConfig')
       const idpDefaults = await getRosterDefaultsForIdpLeague(leagueId)
       if (idpDefaults) {
-        const positions = getPositionsForSport('NFL', 'IDP')
+        const positions = getPositionsForSport(sport, 'IDP')
         const slots = buildSlotsFromRosterDefaultsDef(idpDefaults, positions)
         return {
-          templateId: `default-NFL-IDP-${leagueId}`,
-          sportType: 'NFL',
+          templateId: `default-${sport}-IDP-${leagueId}`,
+          sportType: sport,
           name: 'IDP League Roster',
           formatType: 'IDP',
           slots,

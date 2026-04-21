@@ -5,8 +5,8 @@
 import type { LeagueSport } from '@prisma/client'
 
 export type SalaryCapMode = 'dynasty' | 'bestball'
-export type StartupDraftType = 'auction' | 'snake' | 'linear'
-export type FutureDraftType = 'linear' | 'auction' | 'weighted_lottery'
+export type StartupDraftType = 'auction' | 'snake'
+export type FutureDraftType = 'auction' | 'snake' | 'weighted_lottery'
 export type ContractStatus = 'active' | 'expired' | 'cut' | 'traded' | 'tagged' | 'option_exercised'
 export type ContractSource =
   | 'startup_auction'

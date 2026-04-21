@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const sport = variantContext.sport
   const isDynasty = Boolean(body.isDynasty)
   const isSF = Boolean(body.isSF)
-  const isIdp = variantContext.isNflIdp || Boolean(body.idp) || Boolean(body.is_idp)
+  const isIdp = variantContext.isFootballIdp || variantContext.isNflIdp || Boolean(body.idp) || Boolean(body.is_idp)
   const mode: 'bpa' | 'needs' = body.mode === 'bpa' ? 'bpa' : 'needs'
   const aiAdpByKey = body.aiAdpByKey && typeof body.aiAdpByKey === 'object' ? body.aiAdpByKey : undefined
   const byeByKey = body.byeByKey && typeof body.byeByKey === 'object' ? body.byeByKey : undefined

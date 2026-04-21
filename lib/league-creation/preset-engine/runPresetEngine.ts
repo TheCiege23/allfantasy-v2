@@ -11,7 +11,7 @@ import {
   type LeagueFormatId,
   type LeagueFormatResolution,
 } from '@/lib/league/format-engine'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeConceptToFormat, type NormalizedConcept } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { DerivedLeagueFlags, PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 
@@ -109,8 +109,7 @@ export function runPresetEngine(input: RunPresetEngineInput): PresetEngineOutput
   const sport = normalizeToSupportedSport(input.sport)
   const requestedModifiers = inferModifiersFromInput(normalizedConcept, input.scoringPreset)
 
-  const leagueVariant =
-    aliasTags.includes('idp') && sport === 'NFL' ? 'IDP' : null
+  const leagueVariant = aliasTags.includes('idp') && supportsIdpLeagueSport(sport) ? 'IDP' : null
 
   const resolution = resolveLeagueFormat({
     sport,

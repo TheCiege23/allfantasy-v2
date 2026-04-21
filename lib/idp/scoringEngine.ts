@@ -1,6 +1,6 @@
 /**
  * IDP fantasy scoring — apply league preset + overrides to canonical `idp_*` stat lines.
- * NFL only. Pure math + optional Prisma load via `getIdpLeagueConfig`.
+ * Football IDP scoring (NFL + NCAAF). Pure math + optional Prisma load via `getIdpLeagueConfig`.
  *
  * Commissioner edits persist to `LeagueScoringOverride` and merge in `getLeagueScoringRules`.
  * `getMergedScoringRulesForLeague` overlays those effective `idp_*` rules so IDP surfaces
@@ -29,8 +29,12 @@ function mergeOverrides(presetValues: Record<string, number>, overrides: IdpScor
 /**
  * Merge preset scoring from `getIdpPresetScoring` with optional league overrides.
  */
-export function mergeIdpScoringRules(preset: string, overrides?: IdpScoringOverrides | null): Record<string, number> {
-  const base = getIdpPresetScoring(preset)
+export function mergeIdpScoringRules(
+  preset: string,
+  overrides?: IdpScoringOverrides | null,
+  sportType?: string | null
+): Record<string, number> {
+  const base = getIdpPresetScoring(preset, sportType)
   return mergeOverrides(base, overrides ?? null)
 }
 
@@ -41,13 +45,12 @@ export function mergeIdpScoringRules(preset: string, overrides?: IdpScoringOverr
 export async function getMergedScoringRulesForLeague(leagueId: string): Promise<Record<string, number>> {
   const cfg = await getIdpLeagueConfig(leagueId)
   const preset = cfg?.scoringPreset ?? 'balanced'
-  const base = getIdpPresetScoring(preset)
-  const merged = mergeOverrides(base, cfg?.scoringOverrides ?? null)
-
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
     select: { sport: true },
   })
+  const base = getIdpPresetScoring(preset, league?.sport)
+  const merged = mergeOverrides(base, cfg?.scoringOverrides ?? null)
   if (!league?.sport) return merged
 
   const rules = await resolveScoringRulesForLeague(leagueId, league.sport as LeagueSport)

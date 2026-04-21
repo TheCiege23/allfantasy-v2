@@ -81,6 +81,7 @@ interface League {
   season: number
   type: string
   scoring: string
+  sport?: string
   is_sf?: boolean
   team_count: number
 }
@@ -865,7 +866,10 @@ export default function TradeFinderV2({
   const resolveRosterId = useCallback(async (leagueId: string): Promise<number | null> => {
     if (userRosterId) return userRosterId
     try {
-      const params = new URLSearchParams({ league_id: leagueId, sleeper_username: username, sport: 'nfl' })
+      const leagueSport = String(
+        leagues.find((league) => league.league_id === leagueId)?.sport ?? 'nfl'
+      ).toLowerCase()
+      const params = new URLSearchParams({ league_id: leagueId, sleeper_username: username, sport: leagueSport })
       if (sleeperUserId) params.set('sleeper_user_id', sleeperUserId)
       const res = await fetch(`/api/legacy/trade/roster?${params.toString()}`)
       const data = await res.json()
@@ -875,7 +879,7 @@ export default function TradeFinderV2({
       }
     } catch {}
     return null
-  }, [username, sleeperUserId, userRosterId])
+  }, [username, sleeperUserId, userRosterId, leagues])
 
   const runMatchmaking = useCallback(async () => {
     if (!selectedLeague || !username) return

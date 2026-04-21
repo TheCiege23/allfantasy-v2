@@ -1,6 +1,6 @@
 import type { LeagueSport } from '@prisma/client'
 import { getRosterDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export type FormatRosterModifierId =
   | 'superflex'
@@ -39,7 +39,7 @@ function normalizeVariantForRoster(
   formatId?: string | null,
   modifiers: FormatRosterModifierId[] = []
 ): string | undefined {
-  if (modifiers.includes('idp') && sport === 'NFL') return 'IDP'
+  if (modifiers.includes('idp') && supportsIdpLeagueSport(sport)) return 'IDP'
   if (formatId === 'devy') return 'devy_dynasty'
   if (formatId === 'c2c') return 'merged_devy_c2c'
   if (modifiers.includes('superflex') && sport === 'NFL') return 'SUPERFLEX'
@@ -50,13 +50,13 @@ function resolveZombieRosterDefaults(
   sport: LeagueSport,
   modifiers: FormatRosterModifierId[],
 ): FormatRosterDefaults {
-  const idpActive = sport === 'NFL' && modifiers.includes('idp')
+  const idpActive = supportsIdpLeagueSport(sport) && modifiers.includes('idp')
   if (idpActive) {
-    const idp = getRosterDefaults('NFL', 'IDP')
+    const idp = getRosterDefaults(sport, 'IDP')
     const starterSlots = { ...idp.starter_slots }
     const flexDefinitions = [...idp.flex_definitions]
     const resolved: FormatRosterDefaults = {
-      sport: 'NFL',
+      sport,
       starterSlots,
       benchSlots: idp.bench_slots,
       irSlots: 0,

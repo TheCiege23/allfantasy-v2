@@ -19,7 +19,9 @@ import {
   getTeamCountOptions,
   getDefaultTeamCount,
   getDraftTypeOptions,
+  getIdpDraftTypeOptions,
   isDraftTypeAllowedForType,
+  isIdpDraftTypeAllowed,
   getSurvivorTribeOptions,
   isThirdRoundReversalAvailable,
   isIdpAvailableForSport,
@@ -178,8 +180,8 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     [state.sport, effectiveType, state.soccerPipeline]
   )
   const draftOptions = useMemo(
-    () => getDraftTypeOptions(effectiveType, state.sport),
-    [effectiveType, state.sport]
+    () => (state.idpSelected ? getIdpDraftTypeOptions() : getDraftTypeOptions(effectiveType, state.sport)),
+    [effectiveType, state.sport, state.idpSelected]
   )
   const survivorTribes = useMemo(() => getSurvivorTribeOptions(state.teamCount), [state.teamCount])
   const isSnake =
@@ -196,11 +198,13 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     const patch: Partial<CreateLeagueV2State> = {}
 
     if (card.id === 'idp') {
-      // IDP: set modifier flag, keep leagueType as redraft, force NFL
+      // IDP: set modifier flag, keep leagueType as redraft, snap to first supported IDP sport if needed.
       patch.idpSelected = true
       patch.leagueType = 'redraft'
       if (!isIdpAvailableForSport(state.sport)) {
-        patch.sport = 'NFL'
+        patch.sport =
+          (SUPPORTED_SPORTS.find((candidate) => isIdpAvailableForSport(candidate)) as SupportedSport | undefined) ??
+          'NFL'
         patch.soccerPipeline = null
       }
     } else {
@@ -219,8 +223,10 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
 
     // Snap draft type if not allowed
     const nextType = card.id === 'idp' ? 'redraft' : card.id
-    if (!isDraftTypeAllowedForType(state.draftType, nextType)) {
-      const firstAllowed = getDraftTypeOptions(nextType)
+    const draftAllowed =
+      card.id === 'idp' ? isIdpDraftTypeAllowed(state.draftType) : isDraftTypeAllowedForType(state.draftType, nextType)
+    if (!draftAllowed) {
+      const firstAllowed = card.id === 'idp' ? getIdpDraftTypeOptions() : getDraftTypeOptions(nextType)
       patch.draftType = firstAllowed[0]?.id ?? 'snake'
     }
 
@@ -236,7 +242,7 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
     const patch: Partial<CreateLeagueV2State> = { sport }
     // Reset soccer pipeline
     patch.soccerPipeline = sport === 'SOCCER' ? 'euro' : null
-    // IDP is NFL-only
+    // IDP is only available for supported football sports.
     if (state.idpSelected && !isIdpAvailableForSport(sport)) {
       patch.idpSelected = false
     }
@@ -383,7 +389,15 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
             label: dt.label,
             hint: dt.hint,
           }))}
-          value={isDraftTypeAllowedForType(state.draftType, effectiveType) ? state.draftType : draftOptions[0]?.id ?? 'snake'}
+          value={
+            state.idpSelected
+              ? isIdpDraftTypeAllowed(state.draftType)
+                ? state.draftType
+                : draftOptions[0]?.id ?? 'snake'
+              : isDraftTypeAllowedForType(state.draftType, effectiveType)
+                ? state.draftType
+                : draftOptions[0]?.id ?? 'snake'
+          }
           onChange={(draftType) => onChange({ draftType })}
           accent={accent}
           ariaLabel="Draft type"

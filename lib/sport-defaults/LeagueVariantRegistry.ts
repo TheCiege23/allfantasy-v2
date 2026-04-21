@@ -6,6 +6,7 @@
  */
 import type { SportType, NFLLeagueVariant } from './types'
 import { toSportType } from './sport-type-utils'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export const NFL_VARIANTS: NFLLeagueVariant[] = [
   'STANDARD',
@@ -80,7 +81,7 @@ export function getFormatTypeForVariant(
       if (sport === 'NCAAF') return 'PPR'
       return 'standard'
     }
-    if (v === 'IDP' || v === 'DYNASTY_IDP') return 'standard'
+    if (v === 'IDP' || v === 'DYNASTY_IDP') return supportsIdpLeagueSport(sport) ? 'IDP' : 'standard'
     if (v === 'STANDARD' || v === 'SUPERFLEX') return 'standard'
     return 'standard'
   }
@@ -94,7 +95,7 @@ export function getFormatTypeForVariant(
 }
 
 /**
- * Get roster overlay for variant (extra starter_slots to merge with base). Only NFL IDP adds slots.
+ * Get roster overlay for variant (extra starter_slots to merge with base).
  */
 export function getRosterOverlayForVariant(
   sportType: SportType | string,
@@ -102,7 +103,9 @@ export function getRosterOverlayForVariant(
 ): Record<string, number> | null {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
   const v = (variant ?? '').toUpperCase()
-  if (sport === 'NFL' && (v === 'IDP' || v === 'DYNASTY_IDP')) return { ...NFL_IDP_ROSTER_OVERLAY }
+  if (supportsIdpLeagueSport(sport) && (v === 'IDP' || v === 'DYNASTY_IDP')) {
+    return { ...NFL_IDP_ROSTER_OVERLAY }
+  }
   return null
 }
 
@@ -127,7 +130,7 @@ export function isDevyDynastyVariant(variant: string | null | undefined): boolea
  */
 export function getVariantsForSport(sportType: SportType | string): { value: string; label: string }[] {
   const sport = toSportType(typeof sportType === 'string' ? sportType : sportType)
-  if (sport === 'NFL') {
+  if (sport === 'NFL' || sport === 'NCAAF') {
     return NFL_VARIANTS.map((v) => ({ value: v, label: NFL_VARIANT_LABELS[v] }))
   }
   return [{ value: 'STANDARD', label: 'Standard' }]

@@ -1,9 +1,10 @@
 /**
- * IDP League config: detect, load, upsert. NFL only.
+ * IDP League config: detect, load, upsert for football IDP (NFL + NCAAF).
  * PROMPT 2/6.
  */
 
 import { prisma } from '@/lib/prisma'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 import type {
   IdpLeagueConfigLoaded,
   IdpPositionMode,
@@ -26,7 +27,12 @@ export async function isIdpLeague(leagueId: string): Promise<boolean> {
     where: { id: leagueId },
     select: { leagueVariant: true, sport: true },
   })
-  return league?.sport === 'NFL' && league?.leagueVariant != null && IDP_VARIANTS.includes(league.leagueVariant)
+  return Boolean(
+    league?.sport &&
+      supportsIdpLeagueSport(league.sport) &&
+      league?.leagueVariant != null &&
+      IDP_VARIANTS.includes(league.leagueVariant)
+  )
 }
 
 function toPositionMode(s: unknown): IdpPositionMode {
@@ -45,7 +51,7 @@ function toScoringPreset(s: unknown): IdpScoringPreset {
 }
 
 function toDraftType(s: unknown): IdpDraftType {
-  if (s === 'linear' || s === 'auction') return s
+  if (s === 'linear' || s === 'auction' || s === 'offline' || s === 'auto') return s
   return 'snake'
 }
 
@@ -81,7 +87,7 @@ export async function getIdpLeagueConfig(leagueId: string): Promise<IdpLeagueCon
     where: { id: leagueId },
     select: { id: true, sport: true, leagueVariant: true },
   })
-  if (!league || league.sport !== 'NFL') return null
+  if (!league || !supportsIdpLeagueSport(league.sport)) return null
 
   const row = await prisma.idpLeagueConfig.findUnique({
     where: { leagueId },
@@ -174,12 +180,18 @@ export async function upsertIdpLeagueConfig(
 export async function getRosterDefaultsForIdpLeague(leagueId: string): Promise<import('@/lib/sport-defaults/types').RosterDefaults | null> {
   const config = await getIdpLeagueConfig(leagueId)
   if (!config) return null
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
+  if (!league || !supportsIdpLeagueSport(league.sport)) return null
   const { getFullRosterDefaultsForIdp } = await import('./IDPRosterPresets')
   return getFullRosterDefaultsForIdp(
     config.rosterPreset,
     config.slotOverrides,
     config.positionMode,
     config.benchSlots,
-    config.irSlots
+    config.irSlots,
+    league.sport
   )
 }

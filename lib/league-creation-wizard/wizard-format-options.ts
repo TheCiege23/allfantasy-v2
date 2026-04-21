@@ -213,7 +213,7 @@ export function formatOptionsApplyToLeagueType(
     out.big_brother_consecutive_hoh = options.bigBrotherConsecutiveHoh ?? false
   }
 
-  // IDP applies as a modifier across league types (NFL only)
+  // IDP applies as a modifier across league types (sport support is enforced by sport-scope).
   if (options.idpEnabled) {
     out.idp_enabled = true
     out.idp_position_mode = options.idpPositionMode || 'standard'

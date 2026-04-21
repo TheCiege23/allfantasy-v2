@@ -29,7 +29,9 @@ export function buildSettingsPreview(
   const merged = { ...base }
   // Standard defaults: resolve default scoring/roster format so created league uses correct templates
   const defaultFormat =
-    context.isNflIdp ? 'IDP' : getSportConfig(context.sport as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER').defaultFormat
+    (context.isFootballIdp || context.isNflIdp)
+      ? 'IDP'
+      : getSportConfig(context.sport as 'NFL' | 'NBA' | 'MLB' | 'NHL' | 'NCAAF' | 'NCAAB' | 'SOCCER').defaultFormat
   if (merged.roster_format_type == null) merged.roster_format_type = defaultFormat
   if (merged.scoring_format_type == null) merged.scoring_format_type = defaultFormat
 

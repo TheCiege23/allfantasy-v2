@@ -1,5 +1,5 @@
 import type { LeagueSport } from '@prisma/client'
-import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS, normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { ZOMBIE_ELIGIBLE_LEAGUE_SPORTS } from '@/lib/zombie/zombie-sport-eligibility'
 import { getLeagueDefaults, getDraftDefaults, getWaiverDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
 import { resolveDefaultPlayoffConfig } from '@/lib/sport-defaults/DefaultPlayoffConfigResolver'
@@ -312,6 +312,7 @@ function inferDraftType(formatId: LeagueFormatId, requested?: string | null): Le
 
 function inferModifiers(
   format: LeagueFormatDefinition,
+  sport: LeagueSport,
   options: {
     requestedModifiers?: string[] | null
     leagueVariant?: string | null
@@ -330,7 +331,11 @@ function inferModifiers(
   if (format.id === 'salary_cap') requested.add('salary_cap')
   if (format.id === 'devy' || format.id === 'c2c' || format.id === 'dynasty') requested.add('taxi')
 
-  return [...new Set([...format.defaultModifiers, ...requested])].filter((modifier) =>
+  const merged = [...new Set([...format.defaultModifiers, ...requested])]
+  const sportScoped = merged.filter((modifier) =>
+    modifier !== 'idp' || supportsIdpLeagueSport(sport)
+  )
+  return sportScoped.filter((modifier) =>
     format.supportedModifiers.includes(modifier as LeagueFormatModifierId) ||
     format.defaultModifiers.includes(modifier as LeagueFormatModifierId)
   ) as LeagueFormatModifierId[]
@@ -415,24 +420,24 @@ export function resolveLeagueFormat(options: {
 }): LeagueFormatResolution {
   const sport = normalizeToSupportedSport(options.sport)
   const format = getLeagueFormatDefinition(options.leagueType)
-  const modifiers = inferModifiers(format, {
+  const scopedModifiers = inferModifiers(format, sport, {
     requestedModifiers: options.requestedModifiers,
     leagueVariant: options.leagueVariant,
   })
   const draftType = inferDraftType(format.id, options.draftType)
   const media = getLeagueTypeMedia(format.id)
-  const roster = resolveFormatRosterDefaults({ sport, formatId: format.id, modifiers })
-  const scoring = resolveFormatScoringDefaults({ sport, formatId: format.id, modifiers })
+  const roster = resolveFormatRosterDefaults({ sport, formatId: format.id, modifiers: scopedModifiers })
+  const scoring = resolveFormatScoringDefaults({ sport, formatId: format.id, modifiers: scopedModifiers })
   const leagueDefaults = getLeagueDefaults(sport)
   const draftDefaults = getDraftDefaults(
     sport,
-    modifiers.includes('idp')
+    scopedModifiers.includes('idp')
       ? 'IDP'
       : format.id === 'devy'
         ? 'devy_dynasty'
         : format.id === 'c2c'
           ? 'merged_devy_c2c'
-          : modifiers.includes('superflex')
+          : scopedModifiers.includes('superflex')
             ? 'SUPERFLEX'
             : null
   )
@@ -445,7 +450,7 @@ export function resolveLeagueFormat(options: {
     sport,
     format,
     draftType,
-    modifiers,
+    modifiers: scopedModifiers,
     media,
     roster,
     scoring,
@@ -469,10 +474,11 @@ export function mapImportedLeagueToFormat(input: {
   modifiers: LeagueFormatModifierId[]
 } {
   const normalizedType = toFormatId(input.leagueType)
+  const sport = normalizeToSupportedSport(input.sport)
   if (input.leagueType && normalizedType !== 'redraft') {
     return {
       formatId: normalizedType,
-      modifiers: inferModifiers(FORMAT_REGISTRY[normalizedType], { requestedModifiers: [], leagueVariant: null }),
+      modifiers: inferModifiers(FORMAT_REGISTRY[normalizedType], sport, { requestedModifiers: [], leagueVariant: null }),
     }
   }
 

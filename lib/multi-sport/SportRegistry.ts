@@ -5,6 +5,7 @@
 import type { SportType } from './sport-types'
 import { SPORT_TYPES, SPORT_DISPLAY_NAMES, SPORT_EMOJI } from './sport-types'
 import { getPositionsForSport as getPositionsFromRosterDefaults } from '@/lib/roster-defaults/PositionEligibilityResolver'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export const NFL_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DST'] as const
 /** NFL + IDP positions; DL/DB/IDP_FLEX are slot names; DE, DT, LB, CB, S are player positions. */
@@ -65,7 +66,7 @@ export function getAllSportConfigs(): SportConfig[] {
 }
 
 /**
- * Get positions for a sport. For NFL with formatType 'IDP' or 'idp', returns offensive + IDP positions.
+ * Get positions for a sport. For IDP football formats, returns offensive + IDP positions.
  */
 export function getPositionsForSport(sportType: SportType, formatType?: string): string[] {
   const positions = getPositionsFromRosterDefaults(sportType, formatType)
@@ -73,8 +74,9 @@ export function getPositionsForSport(sportType: SportType, formatType?: string):
 
   const fallback = SPORT_POSITIONS[sportType] ?? []
   const normalizedFormat = (formatType ?? '').toUpperCase()
-  if (sportType === 'NFL' && (normalizedFormat === 'IDP' || normalizedFormat === 'DYNASTY_IDP')) {
-    return [...NFL_IDP_POSITIONS]
+  if (supportsIdpLeagueSport(sportType) && (normalizedFormat === 'IDP' || normalizedFormat === 'DYNASTY_IDP')) {
+    const baseFootballPositions = fallback.filter((pos) => pos !== 'SUPERFLEX')
+    return [...new Set([...baseFootballPositions, 'DE', 'DT', 'LB', 'CB', 'S'])]
   }
   return [...fallback]
 }

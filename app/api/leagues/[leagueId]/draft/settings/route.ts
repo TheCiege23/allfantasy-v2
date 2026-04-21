@@ -19,6 +19,7 @@ import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 import { getRecentAuditEntries } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 import { getProviderStatus } from '@/lib/provider-config'
 import { notifyOrphanAiManagerAssigned } from '@/lib/draft-notifications'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -124,7 +125,12 @@ export async function GET(
         variant.draftUISettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi
           ? 'cpu'
           : variant.draftUISettings.orphanDrafterMode,
-      formatType: league?.sport === 'NFL' && (league?.leagueVariant === 'IDP' || league?.leagueVariant === 'DYNASTY_IDP' || league?.leagueVariant === 'idp') ? 'IDP' : undefined,
+      formatType:
+        league?.sport &&
+        supportsIdpLeagueSport(league.sport) &&
+        (league?.leagueVariant === 'IDP' || league?.leagueVariant === 'DYNASTY_IDP' || league?.leagueVariant === 'idp')
+          ? 'IDP'
+          : undefined,
       idpRosterSummary: idpRosterSummary ? { starterSlots: idpRosterSummary.starterSlots, benchSlots: idpRosterSummary.benchSlots } : undefined,
       idpScoringPreset: (idpRosterSummary as { scoringPreset?: string } | null)?.scoringPreset ?? undefined,
       idpPositionMode: (idpRosterSummary as { positionMode?: string } | null)?.positionMode ?? undefined,

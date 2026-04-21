@@ -5,10 +5,44 @@
  */
 
 import type { RosterDefaults } from '@/lib/sport-defaults/types'
+import type { SportType } from '@/lib/sport-defaults/types'
 import type { IdpPositionMode, IdpRosterPreset, IdpSlotOverrides } from './types'
 import { IDP_GROUP_TO_SPLIT } from './types'
 
-/** Base NFL offensive slots (no DST for IDP leagues; offense + IDP). */
+/** Base football offensive slots (no DST for IDP leagues; offense + IDP). */
+const FOOTBALL_IDP_OFFENSE_STARTER_SLOTS: Record<'NFL' | 'NCAAF', Record<string, number>> = {
+  NFL: {
+    QB: 1,
+    RB: 2,
+    WR: 2,
+    TE: 1,
+    FLEX: 1,
+    K: 1,
+  },
+  NCAAF: {
+    QB: 1,
+    RB: 2,
+    WR: 2,
+    TE: 1,
+    FLEX: 1,
+    SUPERFLEX: 1,
+    K: 1,
+  },
+}
+
+const FOOTBALL_IDP_OFFENSE_FLEX: Record<'NFL' | 'NCAAF', Array<{ slotName: string; allowedPositions: string[] }>> = {
+  NFL: [{ slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] }],
+  NCAAF: [
+    { slotName: 'FLEX', allowedPositions: ['RB', 'WR', 'TE'] },
+    { slotName: 'SUPERFLEX', allowedPositions: ['QB', 'RB', 'WR', 'TE'] },
+  ],
+}
+
+function resolveIdpSport(sportType?: SportType | null): 'NFL' | 'NCAAF' {
+  return sportType === 'NCAAF' ? 'NCAAF' : 'NFL'
+}
+
+/** Base NFL offense preserved for backward compatibility in existing callers. */
 const NFL_OFFENSE_STARTER_SLOTS: Record<string, number> = {
   QB: 1,
   RB: 2,
@@ -53,10 +87,11 @@ function advancedSlots(): Record<string, number> {
   }
 }
 
-function idpFlexDefinitions(positionMode: IdpPositionMode): Array<{ slotName: string; allowedPositions: string[] }> {
+function idpFlexDefinitions(positionMode: IdpPositionMode, sportType?: SportType | null): Array<{ slotName: string; allowedPositions: string[] }> {
+  const resolvedSport = resolveIdpSport(sportType)
   const allIdp = ['DE', 'DT', 'LB', 'CB', 'S']
   const flexDefs: Array<{ slotName: string; allowedPositions: string[] }> = [
-    ...NFL_OFFENSE_FLEX,
+    ...(FOOTBALL_IDP_OFFENSE_FLEX[resolvedSport] ?? NFL_OFFENSE_FLEX),
     { slotName: 'DL', allowedPositions: ['DE', 'DT'] },
     { slotName: 'DB', allowedPositions: ['CB', 'S'] },
     { slotName: 'IDP_FLEX', allowedPositions: allIdp },
@@ -115,13 +150,18 @@ export function getRosterDefaultsForIdpPreset(
   overrides: IdpSlotOverrides | null,
   positionMode: IdpPositionMode,
   benchSlots: number = 7,
-  irSlots: number = 2
+  irSlots: number = 2,
+  sportType?: SportType | null
 ): Pick<RosterDefaults, 'starter_slots' | 'bench_slots' | 'IR_slots' | 'flex_definitions'> {
+  const resolvedSport = resolveIdpSport(sportType)
   const idpSlots = buildIdpStarterSlots(preset, overrides, positionMode)
-  const starter_slots = { ...NFL_OFFENSE_STARTER_SLOTS, ...idpSlots }
+  const offenseSlots =
+    FOOTBALL_IDP_OFFENSE_STARTER_SLOTS[resolvedSport] ??
+    NFL_OFFENSE_STARTER_SLOTS
+  const starter_slots = { ...offenseSlots, ...idpSlots }
   const bench_slots = overrides?.bench ?? benchSlots
   const IR_slots = overrides?.ir ?? irSlots
-  const flex_definitions = idpFlexDefinitions(positionMode)
+  const flex_definitions = idpFlexDefinitions(positionMode, resolvedSport)
   return {
     starter_slots,
     bench_slots,
@@ -138,11 +178,13 @@ export function getFullRosterDefaultsForIdp(
   overrides: IdpSlotOverrides | null,
   positionMode: IdpPositionMode,
   benchSlots: number = 7,
-  irSlots: number = 2
+  irSlots: number = 2,
+  sportType?: SportType | null
 ): RosterDefaults {
-  const partial = getRosterDefaultsForIdpPreset(preset, overrides, positionMode, benchSlots, irSlots)
+  const resolvedSport = resolveIdpSport(sportType)
+  const partial = getRosterDefaultsForIdpPreset(preset, overrides, positionMode, benchSlots, irSlots, resolvedSport)
   return {
-    sport_type: 'NFL',
+    sport_type: resolvedSport,
     ...partial,
     taxi_slots: 0,
     devy_slots: 0,

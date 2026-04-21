@@ -6,6 +6,7 @@
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { isFootballLike } from '@/lib/create-league-v2/state'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export type ScoringPresetOption = {
   id: string
@@ -100,7 +101,7 @@ const RULES: PresetRule[] = [
     id: 'fb_idp',
     label: 'IDP balanced',
     hint: 'Individual defensive players with balanced scoring.',
-    matches: (ctx) => ctx.idpSelected && ctx.sport === 'NFL',
+    matches: (ctx) => ctx.idpSelected && supportsIdpLeagueSport(ctx.sport),
     build: () => ({
       scoring: 'IDP',
       isSuperflex: false,

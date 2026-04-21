@@ -14,9 +14,8 @@ interface SalaryCapSettingsPanelProps {
 }
 
 const DRAFT_MODES: { value: WizardSalaryCapSettings['draftMode']; label: string; desc: string }[] = [
-  { value: 'auction', label: 'Auction', desc: 'Bid on players — winning bid = salary' },
-  { value: 'snake_salary', label: 'Snake + Salary Scale', desc: 'Pick slot determines salary' },
-  { value: 'hybrid', label: 'Hybrid', desc: 'Auction for vets, snake for rookies' },
+  { value: 'auction', label: 'Auction', desc: 'Bid on players — winning bid becomes salary' },
+  { value: 'snake', label: 'Snake + Salary Scale', desc: 'Pick slot determines salary (rookie-scale contracts)' },
 ]
 
 const SALARY_CURVES: { value: WizardSalaryCapSettings['salaryCurve']; label: string }[] = [
@@ -61,7 +60,7 @@ export function SalaryCapSettingsPanel({ settings, onChange, idpSettings, onIdpC
               onChange={(e) => onChange({ minSalary: Number(e.target.value) || 1 })} />
           </div>
         </div>
-        {(settings.draftMode === 'snake_salary' || settings.draftMode === 'hybrid') && (
+        {settings.draftMode === 'snake' && (
           <div className="mt-4">
             <label className="mb-2 block text-xs text-white/50">Salary Curve</label>
             <div className="grid gap-2 grid-cols-4">
@@ -103,7 +102,7 @@ export function SalaryCapSettingsPanel({ settings, onChange, idpSettings, onIdpC
         <div className="mt-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/50">
           Cap: <span className="text-white font-medium">${settings.totalCap}</span> ·
           Range: <span className="text-white">${settings.minSalary}–${settings.maxSalary}</span> ·
-          Draft: <span className="text-cyan-300">{settings.draftMode.replace(/_/g, ' ')}</span>
+          Draft: <span className="text-cyan-300">{settings.draftMode === 'snake' ? 'Snake + Salary Scale' : 'Auction'}</span>
         </div>
       </div>
       {isNfl && <IdpSettingsPanel settings={idpSettings} onChange={onIdpChange} />}

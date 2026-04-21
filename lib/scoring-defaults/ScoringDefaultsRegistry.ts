@@ -4,7 +4,7 @@
  * Used when no DB ScoringTemplate exists; compatible with ScoringTemplateResolver and FantasyPointCalculator.
  * Stat keys are canonical; data providers can map feed fields to these keys (e.g. Soccer goal, shot_on_target; IDP idp_sack, idp_solo_tackle).
  */
-import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { DEFAULT_SPORT, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { templateStatKeyFromUiKey } from '@/lib/league/scoring-stat-metadata'
 import { buildFullNflDefaultConfig } from '@/lib/nfl-scoring/NflScoringCategories'
 import { buildFullNbaDefaultConfig } from '@/lib/nba-scoring/NbaScoringCategories'
@@ -287,6 +287,9 @@ const NFL_6PT_PASS_TD_FULL = mergeCategoryDefaults(NFL_6PT_PASS_TD, 'NFL', build
 const NFL_IDP_RULES_FULL = mergeCategoryDefaults(NFL_IDP_RULES, 'NFL', buildFullNflDefaultConfig())
 const NFL_IDP_TACKLE_HEAVY_FULL = mergeCategoryDefaults(NFL_IDP_TACKLE_HEAVY, 'NFL', buildFullNflDefaultConfig())
 const NFL_IDP_BIG_PLAY_FULL = mergeCategoryDefaults(NFL_IDP_BIG_PLAY, 'NFL', buildFullNflDefaultConfig())
+const NCAAF_IDP_RULES_FULL = mergeCategoryDefaults(NFL_IDP_RULES, 'NCAAF', buildNcaafScoringDefaults())
+const NCAAF_IDP_TACKLE_HEAVY_FULL = mergeCategoryDefaults(NFL_IDP_TACKLE_HEAVY, 'NCAAF', buildNcaafScoringDefaults())
+const NCAAF_IDP_BIG_PLAY_FULL = mergeCategoryDefaults(NFL_IDP_BIG_PLAY, 'NCAAF', buildNcaafScoringDefaults())
 
 const NBA_POINTS_FULL = mergeCategoryDefaults(NBA_POINTS, 'NBA', buildFullNbaDefaultConfig())
 const MLB_STANDARD_FULL = mergeCategoryDefaults(MLB_STANDARD, 'MLB', buildMlbScoringDefaults())
@@ -314,6 +317,11 @@ const REGISTRY: Record<
   'NHL-standard': { name: 'Default NHL Standard', rules: NHL_STANDARD_FULL },
   'NCAAF-PPR': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR_FULL },
   'NCAAF-standard': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR_FULL },
+  'NCAAF-IDP': { name: 'Default NCAAF IDP (Balanced)', rules: NCAAF_IDP_RULES_FULL },
+  'NCAAF-idp': { name: 'Default NCAAF IDP (Balanced)', rules: NCAAF_IDP_RULES_FULL },
+  'NCAAF-IDP-balanced': { name: 'NCAAF IDP Balanced', rules: NCAAF_IDP_RULES_FULL },
+  'NCAAF-IDP-tackle_heavy': { name: 'NCAAF IDP Tackle-Heavy', rules: NCAAF_IDP_TACKLE_HEAVY_FULL },
+  'NCAAF-IDP-big_play_heavy': { name: 'NCAAF IDP Big-Play-Heavy', rules: NCAAF_IDP_BIG_PLAY_FULL },
   'NCAAB-points': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS_FULL },
   'NCAAB-standard': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS_FULL },
   'SOCCER-standard': { name: 'Default Soccer Standard', rules: SOCCER_STANDARD_FULL },
@@ -340,11 +348,13 @@ function toSportType(s: string): SportType {
 function normalizeFormatForLookup(sport: SportType, format: string): string {
   const f = (format || 'standard').trim()
   const lower = f.toLowerCase()
-  if (sport === 'NFL') {
+  if (supportsIdpLeagueSport(sport)) {
     if (lower === 'idp-balanced' || lower === 'idp_balanced') return 'IDP-balanced'
     if (lower === 'idp-tackle_heavy' || lower === 'idp_tackle_heavy') return 'IDP-tackle_heavy'
     if (lower === 'idp-big_play_heavy' || lower === 'idp_big_play_heavy') return 'IDP-big_play_heavy'
     if (lower === 'idp' || lower === 'dynasty_idp') return 'IDP'
+  }
+  if (sport === 'NFL') {
     if (lower === 'ppr') return 'PPR'
     if (lower === 'half_ppr' || lower === 'half ppr') return 'half_ppr'
     if (lower === 'standard') return 'standard'
@@ -373,11 +383,12 @@ export function getDefaultScoringTemplate(
   const format = normalizeFormatForLookup(sport, formatType || 'standard')
   const key = `${sport}-${format}`
   let fallbackKey = `${sport}-standard`
-  if (sport === 'NFL') {
-    if (format === 'IDP' || format === 'IDP-balanced') fallbackKey = 'NFL-IDP'
-    else if (format === 'IDP-tackle_heavy') fallbackKey = 'NFL-IDP-tackle_heavy'
-    else if (format === 'IDP-big_play_heavy') fallbackKey = 'NFL-IDP-big_play_heavy'
-    else if (format !== 'IDP') fallbackKey = 'NFL-PPR'
+  if (supportsIdpLeagueSport(sport)) {
+    const idpPrefix = sport === 'NCAAF' ? 'NCAAF' : 'NFL'
+    if (format === 'IDP' || format === 'IDP-balanced') fallbackKey = `${idpPrefix}-IDP`
+    else if (format === 'IDP-tackle_heavy') fallbackKey = `${idpPrefix}-IDP-tackle_heavy`
+    else if (format === 'IDP-big_play_heavy') fallbackKey = `${idpPrefix}-IDP-big_play_heavy`
+    else if (format !== 'IDP') fallbackKey = sport === 'NCAAF' ? 'NCAAF-PPR' : 'NFL-PPR'
   }
   else if (sport === 'NBA' || sport === 'NCAAB') fallbackKey = `${sport}-points`
   else if (sport === 'SOCCER') fallbackKey = 'SOCCER-standard'
@@ -413,7 +424,7 @@ export function resolveDefaultScoringTemplate(
   const leagueSettings = options?.leagueSettings ?? null
   if (leagueSettings) {
     const variant = String(leagueSettings.leagueVariant ?? '').toUpperCase()
-    if (sport === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
+    if (supportsIdpLeagueSport(sport) && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
       const preset = String(leagueSettings.idpScoringPreset ?? '').toLowerCase()
       if (preset === 'tackle_heavy') return getDefaultScoringTemplate(sport, 'IDP-tackle_heavy')
       if (preset === 'big_play_heavy') return getDefaultScoringTemplate(sport, 'IDP-big_play_heavy')
@@ -486,7 +497,7 @@ export function getSupportedScoringFormats(sportType: SportType | string): strin
     case 'NHL':
       return ['standard']
     case 'NCAAF':
-      return ['PPR', 'standard']
+      return ['PPR', 'standard', 'IDP', 'IDP-balanced', 'IDP-tackle_heavy', 'IDP-big_play_heavy']
     case 'SOCCER':
       return ['standard']
     default:

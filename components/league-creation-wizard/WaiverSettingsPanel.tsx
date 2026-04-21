@@ -2,6 +2,7 @@
 
 import { StepHeader } from './StepHelp'
 import type { WizardWaiverSettings } from '@/lib/league-creation-wizard/types'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 const WAIVER_TYPE_OPTIONS: Array<{ value: WizardWaiverSettings['waiverType']; label: string }> = [
   { value: 'faab', label: 'FAAB' },
@@ -50,7 +51,9 @@ export function WaiverSettingsPanel(props: {
   const { sport, leagueVariant, waiverSettings, onWaiverSettingsChange } = props
   const normalizedSport = String(sport).toUpperCase()
   const normalizedVariant = String(leagueVariant ?? '').toUpperCase()
-  const isNflIdp = normalizedSport === 'NFL' && (normalizedVariant === 'IDP' || normalizedVariant === 'DYNASTY_IDP')
+  const isFootballIdp =
+    supportsIdpLeagueSport(normalizedSport) &&
+    (normalizedVariant === 'IDP' || normalizedVariant === 'DYNASTY_IDP')
 
   const faabEnabled = waiverSettings.waiverType === 'faab' || waiverSettings.faabEnabled
 
@@ -74,7 +77,9 @@ export function WaiverSettingsPanel(props: {
             {' '}· Variant: <span className="text-white/90">{leagueVariant}</span>
           </>
         ) : null}
-        {isNflIdp ? <div className="mt-1 text-amber-300">NFL IDP keeps offensive + defensive claim support enabled.</div> : null}
+        {isFootballIdp ? (
+          <div className="mt-1 text-amber-300">{normalizedSport} IDP keeps offensive + defensive claim support enabled.</div>
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

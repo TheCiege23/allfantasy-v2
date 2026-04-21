@@ -28,6 +28,7 @@ import { buildLegacyManualCanonicalCreatePayload } from '@/lib/league-creation/c
 import { runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate } from '@/lib/league-creation/legacyWizardSpecialtyBootstraps';
 import { assertImportCommissioner } from '@/lib/league-import/commissionerGate';
 import { isCategoryPresetId } from '@/lib/category-scoring';
+import { isAllowedIdpDraftType, supportsIdpLeagueSport } from '@/lib/sport-scope';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -234,9 +235,15 @@ export async function POST(req: Request) {
       );
     }
   }
-  if (isIdpRequested && sport !== 'NFL') {
+  if (isIdpRequested && !supportsIdpLeagueSport(sport)) {
     return NextResponse.json(
-      { error: 'IDP leagues are only supported for NFL. Please select NFL as the sport.' },
+      { error: 'IDP leagues are supported only for NFL and NCAAF. Please select one of those sports.' },
+      { status: 400 }
+    );
+  }
+  if (isIdpRequested && requestedDraftType && !isAllowedIdpDraftType(requestedDraftType)) {
+    return NextResponse.json(
+      { error: 'IDP draft type must be one of: snake, linear, auction, offline, auto.' },
       { status: 400 }
     );
   }

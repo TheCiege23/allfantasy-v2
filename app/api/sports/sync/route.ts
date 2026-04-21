@@ -8,6 +8,7 @@ import {
   syncAPISportsPlayersToIdentityMap,
   syncAPISportsStandingsToDb,
 } from '@/lib/api-sports';
+import { syncClearSportsToDb } from '@/lib/clear-sports'
 
 export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSync" })(async (request: NextRequest) => {
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -88,6 +89,11 @@ export const POST = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSy
       }
     }
 
+    if (source === 'all' || source === 'clear_sports' || source === 'clearsports') {
+      const clearSports = await syncClearSportsToDb({ season, syncType })
+      results.clear_sports = clearSports
+    }
+
     const duration = Date.now() - startTime;
 
     return NextResponse.json({
@@ -123,6 +129,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
       riTeams, riPlayers, riGames, riStats,
       riDepthCharts, riTeamStats,
       asTeams, asGames, asInjuries,
+      csTeams, csGames, csPlayers, csInjuries, csNews,
       espnLiveGames, espnNews,
       trendingCount,
       cacheCount, identityCount, identityWithApiSports,
@@ -136,6 +143,11 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
       prisma.sportsTeam.count({ where: { source: 'api_sports' } }),
       prisma.sportsGame.count({ where: { source: 'api_sports' } }),
       prisma.sportsInjury.count({ where: { source: 'api_sports' } }),
+      prisma.sportsTeam.count({ where: { source: 'clear_sports' } }),
+      prisma.sportsGame.count({ where: { source: 'clear_sports' } }),
+      prisma.sportsPlayer.count({ where: { source: 'clear_sports' } }),
+      prisma.sportsInjury.count({ where: { source: 'clear_sports' } }),
+      prisma.sportsNews.count({ where: { source: 'clear_sports' } }),
       prisma.sportsGame.count({ where: { source: 'espn_live' } }),
       prisma.sportsNews.count({ where: { source: 'espn' } }),
       prisma.trendingPlayer.count(),
@@ -162,6 +174,12 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
       select: { fetchedAt: true },
     });
 
+    const latestCSSync = await prisma.sportsGame.findFirst({
+      where: { source: 'clear_sports' },
+      orderBy: { fetchedAt: 'desc' },
+      select: { fetchedAt: true },
+    })
+
     const latestNewsSync = await prisma.sportsNews.findFirst({
       where: { source: 'espn' },
       orderBy: { fetchedAt: 'desc' },
@@ -186,6 +204,15 @@ export const GET = withApiUsage({ endpoint: "/api/sports/sync", tool: "SportsSyn
           injuries: asInjuries,
           standings: await prisma.sportsDataCache.count({ where: { cacheKey: { startsWith: 'NFL:standings:' } } }),
           lastSyncAt: latestASSync?.fetchedAt?.toISOString() || null,
+        },
+        clear_sports: {
+          teams: csTeams,
+          games: csGames,
+          players: csPlayers,
+          injuries: csInjuries,
+          news: csNews,
+          cachedPayloads: await prisma.sportsDataCache.count({ where: { cacheKey: { startsWith: 'clearsports:' } } }),
+          lastSyncAt: latestCSSync?.fetchedAt?.toISOString() || null,
         },
         sleeper: {
           trendingPlayers: trendingCount,

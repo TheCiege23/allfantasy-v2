@@ -1,10 +1,11 @@
 /**
- * IDP scoring category mapping and preset labels. NFL only.
+ * IDP scoring category mapping and preset labels for football IDP (NFL + NCAAF).
  * Stat keys align with ScoringDefaultsRegistry and PlayerGameStat.normalizedStatMap.
  * PROMPT 2/6.
  */
 
 import { getDefaultScoringRules } from '@/lib/scoring-defaults/ScoringDefaultsRegistry'
+import type { SportType } from '@/lib/sport-defaults/types'
 
 /** Supported IDP stat keys (minimum). */
 export const IDP_STAT_KEYS = [
@@ -54,6 +55,8 @@ export const IDP_DRAFT_TYPE_LABELS: Record<string, string> = {
   snake: 'Snake',
   linear: 'Linear',
   auction: 'Auction',
+  offline: 'Offline',
+  auto: 'Auto',
 }
 
 /** Map IdpScoringPreset to ScoringDefaultsRegistry format key. */
@@ -66,9 +69,17 @@ const IDP_PRESET_TO_FORMAT: Record<string, string> = {
 /**
  * Get IDP preset scoring as flat stat key -> points (for validation and merge with overrides).
  */
-export function getIdpPresetScoring(preset: string): Record<string, number> {
+function resolveIdpScoringSport(sportType?: SportType | string | null): 'NFL' | 'NCAAF' {
+  return String(sportType ?? '').toUpperCase() === 'NCAAF' ? 'NCAAF' : 'NFL'
+}
+
+export function getIdpPresetScoring(
+  preset: string,
+  sportType?: SportType | string | null
+): Record<string, number> {
+  const sport = resolveIdpScoringSport(sportType)
   const format = IDP_PRESET_TO_FORMAT[preset] ?? 'IDP-balanced'
-  const rules = getDefaultScoringRules('NFL', format)
+  const rules = getDefaultScoringRules(sport, format)
   const out: Record<string, number> = {}
   for (const r of rules) {
     if (r.statKey.startsWith('idp_') && r.pointsValue !== 0) out[r.statKey] = r.pointsValue

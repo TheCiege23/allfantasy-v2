@@ -152,12 +152,28 @@ export interface DegradedModeSummary {
   }>
 }
 
+export interface ClearSportsSyncHistoryEntry {
+  entityType: string
+  sport?: string | null
+  key?: string | null
+  lastStartedAt?: number
+  lastCompletedAt?: number
+  lastSuccessAt?: number
+  lastErrorAt?: number
+  lastError?: string | null
+  recordsImported: number
+  recordsUpdated: number
+  recordsSkipped: number
+  updatedAt: number
+}
+
 export interface ProviderDiagnosticsPayload {
   providers: ProviderDiagnosticsEntry[]
   recentFailures: RecentFailureSummary[]
   fallbackEvents: FallbackEventSummary[]
   degradedMode: DegradedModeSummary
   latencyTrend: Record<ProviderPublicId, number[]>
+  clearSportsSyncHistory?: ClearSportsSyncHistoryEntry[]
   generatedAt: number
 }
 

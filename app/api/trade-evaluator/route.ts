@@ -39,7 +39,7 @@ import { buildLeagueDecisionContext, summarizeLeagueDecisionContext, LeagueDecis
 import { buildUnifiedTradeContext, type LegacyAssetInput } from '@/lib/trade-engine/unified-context'
 import { computeDataCoverageTier } from '@/lib/trade-engine/trade-decision-context'
 import type { TradeDecisionContextV1 } from '@/lib/trade-engine/trade-decision-context'
-import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getAllPlayers } from '@/lib/sleeper-client'
+import { getLeagueInfo, getLeagueRosters, getTradedDraftPicks, getPlayersBySport } from '@/lib/sleeper-client'
 import { attachPlayerMediaBatch } from '@/lib/player-media'
 import { logAiOutput } from '@/lib/ai/output-logger'
 import { logAiFailure } from '@/lib/error-tracking'
@@ -438,6 +438,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     }
 
     const isSF = data.league?.qb_format === 'sf'
+    const leagueSport = normalizeToSupportedSport(String(data.league?.sport || 'nfl'))
+    const leagueSportSlug = String(leagueSport).toLowerCase()
     const biasMode = data.sender.is_af_pro && data.receiver.is_af_pro ? 'neutral' : 'protect_receiver'
 
     const senderPlayerNames = data.sender.gives_players.map(resolvePlayerName)
@@ -445,12 +447,12 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     const senderPicksData = (data.sender.gives_picks as any[]).map(resolvePickData)
     const receiverPicksData = (data.receiver.gives_picks as any[]).map(resolvePickData)
 
-    let nflPlayers: Record<string, any> = {}
+    let leaguePlayers: Record<string, any> = {}
     const playerNameToId: Record<string, string> = {}
     if (data.league_id) {
       try {
-        const allP = await getAllPlayers()
-        nflPlayers = allP
+        const allP = await getPlayersBySport(leagueSportSlug)
+        leaguePlayers = allP
         for (const [pid, p] of Object.entries(allP)) {
           if (p?.full_name) {
             playerNameToId[p.full_name.toLowerCase()] = pid
@@ -514,8 +516,8 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       .map(name => {
         const pid = playerNameToId[name.toLowerCase()]
         if (!pid) return null
-        const team = nflPlayers[pid]?.team || null
-        return { playerId: pid, teamAbbr: team, sport: 'nfl' }
+        const team = leaguePlayers[pid]?.team || null
+        return { playerId: pid, teamAbbr: team, sport: leagueSportSlug }
       })
       .filter((p): p is { playerId: string; teamAbbr: string | null; sport: string } => p !== null)
 
@@ -531,7 +533,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
     ) => {
       const pid = playerNameToId[name.toLowerCase()] || null
       const resolved = pid ? tradeMediaMap.get(pid) : null
-      const team = resolved?.teamAbbr || (pid && nflPlayers[pid]?.team ? nflPlayers[pid].team : null)
+      const team = resolved?.teamAbbr || (pid && leaguePlayers[pid]?.team ? leaguePlayers[pid].team : null)
       return {
         name,
         value: compositeScore(priced.assetValue),
@@ -544,7 +546,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
         playerId: pid,
         fullName: name,
         teamAbbr: team,
-        sport: 'nfl' as const,
+        sport: leagueSportSlug as string,
         media: resolved?.media || { headshotUrl: null, teamLogoUrl: null },
       }
     }
@@ -928,7 +930,7 @@ export const POST = withApiUsage({ endpoint: "/api/trade-evaluator", tool: "Trad
       leagueSettings: {
         format: data.league?.format ?? 'redraft',
         leagueType: data.league?.format === 'best_ball' ? 'bestball' : 'standard',
-        sport: data.league?.sport || 'nfl',
+        sport: leagueSportSlug,
         qbFormat: data.league?.qb_format || 'sf',
         idpEnabled: data.league?.idp_enabled || false,
         biasMode,

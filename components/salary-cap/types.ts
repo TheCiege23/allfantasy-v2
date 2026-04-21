@@ -11,6 +11,7 @@ export interface SalaryCapSummaryConfig {
   rookieContractYears: number
   minimumSalary: number
   deadMoneyEnabled: boolean
+  deadMoneyPercentPerYear: number
   rolloverEnabled: boolean
   rolloverMax: number
   capFloorEnabled?: boolean

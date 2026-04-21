@@ -31,7 +31,7 @@ const VIEW_LABELS: Record<SalaryCapView, string> = {
   'cap-dashboard': 'Cap Dashboard',
   contracts: 'Contracts',
   'team-builder': 'Team Builder',
-  draft: 'Draft & Lottery',
+  draft: 'Draft & Contracts',
   ai: 'AI Tools',
   rules: 'Rules & Settings',
 }

@@ -5,6 +5,7 @@
 import type { SportType } from './types'
 import { getRosterTemplateDefinition } from './RosterDefaultsRegistry'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 function normalizeSoccerPositionAlias(sport: SportType, position: string): string {
   const pos = position.toUpperCase()
@@ -12,7 +13,7 @@ function normalizeSoccerPositionAlias(sport: SportType, position: string): strin
   return pos
 }
 
-function normalizeNflIdpPositionAlias(position: string): string {
+function normalizeFootballIdpPositionAlias(position: string): string {
   const pos = position.toUpperCase()
   if (pos === 'EDGE') return 'DE'
   if (pos === 'OLB' || pos === 'ILB' || pos === 'MLB') return 'LB'
@@ -23,7 +24,7 @@ function normalizeNflIdpPositionAlias(position: string): string {
 
 function normalizePositionAlias(sport: SportType, position: string): string {
   const soccerNormalized = normalizeSoccerPositionAlias(sport, position)
-  if (sport === 'NFL') return normalizeNflIdpPositionAlias(soccerNormalized)
+  if (supportsIdpLeagueSport(sport)) return normalizeFootballIdpPositionAlias(soccerNormalized)
   return soccerNormalized
 }
 

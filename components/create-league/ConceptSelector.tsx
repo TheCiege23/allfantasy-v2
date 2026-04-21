@@ -6,8 +6,10 @@ import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS, getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
   getDraftTypeOptions,
+  getIdpDraftTypeOptions,
   getDefaultTeamCount,
   isDraftTypeAllowedForType,
+  isIdpDraftTypeAllowed,
   isIdpAvailableForSport,
   isSportAllowedForType,
 } from '@/lib/create-league-v2/rules-engine'
@@ -97,8 +99,10 @@ export function ConceptSelector({
     }
 
     const resolvedType: LeagueTypeId = card.id === 'idp' ? 'redraft' : card.id
-    if (!isDraftTypeAllowedForType(state.draftType, resolvedType)) {
-      const firstAllowed = getDraftTypeOptions(resolvedType)
+    const draftIsAllowed =
+      card.id === 'idp' ? isIdpDraftTypeAllowed(state.draftType) : isDraftTypeAllowedForType(state.draftType, resolvedType)
+    if (!draftIsAllowed) {
+      const firstAllowed = card.id === 'idp' ? getIdpDraftTypeOptions() : getDraftTypeOptions(resolvedType)
       patch.draftType = firstAllowed[0]?.id ?? 'snake'
     }
 

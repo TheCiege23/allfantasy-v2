@@ -107,6 +107,7 @@ export async function GET(
       rookieContractYears: config.rookieContractYears,
       minimumSalary: config.minimumSalary,
       deadMoneyEnabled: config.deadMoneyEnabled,
+      deadMoneyPercentPerYear: config.deadMoneyPercentPerYear,
       rolloverEnabled: config.rolloverEnabled,
       rolloverMax: config.rolloverMax,
       capFloorEnabled: config.capFloorEnabled,

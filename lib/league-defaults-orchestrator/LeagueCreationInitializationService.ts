@@ -18,6 +18,6 @@ export async function runLeagueInitialization(
   variantOrFormat?: string | null
 ): Promise<BootstrapResult> {
   const context = resolveSportVariantContext(sport as LeagueSport, variantOrFormat ?? null)
-  const format = context.isNflIdp ? 'IDP' : (variantOrFormat ?? undefined)
+  const format = (context.isFootballIdp || context.isNflIdp) ? 'IDP' : (variantOrFormat ?? undefined)
   return runLeagueBootstrap(leagueId, context.sport, format)
 }

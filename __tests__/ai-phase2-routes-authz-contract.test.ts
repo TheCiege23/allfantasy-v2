@@ -31,7 +31,7 @@ vi.mock('@/lib/ai/AISportContextResolver', () => ({
 }))
 
 vi.mock('@/lib/league-defaults-orchestrator/SportVariantContextResolver', () => ({
-  resolveSportVariantContext: vi.fn(() => ({ sport: 'NFL', isNflIdp: false, formatType: 'redraft' })),
+  resolveSportVariantContext: vi.fn(() => ({ sport: 'NFL', isFootballIdp: false, isNflIdp: false, formatType: 'redraft' })),
 }))
 
 vi.mock('@/lib/fantasy-coach', () => ({

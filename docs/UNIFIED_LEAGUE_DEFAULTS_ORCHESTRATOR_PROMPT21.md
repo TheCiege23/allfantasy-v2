@@ -9,7 +9,7 @@
   - **runPostCreateInitialization(leagueId, sport, variantOrFormat)** — runs all bootstrap steps (roster, settings, scoring, waiver, draft, playoff, schedule, player pool).
 
 - **Supporting modules:**
-  - **SportVariantContextResolver** — normalizes sport + variant into `{ sport, variant, formatType, isNflIdp, isSoccer, displayLabel }`. NFL IDP is treated as an NFL variant; Soccer as first-class sport.
+  - **SportVariantContextResolver** — normalizes sport + variant into `{ sport, variant, formatType, isFootballIdp, isNflIdp (legacy), isSoccer, displayLabel }`. Football IDP is treated as a sport-aware variant; Soccer as first-class sport.
   - **LeaguePresetResolutionPipeline** — `resolveLeaguePresetPipeline(sport, variant)` returns the full creation payload and the exact `initialSettingsForPreview` (from buildInitialLeagueSettings) so one consistent source of truth.
   - **LeagueSettingsPreviewBuilder** — `buildSettingsPreview(sport, variant, overrides?)` builds the exact settings object that will be written to League.settings; `getSettingsPreviewSummary(...)` returns a minimal summary for comparison.
   - **LeagueCreationInitializationService** — `runLeagueInitialization(leagueId, sport, variantOrFormat)` delegates to existing **runLeagueBootstrap** so all post-create steps (roster, scoring, waiver, draft, playoff, schedule, player pool) run in one place.
@@ -33,7 +33,7 @@
 
 - One consistent source: getCreationPayload and getInitialSettingsForCreation both derive from the same sport/defaults stack (loadLeagueCreationDefaults and buildInitialLeagueSettings).
 - Frontend preview vs persisted: getInitialSettingsForCreation is used when creating the league; buildSettingsPreview(sport, variant, overrides) produces the same object for the same inputs, so preview matches saved values.
-- NFL IDP: SportVariantContextResolver marks isNflIdp true for variant IDP/DYNASTY_IDP; formatType 'IDP' is passed to runLeagueBootstrap; roster/scoring/draft/waiver/playoff/schedule defaults use the same variant so NFL IDP is an NFL variant, not a separate league type.
+- Football IDP: SportVariantContextResolver marks isFootballIdp true for variant IDP/DYNASTY_IDP; formatType 'IDP' is passed to runLeagueBootstrap; roster/scoring/draft/waiver/playoff/schedule defaults use the same variant so IDP is not treated as a separate league type.
 - Soccer: Treated as first-class sport (SUPPORTED_SPORTS, displayLabel 'Soccer'); all default domains (roster, scoring, draft, waiver, playoff, schedule) have SOCCER entries in their registries.
 - Each created league boots with correct settings: runPostCreateInitialization runs the full bootstrap (roster, settings, scoring, player pool, draft, waiver, playoff, schedule); existing leagues are untouched because bootstrap only runs after create and only for the new league id.
 
@@ -41,7 +41,7 @@
 
 - League create route previously called buildInitialLeagueSettings and runLeagueBootstrap directly; it now uses the orchestrator’s getInitialSettingsForCreation and runPostCreateInitialization so there is a single documented entry point and overrides (superflex, dynasty) are applied in one place.
 - No single place for “creation payload + settings that will be saved”; LeaguePresetResolutionPipeline and getCreationPayloadAndSettings now provide both so preview consistency can be enforced and tested.
-- Sport/variant context was implied in multiple places; SportVariantContextResolver centralizes isNflIdp, isSoccer, formatType, and displayLabel.
+- Sport/variant context was implied in multiple places; SportVariantContextResolver centralizes isFootballIdp (plus legacy isNflIdp), isSoccer, formatType, and displayLabel.
 - No API to return “exact settings that will be saved”; GET /api/league/preview-settings added for frontend comparison and QA.
 
 ## 6. Final QA checklist
@@ -60,7 +60,7 @@ The orchestrator is the single layer that resolves and applies all sport-aware a
 
 2. **Preview matches persisted values:** getInitialSettingsForCreation(sport, variant, overrides) returns the exact object that the create API writes to League.settings. The frontend can call GET /api/league/preview-settings with the same sport, variant, and options to get that object (and a summary) and confirm the preset summary aligns with what will be saved.
 
-3. **NFL IDP as NFL variant:** SportVariantContextResolver sets formatType to 'IDP' and isNflIdp to true when sport is NFL and variant is IDP or DYNASTY_IDP. Roster, scoring, draft, waiver, playoff, and schedule defaults all accept variant (or formatType) and apply IDP-specific values (e.g. IDP roster slots, 18 draft rounds) while remaining “NFL” for display and league type.
+3. **Football IDP as sport-aware variant:** SportVariantContextResolver sets formatType to 'IDP' and isFootballIdp to true when sport supports IDP and variant is IDP or DYNASTY_IDP. Roster, scoring, draft, waiver, playoff, and schedule defaults all accept variant (or formatType) and apply IDP-specific values (e.g. IDP roster slots, 18 draft rounds) while remaining the same base sport for display and league type.
 
 4. **Soccer as first-class sport:** Soccer is in SUPPORTED_SPORTS and has full defaults in every registry (roster, scoring, draft, waiver, playoff, schedule); the orchestrator does not special-case it beyond using the same pipeline as for other sports.
 

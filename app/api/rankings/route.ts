@@ -31,6 +31,11 @@ export async function POST(req: Request) {
 
     const json = await req.json();
     const { leagueId } = bodySchema.parse(json);
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { sport: true },
+    })
+    const playerSport = String(league?.sport ?? 'NFL').toLowerCase()
 
     const teams = await (prisma as any).leagueTeam.findMany({
       where: { leagueId },
@@ -43,7 +48,7 @@ export async function POST(req: Request) {
     }
 
     const cachedPlayers = await (prisma as any).sportsPlayer.findMany({
-      where: { sport: 'nfl' },
+      where: { sport: playerSport },
       take: 30,
       orderBy: { fetchedAt: 'desc' },
     });
@@ -61,7 +66,7 @@ ${teams.map((t: any) => {
   return `- ${t.teamName} (${t.ownerName}): Record ${t.wins}-${t.losses}${t.ties > 0 ? `-${t.ties}` : ''}, Total PF: ${t.pointsFor.toFixed(1)}, PA: ${t.pointsAgainst.toFixed(1)}, Weekly trend: [${trend}], Last 3 avg: ${recentAvg}`;
 }).join('\n')}
 
-${cachedPlayers.length > 0 ? `\nRecent NFL players in database: ${cachedPlayers.slice(0, 15).map((p: any) => `${p.name} (${p.position || '?'}, ${p.team || '?'})`).join(', ')}` : ''}
+${cachedPlayers.length > 0 ? `\nRecent ${String(league?.sport ?? 'NFL')} players in database: ${cachedPlayers.slice(0, 15).map((p: any) => `${p.name} (${p.position || '?'}, ${p.team || '?'})`).join(', ')}` : ''}
 
 For each team, analyze:
 1. Scoring consistency and trajectory (trending up, down, or steady)

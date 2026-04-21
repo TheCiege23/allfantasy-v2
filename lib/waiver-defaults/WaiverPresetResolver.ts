@@ -4,6 +4,7 @@
  */
 import { getWaiverPreset } from './WaiverDefaultsRegistry'
 import type { WaiverDefaults } from '@/lib/sport-defaults/types'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export interface WaiverPresetResult {
   preset: WaiverDefaults
@@ -24,7 +25,7 @@ export function resolveWaiverPreset(
   const preset = getWaiverPreset(sport, variant ?? undefined)
   const sportUpper = String(sport).toUpperCase()
   const variantUpper = String(variant ?? '').toUpperCase()
-  const supportsIdpClaims = sportUpper === 'NFL' && (variantUpper === 'IDP' || variantUpper === 'DYNASTY_IDP')
+  const supportsIdpClaims = supportsIdpLeagueSport(sportUpper) && (variantUpper === 'IDP' || variantUpper === 'DYNASTY_IDP')
   const supportsFaab = preset.waiver_type === 'faab' || preset.faab_enabled === true
   return {
     preset,

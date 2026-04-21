@@ -39,13 +39,15 @@ export async function recordProviderSync(
     error = null,
   } = stats
 
+  const normalizedSport = sport ?? 'GLOBAL'
+
   try {
     await (prisma as any).providerSyncState.upsert({
       where: {
         provider_entityType_sport_key: {
           provider,
           entityType,
-          sport: sport ?? null,
+          sport: normalizedSport,
           key: key ?? null,
         },
       },
@@ -64,7 +66,7 @@ export async function recordProviderSync(
       create: {
         provider,
         entityType,
-        sport: sport ?? null,
+        sport: normalizedSport,
         key: key ?? null,
         lastStartedAt: now,
         lastCompletedAt: now,

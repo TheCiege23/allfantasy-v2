@@ -115,7 +115,7 @@ For the full league-creation and import workflow (mode selector, create path, im
 | **DashboardSportGroupingService** | `lib/dashboard/DashboardSportGroupingService.ts` | `groupLeaguesBySport(leagues)` returns `SportGroup[]` (sport, label, emoji, leagues) in display order (NFL, NHL, MLB, NBA, NCAAF, NCAAB, SOCCER). |
 | **AISportContextResolver** | `lib/ai/AISportContextResolver.ts` | `buildSportContextString(meta)` for AI prompts; `resolveSportForAI(body)` for request bodies. |
 | **SportAwareRecommendationService** | `lib/ai/SportAwareRecommendationService.ts` | Draft/waiver/roster context builders that inject sport via `buildSportContextString`. |
-| **SportVariantContextResolver** | `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` | Normalizes sport + variant to `SportVariantContext` (formatType, isNflIdp, isSoccer, displayLabel). Used by league creation bootstrap and preset pipeline; ensures NFL IDP is NFL variant. |
+| **SportVariantContextResolver** | `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` | Normalizes sport + variant to `SportVariantContext` (formatType, `isFootballIdp` + legacy `isNflIdp`, isSoccer, displayLabel). Used by league creation bootstrap and preset pipeline; ensures IDP is sport-aware. |
 
 ## 6. QA Findings
 

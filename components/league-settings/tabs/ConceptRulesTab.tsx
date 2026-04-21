@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { DevyLeagueSettingsHub } from '@/components/devy/settings/DevyLeagueSettingsHub'
 import { useLeagueSettingsSectionAutosave } from '@/hooks/useLeagueSettingsSectionAutosave'
+import { BestBallSettingsCommissionerPanel } from '@/components/league-settings/BestBallSettingsCommissionerPanel'
 import type { LeagueSettingsTabProps } from '../league-settings-tabs-types'
 
 /** Specialty / concept-specific rules — merges JSON under `settings` via `settingsMerge`. */
@@ -51,6 +52,17 @@ export function ConceptRulesTab({ ctx, canEdit }: LeagueSettingsTabProps) {
         <div className="space-y-3">
           <h4 className="text-[12px] font-bold uppercase tracking-wide text-white/55">Devy HQ</h4>
           <DevyLeagueSettingsHub ctx={ctx} />
+        </div>
+      ) : null}
+
+      {flags.bestBall ? (
+        <div className="space-y-3">
+          <h4 className="text-[12px] font-bold uppercase tracking-wide text-white/55">Best Ball Settings</h4>
+          <BestBallSettingsCommissionerPanel
+            leagueId={ctx.league.id}
+            sport={String(ctx.league.sport ?? 'NFL')}
+            canEdit={canEdit}
+          />
         </div>
       ) : null}
 

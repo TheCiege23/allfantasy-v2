@@ -13,6 +13,7 @@ import { writeIdpSettingsAudit } from '@/lib/idp/IdpSettingsAudit'
 import { getIdpPresetScoring } from '@/lib/idp/IDPScoringPresets'
 import { mergeScoringForValidation } from '@/lib/idp/IdpValidationService'
 import type { IdpScoringOverrides } from '@/lib/idp/types'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(
   _req: Request,
@@ -78,6 +79,10 @@ export async function PATCH(
 
   const current = await getIdpLeagueConfig(leagueId)
   if (!current?.configId) return NextResponse.json({ error: 'IDP config not found' }, { status: 404 })
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
 
   if (current.settingsLockedAt) {
     const wantPositionMode = typeof body.positionMode === 'string'
@@ -136,7 +141,7 @@ export async function PATCH(
       : undefined
   let scoringWarnings: string[] = []
   if (scoringOverrides !== undefined && scoringOverrides !== null) {
-    const presetValues = getIdpPresetScoring(current.scoringPreset)
+    const presetValues = getIdpPresetScoring(current.scoringPreset, league?.sport)
     const merged = mergeScoringForValidation(presetValues, scoringOverrides)
     scoringWarnings = validateScoringOutliers(merged).warnings
   }

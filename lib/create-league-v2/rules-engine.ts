@@ -10,7 +10,7 @@ import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/typ
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { getAllowedSportsForLeagueType } from '@/lib/league-creation-wizard/league-type-registry'
 import { getTeamCountOptionsForSport } from '@/lib/league-creation-wizard/sport-team-limits'
-import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import {
   getDraftTypeUiHint,
   getDraftTypeUiLabel,
@@ -24,7 +24,7 @@ import { BEST_BALL_DRAFT_MODES } from '@/lib/bestball/rules'
 
 /** Which sports are allowed for a given league type? */
 export function getAllowedSportsForType(leagueType: LeagueTypeId): SupportedSport[] {
-  // IDP is NFL-only (handled externally via idpSelected flag)
+  // IDP availability is controlled by sport-scope (NFL + NCAAF today).
   const allowed = getAllowedSportsForLeagueType(leagueType)
   return allowed.filter((s) => (SUPPORTED_SPORTS as readonly string[]).includes(s)) as SupportedSport[]
 }
@@ -197,6 +197,20 @@ export function isDraftTypeAllowedForType(draftType: WizardDraftTypeId | string,
   return options.some((o) => o.id === draftType)
 }
 
+export function getIdpDraftTypeOptions(): DraftTypeOption[] {
+  return [
+    { id: 'snake', label: 'Snake', hint: 'Pick order reverses every round' },
+    { id: 'linear', label: 'Linear', hint: 'Pick order stays fixed each round' },
+    { id: 'auction', label: 'Auction', hint: 'Managers bid with budget for every player' },
+    { id: 'offline', label: 'Offline', hint: 'Commissioner enters picks manually' },
+    { id: 'auto', label: 'Auto', hint: 'CPU drafts all teams automatically' },
+  ]
+}
+
+export function isIdpDraftTypeAllowed(draftType: WizardDraftTypeId | string): boolean {
+  return getIdpDraftTypeOptions().some((option) => option.id === draftType)
+}
+
 // ── Effective draft type mapping ────────────────────────────────────
 
 /** Map wizard selection to canonical API draft ids (devy/c2c specialty variants). */
@@ -226,7 +240,7 @@ export function isThirdRoundReversalAvailable(draftType: WizardDraftTypeId | str
 
 // ── IDP helpers ─────────────────────────────────────────────────────
 
-/** IDP is only available for NFL. */
+/** IDP is available for football (NFL + NCAAF). */
 export function isIdpAvailableForSport(sport: SupportedSport): boolean {
-  return sport === 'NFL'
+  return supportsIdpLeagueSport(sport)
 }

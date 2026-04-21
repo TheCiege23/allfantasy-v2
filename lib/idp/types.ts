@@ -1,5 +1,5 @@
 /**
- * IDP League — types and constants. NFL only.
+ * IDP League — types and constants for football IDP (NFL + NCAAF).
  * PROMPT 2/6: League factory + settings + rosters + scoring presets.
  */
 
@@ -13,7 +13,7 @@ export type IdpRosterPreset = 'beginner' | 'standard' | 'advanced' | 'custom'
 export type IdpScoringPreset = 'balanced' | 'tackle_heavy' | 'big_play_heavy'
 
 /** Draft type for IDP leagues. */
-export type IdpDraftType = 'snake' | 'linear' | 'auction'
+export type IdpDraftType = 'snake' | 'linear' | 'auction' | 'offline' | 'auto'
 
 /** Custom slot counts when rosterPreset = custom. All IDP and bench/IR. */
 export interface IdpSlotOverrides {

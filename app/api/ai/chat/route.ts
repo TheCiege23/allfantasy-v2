@@ -147,7 +147,7 @@ async function resolveChatLeagueMeta(
   const format =
     formatRaw ??
     (Boolean(bodyLeague?.isDynasty) || Boolean(body.isDynasty) ? 'dynasty' : null) ??
-    (variantContext.isNflIdp ? variantContext.formatType : 'redraft')
+    ((variantContext.isFootballIdp || variantContext.isNflIdp) ? variantContext.formatType : 'redraft')
 
   return {
     sport: variantContext.sport,
@@ -164,6 +164,7 @@ async function resolveChatLeagueMeta(
       Boolean((bodyLeague as Record<string, unknown> | undefined)?.superflex) ||
       Boolean(body.superflex),
     idp:
+      variantContext.isFootballIdp ||
       variantContext.isNflIdp ||
       Boolean((bodyLeague as Record<string, unknown> | undefined)?.idp) ||
       Boolean(body.idp),

@@ -10,6 +10,7 @@ import type { SportType, RosterDefaults } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 import { getRosterTemplate, type RosterTemplateDto } from '@/lib/multi-sport/RosterTemplateService'
 import { getScoringTemplate, type ScoringTemplateDto } from '@/lib/multi-sport/ScoringTemplateResolver'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export interface ResolvedLeaguePreset {
   sport: LeagueSport
@@ -31,9 +32,12 @@ export async function resolveLeaguePreset(
 ): Promise<ResolvedLeaguePreset> {
   const sportType = leagueSportToSportType(leagueSport) as SportType
   const variant = leagueVariant ?? null
+  const upperVariant = String(variant ?? '').toUpperCase()
   const formatType = getFormatTypeForVariant(sportType, variant)
   const overlay = getRosterOverlayForVariant(sportType, variant)
-  const isIdp = sportType === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')
+  const isIdp =
+    supportsIdpLeagueSport(sportType) &&
+    (upperVariant === 'IDP' || upperVariant === 'DYNASTY_IDP')
 
   let rosterDefaults: RosterDefaults = getRosterDefaults(sportType, formatType)
   if (formatType !== 'devy_dynasty' && overlay && Object.keys(overlay).length > 0) {

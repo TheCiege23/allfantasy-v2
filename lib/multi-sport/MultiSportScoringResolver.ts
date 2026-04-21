@@ -6,6 +6,7 @@
 import type { LeagueSport } from '@prisma/client'
 import { getLeagueScoringRules, getScoringTemplate, type ScoringRuleDto } from './ScoringTemplateResolver'
 import { resolveSportConfigForLeague, leagueSportToSportType } from './SportConfigResolver'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 /** Optional league settings (e.g. League.settings) to resolve scoring format when formatType not provided. */
 export interface LeagueSettingsForScoring {
@@ -54,7 +55,8 @@ export async function getLeagueSettingsForScoring(leagueId: string): Promise<Lea
   })
   if (!league) return null
   let idpScoringPreset: string | null = null
-  if (league.sport === 'NFL' && (league.leagueVariant === 'IDP' || league.leagueVariant === 'DYNASTY_IDP' || league.leagueVariant === 'idp')) {
+  const upperVariant = String(league.leagueVariant ?? '').toUpperCase()
+  if (supportsIdpLeagueSport(league.sport) && (upperVariant === 'IDP' || upperVariant === 'DYNASTY_IDP')) {
     const config = await prisma.idpLeagueConfig.findUnique({
       where: { leagueId },
       select: { scoringPreset: true },
@@ -77,7 +79,7 @@ export function resolveFormatTypeFromLeagueSettings(
 ): string | undefined {
   if (!leagueSettings) return undefined
   const variant = (leagueSettings.leagueVariant as string)?.toUpperCase()
-  if (leagueSport === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
+  if (supportsIdpLeagueSport(leagueSport) && (variant === 'IDP' || variant === 'DYNASTY_IDP')) {
     const preset = (leagueSettings.idpScoringPreset as string)?.toLowerCase()
     if (preset === 'tackle_heavy') return 'IDP-tackle_heavy'
     if (preset === 'big_play_heavy') return 'IDP-big_play_heavy'

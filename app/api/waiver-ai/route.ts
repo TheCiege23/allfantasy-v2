@@ -197,6 +197,7 @@ function extractLeagueMeta(body: AnyObj) {
     safeBool(league?.idp) ||
     safeBool(body?.idp) ||
     safeBool(body?.is_idp) ||
+    variantCtx.isFootballIdp ||
     variantCtx.isNflIdp
 
   const strategyMode =

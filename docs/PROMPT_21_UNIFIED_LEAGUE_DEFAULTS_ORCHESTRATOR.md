@@ -11,7 +11,7 @@
 - **LeaguePresetResolutionPipeline** — Resolves all presets in one go: calls `loadLeagueCreationDefaults(sport, variant)` and `buildInitialLeagueSettings(sport, variant)` so payload and initialSettingsForPreview come from the same resolution path.
 - **LeagueCreationInitializationService** — Single service that runs post-create initialization; uses `resolveSportVariantContext` to set format (e.g. IDP for NFL IDP) and calls `runLeagueBootstrap(leagueId, context.sport, format)`.
 - **LeagueSettingsPreviewBuilder** — `buildSettingsPreview(sport, variant, overrides)` builds the exact settings object with optional superflex, roster_mode, extra; `getSettingsPreviewSummary` returns a minimal summary for preview comparison.
-- **SportVariantContextResolver** — Normalizes sport + variant into `SportVariantContext` (sport, variant, formatType, isNflIdp, isSoccer, displayLabel). Ensures NFL IDP is an NFL variant and Soccer is a first-class sport. `SUPPORTED_SPORTS`: NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER.
+- **SportVariantContextResolver** — Normalizes sport + variant into `SportVariantContext` (sport, variant, formatType, `isFootballIdp` + legacy `isNflIdp`, isSoccer, displayLabel). Ensures football IDP is a first-class variant and Soccer is a first-class sport. `SUPPORTED_SPORTS`: NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER.
 - **Backend league create (POST /api/league/create):** Uses `getInitialSettingsForCreation(sport, leagueVariant, { superflex, roster_mode })` for `League.settings` and `runPostCreateInitialization(league.id, sport, leagueVariant)` after create. No duplicate default logic; orchestrator is the source of truth.
 - **Frontend preset loading:** GET /api/sport-defaults?sport=X&load=creation&variant=Y now uses `getCreationPayload(sport, variant)` from the orchestrator, so the creation payload is always resolved through the same pipeline as the backend.
 
@@ -21,7 +21,7 @@
 
 - **POST /api/league/create (native path):** Unchanged in flow. Already uses `getInitialSettingsForCreation(sport, leagueVariantInput, { superflex: isSuperflex ?? false, roster_mode: isDynasty ? 'dynasty' : undefined })` and `runPostCreateInitialization(league.id, sport, leagueVariantInput)`. No change.
 - **GET /api/sport-defaults:** When `load=creation`, now calls `getCreationPayload(sport, variantParam)` from the orchestrator instead of `loadLeagueCreationDefaults` directly. The payload shape is identical (getCreationPayload uses the pipeline which uses loadLeagueCreationDefaults). This makes the orchestrator the single entry point for creation payload and ensures frontend and backend use the same resolution path.
-- **LeagueBootstrapOrchestrator.runLeagueBootstrap:** Unchanged. Still runs in parallel: attachRosterConfigForLeague, initializeLeagueWithSportDefaults, bootstrapLeagueScoring, bootstrapLeaguePlayerPool, bootstrapLeagueDraftConfig, bootstrapLeagueWaiverSettings, bootstrapLeaguePlayoffConfig, bootstrapLeagueScheduleConfig. LeagueCreationInitializationService calls it with sport and format (IDP when isNflIdp).
+- **LeagueBootstrapOrchestrator.runLeagueBootstrap:** Unchanged. Still runs in parallel: attachRosterConfigForLeague, initializeLeagueWithSportDefaults, bootstrapLeagueScoring, bootstrapLeaguePlayerPool, bootstrapLeagueDraftConfig, bootstrapLeagueWaiverSettings, bootstrapLeaguePlayoffConfig, bootstrapLeagueScheduleConfig. LeagueCreationInitializationService calls it with sport and format (IDP when `isFootballIdp` / legacy `isNflIdp`).
 
 ---
 
@@ -65,7 +65,7 @@
 ## 5. QA findings
 
 - **Orchestrator as single source:** Creation payload is fetched via getCreationPayload (sport-defaults API); initial settings and bootstrap use getInitialSettingsForCreation and runPostCreateInitialization. All paths go through the orchestrator or the same underlying registries (LeagueDefaultSettingsService, loadLeagueCreationDefaults).
-- **NFL IDP:** Treated as NFL variant (SportVariantContextResolver.isNflIdp, formatType 'IDP'); roster/scoring/draft get IDP defaults; waiver/playoff/schedule use NFL defaults. runLeagueBootstrap receives format 'IDP' for roster/scoring.
+- **Football IDP:** Treated as football variant (SportVariantContextResolver.`isFootballIdp`, formatType 'IDP'); roster/scoring/draft get IDP defaults; waiver/playoff/schedule use sport defaults. runLeagueBootstrap receives format 'IDP' for roster/scoring.
 - **Soccer:** SUPPORTED_SPORTS includes SOCCER; loadLeagueCreationDefaults and buildInitialLeagueSettings support it; first-class sport in creation and bootstrap.
 - **Preview vs saved:** preset.league and defaultLeagueSettings in payload align with buildInitialLeagueSettings output; League.settings after create matches getInitialSettingsForCreation(sport, variant, overrides).
 - **Existing NFL creation:** Unchanged; sport=NFL, leagueVariant chosen (PPR, IDP, etc.), getInitialSettingsForCreation and runPostCreateInitialization behave as before.

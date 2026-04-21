@@ -7,6 +7,7 @@ import { normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { clearSportsFetch } from './client'
 import type { ClearSportsSport, ClearSportsTeam, ClearSportsPlayer, ClearSportsGame } from './types'
 export { runClearSportsHealthCheck, type ClearSportsHealthCheckResult } from './client'
+export { syncClearSportsToDb, type ClearSportsSyncOptions, type ClearSportsSyncSummary } from './sync'
 
 export type { ClearSportsSport, ClearSportsTeam, ClearSportsPlayer, ClearSportsGame } from './types'
 export {
@@ -40,7 +41,7 @@ function leagueCodeForSport(sport: ClearSportsSport): string {
     case 'NCAAF':
       return 'ncaaf'
     case 'SOCCER':
-      return 'soccer'
+      return 'epl'
     default:
       return (sport as string).toLowerCase()
   }
@@ -56,7 +57,7 @@ function rowsFrom<T = unknown>(json: unknown, key: string): T[] {
 
 export async function fetchClearSportsTeams(sport: ClearSportsSport): Promise<ClearSportsTeam[]> {
   const league = leagueCodeForSport(sport)
-  const json = await clearSportsFetch<{ teams?: unknown[] } | unknown[]>(`leagues/${league}/teams`)
+  const json = await clearSportsFetch<{ teams?: unknown[] } | unknown[]>(`${league}/teams`)
   const rows = rowsFrom(json, 'teams')
   return rows.map((t: any): ClearSportsTeam => ({
     id: String(t.id ?? t.teamId ?? t.slug ?? ''),
@@ -75,8 +76,8 @@ export async function fetchClearSportsPlayers(
   if (!search.trim()) return []
   const league = leagueCodeForSport(sport)
   const json = await clearSportsFetch<{ players?: unknown[] } | unknown[]>(
-    `leagues/${league}/players`,
-    { q: search.trim() },
+    `${league}/players`,
+    { search: search.trim(), q: search.trim() },
   )
   const rows = rowsFrom(json, 'players')
   return rows.map((p: any): ClearSportsPlayer => ({
@@ -101,7 +102,7 @@ export async function fetchClearSportsGames(
 ): Promise<ClearSportsGame[]> {
   const league = leagueCodeForSport(sport)
   const json = await clearSportsFetch<{ games?: unknown[] } | unknown[]>(
-    `leagues/${league}/games`,
+    `${league}/games`,
     season ? { season } : undefined,
   )
   const rows = rowsFrom(json, 'games')
@@ -125,7 +126,7 @@ export async function fetchClearSportsRankings(
 ): Promise<Array<Record<string, unknown>>> {
   const league = leagueCodeForSport(sport)
   const json = await clearSportsFetch<{ rankings?: unknown[] } | unknown[]>(
-    `leagues/${league}/rankings`,
+    `${league}/rankings`,
     season ? { season } : undefined,
   )
   return rowsFrom<Record<string, unknown>>(json, 'rankings').filter((r) => !!r && typeof r === 'object')
@@ -138,7 +139,7 @@ export async function fetchClearSportsProjections(
 ): Promise<Array<Record<string, unknown>>> {
   const league = leagueCodeForSport(sport)
   const json = await clearSportsFetch<{ projections?: unknown[] } | unknown[]>(
-    `leagues/${league}/projections`,
+    `${league}/projections`,
     season ? { season } : undefined,
   )
   return rowsFrom<Record<string, unknown>>(json, 'projections').filter((r) => !!r && typeof r === 'object')
@@ -149,7 +150,7 @@ export async function fetchClearSportsTrends(
   sport: ClearSportsSport,
 ): Promise<Array<Record<string, unknown>>> {
   const league = leagueCodeForSport(sport)
-  const json = await clearSportsFetch<{ trends?: unknown[] } | unknown[]>(`leagues/${league}/trends`)
+  const json = await clearSportsFetch<{ trends?: unknown[] } | unknown[]>(`${league}/trends`)
   return rowsFrom<Record<string, unknown>>(json, 'trends').filter((r) => !!r && typeof r === 'object')
 }
 
@@ -158,10 +159,9 @@ export async function fetchClearSportsNews(
   sport: ClearSportsSport,
   limit: number = 20,
 ): Promise<Array<Record<string, unknown>>> {
-  const league = leagueCodeForSport(sport)
   const json = await clearSportsFetch<{ news?: unknown[] } | unknown[]>(
-    `leagues/${league}/news`,
-    { limit: Math.max(1, Math.min(100, limit)) },
+    'news',
+    { sport, limit: Math.max(1, Math.min(100, limit)) },
   )
   return rowsFrom<Record<string, unknown>>(json, 'news').filter((r) => !!r && typeof r === 'object')
 }

@@ -5,11 +5,13 @@
 import type { SportType } from './types'
 import { toSportType } from './sport-type-utils'
 import { getFormatTypeForVariant, isIdpVariant } from './LeagueVariantRegistry'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export interface LeagueVariantResolution {
   sportType: SportType
   variant: string | null
   formatType: string
+  isFootballIdp?: boolean
   isNflIdp: boolean
   isSoccer: boolean
 }
@@ -21,12 +23,13 @@ export function resolveLeagueVariant(
   const sportType = typeof sport === 'string' ? toSportType(sport) : sport
   const normalizedVariant = variant?.trim() ? variant.trim() : null
   const formatType = getFormatTypeForVariant(sportType, normalizedVariant)
-  const isNflIdp = sportType === 'NFL' && isIdpVariant(normalizedVariant)
+  const isFootballIdp = supportsIdpLeagueSport(sportType) && isIdpVariant(normalizedVariant)
   return {
     sportType,
     variant: normalizedVariant,
     formatType,
-    isNflIdp,
+    isFootballIdp,
+    isNflIdp: isFootballIdp,
     isSoccer: sportType === 'SOCCER',
   }
 }

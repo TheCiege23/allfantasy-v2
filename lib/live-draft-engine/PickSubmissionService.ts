@@ -21,6 +21,8 @@ import { resolveSportForTrend } from '@/lib/player-trend/SportTrendContextResolv
 import type { SlotOrderEntry } from './types'
 import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
+import { getSalaryCapConfig } from '@/lib/salary-cap/SalaryCapLeagueConfig'
+import { assignRookieContract } from '@/lib/salary-cap/RookieContractService'
 
 export interface SubmitPickInput {
   leagueId: string
@@ -302,6 +304,32 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
 
   if (overall >= totalPicks) {
     await completeDraftSession(input.leagueId).catch(() => {})
+  }
+
+  // ── Salary cap: auto-assign rookie contract on snake draft picks ──
+  try {
+    const capConfig = await getSalaryCapConfig(input.leagueId)
+    if (capConfig?.startupDraftType === 'snake' && effectiveRosterId) {
+      const resolvedPlayerId = pick.playerId ?? input.playerId ?? null
+      const capYear = new Date().getFullYear()
+      await assignRookieContract(
+        input.leagueId,
+        effectiveRosterId,
+        resolvedPlayerId ?? `draft-${overall}`,
+        input.playerName.trim(),
+        input.position,
+        overall,
+        capYear
+      ).catch((err: unknown) => {
+        console.error('[salary-cap] assignRookieContract failed', {
+          leagueId: input.leagueId,
+          overall,
+          error: String(err),
+        })
+      })
+    }
+  } catch {
+    // non-fatal: contract assignment failure should never block pick persistence
   }
 
   return {

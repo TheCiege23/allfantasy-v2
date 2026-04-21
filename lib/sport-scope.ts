@@ -42,6 +42,13 @@ export const C2C_WIZARD_PRIMARY_SPORTS = COLLEGE_PAIR_WIZARD_PRIMARY_SPORTS
 /** Type for supported sport string (aligns with LeagueSport). */
 export type SupportedSport = LeagueSport
 
+/** IDP leagues are explicitly supported only for pro + college football. */
+export const IDP_SUPPORTED_SPORTS: readonly LeagueSport[] = ['NFL', 'NCAAF']
+
+/** IDP create-flow draft types (pick-order + execution modes). */
+export const IDP_ALLOWED_DRAFT_TYPES = ['snake', 'linear', 'auction', 'offline', 'auto'] as const
+export type IdpAllowedDraftType = (typeof IDP_ALLOWED_DRAFT_TYPES)[number]
+
 export function isSupportedSport(s: string | null | undefined): s is LeagueSport {
   if (s == null || typeof s !== 'string') return false
   return (SUPPORTED_SPORTS as readonly string[]).includes(s.toUpperCase())
@@ -52,4 +59,14 @@ export function normalizeToSupportedSport(sport: string | null | undefined): Lea
   const u = sport?.trim().toUpperCase()
   if (u && (SUPPORTED_SPORTS as readonly string[]).includes(u)) return u as LeagueSport
   return DEFAULT_SPORT
+}
+
+export function supportsIdpLeagueSport(sport: string | null | undefined): boolean {
+  const normalized = normalizeToSupportedSport(sport)
+  return (IDP_SUPPORTED_SPORTS as readonly string[]).includes(normalized)
+}
+
+export function isAllowedIdpDraftType(draftType: string | null | undefined): draftType is IdpAllowedDraftType {
+  const normalized = String(draftType ?? '').trim().toLowerCase()
+  return (IDP_ALLOWED_DRAFT_TYPES as readonly string[]).includes(normalized)
 }

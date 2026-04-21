@@ -16,6 +16,7 @@ import type { PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 import type { ValidatedCreateLeagueBody } from '@/lib/league-creation/canonical/validateCreateLeague'
 import { mapCanonicalDraftTypeToEngineCore } from '@/lib/draft-types/draftTypeRegistry'
 import { mapKeeperCreationFromWizard } from '@/lib/keeper/mapKeeperCreationFromWizard'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
 type Tx = Prisma.TransactionClient
@@ -59,7 +60,7 @@ async function uniqueJoinCode(tx: Tx): Promise<string> {
 
 function leagueModeColumns(formatId: LeagueFormatId): Partial<Prisma.LeagueUncheckedCreateInput> {
   return {
-    isDynasty: formatId === 'dynasty' || formatId === 'devy' || formatId === 'c2c',
+    isDynasty: formatId === 'dynasty' || formatId === 'devy' || formatId === 'c2c' || formatId === 'salary_cap',
     bestBallMode: formatId === 'best_ball',
     guillotineMode: formatId === 'guillotine',
     survivorMode: formatId === 'survivor',
@@ -174,7 +175,7 @@ export async function createCanonicalLeagueInTransaction(
       leagueSize: body.teamCount,
       sport,
       leagueType: formatId,
-      leagueVariant: resolution.modifiers.includes('idp') && sport === 'NFL' ? 'idp' : null,
+      leagueVariant: resolution.modifiers.includes('idp') && supportsIdpLeagueSport(sport) ? 'idp' : null,
       timezone: body.timezone ?? 'America/New_York',
       language: body.language ?? 'en',
       joinCode,
@@ -470,6 +471,64 @@ export async function createCanonicalLeagueInTransaction(
         : {}),
     },
   })
+
+  // ── Salary cap league config ──────────────────────────────────────────────
+  if (formatId === 'salary_cap') {
+    const cs = (body.conceptSetup ?? {}) as Record<string, unknown>
+    const num = (v: unknown, fallback: number) =>
+      v !== undefined && v !== null && !Number.isNaN(Number(v)) ? Number(v) : fallback
+    const bool = (v: unknown, fallback: boolean) =>
+      v !== undefined && v !== null ? Boolean(v) : fallback
+    const str = (v: unknown, fallback: string) =>
+      typeof v === 'string' && v.length > 0 ? v : fallback
+
+    const isCollegeSport = sport === 'NCAAB' || sport === 'NCAAF'
+    const startupDraftType = str(cs.draftMode, 'auction') === 'snake' ? 'snake' : 'auction'
+    const defaultCap =
+      sport === 'NBA' || sport === 'NHL'
+        ? 200
+        : sport === 'NCAAB'
+          ? 150
+          : 250
+
+    await tx.salaryCapLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        mode: 'dynasty',
+        startupCap: num(cs.totalCap, defaultCap),
+        capGrowthPercent: 5,
+        contractMinYears: 1,
+        contractMaxYears: num(cs.maxContractYears, isCollegeSport ? 3 : 4),
+        rookieContractYears: num(cs.defaultContractYears, isCollegeSport ? 2 : 3),
+        minimumSalary: num(cs.minSalary, 1),
+        deadMoneyEnabled: bool(cs.deadMoneyEnabled, true),
+        deadMoneyPercentPerYear: 25,
+        rolloverEnabled: bool(cs.capRolloverEnabled, true),
+        rolloverMax: num(cs.rolloverMax, isCollegeSport ? 0 : 25),
+        capFloorEnabled: bool(cs.capFloorEnabled, false),
+        capFloorAmount: null,
+        extensionsEnabled: true,
+        franchiseTagEnabled: bool(cs.franchiseTagEnabled, false),
+        rookieOptionEnabled: false,
+        startupDraftType,
+        futureDraftType: 'snake',
+        auctionHoldback: num(cs.auctionHoldback, 50),
+        weightedLotteryEnabled: false,
+        lotteryOddsConfig: undefined,
+        compPickEnabled: false,
+        compPickFormula: undefined,
+        offseasonPhase: null,
+        offseasonPhaseEndsAt: null,
+      },
+      update: { startupDraftType },
+    })
+
+    log?.('salary_cap_config_upserted', {
+      leagueId: league.id,
+      startupDraftType,
+    })
+  }
 
   const zombieTier =
     formatId === 'zombie' && body.conceptSetup && typeof body.conceptSetup === 'object'

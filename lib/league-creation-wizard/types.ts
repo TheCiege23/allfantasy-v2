@@ -225,7 +225,7 @@ export interface WizardTournamentSettings {
 }
 
 export interface WizardSalaryCapSettings {
-  draftMode: 'auction' | 'snake_salary' | 'hybrid'
+  draftMode: 'auction' | 'snake'
   salaryCurve: 'linear' | 'steep' | 'exponential' | 'flat'
   totalCap: number
   maxSalary: number

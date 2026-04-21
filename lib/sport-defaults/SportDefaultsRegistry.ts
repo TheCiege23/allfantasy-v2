@@ -14,6 +14,7 @@ import type {
 import { SPORT_TYPES } from './types'
 import { getRosterOverlayForVariant } from './LeagueVariantRegistry'
 import { getTeamMetadataForSport } from '@/lib/sport-teams/SportTeamMetadataRegistry'
+import { supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export const SPORT_DEFAULTS_CORE_REGISTRY_VERSION = '2026-03-20.1'
 
@@ -495,6 +496,32 @@ const WAIVER_VARIANT_OVERRIDES: Partial<Record<SportType, Record<string, Partial
       max_claims_per_period: null,
     },
   },
+  NCAAF: {
+    IDP: {
+      waiver_type: 'faab',
+      faab_enabled: true,
+      FAAB_budget_default: 100,
+      claim_priority_behavior: 'faab_highest',
+      game_lock_behavior: 'game_time',
+      drop_lock_behavior: 'lock_with_game',
+      same_day_add_drop_rules: 'allow_if_not_played',
+      max_claims_per_period: 14,
+    },
+    DYNASTY_IDP: {
+      waiver_type: 'faab',
+      processing_days: [1, 3, 5],
+      processing_time_utc: '12:00',
+      faab_enabled: true,
+      FAAB_budget_default: 100,
+      claim_priority_behavior: 'faab_highest',
+      continuous_waivers_behavior: true,
+      free_agent_unlock_behavior: 'daily',
+      game_lock_behavior: 'game_time',
+      drop_lock_behavior: 'lock_with_game',
+      same_day_add_drop_rules: 'allow_if_not_played',
+      max_claims_per_period: null,
+    },
+  },
 }
 
 function normalizeWaiverVariant(variant?: string | null): string {
@@ -521,7 +548,7 @@ export function getLeagueDefaults(sportType: SportType): LeagueDefaults {
 }
 
 /**
- * Get roster defaults for a sport. When formatType is 'IDP' for NFL, returns base NFL + IDP slots.
+ * Get roster defaults for a sport. When formatType is IDP for supported sports, returns football + IDP slots.
  * When formatType is 'devy_dynasty' for NFL or NBA, returns Devy Dynasty roster (devy slots, taxi, etc.).
  */
 export function getRosterDefaults(sportType: SportType, formatType?: string): RosterDefaults {
@@ -529,7 +556,7 @@ export function getRosterDefaults(sportType: SportType, formatType?: string): Ro
   if (formatType === 'devy_dynasty' && (sportType === 'NFL' || sportType === 'NBA')) {
     return DEVY_DYNASTY_ROSTER_DEFAULTS[sportType]
   }
-  if (sportType === 'NFL' && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
+  if (supportsIdpLeagueSport(sportType) && (formatType === 'IDP' || formatType === 'idp' || formatType === 'DYNASTY_IDP')) {
     const overlay = getRosterOverlayForVariant(sportType, 'IDP')
     const starter_slots = { ...base.starter_slots, ...(overlay ?? {}) }
     delete starter_slots.DST
@@ -552,16 +579,17 @@ function getScoringDefaultsWithVariant(
   variantOrFormat?: string | null
 ): ScoringDefaults {
   const base = SCORING_DEFAULTS[sportType] ?? SCORING_DEFAULTS.NFL
-  if (sportType !== 'NFL') return base
   const normalized = String(variantOrFormat ?? '').trim().toUpperCase()
   if (!normalized) return base
-  if (normalized === 'IDP' || normalized === 'DYNASTY_IDP') {
+  if (supportsIdpLeagueSport(sportType) && (normalized === 'IDP' || normalized === 'DYNASTY_IDP')) {
+    const scoringTemplateBase = sportType === 'NCAAF' ? 'default-NCAAF-IDP' : 'default-NFL-IDP'
     return {
       ...base,
-      scoring_template_id: 'default-NFL-IDP',
+      scoring_template_id: scoringTemplateBase,
       scoring_format: 'IDP',
     }
   }
+  if (sportType !== 'NFL') return base
   if (normalized === 'HALF_PPR') {
     return {
       ...base,
@@ -594,8 +622,8 @@ export function getScoringDefaults(
 }
 
 /**
- * Get draft defaults for a sport. When formatType is 'IDP' (or 'DYNASTY_IDP') for NFL,
- * returns base NFL defaults with IDP-specific rounds. When formatType is 'devy_dynasty',
+ * Get draft defaults for a sport. When formatType is IDP (or DYNASTY_IDP) for supported football sports,
+ * returns base sport defaults with IDP-specific rounds. When formatType is 'devy_dynasty',
  * returns rounds sufficient for startup vet (active + bench + taxi); rookie/devy rounds come from DevyLeagueConfig.
  */
 export function getDraftDefaults(sportType: SportType, formatType?: string | null): DraftDefaults {
@@ -616,7 +644,7 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
       keeper_dynasty_carryover_supported: true,
     }
   }
-  if (sportType === 'NFL' && (normalizedVariant === 'IDP' || normalizedVariant === 'DYNASTY_IDP')) {
+  if (supportsIdpLeagueSport(sportType) && (normalizedVariant === 'IDP' || normalizedVariant === 'DYNASTY_IDP')) {
     return {
       ...base,
       rounds_default: 18,
@@ -660,7 +688,7 @@ export function getDraftDefaults(sportType: SportType, formatType?: string | nul
 }
 
 /**
- * Get waiver defaults for a sport. Optionally pass formatType (e.g. IDP); NFL IDP uses same waiver defaults as NFL.
+ * Get waiver defaults for a sport. Optionally pass formatType (e.g. IDP).
  */
 export function getWaiverDefaults(sportType: SportType, _formatType?: string | null): WaiverDefaults {
   const base = WAIVER_DEFAULTS[sportType] ?? WAIVER_DEFAULTS.NFL

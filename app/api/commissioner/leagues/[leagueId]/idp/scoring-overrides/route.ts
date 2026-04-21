@@ -12,6 +12,7 @@ import { writeIdpSettingsAudit } from '@/lib/idp/IdpSettingsAudit'
 import { getIdpPresetScoring } from '@/lib/idp/IDPScoringPresets'
 import { mergeScoringForValidation, validateScoringOutliers } from '@/lib/idp/IdpValidationService'
 import type { IdpScoringOverrides } from '@/lib/idp/types'
+import { prisma } from '@/lib/prisma'
 
 export async function PATCH(
   req: Request,
@@ -33,8 +34,12 @@ export async function PATCH(
 
   const current = await getIdpLeagueConfig(leagueId)
   if (!current?.configId) return NextResponse.json({ error: 'IDP config not found' }, { status: 404 })
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
 
-  const presetValues = getIdpPresetScoring(current.scoringPreset)
+  const presetValues = getIdpPresetScoring(current.scoringPreset, league?.sport)
   const merged = mergeScoringForValidation(presetValues, scoringOverrides ?? {})
   const { warnings } = validateScoringOutliers(merged)
 

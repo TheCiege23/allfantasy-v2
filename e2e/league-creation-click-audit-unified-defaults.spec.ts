@@ -7,8 +7,8 @@ type CreatePayload = {
   settings?: Record<string, unknown>
 }
 
-function buildScoringRules(sport: string, isNflIdp: boolean) {
-  if (isNflIdp) {
+function buildScoringRules(sport: string, isFootballIdp: boolean) {
+  if (isFootballIdp) {
     return [
       { statKey: 'passing_td', pointsValue: 4, multiplier: 1, enabled: true },
       { statKey: 'receptions', pointsValue: 1, multiplier: 1, enabled: true },
@@ -44,7 +44,7 @@ function buildScoringRules(sport: string, isNflIdp: boolean) {
 function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
   const sport = String(sportRaw || 'NFL').toUpperCase()
   const variant = (variantRaw ?? '').toUpperCase()
-  const isNflIdp = sport === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')
+  const isFootballIdp = sport === 'NFL' && (variant === 'IDP' || variant === 'DYNASTY_IDP')
   const regularSeasonBySport: Record<string, number> = {
     NFL: 18,
     NBA: 24,
@@ -82,23 +82,23 @@ function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
       default_trade_deadline_logic: 'week_based',
     },
     roster: {
-      starter_slots: isNflIdp
+      starter_slots: isFootballIdp
         ? { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, DL: 1, DB: 1, IDP_FLEX: 1, K: 1 }
         : { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
-      bench_slots: isNflIdp ? 9 : 7,
+      bench_slots: isFootballIdp ? 9 : 7,
       IR_slots: 2,
       taxi_slots: 0,
       devy_slots: 0,
       flex_definitions: [],
     },
     scoring: {
-      scoring_template_id: isNflIdp ? 'default-NFL-IDP' : `default-${sport}-standard`,
-      scoring_format: isNflIdp ? 'IDP' : 'STANDARD',
+      scoring_template_id: isFootballIdp ? 'default-NFL-IDP' : `default-${sport}-standard`,
+      scoring_format: isFootballIdp ? 'IDP' : 'STANDARD',
       category_type: 'points',
     },
     draft: {
       draft_type: 'snake',
-      rounds_default: isNflIdp ? 18 : 15,
+      rounds_default: isFootballIdp ? 18 : 15,
       timer_seconds_default: 90,
       pick_order_rules: 'snake',
       snake_or_linear_behavior: 'snake',
@@ -127,14 +127,14 @@ function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
     rosterTemplate: {
       templateId: `template-${sport}-${variant || 'standard'}`,
       name: `${sport} Default`,
-      formatType: isNflIdp ? 'IDP' : 'standard',
+      formatType: isFootballIdp ? 'IDP' : 'standard',
       slots: [],
     },
     scoringTemplate: {
       templateId: `scoring-${sport}-${variant || 'standard'}`,
       name: `${sport} Default Scoring`,
-      formatType: isNflIdp ? 'IDP' : 'standard',
-      rules: buildScoringRules(sport, isNflIdp),
+      formatType: isFootballIdp ? 'IDP' : 'standard',
+      rules: buildScoringRules(sport, isFootballIdp),
     },
     defaultLeagueSettings: {
       playoff_team_count: 6,
@@ -206,7 +206,7 @@ function buildCreationPreset(sportRaw: string, variantRaw: string | null) {
       supportsSuperflex: sport === 'NFL',
       supportsTePremium: sport === 'NFL',
       supportsKickers: sport === 'NFL',
-      supportsTeamDefense: sport === 'NFL' && !isNflIdp,
+      supportsTeamDefense: sport === 'NFL' && !isFootballIdp,
       supportsIdp: sport === 'NFL',
       supportsWeeklyLineups: true,
       supportsDailyLineups: sport === 'NBA' || sport === 'MLB' || sport === 'NHL',

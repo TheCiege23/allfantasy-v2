@@ -129,6 +129,8 @@ export async function runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate(
         mode,
         ...(startupFromWizard != null ? { startupCap: startupFromWizard } : {}),
         ...(sc.futureDraftType != null && { futureDraftType: String(sc.futureDraftType) }),
+        ...(sc.startupDraftType != null && { startupDraftType: String(sc.startupDraftType) === 'snake' ? 'snake' : 'auction' }),
+        ...(sc.draftMode != null && sc.startupDraftType == null && { startupDraftType: String(sc.draftMode) === 'snake' ? 'snake' : 'auction' }),
       })
     } catch (err) {
       console.warn('[league/create] Salary cap config bootstrap non-fatal:', err)

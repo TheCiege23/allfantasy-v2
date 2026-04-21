@@ -17,5 +17,6 @@ export {
   type RecentFailureSummary,
   type FallbackEventSummary,
   type DegradedModeSummary,
+  type ClearSportsSyncHistoryEntry,
   type ProviderDiagnosticsPayload,
 } from '@/lib/admin/provider-status-service'

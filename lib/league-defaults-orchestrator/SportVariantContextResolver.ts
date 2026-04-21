@@ -1,9 +1,9 @@
 /**
  * Resolves sport + variant into a normalized context for league creation and defaults.
- * Ensures NFL IDP is treated as an NFL variant and Soccer as a first-class sport.
+ * Ensures football IDP (NFL + NCAAF) is treated as a first-class variant and Soccer as a first-class sport.
  */
 import type { LeagueSport } from '@prisma/client'
-import { SUPPORTED_SPORTS, DEFAULT_SPORT } from '@/lib/sport-scope'
+import { SUPPORTED_SPORTS, DEFAULT_SPORT, supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export { SUPPORTED_SPORTS }
 
@@ -12,7 +12,9 @@ export interface SportVariantContext {
   variant: string | null
   /** Format type for roster/scoring resolution (e.g. 'IDP' for NFL IDP). */
   formatType: string
-  /** True when variant is IDP or DYNASTY_IDP for NFL. */
+  /** True when variant is IDP or DYNASTY_IDP for IDP-supported football sports. */
+  isFootballIdp?: boolean
+  /** True when variant is IDP or DYNASTY_IDP for IDP-supported football sports (legacy field name). */
   isNflIdp: boolean
   /** True when sport is Soccer. */
   isSoccer: boolean
@@ -50,12 +52,13 @@ export function resolveSportVariantContext(
   const s = toLeagueSport(sport)
   const v = normalizeVariant(variant)
   const upperV = v?.toUpperCase() ?? ''
-  const isNflIdp = s === 'NFL' && (upperV === 'IDP' || upperV === 'DYNASTY_IDP')
-  const formatType = isNflIdp ? 'IDP' : (v ?? 'STANDARD')
+  const isFootballIdp = supportsIdpLeagueSport(s) && (upperV === 'IDP' || upperV === 'DYNASTY_IDP')
+  const formatType = isFootballIdp ? 'IDP' : (v ?? 'STANDARD')
   const isSoccer = s === 'SOCCER'
 
   let displayLabel: string
-  if (s === 'NFL' && isNflIdp) displayLabel = 'NFL IDP'
+  if (isFootballIdp && s === 'NFL') displayLabel = 'NFL IDP'
+  else if (isFootballIdp && s === 'NCAAF') displayLabel = 'NCAAF IDP'
   else if (s === 'SOCCER') displayLabel = 'Soccer'
   else if (s === 'NCAAF') displayLabel = 'NCAA Football'
   else if (s === 'NCAAB') displayLabel = 'NCAA Basketball'
@@ -65,7 +68,8 @@ export function resolveSportVariantContext(
     sport: s,
     variant: v,
     formatType,
-    isNflIdp,
+    isFootballIdp,
+    isNflIdp: isFootballIdp,
     isSoccer,
     displayLabel,
   }

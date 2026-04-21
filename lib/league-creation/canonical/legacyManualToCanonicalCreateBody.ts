@@ -8,7 +8,7 @@
 import { getDefaultScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
 export type LegacyManualCanonicalBuildInput = {
@@ -36,7 +36,7 @@ export function buildLegacyManualCanonicalCreatePayload(input: LegacyManualCanon
     concept = 'dynasty'
   } else if (ltRaw === 'idp') {
     concept = 'idp'
-  } else if (input.isIdpRequested && sport === 'NFL' && (ltRaw === 'redraft' || ltRaw === '')) {
+  } else if (input.isIdpRequested && supportsIdpLeagueSport(sport) && (ltRaw === 'redraft' || ltRaw === '')) {
     concept = 'idp'
   } else {
     concept = input.requestedLeagueType ?? 'redraft'

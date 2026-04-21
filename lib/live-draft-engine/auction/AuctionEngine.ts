@@ -12,6 +12,8 @@ import type {
   SlotOrderEntry,
 } from '@/lib/live-draft-engine/types'
 import { computeTimerEndAt } from '@/lib/live-draft-engine/DraftTimerService'
+import { getSalaryCapConfig } from '@/lib/salary-cap/SalaryCapLeagueConfig'
+import { processWinningContractBid } from '@/lib/salary-cap/ContractBidService'
 
 const DEFAULT_BUDGET = 200
 const DEFAULT_MIN_BID = 1
@@ -391,11 +393,56 @@ export async function resolveAuctionWin(
     }
   })
 
+  if (sold && winnerRosterId && amount > 0 && nomination) {
+    void tryAssignAuctionContract(
+      leagueId,
+      winnerRosterId,
+      nomination.playerId ?? null,
+      nomination.playerName,
+      nomination.position,
+      amount
+    )
+  }
+
   return {
     success: true,
     sold,
     winnerRosterId: winnerRosterId ?? undefined,
     amount: amount > 0 ? amount : undefined,
+  }
+}
+
+// ── Salary cap: assign contract when auction bid wins ────────────────────────
+// Called outside the transaction so a contract write failure never rolls back the pick.
+async function tryAssignAuctionContract(
+  leagueId: string,
+  rosterId: string,
+  playerId: string | null,
+  playerName: string,
+  position: string,
+  salary: number
+): Promise<void> {
+  try {
+    const capConfig = await getSalaryCapConfig(leagueId)
+    if (!capConfig) return
+    // Only auto-assign for startup auction drafts (not future snake drafts)
+    if (capConfig.startupDraftType !== 'auction') return
+    await processWinningContractBid(
+      leagueId,
+      {
+        rosterId,
+        playerId: playerId ?? `auction-${Date.now()}`,
+        salary,
+        years: capConfig.rookieContractYears,
+      },
+      playerName,
+      position
+    )
+  } catch (err) {
+    console.error('[salary-cap] tryAssignAuctionContract failed', {
+      leagueId,
+      error: String(err),
+    })
   }
 }
 

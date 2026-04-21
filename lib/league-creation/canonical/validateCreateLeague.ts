@@ -14,7 +14,7 @@ import {
   normalizeDraftTypeForEngineValidation,
   resolveEffectiveDraftTypeForConcept,
 } from '@/lib/draft-types/draftTypeRegistry'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { isAllowedIdpDraftType, normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import type { ValidationIssue } from '@/lib/league-creation/canonical/types'
@@ -133,6 +133,16 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
   }
 
   const formatId = normalized.formatId
+  const idpRequested = normalized.aliasTags.includes('idp')
+
+  if (idpRequested && !supportsIdpLeagueSport(sport)) {
+    return {
+      ok: false,
+      error: 'IDP leagues are available only for NFL and NCAAF',
+      status: 400,
+      errors: [{ path: 'sport', message: `IDP is not supported for ${sport}` }],
+    }
+  }
 
   if (!isLeagueFormatAllowedForSport(sport, formatId)) {
     return {
@@ -144,6 +154,19 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
   }
 
   const engineBase = normalizeDraftTypeForEngineValidation(data.draftType)
+  if (idpRequested && !isAllowedIdpDraftType(data.draftType)) {
+    return {
+      ok: false,
+      error: 'Invalid draft type for IDP leagues',
+      status: 400,
+      errors: [
+        {
+          path: 'draftType',
+          message: 'IDP leagues support snake, linear, auction, offline, or auto',
+        },
+      ],
+    }
+  }
   const engineDraft = resolveEffectiveDraftTypeForConcept(formatId as LeagueTypeId, engineBase)
   if (!isDraftTypeAllowedForFormat(sport, formatId, engineDraft)) {
     return {

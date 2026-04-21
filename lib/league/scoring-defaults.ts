@@ -1,6 +1,6 @@
 import type { LeagueSport } from '@prisma/client'
 import { getScoringDefaults } from '@/lib/sport-defaults/SportDefaultsRegistry'
-import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeToSupportedSport, supportsIdpLeagueSport } from '@/lib/sport-scope'
 
 export type FormatScoringModifierId =
   | 'superflex'
@@ -29,7 +29,7 @@ function normalizeVariantForScoring(
   formatId?: string | null,
   modifiers: FormatScoringModifierId[] = []
 ): string | undefined {
-  if (modifiers.includes('idp') && sport === 'NFL') return 'IDP'
+  if (modifiers.includes('idp') && supportsIdpLeagueSport(sport)) return 'IDP'
   if (modifiers.includes('superflex') && sport === 'NFL') return 'SUPERFLEX'
   return formatId ?? undefined
 }

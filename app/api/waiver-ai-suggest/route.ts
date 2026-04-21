@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       format: league.format || (league.isDynasty ? 'dynasty' : 'redraft'),
       numTeams: Array.isArray(league.teams) ? league.teams.length : undefined,
       superflex: Boolean(league.isSuperflex),
-      idp: variantContext.isNflIdp,
+      idp: variantContext.isFootballIdp || variantContext.isNflIdp,
       strategyMode: 'balanced',
     });
     const leagueSummary = `Scoring: ${league.scoringType || 'standard'}. Variant: ${variantContext.displayLabel}.`;

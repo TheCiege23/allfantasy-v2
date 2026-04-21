@@ -125,7 +125,7 @@ Adding a redundant `sport_type` to every league-scoped table is intentionally av
 | **MultiSportRosterService** | `lib/multi-sport/MultiSportRosterService.ts` — `getRosterTemplateForLeague(leagueSport, formatType?)`, `resolveLeagueRosterConfig(leagueId, leagueSport, formatType?)`, `isPositionAllowedForSport(sport, position, formatType?)`, `getAllowedPositionsForSlot(...)`. |
 | **MultiSportScoringResolver** | `lib/multi-sport/MultiSportScoringResolver.ts` — `resolveScoringRulesForLeague(leagueId, leagueSport, formatType?)`, `getScoringTemplateForSport(leagueSport, formatType?)`. |
 | **MultiSportScheduleResolver** | `lib/multi-sport/MultiSportScheduleResolver.ts` — `resolveScheduleContext(leagueSport, season, currentWeekOrRound)`; returns total weeks/rounds and label (week vs round). |
-| **SportVariantContextResolver** | `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` — Normalizes sport + variant to `SportVariantContext` (formatType, isNflIdp, isSoccer, displayLabel); SUPPORTED_SPORTS; used by league creation and bootstrap. |
+| **SportVariantContextResolver** | `lib/league-defaults-orchestrator/SportVariantContextResolver.ts` — Normalizes sport + variant to `SportVariantContext` (formatType, `isFootballIdp` + legacy `isNflIdp`, isSoccer, displayLabel); SUPPORTED_SPORTS; used by league creation and bootstrap. |
 
 ### Supporting modules
 
