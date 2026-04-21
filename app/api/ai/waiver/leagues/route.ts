@@ -14,6 +14,6 @@ import { GET as legacyGet } from '@/app/api/legacy/waiver/leagues/route'
 export const GET = withApiUsage({ endpoint: '/api/ai/waiver/leagues', tool: 'AiWaiverLeagues' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/waiver/leagues GET → delegating to legacy handler')
-    return legacyGet(req)
+    return legacyGet(req, {})
   },
 )

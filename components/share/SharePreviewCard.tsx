@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import type { SharePayload } from "@/lib/share-engine/types";
 import { cn } from "@/lib/utils";
 
@@ -29,11 +30,12 @@ export function SharePreviewCard({ payload, className }: SharePreviewCardProps) 
       data-testid="share-preview-card"
     >
       {payload.imageUrl ? (
-        <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl bg-black/20">
-          <img
+        <div className="mb-3 aspect-video w-full overflow-hidden rounded-xl bg-black/20 relative">
+          <Image
             src={payload.imageUrl}
             alt=""
-            className="h-full w-full object-cover"
+            fill
+            className="object-cover"
           />
         </div>
       ) : null}

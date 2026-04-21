@@ -8,6 +8,6 @@ export const maxDuration = 120 // 2 minutes for multi-API orchestration
 export const POST = withApiUsage({ endpoint: '/api/ai/trade/league-analyze', tool: 'AiTradeLeagueAnalyze' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/trade/league-analyze POST → delegating to legacy handler')
-    return legacyPost(req)
+    return legacyPost(req, {})
   },
 )

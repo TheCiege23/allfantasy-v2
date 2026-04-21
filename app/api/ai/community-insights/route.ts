@@ -14,6 +14,6 @@ import { GET as legacyGet } from '@/app/api/legacy/community-insights/route'
 export const GET = withApiUsage({ endpoint: '/api/ai/community-insights', tool: 'AiCommunityInsights' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/community-insights GET → delegating to legacy handler')
-    return legacyGet(req)
+    return legacyGet(req, {})
   },
 )

@@ -161,7 +161,7 @@ export function TournamentIntroVideoOverlay({
           data-testid="tournament-intro-video"
         />
         <p className="pt-2 text-center text-[10px] text-white/45">
-          This intro plays once. Skip or wait for it to finish — it won't show again.
+          This intro plays once. Skip or wait for it to finish — it won&apos;t show again.
         </p>
       </div>
     </div>

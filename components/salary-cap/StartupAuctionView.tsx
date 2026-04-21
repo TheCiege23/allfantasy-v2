@@ -77,7 +77,7 @@ export function StartupAuctionView({
               <Info className="h-4 w-4" /> Auction salary rules
             </h3>
             <ul className="space-y-1 text-sm text-white/70">
-              <li>• Winning bid becomes the player's contract salary</li>
+              <li>• Winning bid becomes the player&apos;s contract salary</li>
               <li>• Holdback (${config.auctionHoldback}) stays locked until all drafts are complete</li>
               <li>• Available cap = total cap − holdback until draft finishes</li>
               <li>• Contract years assigned per league settings ({config.rookieContractYears} yr default)</li>
@@ -131,7 +131,7 @@ export function StartupAuctionView({
                 Snake salary-scale contracts mirror real-world rookie deals — top picks command
                 premium salaries while late-round picks are cap-friendly bargains. Early picks are
                 high-cost, high-upside assets. Later picks are cheap depth with minimal cap risk if
-                they don't work out.
+                they don&apos;t work out.
               </p>
             </div>
           </div>

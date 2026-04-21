@@ -17,13 +17,13 @@ import { POST as legacyPost, GET as legacyGet } from '@/app/api/legacy/manager-d
 export const POST = withApiUsage({ endpoint: '/api/ai/manager-dna', tool: 'AiManagerDna' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/manager-dna POST → delegating to legacy handler')
-    return legacyPost(req)
+    return legacyPost(req, {})
   },
 )
 
 export const GET = withApiUsage({ endpoint: '/api/ai/manager-dna', tool: 'AiManagerDna' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/manager-dna GET → delegating to legacy handler')
-    return legacyGet(req)
+    return legacyGet(req, {})
   },
 )

@@ -17,13 +17,13 @@ export const maxDuration = 60
 export const POST = withApiUsage({ endpoint: '/api/ai/opponent-tendencies', tool: 'AiOpponentTendencies' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/opponent-tendencies POST → delegating to legacy handler')
-    return legacyPost(req)
+    return legacyPost(req, {})
   },
 )
 
 export const GET = withApiUsage({ endpoint: '/api/ai/opponent-tendencies', tool: 'AiOpponentTendencies' })(
   async (req: NextRequest) => {
     console.log('[ai-migration] /api/ai/opponent-tendencies GET → delegating to legacy handler')
-    return legacyGet(req)
+    return legacyGet(req, {})
   },
 )
