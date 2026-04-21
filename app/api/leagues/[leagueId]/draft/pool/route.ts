@@ -134,6 +134,8 @@ export async function GET(
       draftEligibleYear?: number | null
       graduatedToNFL?: boolean
       poolType?: 'college' | 'pro'
+      imageUrl?: string | null
+      age?: number | null
     }
       let rawList: RawRow[] = []
       const poolRows = await getPlayerPoolForLeague(leagueId, sport, {
@@ -182,7 +184,7 @@ export async function GET(
         ...(isC2C || devyEnabled ? { poolType: 'college' as const } : {}),
       }))
       } else if (sport === 'NFL') {
-      const adpEntries = await getLiveADP('redraft', limit).catch(() => [])
+      const adpEntries = await getLiveADP('redraft', Math.min(500, Math.max(limit, 400))).catch(() => [])
       rawList = adpEntries.map((e) => ({
         name: e.name,
         position: e.position,
@@ -211,6 +213,34 @@ export async function GET(
             })
           }
         }
+      }
+      // ADP-only lists are often ~100–200 players; merge DB pool so the room has the full roster universe,
+      // Sleeper IDs for headshots (`resolvePlayerAssets`), and IDs for `/api/legacy/player-game-logs`.
+      const nflPoolMergeCap = Math.min(2200, Math.max(limit, 800))
+      const seenNflPoolNames = new Set(
+        rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')),
+      )
+      for (const p of poolRows) {
+        if (rawList.length >= nflPoolMergeCap) break
+        const norm = normalizeNameForDedupe(p.full_name ?? '')
+        if (!norm || seenNflPoolNames.has(norm)) continue
+        seenNflPoolNames.add(norm)
+        rawList.push({
+          name: p.full_name,
+          position: p.position ?? '—',
+          team: p.team_abbreviation ?? null,
+          playerId: p.external_source_id ?? (p as { player_id?: string | null }).player_id ?? null,
+          adp: null,
+          bye: null,
+          injuryStatus: p.injury_status ?? null,
+          status: (p as { status?: string | null }).status ?? null,
+          secondaryPositions: Array.isArray((p as { secondary_positions?: string[] }).secondary_positions)
+            ? (p as { secondary_positions?: string[] }).secondary_positions
+            : undefined,
+          imageUrl: (p as { image_url?: string | null }).image_url ?? null,
+          age: (p as { age?: number | null }).age ?? null,
+          ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
+        })
       }
       if (strictPoolSeparation && poolType === 'rookie') {
         const excludedProIds = isC2C
@@ -313,6 +343,11 @@ export async function GET(
               playerId: row.playerId ?? row.sleeperId ?? row.id ?? poolMatch.external_source_id ?? null,
               injuryStatus: row.injuryStatus ?? row.status ?? poolMatch.injury_status ?? null,
               secondaryPositions: Array.isArray(poolMatch.secondary_positions) ? poolMatch.secondary_positions : undefined,
+              age: (row as RawRow).age ?? (poolMatch as { age?: number | null }).age ?? null,
+              imageUrl:
+                (row as RawRow).imageUrl ??
+                (poolMatch as { image_url?: string | null }).image_url ??
+                null,
             }
           : { ...row }
         return {

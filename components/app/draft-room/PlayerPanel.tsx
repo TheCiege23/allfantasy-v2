@@ -660,7 +660,17 @@ function PlayerPanelInner({
           open={true}
           onClose={() => setSelectedPlayer(null)}
           player={{
-            id: selectedPlayer.id ?? null,
+            id: (() => {
+              const candidates = [selectedPlayer.id, selectedPlayer.display?.playerId]
+              for (const c of candidates) {
+                if (c == null || String(c).trim() === '') continue
+                const s = String(c)
+                // Synthetic fallback ids break Sleeper headshots and game logs; omit so APIs use name/team.
+                if (s.startsWith('name:')) continue
+                return s
+              }
+              return null
+            })(),
             name: selectedPlayer.name,
             position: selectedPlayer.position ?? null,
             team: selectedPlayer.team ?? null,
@@ -670,10 +680,7 @@ function PlayerPanelInner({
             teamLogoUrl: selectedPlayer.display?.assets?.teamLogoUrl ?? null,
             status: selectedPlayer.display?.metadata?.injuryStatus ?? null,
             college: selectedPlayer.school ?? selectedPlayer.display?.metadata?.collegeOrPipeline ?? null,
-            // Physical stats (age/height/weight/exp/jersey) aren't on the
-            // current PlayerDisplayModel — rendered as "—" until a deeper
-            // player-profile source lands.
-            age: null,
+            age: selectedPlayer.display?.metadata?.age ?? null,
             heightIn: null,
             weightLbs: null,
             yearsExp: null,

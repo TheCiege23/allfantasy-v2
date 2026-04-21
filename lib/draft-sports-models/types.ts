@@ -62,6 +62,8 @@ export interface PlayerDraftMetadataModel {
   collegeOrPipeline?: string | null
   /** Eligibility note (e.g. "Rookie") */
   eligibilityNote?: string | null
+  /** When known from SportsPlayer / pool row (NFL tab header chips). */
+  age?: number | null
   classYearLabel?: string | null
   draftGrade?: string | null
   projectedLandingSpot?: string | null

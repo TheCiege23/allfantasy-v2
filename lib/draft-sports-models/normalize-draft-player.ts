@@ -38,6 +38,7 @@ export type RawDraftPlayerLike = {
   collegeOrPipeline?: string | null
   isDevy?: boolean
   school?: string | null
+  age?: number | null
   classYearLabel?: string | null
   draftGrade?: string | null
   projectedLandingSpot?: string | null
@@ -97,6 +98,8 @@ export function normalizeDraftPlayer(
   }
   const team = buildTeamDisplayModel(teamStr, sportNorm)
 
+  const ageMeta = raw.age != null && Number.isFinite(Number(raw.age)) ? Number(raw.age) : null
+
   const metadata: PlayerDraftMetadataModel = {
     position: position || '—',
     secondaryPositions: secondaryPositions.length > 0 ? secondaryPositions : undefined,
@@ -104,6 +107,7 @@ export function normalizeDraftPlayer(
     teamAbbreviation: teamStr,
     teamAffiliation: teamStr ?? (school != null ? String(school).trim() : null),
     byeWeek: bye,
+    age: ageMeta,
     injuryStatus: injuryStatus != null ? String(injuryStatus).trim() : null,
     collegeOrPipeline: collegeOrPipeline != null ? String(collegeOrPipeline).trim() : (school != null ? String(school).trim() : null),
     classYearLabel: raw.classYearLabel != null ? String(raw.classYearLabel).trim() : null,
