@@ -175,7 +175,13 @@
       "Bash(echo \"STATUS=$?\")",
       "Bash(npx vitest *)",
       "Bash(npx prisma *)",
-      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(awk '{print $NF}')",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx next build)"
     ]
   }
 }

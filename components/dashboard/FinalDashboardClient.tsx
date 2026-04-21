@@ -105,7 +105,7 @@ export default function FinalDashboardClient() {
         ...action,
         href:
           action.id === 'draft' && firstLeague?.id
-            ? `/app/league/${firstLeague.id}/draft`
+            ? `/league/${firstLeague.id}/draft`
             : buildLeagueContextHref(action.basePath),
       })),
     [buildLeagueContextHref, firstLeague?.id]
@@ -317,7 +317,7 @@ export default function FinalDashboardClient() {
                   return (
                     <Link
                       key={`${draft.leagueId}:${draft.updatedAt}`}
-                      href={`/app/league/${draft.leagueId}/draft`}
+                      href={`/league/${draft.leagueId}/draft`}
                       className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
                     >
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-violet-300">
@@ -334,7 +334,7 @@ export default function FinalDashboardClient() {
               </div>
             ) : (
               <Link
-                href={firstLeague ? `/app/league/${firstLeague.id}/draft` : '/mock-draft'}
+                href={firstLeague ? `/league/${firstLeague.id}/draft` : '/mock-draft'}
                 className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2.5 hover:bg-white/[0.05] transition-premium focus-ring"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-violet-300">

@@ -228,7 +228,7 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
     <TabDataState title="Draft" loading={loading} error={error} onReload={() => void reload()}>
       <div className="space-y-4">
         <Link
-          href={`/app/league/${leagueId}/draft`}
+          href={`/league/${leagueId}/draft`}
           className="inline-flex items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-500/25"
         >
           Open draft room

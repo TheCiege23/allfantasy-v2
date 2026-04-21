@@ -103,7 +103,7 @@ export function resolveToolLaunches(
       push(
         'draft_assistant',
         'Mock draft / draft room',
-        ctx.leagueId ? `/app/league/${encodeURIComponent(ctx.leagueId)}/draft` : `/mock-draft${qs({ sport })}`,
+        ctx.leagueId ? `/league/${encodeURIComponent(ctx.leagueId)}/draft` : `/mock-draft${qs({ sport })}`,
         'Draft picks with ADP and positional value.'
       )
       if (ctx.leagueId) {

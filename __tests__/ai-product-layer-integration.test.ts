@@ -52,7 +52,7 @@ describe("ai product layer integration", () => {
       AIProductLayer.resolveProductRoute("draft_helper", {
         leagueId: "league-99",
       })
-    ).toBe("/app/league/league-99/draft")
+    ).toBe("/league/league-99/draft")
 
     expect(
       AIProductLayer.resolveProductRoute("chimmy_chat", {

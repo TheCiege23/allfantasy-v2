@@ -80,7 +80,7 @@ export function getAIProductHrefForFeature(featureKey: ToolAIEntryKey | string, 
     return getChimmyChatHref(context);
   }
   if (featureKey === 'draft_helper' && context?.leagueId) {
-    return `/app/league/${encodeURIComponent(context.leagueId)}/draft`;
+    return `/league/${encodeURIComponent(context.leagueId)}/draft`;
   }
   if ((featureKey === 'league_matchup_ai' || featureKey === 'league_start_sit_ai') && context?.leagueId) {
     return appendAIProductContextToHref(

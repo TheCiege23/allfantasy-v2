@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Draft results landing: show leagues with completed drafts or redirect.
- * Full results at /app/league/[leagueId]/draft-results.
+ * Full results at /league/[leagueId]/draft-results.
  */
 export default async function DraftResultsPage({
   searchParams,
@@ -21,7 +21,7 @@ export default async function DraftResultsPage({
 
   const { leagueId } = await searchParams
   if (leagueId) {
-    redirect(`/app/league/${leagueId}/draft-results`)
+    redirect(`/league/${leagueId}/draft-results`)
   }
 
   const leaguesWithCompletedDraft = await prisma.league.findMany({
@@ -64,7 +64,7 @@ export default async function DraftResultsPage({
             {leaguesWithCompletedDraft.map((l) => (
               <li key={l.id}>
                 <Link
-                  href={`/app/league/${l.id}/draft-results`}
+                  href={`/league/${l.id}/draft-results`}
                   className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left hover:bg-white/10 min-h-[44px]"
                 >
                   <span className="font-medium text-white/90">{l.name ?? 'League'}</span>

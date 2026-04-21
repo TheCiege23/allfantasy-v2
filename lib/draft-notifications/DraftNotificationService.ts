@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
 import type { DraftNotificationEventType, DraftNotificationPayload } from './types'
 
-const DRAFT_ROOM_PATH = (leagueId: string) => `/app/league/${leagueId}/draft`
+const DRAFT_ROOM_PATH = (leagueId: string) => `/league/${leagueId}/draft`
 
 async function getLeagueName(leagueId: string): Promise<string | undefined> {
   const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })

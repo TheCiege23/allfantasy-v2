@@ -158,7 +158,7 @@ const FREE_FEATURE_MONETIZATION_MATRIX: readonly FreeFeatureMonetizationEntry[] 
     frontendGateBehavior: "Always visible for members.",
     unavailableBehavior: "show",
     surfaceHints: {
-      routes: ["/app/league/[leagueId]/draft"],
+      routes: ["/league/[leagueId]/draft"],
       components: [],
     },
   },
@@ -643,7 +643,7 @@ const PREMIUM_FEATURE_MONETIZATION_MATRIX: readonly PremiumFeatureMonetizationEn
     frontendGateBehavior: "FeatureGate + InContextMonetizationCard + upgrade/token CTA.",
     unavailableBehavior: "disable_with_fallback",
     surfaceHints: {
-      routes: ["/app/league/[leagueId]/draft"],
+      routes: ["/league/[leagueId]/draft"],
       components: ["DraftHelperPanel"],
     },
   },
@@ -658,7 +658,7 @@ const PREMIUM_FEATURE_MONETIZATION_MATRIX: readonly PremiumFeatureMonetizationEn
     frontendGateBehavior: "InContextMonetizationCard + upgrade/token CTA.",
     unavailableBehavior: "disable_with_fallback",
     surfaceHints: {
-      routes: ["/app/league/[leagueId]/draft"],
+      routes: ["/league/[leagueId]/draft"],
       components: ["DraftHelperPanel"],
     },
   },

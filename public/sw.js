@@ -258,7 +258,7 @@ self.addEventListener('notificationclick', (event) => {
   let targetUrl = url || '/app';
 
   if (action === 'dismiss') return;
-  if (action === 'join' && type === 'draft') targetUrl = leagueId ? `/app/league/${leagueId}/draft` : '/app';
+  if (action === 'join' && type === 'draft') targetUrl = leagueId ? `/league/${leagueId}/draft` : '/app';
   if (action === 'view' && type === 'trade') targetUrl = leagueId ? `/app/league/${leagueId}/trades` : '/app';
   if (action === 'view' && type === 'waiver') targetUrl = '/waiver-wire';
   if (action === 'view' && type === 'score') targetUrl = leagueId ? `/app/league/${leagueId}/scores` : '/app';

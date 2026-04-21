@@ -38,8 +38,8 @@ test.describe("@draft-notifications draft notifications click audit", () => {
     const onClockLink = drawer.getByTestId("notification-link-draft-on-clock")
     const reminderLink = drawer.getByTestId("notification-link-draft-slow-reminder")
 
-    await expect(onClockLink).toHaveAttribute("href", "/app/league/harness-league/draft")
-    await expect(reminderLink).toHaveAttribute("href", "/app/league/harness-league/draft")
+    await expect(onClockLink).toHaveAttribute("href", "/league/harness-league/draft")
+    await expect(reminderLink).toHaveAttribute("href", "/league/harness-league/draft")
 
     await expect(page.getByTestId("harness-unread-count")).toHaveText("Unread: 2")
     await page.getByTestId("harness-mark-on-clock-read").click()

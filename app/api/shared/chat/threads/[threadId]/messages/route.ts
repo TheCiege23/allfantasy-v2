@@ -406,7 +406,7 @@ export async function POST(
           question: message,
           headline: state.headline,
           queue: state.queue.slice(0, 3),
-          actionHref: `/app/league/${state.leagueId}/draft`,
+          actionHref: `/league/${state.leagueId}/draft`,
           actionLabel: 'Open draft',
         }
       )

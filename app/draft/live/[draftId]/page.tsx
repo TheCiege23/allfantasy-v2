@@ -37,5 +37,5 @@ export default async function LiveDraftByDraftIdPage({ params }: { params: { dra
     redirect('/dashboard')
   }
 
-  redirect(`/app/league/${leagueId}/draft`)
+  redirect(`/draft/${param}`)
 }

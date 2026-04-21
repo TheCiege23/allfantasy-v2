@@ -75,7 +75,7 @@ export function DraftResultsClient({
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-4">
         <p className="text-center text-amber-400">{error ?? 'No draft results'}</p>
         <Link
-          href={`/app/league/${leagueId}/draft`}
+          href={`/league/${leagueId}/draft`}
           className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm text-white/90 hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -218,7 +218,7 @@ export function DraftResultsClient({
 
       <footer className="mt-8 flex flex-wrap gap-4 border-t border-white/10 pt-6">
         <Link
-          href={`/app/league/${leagueId}/draft`}
+          href={`/league/${leagueId}/draft`}
           className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:underline"
         >
           Draft room

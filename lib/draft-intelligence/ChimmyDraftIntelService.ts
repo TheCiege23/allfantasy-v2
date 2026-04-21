@@ -20,7 +20,7 @@ function buildMetadata(state: DraftIntelState, threadId?: string) {
     showInDmList: true,
     readOnlyFeed: true,
     threadId,
-    actionHref: `/app/league/${state.leagueId}/draft`,
+    actionHref: `/league/${state.leagueId}/draft`,
     actionLabel: state.archived ? 'Open recap' : 'Open draft',
   }
 }
@@ -100,7 +100,7 @@ export async function ensureDraftIntelThread(input: {
       allowReplies: true,
       showInDmList: true,
       readOnlyFeed: true,
-      actionHref: `/app/league/${input.leagueId}/draft`,
+      actionHref: `/league/${input.leagueId}/draft`,
       actionLabel: 'Open draft',
     }
   ).catch(() => null)
