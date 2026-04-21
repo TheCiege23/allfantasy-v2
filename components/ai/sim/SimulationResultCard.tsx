@@ -40,7 +40,11 @@ export function SimulationResultCard({
             <YAxis type="category" dataKey="name" width={72} tick={{ fill: 'rgba(255,255,255,0.55)', fontSize: 10 }} />
             <Tooltip
               contentStyle={{ background: '#111118', border: '1px solid rgba(255,255,255,0.12)' }}
-              formatter={(v: number, name: string) => [`${v.toFixed(1)}%`, name === 'champ' ? 'Title' : 'Playoffs']}
+              formatter={(value, name) => {
+                const v = typeof value === 'number' ? value : Number(value ?? 0)
+                const label = name === 'champ' ? 'Title' : 'Playoffs'
+                return [`${v.toFixed(1)}%`, label]
+              }}
             />
             <Bar dataKey="champ" fill="#a78bfa" name="champ" radius={[0, 4, 4, 0]} />
           </BarChart>
