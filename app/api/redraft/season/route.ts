@@ -134,6 +134,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
+    await tx.league.update({
+      where: { id: leagueId },
+      data: { season: seasonYear },
+    })
+
     return tx.redraftSeason.findFirst({
       where: { id: rs.id },
       include: { rosters: true, schedule: true },

@@ -1,24 +1,25 @@
 'use client'
 
 /**
- * components/league/RenewLeagueBanner.tsx
- * "RENEW LEAGUE FOR 202X" button shown to commissioners when season ends.
- * Sits in the league page between the tab bar and content area.
- * Opens the RenewLeagueModal on click.
+ * "Renew league" entry for commissioners when the season is over (all sports).
+ * Tournament feeder leagues link to the tournament hub — renewal is coordinated there.
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import type { LeagueLifecycleState } from '@prisma/client'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { RenewLeagueModal } from '@/components/league-settings/RenewLeagueModal'
+import { isSeasonOverForRenewal } from '@/lib/leagues/renewalPolicy'
 
 interface Props {
   leagueId: string
   currentSeason: number
   isCommissioner: boolean
-  /** League status — show banner when complete/offseason/post_season */
   leagueStatus?: string
-  /** Dynasty season phase */
+  /** Merged from settings (dynasty / generic season phase) */
   seasonPhase?: string
+  lifecycleState?: LeagueLifecycleState | string | null
 }
 
 export function RenewLeagueBanner({
@@ -27,29 +28,36 @@ export function RenewLeagueBanner({
   isCommissioner,
   leagueStatus,
   seasonPhase,
+  lifecycleState,
 }: Props) {
   const { t } = useLanguage()
   const [showModal, setShowModal] = useState(false)
   const [renewed, setRenewed] = useState(false)
+  const [tournamentHubPath, setTournamentHubPath] = useState<string | null>(null)
+  const [nextSeasonFromApi, setNextSeasonFromApi] = useState(currentSeason + 1)
 
-  const nextSeason = currentSeason + 1
+  const nextSeason = nextSeasonFromApi
 
-  // Determine if season is over
-  const status = (leagueStatus ?? '').toLowerCase()
-  const phase = (seasonPhase ?? '').toLowerCase()
-  const isSeasonOver =
-    status === 'complete' ||
-    status === 'post_season' ||
-    status === 'offseason' ||
-    phase === 'offseason' ||
-    phase === 'complete'
+  const isSeasonOver = isSeasonOverForRenewal({
+    status: leagueStatus,
+    dynastySeasonPhase: seasonPhase,
+    seasonPhase,
+    lifecycleState,
+  })
 
-  // Check if already renewed
   useEffect(() => {
     if (!isSeasonOver || !isCommissioner) return
     fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/renew`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data) => { if (data.renewalCompleted) setRenewed(true) })
+      .then((data) => {
+        if (data.renewalCompleted) setRenewed(true)
+        if (data.tournamentFeeder?.renewFromHubPath) {
+          setTournamentHubPath(String(data.tournamentFeeder.renewFromHubPath))
+        }
+        if (typeof data.nextSeason === 'number' && Number.isFinite(data.nextSeason)) {
+          setNextSeasonFromApi(data.nextSeason)
+        }
+      })
       .catch(() => {})
   }, [leagueId, isSeasonOver, isCommissioner])
 
@@ -58,8 +66,21 @@ export function RenewLeagueBanner({
     setShowModal(false)
   }, [])
 
-  // Don't show if not season over, not commissioner, or already renewed
   if (!isSeasonOver || !isCommissioner || renewed) return null
+
+  if (tournamentHubPath) {
+    return (
+      <div className="shrink-0 px-4 py-3">
+        <Link
+          href={tournamentHubPath}
+          className="mx-auto flex w-full max-w-md items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-8 py-3.5 text-[14px] font-bold uppercase tracking-wider text-cyan-100 shadow-lg shadow-cyan-900/20 transition hover:border-cyan-400/60 hover:bg-cyan-500/15"
+        >
+          {t('renew.tournamentHubCta').replace('{{year}}', String(nextSeason))}
+        </Link>
+        <p className="mx-auto mt-2 max-w-md text-center text-[11px] text-white/40">{t('renew.tournamentHubHint')}</p>
+      </div>
+    )
+  }
 
   return (
     <>

@@ -784,6 +784,13 @@ export function DashboardOverview({
             >
               {t('dashboard.overview.findLeague')}
             </Link>
+            <Link
+              href="/brackets"
+              className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white"
+              data-testid="dashboard-brackets-link"
+            >
+              {t('dashboard.overview.brackets')}
+            </Link>
             {/* Dispersal drafts link removed from dashboard overview */}
           </div>
         </section>

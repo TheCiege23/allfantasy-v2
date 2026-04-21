@@ -48,7 +48,6 @@ export type DraftBoardProps = {
 type SequentialBoardEntry = {
   round: number
   overall: number
-  visualIndex: number
   pick: DraftBoardCellPick
 }
 
@@ -164,13 +163,14 @@ function DraftBoardInner({
     return map
   }, [keeperLocks])
 
-  const sequentialBoard = useMemo(() => {
+  /** Per-round map of draft slot (column) → cell data. Columns match `orderedSlots` (slot 1…N left to right). */
+  const boardRowsByRoundAndSlot = useMemo(() => {
     const totalPicks = rounds * teamCount
-    const rows: SequentialBoardEntry[] = []
+    const byRoundSlot: Record<number, Map<number, SequentialBoardEntry>> = {}
 
     for (let overall = 1; overall <= totalPicks; overall += 1) {
       const round = Math.ceil(overall / teamCount)
-      const visualIndex = ((overall - 1) % teamCount) + 1
+      const pickInRound = ((overall - 1) % teamCount) + 1
       const ownerSlot = getSlotInRoundForOverall({
         overall,
         teamCount,
@@ -206,15 +206,15 @@ function DraftBoardInner({
       const isPromotedFromDevy = source === 'promoted_devy'
       const useLock = !existing && lock
 
-      rows.push({
+      if (!byRoundSlot[round]) byRoundSlot[round] = new Map()
+      byRoundSlot[round]!.set(ownerSlot, {
         round,
         overall,
-        visualIndex,
         pick: {
           overall,
           round,
           slot: ownerSlot,
-          pickLabel: `${round}.${visualIndex}`,
+          pickLabel: `${round}.${pickInRound}`,
           playerName: existing?.playerName ?? lock?.playerName ?? null,
           position: existing?.position ?? lock?.position ?? null,
           team: existing?.team ?? lock?.team ?? null,
@@ -237,15 +237,7 @@ function DraftBoardInner({
       })
     }
 
-    const byRound: Record<number, SequentialBoardEntry[]> = {}
-    for (const entry of rows) {
-      if (!byRound[entry.round]) byRound[entry.round] = []
-      byRound[entry.round]!.push(entry)
-    }
-    for (const key of Object.keys(byRound)) {
-      byRound[Number(key)]!.sort((a, b) => a.visualIndex - b.visualIndex)
-    }
-    return byRound
+    return byRoundSlot
   }, [
     rounds,
     teamCount,
@@ -560,13 +552,28 @@ function DraftBoardInner({
                       )
                     })()}
 
-                    {(sequentialBoard[round] ?? []).map(({ pick, overall }) => {
+                    {orderedSlots.map((slotEntry) => {
+                      const cell = boardRowsByRoundAndSlot[round]?.get(slotEntry.slot)
+                      if (!cell) {
+                        return (
+                          <div
+                            key={`${round}-${slotEntry.slot}-missing`}
+                            className="min-h-[52px] rounded-md border border-red-500/20 bg-red-500/5 sm:min-h-[56px]"
+                            title="Missing cell data for this slot"
+                          />
+                        )
+                      }
+                      const { pick, overall } = cell
                       const existing = picks.find((entry) => entry.overall === overall)
                       const isCurrentPick = currentOverallPick != null && overall === currentOverallPick
+                      const emptyCellDirection =
+                        draftType === 'snake' && isSnakeRoundReversed(round, draftType, thirdRoundReversal)
+                          ? 'reverse'
+                          : 'forward'
 
                       return (
                         <DraftBoardCell
-                          key={overall}
+                          key={`${round}-${slotEntry.slot}`}
                           pick={pick}
                           isEmpty={!pick.playerName}
                           isCurrentPick={isCurrentPick}
@@ -575,6 +582,7 @@ function DraftBoardInner({
                           isDevyRound={devyRounds.includes(round) && !pick.playerName}
                           isCollegeRound={c2cCollegeRounds.includes(round) && !pick.playerName}
                           pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
+                          emptyCellDirection={emptyCellDirection}
                           onTradeFromCell={
                             currentUserRosterId && onCellTrade && pick.ownerRosterId && typeof pick.slot === 'number'
                               ? () =>

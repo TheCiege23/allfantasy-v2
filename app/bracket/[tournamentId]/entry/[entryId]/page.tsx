@@ -52,7 +52,7 @@ export default async function EntryBracketPage({
   if (entry.league.tournamentId !== params.tournamentId)
     return <div className="p-6 mode-muted">Wrong tournament.</div>
 
-  const { nodesWithGame, pickMap } = await getEntryBracketData(params.tournamentId, entry.id)
+  const { nodesWithGame, pickMap, teamNews } = await getEntryBracketData(params.tournamentId, entry.id)
   const totalGames = (nodesWithGame || []).filter((n: any) => Number(n?.round || 0) >= 1).length
   const progress = getBracketProgressDisplay(pickMap || {}, totalGames)
 
@@ -172,6 +172,7 @@ export default async function EntryBracketPage({
               entryId={entry.id}
               nodes={nodesWithGame as any}
               initialPicks={pickMap}
+              initialTeamNews={teamNews}
               readOnly={isLocked}
               insuranceAllowedRounds={[1, 3, 4, 5, 6]}
             />

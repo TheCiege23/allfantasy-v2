@@ -1222,6 +1222,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.overview.createLeague": "+ Create League",
     "dashboard.overview.import": "Import",
     "dashboard.overview.findLeague": "Find League",
+    "dashboard.overview.brackets": "Brackets",
     "dashboard.overview.leagueIntelligenceTitle": "League Intelligence",
     "dashboard.overview.leagueIntelligenceSubtitle":
       "Live league-specific AI powered by your selected league — pick one league for all widgets below.",
@@ -1999,6 +2000,17 @@ export const translations: Record<string, Record<string, string>> = {
     "renew.renewBtn": "Renew",
     "renew.successTitle": "League renewed for {{year}}!",
     "renew.close": "Close",
+    "renew.renewing": "Renewing…",
+    "renew.tournamentHubCta": "Open tournament hub — renew for {{year}}",
+    "renew.tournamentHubHint": "Feeder leagues renew together from the tournament hub so everyone returns to their original qualification leagues.",
+    "renew.step1Title": "Offseason — start next season",
+    "renew.step1Body":
+      "You’re moving this league into a new season beginning in the offseason (same flow as Sleeper: renew, then draft or carry rosters depending on format).",
+    "renew.step2Title": "Format & members",
+    "renew.step3Title": "Confirm",
+    "renew.next": "Next",
+    "renew.back": "Back",
+    "renew.confirmRenew": "Confirm & renew",
 
     // Rating
     "rating.title": "Rate Your Commissioner",
@@ -2149,7 +2161,7 @@ export const translations: Record<string, Record<string, string>> = {
     "createLeague.concept.survivor.title": "Survivor",
     "createLeague.concept.survivor.subtitle": "Vote players off",
     "createLeague.concept.tournament.title": "Tournament",
-    "createLeague.concept.tournament.subtitle": "Bracket-style playoffs",
+    "createLeague.concept.tournament.subtitle": "Multi-league elimination event",
     "createLeague.concept.big_brother.title": "Big Brother",
     "createLeague.concept.big_brother.subtitle": "Weekly nominations",
     "createLeague.draftType.snake.label": "Snake",
@@ -3796,7 +3808,7 @@ export const translations: Record<string, Record<string, string>> = {
     "createLeague.concept.survivor.title": "Survivor",
     "createLeague.concept.survivor.subtitle": "Vota jugadores fuera",
     "createLeague.concept.tournament.title": "Torneo",
-    "createLeague.concept.tournament.subtitle": "Playoffs estilo bracket",
+    "createLeague.concept.tournament.subtitle": "Evento de eliminación multi-liga",
     "createLeague.concept.big_brother.title": "Big Brother",
     "createLeague.concept.big_brother.subtitle": "Nominaciones semanales",
     "createLeague.draftType.snake.label": "Serpiente",

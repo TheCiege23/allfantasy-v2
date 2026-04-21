@@ -184,7 +184,17 @@
       "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx next build)",
       "Bash(mkdir -p \"app/bracket/[tournamentId]/entries/new\" \"app/bracket/[tournamentId]/entry/[entryId]\")",
       "Bash(rmdir \"app/tournament/bracket/[tournamentId]/entries/new\" \"app/tournament/bracket/[tournamentId]/entries\" \"app/tournament/bracket/[tournamentId]/entry/[entryId]\" \"app/tournament/bracket/[tournamentId]/entry\" \"app/tournament/bracket/[tournamentId]\" \"app/tournament/bracket\")",
-      "Bash(curl -s -o /dev/null -w \"status=%{http_code} loc=%header{location}\\\\n\" http://localhost:3000/create-league)"
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} loc=%header{location}\\\\n\" http://localhost:3000/create-league)",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 \"http://localhost:3000/api/legacy/manager-dna?username=__nonexistent_user_12345__\")",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 \"http://localhost:3000/api/ai/manager-dna?username=__nonexistent_user_12345__\")",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 60 -X POST \"http://localhost:3000/api/legacy/manager-dna\" -H \"Content-Type: application/json\" -d '{\"sleeper_username\":\"\",\"league_ids\":[]}')",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 60 -X POST \"http://localhost:3000/api/ai/manager-dna\" -H \"Content-Type: application/json\" -d '{\"sleeper_username\":\"\",\"league_ids\":[]}')",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 \"http://localhost:3000/api/legacy/ai-gm-analyze\")",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 \"http://localhost:3000/api/ai/ai-gm-analyze\")",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 -X POST \"http://localhost:3000/api/legacy/ai-gm-analyze\" -H \"Content-Type: application/json\" -d '{\"username\":\"\"}')",
+      "Bash(curl -s -w \"\\\\nSTATUS=%{http_code}\\\\n\" --max-time 120 -X POST \"http://localhost:3000/api/ai/ai-gm-analyze\" -H \"Content-Type: application/json\" -d '{\"username\":\"\"}')",
+      "Bash(node -e ' *)",
+      "Bash(npx tsx *)"
     ]
   }
 }

@@ -33,6 +33,96 @@ import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
 
+function isCompleteSlotOrder(order: unknown, teamCount: number): boolean {
+  if (!Array.isArray(order) || teamCount < 1) return false
+  const slots = new Set<number>()
+  for (const raw of order) {
+    if (!raw || typeof raw !== 'object') return false
+    const e = raw as SlotOrderEntry
+    const slot = e.slot
+    if (typeof slot !== 'number' || slot < 1 || slot > teamCount) return false
+    if (slots.has(slot)) return false
+    slots.add(slot)
+    const rid = e.rosterId
+    if (typeof rid !== 'string' || rid.length === 0) return false
+  }
+  return slots.size === teamCount
+}
+
+/**
+ * Build slot order from league rosters/teams, settings, and lottery — same rules as new session creation.
+ * Used when repairing sessions with missing or corrupt `slotOrder` (resolves current pick / draft UI).
+ */
+export async function buildSlotOrderForLeague(leagueId: string): Promise<SlotOrderEntry[]> {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: { rosters: true, teams: true, leagueSettings: true },
+  })
+  if (!league) return []
+
+  const teamCount = league.leagueSize ?? 12
+  const ls = league.leagueSettings
+  const teams = league.teams ?? []
+  const rosters = league.rosters ?? []
+
+  let slotOrder: SlotOrderEntry[] = (rosters.length >= teamCount
+    ? rosters.slice(0, teamCount).map((r, i) => ({
+        slot: i + 1,
+        rosterId: r.id,
+        displayName: teams[i]?.ownerName || teams[i]?.teamName || `Team ${i + 1}`,
+      }))
+    : teams.length >= teamCount
+      ? teams.slice(0, teamCount).map((t, i) => ({
+          slot: i + 1,
+          rosterId: t.id,
+          displayName: t.ownerName || t.teamName || `Team ${i + 1}`,
+        }))
+      : []
+  ).map((e) => ({ slot: e.slot, rosterId: e.rosterId, displayName: e.displayName }))
+
+  if (slotOrder.length === 0) {
+    slotOrder.push(
+      ...Array.from({ length: teamCount }, (_, i) => ({
+        slot: i + 1,
+        rosterId: `placeholder-${i + 1}`,
+        displayName: `Team ${i + 1}`,
+      }))
+    )
+  }
+
+  if (ls) {
+    const fromSettings = draftOrderSlotsToSlotOrder(ls.draftOrderSlots, teamCount)
+    if (fromSettings.length >= teamCount && isCompleteSlotOrder(fromSettings, teamCount)) {
+      slotOrder = fromSettings as SlotOrderEntry[]
+    }
+  }
+
+  const lotterySlotOrder = await resolveWeightedLotterySlotOrderForLeague(leagueId).catch(() => null)
+  if (lotterySlotOrder && lotterySlotOrder.length > 0 && isCompleteSlotOrder(lotterySlotOrder, teamCount)) {
+    slotOrder = lotterySlotOrder
+  }
+
+  return slotOrder
+}
+
+async function repairDraftSessionSlotOrderIfNeeded(leagueId: string): Promise<void> {
+  const session = await prisma.draftSession.findUnique({ where: { leagueId } })
+  if (!session) return
+  const teamCount = session.teamCount
+  if (isCompleteSlotOrder(session.slotOrder, teamCount)) return
+
+  const slotOrder = await buildSlotOrderForLeague(leagueId)
+  if (!isCompleteSlotOrder(slotOrder, teamCount)) return
+
+  await prisma.draftSession.update({
+    where: { id: session.id },
+    data: {
+      slotOrder: slotOrder as unknown as Prisma.InputJsonValue,
+      version: { increment: 1 },
+    },
+  })
+}
+
 export async function getOrCreateDraftSession(leagueId: string): Promise<{
   session: { id: string; leagueId: string; status: string; slotOrder: unknown; teamCount: number; rounds: number; draftType: string; thirdRoundReversal: boolean; timerSeconds: number | null; timerEndAt: Date | null; pausedRemainingSeconds: number | null; version: number; updatedAt: Date }
   created: boolean
@@ -91,44 +181,7 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
     alphabeticalSort = ls.alphabeticalSort
   }
 
-  const teams = league.teams ?? []
-  const rosters = league.rosters ?? []
-  let slotOrder: SlotOrderEntry[] = (rosters.length >= teamCount
-    ? rosters.slice(0, teamCount).map((r, i) => ({
-        slot: i + 1,
-        rosterId: r.id,
-        displayName: teams[i]?.ownerName || teams[i]?.teamName || `Team ${i + 1}`,
-      }))
-    : teams.length >= teamCount
-      ? teams.slice(0, teamCount).map((t, i) => ({
-          slot: i + 1,
-          rosterId: t.id,
-          displayName: t.ownerName || t.teamName || `Team ${i + 1}`,
-        }))
-      : []
-  ).map((e) => ({ slot: e.slot, rosterId: e.rosterId, displayName: e.displayName }))
-
-  if (slotOrder.length === 0) {
-    slotOrder.push(
-      ...Array.from({ length: teamCount }, (_, i) => ({
-        slot: i + 1,
-        rosterId: `placeholder-${i + 1}`,
-        displayName: `Team ${i + 1}`,
-      }))
-    )
-  }
-
-  if (ls) {
-    const fromSettings = draftOrderSlotsToSlotOrder(ls.draftOrderSlots, teamCount)
-    if (fromSettings.length > 0) {
-      slotOrder = fromSettings
-    }
-  }
-
-  const lotterySlotOrder = await resolveWeightedLotterySlotOrderForLeague(leagueId).catch(() => null)
-  if (lotterySlotOrder && lotterySlotOrder.length > 0) {
-    slotOrder = lotterySlotOrder
-  }
+  const slotOrder = await buildSlotOrderForLeague(leagueId)
 
   session = await (prisma as any).draftSession.create({
     data: {
@@ -164,6 +217,7 @@ export async function buildSessionSnapshot(
   leagueId: string,
   now: Date = new Date()
 ): Promise<DraftSessionSnapshot | null> {
+  await repairDraftSessionSlotOrderIfNeeded(leagueId)
   const session = await getDraftSessionByLeague(leagueId)
   if (!session) return null
 
@@ -372,6 +426,7 @@ export async function buildSessionSnapshot(
 }
 
 export async function startDraftSession(leagueId: string): Promise<boolean> {
+  await repairDraftSessionSlotOrderIfNeeded(leagueId)
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'pre_draft') return false
 

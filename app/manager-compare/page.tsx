@@ -1310,13 +1310,13 @@ export default function ManagerComparePage() {
 
     setDnaState({ loading: true, data: null, error: null })
     const loadOne = async (label: 'a' | 'b', context: ManagerLeagueContext) => {
-      const getResponse = await fetch(`/api/legacy/manager-dna?username=${encodeURIComponent(context.username)}`)
+      const getResponse = await fetch(`/api/ai/manager-dna?username=${encodeURIComponent(context.username)}`)
       const getPayload = (await getResponse.json().catch(() => ({}))) as { ok?: boolean; error?: string; profile?: ManagerDNAProfile }
 
       if (getResponse.ok && getPayload.profile) return getPayload.profile
 
       if (getResponse.status === 404 && context.leagues.length > 0) {
-        const postResponse = await fetch('/api/legacy/manager-dna', {
+        const postResponse = await fetch('/api/ai/manager-dna', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1369,7 +1369,7 @@ export default function ManagerComparePage() {
     setOpponentState({ loading: true, data: null, error: null })
     try {
       const [aResponse, bResponse, headToHead] = await Promise.all([
-        fetch('/api/legacy/opponent-tendencies', {
+        fetch('/api/ai/opponent-tendencies', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1377,7 +1377,7 @@ export default function ManagerComparePage() {
             userRosterId: sharedLeague.rosterA,
           }),
         }),
-        fetch('/api/legacy/opponent-tendencies', {
+        fetch('/api/ai/opponent-tendencies', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

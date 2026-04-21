@@ -21,6 +21,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/sync-playoff-brackets",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/import-images",
       "schedule": "0 2 * * 1"
     },

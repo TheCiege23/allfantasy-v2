@@ -16,7 +16,7 @@ import { prisma } from '@/lib/prisma'
 const LogSchema = z.object({
   userId: z.string().min(1),
   leagueId: z.string().min(1),
-  decisionType: z.enum(['trade', 'waiver', 'sit_start']),
+  decisionType: z.enum(['trade', 'waiver', 'sit_start', 'trade_proposal', 'trade_finder']),
   aiRecommendation: z.record(z.unknown()),
   confidenceScore: z.number().min(0).max(1),
   riskProfile: z.enum(['low', 'moderate', 'high', 'extreme']),

@@ -9,8 +9,8 @@ import { legacySupportedSportToApiChain } from '@/lib/workers/api-config'
 
 export const LIVE_SCORES_FRESHNESS_MS = 60 * 1000
 
-/** ESPN site.api scoreboard path segments (after sports/). */
-const ESPN_SCOREBOARD_PATH: Record<LeagueSport, string | null> = {
+/** ESPN site.api path segments (after sports/) — scoreboard, standings, etc. */
+export const ESPN_SPORT_SITE_PATH: Record<LeagueSport, string | null> = {
   NFL: 'football/nfl',
   NBA: 'basketball/nba',
   NHL: 'hockey/nhl',
@@ -129,7 +129,7 @@ interface ESPNEvent {
 }
 
 async function fetchEspnScoreboard(sport: LeagueSport): Promise<LiveScoreRow[]> {
-  const path = ESPN_SCOREBOARD_PATH[sport]
+  const path = ESPN_SPORT_SITE_PATH[sport]
   if (!path) return []
 
   try {

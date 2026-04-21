@@ -203,8 +203,8 @@ export default function TournamentLeagueHomepage() {
                     </div>
                     <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">{selectedLeagueData?.name}</h1>
                     <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
-                      Championship battlefield mode with phased cuts, redrafts, league-wide standings, and bracket
-                      progression. Startup shells, chat, standings, and draft boards are all live.
+                      Championship battlefield mode with phased cuts, redrafts, league-wide standings, and advancement
+                      bracket progression. Startup shells, chat, standings, and draft boards are all live.
                     </p>
 
                     <div className="mt-5 flex flex-wrap gap-3 text-sm">

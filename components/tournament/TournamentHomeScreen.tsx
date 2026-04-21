@@ -163,7 +163,7 @@ export function TournamentHomeScreen({ tournamentId }: TournamentHomeScreenProps
           <Trophy className="h-5 w-5 text-purple-400/60" />
           <div>
             <div className="text-sm font-medium text-white/80">Tournament Central</div>
-            <div className="text-[10px] text-white/40">Forum, announcements, bracket progress</div>
+            <div className="text-[10px] text-white/40">Forum, announcements, round progress</div>
           </div>
         </a>
       </div>

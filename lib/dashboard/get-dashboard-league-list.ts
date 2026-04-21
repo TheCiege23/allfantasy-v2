@@ -5,6 +5,7 @@
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { isRealLeague, EXCLUDED_VARIANTS } from '@/lib/leagues/leagueListFilter'
+import { resolveLeagueListSeasonYear } from '@/lib/leagues/resolveLeagueListSeasonYear'
 
 const VARIANT_NOT_IN = Array.from(EXCLUDED_VARIANTS)
 
@@ -163,6 +164,48 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
       }),
   ])
 
+  const genericLeagueIds = (genericLeagues as { id: string }[]).map((lg) => lg.id).filter(Boolean)
+  const [redraftSeasonMaxRows, leagueHistoryMaxRows] =
+    genericLeagueIds.length > 0
+      ? await Promise.all([
+          prisma.redraftSeason
+            .groupBy({
+              by: ['leagueId'],
+              where: { leagueId: { in: genericLeagueIds } },
+              _max: { season: true },
+            })
+            .catch((err: unknown) => {
+              console.error('[League List] redraft season max query failed', err)
+              return [] as { leagueId: string; _max: { season: number | null } }[]
+            }),
+          prisma.leagueSeason
+            .groupBy({
+              by: ['leagueId'],
+              where: { leagueId: { in: genericLeagueIds } },
+              _max: { season: true },
+            })
+            .catch((err: unknown) => {
+              console.error('[League List] league_season max query failed', err)
+              return [] as { leagueId: string; _max: { season: number | null } }[]
+            }),
+        ])
+      : [[], []]
+
+  const redraftMaxByLeagueId = new Map<string, number>()
+  for (const row of redraftSeasonMaxRows) {
+    const m = row._max.season
+    if (typeof m === 'number' && Number.isFinite(m)) {
+      redraftMaxByLeagueId.set(row.leagueId, m)
+    }
+  }
+  const leagueHistoryMaxByLeagueId = new Map<string, number>()
+  for (const row of leagueHistoryMaxRows) {
+    const m = row._max.season
+    if (typeof m === 'number' && Number.isFinite(m)) {
+      leagueHistoryMaxByLeagueId.set(row.leagueId, m)
+    }
+  }
+
   const sleeperGenericSorted = genericLeagues
     .filter((lg: any) => lg.platform === 'sleeper' && typeof lg.platformLeagueId === 'string')
     .sort((a: any, b: any) => (b.season ?? 0) - (a.season ?? 0))
@@ -187,8 +230,15 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
     const isCommissioner = Boolean(lg.isCommissioner) || p === 'allfantasy' || p === 'af'
     const userRole = computeUserRole(lg.platform, isCommissioner)
 
+    const seasonDisplay = resolveLeagueListSeasonYear({
+      leagueSeason: lg.season,
+      maxRedraftSeason: redraftMaxByLeagueId.get(lg.id) ?? null,
+      maxLeagueHistorySeason: leagueHistoryMaxByLeagueId.get(lg.id) ?? null,
+    })
+
     return {
       ...lg,
+      season: seasonDisplay,
       sport_type: lg.sport ?? DEFAULT_SPORT,
       league_variant: lg.leagueVariant ?? null,
       navigationLeagueId: lg.id,

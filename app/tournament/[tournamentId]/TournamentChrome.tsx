@@ -21,6 +21,7 @@ import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiCon
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { TournamentSettingsModalEditable } from '@/app/tournament/[tournamentId]/components/TournamentSettingsModalEditable'
 import { TournamentEntryIntroModal } from '@/components/tournament/TournamentEntryIntroModal'
+import { TournamentRenewBanner } from '@/components/tournament/TournamentRenewBanner'
 import { SpecialtyLeagueAtmosphere } from '@/components/league-atmosphere/SpecialtyLeagueAtmosphere'
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; commishOnly?: boolean; desktopOnly?: boolean }
@@ -304,6 +305,8 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
               🏆 You advanced! Check your new league and draft window.
             </div>
           ) : null}
+
+          <TournamentRenewBanner tournamentId={tournamentId} isCommissioner={Boolean(isCommissioner)} />
 
           <main className="min-h-0 flex-1 overflow-y-auto px-3 py-4 md:px-6 md:py-6">{children}</main>
         </div>

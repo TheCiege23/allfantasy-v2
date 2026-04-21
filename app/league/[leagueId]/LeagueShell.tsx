@@ -984,6 +984,7 @@ export function LeagueShell({
                 ?? ((league.settings as Record<string, unknown> | undefined)?.season_phase as string)
                 ?? undefined
               }
+              lifecycleState={league.lifecycleState}
             />
 
             <LeagueTabRouter

@@ -1,7 +1,8 @@
 "use client"
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react"
-import { Trophy, Sparkles, Zap, Info, Check, X, ZoomIn, ZoomOut, Maximize2, Clock, Shield } from "lucide-react"
+import { Trophy, Sparkles, Zap, Info, Check, X, ZoomIn, ZoomOut, Maximize2, Clock, Shield, Newspaper } from "lucide-react"
+import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
 import { useBracketLive } from "@/lib/hooks/useBracketLive"
 import {
   isPickLocked,
@@ -14,6 +15,12 @@ import {
 } from "@/lib/bracket-challenge"
 import { MatchupCardOverlay } from "./MatchupCardOverlay"
 
+type BracketTeamNewsLine = { title: string; url: string | null }
+
+function abbrevKey(name: string | null | undefined): string {
+  return (normalizeTeamAbbrev(name?.trim() || "") || name?.trim() || "").toUpperCase()
+}
+
 type Game = {
   id: string
   homeTeam: string
@@ -22,6 +29,9 @@ type Game = {
   awayScore: number | null
   status: string | null
   startTime: string | null
+  homeRecord?: string | null
+  awayRecord?: string | null
+  statusDetail?: string | null
 }
 
 type Node = {
@@ -50,6 +60,8 @@ type Props = {
   insuranceEnabled?: boolean
   initialInsuredNodeId?: string | null
   insuranceAllowedRounds?: number[]
+  /** SSR + merged with live `/api/bracket/live` `teamNews` (keys: team abbrev). */
+  initialTeamNews?: Record<string, BracketTeamNewsLine>
 }
 
 const ALL_REGIONS = ["West", "East", "South", "Midwest"]
@@ -158,6 +170,7 @@ function MiniCell({
   onToggleInsurance,
   insuranceEnabled,
   eliminatedTeams,
+  teamNewsByAbbrev,
   x,
   y,
 }: {
@@ -176,6 +189,7 @@ function MiniCell({
   onToggleInsurance?: (nodeId: string) => void
   insuranceEnabled?: boolean
   eliminatedTeams: Set<string>
+  teamNewsByAbbrev: Record<string, BracketTeamNewsLine>
   x: number
   y: number
 }) {
@@ -187,6 +201,9 @@ function MiniCell({
   const awaySeed = awayName ? (seedMap.get(awayName) ?? node.seedAway) : node.seedAway
   const homePicked = !!homeName && picked === homeName
   const awayPicked = !!awayName && picked === awayName
+
+  const homeNews = homeName ? teamNewsByAbbrev[abbrevKey(homeName)] : undefined
+  const awayNews = awayName ? teamNewsByAbbrev[abbrevKey(awayName)] : undefined
 
   const { winner, isComplete } = getGameResult(node)
   const homeCorrect = isComplete && homePicked && winner === homeName
@@ -232,8 +249,16 @@ function MiniCell({
     return isSleeper ? '#a855f7' : 'rgba(255,255,255,0.25)'
   }
 
-  function TeamRow({ name, seed, isPicked, side, correct, busted, isUpset }: {
-    name: string | null; seed: number | null; isPicked: boolean; side: 'home' | 'away'; correct: boolean; busted: boolean; isUpset: boolean
+  function TeamRow({ name, seed, record, news, isPicked, side, correct, busted, isUpset }: {
+    name: string | null
+    seed: number | null
+    record?: string | null
+    news?: BracketTeamNewsLine
+    isPicked: boolean
+    side: 'home' | 'away'
+    correct: boolean
+    busted: boolean
+    isUpset: boolean
   }) {
     const isSleeper = !!(name && sleeperTeams?.has(name))
     const clickable = canClick && !!name
@@ -277,7 +302,26 @@ function MiniCell({
           }}
         >
           {name || ''}
+          {record ? (
+            <span style={{ fontWeight: 400, color: 'rgba(255,255,255,0.35)', marginLeft: 3 }}>{record}</span>
+          ) : null}
         </span>
+        {news?.title ? (
+          <a
+            href={news.url || "#"}
+            target={news.url ? "_blank" : undefined}
+            rel={news.url ? "noreferrer" : undefined}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!news.url) e.preventDefault()
+            }}
+            title={news.title}
+            className="shrink-0"
+            data-testid={`bracket-team-news-${node.id}-${side}`}
+          >
+            <Newspaper style={{ width: 10, height: 10, color: "rgba(56,189,248,0.88)" }} />
+          </a>
+        ) : null}
         {correct && hasUpsetResult && <Zap style={{ width: 8, height: 8, color: '#c084fc', flexShrink: 0 }} />}
         {correct && !hasUpsetResult && <Check style={{ width: 8, height: 8, color: '#22c55e', flexShrink: 0 }} />}
         {busted && <X style={{ width: 8, height: 8, color: '#ef4444', flexShrink: 0 }} />}
@@ -308,9 +352,20 @@ function MiniCell({
     ? 'bracket-upset-pulse 3s ease-in-out infinite'
     : undefined
 
+  const gameTimeHint =
+    node.game?.startTime && !isComplete
+      ? `${new Date(node.game.startTime).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })}${node.game.statusDetail ? ` · ${node.game.statusDetail}` : ''}`
+      : undefined
+
   return (
     <div
       className="absolute rounded-lg overflow-hidden"
+      title={gameTimeHint}
       style={{
         left: x,
         top: y,
@@ -326,8 +381,28 @@ function MiniCell({
       onDoubleClick={() => onMatchupClick?.(node)}
       data-testid={`bracket-game-cell-${node.id}`}
     >
-      <TeamRow name={homeName} seed={homeSeed} isPicked={homePicked} side="home" correct={homeCorrect} busted={homeWrongOrBusted} isUpset={homeIsUpsetPick} />
-      <TeamRow name={awayName} seed={awaySeed} isPicked={awayPicked} side="away" correct={awayCorrect} busted={awayWrongOrBusted} isUpset={awayIsUpsetPick} />
+      <TeamRow
+        name={homeName}
+        seed={homeSeed}
+        record={node.game?.homeRecord ?? null}
+        news={homeNews}
+        isPicked={homePicked}
+        side="home"
+        correct={homeCorrect}
+        busted={homeWrongOrBusted}
+        isUpset={homeIsUpsetPick}
+      />
+      <TeamRow
+        name={awayName}
+        seed={awaySeed}
+        record={node.game?.awayRecord ?? null}
+        news={awayNews}
+        isPicked={awayPicked}
+        side="away"
+        correct={awayCorrect}
+        busted={awayWrongOrBusted}
+        isUpset={awayIsUpsetPick}
+      />
       {insuranceEnabled && hasPick && (
         <button
           onClick={(e) => { e.stopPropagation(); onToggleInsurance?.(node.id) }}
@@ -377,6 +452,7 @@ export function BracketTreeView({
   insuranceEnabled,
   initialInsuredNodeId,
   insuranceAllowedRounds,
+  initialTeamNews,
 }: Props) {
   const { data: live, refresh } = useBracketLive({ tournamentId, leagueId, enabled: true, intervalMs: 15000 })
 
@@ -407,6 +483,11 @@ export function BracketTreeView({
       return { ...n, game: (g as Game) ?? n.game ?? null }
     })
   }, [nodes, live?.games])
+
+  const teamNewsByAbbrev = useMemo(() => {
+    const fromLive = (live as { teamNews?: Record<string, BracketTeamNewsLine> } | null)?.teamNews
+    return { ...(initialTeamNews ?? {}), ...(fromLive ?? {}) }
+  }, [live, initialTeamNews])
 
   const effective = useMemo(() => computeEffectiveTeams(nodesWithLive, picks), [nodesWithLive, picks])
   const roundList = useMemo(() => getBracketRoundList(nodesWithLive), [nodesWithLive])
@@ -712,6 +793,7 @@ export function BracketTreeView({
                         const selected = !!teamName && picked === teamName
                         const isWinner = !!teamName && isComplete && winner === teamName
                         const disabled = locked || !teamName
+                        const nw = teamName ? teamNewsByAbbrev[abbrevKey(teamName)] : undefined
                         return (
                           <button
                             type="button"
@@ -730,7 +812,33 @@ export function BracketTreeView({
                             }}
                             data-testid={`bracket-pick-team-${node.id}-${side}`}
                           >
-                            <span className="truncate block">{teamName ?? "TBD"}</span>
+                            <span className="flex items-start gap-1.5">
+                              <span className="truncate block flex-1 min-w-0">{teamName ?? "TBD"}</span>
+                              {nw?.title ? (
+                                <a
+                                  href={nw.url || "#"}
+                                  target={nw.url ? "_blank" : undefined}
+                                  rel={nw.url ? "noreferrer" : undefined}
+                                  title={nw.title}
+                                  className="shrink-0 mt-0.5"
+                                  data-testid={`bracket-team-news-${node.id}-${side}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (!nw.url) e.preventDefault()
+                                  }}
+                                >
+                                  <Newspaper className="w-3.5 h-3.5 text-sky-400/90" />
+                                </a>
+                              ) : null}
+                            </span>
+                            {nw?.title ? (
+                              <div
+                                className="mt-1 text-[9px] leading-snug text-slate-500 line-clamp-2 border-t border-white/5 pt-1"
+                                title={nw.title}
+                              >
+                                {nw.title}
+                              </div>
+                            ) : null}
                           </button>
                         )
                       }
@@ -818,6 +926,7 @@ export function BracketTreeView({
             onToggleInsurance={toggleInsurance}
             insuranceEnabled={roundInsuranceEnabled}
             eliminatedTeams={eliminatedTeams}
+            teamNewsByAbbrev={teamNewsByAbbrev}
             x={x}
             y={y}
           />
@@ -1174,6 +1283,7 @@ export function BracketTreeView({
                   onToggleInsurance={toggleInsurance}
                   insuranceEnabled={insuranceEnabled}
                   eliminatedTeams={eliminatedTeams}
+                  teamNewsByAbbrev={teamNewsByAbbrev}
                   x={centerX + (CENTER_W - CW) / 2}
                   y={i === 0 ? ff0Y : ff1Y}
                 />
@@ -1198,6 +1308,7 @@ export function BracketTreeView({
                   onToggleInsurance={toggleInsurance}
                   insuranceEnabled={insuranceEnabled}
                   eliminatedTeams={eliminatedTeams}
+                  teamNewsByAbbrev={teamNewsByAbbrev}
                   x={centerX + (CENTER_W - CW) / 2}
                   y={champY}
                 />

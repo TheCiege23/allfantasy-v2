@@ -30,6 +30,7 @@ export const translationsEsParity: Record<string, string> = {
   "dashboard.overview.checklistProgress": "{{done}} de 5 completados",
   "dashboard.overview.createLeague": "+ Crear liga",
   "dashboard.overview.findLeague": "Buscar liga",
+  "dashboard.overview.brackets": "Brackets",
   "dashboard.overview.leagueIntelligenceTitle": "Inteligencia de liga",
   "dashboard.overview.leagueIntelligenceSubtitle":
     "IA en vivo específica de la liga según la liga que elijas — una liga para todos los widgets de abajo.",
@@ -1049,6 +1050,17 @@ export const translationsEsParity: Record<string, string> = {
   "renew.listedInFinder": "Liga listada en el Buscador de Ligas",
   "renew.close": "Cerrar",
   "renew.alreadyRenewed": "Liga ya renovada para {{year}}.",
+  "renew.tournamentHubCta": "Abrir hub del torneo — renovar para {{year}}",
+  "renew.tournamentHubHint":
+    "Las ligas feeder se renuevan juntas desde el hub del torneo para que todos vuelvan a sus ligas de clasificación originales.",
+  "renew.step1Title": "Temporada baja — comenzar la próxima temporada",
+  "renew.step1Body":
+    "Estás pasando esta liga a una nueva temporada en la pretemporada (mismo flujo que Sleeper: renovar y luego draft o mantener plantillas según el formato).",
+  "renew.step2Title": "Formato y miembros",
+  "renew.step3Title": "Confirmar",
+  "renew.next": "Siguiente",
+  "renew.back": "Atrás",
+  "renew.confirmRenew": "Confirmar y renovar",
 
   // ─── COMMISSIONER RATING ───
   "rating.title": "Califica a tu Comisionado",

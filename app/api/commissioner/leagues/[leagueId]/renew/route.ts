@@ -16,6 +16,13 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notifyCommissionerChange } from '@/lib/commissioner/CommissionerChangeNotifier'
 import { checkAndTriggerRatingIfOffseason } from '@/lib/commissioner/CommissionerRatingTrigger'
+import {
+  isSeasonOverForRenewal,
+  normalizeRenewalModalType,
+  renewalKindFromSelection,
+  resolveLeagueVariantKey,
+  shouldResetRostersForRenewal,
+} from '@/lib/leagues/renewalPolicy'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +40,7 @@ export async function GET(
       userId: true, season: true, sport: true, isDynasty: true,
       leagueVariant: true, status: true, settings: true, scoring: true,
       name: true, leagueSize: true,
+      lifecycleState: true,
       teams: {
         select: {
           id: true, teamName: true, ownerName: true, avatarUrl: true,
@@ -51,9 +59,28 @@ export async function GET(
   const leagueType = (league.leagueVariant ?? settings.league_type as string ?? 'redraft').toLowerCase()
   const duesConfig = settings.dues_tracker as Record<string, unknown> | undefined
 
-  const status = (league.status ?? '').toLowerCase()
-  const phase = ((settings.dynastySeasonPhase ?? settings.season_phase ?? '') as string).toLowerCase()
-  const isSeasonOver = status === 'complete' || status === 'post_season' || status === 'offseason' || phase === 'offseason' || phase === 'complete'
+  const isSeasonOver = isSeasonOverForRenewal({
+    status: league.status,
+    dynastySeasonPhase: settings.dynastySeasonPhase as string | undefined,
+    seasonPhase: settings.season_phase as string | undefined,
+    lifecycleState: league.lifecycleState,
+  })
+
+  let tournamentFeeder: { tournamentId: string; renewFromHubPath: string } | null = null
+  try {
+    const link = await prisma.legacyTournamentLeague.findFirst({
+      where: { leagueId },
+      select: { tournamentId: true },
+    })
+    if (link?.tournamentId) {
+      tournamentFeeder = {
+        tournamentId: link.tournamentId,
+        renewFromHubPath: `/tournament/${link.tournamentId}`,
+      }
+    }
+  } catch {
+    tournamentFeeder = null
+  }
 
   // Separate active vs orphan members
   const activeMembers = league.teams.filter(t => !t.isOrphan && t.ownerName && !t.ownerName.startsWith('orphan-'))
@@ -103,6 +130,8 @@ export async function GET(
     dispersalDraftEligible,
     isListedInFinder,
     renewalCompleted: Boolean(settings.renewal_completed_for_season === nextSeason),
+    lifecycleState: league.lifecycleState,
+    tournamentFeeder,
   })
 }
 
@@ -119,6 +148,7 @@ export async function POST(
     select: {
       userId: true, season: true, settings: true, leagueVariant: true,
       isDynasty: true, sport: true, name: true, scoring: true,
+      waiverBudget: true,
       teams: {
         select: {
           id: true, teamName: true, ownerName: true, isOrphan: true,
@@ -139,6 +169,30 @@ export async function POST(
   const listInFinder = body.listInFinder === true
 
   const settings = (league.settings as Record<string, unknown>) ?? {}
+  const selectedType = normalizeRenewalModalType(
+    newLeagueType ?? resolveLeagueVariantKey(league.leagueVariant, settings),
+  )
+  const renewalKind = renewalKindFromSelection({
+    leagueVariant: league.leagueVariant,
+    settings,
+    selectedType,
+    isDynasty: league.isDynasty,
+  })
+  if (renewalKind === 'tournament_feeder') {
+    const link = await prisma.legacyTournamentLeague.findFirst({
+      where: { leagueId },
+      select: { tournamentId: true },
+    })
+    return NextResponse.json(
+      {
+        error: 'tournament_feeder',
+        message: 'This feeder league is part of a tournament. Renew the full tournament from the tournament hub so all conferences reset together.',
+        tournamentId: link?.tournamentId ?? null,
+        renewFromHubPath: link?.tournamentId ? `/tournament/${link.tournamentId}` : null,
+      },
+      { status: 409 },
+    )
+  }
   const currentSeason = league.season ?? new Date().getFullYear()
   const nextSeason = currentSeason + 1
   const changes: { field: string; oldValue: string; newValue: string }[] = []
@@ -230,6 +284,18 @@ export async function POST(
       projectedWins: null,
     },
   })
+
+  // ─── 4b. REDRAFT (Sleeper-style): clear rosters for a full startup draft — keep dynasty/keeper player groups ───
+  if (shouldResetRostersForRenewal(renewalKind)) {
+    const faab = typeof league.waiverBudget === 'number' && Number.isFinite(league.waiverBudget) ? league.waiverBudget : 100
+    await prisma.roster.updateMany({
+      where: { leagueId },
+      data: {
+        playerData: {},
+        faabRemaining: faab,
+      },
+    })
+  }
 
   // ─── 5. UPDATE league type if changed ───
   if (newLeagueType && newLeagueType !== (league.leagueVariant ?? 'redraft')) {

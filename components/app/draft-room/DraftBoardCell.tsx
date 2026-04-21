@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowLeftRight, ArrowRight, Gavel, History } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Gavel, History } from 'lucide-react'
 import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -114,6 +114,8 @@ export type DraftBoardCellProps = {
    * focusRound / focusOriginalRosterId so the relevant row highlights.
    */
   onViewTradeHistory?: () => void
+  /** Snake: reversed rounds show a left arrow on empty cells; forward rounds show right. */
+  emptyCellDirection?: 'forward' | 'reverse'
 }
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
@@ -149,6 +151,7 @@ function DraftBoardCellInner({
   isDevyRound = false,
   isCollegeRound = false,
   pickHighlight = 'none',
+  emptyCellDirection = 'forward',
   onTradeFromCell,
   onViewTradeHistory,
 }: DraftBoardCellProps) {
@@ -265,7 +268,11 @@ function DraftBoardCellInner({
       {isEmpty ? (
         <div className="mt-auto flex items-end justify-between gap-2">
           <div className="flex items-center gap-1 text-white/28">
-            <ArrowRight className="h-3 w-3" />
+            {emptyCellDirection === 'reverse' ? (
+              <ArrowLeft className="h-3 w-3" aria-hidden />
+            ) : (
+              <ArrowRight className="h-3 w-3" aria-hidden />
+            )}
             {isCollegeRound ? (
               <StatusBadge label="College" className="bg-violet-500/18 text-violet-100" />
             ) : isDevyRound ? (

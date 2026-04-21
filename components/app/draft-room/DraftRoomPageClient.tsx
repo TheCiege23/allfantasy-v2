@@ -144,6 +144,8 @@ export function DraftRoomPageClient({
   }>>([])
   const [chatSyncActive, setChatSyncActive] = useState(false)
   const [loading, setLoading] = useState(true)
+  /** Set when GET draft/session returns 401/403 so we don't show the misleading "no draft session" copy. */
+  const [draftSessionAccess, setDraftSessionAccess] = useState<"ok" | "unauthorized" | "forbidden" | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
   const [commissionerLoading, setCommissionerLoading] = useState(false)
   const [pickSubmitting, setPickSubmitting] = useState(false)
@@ -666,8 +668,30 @@ export function DraftRoomPageClient({
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/session`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && data.session) setSession(data.session)
+      if (res.status === 401) {
+        setDraftSessionAccess("unauthorized")
+        setSession(null)
+        return
+      }
+      if (res.status === 403) {
+        setDraftSessionAccess("forbidden")
+        setSession(null)
+        return
+      }
+      if (res.ok && data.session) {
+        setDraftSessionAccess("ok")
+        setSession(data.session)
+        return
+      }
+      if (res.ok) {
+        setDraftSessionAccess("ok")
+        setSession(null)
+        return
+      }
+      setDraftSessionAccess(null)
+      setSession(null)
     } catch {
+      setDraftSessionAccess(null)
       setSession(null)
     }
   }, [leagueId])
@@ -2124,6 +2148,40 @@ export function DraftRoomPageClient({
   }
 
   if (!session) {
+    if (draftSessionAccess === "forbidden") {
+      return (
+        <div className="container mx-auto max-w-md px-4 py-12 text-center" data-testid="draft-room-access-denied">
+          <p className="text-white/80">You don&apos;t have access to this draft room.</p>
+          <p className="mt-2 text-sm text-white/50">
+            Only league members and commissioners can open the live draft. Ask the commissioner for an invite or join the league first.
+          </p>
+          <Link href={`/league/${leagueId}`} className="mt-4 inline-block text-cyan-400 hover:underline">
+            Back to league
+          </Link>
+          <Link href="/dashboard" className="mt-2 block text-sm text-white/40 hover:text-white/60">
+            Dashboard
+          </Link>
+        </div>
+      )
+    }
+    if (draftSessionAccess === "unauthorized") {
+      return (
+        <div className="container mx-auto max-w-md px-4 py-12 text-center" data-testid="draft-room-session-expired">
+          <p className="text-white/80">Sign in to load this draft.</p>
+          <p className="mt-2 text-sm text-white/50">Your session may have expired.</p>
+          <Link
+            href={
+              typeof window !== "undefined"
+                ? `/login?callbackUrl=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`
+                : "/login"
+            }
+            className="mt-4 inline-block text-cyan-400 hover:underline"
+          >
+            Sign in
+          </Link>
+        </div>
+      )
+    }
     return (
       <div className="container mx-auto max-w-md px-4 py-12 text-center" data-testid="draft-room-empty-state">
         <p className="text-white/80">No draft session for this league.</p>

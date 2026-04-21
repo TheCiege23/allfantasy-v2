@@ -2871,7 +2871,7 @@ function AFLegacyContent() {
       handleActiveTabChange('rankings')
       const loadAndRun = async () => {
         try {
-          const res = await fetch(`/api/legacy/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
+          const res = await fetch(`/api/ai/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
           const data = await res.json()
           if (data.ok && data.leagues) {
             setRankingsDynastyLeagues(data.leagues)
@@ -3535,7 +3535,13 @@ function AFLegacyContent() {
       // Keep this inside try so it can't fail "outside" the handler
       loadTradeHistory(leagueId)
 
-      const res = await fetch('/api/legacy/trade/league-analyze', {
+      // Feature flag for AI trade analysis migration (Phase 4)
+      const endpoint =
+        process.env.NEXT_PUBLIC_USE_AI_TRADE_ANALYZE === 'true'
+          ? '/api/ai/trade/league-analyze'
+          : '/api/legacy/trade/league-analyze'
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -3825,7 +3831,7 @@ function AFLegacyContent() {
     if (!username) return
     setWaiverLeaguesLoading(true)
     try {
-      const res = await fetch(`/api/legacy/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
+      const res = await fetch(`/api/ai/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
       const data = await res.json()
       if (data.ok && data.leagues) {
         setWaiverDynastyLeagues(data.leagues)
@@ -3874,7 +3880,7 @@ function AFLegacyContent() {
     if (!username) return
     setRankingsLeaguesLoading(true)
     try {
-      const res = await fetch(`/api/legacy/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
+      const res = await fetch(`/api/ai/waiver/leagues?sleeper_username=${encodeURIComponent(username)}`)
       const data = await res.json()
       if (data.ok && data.leagues) {
         setRankingsDynastyLeagues(data.leagues)

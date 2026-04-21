@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 
+type TeamNewsLine = { title: string; url: string | null }
+
 type LivePayload = {
   ok: boolean
   tournamentId: string
@@ -13,7 +15,12 @@ type LivePayload = {
     awayScore: number | null
     status: string | null
     startTime: string | null
+    homeRecord?: string | null
+    awayRecord?: string | null
+    statusDetail?: string | null
   }>
+  /** Latest headline per team abbrev from `SportsNews` (merged in `/api/bracket/live`). */
+  teamNews?: Record<string, TeamNewsLine>
   standings: null | Array<{
     entryId: string
     entryName: string

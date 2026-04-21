@@ -38,7 +38,7 @@ export default function CommunityInsights() {
     if (withSummary) setSummarizing(true)
     setError(null)
     try {
-      const url = `/api/legacy/community-insights${withSummary ? '?summarize=true' : ''}`
+      const url = `/api/ai/community-insights${withSummary ? '?summarize=true' : ''}`
       const res = await fetch(url)
       const data = await res.json().catch(() => null)
       if (res.ok && data) {

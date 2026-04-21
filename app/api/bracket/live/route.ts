@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getLiveScoresForSport, type LiveScoreRow } from "@/lib/sports-live-scores-service"
+import { bracketSportToLeagueSport } from "@/lib/brackets/espn-playoff-sync"
+import { normalizeTeamAbbrev } from "@/lib/team-abbrev"
+import { fetchTeamNewsForBracket } from "@/lib/brackets/bracket-team-news"
 import {
   scoreEntry,
   type ScoringMode,
@@ -21,6 +25,19 @@ function normalizeRoundPoints(input: unknown): Record<number, number> | undefine
     }
   }
   return Object.keys(out).length ? out : undefined
+}
+
+function normAbbr(s: string | null | undefined): string {
+  return (normalizeTeamAbbrev(String(s ?? "").trim()) || String(s ?? "").trim()).toUpperCase()
+}
+
+function liveRowForGame(game: LiveScoreRow | undefined, node: { homeTeamName: string | null; awayTeamName: string | null }) {
+  if (!game) return { homeRecord: null as string | null, awayRecord: null as string | null }
+  const homeFirst = normAbbr(game.homeTeam) === normAbbr(node.homeTeamName || game.homeTeam)
+  return {
+    homeRecord: homeFirst ? game.homeRecord : game.awayRecord,
+    awayRecord: homeFirst ? game.awayRecord : game.homeRecord,
+  }
 }
 
 function getNodeWinner(node: any, game: any): string | null {
@@ -46,10 +63,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Tournament not found" }, { status: 404 })
     }
 
+    let liveScoreRows: LiveScoreRow[] = []
+    try {
+      const leagueSport = bracketSportToLeagueSport(tournament.sport)
+      liveScoreRows = (await getLiveScoresForSport({ sport: leagueSport, forceRefresh: false })).scores
+    } catch {
+      liveScoreRows = []
+    }
+
     const nodes = await prisma.bracketNode.findMany({
       where: { tournamentId },
       orderBy: [{ round: "asc" }, { slot: "asc" }],
     })
+
+    const teamAbbrevs = Array.from(
+      new Set(nodes.flatMap((n) => [n.homeTeamName, n.awayTeamName].filter(Boolean) as string[])),
+    )
+    let teamNews: Record<string, { title: string; url: string | null }> = {}
+    try {
+      teamNews = await fetchTeamNewsForBracket({
+        sportRaw: tournament.sport,
+        teamAbbrevs,
+      })
+    } catch (e) {
+      console.warn("[BracketLive] team news fetch failed:", e)
+    }
 
     const linkedGameIds = nodes.map((n) => n.sportsGameId).filter((id): id is string => id !== null)
     const games = linkedGameIds.length > 0
@@ -73,6 +111,16 @@ export async function GET(request: NextRequest) {
 
     const bracketNodes = nodes.map((node) => {
       const game = node.sportsGameId ? gameMap.get(node.sportsGameId) : null
+      const liveMatch = game
+        ? liveScoreRows.find((r) => {
+            const h = normAbbr(r.homeTeam)
+            const a = normAbbr(r.awayTeam)
+            const hn = normAbbr(node.homeTeamName || game.homeTeam)
+            const an = normAbbr(node.awayTeamName || game.awayTeam)
+            return (h === hn && a === an) || (h === an && a === hn)
+          })
+        : undefined
+      const rec = liveRowForGame(liveMatch, node)
       return {
         id: node.id,
         slot: node.slot,
@@ -92,6 +140,9 @@ export async function GET(request: NextRequest) {
               startTime: game.startTime,
               venue: game.venue,
               fetchedAt: game.fetchedAt,
+              homeRecord: rec.homeRecord,
+              awayRecord: rec.awayRecord,
+              statusDetail: liveMatch?.statusDetail ?? null,
             }
           : null,
         winner: getNodeWinner(node, game),
@@ -296,15 +347,28 @@ export async function GET(request: NextRequest) {
 
     const hasLiveGames = bracketNodes.some((n) => n.liveGame?.status === "in_progress")
 
-    const gamesFlat = games.map((g) => ({
-      id: g.id,
-      homeTeam: g.homeTeam,
-      awayTeam: g.awayTeam,
-      homeScore: g.homeScore,
-      awayScore: g.awayScore,
-      status: g.status,
-      startTime: g.startTime ? g.startTime.toISOString() : null,
-    }))
+    const gamesFlat = games.map((g) => {
+      const liveMatch = liveScoreRows.find((r) => {
+        const h = normAbbr(r.homeTeam)
+        const a = normAbbr(r.awayTeam)
+        const hn = normAbbr(g.homeTeam)
+        const an = normAbbr(g.awayTeam)
+        return (h === hn && a === an) || (h === an && a === hn)
+      })
+      const homeFirst = liveMatch ? normAbbr(liveMatch.homeTeam) === normAbbr(g.homeTeam) : true
+      return {
+        id: g.id,
+        homeTeam: g.homeTeam,
+        awayTeam: g.awayTeam,
+        homeScore: g.homeScore,
+        awayScore: g.awayScore,
+        status: g.status,
+        startTime: g.startTime ? g.startTime.toISOString() : null,
+        homeRecord: liveMatch ? (homeFirst ? liveMatch.homeRecord : liveMatch.awayRecord) : null,
+        awayRecord: liveMatch ? (homeFirst ? liveMatch.awayRecord : liveMatch.homeRecord) : null,
+        statusDetail: liveMatch?.statusDetail ?? null,
+      }
+    })
 
     return NextResponse.json(
       {
@@ -322,6 +386,7 @@ export async function GET(request: NextRequest) {
         sleeperTeams,
         hasLiveGames,
         pollIntervalMs: hasLiveGames ? 10000 : 60000,
+        teamNews,
       },
       {
         headers: {

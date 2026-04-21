@@ -38,7 +38,7 @@ export const LEAGUE_CONCEPT_CARDS: LeagueConceptCard[] = [
   { id: 'guillotine', title: 'Guillotine', subtitle: 'Lowest score is eliminated', icon: '✕' },
   { id: 'zombie', title: 'Zombie', subtitle: 'Infection-style survival', icon: '☣' },
   { id: 'survivor', title: 'Survivor', subtitle: 'Vote players off', icon: '⚑' },
-  { id: 'tournament', title: 'Tournament', subtitle: 'Bracket-style playoffs', icon: '⚔' },
+  { id: 'tournament', title: 'Tournament', subtitle: 'Multi-league elimination event', icon: '⚔' },
   { id: 'big_brother', title: 'Big Brother', subtitle: 'Weekly nominations', icon: '◎' },
 ]
 

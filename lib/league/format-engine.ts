@@ -189,7 +189,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
   tournament: {
     id: 'tournament',
     label: 'Tournament',
-    description: 'Bracket-style league orchestration layered on top of a core league.',
+    description: 'Multi-league elimination event layered on top of core league formats.',
     supportedSports: ALL_SPORTS,
     defaultRosterMode: 'redraft',
     draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.tournament] as LeagueDraftTypeId[],

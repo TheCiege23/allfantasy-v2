@@ -17,6 +17,29 @@ import { computeConfidenceRisk, getHistoricalHitRate } from '@/lib/analytics/con
 import { buildLeagueDecisionContext, leagueContextToIntelligence } from '@/lib/trade-engine/league-context-assembler'
 import { getLeagueInfo, getLeagueRosters, getLeagueUsers, getPlayersBySport } from '@/lib/sleeper-client'
 
+// Production hardening: Timeout guard and max duration
+export const maxDuration = 120 // 2 minutes for multi-API orchestration
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(
+      () => reject(new Error(`[${label}] Timeout after ${timeoutMs}ms`)),
+      timeoutMs
+    )
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    clearTimeout(timeoutHandle)
+  }
+}
+
 type Sport = 'nfl' | 'nba'
 type RosterSlot = 'Starter' | 'Bench' | 'IR' | 'Taxi'
 
@@ -323,6 +346,14 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
       return NextResponse.json({ error: 'Failed to load league rosters' }, { status: 502 })
     }
 
+    // Early exit: Cannot analyze trades if league has no rosters
+    if (rosters.length < 2) {
+      return NextResponse.json(
+        { error: 'League must have at least 2 rosters to analyze trades' },
+        { status: 400 }
+      )
+    }
+
     // 4) Load player dictionary
     const dict = await getSleeperPlayers(sport)
 
@@ -459,6 +490,10 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/league-analyze",
       const uniqueNames = Array.from(allPlayerNames)
       const batchSize = 50
       for (let i = 0; i < uniqueNames.length; i += batchSize) {
+        // Stagger batch requests to avoid rate limiting
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
         const batch = uniqueNames.slice(i, i + batchSize)
         const pricedBatch = await Promise.all(
           batch.map(name => pricePlayer(name, ctx))
@@ -673,12 +708,19 @@ Respond in JSON format:
 
     const learningContext = await getComprehensiveLearningContext()
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: `You are the #1 dynasty fantasy football trade expert. Your valuations are BASED ON FANTASYCALC DATA (from ~1 million real fantasy trades). Return valid JSON only.
+    // Main AI analysis call with timeout and graceful degradation
+    let tradeSuggestions: TradeSuggestion[] = []
+    let parseWarning: string | undefined
+    let aiDegraded = false
+
+    try {
+      const completion = await withTimeout(
+        openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `You are the #1 dynasty fantasy football trade expert. Your valuations are BASED ON FANTASYCALC DATA (from ~1 million real fantasy trades). Return valid JSON only.
 ${learningContext}
 
 YOUR GOAL: Find trades that give the USER a ~10% edge while still being acceptable to the other manager.
@@ -711,45 +753,51 @@ Each object must have:
 }
 
 Return JSON array of TradeSuggestion objects. Skip managers with no trade fit. Find the 2-5 BEST opportunities.`,
-        },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.4,
-    })
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.4,
+        }),
+        30000,  // 30 second timeout for OpenAI call
+        'OpenAI_TradeAnalysis'
+      )
 
-    const aiResponse = completion.choices[0]?.message?.content || '[]'
+      const aiResponse = completion.choices[0]?.message?.content || '[]'
 
-    // 8) Parse AI response
-    let tradeSuggestions: TradeSuggestion[] = []
-    let parseWarning: string | undefined
+      try {
+        const cleaned = aiResponse.replace(/```json\n?|```\n?/g, '').trim()
+        const parsed = JSON.parse(cleaned)
+        const arr = Array.isArray(parsed) ? parsed : (parsed.tradeSuggestions || parsed.suggestions || [parsed])
 
-    try {
-      const cleaned = aiResponse.replace(/```json\n?|```\n?/g, '').trim()
-      const parsed = JSON.parse(cleaned)
-      const arr = Array.isArray(parsed) ? parsed : (parsed.tradeSuggestions || parsed.suggestions || [parsed])
+        for (const suggestion of arr) {
+          if (!suggestion?.targetManager && !suggestion?.targetDisplayName) continue
 
-      for (const suggestion of arr) {
-        if (!suggestion?.targetManager && !suggestion?.targetDisplayName) continue
+          const manager = managerRosters.find(
+            (m) =>
+              m.username === suggestion.targetManager ||
+              m.displayName === suggestion.targetDisplayName
+          )
 
-        const manager = managerRosters.find(
-          (m) =>
-            m.username === suggestion.targetManager ||
-            m.displayName === suggestion.targetDisplayName
-        )
-
-        tradeSuggestions.push({
-          targetManager: suggestion.targetManager || suggestion.targetDisplayName || 'Unknown',
-          targetDisplayName: suggestion.targetDisplayName || suggestion.targetManager || 'Unknown',
-          targetAvatar: manager?.avatar,
-          theirNeeds: Array.isArray(suggestion.theirNeeds) ? suggestion.theirNeeds : [],
-          yourSurplus: Array.isArray(suggestion.yourSurplus) ? suggestion.yourSurplus : [],
-          suggestedTrades: Array.isArray(suggestion.suggestedTrades) ? suggestion.suggestedTrades : [],
-          overallFit: suggestion.overallFit || 'Medium',
-        })
+          tradeSuggestions.push({
+            targetManager: suggestion.targetManager || suggestion.targetDisplayName || 'Unknown',
+            targetDisplayName: suggestion.targetDisplayName || suggestion.targetManager || 'Unknown',
+            targetAvatar: manager?.avatar,
+            theirNeeds: Array.isArray(suggestion.theirNeeds) ? suggestion.theirNeeds : [],
+            yourSurplus: Array.isArray(suggestion.yourSurplus) ? suggestion.yourSurplus : [],
+            suggestedTrades: Array.isArray(suggestion.suggestedTrades) ? suggestion.suggestedTrades : [],
+            overallFit: suggestion.overallFit || 'Medium',
+          })
+        }
+      } catch (e) {
+        parseWarning = 'AI response parsing failed - retrying may help'
+        console.error('Failed to parse AI response:', e, aiResponse)
+        aiDegraded = true
       }
     } catch (e) {
-      parseWarning = 'AI response parsing failed - retrying may help'
-      console.error('Failed to parse AI response:', e, aiResponse)
+      // Graceful degradation: OpenAI failure should not fail entire request
+      console.error('[TradeLeagueAnalyze] OpenAI API failure:', e)
+      aiDegraded = true
+      parseWarning = `AI analysis unavailable: ${e instanceof Error ? e.message : 'Service error'}. Returning basic league context.`
     }
 
     // Track tool usage
@@ -805,6 +853,7 @@ Return JSON array of TradeSuggestion objects. Skip managers with no trade fit. F
       tradeSuggestions,
       managerCount: managerRosters.length + 1,
       ...(parseWarning ? { warning: parseWarning } : {}),
+      ...(aiDegraded ? { aiDegraded: true, dataQuality: 'degraded' } : {}),
       ...(unifiedLeagueCtx ? {
         contextId: unifiedLeagueCtx.contextId,
         sourceFreshness: unifiedLeagueCtx.sourceFreshness,
