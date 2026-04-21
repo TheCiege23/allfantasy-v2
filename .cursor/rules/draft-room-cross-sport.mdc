@@ -1,0 +1,34 @@
+---
+description: Draft room behavior — all sports & draft modes (exclusions auction + weighted lottery)
+globs:
+  - "**/draft/**/*"
+  - "**/draft-room/**/*"
+  - "**/live-draft-engine/**/*"
+  - "**/api/leagues/*/draft/**/*"
+---
+
+# Draft room: cross-sport consistency
+
+When changing the **live draft room** (pool, session, order, ADP, board UI), apply the same rules **for every supported sport** and for **snake / linear** (and shared devy/C2C paths). Do **not** special-case NFL only unless the data source is truly NFL-only (e.g. `getLiveADP` seed list).
+
+## Exclusions (do not apply “snake/linear pool” rules here)
+
+1. **Auction drafts** (`draftSession.draftType === 'auction'` or league `draftType === 'auction'` when session missing)  
+   - Use the **sport DB pool** path only (no ADP-ranked seed list + merge).  
+   - Auction UI already branches in `DraftBoard` / `DraftRoomPageClient`; keep server pool aligned.
+
+2. **Weighted lottery** (dynasty rookie order from `resolveWeightedLotterySlotOrderForLeague`)  
+   - **Never** replace a valid lottery `slotOrder` with roster-derived order.  
+   - `repairDraftSessionSlotOrderIfNeeded` must prefer stored lottery order when complete.  
+   - `buildSlotOrderForLeague` already ends with lottery when complete; repairs should mirror that priority.
+
+## Patterns to reuse
+
+- **Player pool (`GET .../draft/pool`)**: `mergeDbPoolIntoRawList` + `poolMergeCap` so every sport gets **full `SportsPlayer` coverage** after any ranked/seed slice, except **auction** (direct pool fill).  
+- **Slot order repair**: `buildSlotOrderForLeague` + lottery-first guard in repair.  
+- **AI ADP**: `buildAiAdpLookupMaps` / `lookupAiAdpMatch` / `expandAiAdpKeysForLookup` — sport-agnostic; do not duplicate strict `name|pos|team` only.  
+- **Snake board**: column order = **slot order**; empty-cell arrow direction follows snake reversal (not auction).
+
+## New features
+
+If adding draft-room behavior, implement for **all sports** in one pass (or stub with a clear TODO and tests), unless the feature is **auction-only** or **lottery-route-only**.

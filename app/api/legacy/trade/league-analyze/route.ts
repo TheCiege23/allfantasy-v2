@@ -25,7 +25,7 @@ async function withTimeout<T>(
   timeoutMs: number,
   label: string
 ): Promise<T> {
-  let timeoutHandle: NodeJS.Timeout
+  let timeoutHandle: NodeJS.Timeout | undefined
   const timeoutPromise = new Promise<T>((_, reject) => {
     timeoutHandle = setTimeout(
       () => reject(new Error(`[${label}] Timeout after ${timeoutMs}ms`)),
@@ -36,7 +36,9 @@ async function withTimeout<T>(
   try {
     return await Promise.race([promise, timeoutPromise])
   } finally {
-    clearTimeout(timeoutHandle)
+    if (timeoutHandle !== undefined) {
+      clearTimeout(timeoutHandle)
+    }
   }
 }
 

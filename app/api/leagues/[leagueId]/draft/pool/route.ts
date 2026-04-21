@@ -46,6 +46,88 @@ function normalizeKeyPart(value: string | null | undefined): string {
   return String(value ?? '').trim().toLowerCase()
 }
 
+/** Max players after merging ranked/seed list with DB pool (snake/linear/devy paths; not auction). */
+function poolMergeCap(limit: number): number {
+  return Math.min(2200, Math.max(limit, 800))
+}
+
+type SportPoolRow = {
+  full_name: string
+  position: string
+  team_abbreviation: string | null
+  external_source_id: string | null
+  injury_status: string | null
+  secondary_positions?: string[]
+  image_url?: string | null
+  status?: string | null
+  player_id?: string | null
+  age?: number | null
+}
+
+/** Normalized draft pool row before `normalizePlayerList` (all sports). */
+export type DraftPoolRawRow = {
+  name?: string
+  playerName?: string
+  full_name?: string
+  position?: string
+  pos?: string
+  team?: string | null
+  teamAbbr?: string | null
+  playerId?: string | null
+  sleeperId?: string | null
+  id?: string | null
+  adp?: number | null
+  bye?: number | null
+  byeWeek?: number | null
+  injuryStatus?: string | null
+  status?: string | null
+  secondaryPositions?: string[]
+  college?: string | null
+  isDevy?: boolean
+  school?: string | null
+  classYearLabel?: string | null
+  draftGrade?: string | null
+  projectedLandingSpot?: string | null
+  draftEligibleYear?: number | null
+  graduatedToNFL?: boolean
+  poolType?: 'college' | 'pro'
+  imageUrl?: string | null
+  age?: number | null
+}
+
+/**
+ * Append DB pool players not already in rawList until mergeCap (snake/linear; all sports).
+ * Auction drafts use this alone (no ADP-ranked seed list).
+ */
+function mergeDbPoolIntoRawList(
+  rawList: DraftPoolRawRow[],
+  poolRows: SportPoolRow[],
+  mergeCap: number,
+  useMixedPoolTypeMarkers: boolean,
+  seenNames: Set<string>,
+): void {
+  for (const p of poolRows) {
+    if (rawList.length >= mergeCap) break
+    const norm = normalizeNameForDedupe(p.full_name ?? '')
+    if (!norm || seenNames.has(norm)) continue
+    seenNames.add(norm)
+    rawList.push({
+      name: p.full_name,
+      position: p.position ?? '—',
+      team: p.team_abbreviation ?? null,
+      playerId: p.external_source_id ?? p.player_id ?? null,
+      adp: null,
+      bye: null,
+      injuryStatus: p.injury_status ?? null,
+      status: p.status ?? null,
+      secondaryPositions: Array.isArray(p.secondary_positions) ? p.secondary_positions : undefined,
+      imageUrl: p.image_url ?? null,
+      age: p.age ?? null,
+      ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
+    })
+  }
+}
+
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ leagueId: string }> }
@@ -81,14 +163,22 @@ export async function GET(
       const [league, draftSession] = await Promise.all([
         prisma.league.findUnique({
           where: { id: leagueId },
-          select: { sport: true, leagueVariant: true },
+          select: {
+            sport: true,
+            leagueVariant: true,
+            leagueSettings: { select: { draftType: true } },
+          },
         }),
         prisma.draftSession.findUnique({
           where: { leagueId },
-          select: { devyConfig: true, c2cConfig: true, keeperSelections: true },
+          select: { devyConfig: true, c2cConfig: true, keeperSelections: true, draftType: true },
         }),
       ])
       const sport = (league?.sport as LeagueSport) ?? DEFAULT_SPORT
+      const settingsDraftType = String(league?.leagueSettings?.draftType ?? '').toLowerCase()
+      const sessionDraftType = draftSession?.draftType ? String(draftSession.draftType).toLowerCase() : ''
+      const isAuction =
+        sessionDraftType === 'auction' || (!sessionDraftType && settingsDraftType === 'auction')
       const isIdp = await isIdpLeague(leagueId)
       const limit = Math.min(
         parseInt(req.nextUrl.searchParams?.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
@@ -108,35 +198,7 @@ export async function GET(
       const strictPoolSeparation = (isDevyDynasty && poolType != null) || (isC2C && poolType != null)
       const useMixedPoolTypeMarkers = mergeCollegePool || c2cEnabled || devyEnabled
 
-      type RawRow = {
-      name?: string
-      playerName?: string
-      full_name?: string
-      position?: string
-      pos?: string
-      team?: string | null
-      teamAbbr?: string | null
-      playerId?: string | null
-      sleeperId?: string | null
-      id?: string | null
-      adp?: number | null
-      bye?: number | null
-      byeWeek?: number | null
-      injuryStatus?: string | null
-      status?: string | null
-      secondaryPositions?: string[]
-      college?: string | null
-      isDevy?: boolean
-      school?: string | null
-      classYearLabel?: string | null
-      draftGrade?: string | null
-      projectedLandingSpot?: string | null
-      draftEligibleYear?: number | null
-      graduatedToNFL?: boolean
-      poolType?: 'college' | 'pro'
-      imageUrl?: string | null
-      age?: number | null
-    }
+      type RawRow = DraftPoolRawRow
       let rawList: RawRow[] = []
       const poolRows = await getPlayerPoolForLeague(leagueId, sport, {
         limit: Math.min(Math.max(limit * 4, 800), 2200),
@@ -183,6 +245,16 @@ export async function GET(
         playerId: p.id ?? null,
         ...(isC2C || devyEnabled ? { poolType: 'college' as const } : {}),
       }))
+      } else if (isAuction) {
+        rawList = []
+        const seenAuction = new Set<string>()
+        mergeDbPoolIntoRawList(
+          rawList,
+          poolRows as SportPoolRow[],
+          poolMergeCap(limit),
+          useMixedPoolTypeMarkers,
+          seenAuction,
+        )
       } else if (sport === 'NFL') {
       const adpEntries = await getLiveADP('redraft', Math.min(500, Math.max(limit, 400))).catch(() => [])
       rawList = adpEntries.map((e) => ({
@@ -214,34 +286,17 @@ export async function GET(
           }
         }
       }
-      // ADP-only lists are often ~100–200 players; merge DB pool so the room has the full roster universe,
-      // Sleeper IDs for headshots (`resolvePlayerAssets`), and IDs for `/api/legacy/player-game-logs`.
-      const nflPoolMergeCap = Math.min(2200, Math.max(limit, 800))
-      const seenNflPoolNames = new Set(
+      // ADP-only lists are often short; merge DB pool for full sport universe + external IDs for assets/APIs.
+      const seenAfterRanked = new Set(
         rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')),
       )
-      for (const p of poolRows) {
-        if (rawList.length >= nflPoolMergeCap) break
-        const norm = normalizeNameForDedupe(p.full_name ?? '')
-        if (!norm || seenNflPoolNames.has(norm)) continue
-        seenNflPoolNames.add(norm)
-        rawList.push({
-          name: p.full_name,
-          position: p.position ?? '—',
-          team: p.team_abbreviation ?? null,
-          playerId: p.external_source_id ?? (p as { player_id?: string | null }).player_id ?? null,
-          adp: null,
-          bye: null,
-          injuryStatus: p.injury_status ?? null,
-          status: (p as { status?: string | null }).status ?? null,
-          secondaryPositions: Array.isArray((p as { secondary_positions?: string[] }).secondary_positions)
-            ? (p as { secondary_positions?: string[] }).secondary_positions
-            : undefined,
-          imageUrl: (p as { image_url?: string | null }).image_url ?? null,
-          age: (p as { age?: number | null }).age ?? null,
-          ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
-        })
-      }
+      mergeDbPoolIntoRawList(
+        rawList,
+        poolRows as SportPoolRow[],
+        poolMergeCap(limit),
+        useMixedPoolTypeMarkers,
+        seenAfterRanked,
+      )
       if (strictPoolSeparation && poolType === 'rookie') {
         const excludedProIds = isC2C
           ? await getC2CPromotedProPlayerIdsExcludedFromRookiePool(leagueId)
@@ -262,8 +317,19 @@ export async function GET(
         injuryStatus: p.injury_status,
         status: (p as { status?: string | null }).status ?? null,
         imageUrl: (p as { image_url?: string | null }).image_url ?? null,
+        age: (p as { age?: number | null }).age ?? null,
         ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
       }))
+      const seenNonNfl = new Set(
+        rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')),
+      )
+      mergeDbPoolIntoRawList(
+        rawList,
+        poolRows as SportPoolRow[],
+        poolMergeCap(limit),
+        useMixedPoolTypeMarkers,
+        seenNonNfl,
+      )
       }
 
       const proNames = new Set(rawList.map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')))

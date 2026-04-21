@@ -111,6 +111,19 @@ async function repairDraftSessionSlotOrderIfNeeded(leagueId: string): Promise<vo
   const teamCount = session.teamCount
   if (isCompleteSlotOrder(session.slotOrder, teamCount)) return
 
+  // Weighted lottery (dynasty rookie): apply stored lottery order first — do not replace with roster-based order.
+  const lotteryOrder = await resolveWeightedLotterySlotOrderForLeague(leagueId).catch(() => null)
+  if (lotteryOrder && isCompleteSlotOrder(lotteryOrder, teamCount)) {
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        slotOrder: lotteryOrder as unknown as Prisma.InputJsonValue,
+        version: { increment: 1 },
+      },
+    })
+    return
+  }
+
   const slotOrder = await buildSlotOrderForLeague(leagueId)
   if (!isCompleteSlotOrder(slotOrder, teamCount)) return
 

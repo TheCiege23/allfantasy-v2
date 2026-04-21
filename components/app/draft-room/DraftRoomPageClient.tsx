@@ -47,6 +47,11 @@ import type { DraftIntelState } from '@/lib/draft-intelligence'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
+import {
+  buildAiAdpLookupMaps,
+  expandAiAdpKeysForLookup,
+  lookupAiAdpMatch,
+} from '@/lib/draft-room/ai-adp-lookup'
 import { buildDraftSummaryForAI, buildLiveDraftBrainPayload, canAddToQueue, getDefaultRosterSlotsForSport } from '@/lib/draft-room'
 import type { LiveDraftBrainEnvelope } from '@/lib/live-draft-brain/schemas'
 import { IdpDraftExplainerCard } from '@/components/idp/IdpDraftExplainerCard'
@@ -177,6 +182,10 @@ export function DraftRoomPageClient({
     ageHours?: number | null
     message?: string | null
   } | null>(null)
+  const aiAdpLookupMaps = useMemo(
+    () => buildAiAdpLookupMaps(leagueAiAdp?.entries ?? null),
+    [leagueAiAdp?.entries],
+  )
   const [autoPickFromQueue, setAutoPickFromQueue] = useState(false)
   const [awayMode, setAwayMode] = useState(false)
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
@@ -301,20 +310,14 @@ export function DraftRoomPageClient({
         ? (draftData as any).entries
         : []
     const useNormalizedPool = Array.isArray(draftPool?.entries) && draftPool.entries.length > 0
-    const aiAdpMap = new Map<string, { adp: number; sampleSize: number; lowSample?: boolean }>()
-    if (leagueAiAdp?.entries?.length) {
-      for (const a of leagueAiAdp.entries) {
-        const key = `${(a.playerName || '').toLowerCase()}|${(a.position || '').toLowerCase()}|${(a.team || '').toLowerCase()}`
-        aiAdpMap.set(key, { adp: a.adp, sampleSize: a.sampleSize, lowSample: a.lowSample })
-      }
-    }
     return useNormalizedPool
       ? (rawEntries as NormalizedDraftEntry[]).map((e) => {
           const name = e.name ?? e.display?.displayName ?? ''
           const position = e.position ?? e.display?.metadata?.position ?? ''
           const team = e.team ?? e.display?.metadata?.teamAbbreviation ?? null
-          const key = `${name.toLowerCase()}|${(position || '').toLowerCase()}|${(team || '').toLowerCase()}`
-          const ai = aiAdpMap.get(key)
+          const ai = draftUISettings?.aiAdpEnabled
+            ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
+            : null
           return {
             id: e.playerId ?? e.display?.playerId ?? name,
             name,
@@ -339,8 +342,9 @@ export function DraftRoomPageClient({
           const name = e.name ?? e.playerName ?? ''
           const position = e.position ?? ''
           const team = e.team ?? null
-          const key = `${name.toLowerCase()}|${(position || '').toLowerCase()}|${(team || '').toLowerCase()}`
-          const ai = aiAdpMap.get(key)
+          const ai = draftUISettings?.aiAdpEnabled
+            ? lookupAiAdpMatch(aiAdpLookupMaps, name, position, team)
+            : null
           return {
             id: e.id ?? e.playerId ?? name,
             name,
@@ -353,7 +357,7 @@ export function DraftRoomPageClient({
             aiAdpLowSample: ai?.lowSample,
           }
         })
-  }, [draftPool, draftData, leagueAiAdp, draftUISettings?.aiAdpEnabled])
+  }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled])
   const currentUserRosterId = (session as any)?.currentUserRosterId as string | undefined
 
   const fetchDraftPool = useCallback(async () => {
@@ -406,13 +410,10 @@ export function DraftRoomPageClient({
 
   const warRoomBrainInput = useMemo(() => {
     if (!session) return null
-    const aiAdpByKey: Record<string, number> = {}
-    if (draftUISettings?.aiAdpEnabled && leagueAiAdp?.entries?.length) {
-      for (const a of leagueAiAdp.entries) {
-        const key = `${(a.playerName || '').toLowerCase()}|${(a.position || '').toLowerCase()}|${(a.team || '').toLowerCase()}`
-        aiAdpByKey[key] = a.adp
-      }
-    }
+    const aiAdpByKey =
+      draftUISettings?.aiAdpEnabled && leagueAiAdp?.entries?.length
+        ? expandAiAdpKeysForLookup(leagueAiAdp.entries)
+        : {}
     return buildLiveDraftBrainPayload({
       session,
       effectiveDraftSport,
@@ -436,7 +437,8 @@ export function DraftRoomPageClient({
     draftPool?.isIdp,
     isSuperflexFormat,
     effectiveRosterSlots,
-    leagueAiAdp,
+    leagueAiAdp?.entries,
+    leagueAiAdp?.totalDrafts,
     draftUISettings?.aiAdpEnabled,
     currentUserRosterId,
     players,
@@ -923,13 +925,10 @@ export function DraftRoomPageClient({
     setRecommendationError(null)
     let brainPromise: Promise<LiveDraftBrainEnvelope | null> = Promise.resolve(null)
     try {
-      const aiAdpByKey: Record<string, number> = {}
-      if (draftUISettings?.aiAdpEnabled && leagueAiAdp?.entries?.length) {
-        for (const a of leagueAiAdp.entries) {
-          const key = `${(a.playerName || '').toLowerCase()}|${(a.position || '').toLowerCase()}|${(a.team || '').toLowerCase()}`
-          aiAdpByKey[key] = a.adp
-        }
-      }
+      const aiAdpByKey =
+        draftUISettings?.aiAdpEnabled && leagueAiAdp?.entries?.length
+          ? expandAiAdpKeysForLookup(leagueAiAdp.entries)
+          : {}
       brainPromise = (async (): Promise<LiveDraftBrainEnvelope | null> => {
         try {
           if (!session) return null
