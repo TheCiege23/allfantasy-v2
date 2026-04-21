@@ -160,6 +160,8 @@ export async function createCanonicalLeagueInTransaction(
 
   const joinCode = await uniqueJoinCode(tx)
   const platformLeagueId = `manual-${randomUUID()}`
+  /** Calendar season year for list badges / filters (must not rely on Prisma's static default). */
+  const seasonYear = new Date().getFullYear()
 
   const isGuillotine = formatId === 'guillotine'
   const guillotineProfile = isGuillotine ? getGuillotineSportConfig(sport) : undefined
@@ -172,6 +174,7 @@ export async function createCanonicalLeagueInTransaction(
       name: body.leagueName.trim(),
       platform: 'manual',
       platformLeagueId,
+      season: seasonYear,
       leagueSize: body.teamCount,
       sport,
       leagueType: formatId,

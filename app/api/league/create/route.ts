@@ -1046,7 +1046,8 @@ export async function POST(req: Request) {
         ...(scoringPresetIdInput?.trim() ? { scoringPresetId: scoringPresetIdInput.trim() } : {}),
         settingsSnapshotVersion: SETTINGS_SNAPSHOT_VERSION,
         syncStatus: platform === 'manual' ? 'manual' : 'pending',
-        ...(effectiveDynasty ? { season: foundingSeason } : {}),
+        /** List rail shows `League.season`; redraft/survivor/etc. must not inherit Prisma's stale default (2024). */
+        season: foundingSeason,
         ...(isSurvivorLeague && typeof leagueSize === 'number'
           ? {
               survivorMode: true,

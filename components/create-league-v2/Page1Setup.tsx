@@ -13,7 +13,7 @@ import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/typ
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import { LEAGUE_TYPE_MEDIA, SPORT_MEDIA } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, SupportedSport, SoccerPipeline } from '@/lib/create-league-v2/state'
-import { SUPPORTED_SPORTS } from '@/lib/create-league-v2/state'
+import { SUPPORTED_SPORTS, TOURNAMENT_POOL_SIZE_OPTIONS } from '@/lib/create-league-v2/state'
 import {
   isSportAllowedForType,
   getTeamCountOptions,
@@ -339,24 +339,34 @@ export function Page1Setup({ state, accent, onChange }: Page1SetupProps) {
       {/* Team count / Tournament pool size */}
       <GlassCard>
         <SectionHeader
-          title={isTournament ? 'Tournament Pool Size' : 'Team Count'}
+          title={isTournament ? 'Tournament Size' : 'Team Count'}
           hint={
             isTournament
               ? 'Total managers across all feeder leagues (each feeder = 12 teams).'
               : `${SPORT_LABELS[state.sport]} supports ${teamCountOptions[0]}–${teamCountOptions[teamCountOptions.length - 1]} teams.`
           }
         />
-        <PillRow
-          options={teamCountOptions}
-          value={state.teamCount}
-          onChange={(teamCount) => onChange({ teamCount })}
-          accent={accent}
-          ariaLabel={isTournament ? 'Tournament pool size' : 'Number of teams'}
-        />
-        {isTournament && (
-          <p className="mt-3 text-[11px] text-white/40">
-            {state.teamCount} managers = {Math.floor(state.teamCount / 12)} feeder leagues of 12 teams each.
-          </p>
+        {isTournament ? (
+          <>
+            <PillRow
+              options={[...TOURNAMENT_POOL_SIZE_OPTIONS]}
+              value={state.tournamentPoolSize}
+              onChange={(tournamentPoolSize) => onChange({ tournamentPoolSize })}
+              accent={accent}
+              ariaLabel="Tournament size"
+            />
+            <p className="mt-3 text-[11px] text-white/40">
+              {state.tournamentPoolSize} managers = {Math.floor(state.tournamentPoolSize / 12)} feeder leagues of 12 teams each.
+            </p>
+          </>
+        ) : (
+          <PillRow
+            options={teamCountOptions}
+            value={state.teamCount}
+            onChange={(teamCount) => onChange({ teamCount })}
+            accent={accent}
+            ariaLabel="Number of teams"
+          />
         )}
       </GlassCard>
 

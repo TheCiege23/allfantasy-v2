@@ -13,7 +13,7 @@ type Props = {
 }
 
 export default function BracketEntryActionsCard({ leagueId, tournamentId, entryId }: Props) {
-  const entryUrl = `/tournament/bracket/${tournamentId}/entry/${entryId}`
+  const entryUrl = `/bracket/${tournamentId}/entry/${entryId}`
   const { t } = useLanguage()
   const [simLoading, setSimLoading] = useState(false)
   const [simError, setSimError] = useState<string | null>(null)

@@ -4121,7 +4121,7 @@ model League {
   name                                  String?
   sport                                 LeagueSport                            @default(NFL)
   /// Season year for this row (Sleeper may have one row per league per year).
-  season                                Int                                    @default(2024)
+  season                                Int                                    @default(2026)
   leagueSize                            Int?
   scoring                               String?
   isDynasty                             Boolean                                @default(false)

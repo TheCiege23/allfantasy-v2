@@ -80,7 +80,7 @@ export function getNotificationDestination(n: PlatformNotification): Notificatio
   }
   if (tournamentId && bracketEntryId) {
     return {
-      href: withSportContext(`/tournament/bracket/${tournamentId}/entry/${bracketEntryId}`, sport),
+      href: withSportContext(`/bracket/${tournamentId}/entry/${bracketEntryId}`, sport),
       label: "Open bracket",
     }
   }

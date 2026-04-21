@@ -11,7 +11,7 @@ export default async function NewEntryPage({
   params: { tournamentId: string }
 }) {
   const tournamentId = params.tournamentId
-  const returnTo = `/tournament/bracket/${encodeURIComponent(tournamentId)}/entries/new`
+  const returnTo = `/bracket/${encodeURIComponent(tournamentId)}/entries/new`
   const { userId, emailVerified, profile } = await getSessionAndProfile()
 
   if (!userId) {

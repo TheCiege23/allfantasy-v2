@@ -143,6 +143,8 @@ export interface CreateLeagueV2State {
   /** Stable id from `lib/league-creation-preset/scoring-presets` */
   scoringPresetId: string
   teamCount: number
+  /** Tournament-only: total managers across all feeder leagues. Must be one of TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED on the server. */
+  tournamentPoolSize: number
   /** Survivor-only: number of tribes. Ignored for other league types. */
   survivorTribeCount: number
   draftType: WizardDraftType
@@ -253,6 +255,7 @@ export const DEFAULT_V2_STATE: CreateLeagueV2State = {
   soccerPipeline: null,
   scoringPresetId: '',
   teamCount: 12,
+  tournamentPoolSize: 32,
   survivorTribeCount: 2,
   draftType: 'snake',
   thirdRoundReversal: false,
@@ -313,6 +316,9 @@ export function isDynastyConcept(type: LeagueTypeId | null): boolean {
   return type === 'dynasty' || type === 'devy' || type === 'c2c'
 }
 
+/** Mirrors server-side TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED; keep in sync. */
+export const TOURNAMENT_POOL_SIZE_OPTIONS: readonly number[] = [32, 64, 72, 96, 128, 144, 160, 192, 216, 224] as const
+
 export function isFormComplete(s: CreateLeagueV2State): boolean {
   const lt = getEffectiveLeagueType(s)
   if (!lt) return false
@@ -344,6 +350,10 @@ export function isFormComplete(s: CreateLeagueV2State): boolean {
     if (bb.regularSeasonLength < 1 || bb.regularSeasonLength > 60) return false
     if (bb.playoffTeams < 0 || bb.playoffTeams > s.teamCount) return false
     if (bb.draftMode === 'snake' && bb.thirdRoundReversal && s.draftType !== 'snake') return false
+  }
+
+  if (lt === 'tournament') {
+    if (!TOURNAMENT_POOL_SIZE_OPTIONS.includes(s.tournamentPoolSize)) return false
   }
 
   return true

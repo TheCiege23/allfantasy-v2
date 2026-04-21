@@ -19,7 +19,7 @@ describe('post-create handoff normalization', () => {
     expect(u.searchParams.get('showInvite')).toBe('1')
   })
 
-  it('adds tournamentHub for tournament + first feeder league', () => {
+  it('routes tournament create to /tournament/[id] even when a feeder leagueId is present', () => {
     const href = buildPostCreateLeagueHomeHref({
       leagueId: 'feeder_a',
       leagueType: 'tournament',
@@ -27,17 +27,34 @@ describe('post-create handoff normalization', () => {
       allowInviteLink: false,
     })
     const u = new URL(href, 'http://localhost')
-    expect(u.pathname).toBe('/league/feeder_a')
-    expect(u.searchParams.get('tournamentHub')).toBe('tour_99')
+    expect(u.pathname).toBe('/tournament/tour_99')
+    expect(u.pathname.startsWith('/league/')).toBe(false)
+    expect(u.searchParams.get('created')).toBe('1')
+    expect(u.searchParams.get('showInvite')).toBe('1')
   })
 
-  it('falls back to app tournament commissioner when tournament has no feeder id yet', () => {
+  it('routes tournament create to /tournament/[id] when no feeder leagueId is returned', () => {
     const href = buildPostCreateLeagueHomeHref({
       leagueType: 'tournament',
       tournamentId: 'tour_only',
     })
-    expect(href).toContain('/tournament/tour_only/commissioner')
-    expect(href).toContain('created=1')
+    const u = new URL(href, 'http://localhost')
+    expect(u.pathname).toBe('/tournament/tour_only')
+    expect(u.searchParams.get('created')).toBe('1')
+    expect(u.searchParams.get('showInvite')).toBe('1')
+  })
+
+  it('keeps non-tournament concepts on /league/[leagueId]', () => {
+    for (const leagueType of ['redraft', 'dynasty', 'keeper', 'best_ball', 'survivor', 'guillotine'] as const) {
+      const href = buildPostCreateLeagueHomeHref({
+        leagueId: 'lg_non_tourn',
+        leagueType,
+        allowInviteLink: true,
+      })
+      const u = new URL(href, 'http://localhost')
+      expect(u.pathname).toBe('/league/lg_non_tourn')
+      expect(u.pathname.startsWith('/tournament/')).toBe(false)
+    }
   })
 
   it('detects post-create shell handoff from search params', () => {

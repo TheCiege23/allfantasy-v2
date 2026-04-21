@@ -5,10 +5,12 @@
  *
  * Query flags:
  * - `created=1` — post-create handoff; league page may skip legacy tournament redirect.
- * - `tournamentHub=<tournamentId>` — feeder/hub context for in-shell tournament UI.
  * - `guide=settings` — setup guide affordance.
  * - `openChat=league` — open league chat.
  * - `showInvite=1` — invite panel when applicable.
+ *
+ * Tournament exception: tournament creates always land on `/tournament/[tournamentId]?created=1&showInvite=1`,
+ * bypassing league-shell query flags and feeder `leagueId` routing.
  */
 
 export type PostCreateLeagueHomeArgs = {
@@ -16,7 +18,7 @@ export type PostCreateLeagueHomeArgs = {
   leagueId?: string
   /** Wizard / format id (e.g. `tournament`, `survivor`, `redraft`). */
   leagueType: string
-  /** From `/api/tournament/create` — stored as `tournamentHub` query for in-shell context. */
+  /** From `/api/tournament/create` — when set with `leagueType: 'tournament'`, redirect goes to `/tournament/[tournamentId]`. */
   tournamentId?: string | null
   /** Mirrors wizard invite step — adds `showInvite=1`. */
   allowInviteLink?: boolean
@@ -45,20 +47,17 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
   const tid = typeof args.tournamentId === 'string' ? args.tournamentId.trim() : ''
   const leagueId = typeof args.leagueId === 'string' ? args.leagueId.trim() : ''
 
+  // Tournament post-create always lands on the tournament shell, regardless of feeder leagueId.
+  if (lt === 'tournament' && tid) {
+    return `/tournament/${encodeURIComponent(tid)}?created=1&showInvite=1`
+  }
+
   if (!leagueId) {
-    // Tournament create must return `leagueIds[0]`; if not, safe fallback.
-    if (lt === 'tournament' && tid) {
-      return `/tournament/${encodeURIComponent(tid)}/commissioner?created=1`
-    }
     return '/dashboard'
   }
 
   const q = new URLSearchParams()
   appendCommonLeagueQuery(q, args)
-
-  if (lt === 'tournament' && tid) {
-    q.set('tournamentHub', tid)
-  }
 
   return `/league/${encodeURIComponent(leagueId)}?${q.toString()}`
 }

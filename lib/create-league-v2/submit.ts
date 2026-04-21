@@ -70,7 +70,7 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
   if (isFootballLike(state.sport) && state.thirdRoundReversal && isThirdRoundReversalAvailable(state.draftType)) {
     conceptSetup.thirdRoundReversal = true
   }
-  if (isDynastyConcept(lt)) {
+  if (isDynastyConcept(lt) && state.dynasty) {
     const d = state.dynasty
     conceptSetup.taxiSlots = d.taxiSlotCount
     conceptSetup.taxiEligibilityYears = d.taxiEligibilityYears
@@ -92,7 +92,7 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
     if (d.introVideoUrl) conceptSetup.introVideoUrl = d.introVideoUrl
   }
 
-  if (lt === 'keeper') {
+  if (lt === 'keeper' && state.keeper) {
     const k = state.keeper ?? getDefaultKeeperSetup()
     conceptSetup.keeper_max_keepers = k.keeperMaxKeepers
     conceptSetup.keeperMaxKeepers = k.keeperMaxKeepers
@@ -104,7 +104,7 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
     if (k.introPosterUrl?.trim()) conceptSetup.introPosterUrl = k.introPosterUrl.trim()
   }
 
-  if (lt === 'best_ball') {
+  if (lt === 'best_ball' && state.bestBall) {
     const bestBall = normalizeBestBallSettings({
       sport: state.sport,
       draftType: state.draftType,
@@ -149,7 +149,7 @@ function buildTournamentPayload(state: CreateLeagueV2State) {
     name: state.name.trim(),
     sport: state.sport,
     settings: {
-      participantPoolSize: state.teamCount,
+      participantPoolSize: state.tournamentPoolSize || 32,
       initialLeagueSize: 12,
       draftType: state.draftType === 'auction' ? 'auction' : 'snake',
       leagueNamingMode: 'app_generated',

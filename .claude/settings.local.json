@@ -181,7 +181,10 @@
       "Read(//tmp/**)",
       "Bash(git mv *)",
       "Bash(git rm *)",
-      "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx next build)"
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=8192\" npx next build)",
+      "Bash(mkdir -p \"app/bracket/[tournamentId]/entries/new\" \"app/bracket/[tournamentId]/entry/[entryId]\")",
+      "Bash(rmdir \"app/tournament/bracket/[tournamentId]/entries/new\" \"app/tournament/bracket/[tournamentId]/entries\" \"app/tournament/bracket/[tournamentId]/entry/[entryId]\" \"app/tournament/bracket/[tournamentId]/entry\" \"app/tournament/bracket/[tournamentId]\" \"app/tournament/bracket\")",
+      "Bash(curl -s -o /dev/null -w \"status=%{http_code} loc=%header{location}\\\\n\" http://localhost:3000/create-league)"
     ]
   }
 }
