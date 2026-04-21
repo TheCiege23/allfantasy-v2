@@ -33,6 +33,15 @@ const PROVIDER_HELP: Partial<Record<ImportProvider, string>> = {
   fleaflicker: 'League id from URL, or NFL:12345 / NBA:99:2024 (sport, id, season)',
 }
 
+const PROVIDER_COMMISSIONER_COPY: Partial<Record<ImportProvider, string>> = {
+  sleeper: 'Verified commissioner import: linked Sleeper membership must match a commissioner or co-owner record.',
+  espn: 'Verified commissioner import: linked ESPN cookies must resolve to a league-manager team.',
+  yahoo: 'Verified commissioner import: linked Yahoo account must resolve to a commissioner or co-manager team.',
+  fantrax: 'Blocked right now: Fantrax does not yet expose a reliable commissioner identity we can bind to your AF account.',
+  mfl: 'Blocked right now: current MFL auth data proves access, but not commissioner ownership for the importing user.',
+  fleaflicker: 'Blocked right now: Fleaflicker import does not yet have commissioner-grade identity verification.',
+}
+
 export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
   const [provider, setProvider] = useState<ImportProvider>('sleeper')
   const [sourceId, setSourceId] = useState('')
@@ -204,6 +213,16 @@ export default function LeagueImportPanel({ leagueId }: { leagueId: string }) {
       </div>
 
       <p className="text-xs text-white/50">{PROVIDER_HELP[provider]}</p>
+      <div
+        className={`rounded-lg border px-3 py-2 text-xs ${
+          provider === 'fantrax' || provider === 'mfl' || provider === 'fleaflicker'
+            ? 'border-amber-500/20 bg-amber-500/[0.08] text-amber-100/90'
+            : 'border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-100/90'
+        }`}
+        data-testid="commissioner-import-provider-note"
+      >
+        {PROVIDER_COMMISSIONER_COPY[provider]}
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <button

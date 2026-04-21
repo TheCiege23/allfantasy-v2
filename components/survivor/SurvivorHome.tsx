@@ -11,6 +11,7 @@ import { SurvivorIdolsView } from './SurvivorIdolsView'
 import { SurvivorExileView } from './SurvivorExileView'
 import { SurvivorMergeJuryView } from './SurvivorMergeJuryView'
 import { SurvivorAIPanel } from './SurvivorAIPanel'
+import { SurvivorFirstEntryModal } from './SurvivorFirstEntryModal'
 import {
   EXILE_ISLAND_RULES,
   SURVIVOR_CONDUCT_BULLETS,
@@ -22,6 +23,7 @@ import {
   SURVIVOR_TIPS,
   SURVIVOR_WELCOME_BLURB,
 } from '@/lib/survivor/survivorIslandContent'
+import { getSurvivorThemeById } from '@/lib/survivor/survivorVisuals'
 
 const VIEW_LABELS: Record<SurvivorView, string> = {
   'tribe-board': 'Tribe Board',
@@ -42,6 +44,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<SurvivorView>('tribe-board')
+  const [showIntro, setShowIntro] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -67,6 +70,12 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (summary) {
+      setShowIntro(true)
+    }
+  }, [summary])
 
   if (loading && !summary) {
     return (
@@ -95,9 +104,19 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
   const tribeChatHref = summary?.myTribeSource
     ? `/league/${leagueId}?tab=Chat&source=${encodeURIComponent(summary.myTribeSource)}`
     : `/league/${leagueId}?tab=Chat`
+  const theme = getSurvivorThemeById(summary?.config?.visualThemeId, leagueId)
 
   return (
-    <div className="space-y-6">
+    <div className={`relative overflow-hidden rounded-[28px] ${theme.backgroundClass} p-4 sm:p-5` }>
+      <SurvivorFirstEntryModal
+        leagueId={leagueId}
+        userId={summary?.myRosterId ?? 'viewer'}
+        enabled={showIntro}
+        onClose={() => setShowIntro(false)}
+        visualThemeId={summary?.config?.visualThemeId}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_25%,rgba(0,0,0,0.28)_100%)] opacity-40" />
+      <div className="relative space-y-6">
       {/* Survivor branding header */}
       <header className="flex flex-wrap items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
         <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-amber-500/30 bg-amber-950/30 sm:h-20 sm:w-20">
@@ -241,6 +260,7 @@ export function SurvivorHome({ leagueId }: SurvivorHomeProps) {
       {view === 'ai' && summary && (
         <SurvivorAIPanel leagueId={leagueId} summary={summary} names={names} />
       )}
+      </div>
     </div>
   )
 }

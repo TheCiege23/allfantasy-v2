@@ -13,6 +13,7 @@ import { announceNominationCeremony } from './BigBrotherChatAnnouncements'
 import { buildBigBrotherAIContext } from './ai/BigBrotherAIContext'
 import { generateBigBrotherAI } from './ai/BigBrotherAIService'
 import { isFinaleReached } from './BigBrotherFinaleService'
+import { pullMinigame } from './BigBrotherMinigameRegistry'
 import type { BigBrotherWeekPhase } from './types'
 
 export const BB_RULES_GLOSSARY: Record<string, string> = {
@@ -325,11 +326,42 @@ export async function processBigBrotherLeagueChatInput(
     }
   }
 
+  if (lower.startsWith('minigame') || lower.startsWith('mini game') || lower.startsWith('challenge')) {
+    if (!current) {
+      return {
+        outcome: 'post_user_and_chimmy',
+        chimmyMessages: [{ text: '🎮 No active cycle to pull a minigame for.', metadata: chimmyMeta() }],
+      }
+    }
+    const phase = current.phase as BigBrotherWeekPhase
+    const kind: 'hoh' | 'veto' =
+      phase === 'VETO_DRAW' || phase === 'VETO_CHALLENGE_OPEN' ? 'veto' : 'hoh'
+    const mg = pullMinigame(leagueId, current.week, kind)
+    await logBigBrotherChatCommand({
+      leagueId,
+      userId,
+      cycleId: current.id,
+      rawMessage,
+      isValid: true,
+      commandType: 'minigame',
+    })
+    return {
+      outcome: 'post_user_and_chimmy',
+      chimmyMessages: [
+        {
+          text: `🎮 **${kind === 'hoh' ? 'HOH' : 'POV'} minigame (Week ${current.week}): ${mg.title}**\n${mg.prompt}\n\n_Outcome is decided by scoring — this prompt themes the competition._`,
+          metadata: chimmyMeta({ bbCard: 'minigame', minigameId: mg.id, kind }),
+        },
+      ],
+    }
+  }
+
   if (lower.startsWith('help')) {
     const text = [
       '🤖 **@Chimmy help (Big Brother)**',
       '• `@chimmy status` — house snapshot',
       '• `@chimmy deadlines` — configured windows',
+      '• `@chimmy minigame` — themed HOH/POV minigame for this week',
       '• `@chimmy explain [term]` — rules glossary / AI',
       '• Actions (role + phase): nominate, replacement, veto, vote (private only)',
       '• Eviction votes are always private — use Vote Center or DM Chimmy.',
@@ -665,7 +697,7 @@ export type BbChimmyAutocompleteCtx = {
 }
 
 export function getBbChimmyCommandSuggestions(ctx: BbChimmyAutocompleteCtx): string[] {
-  const base = ['@chimmy status', '@chimmy deadlines', '@chimmy explain [rule]', '@chimmy help']
+  const base = ['@chimmy status', '@chimmy deadlines', '@chimmy minigame', '@chimmy explain [rule]', '@chimmy help']
   const { phase, myRosterId, hohRosterId, vetoWinnerRosterId, canVote, isJury, finaleActive } = ctx
   const isHoh = myRosterId && hohRosterId === myRosterId
   const isVetoWinner = myRosterId && vetoWinnerRosterId === myRosterId

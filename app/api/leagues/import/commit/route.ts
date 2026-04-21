@@ -17,6 +17,7 @@ import { ImportedLeagueConflictError } from '@/lib/league-import/ImportedLeagueC
 import { persistImportWithCanonicalAudit } from '@/lib/league-import/importPersistenceService'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
+import { assertImportCommissioner, recordImportAttestation } from '@/lib/league-import/commissionerGate'
 
 function mapImportCommitErrorStatus(code: string): number {
   if (code === 'LEAGUE_NOT_FOUND') return 404
@@ -31,7 +32,13 @@ export async function POST(req: NextRequest) {
     return auth.response
   }
 
-  let body: { provider?: string; sourceId?: string }
+  let body: {
+    provider?: string
+    sourceId?: string
+    attestation?: { accepted?: boolean; statement?: string }
+    /** When true, re-import over an existing league instead of returning 409. */
+    force?: boolean
+  }
   try {
     body = await req.json()
   } catch {
@@ -56,6 +63,26 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Only the commissioner/co-commissioner of the source league may import.
+  const gate = await assertImportCommissioner({
+    appUserId: auth.userId,
+    provider,
+    sourceLeagueId: sourceId,
+    attestation: body.attestation?.accepted
+      ? { accepted: true, statement: body.attestation.statement }
+      : undefined,
+  })
+  if (!gate.ok) {
+    return NextResponse.json(
+      {
+        error: gate.reason ?? 'Commissioner verification failed.',
+        code: gate.requiresAttestation ? 'ATTESTATION_REQUIRED' : 'NOT_COMMISSIONER',
+        requiresAttestation: gate.requiresAttestation ?? false,
+      },
+      { status: 403 },
+    )
+  }
+
   const result = await runImportedLeagueNormalizationPipeline({
     provider,
     sourceId,
@@ -75,8 +102,19 @@ export async function POST(req: NextRequest) {
       provider,
       normalized: result.normalized,
       canonical,
-      allowUpdateExisting: false,
+      allowUpdateExisting: Boolean(body.force),
     })
+
+    // Stamp the attestation on the new league so the gate is auditable.
+    if (gate.verification === 'attestation' && body.attestation?.accepted) {
+      void recordImportAttestation({
+        leagueId: persisted.league.id,
+        appUserId: auth.userId,
+        provider,
+        sourceLeagueId: sourceId,
+        attestation: { accepted: true, statement: body.attestation.statement },
+      }).catch(() => {})
+    }
 
     return NextResponse.json({
       leagueId: persisted.league.id,
@@ -89,8 +127,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof ImportedLeagueConflictError) {
       return NextResponse.json(
-        { error: error.message },
-        { status: 409 }
+        {
+          error: error.message,
+          code: 'LEAGUE_ALREADY_IMPORTED',
+          hint: 'Open the existing league or use League Sync to refresh it instead of re-importing.',
+        },
+        { status: 409 },
       )
     }
     throw error

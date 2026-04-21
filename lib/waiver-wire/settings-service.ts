@@ -3,6 +3,11 @@ import { DEFAULT_SPORT } from "@/lib/sport-scope"
 import { getWaiverDefaults } from "@/lib/sport-defaults/SportDefaultsRegistry"
 import { toSportType } from "@/lib/sport-defaults/sport-type-utils"
 import type { LeagueWaiverSettingsInput } from "./types"
+import {
+  normalizeWaiverTypeForEngine,
+  parseWaiverEngineConfig,
+  type WaiverEngineConfigJson,
+} from "./waiver-engine-config"
 
 function toIntOrNull(value: unknown): number | null {
   if (value == null || value === "") return null
@@ -88,6 +93,12 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
   lockType: string | null
   instantFaAfterClear: boolean
   specialtyConceptOverrides: unknown | null
+  waiverEngineConfig: WaiverEngineConfigJson
+  normalizedWaiverType: string
+  faabMinBid: number | null
+  allowZeroFaabBid: boolean
+  maxDropsPerWeek: number | null
+  commissionerOverrideRules: unknown | null
 }> {
   const [league, row] = await Promise.all([
     (prisma as any).league.findUnique({
@@ -97,13 +108,21 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
     (prisma as any).leagueWaiverSettings.findUnique({ where: { leagueId } }),
   ])
   if (row) {
+    const engineConfig = parseWaiverEngineConfig(row.waiverEngineConfig ?? null)
+    const wt = row.waiverType ?? "standard"
+    const mergedPeriod =
+      row.claimLimitPerPeriod ??
+      (typeof engineConfig.max_claims_per_period === "number" ? engineConfig.max_claims_per_period : null)
+    const mergedWeek =
+      row.claimLimitPerWeek ??
+      (typeof engineConfig.max_adds_per_week === "number" ? engineConfig.max_adds_per_week : null)
     return {
       leagueId,
-      waiverType: row.waiverType ?? "standard",
+      waiverType: wt,
       processingDayOfWeek: row.processingDayOfWeek ?? null,
       processingTimeUtc: row.processingTimeUtc ?? null,
-      claimLimitPerPeriod: row.claimLimitPerPeriod ?? null,
-      claimLimitPerWeek: row.claimLimitPerWeek ?? null,
+      claimLimitPerPeriod: mergedPeriod,
+      claimLimitPerWeek: mergedWeek,
       claimLimitPerRun: row.claimLimitPerRun ?? null,
       faabBudget: row.faabBudget ?? null,
       faabResetDate: row.faabResetDate ?? null,
@@ -112,10 +131,17 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
       postGameWaiverBehavior: row.postGameWaiverBehavior ?? null,
       processingDays: row.processingDays ?? null,
       freeAgentWindowRules: row.freeAgentWindowRules ?? null,
-      tiebreakRule: row.tiebreakRule ?? null,
+      tiebreakRule: row.tiebreakRule ?? engineConfig.faab_tiebreaker ?? null,
       lockType: row.lockType ?? null,
       instantFaAfterClear: row.instantFaAfterClear ?? true,
       specialtyConceptOverrides: row.specialtyConceptOverrides ?? null,
+      waiverEngineConfig: engineConfig,
+      normalizedWaiverType: normalizeWaiverTypeForEngine(wt),
+      faabMinBid: typeof engineConfig.faab_min_bid === "number" ? engineConfig.faab_min_bid : null,
+      allowZeroFaabBid: engineConfig.allow_zero_faab_bid !== false,
+      maxDropsPerWeek:
+        typeof engineConfig.max_drops_per_week === "number" ? engineConfig.max_drops_per_week : null,
+      commissionerOverrideRules: row.commissionerOverrideRules ?? null,
     }
   }
   const sport = (league?.sport as string) || DEFAULT_SPORT
@@ -150,6 +176,12 @@ export async function getEffectiveLeagueWaiverSettings(leagueId: string): Promis
     lockType: resolvedLockType,
     instantFaAfterClear: resolvedInstantFa,
     specialtyConceptOverrides: null,
+    waiverEngineConfig: {},
+    normalizedWaiverType: normalizeWaiverTypeForEngine(resolvedWaiverType),
+    faabMinBid: null,
+    allowZeroFaabBid: true,
+    maxDropsPerWeek: null,
+    commissionerOverrideRules: null,
   }
 }
 
@@ -223,6 +255,8 @@ export async function upsertLeagueWaiverSettings(
       input.specialtyConceptOverrides === undefined
         ? (existing?.specialtyConceptOverrides ?? null)
         : input.specialtyConceptOverrides,
+    waiverEngineConfig:
+      input.waiverEngineConfig === undefined ? (existing?.waiverEngineConfig ?? null) : input.waiverEngineConfig,
     tiebreakRule:
       input.tiebreakRule === undefined ? fallbackTiebreak : input.tiebreakRule,
     lockType:

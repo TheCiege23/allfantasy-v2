@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ZombieStatusBadge } from '@/app/zombie/components/ZombieStatusBadge'
+import { useZombieDmCommand } from '@/app/zombie/components/chimmy/useZombieDmCommand'
 import { ZOMBIE_ITEM_ICON } from '@/lib/zombie/iconSystem'
 
 type ItemRow = {
@@ -51,6 +52,7 @@ export default function ZombieItemsPage() {
   const [showRules, setShowRules] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [bombOpen, setBombOpen] = useState(false)
+  const { isSending, feedback, sendCommand } = useZombieDmCommand(leagueId ?? '')
 
   const load = useCallback(() => {
     if (!leagueId) return
@@ -123,12 +125,14 @@ export default function ZombieItemsPage() {
         ) : null}
         {!data.isCommissionerView ? (
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Link
-              href={chatPrefill(leagueId, '@Chimmy use serum protect myself')}
-              className="flex min-h-[56px] items-center justify-center rounded-xl bg-teal-600/30 px-4 text-center text-[13px] font-semibold text-teal-100 hover:bg-teal-600/40"
+            <button
+              type="button"
+              onClick={() => void sendCommand('@Chimmy use serum protect myself')}
+              disabled={isSending}
+              className="flex min-h-[56px] items-center justify-center rounded-xl bg-teal-600/30 px-4 text-center text-[13px] font-semibold text-teal-100 hover:bg-teal-600/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
               🧪 Use Serum — Protect Myself
-            </Link>
+            </button>
             <Link
               href={chatPrefill(leagueId, '@Chimmy use serum protect ally ')}
               className="flex min-h-[56px] items-center justify-center rounded-xl bg-teal-600/20 px-4 text-center text-[13px] font-semibold text-teal-100/90 hover:bg-teal-600/30"
@@ -136,14 +140,21 @@ export default function ZombieItemsPage() {
               🧪 Use Serum — Protect Ally
             </Link>
             {isZombie && serumCount >= reviveNeed ? (
-              <Link
-                href={chatPrefill(leagueId, '@Chimmy revive')}
-                className="flex min-h-[56px] items-center justify-center rounded-xl bg-amber-500/25 px-4 text-center text-[13px] font-semibold text-amber-100 hover:bg-amber-500/35"
+              <button
+                type="button"
+                onClick={() => void sendCommand('@Chimmy revive')}
+                disabled={isSending}
+                className="flex min-h-[56px] items-center justify-center rounded-xl bg-amber-500/25 px-4 text-center text-[13px] font-semibold text-amber-100 hover:bg-amber-500/35 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 ⚡ Revive
-              </Link>
+              </button>
             ) : null}
           </div>
+        ) : null}
+        {feedback ? (
+          <p className={feedback.kind === 'success' ? 'mt-3 text-[12px] text-emerald-200/90' : 'mt-3 text-[12px] text-red-200/90'}>
+            {feedback.text}
+          </p>
         ) : null}
       </section>
 
@@ -167,12 +178,14 @@ export default function ZombieItemsPage() {
                 <p className="mt-1 text-[11px] font-semibold text-white">{w.itemLabel}</p>
                 <p className="text-[10px] text-[var(--zombie-text-dim)]">{w.activationState ?? 'READY'}</p>
                 {!data.isCommissionerView && !zombieLocked ? (
-                  <Link
-                    href={chatPrefill(leagueId, `@Chimmy use ${w.itemType.replace(/_/g, ' ')}`)}
-                    className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-orange-500/20 text-[11px] font-semibold text-orange-100"
+                  <button
+                    type="button"
+                    onClick={() => void sendCommand(`@Chimmy use ${w.itemType.replace(/_/g, ' ')}`)}
+                    disabled={isSending}
+                    className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-orange-500/20 text-[11px] font-semibold text-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Use via @Chimmy
-                  </Link>
+                  </button>
                 ) : (
                   <p className="mt-2 text-[10px] text-[var(--zombie-text-dim)]" title={zombieLocked ? 'Zombies cannot activate most weapons' : ''}>
                     {zombieLocked ? '🔒 Locked' : '—'}
@@ -213,13 +226,17 @@ export default function ZombieItemsPage() {
                       >
                         Cancel
                       </button>
-                      <Link
-                        href={chatPrefill(leagueId, '@Chimmy 💣 detonate bomb')}
-                        onClick={() => setBombOpen(false)}
-                        className="flex flex-1 items-center justify-center rounded-lg bg-red-600 py-3 text-center text-[13px] font-bold text-white"
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const ok = await sendCommand('@Chimmy 💣 detonate bomb')
+                          if (ok) setBombOpen(false)
+                        }}
+                        disabled={isSending}
+                        className="flex flex-1 items-center justify-center rounded-lg bg-red-600 py-3 text-center text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Confirm
-                      </Link>
+                        {isSending ? 'Sending…' : 'Confirm'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -228,6 +245,11 @@ export default function ZombieItemsPage() {
           ) : (
             <p className="mt-2 text-[11px] text-red-200/70">{isSurvivor ? '' : '🔒 Only Survivors can arm the bomb.'}</p>
           )}
+          {feedback ? (
+            <p className={feedback.kind === 'success' ? 'mt-3 text-[12px] text-emerald-200/90' : 'mt-3 text-[12px] text-red-200/90'}>
+              {feedback.text}
+            </p>
+          ) : null}
         </section>
       ) : null}
 

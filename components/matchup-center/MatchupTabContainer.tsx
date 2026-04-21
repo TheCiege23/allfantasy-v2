@@ -11,9 +11,12 @@ import { MatchupInsightsPanel } from '@/components/matchup-center/MatchupInsight
 import { MatchupAiAnalysisPanel } from '@/components/matchup-center/MatchupAiAnalysisPanel'
 import { MatchupStartSitModal } from '@/components/matchup-center/MatchupStartSitModal'
 import { useInflightRequestDedupe } from '@/hooks/useInflightRequestDedupe'
+import { useLeagueRealtimeRefresh } from '@/hooks/useLeagueRealtimeRefresh'
 import { useLeagueMatchupAi } from '@/hooks/useLeagueMatchupAi'
 import type { MatchupPlayerSlot } from '@/lib/matchup-center/types'
 import type { LeagueMatchupAiResult, StartSitAiResult } from '@/lib/ai-matchup-engine/types'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 function maxWeekForSport(sportU: string): number {
   switch (sportU.toUpperCase()) {
@@ -83,6 +86,14 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
           return json.payload as MatchupCenterPayload
         })
         setPayload(data)
+        if (!opts?.silent) {
+          sendProductAnalyticsBeacon(ENGAGEMENT.MATCHUP_CENTER_VIEW, {
+            leagueId: league.id,
+            season,
+            week,
+            sport: sportU,
+          })
+        }
         if (opts?.silent) setError(null)
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Error'
@@ -94,8 +105,12 @@ export function MatchupTabContainer({ league }: { league: UserLeague }) {
         if (!opts?.silent) setLoading(false)
       }
     },
-    [dedupe, league.id, season, week],
+    [dedupe, league.id, season, week, sportU],
   )
+
+  useLeagueRealtimeRefresh(league.id, () => {
+    void load({ silent: true })
+  })
 
   useEffect(() => {
     void load()

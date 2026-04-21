@@ -298,6 +298,9 @@ export const translationsEsParity: Record<string, string> = {
   "draftRoom.shell.mobile.keepers": "Keepers",
   "draftRoom.shell.mobile.chat": "Chat",
   "draftRoom.shell.aria.draftSections": "Secciones del draft",
+  "draftRoom.shell.hideBottomDock": "Ocultar chat y actividad",
+  "draftRoom.shell.showBottomDock": "Mostrar chat y actividad",
+  "draftRoom.shell.restoreBottomDock": "Mostrar chat y actividad",
 
   "draftRoom.warRoom.leagueDraft.title": "Sala de guerra de draft (Legacy)",
   "draftRoom.warRoom.leagueDraft.description":
@@ -322,6 +325,8 @@ export const translationsEsParity: Record<string, string> = {
   "draftRoom.topBar.resync": "Resincronizar",
   "draftRoom.topBar.aria.resync": "Resincronizar sala de draft",
   "draftRoom.topBar.commissioner": "Comisionado",
+  "draftRoom.topBar.leagueDraftSettings": "Ajustes de draft de la liga",
+  "draftRoom.topBar.aria.leagueDraftSettings": "Abrir ajustes de draft de la liga",
   "draftRoom.topBar.aria.commissioner": "Controles del comisionado",
   "draftRoom.topBar.pause": "Pausar",
   "draftRoom.topBar.aria.pause": "Pausar draft",
@@ -1104,4 +1109,8 @@ export const translationsEsParity: Record<string, string> = {
   "delete.title": "Eliminar Liga",
   "delete.subtitle": "Eliminar permanentemente esta liga",
   "delete.warning": "Esta acción es permanente y no se puede deshacer.",
+
+  "draftRoom.managerStrip.claim": "RECLAMAR",
+  "draftRoom.managerStrip.claiming": "Reclamando…",
+  "draftRoom.managerStrip.aria.claim": "Reclamar este equipo libre",
 }

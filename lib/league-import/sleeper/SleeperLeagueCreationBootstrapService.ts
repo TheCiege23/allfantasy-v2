@@ -85,6 +85,14 @@ export async function bootstrapLeagueFromNormalizedImport(
     const standing = standingsByTeam.get(r.source_team_id)
     const rank = standing?.rank ?? null
     const pointsAgainst = r.points_against ?? (standing?.points_against ?? 0)
+    const isOrphan = Boolean(r.is_orphan) || !r.source_manager_id
+    const importedRole = isOrphan
+      ? 'orphan'
+      : r.is_commissioner
+        ? 'commissioner'
+        : r.is_co_commissioner
+          ? 'co_commissioner'
+          : 'member'
 
     await prisma.leagueTeam.upsert({
       where: {
@@ -102,6 +110,11 @@ export async function bootstrapLeagueFromNormalizedImport(
         pointsFor: r.points_for,
         pointsAgainst,
         currentRank: rank,
+        role: importedRole,
+        isOrphan,
+        platformUserId: r.source_manager_id || null,
+        isCommissioner: Boolean(r.is_commissioner),
+        isCoCommissioner: Boolean(r.is_co_commissioner),
       },
       update: {
         ownerName: r.owner_name,
@@ -113,10 +126,18 @@ export async function bootstrapLeagueFromNormalizedImport(
         pointsFor: r.points_for,
         pointsAgainst,
         currentRank: rank,
+        role: importedRole,
+        isOrphan,
+        platformUserId: r.source_manager_id || null,
+        isCommissioner: Boolean(r.is_commissioner),
+        isCoCommissioner: Boolean(r.is_co_commissioner),
       },
     })
     leagueTeamsCreated++
 
+    const isSourceCommissioner = Boolean(
+      r.is_commissioner,
+    )
     const playerData = {
       players: r.player_ids,
       starters: r.starter_ids,
@@ -129,6 +150,21 @@ export async function bootstrapLeagueFromNormalizedImport(
       source_season_id: normalized.source.source_season_id ?? null,
       import_batch_id: normalized.source.import_batch_id ?? null,
       imported_at: normalized.source.imported_at,
+      // Placeholder-claim metadata — the generic claimer reads these to
+      // match a joining user back to their pre-imported roster.
+      import: {
+        provider: normalized.source.source_provider,
+        sourceLeagueId: normalized.source.source_league_id,
+        sourceTeamId: r.source_team_id,
+        sourceManagerId: r.source_manager_id,
+        displayName: r.owner_name || r.team_name || null,
+        ownerName: r.owner_name || null,
+        teamName: r.team_name || null,
+        avatarUrl: r.avatar_url ?? null,
+        sourceIsCommissioner: isSourceCommissioner,
+        sourceIsCoCommissioner: Boolean(r.is_co_commissioner),
+        sourceIsOrphan: isOrphan,
+      },
     }
 
     const resolvedPlatformUserId =

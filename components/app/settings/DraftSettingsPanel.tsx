@@ -153,6 +153,29 @@ function normalizeSessionVariant(input: SessionVariantPayload | null | undefined
   }
 }
 
+const DRAFT_TYPE_LABELS: Record<string, string> = {
+  snake: 'Snake',
+  linear: 'Linear',
+  auction: 'Auction',
+  slow_draft: 'Slow Draft',
+  mock_draft: 'Mock Draft',
+  devy_snake: 'Devy Snake',
+  devy_linear: 'Devy Linear',
+  devy_auction: 'Devy Auction',
+  c2c_snake: 'C2C Snake',
+  c2c_linear: 'C2C Linear',
+  c2c_auction: 'C2C Auction',
+  offline: 'Offline',
+  auto: 'Auto',
+  team: 'Team',
+  third_round_reversal: '3rd Round Reversal',
+  '3rd_reversal': '3rd Round Reversal',
+}
+
+function labelForDraftType(id: string): string {
+  return DRAFT_TYPE_LABELS[id] ?? id.replace(/_/g, ' ')
+}
+
 export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const { formatInTimezone } = useUserTimezone()
   const [data, setData] = useState<DraftSettingsResponse | null>(null)
@@ -161,6 +184,11 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
   const [uiSettings, setUISettings] = useState<DraftUISettings | null>(null)
   const [config, setConfig] = useState<DraftConfig | null>(null)
   const [sessionVariant, setSessionVariant] = useState<SessionVariantPayload | null>(null)
+  // Format-scoped draft-type allowlist pulled from the canonical aggregate
+  // endpoint so devy/c2c/salary_cap leagues see the right options instead
+  // of a hardcoded snake/linear/auction list.
+  const [availableDraftTypes, setAvailableDraftTypes] = useState<string[]>(['snake', 'linear', 'auction'])
+  const [executionMode, setExecutionMode] = useState<'live' | 'auto' | 'offline'>('live')
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [sessionPreDraft, setSessionPreDraft] = useState(false)
@@ -194,6 +222,23 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
       if (json.draftOrderMode) setDraftOrderMode(json.draftOrderMode)
       if (json.lotteryConfig != null) setLotteryConfig(json.lotteryConfig)
       if (json.orphanStatus) setOrphanStatus(json.orphanStatus)
+
+      // Side-fetch the format-scoped draft-type allowlist + current execution
+      // mode from the canonical aggregate endpoint. Non-blocking; falls back
+      // to snake/linear/auction + live if the endpoint 4xxs.
+      fetch(`/api/leagues/${encodeURIComponent(leagueId)}/settings/draft`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((agg) => {
+          const types = agg?.options?.draftTypes
+          if (Array.isArray(types) && types.length > 0) {
+            setAvailableDraftTypes(types as string[])
+          }
+          const mode = agg?.current?.executionMode
+          if (mode === 'live' || mode === 'auto' || mode === 'offline') {
+            setExecutionMode(mode)
+          }
+        })
+        .catch(() => {})
     } catch {
       setError('Failed to load draft settings')
       setData(null)
@@ -232,6 +277,13 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
       if (sessionPreDraft && sessionVariant && Object.keys(sessionVariant).length > 0) {
         payload.sessionVariant = sessionVariant
       }
+      // Persist execution mode via the settings/draft PATCH endpoint
+      // (separate from the main draft/settings route which handles timer, rounds, etc.)
+      await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/settings/draft`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionMode }),
+      }).catch(() => {})
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -317,13 +369,13 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 {isCommissioner ? (
                   <select
                     value={effectiveConfig.draft_type ?? 'snake'}
-                    onChange={(e) => setConfigField('draft_type', e.target.value as 'snake' | 'linear' | 'auction')}
+                    onChange={(e) => setConfigField('draft_type', e.target.value)}
                     data-testid="commissioner-draft-type-select"
                     className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                   >
-                    <option value="snake">Snake</option>
-                    <option value="linear">Linear</option>
-                    <option value="auction">Auction</option>
+                    {availableDraftTypes.map((id) => (
+                      <option key={id} value={id}>{labelForDraftType(id)}</option>
+                    ))}
                   </select>
                 ) : (effectiveConfig.draft_type ?? '—')}
               </dd>
@@ -398,6 +450,23 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
                 ) : (effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? '—')}
               </dd>
             </div>
+            <div>
+              <dt className="text-white/50">Execution mode</dt>
+              <dd className="text-white/90">
+                {isCommissioner ? (
+                  <select
+                    value={executionMode}
+                    onChange={(e) => setExecutionMode(e.target.value as 'live' | 'auto' | 'offline')}
+                    data-testid="commissioner-execution-mode-select"
+                    className="rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
+                  >
+                    <option value="live">Live</option>
+                    <option value="auto">Auto (CPU drafts)</option>
+                    <option value="offline">Offline (in-person)</option>
+                  </select>
+                ) : (executionMode === 'live' ? 'Live' : executionMode === 'auto' ? 'Auto (CPU drafts)' : 'Offline')}
+              </dd>
+            </div>
             {effectiveConfig.draft_type !== 'auction' && (effectiveConfig.snake_or_linear ?? effectiveConfig.pick_order_rules ?? 'snake') === 'snake' && (
             <div>
               <dt className="text-white/50">Third-round reversal</dt>
@@ -414,7 +483,6 @@ export default function DraftSettingsPanel({ leagueId }: { leagueId: string }) {
               </dd>
             </div>
             )}
-            <div><dt className="text-white/50">Autopick</dt><dd className="text-white/90">{effectiveConfig.autopick_behavior ?? '—'}</dd></div>
             <div>
               <dt className="text-white/50">Autopick</dt>
               <dd className="text-white/90">

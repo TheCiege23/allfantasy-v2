@@ -3,11 +3,16 @@
  * Tournament Mode — type definitions for tournament creation, conferences, rounds, and hub.
  */
 
+import {
+  TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED,
+  type TournamentParticipantPoolSizeExtended,
+} from './pool-sizes'
+
 export type TournamentDraftType = 'snake' | 'auction'
 
-/** Participant pools: 6 / 12 / 18 feeder leagues × 12 teams each. */
-export const TOURNAMENT_PARTICIPANT_POOL_SIZES = [72, 144, 216] as const
-export type TournamentParticipantPoolSize = (typeof TOURNAMENT_PARTICIPANT_POOL_SIZES)[number]
+/** Participant pools accepted by tournament creation flows. */
+export const TOURNAMENT_PARTICIPANT_POOL_SIZES = TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED
+export type TournamentParticipantPoolSize = TournamentParticipantPoolSizeExtended
 
 export type ConferenceMode = 'black_vs_gold' | 'random_themed' | 'commissioner_custom'
 

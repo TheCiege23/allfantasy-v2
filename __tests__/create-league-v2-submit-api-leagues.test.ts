@@ -95,6 +95,37 @@ describe('submitCreateLeagueV2 → /api/leagues', () => {
     expect(lastFetchBody().concept).toBe('idp')
   })
 
+  it('includes keeper policy fields in conceptSetup for keeper leagues', async () => {
+    await submitCreateLeagueV2(
+      state({
+        leagueType: 'keeper',
+        scoringPresetId: 'fb_half_ppr',
+        keeper: {
+          keeperMaxKeepers: 4,
+          keeperMaxYears: 2,
+          keeperRoundPenalty: 2,
+          keeperWaiverAllowed: false,
+          keeperEligibilityRule: 'drafted_only',
+          introVideoUrl: '/custom-keeper.mp4',
+          introPosterUrl: '/custom-keeper.png',
+        },
+      }),
+    )
+
+    const body = lastFetchBody()
+    expect(body.concept).toBe('keeper')
+    expect(body.conceptSetup).toMatchObject({
+      keeper_max_keepers: 4,
+      keeperMaxKeepers: 4,
+      keeper_max_years: 2,
+      keeper_round_penalty: 2,
+      keeper_waiver_allowed: false,
+      keeper_eligibility_rule: 'drafted_only',
+      introVideoUrl: '/custom-keeper.mp4',
+      introPosterUrl: '/custom-keeper.png',
+    })
+  })
+
   it('includes survivorTribeCount in conceptSetup for survivor', async () => {
     await submitCreateLeagueV2(
       state({

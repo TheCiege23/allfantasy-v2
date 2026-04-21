@@ -62,6 +62,9 @@ export async function runAutomation(input: AutomationRunInput): Promise<Automati
     await transitionPhase(current.id, 'HOH_LOCKED')
     await transitionPhase(current.id, 'NOMINATION_OPEN')
     await announceHOHWinner({ leagueId, week: current.week, hohRosterId: winnerId, systemUserId }).catch(() => {})
+    // Apply Have-Not waiver penalties now that HOH is set and Have-Nots can be resolved.
+    const { applyHaveNotWaiverPenalties } = await import('./BigBrotherHaveNotPenaltyService')
+    await applyHaveNotWaiverPenalties(leagueId, current.id).catch(() => {})
     return { ok: true, cycleId: current.id, phase: 'NOMINATION_OPEN', actionTaken: 'auto_hoh' }
   }
 

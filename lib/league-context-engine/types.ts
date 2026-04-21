@@ -83,6 +83,14 @@ export type NormalizedLineupBehavior = {
   /** Best ball / weekly vs daily — from league bbScoringPeriod + platform hints */
   scoringPeriod: 'weekly' | 'daily' | 'unknown'
   bestBallMode: boolean
+  bestBallSettings?: {
+    mode: string | null
+    matchupFormat: string | null
+    waiversEnabled: boolean | null
+    tradesEnabled: boolean | null
+    substitutionsEnabled: boolean | null
+    lineupTemplateId: string | null
+  } | null
 }
 
 export type NormalizedUserTeamContext = {

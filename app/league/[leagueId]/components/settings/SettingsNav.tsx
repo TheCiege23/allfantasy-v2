@@ -5,7 +5,6 @@ import type { AutosaveStatus } from '@/lib/hooks/useAutosave'
 
 export type SettingsNavTabId =
   | 'league'
-  | 'sport_config'
   | 'team'
   | 'roster'
   | 'scoring'
@@ -13,6 +12,19 @@ export type SettingsNavTabId =
   | 'divisions'
   | 'members'
   | 'coowners'
+  | 'trade'
+  | 'waiver'
+  | 'playoff'
+  | 'schedule'
+  | 'ai'
+  | 'notifications'
+  | 'dues'
+  | 'import_sync'
+  | 'advanced'
+  | 'appearance'
+  | 'security'
+  | 'draft_picks'
+  | 'integrations'
   | 'commissioner'
   | 'previous'
   | 'delete'
@@ -57,18 +69,30 @@ export type SettingsNavTabId =
   | 'c2c_ai'
 
 const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
-  { id: 'league', label: 'League' },
-  { id: 'sport_config', label: '⚙️ Scoring & Roster' },
-  { id: 'team', label: 'Team' },
-  { id: 'roster', label: 'Roster' },
-  { id: 'scoring', label: 'Scoring' },
-  { id: 'draft', label: 'Draft' },
-  { id: 'divisions', label: 'Divisions' },
-  { id: 'members', label: 'Members' },
-  { id: 'coowners', label: 'Co-owners' },
-  { id: 'commissioner', label: 'Commissioner' },
-  { id: 'previous', label: 'Previous' },
-  { id: 'delete', label: 'Delete' },
+  { id: 'league', label: 'League Settings' },
+  { id: 'team', label: 'Team Settings' },
+  { id: 'roster', label: 'Roster Settings' },
+  { id: 'scoring', label: 'Scoring Settings' },
+  { id: 'draft', label: 'Draft Settings' },
+  { id: 'divisions', label: 'Division Settings' },
+  { id: 'members', label: 'Member Settings' },
+  { id: 'coowners', label: 'Co-owner Settings' },
+  { id: 'trade', label: 'Trade Settings' },
+  { id: 'waiver', label: 'Waiver Settings' },
+  { id: 'playoff', label: 'Playoff Settings' },
+  { id: 'schedule', label: 'Schedule Settings' },
+  { id: 'ai', label: 'AI Settings' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'dues', label: 'Payments / League Dues' },
+  { id: 'import_sync', label: 'Import / Sync' },
+  { id: 'advanced', label: 'Advanced Rules' },
+  { id: 'appearance', label: 'Appearance / Branding' },
+  { id: 'security', label: 'Security / Permissions' },
+  { id: 'draft_picks', label: 'Draft Pick Settings' },
+  { id: 'integrations', label: 'Integrations' },
+  { id: 'commissioner', label: 'Commissioner Control' },
+  { id: 'previous', label: 'Previous Leagues' },
+  { id: 'delete', label: 'Delete League' },
 ]
 
 const ZOMBIE_NAV: { id: SettingsNavTabId; label: string }[] = [
@@ -186,26 +210,28 @@ export function SettingsNav({
   return (
     <nav
       className={clsx(
-        'flex flex-shrink-0 flex-col gap-0.5 border-white/[0.08] bg-[#080c14] p-3 md:border-r',
-        'max-h-[min(280px,38vh)] w-full overflow-x-auto overflow-y-auto md:max-h-[min(85vh,900px)] md:w-52',
+        'flex flex-shrink-0 flex-col gap-0.5 border-white/[0.08] bg-[#060a12] p-3 md:border-r',
+        'max-h-[min(40vh,420px)] w-full overflow-x-auto overflow-y-auto md:max-h-none md:h-full md:w-[min(30%,280px)] md:min-w-[220px]',
         className,
       )}
+      aria-label="League settings sections"
     >
       {items.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onSelect(t.id)}
-          className={`rounded-lg px-3 py-2 text-left text-[13px] transition-colors ${
+          className={clsx(
+            'rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors',
             activeTab === t.id
-              ? 'bg-sky-500/15 font-medium text-sky-200'
-              : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'
-          }`}
+              ? 'bg-white/[0.08] font-medium text-teal-300/95'
+              : 'text-white/65 hover:bg-white/[0.05] hover:text-white/90',
+          )}
         >
           {t.label}
         </button>
       ))}
-      {hint ? <p className="mt-2 px-2 text-[11px] text-white/40">{hint}</p> : null}
+      {hint ? <p className="mt-3 border-t border-white/[0.06] px-2 pt-3 text-[11px] text-white/40">{hint}</p> : null}
     </nav>
   )
 }

@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { Loader2, MessageCircle } from 'lucide-react';
 import { useLanguage } from '@/components/i18n/LanguageProviderClient';
-import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getChimmyChatHrefWithPrompt } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver';
@@ -36,7 +35,7 @@ export function AICommentary({
   teams,
   initialCommentary = null,
 }: AICommentaryProps) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   const [commentary, setCommentary] = useState(initialCommentary);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +128,7 @@ export function AICommentary({
             )}
             {commentary.providerStatus && (
               <p className="text-xs text-white/60" data-testid="power-rankings-provider-status">
-                {interpolateTemplate(t('leaguePowerRankings.ai.providers'), {
+                {tInterpolate('leaguePowerRankings.ai.providers', {
                   ds: commentary.providerStatus.deepseek
                     ? t('leaguePowerRankings.ai.toggleOn')
                     : t('leaguePowerRankings.ai.toggleOff'),

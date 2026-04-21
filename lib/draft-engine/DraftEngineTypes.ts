@@ -26,7 +26,7 @@ export type DraftType =
 
 export type OrderType = 'randomized' | 'manual' | 'weighted-lottery' | 'previous-season' | 'trade-deadline' | 'ai-generated';
 
-export type DraftMode = 'live' | 'slow' | 'email' | 'offline';
+export type DraftMode = 'live' | 'slow' | 'email' | 'offline' | 'auto';
 
 export type AIStrategy = 'balanced' | 'value' | 'upside' | 'positional-need' | 'stack' | 'league-winning';
 

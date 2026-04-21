@@ -38,6 +38,14 @@ export type DraftPickTradePanelProps = {
   onClose: () => void
   /** Called when a trade is accepted; optional session from API to update draft room state. */
   onTradeAccepted?: (updatedSession?: unknown) => void
+  /** Increments each time the panel opens; applies `initialTradeDraft` when set. */
+  tradePanelGeneration?: number
+  /** Prefill "Offer trade" (e.g. from draft board cell). */
+  initialTradeDraft?: {
+    giveRound?: number
+    receiveRound?: number
+    receiverRosterId?: string
+  } | null
 }
 
 export function DraftPickTradePanel({
@@ -48,6 +56,8 @@ export function DraftPickTradePanel({
   currentUserRosterId,
   onClose,
   onTradeAccepted,
+  tradePanelGeneration = 0,
+  initialTradeDraft = null,
 }: DraftPickTradePanelProps) {
   const [proposals, setProposals] = useState<ProposalSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +90,26 @@ export function DraftPickTradePanel({
   useEffect(() => {
     fetchProposals()
   }, [fetchProposals])
+
+  useEffect(() => {
+    if (tradePanelGeneration === 0) return
+    if (!initialTradeDraft) {
+      setOfferGiveRound(1)
+      setOfferReceiveRound(1)
+      setOfferReceiverRosterId('')
+      setOfferError(null)
+      setShowOfferForm(false)
+      return
+    }
+    const g = initialTradeDraft.giveRound
+    const r = initialTradeDraft.receiveRound
+    const recv = initialTradeDraft.receiverRosterId
+    if (typeof g === 'number') setOfferGiveRound(Math.min(Math.max(1, g), Math.max(1, rounds)))
+    if (typeof r === 'number') setOfferReceiveRound(Math.min(Math.max(1, r), Math.max(1, rounds)))
+    if (typeof recv === 'string') setOfferReceiverRosterId(recv)
+    setOfferError(null)
+    setShowOfferForm(true)
+  }, [tradePanelGeneration, initialTradeDraft, rounds])
 
   const handleAiReview = useCallback(
     async (proposalId: string) => {

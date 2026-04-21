@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
@@ -90,6 +91,7 @@ export function GuillotineHome({ leagueId, sport, leagueName }: GuillotineHomePr
   const chopZone = summary?.dangerTiers?.filter((d) => d.tier === 'chop_zone') ?? []
   const dangerTier = summary?.dangerTiers?.filter((d) => d.tier === 'danger') ?? []
   const safeTier = summary?.dangerTiers?.filter((d) => d.tier === 'safe') ?? []
+  const bubbleTeams = [...chopZone, ...dangerTier].slice(0, 4)
 
   if (loading && !summary) {
     return (
@@ -181,6 +183,13 @@ export function GuillotineHome({ leagueId, sport, leagueName }: GuillotineHomePr
           Survival Board
         </h2>
         <p className="mb-3 text-xs text-white/50">Week {summary?.weekOrPeriod ?? week} · Lowest projected = Chop Zone</p>
+        <button
+          type="button"
+          onClick={() => load()}
+          className="mb-3 text-xs text-cyan-400 hover:underline"
+        >
+          Refresh live scores
+        </button>
         <div className="space-y-3">
           {chopZone.length > 0 && (
             <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-3">
@@ -196,14 +205,33 @@ export function GuillotineHome({ leagueId, sport, leagueName }: GuillotineHomePr
           )}
           {dangerTier.length > 0 && (
             <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-3">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-300">Danger</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-300">On The Bubble (Bottom 4)</p>
               <ul className="space-y-1">
-                {dangerTier.map((d) => (
+                {bubbleTeams
+                  .filter((d) => d.tier !== 'chop_zone')
+                  .map((d) => (
                   <li key={d.rosterId} className="text-sm text-white/80">
                     {d.displayName ?? d.rosterId} · +{d.pointsFromChopZone.toFixed(1)} pts
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {(chopZone.length > 0 || dangerTier.length > 0) && safeTier.length > 0 && (
+            <div
+              className="relative flex items-center justify-center py-2"
+              aria-hidden
+              data-testid="guillotine-bubble-separator"
+            >
+              <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-[#1E6CFF] to-transparent" />
+              <div className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[#1E6CFF]/60 bg-[#040915] shadow-[0_0_12px_rgba(30,108,255,0.45)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/af-crest.png"
+                  alt=""
+                  className="h-6 w-6 object-contain"
+                />
+              </div>
             </div>
           )}
           {safeTier.length > 0 && (

@@ -142,22 +142,40 @@ export async function rebalanceTribes(leagueId: string): Promise<void> {
     where: { configId: config.configId, isMerged: false },
     include: { members: true },
   })
-  const small = tribes.filter((t) => t.members.length < minSize && t.members.length > 0)
-  if (small.length === 0) return
+  const sizes = new Map(tribes.map((t) => [t.id, [...t.members]] as const))
+  const movedMemberIds: string[] = []
 
-  const donors = tribes.filter((t) => t.members.length > minSize + 1)
-  // Minimal rebalance: move one member from largest donor to smallest tribe (placeholder logic)
-  for (const st of small) {
-    const donor = donors.sort((a, b) => b.members.length - a.members.length)[0]
-    if (!donor?.members[0]) continue
-    const m = donor.members[0]!
+  // Iteratively move one member from the largest donor (size > minSize+1)
+  // to the smallest recipient (size < minSize) until no undersized tribe
+  // remains or no eligible donor exists. Bounded by member count to prevent
+  // pathological looping on malformed data.
+  const hardStop = tribes.reduce((acc, t) => acc + t.members.length, 0) + 1
+  for (let i = 0; i < hardStop; i++) {
+    const entries = [...sizes.entries()].map(([tribeId, members]) => ({ tribeId, members }))
+    const smallest = entries
+      .filter((e) => e.members.length > 0 && e.members.length < minSize)
+      .sort((a, b) => a.members.length - b.members.length)[0]
+    if (!smallest) break
+    const donor = entries
+      .filter((e) => e.tribeId !== smallest.tribeId && e.members.length > minSize + 1)
+      .sort((a, b) => b.members.length - a.members.length)[0]
+    if (!donor) break
+
+    const moved = [...donor.members].pop()
+    if (!moved) break
     await prisma.survivorTribeMember.update({
-      where: { id: m.id },
-      data: { tribeId: st.id },
+      where: { id: moved.id },
+      data: { tribeId: smallest.tribeId },
     })
+    sizes.set(donor.tribeId, donor.members)
+    sizes.set(smallest.tribeId, [...smallest.members, moved])
+    movedMemberIds.push(moved.id)
   }
 
-  await appendSurvivorAudit(leagueId, config.configId, 'tribe_shuffle', { minSize })
+  await appendSurvivorAudit(leagueId, config.configId, 'tribe_shuffle', {
+    minSize,
+    moved: movedMemberIds.length,
+  })
 }
 
 export async function executeTribeSwap(

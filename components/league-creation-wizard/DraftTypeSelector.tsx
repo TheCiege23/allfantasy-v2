@@ -3,7 +3,7 @@
 import { Label } from '@/components/ui/label'
 import { getDraftTypeUiLabel } from '@/lib/draft-types/draftTypeRegistry'
 import type { DraftTypeId, LeagueTypeId } from '@/lib/league-creation-wizard/types'
-import { getAllowedDraftTypesForFormat } from '@/lib/league/format-engine'
+import { getCreateLeagueDraftTypes } from '@/lib/league/format-engine'
 import { StepHeader } from './StepHelp'
 import { getDraftTypeMedia } from '@/lib/league-media/draftTypeMedia'
 import { LeagueStepPreviewVideo, OptionCardMedia } from './OptionCardMedia'
@@ -25,6 +25,8 @@ const DRAFT_TYPE_TOOLTIPS: Record<DraftTypeId, string> = {
   devy_auction: 'Auction draft for devy assets with college-only player pool support.',
   c2c_snake: 'Snake draft for mixed C2C pools, including dedicated college rounds.',
   c2c_auction: 'Auction draft for C2C leagues with college/pro pool controls.',
+  devy_linear: 'Linear draft for devy leagues — same pick order every round, college-only pool.',
+  c2c_linear: 'Linear draft for C2C leagues with mixed college/pro pool and same order each round.',
 }
 
 const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
@@ -37,6 +39,8 @@ const DRAFT_TYPE_DESCRIPTIONS: Record<DraftTypeId, string> = {
   devy_auction: 'College-player auction draft that supports premium devy stash formats.',
   c2c_snake: 'Campus to Canton snake draft with college rounds and optional pro mixing.',
   c2c_auction: 'Campus to Canton auction format with mixed pool bidding.',
+  devy_linear: 'College-player linear draft that feeds long-term devy rosters.',
+  c2c_linear: 'Campus to Canton linear draft with college rounds and optional pro mixing.',
 }
 
 const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
@@ -49,18 +53,19 @@ const DRAFT_TYPE_ICONS: Record<DraftTypeId, string> = {
   devy_auction: '🏷',
   c2c_snake: '🏈',
   c2c_auction: '🏀',
+  devy_linear: '🎓',
+  c2c_linear: '🏈',
 }
 
 /**
- * Draft type selection (snake, linear, auction, slow draft, mock draft).
- * Integrates with live draft engines and mock draft engine paths.
+ * Draft type selection for startup leagues (snake, linear, auction).
  */
 function draftTypeLabel(leagueType: LeagueTypeId, id: DraftTypeId): string {
   return getDraftTypeUiLabel(id, leagueType)
 }
 
 export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftTypeSelectorProps) {
-  const allowed = getAllowedDraftTypesForFormat(sport, leagueType) as DraftTypeId[]
+  const allowed = getCreateLeagueDraftTypes(sport, leagueType) as DraftTypeId[]
   const safeValue = allowed.includes(value) ? value : allowed[0]!
   const previewMedia = getDraftTypeMedia(safeValue)
   return (
@@ -70,11 +75,16 @@ export function DraftTypeSelector({ sport, leagueType, value, onChange }: DraftT
         description="You can change it later in settings."
         help={
           <>
-            <strong>Snake</strong> — Rounds go 1–12, 12–1, 1–12… <strong>Linear</strong> — Same order every round. <strong>Auction</strong> — Budget (e.g. $200); bid on players. <strong>Slow draft</strong> — Asynchronous; each manager has a time window per pick. <strong>Mock draft</strong> — Practice flow backed by mock draft runtime and recap.
+            <strong>Snake</strong> — Rounds go 1–12, 12–1, 1–12… <strong>Linear</strong> — Same order every round. <strong>Auction</strong> — Budget (e.g. $200); bid on players.
           </>
         }
         helpTitle="Draft type explained"
       />
+      {leagueType === 'zombie' && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[12px] text-amber-100/90">
+          <strong className="font-semibold text-amber-200">Zombie leagues use Snake drafts only.</strong> Auction is not supported for this format.
+        </div>
+      )}
       <div className="space-y-3">
         <Label className="text-cyan-300">Type</Label>
         <p className="text-xs text-white/60">

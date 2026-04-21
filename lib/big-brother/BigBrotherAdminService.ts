@@ -274,7 +274,8 @@ export async function runBigBrotherAdminAction(input: BigBrotherAdminInput): Pro
         return { ok: true, message: `Week ${nextWeek} started (HOH_OPEN)` }
       }
 
-      return { ok: false, error: `Force advance not implemented for phase ${phase}` }
+      const exhaustive: never = phase
+      return { ok: false, error: `Unknown phase: ${exhaustive}` }
     }
     default:
       return { ok: false, error: `Unknown action: ${action}` }

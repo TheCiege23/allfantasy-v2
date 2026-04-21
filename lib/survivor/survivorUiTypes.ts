@@ -19,6 +19,7 @@ export type SurvivorSeasonTribeMember = {
 export type SurvivorSeasonTribe = {
   id: string
   name?: string
+  emoji?: string | null
   colorHex?: string | null
   slotIndex?: number
   members?: SurvivorSeasonTribeMember[]
@@ -72,6 +73,7 @@ export type SurvivorSeasonChallenge = {
 export type SurvivorSeasonPayload = {
   phase?: string | null
   mode?: boolean | null
+  visualThemeId?: string | null
   tribes?: SurvivorSeasonTribe[]
   players?: SurvivorSeasonPlayer[]
   activeCouncil?: SurvivorSeasonCouncil | null

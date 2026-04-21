@@ -31,6 +31,8 @@ import { ZombiePaymentStrip } from '@/components/zombie/ZombiePaymentStrip'
 import { ZombieQuickAction } from '@/components/zombie/ZombieQuickAction'
 import { getFanCredPublicUrl } from '@/lib/legal/fancredPublicUrl'
 import { zombieRoleAccentClasses } from '@/lib/zombie/zombie-visual-system'
+import { ZombieIntroModal } from '@/components/zombie/ZombieIntroModal'
+import { getZombieTheme } from '@/lib/zombie/zombieBackgroundThemes'
 
 const LEAGUE_SAFE_URL = 'https://www.leaguesafe.com'
 
@@ -98,6 +100,7 @@ type Pack = {
     recentInfections?: Array<{ id: string }>
     recentBashings?: Array<{ id: string }>
     recentMaulings?: Array<{ id: string }>
+    backgroundTheme?: string | null
   }
   hordeSize: number
   survivorCount: number
@@ -145,6 +148,7 @@ function summaryLine(data: Pack['league'], pack: Pack) {
 export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string; userId: string | null }) {
   const [data, setData] = useState<Pack | null>(null)
   const [anims, setAnims] = useState<FeedAnimation[]>([])
+  const [showIntroVideo, setShowIntroVideo] = useState(false)
 
   useEffect(() => {
     fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
@@ -152,6 +156,12 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
       .then((d: Pack | null) => setData(d))
       .catch(() => setData(null))
   }, [leagueId])
+
+  useEffect(() => {
+    if (data?.league?.backgroundTheme && userId) {
+      setShowIntroVideo(true)
+    }
+  }, [data?.league?.backgroundTheme, userId])
 
   useEffect(() => {
     let cancelled = false
@@ -284,10 +294,28 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
     </>
   )
 
+  const backgroundTheme = getZombieTheme(data?.league?.backgroundTheme)
+
   return (
     <>
+      <ZombieIntroModal
+        leagueId={leagueId}
+        userId={userId ?? ''}
+        leagueName={data?.league?.name ?? 'Zombie League'}
+        backgroundTheme={data?.league?.backgroundTheme}
+        enabled={showIntroVideo}
+        onClose={() => setShowIntroVideo(false)}
+      />
       <LeagueClipOverlayHost leagueId={leagueId} variant="zombie" enabled={Boolean(userId)} />
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
+      <div
+        className="min-h-screen transition-all duration-500"
+        style={{
+          backgroundImage: backgroundTheme
+            ? `linear-gradient(135deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.88) 100%)`
+            : undefined,
+        }}
+      >
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6 lg:px-6">
         <ZombieCommandHero
           leagueName={z.name}
           logoUrl={z.logoUrl}
@@ -550,6 +578,7 @@ export function ZombieLeagueHomeClient({ leagueId, userId }: { leagueId: string;
               </div>
             </ZombieGlassPanel>
           </aside>
+        </div>
         </div>
       </div>
     </>

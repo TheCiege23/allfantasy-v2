@@ -15,8 +15,12 @@ function toSportType(s: string): SportType {
   return 'NFL'
 }
 
-const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
+const SLEEPER_NFL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
+const SLEEPER_NBA_HEADSHOT_BASE = 'https://sleepercdn.com/content/nba/players'
+const SLEEPER_MLB_HEADSHOT_BASE = 'https://sleepercdn.com/content/mlb/players'
+const SLEEPER_NHL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nhl/players'
 const ESPN_LOGO_BASE = 'https://a.espncdn.com/i/teamlogos/nfl/500'
+const ESPN_PLAYER_HEADSHOT_BASE = 'https://a.espncdn.com/i/headshots'
 
 const ESPN_TEAM_MAP: Record<string, string> = {
   ARI: 'ari', ATL: 'atl', BAL: 'bal', BUF: 'buf',
@@ -43,13 +47,29 @@ export function getTeamLogoUrl(teamAbbr: string | null, sport: string = 'nfl'): 
 }
 
 export function buildHeadshotUrl(playerId: string | null): string | null {
-  return playerId ? `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg` : null
+  return playerId ? `${SLEEPER_NFL_HEADSHOT_BASE}/${playerId}.jpg` : null
 }
 
+/** Returns the best-known CDN headshot URL for a player ID by sport, or null if unsupported. */
 export function sleeperHeadshotUrl(playerId: string, sport: SportKey = 'nfl'): string | null {
   if (!playerId) return null
-  if (sport === 'nfl') return `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg`
+  const s = String(sport).toLowerCase()
+  if (s === 'nfl') return `${SLEEPER_NFL_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'nba') return `${SLEEPER_NBA_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'mlb') return `${SLEEPER_MLB_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'nhl') return `${SLEEPER_NHL_HEADSHOT_BASE}/${playerId}.jpg`
+  // NCAAF / NCAAB: ESPN player headshot (requires espn_id in future; skip for now)
+  // Soccer: no reliable free CDN without sport-specific ID mapping
   return null
+}
+
+/** ESPN player headshot URL. Requires ESPN player ID (not Sleeper ID). */
+export function espnPlayerHeadshotUrl(espnPlayerId: string | null | undefined, sport: SportKey = 'nfl'): string | null {
+  if (!espnPlayerId) return null
+  const s = String(sport).toLowerCase()
+  const sportPath = s === 'nfl' ? 'nfl' : s === 'nba' ? 'nba' : s === 'mlb' ? 'mlb' : s === 'nhl' ? 'nhl' : null
+  if (!sportPath) return null
+  return `${ESPN_PLAYER_HEADSHOT_BASE}/${sportPath}/players/full/${espnPlayerId}.png`
 }
 
 export function sleeperTeamLogoUrl(teamAbbr: string, sport: SportKey = 'nfl'): string | null {

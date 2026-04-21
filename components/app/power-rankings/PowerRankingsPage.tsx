@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { useLanguage } from '@/components/i18n/LanguageProviderClient';
-import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import TabDataState from '@/components/app/tabs/TabDataState';
 import type { PowerRankingsOutput } from '@/lib/league-power-rankings/types';
 import { RankingTable } from './RankingTable';
@@ -26,7 +25,7 @@ export interface PowerRankingsPageProps {
 }
 
 export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   const [data, setData] = useState<PowerRankingsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,10 +81,10 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
           />
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-white">
-              {interpolateTemplate(t('leaguePowerRankings.weekPowerTitle'), { week: data.week })}
+              {tInterpolate('leaguePowerRankings.weekPowerTitle', { week: data.week })}
             </h2>
             <span className="text-xs text-white/50">
-              {interpolateTemplate(t('leaguePowerRankings.leagueMeta'), {
+              {tInterpolate('leaguePowerRankings.leagueMeta', {
                 name: data.leagueName,
                 season: data.season,
               })}
@@ -110,7 +109,7 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
                 <SelectItem value="current">{t('leaguePowerRankings.filter.current')}</SelectItem>
                 {WEEK_OPTIONS.map((w) => (
                   <SelectItem key={w} value={String(w)}>
-                    {interpolateTemplate(t('leaguePowerRankings.filter.weekN'), { n: w })}
+                    {tInterpolate('leaguePowerRankings.filter.weekN', { n: w })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -151,7 +150,7 @@ export function PowerRankingsPage({ leagueId }: PowerRankingsPageProps) {
           </div>
 
           <div className="text-xs text-white/50">
-            {interpolateTemplate(t('leaguePowerRankings.formulaWeights'), {
+            {tInterpolate('leaguePowerRankings.formulaWeights', {
               record: Math.round(data.formula.recordWeight * 100),
               recent: Math.round(data.formula.recentPerformanceWeight * 100),
               roster: Math.round(data.formula.rosterStrengthWeight * 100),

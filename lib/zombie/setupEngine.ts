@@ -5,6 +5,8 @@ import {
   getZombieUniverseLevelPlan,
   type ZombieUniverseTierId,
 } from '@/lib/zombie/zombie-universe-tier'
+import { getRandomZombieTheme } from '@/lib/zombie/zombieBackgroundThemes'
+import { getZombieSeasonSchedule } from '@/lib/zombie/zombieSeasonSchedule'
 
 export type ZombieUniverseConfig = {
   name?: string
@@ -34,6 +36,7 @@ export type ZombieLeagueSetupConfig = {
   namingMode?: string
   isSingleLeague?: boolean
   slug?: string
+  backgroundTheme?: string | null
 }
 
 /**
@@ -211,6 +214,15 @@ export async function createZombieLeague(
   tierId?: string | null,
 ) {
   const sport = normalizeToSupportedSport(config.sport)
+  const schedule = getZombieSeasonSchedule(sport)
+  const allowedTeamCounts = new Set([8, 10, 12, 14, 16])
+  const defaultTeamCount = allowedTeamCounts.has(schedule.defaultTeamCount)
+    ? schedule.defaultTeamCount
+    : 12
+  const resolvedTeamCount =
+    typeof config.teamCount === 'number' && allowedTeamCounts.has(config.teamCount)
+      ? config.teamCount
+      : defaultTeamCount
   const existing = await prisma.league.findUnique({ where: { id: config.leagueId } })
   if (!existing) throw new Error('League not found — create the fantasy league first.')
 
@@ -262,11 +274,16 @@ export async function createZombieLeague(
       isSingleLeague: config.isSingleLeague ?? !universeId,
       isPaid: config.isPaid ?? false,
       status: 'setup',
-      teamCount: config.teamCount ?? 20,
+      teamCount: resolvedTeamCount,
       whispererSelectionMode: config.whispererSelectionMode ?? 'random',
       namingMode,
       commissionerId: existing.userId,
       buyInAmount: config.buyInAmount ?? null,
+      themeLabel: config.backgroundTheme ?? getRandomZombieTheme(),
+      totalWeeks: schedule.totalWeeks,
+      seasonStartWeek: schedule.infectionStartWeek,
+      weeklyUpdateDay: schedule.weeklyUpdateDayOfWeek,
+      weeklyUpdateHour: schedule.automationHourUtc,
     },
   })
 

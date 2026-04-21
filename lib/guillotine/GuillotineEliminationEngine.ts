@@ -106,6 +106,23 @@ export async function runElimination(input: RunEliminationInput): Promise<Guillo
         choppedReason: reason,
       },
     })
+    // Mark the roster eliminated so standings, scheduling, and endgame
+    // engine filters pick it up. The user remains in the league.
+    await (prisma.roster.update as (args: { where: { id: string }; data: Record<string, unknown> }) => Promise<unknown>)({
+      where: { id: rosterId },
+      data: { isEliminated: true },
+    }).catch(() => {})
+
+    // Unclaim the visual/team ownership row so eliminated users no longer appear
+    // as active team owners in league surfaces.
+    await prisma.leagueTeam.updateMany({
+      where: { leagueId: input.leagueId, externalId: rosterId },
+      data: {
+        claimedByUserId: null,
+        platformUserId: null,
+        isOrphan: true,
+      },
+    }).catch(() => {})
   }
 
   await appendEvent(input.leagueId, 'chop', {

@@ -26,6 +26,8 @@ import { executeCanonicalLeagueCreation } from '@/lib/league-creation/canonical/
 import { mapCanonicalSuccessToLegacyLeagueCreateResponse } from '@/lib/league-creation/canonical/createLeagueResponseShaping';
 import { buildLegacyManualCanonicalCreatePayload } from '@/lib/league-creation/canonical/legacyManualToCanonicalCreateBody';
 import { runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate } from '@/lib/league-creation/legacyWizardSpecialtyBootstraps';
+import { assertImportCommissioner } from '@/lib/league-import/commissionerGate';
+import { isCategoryPresetId } from '@/lib/category-scoring';
 
 const createSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -66,6 +68,10 @@ const createSchema = z.object({
   soccerPipeline: z.enum(['mls', 'euro']).optional(),
   /** Create League v2 unified flow — validated against `lib/league-creation-preset/scoring-presets`. */
   scoringPresetId: z.string().max(96).optional(),
+  /** Scoring mode — 'points' (default), 'h2h_category', or 'roto'. Mirrors `settings.scoring_mode`. */
+  scoringMode: z.enum(['points', 'h2h_category', 'roto']).optional(),
+  /** Category preset id when scoringMode is 'h2h_category' or 'roto'. Validated against the category-scoring registry. */
+  categoryPresetId: z.string().max(64).optional(),
 });
 
 export async function POST(req: Request) {
@@ -120,6 +126,8 @@ export async function POST(req: Request) {
     inviteSettings,
     soccerPipeline: soccerPipelineInput,
     scoringPresetId: scoringPresetIdInput,
+    scoringMode: scoringModeInput,
+    categoryPresetId: categoryPresetIdInput,
   } = parsed.data;
 
   if (createFromSleeperImport && !sleeperLeagueId?.trim()) {
@@ -312,6 +320,17 @@ export async function POST(req: Request) {
       }
 
       const cleanSleeperId = sleeperLeagueId.trim();
+      const importGate = await assertImportCommissioner({
+        appUserId: verifiedAuth.userId,
+        provider: 'sleeper',
+        sourceLeagueId: cleanSleeperId,
+      });
+      if (!importGate.ok) {
+        return NextResponse.json(
+          { error: importGate.reason ?? 'Only the commissioner or co-commissioner can import this league.' },
+          { status: 403 }
+        );
+      }
       const { runImportedLeagueNormalizationPipeline } = await import('@/lib/league-import/ImportedLeagueNormalizationPipeline');
       const result = await runImportedLeagueNormalizationPipeline({
         provider: 'sleeper',
@@ -685,6 +704,43 @@ export async function POST(req: Request) {
     }
     if (scoringSettings && typeof scoringSettings === 'object') {
       Object.assign(initialSettings, scoringSettings);
+    }
+
+    // Normalize category-scoring fields to the flat snake_case keys used by
+    // `ScoringSettingsSnapshot.scoringMode` and `settings.category_preset_id`.
+    // Top-level `scoringModeInput` wins over anything carried in
+    // `scoringSettings`; `scoringSettings.scoringMode` (preset-derived) wins
+    // over the default set earlier. Category preset id is validated here so
+    // unknown ids never reach persistence.
+    const preMergeScoringMode = scoringModeInput
+      ?? (typeof initialSettings.scoringMode === 'string' ? initialSettings.scoringMode : undefined)
+      ?? (typeof initialSettings.scoring_mode === 'string' ? initialSettings.scoring_mode : undefined);
+    if (preMergeScoringMode === 'points' || preMergeScoringMode === 'h2h_category' || preMergeScoringMode === 'roto') {
+      initialSettings.scoring_mode = preMergeScoringMode;
+    }
+    const preMergeCategoryPresetId = categoryPresetIdInput
+      ?? (typeof initialSettings.categoryPresetId === 'string' ? initialSettings.categoryPresetId : undefined)
+      ?? (typeof initialSettings.category_preset_id === 'string' ? initialSettings.category_preset_id : undefined);
+    if (preMergeCategoryPresetId) {
+      if (!isCategoryPresetId(preMergeCategoryPresetId)) {
+        return NextResponse.json(
+          { error: `Unsupported categoryPresetId: ${preMergeCategoryPresetId}` },
+          { status: 400 },
+        );
+      }
+      initialSettings.category_preset_id = preMergeCategoryPresetId;
+    }
+    // Clean up camelCase duplicates so the persisted settings snapshot uses
+    // only the canonical snake_case keys.
+    delete (initialSettings as Record<string, unknown>).scoringMode;
+    delete (initialSettings as Record<string, unknown>).categoryPresetId;
+    if (initialSettings.scoring_mode === 'h2h_category' || initialSettings.scoring_mode === 'roto') {
+      if (!initialSettings.category_preset_id) {
+        return NextResponse.json(
+          { error: 'categoryPresetId is required when scoringMode is h2h_category or roto.' },
+          { status: 400 },
+        );
+      }
     }
     if (rules && typeof rules === 'object') {
       Object.assign(initialSettings, rules);
@@ -1085,6 +1141,36 @@ export async function POST(req: Request) {
       },
       requestedDraftType,
     });
+
+    if (String(requestedLeagueType ?? '').toLowerCase() === 'keeper') {
+      try {
+        const { mapKeeperCreationFromWizard } = await import('@/lib/keeper/mapKeeperCreationFromWizard');
+        const kp = mapKeeperCreationFromWizard({
+          draftType: String(
+            requestedDraftType ?? (initialSettings as Record<string, unknown>).draft_type ?? 'snake',
+          ),
+          settings: initialSettings as Record<string, unknown>,
+          keeperSettings:
+            keeperSettings && typeof keeperSettings === 'object'
+              ? (keeperSettings as Record<string, unknown>)
+              : undefined,
+          conceptSetup: null,
+        });
+        await prisma.league.update({ where: { id: league.id }, data: kp.league });
+        const ds = await prisma.draftSession.updateMany({
+          where: { leagueId: league.id },
+          data: {
+            keeperConfig: kp.draftKeeperConfig as object,
+            keeperSelections: [],
+          },
+        });
+        if (ds.count === 0) {
+          console.warn('[league/create] keeper: no DraftSession row to attach keeperConfig', league.id);
+        }
+      } catch (err) {
+        console.warn('[league/create] keeper bootstrap sync non-fatal:', err);
+      }
+    }
 
     return NextResponse.json({
       success: true,

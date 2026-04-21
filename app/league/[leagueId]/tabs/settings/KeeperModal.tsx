@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import type { LeagueTeamBrief } from './types'
 
 type RosterPlayerLite = { id: string; label: string }
@@ -87,8 +88,24 @@ export function KeeperModal({
       <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0c1220] p-6 shadow-xl">
         <h3 className="text-[16px] font-bold text-white">Keepers & carryover</h3>
         <p className="mt-1 text-[12px] text-white/45">
-          Review each team&apos;s synced roster. Full keeper assignment flows will use this list as a base.
+          Quick roster snapshot by team. Use the <strong className="text-white/70">Keepers</strong> tab for declaration
+          deadlines and eligibility, and the <strong className="text-white/70">Draft</strong> tab for pre-draft keeper
+          locks when your draft session is live.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2 text-[12px]">
+          <Link
+            href={`/league/${leagueId}?tab=keeper`}
+            className="rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-1.5 font-semibold text-cyan-200 hover:bg-cyan-500/20"
+          >
+            Open Keepers tab
+          </Link>
+          <Link
+            href={`/league/${leagueId}?tab=draft`}
+            className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-semibold text-white/80 hover:bg-white/[0.08]"
+          >
+            Open Draft tab
+          </Link>
+        </div>
         {loading ? <p className="mt-4 text-[12px] text-cyan-400/80">Loading rosters…</p> : null}
         {error ? <p className="mt-2 text-[12px] text-red-400">{error}</p> : null}
         <div className="mt-4 space-y-4">

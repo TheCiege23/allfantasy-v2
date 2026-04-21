@@ -16,10 +16,12 @@ import {
   resolveUserIdFromStripeCustomerId,
   updateSubscriptionFromStripeEvent,
 } from "@/lib/subscription/webhookHandlers"
+import { persistLeagueEntryFeeFromStripeSession } from "@/lib/league-finance/leagueFinanceService"
 
 export const runtime = "nodejs"
 
 const SUPPORTED_PURCHASE_TYPES = new Set(["subscription", "tokens"])
+const FINANCE_PURCHASE_TYPES = new Set(["league_entry_fee"])
 const LEGACY_PURCHASE_TYPES = new Set([
   "donate",
   "donation",
@@ -224,6 +226,13 @@ async function routeCheckoutSessionCompleted(session: Stripe.Checkout.Session): 
       }
     } else if (purchaseType === "tokens") {
       await persistTokenPurchaseFromCheckout(session, checkoutContext)
+    }
+    return purchaseType
+  }
+
+  if (FINANCE_PURCHASE_TYPES.has(purchaseType)) {
+    if (purchaseType === "league_entry_fee") {
+      await persistLeagueEntryFeeFromStripeSession(session)
     }
     return purchaseType
   }

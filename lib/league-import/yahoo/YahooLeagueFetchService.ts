@@ -52,6 +52,7 @@ type YahooTeamMetadata = {
   managerId: string
   managerGuid: string | null
   managerName: string
+  isCommissioner: boolean
 }
 
 class YahooApiResponseError extends Error {
@@ -141,6 +142,24 @@ function getYahooManagers(source: unknown): Array<Record<string, any>> {
     return [managers.manager]
   }
   return []
+}
+
+function isTruthyProviderFlag(value: unknown): boolean {
+  if (value === true) return true
+  const normalized = String(value ?? '').trim().toLowerCase()
+  return normalized === '1' || normalized === 'true' || normalized === 'yes'
+}
+
+function isYahooCommissionerManager(manager: Record<string, any>): boolean {
+  return [
+    manager.is_commissioner,
+    manager.isCommissioner,
+    manager.is_co_commissioner,
+    manager.isCoCommissioner,
+    manager.is_co_manager,
+    manager.isCoManager,
+    manager.co_manager,
+  ].some(isTruthyProviderFlag)
 }
 
 function getYahooLogoUrl(source: unknown): string | null {
@@ -516,6 +535,7 @@ function parseYahooTeamsMetadata(teamsData: any): Map<string, YahooTeamMetadata>
     const teamKey = String(team.team_key ?? '')
     if (!teamKey) continue
     const managerIdentity = buildManagerIdentity(team, teamKey)
+    const isCommissioner = getYahooManagers(team).some(isYahooCommissionerManager)
     metadataByTeamKey.set(teamKey, {
       teamName: typeof team.name === 'string' ? team.name : managerIdentity.managerName,
       logoUrl: getYahooLogoUrl(team),
@@ -523,6 +543,7 @@ function parseYahooTeamsMetadata(teamsData: any): Map<string, YahooTeamMetadata>
       managerId: managerIdentity.managerId,
       managerGuid: managerIdentity.managerGuid,
       managerName: managerIdentity.managerName,
+      isCommissioner,
     })
   }
 
@@ -944,6 +965,7 @@ export async function fetchYahooLeagueForImport(
     loggedInGuid && teams.length > 0
       ? teams.find((t) => t.managerGuid === loggedInGuid || t.managerId === loggedInGuid)?.teamKey ?? null
       : null
+  const commissionerTeamKeys = teamKeys.filter((teamKey) => metadataByTeamKey.get(teamKey)?.isCommissioner)
 
   const transactions =
     transactionsResult.status === 'fulfilled' ? parseYahooTransactions(transactionsResult.value) : []
@@ -964,5 +986,6 @@ export async function fetchYahooLeagueForImport(
     draftPicks,
     previousSeasons,
     viewerTeamKey,
+    commissionerTeamKeys,
   }
 }

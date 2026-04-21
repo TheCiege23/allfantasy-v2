@@ -6,6 +6,7 @@ import { validateCommissionerLeagueNames } from '@/lib/tournament-mode/LeagueNam
 import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import { TOURNAMENT_PARTICIPANT_POOL_SIZES_EXTENDED } from '@/lib/tournament-mode/pool-sizes'
 import type { TournamentSettings } from '@/lib/tournament-mode/types'
+import { isSupportedSport } from '@/lib/sport-scope'
 import { z } from 'zod'
 
 /**
@@ -50,6 +51,13 @@ export async function POST(req: Request) {
   }
 
   const { name, sport, season, variant, settings, hubSettings, conferenceNames, leagueNames } = parsed.data
+  if (!isSupportedSport(sport)) {
+    return NextResponse.json(
+      { error: 'Sport must be one of: NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER' },
+      { status: 400 }
+    )
+  }
+
   const mergedSettings: Partial<TournamentSettings> = {
     ...DEFAULT_TOURNAMENT_SETTINGS,
     ...settings,
@@ -64,11 +72,20 @@ export async function POST(req: Request) {
   }
 
   const rawDraft = String(mergedSettings.draftType ?? DEFAULT_TOURNAMENT_SETTINGS.draftType).toLowerCase()
-  const draftType = rawDraft === 'linear' ? 'snake' : rawDraft === 'auction' ? 'auction' : 'snake'
-  mergedSettings.draftType = draftType as typeof mergedSettings.draftType
-  if (!['snake', 'auction'].includes(draftType)) {
+  if (!['snake', 'linear', 'auction'].includes(rawDraft)) {
     return NextResponse.json(
       { error: 'Draft type must be snake or auction' },
+      { status: 400 }
+    )
+  }
+  const draftType = rawDraft === 'linear' ? 'snake' : rawDraft === 'auction' ? 'auction' : 'snake'
+  mergedSettings.draftType = draftType as typeof mergedSettings.draftType
+
+  mergedSettings.initialLeagueSize = 12
+  const computedLeagueCount = computeLeagueCount(poolSize, 12)
+  if (computedLeagueCount < 2) {
+    return NextResponse.json(
+      { error: 'Tournament mode requires at least 2 feeder leagues. Lower league size or increase participant pool.' },
       { status: 400 }
     )
   }
@@ -81,15 +98,14 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
-  }
-
-  mergedSettings.initialLeagueSize = 12
-  const computedLeagueCount = computeLeagueCount(poolSize, 12)
-  if (computedLeagueCount < 2) {
-    return NextResponse.json(
-      { error: 'Tournament mode requires at least 2 feeder leagues. Lower league size or increase participant pool.' },
-      { status: 400 }
-    )
+    if (leagueNames.length < computedLeagueCount) {
+      return NextResponse.json(
+        {
+          error: `Commissioner naming mode requires ${computedLeagueCount} league names for this pool size (${poolSize} managers), but only ${leagueNames.length} were provided.`,
+        },
+        { status: 400 }
+      )
+    }
   }
 
   try {

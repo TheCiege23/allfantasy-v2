@@ -6,6 +6,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 import { normalizeLeagueScoring } from '@/lib/league-context-engine/normalizeScoring'
 import { resolveMatchupPeriod } from '@/lib/league-context-engine/resolvePeriod'
+import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 import type {
   LeagueSourceType,
   NormalizedLeagueContext,
@@ -113,10 +114,30 @@ export async function resolveNormalizedLeagueContext(
     leagueSeason: league.season,
   })
 
+  const bestBallSettings = league.bestBallMode
+    ? normalizeBestBallSettings({
+        sport: league.sport,
+        conceptSetup: (settings?.best_ball_settings as Record<string, unknown> | null) ?? null,
+        draftType: typeof settings?.canonical_draft_mode === 'string' ? settings.canonical_draft_mode : 'snake',
+        timezone: league.timezone,
+        language: league.language as 'en' | 'es' | null,
+      })
+    : null
+
   const lineupBehavior = {
     scoringPeriod:
       league.bbScoringPeriod === 'daily' ? ('daily' as const) : ('weekly' as const),
     bestBallMode: league.bestBallMode === true,
+    bestBallSettings: bestBallSettings
+      ? {
+          mode: bestBallSettings.mode,
+          matchupFormat: bestBallSettings.matchupFormat,
+          waiversEnabled: bestBallSettings.waiversEnabled,
+          tradesEnabled: bestBallSettings.tradesEnabled,
+          substitutionsEnabled: bestBallSettings.substitutionsEnabled,
+          lineupTemplateId: bestBallSettings.lineupTemplateId,
+        }
+      : null,
   }
 
   const lt = league.leagueType?.toLowerCase() ?? ''

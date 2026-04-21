@@ -173,6 +173,16 @@
       "schedule": "0 9 * * 2"
     },
     {
+      "path": "/api/cron/zombie-weekly-update",
+      "schedule": "0 14 * * 1",
+      "description": "Zombie weekly updates for NBA/MLB/NHL/NCAAB (Monday 10am ET)"
+    },
+    {
+      "path": "/api/cron/zombie-weekly-update",
+      "schedule": "0 14 * * 2",
+      "description": "Zombie weekly updates for NFL/NCAAF/SOCCER (Tuesday 10am ET)"
+    },
+    {
       "path": "/api/big-brother/cron/automation",
       "schedule": "*/5 * * * *"
     },

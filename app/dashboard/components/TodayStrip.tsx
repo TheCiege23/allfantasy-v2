@@ -1,7 +1,6 @@
 'use client'
 
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { interpolateTemplate } from '@/lib/i18n/interpolate'
 import type { UserLeague } from '../types'
 
 export type LineupChipState = 'loading' | 'issues' | 'clear'
@@ -79,7 +78,7 @@ export function TodayStrip({
   waiverTimingHint,
   protectionActivityHint,
 }: TodayStripProps) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
 
   if (leagues.length === 0) {
     return null
@@ -89,7 +88,7 @@ export function TodayStrip({
     waiverPickupSuggestions > 0
       ? waiverPickupSuggestions === 1
         ? t('dashboard.today.waiverRecOne')
-        : interpolateTemplate(t('dashboard.today.waiverRecs'), { n: waiverPickupSuggestions })
+        : tInterpolate('dashboard.today.waiverRecs', { n: waiverPickupSuggestions })
       : t('dashboard.today.checkWaivers')
 
   const waiverChipHighlighted = waiverPickupSuggestions > 0
@@ -98,7 +97,7 @@ export function TodayStrip({
     pendingTradeCount > 0
       ? pendingTradeCount === 1
         ? t('dashboard.today.pendingTradeOne')
-        : interpolateTemplate(t('dashboard.today.pendingTrades'), { n: pendingTradeCount })
+        : tInterpolate('dashboard.today.pendingTrades', { n: pendingTradeCount })
       : t('dashboard.today.checkTrades')
 
   const lineupChipTooltip = lineupTooltip ?? t('dashboard.today.lineupChipTooltipDefault')
@@ -108,12 +107,12 @@ export function TodayStrip({
     lineupInjuryDecisionsToReview > 0
       ? lineupInjuryDecisionsToReview === 1
         ? t('dashboard.today.injuryLineupDecisionOne')
-        : interpolateTemplate(t('dashboard.today.injuryLineupDecisionMany'), {
+        : tInterpolate('dashboard.today.injuryLineupDecisionMany', {
             n: lineupInjuryDecisionsToReview,
           })
       : injuryReportRowsInUserSports === 1
         ? t('dashboard.today.injuryReportFeedOne')
-        : interpolateTemplate(t('dashboard.today.injuryReportFeedMany'), {
+        : tInterpolate('dashboard.today.injuryReportFeedMany', {
             n: injuryReportRowsInUserSports,
           })
 
@@ -122,12 +121,12 @@ export function TodayStrip({
     matchupPrepDecisionsToReview > 0
       ? matchupPrepDecisionsToReview === 1
         ? t('dashboard.today.matchupPrepDecisionOne')
-        : interpolateTemplate(t('dashboard.today.matchupPrepDecisionMany'), {
+        : tInterpolate('dashboard.today.matchupPrepDecisionMany', {
             n: matchupPrepDecisionsToReview,
           })
       : leaguesWithSyncedMatchupData === 1
         ? t('dashboard.today.matchupDataLeaguesOne')
-        : interpolateTemplate(t('dashboard.today.matchupDataLeaguesMany'), {
+        : tInterpolate('dashboard.today.matchupDataLeaguesMany', {
             n: leaguesWithSyncedMatchupData,
           })
 
@@ -135,7 +134,7 @@ export function TodayStrip({
     warRoomDecisionsToReview > 0
       ? warRoomDecisionsToReview === 1
         ? t('dashboard.today.warRoomActionOne')
-        : interpolateTemplate(t('dashboard.today.warRoomActionMany'), { n: warRoomDecisionsToReview })
+        : tInterpolate('dashboard.today.warRoomActionMany', { n: warRoomDecisionsToReview })
       : t('dashboard.today.warRoomOpen')
 
   const matchupHighlighted = matchupPrepDecisionsToReview > 0

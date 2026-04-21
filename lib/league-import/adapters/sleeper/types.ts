@@ -8,8 +8,12 @@ export interface SleeperLeagueRaw {
   sport: string
   season: string
   season_type?: string
+  commissioner_id?: string
   total_rosters: number
   status?: string
+  metadata?: {
+    co_commissioners?: string[] | null
+  }
   settings?: {
     type?: number
     playoff_teams?: number
@@ -26,11 +30,17 @@ export interface SleeperUserRaw {
   username: string
   display_name?: string
   avatar?: string
+  is_owner?: boolean
+  metadata?: {
+    team_name?: string
+    is_commissioner?: string | boolean
+    co_owner?: string | boolean
+  } | null
 }
 
 export interface SleeperRosterRaw {
   roster_id: number
-  owner_id: string
+  owner_id?: string | null
   players?: string[]
   starters?: string[]
   reserve?: string[]

@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { assertLeagueCommissioner, assertLeagueMember } from '@/lib/league/league-access'
 import {
-  buildScrollRevealSequence,
   lockVoting,
   openTribalCouncil,
   submitVote,
@@ -15,6 +14,7 @@ import { executeRocksDraw } from '@/lib/survivor/rocksEngine'
 import { removeRosterFromTribeChat } from '@/lib/survivor/SurvivorChatMembershipService'
 import { enrollInExile } from '@/lib/survivor/SurvivorExileEngine'
 import { enrollJuryMember, shouldJoinJury } from '@/lib/survivor/SurvivorJuryEngine'
+import { postLeagueRevealFollowUp, postScrollRevealToTribeChat } from '@/lib/survivor/leagueChatPoster'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -156,8 +156,40 @@ export async function POST(req: NextRequest) {
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     const councilId = typeof body.councilId === 'string' ? body.councilId : ''
     if (!councilId) return NextResponse.json({ error: 'councilId required' }, { status: 400 })
-    await buildScrollRevealSequence(councilId)
-    return NextResponse.json({ ok: true })
+    const current = await prisma.survivorTribalCouncil.findUnique({
+      where: { id: councilId },
+      select: { leagueId: true, closedAt: true, eliminatedRosterId: true, status: true },
+    })
+    if (!current || current.leagueId !== leagueId) {
+      return NextResponse.json({ error: 'Council not found' }, { status: 404 })
+    }
+
+    if (current.closedAt) {
+      return NextResponse.json({
+        ok: true,
+        alreadyClosed: true,
+        eliminatedRosterId: current.eliminatedRosterId,
+        closedAt: current.closedAt,
+        status: current.status,
+      })
+    }
+
+    try {
+      await lockVoting(councilId)
+      const updated = await prisma.survivorTribalCouncil.findUnique({
+        where: { id: councilId },
+        select: { eliminatedRosterId: true, closedAt: true, status: true },
+      })
+      return NextResponse.json({
+        ok: true,
+        eliminatedRosterId: updated?.eliminatedRosterId ?? null,
+        closedAt: updated?.closedAt ?? null,
+        status: updated?.status ?? 'completed',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to eliminate'
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
   }
 
   if (action === 'rocks_draw') {
@@ -248,6 +280,28 @@ export async function POST(req: NextRequest) {
       })
     })
     await removeRosterFromTribeChat(leagueId, resolvedEliminatedRosterId).catch(() => {})
+    const resolvedTeam = await prisma.leagueTeam.findFirst({
+      where: { leagueId, platformUserId: eliminatedUserId ?? '' },
+      select: { teamName: true },
+    })
+    const eliminatedName = resolvedTeam?.teamName?.trim() || 'Eliminated player'
+    const attendingTribe = council.attendingTribeId
+      ? await prisma.survivorTribe.findUnique({
+          where: { id: council.attendingTribeId },
+          select: { name: true },
+        })
+      : null
+    const tribeName = attendingTribe?.name?.trim() || 'Merged Tribe'
+    if (council.attendingTribeId) {
+      await postScrollRevealToTribeChat(
+        leagueId,
+        council.attendingTribeId,
+        tribeName,
+        eliminatedName,
+        council.week,
+      ).catch(() => {})
+    }
+    await postLeagueRevealFollowUp(leagueId, tribeName, eliminatedName, council.week).catch(() => {})
     if (eliminatedUserId) {
       await enrollInExile(leagueId, resolvedEliminatedRosterId, eliminatedUserId).catch(() => {})
     }

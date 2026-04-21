@@ -11,7 +11,7 @@ export type PlayoffSeedRow = { rosterId: string; seed: number; pointsFor: number
 export async function computePlayoffSeeds(leagueId: string, season: number): Promise<PlayoffSeedRow[]> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { playoffTeams: true, playoffSeedingRule: true, settings: true },
+    select: { playoffTeams: true, playoffSeedingRule: true, settings: true, bestBallMode: true, bbMatchupFormat: true },
   })
   const snap = parseSettingsSnapshot(league?.settings)
   const playoffN =
@@ -21,7 +21,10 @@ export async function computePlayoffSeeds(leagueId: string, season: number): Pro
 
   const n = Math.max(2, Math.min(16, Math.floor(Number(playoffN) || 6)))
 
-  const rule = getPlayoffSeedingRule(snap?.playoffSettings ?? null, league?.playoffSeedingRule ?? null)
+  const rule =
+    league?.bestBallMode === true && league?.bbMatchupFormat === 'cumulative'
+      ? 'points_only'
+      : getPlayoffSeedingRule(snap?.playoffSettings ?? null, league?.playoffSeedingRule ?? null)
 
   let standings = await prisma.fantasyStanding.findMany({
     where: { leagueId, season },

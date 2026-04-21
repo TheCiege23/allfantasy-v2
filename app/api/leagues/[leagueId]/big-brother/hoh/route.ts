@@ -12,6 +12,8 @@ import { isBigBrotherLeague, getBigBrotherConfig } from '@/lib/big-brother/BigBr
 import { getCurrentCycleForLeague, transitionPhase } from '@/lib/big-brother/BigBrotherPhaseStateMachine'
 import { assignHOH, getEligibleHOHRosterIds } from '@/lib/big-brother/BigBrotherHOHEngine'
 import { resolveChallengeByScore, resolveChallengeBySeededRandom } from '@/lib/big-brother/BigBrotherChallengeEngine'
+import { applyHaveNotChallengeScorePenalty, applyHaveNotWaiverPenalties } from '@/lib/big-brother/BigBrotherHaveNotPenaltyService'
+import { resolveHaveNotRosterIdsForCycle } from '@/lib/big-brother/BigBrotherChatChannels'
 import { announceHOHWinner } from '@/lib/big-brother/BigBrotherChatAnnouncements'
 import { getRosterDisplayNamesForLeague } from '@/lib/big-brother/ai/getRosterDisplayNames'
 import { appendBigBrotherAudit } from '@/lib/big-brother/BigBrotherAuditLog'
@@ -97,16 +99,19 @@ export async function POST(
     }
     winnerId = body.winnerRosterId
   } else if (config.challengeMode === 'deterministic_score') {
-    // Score-based: use weekly fantasy scores or provided scores
-    const scores = body.scores as Record<string, number> | undefined
-    if (scores && Object.keys(scores).length > 0) {
+    // Score-based: use weekly fantasy scores or provided scores.
+    // Apply Have-Not challenge penalty before winner resolution.
+    const rawScores = body.scores as Record<string, number> | undefined
+    if (rawScores && Object.keys(rawScores).length > 0) {
+      const haveNotIds = await resolveHaveNotRosterIdsForCycle(leagueId, current.id)
+      const penalisedScores = applyHaveNotChallengeScorePenalty(rawScores, haveNotIds)
       winnerId = await resolveChallengeByScore({
         leagueId,
         configId: config.configId,
         week: current.week,
         participantRosterIds: eligible,
         challengeType: 'hoh',
-        scores,
+        scores: penalisedScores,
       })
     } else {
       // Auto-resolve using season points as proxy
@@ -153,6 +158,9 @@ export async function POST(
   // Transition to HOH_LOCKED then NOMINATION_OPEN
   await transitionPhase(current.id, 'HOH_LOCKED')
   await transitionPhase(current.id, 'NOMINATION_OPEN')
+
+  // Apply Have-Not waiver penalties for this cycle (fire-and-forget, non-blocking).
+  applyHaveNotWaiverPenalties(leagueId, current.id).catch(() => {})
 
   // Announce
   const names = await getRosterDisplayNamesForLeague(leagueId, [winnerId])

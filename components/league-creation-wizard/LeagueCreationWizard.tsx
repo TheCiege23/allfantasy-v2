@@ -64,6 +64,8 @@ import {
   resolveEffectiveLeagueVariant,
 } from '@/lib/league-creation/LeagueVariantResolver'
 import { emitLeagueCreationPerf } from '@/lib/league-creation/perf'
+import { CREATE_LEAGUE } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import {
   DEFAULT_WIZARD_FORMAT_OPTIONS,
   formatOptionsApplyToLeagueType,
@@ -103,7 +105,7 @@ function StepPanelSkeleton() {
 function ZombieTeamCountHint({ teamCount }: { teamCount: number }) {
   return (
     <p className="mt-3 text-[11px] leading-relaxed text-white/45" data-testid="wizard-zombie-team-hint">
-      Zombie leagues use <span className="text-white/70">18, 20, or 22</span> teams (capped by this sport&apos;s max).
+      Zombie leagues support <span className="text-white/70">8, 10, 12, 14, or 16</span> teams (capped by this sport&apos;s max).
       You selected <span className="text-white/70">{teamCount}</span> teams.
     </p>
   )
@@ -396,6 +398,8 @@ export function LeagueCreationWizard({
   const previousStepRef = useRef<WizardStepId | null>(null)
   const stepEnteredAtRef = useRef<number>(0)
   const wizardFlowStartedAtRef = useRef<number>(0)
+  const abandonStepRef = useRef<WizardStepId>(state.step)
+  const creationSucceededRef = useRef(false)
   const effectiveVariantResult = useMemo(
     () =>
       resolveEffectiveLeagueVariant({
@@ -461,6 +465,10 @@ export function LeagueCreationWizard({
     state.formatOptions.survivorEntryFeeUsd,
   ])
 
+  useEffect(() => {
+    abandonStepRef.current = state.step
+  }, [state.step])
+
   const buildStepHref = useCallback(
     (step: WizardStepId, returnToReview = false) => {
       const nextParams = new URLSearchParams(searchParams?.toString() ?? '')
@@ -521,7 +529,7 @@ export function LeagueCreationWizard({
     zombieSportPresetRef.current = key
     setState((s) => ({
       ...s,
-      teamCount: clampTeamCountForSport(String(state.sport), 20, 'zombie'),
+      teamCount: clampTeamCountForSport(String(state.sport), 12, 'zombie'),
     }))
   }, [state.leagueType, state.sport])
 
@@ -767,6 +775,12 @@ export function LeagueCreationWizard({
       draftType: state.draftType,
       teamCount: state.teamCount,
     })
+    sendProductAnalyticsBeacon(CREATE_LEAGUE.SUBMIT, {
+      sport: state.sport,
+      leagueType: state.leagueType,
+      draftType: state.draftType,
+      teamCount: state.teamCount,
+    })
     setCreating(true)
     setError(null)
     try {
@@ -815,6 +829,11 @@ export function LeagueCreationWizard({
         })
         const { ok, data, errorMessage } = await readFetchJson<{ tournamentId?: string; leagueIds?: string[] }>(res)
         if (!ok) {
+          sendProductAnalyticsBeacon(CREATE_LEAGUE.FAIL_CLIENT, {
+            variant: 'tournament',
+            sport: state.sport,
+            message: errorMessage ?? 'Failed to create tournament',
+          })
           setError(errorMessage ?? 'Failed to create tournament')
           return
         }
@@ -824,6 +843,13 @@ export function LeagueCreationWizard({
           if (typeof window !== 'undefined') {
             window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
           }
+          creationSucceededRef.current = true
+          sendProductAnalyticsBeacon(CREATE_LEAGUE.SUCCESS_CLIENT, {
+            tournamentId,
+            feederLeagueId: feederLeagueId ?? null,
+            sport: state.sport,
+            variant: 'tournament',
+          })
           onSuccess?.(tournamentId)
           router.push(
             buildPostCreateLeagueHomeHref({
@@ -873,7 +899,7 @@ export function LeagueCreationWizard({
           ? state.draftSettings.c2cCollegeSports
           : [defaultCollegeSport]
       const presetScoringTemplate = creationPreset?.scoringTemplate
-      const introUrl = getConceptIntroVideoUrl(String(state.sport))
+      const introUrl = getConceptIntroVideoUrl(String(state.leagueType))
       const storedPrivacy = mapWizardVisibilityToStoredPrivacy(state.privacySettings.visibility)
       const soccerPipe = String(state.sport) === 'SOCCER' ? (state.soccerPipeline ?? 'euro') : null
       const body = {
@@ -948,6 +974,11 @@ export function LeagueCreationWizard({
           error?: string
         }
         if (!uniRes.ok) {
+          sendProductAnalyticsBeacon(CREATE_LEAGUE.FAIL_CLIENT, {
+            variant: 'zombie_universe',
+            sport: state.sport,
+            message: uniData.error ?? 'Failed to create Zombie universe',
+          })
           setError(uniData.error ?? 'Failed to create Zombie universe')
           return
         }
@@ -956,6 +987,14 @@ export function LeagueCreationWizard({
           if (typeof window !== 'undefined') {
             window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
           }
+          creationSucceededRef.current = true
+          sendProductAnalyticsBeacon(CREATE_LEAGUE.SUCCESS_CLIENT, {
+            leagueId: primaryId,
+            sport: state.sport,
+            leagueType: state.leagueType,
+            draftType: state.draftType,
+            variant: 'zombie_universe',
+          })
           onSuccess?.(primaryId)
           router.push(
             buildPostCreateLeagueHomeHref({
@@ -991,6 +1030,12 @@ export function LeagueCreationWizard({
       if (!ok) {
         const statusHint = typeof res.status === 'number' ? ` (HTTP ${res.status})` : ''
         const baseMessage = errorMessage ?? 'Failed to create league'
+        sendProductAnalyticsBeacon(CREATE_LEAGUE.FAIL_CLIENT, {
+          sport: state.sport,
+          leagueType: state.leagueType,
+          httpStatus: res.status,
+          message: baseMessage,
+        })
         if (state.leagueType === 'survivor') {
           setError(`Survivor league creation failed${statusHint}: ${baseMessage}`)
         } else {
@@ -1003,6 +1048,13 @@ export function LeagueCreationWizard({
         if (typeof window !== 'undefined') {
           window.sessionStorage.removeItem(WIZARD_STORAGE_KEY)
         }
+        creationSucceededRef.current = true
+        sendProductAnalyticsBeacon(CREATE_LEAGUE.SUCCESS_CLIENT, {
+          leagueId,
+          sport: state.sport,
+          leagueType: state.leagueType,
+          draftType: state.draftType,
+        })
         onSuccess?.(leagueId)
         router.push(
           buildPostCreateLeagueHomeHref({
@@ -1023,6 +1075,11 @@ export function LeagueCreationWizard({
           ((typeof performance !== 'undefined' ? performance.now() : Date.now()) - createRequestStart).toFixed(1)
         ),
       })
+      sendProductAnalyticsBeacon(CREATE_LEAGUE.FAIL_CLIENT, {
+        sport: state.sport,
+        exception: true,
+        message: (e as Error).message ?? 'Request failed',
+      })
       setError((e as Error).message ?? 'Request failed')
     } finally {
       setCreating(false)
@@ -1040,11 +1097,23 @@ export function LeagueCreationWizard({
       leagueType: state.leagueType,
       draftType: state.draftType,
     })
+    sendProductAnalyticsBeacon(CREATE_LEAGUE.FUNNEL_OPEN, {
+      initialStep: state.step,
+      sport: state.sport,
+      leagueType: state.leagueType,
+      draftType: state.draftType,
+    })
     return () => {
       const endedAt = typeof performance !== 'undefined' ? performance.now() : Date.now()
       emitLeagueCreationPerf('wizard_close', {
         totalFlowMs: Number((endedAt - wizardFlowStartedAtRef.current).toFixed(1)),
       })
+      if (!creationSucceededRef.current) {
+        sendProductAnalyticsBeacon(CREATE_LEAGUE.FUNNEL_ABANDON, {
+          lastStep: abandonStepRef.current,
+          totalFlowMs: Number((endedAt - wizardFlowStartedAtRef.current).toFixed(1)),
+        })
+      }
     }
     // Run once per wizard mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1054,18 +1123,31 @@ export function LeagueCreationWizard({
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
     const previousStep = previousStepRef.current
     if (previousStep && previousStep !== state.step) {
+      const durationMs = Number((now - stepEnteredAtRef.current).toFixed(1))
       emitLeagueCreationPerf('wizard_step_duration', {
         step: previousStep,
-        durationMs: Number((now - stepEnteredAtRef.current).toFixed(1)),
+        durationMs,
       })
       emitLeagueCreationPerf('wizard_step_enter', {
         step: state.step,
         fromStep: previousStep,
       })
+      sendProductAnalyticsBeacon(CREATE_LEAGUE.STEP_DURATION, {
+        step: previousStep,
+        durationMs,
+        sport: state.sport,
+      })
+      sendProductAnalyticsBeacon(CREATE_LEAGUE.STEP_ENTER, {
+        step: state.step,
+        fromStep: previousStep,
+        sport: state.sport,
+        leagueType: state.leagueType,
+        draftType: state.draftType,
+      })
       previousStepRef.current = state.step
       stepEnteredAtRef.current = now
     }
-  }, [state.step])
+  }, [state.step, state.sport, state.leagueType, state.draftType])
 
   useEffect(() => {
     if (!creationPreset?.waiver) return

@@ -13,8 +13,15 @@ export interface C2CDraftPhaseInfo {
   phase: C2CDraftPhase
   status: C2CDraftPhaseStatus
   rounds: number
-  draftType: 'snake' | 'linear'
+  draftType: 'snake' | 'linear' | 'auction'
   description: string
+}
+
+function normalizeC2CDraftType(raw: string | null | undefined): 'snake' | 'linear' | 'auction' {
+  const draft = String(raw ?? '').trim().toLowerCase()
+  if (draft === 'linear') return 'linear'
+  if (draft === 'auction') return 'auction'
+  return 'snake'
 }
 
 /**
@@ -35,7 +42,7 @@ export async function getCurrentC2CDraftPhase(leagueId: string): Promise<{
 
   const status: C2CDraftPhaseStatus =
     session?.status === 'completed' ? 'completed' : session?.status === 'in_progress' ? 'in_progress' : 'not_started'
-  const draftType = (session?.draftType as 'snake' | 'linear') ?? config.startupDraftType
+  const draftType = normalizeC2CDraftType(session?.draftType) ?? config.startupDraftType
   const rounds = session?.rounds ?? 0
 
   if (config.mergedStartupDraft) {
@@ -104,7 +111,7 @@ export function getPoolTypeForC2CPhase(phase: C2CDraftPhase): C2CPoolType {
 /**
  * Get phase config (rounds, draft type) for C2C.
  */
-export function getC2CPhaseConfig(config: C2CLeagueConfigShape, phase: C2CDraftPhase): { rounds: number; draftType: 'snake' | 'linear' } {
+export function getC2CPhaseConfig(config: C2CLeagueConfigShape, phase: C2CDraftPhase): { rounds: number; draftType: 'snake' | 'linear' | 'auction' } {
   switch (phase) {
     case 'startup_pro':
     case 'startup_college':

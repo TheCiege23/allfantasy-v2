@@ -3,14 +3,25 @@
 import { useEffect, useState } from 'react'
 import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-league-patch'
 import { COMMON_TIMEZONES } from '@/lib/timezone'
+import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
+import type { LeagueSport } from '@prisma/client'
 import { PremiumGate } from '@/components/subscription/PremiumGate'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+import {
+  SettingsPanelHeading,
+  SettingsSectionLabel,
+  SettingsHelper,
+  SettingsToggleRow,
+  SettingsRadioGroup,
+  controlClass,
+} from './settings-ui'
 
 export function LeagueSettingsPanel({
   leagueId,
   initialData,
+  settingsSnapshot = {},
   hasAfCommissionerSub,
   canEdit,
   save,
@@ -18,15 +29,34 @@ export function LeagueSettingsPanel({
 }: {
   leagueId: string
   initialData: CommissionerSettingsFormData
+  /** Raw `League.settings` JSON (description, listing visibility, etc.). */
+  settingsSnapshot?: Record<string, unknown>
   hasAfCommissionerSub: boolean
   canEdit: boolean
   save: (partial: Record<string, unknown>) => Promise<void>
   debouncedSave: (partial: Record<string, unknown>) => void
 }) {
   const [name, setName] = useState(initialData.name ?? '')
+  const [sport, setSport] = useState<LeagueSport>((initialData.sport ?? 'NFL') as LeagueSport)
+  const [season, setSeason] = useState(initialData.season ?? new Date().getFullYear())
+  const [language, setLanguage] = useState(initialData.language ?? 'en')
+  const [leagueDescription, setLeagueDescription] = useState(
+    typeof settingsSnapshot.leagueDescription === 'string' ? settingsSnapshot.leagueDescription : '',
+  )
+  const [listingVisibility, setListingVisibility] = useState(
+    typeof settingsSnapshot.leagueListingVisibility === 'string' ? settingsSnapshot.leagueListingVisibility : 'private',
+  )
   const [timezone, setTimezone] = useState(initialData.timezone ?? 'America/New_York')
-  const [playoffTeams, setPlayoffTeams] = useState(initialData.playoffTeams ?? 4)
   const [medianGame, setMedianGame] = useState(Boolean(initialData.medianGame))
+  const [leagueType, setLeagueType] = useState((initialData.leagueType ?? 'redraft') as string)
+  const [leagueSize, setLeagueSize] = useState(initialData.leagueSize ?? 12)
+  const [allowPreDraft, setAllowPreDraft] = useState(Boolean(initialData.allowPreDraftMoves))
+  const [preventBenchDrops, setPreventBenchDrops] = useState(Boolean(initialData.preventBenchDrops))
+  const [lockMoves, setLockMoves] = useState(Boolean(initialData.lockAllMoves))
+  const [draftPickTrading, setDraftPickTrading] = useState(Boolean(initialData.draftPickTrading))
+  const [overrideInvite, setOverrideInvite] = useState(Boolean(initialData.overrideInviteCapacity))
+  const [disableInvites, setDisableInvites] = useState(Boolean(initialData.disableInviteLinks))
+  const [dispersalRounds, setDispersalRounds] = useState(initialData.dispersalDraftRounds ?? 0)
   const [keeperCount, setKeeperCount] = useState(initialData.keeperCount ?? 3)
   const [keeperCostSystem, setKeeperCostSystem] = useState(initialData.keeperCostSystem ?? 'round_based')
   const [keeperRoundPenalty, setKeeperRoundPenalty] = useState(initialData.keeperRoundPenalty ?? 1)
@@ -41,9 +71,24 @@ export function LeagueSettingsPanel({
 
   useEffect(() => {
     setName(initialData.name ?? '')
+    setSport((initialData.sport ?? 'NFL') as LeagueSport)
+    setSeason(initialData.season ?? new Date().getFullYear())
+    setLanguage(initialData.language ?? 'en')
+    setLeagueDescription(typeof settingsSnapshot.leagueDescription === 'string' ? settingsSnapshot.leagueDescription : '')
+    setListingVisibility(
+      typeof settingsSnapshot.leagueListingVisibility === 'string' ? settingsSnapshot.leagueListingVisibility : 'private',
+    )
     setTimezone(initialData.timezone ?? 'America/New_York')
-    setPlayoffTeams(initialData.playoffTeams ?? 4)
     setMedianGame(Boolean(initialData.medianGame))
+    setLeagueType(initialData.leagueType ?? 'redraft')
+    setLeagueSize(initialData.leagueSize ?? 12)
+    setAllowPreDraft(Boolean(initialData.allowPreDraftMoves))
+    setPreventBenchDrops(Boolean(initialData.preventBenchDrops))
+    setLockMoves(Boolean(initialData.lockAllMoves))
+    setDraftPickTrading(Boolean(initialData.draftPickTrading))
+    setOverrideInvite(Boolean(initialData.overrideInviteCapacity))
+    setDisableInvites(Boolean(initialData.disableInviteLinks))
+    setDispersalRounds(initialData.dispersalDraftRounds ?? 0)
     setKeeperCount(initialData.keeperCount ?? 3)
     setKeeperCostSystem(initialData.keeperCostSystem ?? 'round_based')
     setKeeperRoundPenalty(initialData.keeperRoundPenalty ?? 1)
@@ -56,25 +101,116 @@ export function LeagueSettingsPanel({
       const d = new Date(initialData.keeperSelectionDeadline)
       setKeeperDeadlineLocal(d.toISOString().slice(0, 16))
     }
-  }, [initialData])
+  }, [initialData, settingsSnapshot])
 
   const disabled = !canEdit
   const { hasCommissioner } = useEntitlements()
   const hasCommissionerAccess = hasCommissioner || hasAfCommissionerSub
   /** Show upgrade hints when user lacks commissioner access (resolver + profile). */
   const subHint = !hasCommissionerAccess
-  const showKeeper = initialData.leagueType === 'keeper'
+  const showKeeper = leagueType === 'keeper'
   const subscriptionGate = useSubscriptionGateOptional()
 
   return (
-    <div className="space-y-6 px-6 py-6 text-[13px] text-white/85" data-league-id={leagueId}>
+    <div className="space-y-8 px-6 py-6 text-[13px] text-white/85" data-league-id={leagueId}>
+      <SettingsPanelHeading
+        title="General league settings"
+        subtitle="Set league identity, format, and core rules. Playoff and waiver detail live in their own tabs."
+      />
+
       <div>
-        <label className="mb-1 block text-[11px] uppercase tracking-wide text-white/45" htmlFor="ls-name">
-          League name
-        </label>
+        <SettingsSectionLabel>League description</SettingsSectionLabel>
+        <textarea
+          className={`${controlClass} min-h-[96px] max-w-lg rounded-2xl py-3`}
+          disabled={disabled}
+          value={leagueDescription}
+          placeholder="Shown on league cards and discovery where your league opts in."
+          onChange={(e) => {
+            const v = e.target.value
+            setLeagueDescription(v)
+            debouncedSave({ settingsMerge: { leagueDescription: v } })
+          }}
+        />
+      </div>
+
+      <div className="grid max-w-lg gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-1">
+          <SettingsSectionLabel>Sport</SettingsSectionLabel>
+          <select
+            className={controlClass}
+            disabled={disabled}
+            value={sport}
+            onChange={(e) => {
+              const v = e.target.value as LeagueSport
+              setSport(v)
+              debouncedSave({ sport: v })
+            }}
+          >
+            {SUPPORTED_SPORTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sm:col-span-1">
+          <SettingsSectionLabel>Season year</SettingsSectionLabel>
+          <input
+            type="number"
+            min={2000}
+            max={2100}
+            className={controlClass}
+            disabled={disabled}
+            value={season}
+            onChange={(e) => {
+              const n = Number(e.target.value)
+              setSeason(n)
+              debouncedSave({ season: n })
+            }}
+          />
+        </div>
+        <div className="sm:col-span-1">
+          <SettingsSectionLabel>Default language</SettingsSectionLabel>
+          <select
+            className={controlClass}
+            disabled={disabled}
+            value={language}
+            onChange={(e) => {
+              const v = e.target.value
+              setLanguage(v)
+              debouncedSave({ language: v })
+            }}
+          >
+            <option value="en">English</option>
+            <option value="es">Español</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <SettingsSectionLabel>Listing &amp; discoverability</SettingsSectionLabel>
+        <select
+          className={controlClass}
+          disabled={disabled}
+          value={listingVisibility}
+          onChange={(e) => {
+            const v = e.target.value
+            setListingVisibility(v)
+            debouncedSave({ settingsMerge: { leagueListingVisibility: v } })
+          }}
+        >
+          <option value="private">Private — invite only</option>
+          <option value="unlisted">Unlisted — link only</option>
+          <option value="public">Public — discoverable in browse</option>
+        </select>
+        <SettingsHelper>Controls how this league can appear in Find League and shared links (enforced server-side where applicable).</SettingsHelper>
+      </div>
+
+      <div>
+        <SettingsSectionLabel>League name</SettingsSectionLabel>
         <input
           id="ls-name"
-          className="w-full max-w-md rounded-lg border border-white/[0.12] bg-[#0a1220] px-3 py-2 text-white outline-none focus:border-sky-500/50 disabled:opacity-50"
+          className={controlClass}
           value={name}
           disabled={disabled}
           onChange={(e) => {
@@ -86,73 +222,164 @@ export function LeagueSettingsPanel({
       </div>
 
       <div>
-        <label className="mb-1 block text-[11px] uppercase tracking-wide text-white/45" htmlFor="ls-tz">
-          Timezone
-        </label>
-        <input
-          id="ls-tz"
-          className="w-full max-w-md rounded-lg border border-white/[0.12] bg-[#0a1220] px-3 py-2 text-white outline-none focus:border-sky-500/50 disabled:opacity-50"
-          value={timezone}
+        <SettingsSectionLabel>League type</SettingsSectionLabel>
+        <SettingsRadioGroup
+          name="league-type"
+          value={leagueType}
           disabled={disabled}
+          onChange={(v) => {
+            setLeagueType(v)
+            debouncedSave({ leagueType: v })
+          }}
+          options={[
+            {
+              id: 'redraft',
+              title: 'Redraft',
+              description: 'Full redraft each season; all players available.',
+            },
+            {
+              id: 'keeper',
+              title: 'Keeper',
+              description: 'Teams retain a configured number of players year to year.',
+            },
+            {
+              id: 'dynasty',
+              title: 'Dynasty',
+              description: 'Rosters carry over; rookie and free-agent drafts replenish talent.',
+            },
+          ]}
+        />
+      </div>
+
+      <div>
+        <SettingsSectionLabel>Number of teams</SettingsSectionLabel>
+        <select
+          className={controlClass}
+          disabled={disabled}
+          value={leagueSize}
           onChange={(e) => {
-            const v = e.target.value
-            setTimezone(v)
-            debouncedSave({ timezone: v })
+            const n = Number(e.target.value)
+            setLeagueSize(n)
+            debouncedSave({ leagueSize: n })
+          }}
+        >
+          {Array.from({ length: 15 }, (_, i) => i + 4).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="space-y-2">
+        <SettingsSectionLabel>Core rules</SettingsSectionLabel>
+        <SettingsToggleRow
+          label="Extra game vs league median"
+          checked={medianGame}
+          disabled={disabled}
+          onChange={(v) => {
+            setMedianGame(v)
+            void save({ medianGame: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Allow moves pre-draft"
+          checked={allowPreDraft}
+          disabled={disabled}
+          onChange={(v) => {
+            setAllowPreDraft(v)
+            debouncedSave({ allowPreDraftMoves: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Prevent bench players from being dropped after game starts"
+          checked={preventBenchDrops}
+          disabled={disabled}
+          onChange={(v) => {
+            setPreventBenchDrops(v)
+            debouncedSave({ preventBenchDrops: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Lock all free agent and waiver moves"
+          checked={lockMoves}
+          disabled={disabled}
+          dimmed={false}
+          onChange={(v) => {
+            setLockMoves(v)
+            void save({ lockAllMoves: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Allow draft pick trading"
+          checked={draftPickTrading}
+          disabled={disabled}
+          onChange={(v) => {
+            setDraftPickTrading(v)
+            void save({ draftPickTrading: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Override league invite capacity"
+          checked={overrideInvite}
+          disabled={disabled}
+          onChange={(v) => {
+            setOverrideInvite(v)
+            debouncedSave({ overrideInviteCapacity: v })
+          }}
+        />
+        <SettingsToggleRow
+          label="Disable league invite links"
+          checked={disableInvites}
+          disabled={disabled}
+          onChange={(v) => {
+            setDisableInvites(v)
+            debouncedSave({ disableInviteLinks: v })
           }}
         />
       </div>
 
       <div>
-        <label className="mb-1 block text-[11px] uppercase tracking-wide text-white/45" htmlFor="ls-pt">
-          Playoff teams
-        </label>
-        <input
-          id="ls-pt"
-          type="number"
-          min={2}
-          max={16}
-          className="w-32 rounded-lg border border-white/[0.12] bg-[#0a1220] px-3 py-2 text-white outline-none focus:border-sky-500/50 disabled:opacity-50"
-          value={playoffTeams}
+        <SettingsSectionLabel>Supplemental / dispersal rounds</SettingsSectionLabel>
+        <select
+          className={controlClass}
           disabled={disabled}
+          value={dispersalRounds}
           onChange={(e) => {
             const n = Number(e.target.value)
-            setPlayoffTeams(n)
-            debouncedSave({ playoffTeams: n })
+            setDispersalRounds(n)
+            debouncedSave({ dispersalDraftRounds: n })
           }}
-        />
-        {subHint ? (
-          <PremiumGate
-            featureId="commissioner_ai_tools"
-            hasAccess={hasCommissionerAccess}
-            mode="overlay"
-          >
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <p className="text-[11px] text-amber-400/90">
-                7- and 9-team brackets require an AF Commissioner subscription (server-enforced).
-              </p>
-              <SubscriptionGateBadge
-                featureId="commissioner_ai_tools"
-                onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightParam: 'ai_tools' })}
-              />
-            </div>
-          </PremiumGate>
-        ) : null}
+        >
+          {Array.from({ length: 11 }, (_, i) => i).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+        <SettingsHelper>Used for supplemental or dispersal draft configuration where your league format supports it.</SettingsHelper>
       </div>
 
-      <label className="flex cursor-pointer items-center gap-2 text-white/80">
-        <input
-          type="checkbox"
-          className="rounded border-white/20 bg-[#0a1220]"
-          checked={medianGame}
+      <div>
+        <SettingsSectionLabel>Timezone</SettingsSectionLabel>
+        <select
+          id="ls-tz"
+          className={controlClass}
           disabled={disabled}
+          value={timezone}
           onChange={(e) => {
-            const v = e.target.checked
-            setMedianGame(v)
-            void save({ medianGame: v })
+            const v = e.target.value
+            setTimezone(v)
+            debouncedSave({ timezone: v })
           }}
-        />
-        Median game (vs league median)
-      </label>
+        >
+          {COMMON_TIMEZONES.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {showKeeper ? (
         <div className="space-y-4 border-t border-white/[0.08] pt-6">
@@ -336,26 +563,6 @@ export function LeagueSettingsPanel({
               {Array.from({ length: 11 }, (_, i) => (
                 <option key={i} value={i}>
                   {i}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[11px] text-white/45">Timezone (for display)</label>
-            <select
-              className="w-full max-w-md rounded-lg border border-white/[0.12] bg-[#0a1220] px-3 py-2 text-[12px] text-white disabled:opacity-50"
-              disabled={disabled}
-              value={timezone}
-              onChange={(e) => {
-                const v = e.target.value
-                setTimezone(v)
-                debouncedSave({ timezone: v })
-              }}
-            >
-              {COMMON_TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
                 </option>
               ))}
             </select>

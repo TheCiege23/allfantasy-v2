@@ -218,6 +218,28 @@ export default function ZombieUniverseHubPage() {
           hint="Click a feeder to open the league workspace. Tiers follow the universe ladder from the commissioner setup."
         />
 
+        <ZombieGlassPanel
+          title="Commissioner deep controls"
+          eyebrow="Per-league"
+          icon={<Shield className="h-5 w-5 text-amber-200" />}
+        >
+          <p className="mb-3 text-[12px] text-white/55">
+            Whisperer edits, item audits, ambush overrides, payment tracking, and emergency corrections for each linked league.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {sortedLeagues.map((l) => (
+              <a
+                key={l.leagueId}
+                href={`/league/${encodeURIComponent(l.leagueId)}/zombie-commissioner`}
+                className="flex items-center justify-between rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[13px] text-white/85 hover:bg-amber-500/[0.12]"
+              >
+                <span className="truncate font-semibold">{l.name ?? l.leagueId}</span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-amber-200/80">Open</span>
+              </a>
+            ))}
+          </div>
+        </ZombieGlassPanel>
+
         <ZombieGlassPanel title="Top survivors (PPW)" eyebrow="Cross-league" icon={<Trophy className="h-5 w-5 text-amber-200" />} variant="reward">
           {data.topByPpw.length === 0 ? (
             <p className="text-sm text-white/55">No PPW stats yet this season.</p>

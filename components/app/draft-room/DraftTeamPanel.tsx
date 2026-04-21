@@ -2,6 +2,7 @@
 
 import { Bot, User, TrendingUp } from 'lucide-react'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
+import { DraftRosterStrip } from './DraftRosterStrip'
 
 export type DraftTeamPanelProps = {
   leagueName: string
@@ -9,7 +10,14 @@ export type DraftTeamPanelProps = {
   slotOrder: SlotOrderEntry[]
   currentUserRosterId: string | null
   /** Picks for the focused team (usually current user) */
-  draftedPicks: Array<{ playerName: string; position: string; overall: number; rosterId: string }>
+  draftedPicks: Array<{
+    playerName: string
+    position: string
+    overall: number
+    rosterId: string
+    isDevy?: boolean
+    isTaxi?: boolean
+  }>
   teamCount: number
   rounds: number
   /** Total picks recorded in the draft session (all teams) */
@@ -17,6 +25,13 @@ export type DraftTeamPanelProps = {
   commissionerAiTeams?: Array<{ teamId: string; teamName: string; aiStyle: string; tradeAggression: string; active: boolean }>
   /** When user selects another team to inspect — defaults to current user */
   focusRosterId?: string | null
+  /** When true, renders the dynasty-aware DraftRosterStrip (starters/bench/taxi/devy). */
+  showRosterStrip?: boolean
+  isDynasty?: boolean
+  starterSlots?: Record<string, number> | null
+  benchSlots?: number | null
+  taxiSlots?: number | null
+  devySlots?: number | null
 }
 
 function posCounts(picks: Array<{ position: string }>): Record<string, number> {
@@ -39,6 +54,12 @@ export function DraftTeamPanel({
   leaguePicksMade,
   commissionerAiTeams = [],
   focusRosterId,
+  showRosterStrip = false,
+  isDynasty = false,
+  starterSlots = null,
+  benchSlots = null,
+  taxiSlots = null,
+  devySlots = null,
 }: DraftTeamPanelProps) {
   const focus = focusRosterId ?? currentUserRosterId
   const slot = slotOrder.find((s) => s.rosterId === focus)
@@ -102,6 +123,25 @@ export function DraftTeamPanel({
           </span>
         </div>
       </div>
+
+      {showRosterStrip ? (
+        <DraftRosterStrip
+          picks={myPicks.map((p) => ({
+            playerName: p.playerName,
+            position: p.position,
+            overall: p.overall,
+            isDevy: p.isDevy,
+            isTaxi: p.isTaxi,
+          }))}
+          starterSlots={starterSlots}
+          benchSlots={benchSlots}
+          taxiSlots={taxiSlots}
+          devySlots={devySlots}
+          isDynasty={isDynasty}
+          teamLabel={slot?.displayName ?? null}
+          sport={sport}
+        />
+      ) : null}
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
         <p className="text-[9px] font-medium uppercase tracking-wider text-white/40">Drafted ({myPicks.length})</p>

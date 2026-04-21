@@ -103,4 +103,6 @@ export interface EspnImportPayload {
   }>
   /** Logged-in user's team id when ESPN cookies identify the member in `raw` members/teams. */
   viewerTeamId?: string | null
+  /** Team ids owned by members flagged as league manager/commissioner in ESPN member data. */
+  commissionerTeamIds?: string[]
 }

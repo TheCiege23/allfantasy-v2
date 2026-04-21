@@ -2,11 +2,10 @@
 
 import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { useEntitlements } from "@/hooks/useEntitlements"
 
 export function BillingSettingsSection() {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const ents = useEntitlements()
 
   if (ents.loading) {
@@ -84,7 +83,7 @@ export function BillingSettingsSection() {
 
         {status === "grace" && snap?.gracePeriodEnd && (
           <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
-            {interpolateTemplate(t("settings.billing.graceNotice"), {
+            {tInterpolate("settings.billing.graceNotice", {
               date: new Date(snap.gracePeriodEnd).toLocaleDateString(),
             })}
           </div>

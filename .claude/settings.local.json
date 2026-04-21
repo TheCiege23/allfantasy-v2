@@ -160,7 +160,21 @@
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(xargs -I {} ls prisma/migrations/{})",
       "Bash(grep -rln \"publishProvider\\\\|social.*post\\\\|brand.*post\\\\|x\\\\\\\\.com\\\\|twitter\" lib/fantasy-media lib/automated-blog)",
-      "Bash(grep -n \"grid-cols-2 gap-2 sm:grid-cols-4\\\\|<Sparkles className\\\\|Draft \\\\${variantsCount}\\\\|drafts\\\\\\\\.map\" app/admin/components/AdminBrandPosts.tsx)"
+      "Bash(grep -n \"grid-cols-2 gap-2 sm:grid-cols-4\\\\|<Sparkles className\\\\|Draft \\\\${variantsCount}\\\\|drafts\\\\\\\\.map\" app/admin/components/AdminBrandPosts.tsx)",
+      "Bash(find /c/Users/Guap_/allfantasy-v2-main/app/tournament/[tournamentId] -name \"page.tsx\" -o -name \"layout.tsx\")",
+      "Bash(grep -E \"\\\\.tsx$|^d\")",
+      "Bash(awk '/^model League / { found=1 } found && /^}/ { print NR; exit } found { print NR \": \" $0 }' C:/Users/Guap_/allfantasy-v2-main/prisma/schema.prisma)",
+      "Bash(awk '/^model League / { found=1 } found && /^}/ { found=0; next } found' C:/Users/Guap_/allfantasy-v2-main/prisma/schema.prisma)",
+      "Bash(awk '/^model ZombiePaidConfig/ { found=1 } found && /^}/ { print; exit } found { print }' C:/Users/Guap_/allfantasy-v2-main/prisma/schema.prisma)",
+      "Bash(awk '/^model ZombieLeagueConfig/ { found=1 } found && /^}/ { print; exit } found { print }' C:/Users/Guap_/allfantasy-v2-main/prisma/schema.prisma)",
+      "Bash(awk '/^model ZombieLeague / { found=1 } found && /^}/ { exit } found' C:/Users/Guap_/allfantasy-v2-main/prisma/schema.prisma)",
+      "Bash(find /c/Users/Guap_/allfantasy-v2-main -name \"*.ts\" -type f -exec grep -l \"SurvivorExileLeague\" {} \\\\;)",
+      "Bash(find /c/Users/Guap_/allfantasy-v2-main/lib/guillotine -name \"*.ts\" -type f -exec wc -l {} +)",
+      "Bash(grep -E \"\\\\.tsx$|/$\")",
+      "Bash(wait)",
+      "Bash(echo \"STATUS=$?\")",
+      "Bash(npx vitest *)",
+      "Bash(npx prisma *)"
     ]
   }
 }

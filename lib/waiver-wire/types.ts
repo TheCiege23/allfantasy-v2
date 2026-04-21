@@ -44,6 +44,8 @@ export type LeagueWaiverSettingsInput = {
   dropRestrictions?: unknown
   commissionerOverrideRules?: unknown
   specialtyConceptOverrides?: unknown
+  /** Extended rules JSON (min FAAB bid, undroppable ids, drop lock policy, etc.) */
+  waiverEngineConfig?: unknown
   tiebreakRule?: TiebreakRule | string | null
   lockType?: string | null
   instantFaAfterClear?: boolean
@@ -59,6 +61,18 @@ export type WaiverClaimInput = {
   metadata?: Record<string, unknown> | null
 }
 
+/** Stable codes for UI, history, and AI — align with `WAIVER_TX_RESULT_CODES` where applicable. */
+export type WaiverClaimOutcomeCode =
+  | "won"
+  | "lost_priority"
+  | "lost_tiebreaker"
+  | "insufficient_faab"
+  | "invalid_due_to_roster"
+  | "player_no_longer_available"
+  | "blocked_by_lineup_lock"
+  | "blocked_by_ir_taxi_devy_violation"
+  | "failed"
+
 export type ProcessedClaimResult = {
   claimId: string
   rosterId: string
@@ -68,4 +82,6 @@ export type ProcessedClaimResult = {
   faabSpent?: number | null
   message?: string
   waiverRunId?: string
+  /** Outcome code for notifications and transaction history. */
+  outcomeCode?: WaiverClaimOutcomeCode
 }

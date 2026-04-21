@@ -98,7 +98,10 @@ function metaOrderField(t: TrendTypeId): 'trendScore' | 'addRate' | 'dropRate' |
 
 async function enrichHeadshot(playerId: string): Promise<{ headshotUrl: string | null; logoUrl: string | null; injury: string | null }> {
   try {
-    const row = await getPlayer(playerId)
+    const row = await prisma.sportsPlayerRecord.findUnique({
+      where: { id: playerId },
+      select: { headshotUrl: true, headshotUrlLg: true, headshotUrlSm: true, logoUrl: true, injuryStatus: true },
+    })
     if (!row) return { headshotUrl: null, logoUrl: null, injury: null }
     return {
       headshotUrl: row.headshotUrl ?? row.headshotUrlLg ?? row.headshotUrlSm ?? null,
@@ -146,7 +149,7 @@ async function cardFromFcPlayer(
         ? `Trade frequency signal ${(p.maybeTradeFrequency ?? 0).toFixed(2)} · 30d value trend ${p.trend30Day > 0 ? '+' : ''}${Math.round(p.trend30Day)}`
         : `30d value trend ${p.trend30Day > 0 ? '+' : ''}${Math.round(p.trend30Day)} · rank #${p.overallRank}`,
     chips: chipsFromFantasyCalc(p, trendType),
-    sources: ['FantasyCalc', 'api.fantasycalc.com'],
+    sources: enrich.injury ? ['FantasyCalc', 'api.fantasycalc.com', 'injury_layer'] : ['FantasyCalc', 'api.fantasycalc.com'],
     injuryStatus: enrich.injury,
     isRookie: rookie,
     dataFreshness: 'Live FantasyCalc values · 30d trend component',
@@ -481,7 +484,7 @@ export async function runTrendingDashboard(input: {
         position: input.position,
         rookiesOnly: rookiesEffective,
         limit,
-        includeEnrichment: !input.skipAi,
+        includeEnrichment: true,
         dataGaps,
       })
       if (t.risers.length + t.fallers.length === 0) {
@@ -491,7 +494,7 @@ export async function runTrendingDashboard(input: {
           rookiesOnly: rookiesEffective,
           trendType: input.trendType,
           limit,
-          includeEnrichment: !input.skipAi,
+          includeEnrichment: true,
           dataGaps,
         })
         risers.push(...fb.risers)
@@ -507,7 +510,7 @@ export async function runTrendingDashboard(input: {
         rookiesOnly: rookiesEffective,
         trendType: input.trendType,
         limit,
-        includeEnrichment: !input.skipAi,
+        includeEnrichment: true,
         dataGaps,
       })
       risers.push(...fb.risers)

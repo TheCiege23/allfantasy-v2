@@ -4,11 +4,110 @@
  */
 
 import type { League, Roster } from '@prisma/client'
+import type { MatchupCenterPayload, MatchupPlayerSlot } from '@/lib/matchup-center/types'
 
 /**
  * Default in-season league row with trades enabled and no trade deadline week.
  * Override fields per scenario (guillotine, dynasty, tradeDeadlineWeek, etc.).
  */
+function slot(
+  playerId: string,
+  overrides: Partial<MatchupPlayerSlot> = {},
+): MatchupPlayerSlot {
+  return {
+    playerId,
+    name: `Player ${playerId}`,
+    position: 'RB',
+    team: 'TST',
+    opponent: null,
+    headshotUrl: null,
+    currentPoints: 0,
+    projectedPoints: 10,
+    injuryStatus: null,
+    newsBlurb: null,
+    weatherSummary: null,
+    gameStatus: 'upcoming',
+    gameLabel: 'Sun 1:00',
+    aiInsight: null,
+    ...overrides,
+  }
+}
+
+/**
+ * Valid `MatchupCenterPayload` for `assertValidMatchupPayload` / command-center UI tests.
+ */
+export function buildMinimalValidMatchupCenterPayload(
+  over: Partial<MatchupCenterPayload> = {},
+): MatchupCenterPayload {
+  const leftStarters = [slot('p-left-1')]
+  const rightStarters = [slot('p-right-1')]
+  const base: MatchupCenterPayload = {
+    leagueId: 'engine-test-league',
+    season: 2026,
+    week: 1,
+    sport: 'NFL',
+    matchupStatus: 'upcoming',
+    conceptOverlay: null,
+    left: {
+      rosterId: 'r-left',
+      teamName: 'Team Left',
+      avatarUrl: null,
+      record: { wins: 0, losses: 0, ties: 0 },
+      winPct: 0,
+      totalPoints: 0,
+      projectedTotal: 90,
+      starters: leftStarters,
+      remainingStarters: 0,
+    },
+    right: {
+      rosterId: 'r-right',
+      teamName: 'Team Right',
+      avatarUrl: null,
+      record: { wins: 0, losses: 0, ties: 0 },
+      winPct: 0,
+      totalPoints: 0,
+      projectedTotal: 88,
+      starters: rightStarters,
+      remainingStarters: 0,
+    },
+    winProbabilityLeft: 0.52,
+    insights: {
+      matchupEdge: 'Even matchup.',
+      startSit: 'Start your studs.',
+      weather: 'Clear.',
+      injuryNews: 'No major flags.',
+      swingPlayers: ['Player p-left-1'],
+      riskLevel: 'medium',
+      floorVsCeiling: 'Balanced floor and ceiling.',
+    },
+    partialData: false,
+    refreshIntervalMs: 30_000,
+    ...over,
+  }
+  return base
+}
+
+/** Survivor / high-churn league shell — override `guillotineMode` / lifecycle as needed. */
+export function buildEngineTestLeagueSurvivor(over: Partial<League> = {}): League {
+  return buildEngineTestLeague({
+    leagueType: 'redraft',
+    leagueSize: 14,
+    guillotineMode: false,
+    lifecycleState: 'in_season',
+    ...over,
+  })
+}
+
+/** Salary-cap format: FAAB-style economy hints for waiver/trade tests. */
+export function buildEngineTestLeagueSalaryCap(over: Partial<League> = {}): League {
+  return buildEngineTestLeague({
+    waiverType: 'faab',
+    waiverBudget: 200,
+    leagueType: 'redraft',
+    ...over,
+  })
+}
+
 export function buildEngineTestLeague(over: Partial<League> = {}): League {
   return {
     id: 'l1',

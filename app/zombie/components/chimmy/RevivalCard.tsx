@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { useZombieDmCommand } from '@/app/zombie/components/chimmy/useZombieDmCommand'
 
 export function RevivalCard({
   leagueId,
@@ -11,6 +11,7 @@ export function RevivalCard({
   serumCount: number
   reviveThreshold: number
 }) {
+  const { isSending, feedback, sendCommand } = useZombieDmCommand(leagueId)
   if (serumCount < reviveThreshold) return null
 
   return (
@@ -19,12 +20,19 @@ export function RevivalCard({
       <p className="mt-1 text-[12px] text-[var(--zombie-text-mid)]">
         {reviveThreshold} required — you hold {serumCount}. You become a Revived Survivor; you can be re-infected.
       </p>
-      <Link
-        href={`/league/${leagueId}?zombieChimmy=${encodeURIComponent('@Chimmy revive')}`}
-        className="mt-3 flex min-h-[56px] items-center justify-center rounded-xl bg-amber-500/35 text-[14px] font-bold text-amber-50 hover:bg-amber-500/45"
+      <button
+        type="button"
+        onClick={() => void sendCommand('@Chimmy revive')}
+        disabled={isSending}
+        className="mt-3 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-amber-500/35 text-[14px] font-bold text-amber-50 hover:bg-amber-500/45 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        ⚡ Revive Me
-      </Link>
+        {isSending ? 'Sending…' : '⚡ Revive Me'}
+      </button>
+      {feedback ? (
+        <p className={feedback.kind === 'success' ? 'mt-2 text-[12px] text-emerald-200/90' : 'mt-2 text-[12px] text-red-200/90'}>
+          {feedback.text}
+        </p>
+      ) : null}
     </div>
   )
 }

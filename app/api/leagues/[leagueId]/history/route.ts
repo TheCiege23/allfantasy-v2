@@ -42,6 +42,7 @@ export async function GET(
       platform: true,
       platformLeagueId: true,
       userId: true,
+      settings: true,
       teams: { select: { platformUserId: true } },
     },
   })
@@ -105,10 +106,19 @@ export async function GET(
     return true
   })
 
+  const settings = (league.settings as Record<string, unknown> | null) ?? {}
   return NextResponse.json({
     leagueId,
     leagueName: league.name,
     sport: league.sport,
     seasons: unique,
+    historicalBackfill: {
+      status:
+        (settings.historicalBackfillStatus as string | undefined) ??
+        (unique.length > 1 ? 'complete' : 'unknown'),
+      startedAt: (settings.historicalBackfillStartedAt as string | undefined) ?? null,
+      completedAt: (settings.historicalBackfillCompletedAt as string | undefined) ?? null,
+      error: (settings.historicalBackfillError as string | undefined) ?? null,
+    },
   })
 }

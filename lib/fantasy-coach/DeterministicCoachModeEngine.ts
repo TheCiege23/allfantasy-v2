@@ -255,7 +255,7 @@ function buildCoachLineup(
   return baseLineup.map((slot, index) => {
     const indexWeight = index / Math.max(1, baseLineup.length - 1);
     const varianceNudge = (rng() - 0.5) * 2.4;
-    const projection = Math.max(0.5, slot.projection + varianceNudge);
+    const projection = Math.max(0.5, (slot.projection ?? 0.5) + varianceNudge);
     const spreadBase = Math.max(1.6, (slot.ceiling ?? projection) - (slot.floor ?? projection));
     const floorSwing = spreadBase * (0.45 + indexWeight * 0.2 + rng() * 0.08);
     const ceilingSwing = spreadBase * (0.55 + (1 - indexWeight) * 0.18 + rng() * 0.1);

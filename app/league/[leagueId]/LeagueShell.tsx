@@ -6,7 +6,7 @@ import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
 import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { LucideIcon } from 'lucide-react'
 import {
   ArrowLeftRight,
@@ -48,6 +48,7 @@ import {
   Zap,
   Brain,
   Swords,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { League, LeagueInvite, LeagueTeam } from '@prisma/client'
@@ -87,6 +88,7 @@ import { RedraftTab } from './tabs/RedraftTab'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
+import { DynastyHome } from './tabs/DynastyHome'
 import { SurvivorHome } from '@/components/survivor/SurvivorHome'
 import { SurvivorLeagueDeepLinkPanel } from '@/components/survivor/SurvivorLeagueDeepLinkPanel'
 import { SurvivorFirstEntryModal } from '@/components/survivor/SurvivorFirstEntryModal'
@@ -114,6 +116,7 @@ import {
 import { DevyLeagueHomeHero } from '@/components/devy/DevyLeagueHomeHero'
 import { applyMatchupPrimaryTab, shouldUseMatchupInsteadOfDraft } from '@/lib/matchup-center/tabTransition'
 import { MatchupTabContainer } from '@/components/matchup-center/MatchupTabContainer'
+import { FinanceTab } from '@/components/league-finance/FinanceTab'
 
 export type SleeperMemberMap = Record<string, { display_name: string; avatar: string | null }>
 
@@ -209,6 +212,7 @@ export function LeagueShell({
   leagueDashboard,
 }: LeagueShellProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const myLeaguesRail = useMyLeaguesRailCollapse()
   const searchParams = useSearchParams()
   const openChatQuery = searchParams?.get('openChat') ?? null
@@ -277,6 +281,15 @@ export function LeagueShell({
     if (league.leagueType === 'keeper' && league.keeperPhaseActive) {
       base = [{ id: 'keeper', label: 'Keepers' }, ...base]
     }
+    if (league.leagueType === 'dynasty' || league.leagueType === 'devy' || league.leagueType === 'c2c') {
+      const idx = base.findIndex((t) => t.id === 'redraft')
+      const dynastyTabs: TabDef[] = [
+        { id: 'dynasty', label: '🏆 Dynasty' },
+        { id: 'dynasty_taxi', label: '🚕 Taxi' },
+        { id: 'dynasty_picks', label: '📋 Picks' },
+      ]
+      base = idx >= 0 ? [...base.slice(0, idx + 1), ...dynastyTabs, ...base.slice(idx + 1)] : [...dynastyTabs, ...base]
+    }
     const withSettings = [...base, { id: 'settings', label: '⚙ Settings' }]
     return localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t)
   }, [
@@ -293,6 +306,7 @@ export function LeagueShell({
     language,
   ])
   const [activeTab, setActiveTab] = useState<string>(() => tabDefs[0]?.id ?? 'draft')
+  const [rosterLegalityIssueCount, setRosterLegalityIssueCount] = useState(0)
   const guillotineLandingApplied = useRef(false)
   const survivorLandingApplied = useRef(false)
   const zombieLandingApplied = useRef(false)
@@ -303,6 +317,21 @@ export function LeagueShell({
     survivorLandingApplied.current = false
     zombieLandingApplied.current = false
     bigBrotherLandingApplied.current = false
+  }, [league.id])
+
+  useEffect(() => {
+    setRosterLegalityIssueCount(0)
+  }, [league.id])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ leagueId?: string; count?: number }>
+      if (ce.detail?.leagueId !== league.id) return
+      const n = ce.detail?.count
+      setRosterLegalityIssueCount(typeof n === 'number' && n > 0 ? Math.min(99, n) : 0)
+    }
+    window.addEventListener('af-roster-legality', handler as EventListener)
+    return () => window.removeEventListener('af-roster-legality', handler as EventListener)
   }, [league.id])
 
   useEffect(() => {
@@ -462,6 +491,17 @@ export function LeagueShell({
   const [commissionerSettingsOpen, setCommissionerSettingsOpen] = useState(false)
   const [c2cConfig, setC2cConfig] = useState<C2CConfigClient | null>(null)
   const [c2cChecked, setC2cChecked] = useState(false)
+  const conceptIntroVideoUrl = useMemo(() => {
+    const settings =
+      league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+        ? (league.settings as Record<string, unknown>)
+        : null
+    if (!settings) return null
+    const intro = settings.intro_video ?? settings.introVideo
+    if (!intro || typeof intro !== 'object' || Array.isArray(intro)) return null
+    const url = (intro as Record<string, unknown>).url
+    return typeof url === 'string' && url.trim().length > 0 ? url.trim() : null
+  }, [league.settings])
 
   useEffect(() => {
     setPortalMounted(true)
@@ -646,6 +686,24 @@ export function LeagueShell({
     setSettingsInitialPanel(null)
   }
 
+  const settingsPanelDeepLinkRef = useRef<string | null>(null)
+  /** Deep-link from draft room gear: `/league/{id}?settingsPanel=draft` opens Draft settings panel. */
+  useEffect(() => {
+    const panel = searchParams?.get('settingsPanel')
+    if (!panel) {
+      settingsPanelDeepLinkRef.current = null
+      return
+    }
+    if (settingsPanelDeepLinkRef.current === panel) return
+    settingsPanelDeepLinkRef.current = panel
+    openLeagueSettingsModal(panel)
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    params.delete('settingsPanel')
+    const q = params.toString()
+    const base = pathname ?? `/league/${league.id}`
+    router.replace(q ? `${base}?${q}` : base, { scroll: false })
+  }, [searchParams, pathname, router, league.id])
+
   const specialtyAtmosphereMood = useMemo(() => {
     if (league.leagueVariant === 'survivor') {
       if (activeTab === 'survivor_tribal') return 'tribal'
@@ -792,6 +850,10 @@ export function LeagueShell({
                   ? specialtyImmersive
                     ? 'border-x border-fuchsia-500/12 bg-gradient-to-b from-black/50 via-violet-950/20 to-black/58'
                     : 'border-x border-amber-500/12 bg-gradient-to-b from-[#0a0e1c] via-[#070a14] to-[#040915]'
+                  : league.leagueVariant === 'merged_devy_c2c'
+                    ? 'border-x border-sky-500/15 bg-gradient-to-b from-[#07111f] via-[#050a16] to-[#060b14]'
+                    : league.leagueType === 'devy' || league.leagueVariant === 'devy_dynasty'
+                      ? 'border-x border-indigo-500/15 bg-gradient-to-b from-[#0a1022] via-[#070a18] to-[#060913]'
                   : ''
           }`}
           data-league-variant={
@@ -847,6 +909,7 @@ export function LeagueShell({
               tabs={tabDefs}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              rosterIssueCount={rosterLegalityIssueCount}
               compactTitleRow={showSpecialtyHero || showDevyHero}
               onOpenLeagueSettingsModal={() => openLeagueSettingsModal(null)}
               memberGearMenu={
@@ -990,10 +1053,23 @@ export function LeagueShell({
           )
         : null}
 
+      {portalMounted && league.leagueVariant === 'merged_devy_c2c'
+        ? createPortal(
+            <DevyFirstEntryModal
+              leagueId={league.id}
+              userId={userId}
+              enabled
+              mode="c2c"
+              videoSrc={conceptIntroVideoUrl ?? '/league-type-c2c-intro.mp4'}
+              onClose={() => {}}
+            />,
+            document.body,
+          )
+        : null}
+
       {portalMounted &&
       (league.leagueType === 'devy' ||
-        league.leagueVariant === 'devy_dynasty' ||
-        league.leagueVariant === 'merged_devy_c2c')
+        league.leagueVariant === 'devy_dynasty')
         ? createPortal(
             <DevyFirstEntryModal leagueId={league.id} userId={userId} enabled onClose={() => {}} />,
             document.body,
@@ -1151,6 +1227,10 @@ function LeagueTabRouter({
       return (
         <GuillotineTab leagueId={leagueId} sport={sport} leagueName={selectedLeague.name} />
       )
+    case 'dynasty':
+    case 'dynasty_taxi':
+    case 'dynasty_picks':
+      return <DynastyHome leagueId={leagueId} view={activeTab as 'dynasty' | 'dynasty_taxi' | 'dynasty_picks'} />
     case 'survivor':
       return <SurvivorHome leagueId={leagueId} />
     case 'survivor_tribal':
@@ -1244,6 +1324,8 @@ function LeagueTabRouter({
       return (
         <ScoresTab league={selectedLeague} sport={sport} idpLeagueUi={idpLeagueActive} />
       )
+    case 'finance':
+      return <FinanceTab leagueId={leagueId} isCommissioner={isCommissioner} />
     case 'war_room':
       return <WarRoomTab league={selectedLeague} sport={sport} />
     case 'ai_coaching':
@@ -1291,6 +1373,7 @@ const LEAGUE_TAB_NAV_ICONS: Record<string, LucideIcon> = {
   trend: LineChart,
   trades: ArrowLeftRight,
   scores: BarChart3,
+  finance: Wallet,
   war_room: Telescope,
   ai_coaching: Brain,
   history: History,
@@ -1353,6 +1436,7 @@ function LeagueHeader({
   tabs,
   activeTab,
   onTabChange,
+  rosterIssueCount = 0,
   compactTitleRow = false,
   onOpenLeagueSettingsModal,
   memberGearMenu,
@@ -1377,6 +1461,8 @@ function LeagueHeader({
   tabs: TabDef[]
   activeTab: string
   onTabChange: (t: string) => void
+  /** Illegal roster / lineup issue count for Team / Roster / Squad tab badge. */
+  rosterIssueCount?: number
   /** When true, title row is hidden (content lives in `SpecialtyLeagueHomeHero`). */
   compactTitleRow?: boolean
   /** Opens the full League Settings modal (commissioner / co-comm hub, or member card grid). */
@@ -1882,6 +1968,8 @@ function LeagueHeader({
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id
+            const rosterTab = tab.id === 'team' || tab.id === 'roster' || tab.id === 'squad'
+            const showRosterBadge = rosterIssueCount > 0 && rosterTab
             return (
               <button
                 key={tab.id}
@@ -1906,6 +1994,20 @@ function LeagueHeader({
                   )}
                 />
                 <span className="truncate">{tab.label}</span>
+                {showRosterBadge ? (
+                  <span
+                    className={cn(
+                      'ml-0.5 min-w-[1.125rem] rounded-full px-1 text-center text-[9px] font-extrabold tabular-nums ring-1',
+                      isActive
+                        ? 'bg-amber-500 text-[#050814] ring-amber-700/40'
+                        : 'bg-amber-500/95 text-[#050814] ring-amber-400/30',
+                    )}
+                    aria-label={`${rosterIssueCount} roster issues`}
+                    data-testid={`league-tab-${tab.id}-roster-issues-badge`}
+                  >
+                    {rosterIssueCount > 99 ? '99+' : rosterIssueCount}
+                  </span>
+                ) : null}
               </button>
             )
           })}

@@ -1,6 +1,8 @@
 import type { C2CPlayerState } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getScoringEligibility } from '@/lib/c2c/scoringEngine'
+import { validateC2CRosterSlots } from '@/lib/merged-devy-c2c/roster/C2CRosterRules'
+import { resolveTaxiLock } from '@/lib/c2c/taxiLockResolver'
 
 export type LineupValidationResult = {
   valid: boolean
@@ -39,14 +41,64 @@ export async function movePlayer(
     throw new Error('Campus players cannot occupy canton starter slots')
   }
 
-  if (targetBucket === 'taxi') {
-    if (cfg.taxiRookieOnly && !row.isRookieEligible) throw new Error('Taxi is rookie-only for this league')
-    if (cfg.taxiLockDeadline && cfg.taxiLockDeadline.getTime() < Date.now()) {
-      throw new Error('Taxi lock deadline has passed')
+  if (targetBucket === 'taxi' || row.bucketState === 'taxi') {
+    // Honor both "moving onto taxi" and "moving off taxi" — the deadline
+    // governs all taxi edits, not just adds.
+    if (targetBucket === 'taxi' && cfg.taxiRookieOnly && !row.isRookieEligible) {
+      throw new Error('Taxi is rookie-only for this league')
+    }
+    const lock = await resolveTaxiLock(leagueId)
+    if (lock.isLocked) {
+      throw new Error(
+        lock.mode === 'preseason'
+          ? 'Taxi is locked — preseason deadline has passed.'
+          : 'Taxi is locked — season has started.',
+      )
     }
   }
 
   const scoringEligibility = getScoringEligibility(side, targetBucket, cfg.devyScoringEnabled)
+
+  // Project the roster after this move and enforce slot legality (taxi
+  // overflow, college-pool overflow, graduated players in college slots)
+  // so illegal adds/trades are rejected before persistence.
+  const allRows = await prisma.c2CPlayerState.findMany({
+    where: { leagueId, rosterId },
+    select: { playerId: true, bucketState: true, playerSide: true, classYear: true },
+  })
+  const projected = allRows.map((r) =>
+    r.playerId === playerId ? { ...r, bucketState: targetBucket } : r,
+  )
+  const collegeSlotsFilled = projected.filter(
+    (r) => r.bucketState === 'devy' || (r.bucketState === 'campus_starter' && r.playerSide === 'campus'),
+  ).length
+  const collegeSlotsGraduatedInCollege = projected.filter(
+    (r) =>
+      (r.bucketState === 'devy' || r.bucketState === 'campus_starter') &&
+      r.classYear === 'graduated',
+  ).length
+  const taxiCount = projected.filter((r) => r.bucketState === 'taxi').length
+  const proRosterCount = projected.filter(
+    (r) =>
+      r.bucketState === 'canton_starter' ||
+      r.bucketState === 'bench' ||
+      r.bucketState === 'ir',
+  ).length
+  const legality = validateC2CRosterSlots({
+    config: {
+      collegeRosterSize: cfg.devySlots ?? undefined,
+      taxiSize: cfg.taxiSlots ?? undefined,
+      proBenchSize: cfg.benchSlots ?? undefined,
+      proIRSize: cfg.irSlots ?? undefined,
+    } as never,
+    collegeSlotsFilled,
+    collegeSlotsGraduatedInCollege,
+    proRosterCount,
+    taxiCount,
+  })
+  if (!legality.legal) {
+    throw new Error(`Illegal C2C roster: ${legality.errors.join(' ')}`)
+  }
 
   return prisma.c2CPlayerState.update({
     where: { leagueId_rosterId_playerId: { leagueId, rosterId, playerId } },

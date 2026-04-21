@@ -288,7 +288,7 @@ export default function DashboardContent({
                 Create League
               </Link>
               <Link
-                href="/import"
+                href="/import?returnTo=/dashboard"
                 className="inline-flex min-h-[44px] items-center rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.08]"
               >
                 Import League

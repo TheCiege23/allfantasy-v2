@@ -4,6 +4,7 @@
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
+import { resolveRegularSeasonLengthWeeks } from '@/lib/schedule-defaults/schedule-settings-slice'
 import type { SportType } from '@/lib/sport-defaults/types'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
@@ -41,13 +42,14 @@ export async function getMatchupCadenceForLeague(leagueId: string): Promise<Matc
 
   const cadence = fromSettings<string>('schedule_cadence', defaults.matchup_cadence ?? defaults.matchup_frequency)
   const strategy = fromSettings<string>('schedule_generation_strategy', defaults.schedule_generation_strategy ?? 'round_robin')
+  const regularSeasonWeeks = resolveRegularSeasonLengthWeeks(settings, defaults.regular_season_length)
 
   return {
     schedule_unit: fromSettings<string>('schedule_unit', defaults.schedule_unit),
     matchup_frequency: fromSettings<string>('matchup_frequency', defaults.matchup_frequency),
     matchup_cadence: typeof cadence === 'string' ? cadence : defaults.matchup_frequency,
     head_to_head_behavior: fromSettings<string>('schedule_head_to_head_behavior', defaults.head_to_head_or_points_behavior ?? 'head_to_head'),
-    regular_season_length: fromSettings<number>('regular_season_length', defaults.regular_season_length),
+    regular_season_length: regularSeasonWeeks,
     schedule_generation_strategy: typeof strategy === 'string' ? strategy : 'round_robin',
     sport,
     variant,

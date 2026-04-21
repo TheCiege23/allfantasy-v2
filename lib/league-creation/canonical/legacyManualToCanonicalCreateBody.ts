@@ -9,6 +9,7 @@ import { getDefaultScoringPresetId } from '@/lib/league-creation-preset/scoring-
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
 export type LegacyManualCanonicalBuildInput = {
   sport: string
@@ -64,6 +65,22 @@ export function buildLegacyManualCanonicalCreatePayload(input: LegacyManualCanon
     if (typeof tribe === 'number' && Number.isFinite(tribe)) {
       conceptSetup.survivorTribeCount = Math.max(2, Math.min(4, Math.round(tribe)))
     }
+  }
+  if (ltRaw === 'best_ball') {
+    const rawBestBall =
+      sw.best_ball_settings && typeof sw.best_ball_settings === 'object' && !Array.isArray(sw.best_ball_settings)
+        ? (sw.best_ball_settings as Record<string, unknown>)
+        : sw.bestBall && typeof sw.bestBall === 'object' && !Array.isArray(sw.bestBall)
+          ? (sw.bestBall as Record<string, unknown>)
+          : null
+    const normalizedBestBall = normalizeBestBallSettings({
+      sport,
+      conceptSetup: rawBestBall ? { bestBall: rawBestBall } : null,
+      draftType,
+      timezone: tz,
+      language: sw.language === 'es' || sw.language === 'en' ? sw.language : null,
+    })
+    conceptSetup.bestBall = normalizedBestBall
   }
 
   const tradeReviewRaw = sw.trade_review_mode

@@ -18,6 +18,10 @@ export type EngineTestScenarioId =
   | 'idp_nfl'
   | 'imported_sleeper_style'
   | 'superflex_nfl'
+  | 'survivor_nfl'
+  | 'salary_cap_nfl'
+  | 'nba_redraft'
+  | 'soccer_redraft'
 
 export type LeagueEngineScenarioFixture = {
   id: EngineTestScenarioId
@@ -128,6 +132,48 @@ export const LEAGUE_ENGINE_SCENARIO_FIXTURES: LeagueEngineScenarioFixture[] = [
       concept: 'redraft',
       leagueName: 'Superflex',
       scoringPreset: 'superflex_half_ppr',
+    }),
+  },
+  {
+    id: 'survivor_nfl',
+    label: 'Survivor format',
+    preset: base({
+      concept: 'survivor',
+      leagueName: 'Survivor',
+      teamCount: 16,
+      scoringPreset: 'half_ppr',
+    }),
+  },
+  {
+    id: 'salary_cap_nfl',
+    label: 'Salary cap shell',
+    preset: base({
+      concept: 'salary_cap',
+      leagueName: 'Salary Cap',
+      scoringPreset: 'ppr',
+      draftType: 'auction',
+    }),
+  },
+  {
+    id: 'nba_redraft',
+    label: 'NBA redraft (multi-sport preset path)',
+    preset: base({
+      sport: 'NBA',
+      concept: 'redraft',
+      leagueName: 'NBA Test',
+      scoringPreset: 'ppr',
+      teamCount: 12,
+    }),
+  },
+  {
+    id: 'soccer_redraft',
+    label: 'Soccer redraft (multi-sport preset path)',
+    preset: base({
+      sport: 'SOCCER',
+      concept: 'redraft',
+      leagueName: 'Soccer Test',
+      scoringPreset: 'ppr',
+      teamCount: 10,
     }),
   },
 ]

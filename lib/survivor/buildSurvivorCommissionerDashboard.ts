@@ -15,6 +15,7 @@ import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
 import { TokenBalanceResolver } from '@/lib/tokens/TokenBalanceResolver'
 import { resolveAfPlanFromEntitlement } from '@/lib/tournament/resolve-af-plan-from-subscription'
 import type { AfPlanId } from '@/lib/tournament/af-premium-plans'
+import { extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
 
 export type SurvivorCommissionerDashboardResult =
   | {
@@ -86,7 +87,7 @@ export async function buildSurvivorCommissionerDashboard(
 
   const [
     config,
-    tribes,
+    tribeRows,
     council,
     jury,
     merged,
@@ -115,6 +116,11 @@ export async function buildSurvivorCommissionerDashboard(
     new TokenBalanceResolver().resolveForUser(userId, email),
     getCurrentlyEliminatedRosterIds(leagueId),
   ])
+
+  const tribes = tribeRows.map((tribe) => ({
+    ...tribe,
+    emoji: extractLeadingTribeIcon(tribe.name),
+  }))
 
   const afPlan = resolveAfPlanFromEntitlement(entitlementSnapshot.plans, entitlementSnapshot.status)
 

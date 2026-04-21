@@ -14,6 +14,8 @@ export type LeagueEngineSubsystem =
   | 'notification'
   | 'cron'
   | 'queue'
+  | 'matchup'
+  | 'api'
 
 export type LeagueEngineLogEvent = {
   subsystem: LeagueEngineSubsystem
@@ -66,6 +68,31 @@ export function logLeagueEngineBatchSummary(event: {
       processed: event.processed,
       failed: event.failed ?? 0,
       ...event.extra,
+    },
+  })
+}
+
+/** Default slow-path threshold for API routes (matchup build, import preview, etc.). */
+export const DEFAULT_SLOW_ROUTE_MS = 2500
+
+/** Roll-up summary for batch / cron health dashboards (no PII). */
+export type LeagueEngineFailureSummary = {
+  subsystem: LeagueEngineSubsystem
+  action: string
+  failures: number
+  total: number
+  sampleError?: string
+}
+
+export function logLeagueEngineFailureSummary(summary: LeagueEngineFailureSummary): void {
+  logLeagueEngineEvent({
+    subsystem: summary.subsystem,
+    action: `${summary.action}_batch_summary`,
+    ok: summary.failures === 0,
+    error: summary.sampleError,
+    extra: {
+      failures: summary.failures,
+      total: summary.total,
     },
   })
 }

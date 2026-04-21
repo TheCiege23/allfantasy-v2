@@ -1,5 +1,6 @@
 /**
- * Extended dry-run: preset + draft plan + lifecycle + create validation + trade + roster + lineup lock.
+ * Extended dry-run: preset + draft plan + lifecycle + create validation + trade + roster + lineup lock
+ * + waiver rules + matchup command center + AI shape guards + hardening sanity.
  * No database — safe for CI and stress loops.
  */
 
@@ -14,6 +15,7 @@ import { evaluateLineupLock } from '@/lib/league/lineup-lock'
 import {
   buildEngineTestLeague,
   buildEngineTestRoster,
+  buildMinimalValidMatchupCenterPayload,
   buildPlayerSwapTradeAssets,
 } from '@/lib/engine-testing/fixtures/enginePayloadBuilders'
 import type { LeagueEngineScenarioFixture } from '@/lib/engine-testing/fixtures/leagueScenarioFixtures'
@@ -22,6 +24,22 @@ import {
   type LeagueSimulationReport,
   type SimulationStep,
 } from '@/lib/engine-testing/simulation/leagueSimulationHarness'
+import { assertValidMatchupPayload } from '@/lib/matchup-center/validateMatchupPayload'
+import { getClaimPriorityRule, isFaabPriority } from '@/lib/waiver-defaults/ClaimPriorityResolver'
+import {
+  assertLeagueMatchupAiResultShape,
+  assertStartSitAiResultShape,
+  buildStubLeagueMatchupAiResult,
+  buildStubStartSitAiResult,
+} from '@/lib/engine-testing/hardening/aiPayloadGuards'
+import {
+  assertMatchupPayloadWeekAligned,
+  assertNoDuplicateWaiverRun,
+  assertNonNegativeWeeklyPoints,
+  assertNotificationDedupeKeyPresent,
+  assertTradePlayersOwnedBySendingRoster,
+  assertValidSpecialtyAutomationTrigger,
+} from '@/lib/engine-testing/hardening/engineInvariants'
 
 export type ExtendedSimulationStep =
   | SimulationStep
@@ -29,6 +47,12 @@ export type ExtendedSimulationStep =
   | { kind: 'trade_validation'; ok: boolean; code?: string }
   | { kind: 'roster_duplicate_scan'; issueCount: number }
   | { kind: 'lineup_lock_probe'; locked: boolean; policy: string }
+  | { kind: 'waiver_priority_rule'; label: string }
+  | { kind: 'waiver_faab_detected'; isFaab: boolean }
+  | { kind: 'matchup_command_center_payload'; ok: boolean }
+  | { kind: 'ai_matchup_shape'; ok: boolean }
+  | { kind: 'ai_startsit_shape'; ok: boolean }
+  | { kind: 'hardening_sanity'; ok: boolean }
 
 export type ExtendedLeagueSimulationReport = LeagueSimulationReport & {
   extendedOnlySteps: ExtendedSimulationStep[]
@@ -53,6 +77,7 @@ export function runExtendedLeagueEngineSimulation(
     draftType: String(p.draftType),
     scoringPreset: p.scoringPreset,
     leagueName: p.leagueName ?? 'Sim',
+    ...(String(p.sport).toUpperCase() === 'SOCCER' ? { soccerPipeline: 'mls' as const } : {}),
   })
   extendedOnlySteps.push({ kind: 'create_payload', ok: cp.ok })
 
@@ -103,7 +128,45 @@ export function runExtendedLeagueEngineSimulation(
     policy: lock.policy,
   })
 
-  const extendedOk = cp.ok && tv.ok && dupIssues.length > 0
+  const wRule = getClaimPriorityRule('faab_highest')
+  extendedOnlySteps.push({ kind: 'waiver_priority_rule', label: wRule.label })
+  extendedOnlySteps.push({
+    kind: 'waiver_faab_detected',
+    isFaab: isFaabPriority('faab', 'faab_highest'),
+  })
+
+  const mcp = buildMinimalValidMatchupCenterPayload({ leagueId: lg.id })
+  const mv = assertValidMatchupPayload(mcp)
+  extendedOnlySteps.push({ kind: 'matchup_command_center_payload', ok: mv.ok })
+
+  const aiMatchupOk = assertLeagueMatchupAiResultShape(buildStubLeagueMatchupAiResult()).ok
+  const aiStartSitOk = assertStartSitAiResultShape(buildStubStartSitAiResult()).ok
+  extendedOnlySteps.push({ kind: 'ai_matchup_shape', ok: aiMatchupOk })
+  extendedOnlySteps.push({ kind: 'ai_startsit_shape', ok: aiStartSitOk })
+
+  const hardeningOk =
+    assertNoDuplicateWaiverRun({
+      runKey: 'w1',
+      completedRunKeys: new Set(),
+      force: false,
+    }).ok &&
+    assertNotificationDedupeKeyPresent('dedupe:key:1').ok &&
+    assertTradePlayersOwnedBySendingRoster({ rosterPlayerIds: ['p1', 'p2'], sendingPlayerIds: ['p1'] }).ok &&
+    assertMatchupPayloadWeekAligned({ payloadWeek: 1, expectedWeek: 1 }).ok &&
+    assertValidSpecialtyAutomationTrigger('onWeekFinalized').ok &&
+    assertNonNegativeWeeklyPoints(100).ok
+
+  extendedOnlySteps.push({ kind: 'hardening_sanity', ok: hardeningOk })
+
+  const matchupOk = mv.ok
+  const extendedOk =
+    cp.ok &&
+    tv.ok &&
+    dupIssues.length > 0 &&
+    matchupOk &&
+    aiMatchupOk &&
+    aiStartSitOk &&
+    hardeningOk
   const errors = [...base.errors]
   if (!extendedOk) {
     errors.push('extended_league_engine_simulation_failed')

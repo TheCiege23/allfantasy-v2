@@ -5,6 +5,7 @@
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { resolveDefaultScheduleConfig } from '@/lib/sport-defaults/DefaultScheduleConfigResolver'
+import { resolveRegularSeasonLengthWeeks } from '@/lib/schedule-defaults/schedule-settings-slice'
 import type { SportType } from '@/lib/sport-defaults/types'
 import { toSportType } from '@/lib/sport-defaults/sport-type-utils'
 
@@ -44,9 +45,10 @@ export async function getLeagueScheduleGenerationContext(
   }
 
   const playoffTransition = fromSettings<number | null>('schedule_playoff_transition_point', defaults.playoff_transition_point ?? null)
+  const regularSeasonWeeks = resolveRegularSeasonLengthWeeks(settings, defaults.regular_season_length)
 
   return {
-    regular_season_length: fromSettings<number>('regular_season_length', defaults.regular_season_length),
+    regular_season_length: regularSeasonWeeks,
     schedule_unit: fromSettings<string>('schedule_unit', defaults.schedule_unit),
     matchup_frequency: fromSettings<string>('matchup_frequency', defaults.matchup_frequency),
     schedule_cadence: fromSettings<string>('schedule_cadence', defaults.matchup_cadence ?? defaults.matchup_frequency),

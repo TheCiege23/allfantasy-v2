@@ -51,6 +51,15 @@ export async function runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate(
     isIdpRequested,
   } = flags
 
+  const normalizeC2CStartupDraftType = (
+    draftTypeRaw: string | undefined
+  ): 'snake' | 'linear' | 'auction' => {
+    const d = String(draftTypeRaw ?? '').trim().toLowerCase()
+    if (d.includes('auction')) return 'auction'
+    if (d.includes('linear')) return 'linear'
+    return 'snake'
+  }
+
   try {
     const { upsertLeagueWaiverSettings } = await import('@/lib/waiver-wire')
     const waiverProcessingDaysRaw = initialSettings.waiver_processing_days
@@ -282,6 +291,7 @@ export async function runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate(
     try {
       const { upsertC2CConfig } = await import('@/lib/merged-devy-c2c/C2CLeagueConfig')
       const s = settingsWizard as Record<string, unknown> | undefined
+      const startupDraftType = normalizeC2CStartupDraftType(requestedDraftType)
       const c2cCollegeRoster =
         typeof s?.c2c_college_slots_creation === 'number' && Number.isFinite(s.c2c_college_slots_creation)
           ? s.c2c_college_slots_creation
@@ -296,6 +306,7 @@ export async function runLegacyWizardSpecialtyBootstrapsAfterLeagueCreate(
         startupFormat: (s?.c2c_startup_mode as string) ?? 'merged',
         mergedStartupDraft: (s?.c2c_startup_mode as string) !== 'separate',
         separateStartupCollegeDraft: (s?.c2c_startup_mode as string) === 'separate',
+        startupDraftType,
         standingsModel: (s?.c2c_standings_model as string) ?? 'unified',
         collegeSports: Array.isArray(s?.c2c_college_sports)
           ? (s?.c2c_college_sports as string[]).filter(Boolean)

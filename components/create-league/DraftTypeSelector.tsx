@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
 import { getEffectiveLeagueType } from '@/lib/create-league-v2/state'
@@ -10,6 +10,8 @@ import {
   isThirdRoundReversalAvailable,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, Segmented, Toggle } from '@/components/create-league-v2/primitives'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { localizeDraftTypeOption } from '@/lib/i18n/createLeagueWire'
 
 export function DraftTypeSelector({
   state,
@@ -24,11 +26,16 @@ export function DraftTypeSelector({
   onDraftSectionVisible?: (visible: boolean) => void
   draftError?: string
 }) {
+  const { t } = useLanguage()
   const effectiveType = getEffectiveLeagueType(state)
   const draftSectionRef = useRef<HTMLDivElement | null>(null)
   const [draftInView, setDraftInView] = useState(false)
 
   const draftOptions = effectiveType ? getDraftTypeOptions(effectiveType, state.sport) : []
+  const localizedDraftOptions = useMemo(
+    () => draftOptions.map((opt) => localizeDraftTypeOption(t, opt)),
+    [draftOptions, t],
+  )
   const isSnake = state.draftType === 'snake'
   const unlocked = Boolean(effectiveType && state.name.trim().length >= 3)
 
@@ -51,11 +58,11 @@ export function DraftTypeSelector({
     <div ref={draftSectionRef}>
       <GlassCard className={!unlocked ? 'pointer-events-none opacity-40' : ''}>
         <SectionHeader
-          title="4 · Draft type"
-          hint="How picks are ordered — adjust timers and order in League Settings after creation."
+          title={t('createLeague.section.draftTitle')}
+          hint={t('createLeague.section.draftHint')}
         />
         <Segmented
-          options={draftOptions.map((dt) => ({
+          options={localizedDraftOptions.map((dt) => ({
             value: dt.id,
             label: dt.label,
             hint: dt.hint,
@@ -67,7 +74,7 @@ export function DraftTypeSelector({
           }
           onChange={(draftType) => onChange({ draftType })}
           accent={accent}
-          ariaLabel="Draft type"
+          ariaLabel={t('createLeague.draft.ariaType')}
         />
         {draftError ? (
           <p className="mt-2 text-xs text-rose-300/90" role="alert">
@@ -79,15 +86,15 @@ export function DraftTypeSelector({
             <Toggle
               checked={state.thirdRoundReversal && isSnake}
               onChange={(v) => onChange({ thirdRoundReversal: v })}
-              label="Third Round Reversal"
-              description="Snake reverses again in round 3 — optional twist for startups."
+              label={t('createLeague.draft.thirdRoundReversal')}
+              description={t('createLeague.draft.thirdRoundReversalDesc')}
               accent={accent}
             />
           </div>
         ) : null}
         {draftInView ? (
           <p className="mt-3 text-[10px] text-white/30" aria-hidden>
-            Draft preview media follows concept → draft → sport priority.
+            {t('createLeague.draft.previewNote')}
           </p>
         ) : null}
       </GlassCard>

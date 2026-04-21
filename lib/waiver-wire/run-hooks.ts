@@ -10,6 +10,7 @@ import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher
 import { handleInvalidationTrigger } from "@/lib/trade-engine/caching"
 import { onWaiverReaction } from "@/lib/commentary-engine"
 import { normalizeToSupportedSport } from "@/lib/sport-scope"
+import { isLeaguePrefEnabled, parseLeagueNotificationPrefs } from "@/lib/league/league-notification-prefs"
 import type { ProcessedClaimResult } from "./types"
 
 /** Called after processWaiverClaimsForLeague; posts to activity feed and league chat when configured. */
@@ -30,21 +31,69 @@ export async function onWaiverRunComplete(
     if (memberIds.length > 0) {
       const league = await (prisma as any).league.findUnique({
         where: { id: leagueId },
-        select: { name: true },
+        select: { name: true, settings: true },
       })
-      const leagueName = league?.name ? ` — ${league.name}` : ""
-      dispatchNotification({
-        userIds: memberIds,
-        category: "waiver_processing",
-        productType: "app",
-        type: "waiver_processed",
-        title: `Waivers processed${leagueName}`,
-        body: message,
-        actionHref: `/league/${leagueId}`,
-        actionLabel: "Open league",
-        meta: { leagueId, awarded, total: results.length },
-        severity: "medium",
-      }).catch((e) => console.error("[waiver run] notify", e))
+      const prefs = parseLeagueNotificationPrefs(league?.settings)
+      if (isLeaguePrefEnabled(prefs, "waiverResults")) {
+        const leagueName = league?.name ? ` — ${league.name}` : ""
+        dispatchNotification({
+          userIds: memberIds,
+          category: "waiver_processing",
+          productType: "app",
+          type: "waiver_processed",
+          title: `Waivers processed${leagueName}`,
+          body: message,
+          actionHref: `/league/${leagueId}`,
+          actionLabel: "Open league",
+          meta: { leagueId, awarded, total: results.length },
+          severity: "medium",
+        }).catch((e) => console.error("[waiver run] notify", e))
+      }
+    }
+  } catch {
+    // non-fatal
+  }
+
+  try {
+    const rosterRows = await (prisma as any).roster.findMany({
+      where: { id: { in: [...new Set(results.map((r) => r.rosterId))] } },
+      select: { id: true, platformUserId: true },
+    })
+    const uidByRoster = new Map(rosterRows.map((r: { id: string; platformUserId: string }) => [r.id, r.platformUserId]))
+    for (const r of results) {
+      const uid = uidByRoster.get(r.rosterId)
+      if (!uid || typeof uid !== "string" || !uid.trim()) continue
+      if (r.success) {
+        void dispatchNotification({
+          userIds: [uid.trim()],
+          category: "waiver_processing",
+          productType: "app",
+          type: "waiver_claim_won",
+          title: "Waiver claim awarded",
+          body: r.message ?? "Your waiver claim was processed.",
+          actionHref: `/league/${leagueId}`,
+          actionLabel: "View roster",
+          meta: { leagueId, claimId: r.claimId, addPlayerId: r.addPlayerId, outcomeCode: r.outcomeCode ?? "won" },
+          severity: "low",
+        }).catch(() => {})
+      } else if (
+        r.outcomeCode === "insufficient_faab" ||
+        r.outcomeCode === "player_no_longer_available" ||
+        r.outcomeCode === "invalid_due_to_roster"
+      ) {
+        void dispatchNotification({
+          userIds: [uid.trim()],
+          category: "waiver_processing",
+          productType: "app",
+          type: "waiver_claim_lost",
+          title: "Waiver claim not awarded",
+          body: r.message ?? "Your waiver claim did not go through.",
+          actionHref: `/league/${leagueId}`,
+          actionLabel: "Review waivers",
+          meta: { leagueId, claimId: r.claimId, outcomeCode: r.outcomeCode },
+          severity: "low",
+        }).catch(() => {})
+      }
     }
   } catch {
     // non-fatal

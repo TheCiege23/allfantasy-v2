@@ -15,6 +15,8 @@ import { getJuryMembers } from '@/lib/big-brother/BigBrotherJuryEngine'
 import { getRosterDisplayNamesForLeague } from '@/lib/big-brother/ai/getRosterDisplayNames'
 import { getBigBrotherSportCalendarContext } from '@/lib/big-brother/BigBrotherSportCalendar'
 import { compareMemoryWallEntries, resolveMemoryWallStatus } from '@/lib/big-brother/memoryWallStatus'
+import { resolveHaveNotRosterIdsForCycle } from '@/lib/big-brother/BigBrotherChatChannels'
+import { getVetoChallengeThemeHints } from '@/lib/big-brother/sport-adapter'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -36,11 +38,12 @@ export async function GET(
   const isBB = await isBigBrotherLeague(leagueId)
   if (!isBB) return NextResponse.json({ error: 'Not a Big Brother league' }, { status: 404 })
 
-  const [config, current, myRosterId, totalRosterCount] = await Promise.all([
+  const [config, current, myRosterId, totalRosterCount, league] = await Promise.all([
     getBigBrotherConfig(leagueId),
     getCurrentCycleForLeague(leagueId),
     getCurrentUserRosterIdForLeague(leagueId, userId),
     prisma.roster.count({ where: { leagueId } }),
+    prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }),
   ])
 
   if (!config) return NextResponse.json({ error: 'Config not found' }, { status: 500 })
@@ -67,6 +70,8 @@ export async function GET(
   let eligibility: Awaited<ReturnType<typeof getEligibility>> = null
   let jury: { rosterId: string; evictedWeek: number }[] = []
   let ballot: { canVote: boolean; voteDeadlineAt: string | null; closed: boolean } | null = null
+  let haveNotRosterIds: string[] = []
+  let vetoChallenge: { competitorRosterIds: string[]; challengeMode: string; themeHints: string[] } | null = null
 
   if (current) {
     const cycleRow = await prisma.bigBrotherCycle.findUnique({
@@ -108,6 +113,31 @@ export async function GET(
         canVote,
         voteDeadlineAt: cycle.voteDeadlineAt,
         closed: !!cycle.closedAt,
+      }
+    }
+
+    // Have-Not roster IDs (check for commissioner override first)
+    try {
+      const cycleForHaveNots = await prisma.bigBrotherCycle.findUnique({
+        where: { id: current.id },
+        select: { tieBreakSeasonPoints: true },
+      })
+      const raw = cycleForHaveNots?.tieBreakSeasonPoints as Record<string, unknown> | null
+      if (raw && Array.isArray(raw.haveNotOverride)) {
+        haveNotRosterIds = raw.haveNotOverride as string[]
+      } else {
+        haveNotRosterIds = await resolveHaveNotRosterIdsForCycle(leagueId, current.id)
+      }
+    } catch {
+      // non-fatal
+    }
+
+    // Veto challenge context
+    if (cycle?.phase === 'VETO_CHALLENGE_OPEN' && config) {
+      vetoChallenge = {
+        competitorRosterIds: (cycle.vetoParticipantRosterIds ?? []) as string[],
+        challengeMode: config.challengeMode ?? 'hybrid',
+        themeHints: getVetoChallengeThemeHints(config.sport),
       }
     }
   }
@@ -224,5 +254,8 @@ export async function GET(
     myStatus,
     rosterDisplayNames,
     memoryWall,
+    isCommissioner: league?.userId === userId,
+    haveNotRosterIds,
+    vetoChallenge,
   })
 }

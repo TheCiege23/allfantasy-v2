@@ -4,6 +4,7 @@ import { updateC2CMatchupScores } from '@/lib/c2c/scoringEngine'
 import { syncWeeklyScores } from '@/lib/survivor/gameStateMachine'
 import { checkAllMatchupsComplete } from '@/lib/zombie/matchupCompletion'
 import { runWeeklyResolution } from '@/lib/zombie/weeklyResolutionEngine'
+import { getZombieLeagueConfig } from '@/lib/zombie/ZombieLeagueConfig'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -46,7 +47,14 @@ export async function POST() {
       const week = Math.max(1, currentWeek || 1)
       const allComplete = await checkAllMatchupsComplete(leagueId, week, season)
       if (!allComplete) return
-      await runWeeklyResolution(id, week)
+
+      const cfg = await getZombieLeagueConfig(leagueId)
+      const replayOnStatCorrection = Boolean(cfg?.statCorrectionReversal)
+
+      await runWeeklyResolution(id, week, {
+        force: replayOnStatCorrection,
+        reason: replayOnStatCorrection ? 'stat_correction' : undefined,
+      })
     }),
   )
 

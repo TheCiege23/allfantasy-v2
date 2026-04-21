@@ -29,6 +29,28 @@ function avatarUrlFromId(avatar: string | null | undefined): string | null {
   return `https://sleepercdn.com/avatars/${avatar}`
 }
 
+function getSeasonAccent(index: number) {
+  if (index === 0) {
+    return {
+      pill: 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100',
+      card: 'border-cyan-400/18 bg-[linear-gradient(135deg,rgba(34,211,238,0.12),rgba(255,255,255,0.03))]',
+      label: 'Current import layer',
+    }
+  }
+  if (index === 1) {
+    return {
+      pill: 'border-indigo-400/30 bg-indigo-400/12 text-indigo-100',
+      card: 'border-indigo-400/18 bg-[linear-gradient(135deg,rgba(99,102,241,0.12),rgba(255,255,255,0.03))]',
+      label: 'Previous season layer',
+    }
+  }
+  return {
+    pill: 'border-amber-300/25 bg-amber-300/10 text-amber-50',
+    card: 'border-white/[0.06] bg-white/[0.04]',
+    label: 'Archive layer',
+  }
+}
+
 export function HistoryTab({ league }: HistoryTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,6 +60,10 @@ export function HistoryTab({ league }: HistoryTabProps) {
   const [syncing, setSyncing] = useState(false)
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [detailExpanded, setDetailExpanded] = useState<Record<number, boolean>>({})
+  const historicalBackfillStatus =
+    league.settings && typeof league.settings === 'object'
+      ? String((league.settings as Record<string, unknown>).historicalBackfillStatus ?? '')
+      : ''
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,6 +109,11 @@ export function HistoryTab({ league }: HistoryTabProps) {
       championships: m.championships,
     }))
   }, [sortedStandings])
+
+  const sortedSeasons = useMemo(
+    () => [...seasons].sort((a, b) => b.season - a.season),
+    [seasons]
+  )
 
   const barColor = (pct: number) => {
     if (pct >= 60) return '#10b981'
@@ -131,10 +162,10 @@ export function HistoryTab({ league }: HistoryTabProps) {
         <History className="mb-3 text-white/20" size={32} strokeWidth={1.25} />
         <p className="text-sm font-medium text-white/70">No historical data yet</p>
         <p className="mt-2 max-w-sm text-xs text-white/40">
-          Import your leagues to build this league&apos;s history. Sleeper dynasty chains are synced automatically after import.
+          Import your leagues to build this league&apos;s history. Current season and the previous year land first, then older seasons are layered into the archive tab automatically.
         </p>
         <Link
-          href="/import"
+          href="/import?returnTo=/dashboard"
           className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/[0.1]"
         >
           Import Leagues →
@@ -241,9 +272,16 @@ export function HistoryTab({ league }: HistoryTabProps) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-white/40">Season History</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-white/40">Season History</h2>
+          {historicalBackfillStatus === 'pending' ? (
+            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+              Layering prior seasons…
+            </span>
+          ) : null}
+        </div>
         <div className="space-y-3">
-          {seasons.map((s) => {
+          {sortedSeasons.map((s, index) => {
             const recs = (s.teamRecords as unknown[]) ?? []
             const open = expanded[s.season] ?? false
             const sorted = [...(recs as { wins?: number; pointsFor?: number; managerName?: string }[])].sort(
@@ -253,13 +291,17 @@ export function HistoryTab({ league }: HistoryTabProps) {
               (best, cur) => ((cur.pointsFor ?? 0) > (best?.pointsFor ?? 0) ? cur : best),
               sorted[0],
             )
+            const accent = getSeasonAccent(index)
             return (
               <div
                 key={s.id}
-                className="rounded-2xl border border-white/[0.06] bg-white/[0.04] p-4"
+                className={`rounded-2xl border p-4 ${accent.card}`}
               >
-                <div className="flex flex-wrap items-baseline gap-2 text-sm text-white/80">
-                  <span className="font-bold text-white">{s.season}</span>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-white/80">
+                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] ${accent.pill}`}>
+                    {s.season}
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">{accent.label}</span>
                   <span className="text-white/35">·</span>
                   <span className="text-white/55">{league.sport}</span>
                   <span className="text-white/35">·</span>

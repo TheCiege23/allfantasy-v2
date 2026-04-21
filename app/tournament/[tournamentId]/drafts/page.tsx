@@ -1,11 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { DraftTransitionCard, RoundResetExplainer } from '@/app/tournament/components/DraftTransitionCard'
 
 export default function TournamentDraftsPage() {
+  const { t, tInterpolate } = useLanguage()
   const ctx = useTournamentUi()
   const state = useTournamentParticipantState(ctx)
   const { shell, rounds, tournamentLeagues, conferences } = ctx
@@ -25,11 +27,14 @@ export default function TournamentDraftsPage() {
 
   const eliminated = state.status === 'eliminated'
 
-  const draftLabel = `${shell.draftType} draft · ${shell.draftClockSeconds}s clock`
+  const draftLabel = tInterpolate('tournament.hub.draftsPage.draftMeta', {
+    type: String(shell.draftType),
+    clock: String(shell.draftClockSeconds),
+  })
 
   return (
     <div className="mx-auto max-w-lg space-y-4 md:max-w-xl">
-      <h1 className="text-[18px] font-bold text-white">Draft schedule</h1>
+      <h1 className="text-[18px] font-bold text-white">{t('tournament.hub.draftsPage.title')}</h1>
       <div className="scrollbar-none flex gap-1 overflow-x-auto">
         {rounds.map((r) => (
           <button
@@ -56,7 +61,7 @@ export default function TournamentDraftsPage() {
         {tls.map((l) => {
           const conf = conferences.find((c) => c.id === l.conferenceId)
           const isMine = l.id === myTl?.id
-          const scheduled = l.draftScheduledAt ? new Date(l.draftScheduledAt).toLocaleString() : 'TBD'
+          const scheduled = l.draftScheduledAt ? new Date(l.draftScheduledAt).toLocaleString() : t('tournament.hub.draftsPage.tbd')
           const slotRow = isMine ? state.myStandingsRow : null
           const status =
             l.status === 'drafting' ? 'LIVE' : l.status === 'complete' || l.status === 'archived' ? 'COMPLETE' : 'SCHEDULED'
@@ -80,7 +85,7 @@ export default function TournamentDraftsPage() {
           return (
             <DraftTransitionCard
               key={l.id}
-              leagueName={l.name + (isMine ? ' (You)' : '')}
+                leagueName={l.name + (isMine ? t('tournament.hub.draftsPage.youSuffix') : '')}
               conferenceName={conf?.name ?? null}
               draftTypeLabel={draftLabel}
               clockLabel={`${shell.draftClockSeconds}s`}
@@ -96,7 +101,9 @@ export default function TournamentDraftsPage() {
       </div>
 
       {eliminated ? (
-        <p className="text-center text-[11px] text-[var(--tournament-text-dim)]">Draft access closed for eliminated players</p>
+        <p className="text-center text-[11px] text-[var(--tournament-text-dim)]">
+          {t('tournament.hub.draftsPage.eliminatedNote')}
+        </p>
       ) : null}
     </div>
   )

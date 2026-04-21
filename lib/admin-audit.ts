@@ -43,9 +43,21 @@ export async function logAdminAudit(input: LogAdminActionInput): Promise<void> {
 export async function getAdminAuditLogs(options?: {
   limit?: number
   since?: Date
+  /** e.g. `support_` to list support notes + risk + disputes */
+  actionPrefix?: string
+  /** Exact action match (takes precedence over prefix when both set) */
+  actions?: string[]
 }): Promise<AdminAuditEntry[]> {
   const limit = Math.min(options?.limit ?? 100, 500)
-  const where = options?.since ? { createdAt: { gte: options.since } } : {}
+  const where: import("@prisma/client").Prisma.AdminAuditLogWhereInput = {}
+  if (options?.since) {
+    where.createdAt = { gte: options.since }
+  }
+  if (options?.actions?.length) {
+    where.action = { in: options.actions }
+  } else if (options?.actionPrefix?.trim()) {
+    where.action = { startsWith: options.actionPrefix.trim() }
+  }
 
   const rows = await prisma.adminAuditLog.findMany({
     where,

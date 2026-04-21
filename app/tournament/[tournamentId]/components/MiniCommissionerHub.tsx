@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import type {
   LegacyFeederLeagueRow,
   SerializedMiniCommissionerAssignment,
@@ -29,6 +30,7 @@ export function MiniCommissionerHub({
   legacyPendingLeagueSettingRequests,
   viewerMiniCommissionerLeagueIds,
 }: Props) {
+  const { t, tInterpolate } = useLanguage()
   const router = useRouter()
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [draftUserId, setDraftUserId] = useState<Record<string, string>>({})
@@ -50,7 +52,7 @@ export function MiniCommissionerHub({
   const assign = async (leagueId: string) => {
     const assigneeUserId = draftUserId[leagueId]?.trim()
     if (!assigneeUserId) {
-      toast.error('Enter a user ID to assign.')
+      toast.error(t('tournament.miniComm.error.userId'))
       return
     }
     setBusyKey(`assign-${leagueId}`)
@@ -62,10 +64,10 @@ export function MiniCommissionerHub({
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        toast.error(data.error ?? 'Could not assign')
+        toast.error(data.error ?? t('tournament.miniComm.error.assign'))
         return
       }
-      toast.success('Mini-commissioner updated')
+      toast.success(t('tournament.miniComm.success.updated'))
       setDraftUserId((prev) => ({ ...prev, [leagueId]: '' }))
       refresh()
     } finally {
@@ -82,10 +84,10 @@ export function MiniCommissionerHub({
       )
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        toast.error(data.error ?? 'Could not remove')
+        toast.error(data.error ?? t('tournament.miniComm.error.remove'))
         return
       }
-      toast.success('Assignment removed')
+      toast.success(t('tournament.miniComm.success.removed'))
       refresh()
     } finally {
       setBusyKey(null)
@@ -105,10 +107,12 @@ export function MiniCommissionerHub({
       )
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        toast.error(data.error ?? 'Could not update request')
+        toast.error(data.error ?? t('tournament.miniComm.error.requestUpdate'))
         return
       }
-      toast.success(action === 'approve' ? 'Settings applied' : 'Request rejected')
+      toast.success(
+        action === 'approve' ? t('tournament.miniComm.success.approved') : t('tournament.miniComm.success.rejected'),
+      )
       refresh()
     } finally {
       setBusyKey(null)
@@ -120,12 +124,12 @@ export function MiniCommissionerHub({
     try {
       const parsed: unknown = JSON.parse(proposalJson)
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-        toast.error('Patch must be a JSON object.')
+        toast.error(t('tournament.miniComm.error.patchObject'))
         return
       }
       proposedPatch = parsed as Record<string, unknown>
     } catch {
-      toast.error('Invalid JSON')
+      toast.error(t('tournament.miniComm.error.invalidJson'))
       return
     }
     setBusyKey(`prop-${leagueId}`)
@@ -137,10 +141,10 @@ export function MiniCommissionerHub({
       })
       const data = (await res.json().catch(() => ({}))) as { error?: string }
       if (!res.ok) {
-        toast.error(data.error ?? 'Could not submit')
+        toast.error(data.error ?? t('tournament.miniComm.error.submit'))
         return
       }
-      toast.success('Request sent to main commissioner')
+      toast.success(t('tournament.miniComm.success.sent'))
       setProposalJson('{}')
       refresh()
     } finally {
@@ -167,17 +171,14 @@ export function MiniCommissionerHub({
       {showMainComm ? (
         <div className="rounded-2xl border border-white/[0.1] bg-[#080e18] p-4">
           <h2 className="text-[13px] font-bold uppercase tracking-wide text-cyan-100/90">
-            Deputy commissioners
+            {t('tournament.miniComm.main.title')}
           </h2>
-          <p className="mt-1 text-[11px] leading-snug text-white/45">
-            One deputy per feeder league. They can propose changes to that league&apos;s settings; you approve or reject.
-            Assign using the member&apos;s AllFantasy user ID.
-          </p>
+          <p className="mt-1 text-[11px] leading-snug text-white/45">{t('tournament.miniComm.main.body')}</p>
 
           {legacyPendingLeagueSettingRequests && legacyPendingLeagueSettingRequests.length > 0 ? (
             <div className="mt-4 space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-200/90">
-                Pending settings requests
+                {t('tournament.miniComm.pendingTitle')}
               </p>
               <ul className="space-y-2">
                 {legacyPendingLeagueSettingRequests.map((req) => (
@@ -187,11 +188,16 @@ export function MiniCommissionerHub({
                   >
                     <p className="font-medium text-white">{req.leagueName}</p>
                     <p className="text-[11px] text-white/55">
-                      From {req.requesterDisplayName} · {new Date(req.createdAt).toLocaleString()}
+                      {tInterpolate('tournament.miniComm.fromLine', {
+                        name: req.requesterDisplayName,
+                        when: new Date(req.createdAt).toLocaleString(),
+                      })}
                     </p>
                     {req.proposedPatchKeys.length > 0 ? (
                       <p className="mt-1 text-[10px] text-white/40">
-                        Keys: {req.proposedPatchKeys.join(', ')}
+                        {tInterpolate('tournament.miniComm.keysLabel', {
+                          keys: req.proposedPatchKeys.join(', '),
+                        })}
                       </p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -202,7 +208,7 @@ export function MiniCommissionerHub({
                         className="rounded-lg bg-cyan-500/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/35 disabled:opacity-50"
                         data-testid={`mini-comm-approve-${req.id}`}
                       >
-                        Approve
+                        {t('tournament.miniComm.approve')}
                       </button>
                       <button
                         type="button"
@@ -211,7 +217,7 @@ export function MiniCommissionerHub({
                         className="rounded-lg border border-white/15 px-3 py-1.5 text-[11px] font-semibold text-white/70 hover:bg-white/5 disabled:opacity-50"
                         data-testid={`mini-comm-reject-${req.id}`}
                       >
-                        Reject
+                        {t('tournament.miniComm.reject')}
                       </button>
                     </div>
                   </li>
@@ -235,24 +241,24 @@ export function MiniCommissionerHub({
                     </div>
                     {cur ? (
                       <div className="text-right text-[11px] text-white/70">
-                        <span className="text-white/45">Deputy: </span>
+                        <span className="text-white/45">{t('tournament.miniComm.deputyLabel')}</span>
                         {cur.displayName}
                         <span className="ml-1 font-mono text-[10px] text-white/35">({cur.userId.slice(0, 8)}…)</span>
                       </div>
                     ) : (
-                      <span className="text-[11px] text-white/40">Unassigned</span>
+                      <span className="text-[11px] text-white/40">{t('tournament.miniComm.unassigned')}</span>
                     )}
                   </div>
                   <div className="mt-3 flex flex-wrap items-end gap-2">
                     <label className="flex min-w-[200px] flex-1 flex-col gap-1">
-                      <span className="text-[10px] uppercase text-white/40">User ID</span>
+                      <span className="text-[10px] uppercase text-white/40">{t('tournament.miniComm.userIdLabel')}</span>
                       <input
                         value={draftUserId[row.leagueId] ?? ''}
                         onChange={(e) =>
                           setDraftUserId((prev) => ({ ...prev, [row.leagueId]: e.target.value }))
                         }
                         className="rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 font-mono text-[11px] text-white"
-                        placeholder="app_users.id"
+                        placeholder={t('tournament.miniComm.placeholderUserId')}
                         data-testid={`mini-comm-user-input-${row.leagueId}`}
                       />
                     </label>
@@ -263,7 +269,7 @@ export function MiniCommissionerHub({
                       className="rounded-lg bg-cyan-500/20 px-3 py-2 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-50"
                       data-testid={`mini-comm-assign-${row.leagueId}`}
                     >
-                      Assign / update
+                      {t('tournament.miniComm.assignUpdate')}
                     </button>
                     {cur ? (
                       <button
@@ -273,7 +279,7 @@ export function MiniCommissionerHub({
                         className="rounded-lg border border-red-500/30 px-3 py-2 text-[11px] font-semibold text-red-200/90 hover:bg-red-500/10 disabled:opacity-50"
                         data-testid={`mini-comm-remove-${row.leagueId}`}
                       >
-                        Remove
+                        {t('tournament.miniComm.remove')}
                       </button>
                     ) : null}
                   </div>
@@ -286,10 +292,10 @@ export function MiniCommissionerHub({
 
       {showMini ? (
         <div className="rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-[#081226] to-[#0c1020] p-4">
-          <h2 className="text-[13px] font-bold uppercase tracking-wide text-cyan-100/95">Your deputy league</h2>
-          <p className="mt-1 text-[11px] text-white/50">
-            Propose a JSON object to merge into that league&apos;s settings. The main commissioner must approve.
-          </p>
+          <h2 className="text-[13px] font-bold uppercase tracking-wide text-cyan-100/95">
+            {t('tournament.miniComm.deputyLeague.title')}
+          </h2>
+          <p className="mt-1 text-[11px] text-white/50">{t('tournament.miniComm.deputyLeague.body')}</p>
           <ul className="mt-3 space-y-3">
             {legacyFeederLeagues
               .filter((l) => miniLeagueIds.includes(l.leagueId))
@@ -301,7 +307,7 @@ export function MiniCommissionerHub({
                       href={`/league/${row.leagueId}`}
                       className="text-[11px] font-semibold text-cyan-300 hover:underline"
                     >
-                      Open league →
+                      {t('tournament.miniComm.openLeague')}
                     </Link>
                   </div>
                   <button
@@ -312,7 +318,9 @@ export function MiniCommissionerHub({
                     className="mt-2 text-[11px] font-semibold text-cyan-200/90 hover:underline"
                     data-testid={`mini-comm-toggle-proposal-${row.leagueId}`}
                   >
-                    {proposalLeagueId === row.leagueId ? 'Hide proposal form' : 'Propose settings change'}
+                    {proposalLeagueId === row.leagueId
+                      ? t('tournament.miniComm.hideProposal')
+                      : t('tournament.miniComm.proposeChange')}
                   </button>
                   {proposalLeagueId === row.leagueId ? (
                     <div className="mt-2 space-y-2">
@@ -331,7 +339,7 @@ export function MiniCommissionerHub({
                         className="rounded-lg bg-cyan-500/25 px-3 py-2 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/35 disabled:opacity-50"
                         data-testid={`mini-comm-submit-proposal-${row.leagueId}`}
                       >
-                        Submit for approval
+                        {t('tournament.miniComm.submitApproval')}
                       </button>
                     </div>
                   ) : null}

@@ -12,11 +12,13 @@ import { executeQueuedShuffleForCouncil, getWeeklyEffectState } from './Survivor
 import { enrollInExile } from './SurvivorExileEngine'
 import { shouldJoinJury, enrollJuryMember } from './SurvivorJuryEngine'
 import { isMergeTriggered, recordMerge } from './SurvivorMergeEngine'
+import { grantExileAccess, grantJuryAccess } from './chatPermissionGuard'
 import type { SurvivorCouncilResult } from './types'
 import { voidPendingRedraftTradesForRoster } from '@/lib/redraft/voidPendingTradesForElimination'
 import { notifyElimination } from '@/lib/survivor/notificationEngine'
 import { publishSurvivorRedraftEvent } from '@/lib/survivor/survivorRedraftStreamHub'
 import { buildScrollRevealSequence } from '@/lib/survivor/votingEngine'
+import { postLeagueRevealFollowUp, postScrollRevealToTribeChat } from '@/lib/survivor/leagueChatPoster'
 
 /**
  * Create a Tribal Council for the week. Pre-merge: pass attendingTribeId. Merge: no tribe.
@@ -131,6 +133,25 @@ export async function closeCouncil(
         })
       : null
   const elimLabel = leagueTeam?.teamName?.trim() || 'Eliminated player'
+  const attendingTribe = council.attendingTribeId
+    ? await prisma.survivorTribe.findUnique({
+        where: { id: council.attendingTribeId },
+        select: { name: true },
+      })
+    : null
+  const tribeName = attendingTribe?.name?.trim() || 'Merged Tribe'
+
+  if (council.attendingTribeId) {
+    await postScrollRevealToTribeChat(
+      council.leagueId,
+      council.attendingTribeId,
+      tribeName,
+      elimLabel,
+      council.week,
+    ).catch(() => {})
+  }
+  await postLeagueRevealFollowUp(council.leagueId, tribeName, elimLabel, council.week).catch(() => {})
+
   await notifyElimination(council.leagueId, elimLabel, council.week).catch(() => {})
   const rss = await prisma.redraftSeason.findFirst({
     where: { leagueId: council.leagueId },
@@ -150,6 +171,9 @@ export async function closeCouncil(
     await enrollInExile(council.leagueId, eliminatedRosterId, eliminatedRoster.platformUserId).catch((err) => {
       console.warn('[Survivor] Exile enrollment non-fatal:', err)
     })
+    await grantExileAccess(council.leagueId, eliminatedRoster.platformUserId).catch((err) => {
+      console.warn('[Survivor] Exile chat grant non-fatal:', err)
+    })
   }
 
   const joinJury = await shouldJoinJury(council.leagueId, council.week)
@@ -157,6 +181,11 @@ export async function closeCouncil(
     await enrollJuryMember(council.leagueId, eliminatedRosterId, council.week).catch((err) => {
       console.warn('[Survivor] Jury enrollment non-fatal:', err)
     })
+    if (eliminatedRoster?.platformUserId) {
+      await grantJuryAccess(council.leagueId, eliminatedRoster.platformUserId).catch((err) => {
+        console.warn('[Survivor] Jury chat grant non-fatal:', err)
+      })
+    }
   }
 
   const mergedNow = await isMergeTriggered(council.leagueId, council.week).catch(() => false)

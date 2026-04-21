@@ -95,6 +95,7 @@ export async function dispatchNotification(params: DispatchNotificationParams): 
           sourceKey: dedupePrefix ? `${dedupePrefix}:${userId}` : undefined,
           meta: {
             ...(meta ?? {}),
+            notificationCategory: category,
             ...(actionHref && { actionHref, actionLabel: actionLabel ?? "Open" }),
           },
         })

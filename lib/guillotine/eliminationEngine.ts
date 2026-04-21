@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { releaseRoster } from './playerPoolRecycler'
 import { transitionToFinalStage } from './endgameEngine'
 import { computeChopLine } from './survivalStandings'
+import { getGuillotineSportConfig } from './sportConfig'
 
 export type EliminationResult = {
   eliminated: {
@@ -200,8 +201,8 @@ export async function runEliminationCheck(
     return compareTiebreak(a, b, league.guillotineTiebreaker, tieSeed)
   })
 
-  const threshold = league.guillotineEndgameThreshold ?? 1
-  let active = g.currentTeamsActive
+  const threshold = Math.max(2, league.guillotineEndgameThreshold ?? 2)
+  const active = rows.length
   if (elimCount > 0 && active - elimCount < threshold) {
     elimCount = Math.max(0, active - threshold)
   }
@@ -335,7 +336,12 @@ export async function runEliminationCheck(
     })
   })
 
-  const delay = league.guillotineWaiverDelay ?? 0
+  const sportProfile = getGuillotineSportConfig(sport)
+  const freezeWindowHours = sportProfile?.dailyGames ? 48 : 24
+  const configuredDelay = Math.max(0, league.guillotineWaiverDelay ?? 0)
+  const delay = league.guillotineSamePeriodPickups
+    ? configuredDelay
+    : Math.max(configuredDelay, freezeWindowHours)
   for (const e of eliminated) {
     const { releasesCreated } = await releaseRoster(e.rosterId, seasonId, scoringPeriod, league.id, delay)
     e.playersReleased = releasesCreated

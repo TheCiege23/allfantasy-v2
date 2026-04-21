@@ -6,6 +6,10 @@ import type { NotificationCategoryId } from '@/lib/notification-settings/types'
 import { getLeagueMemberAppUserIds } from '@/lib/draft-notifications/DraftNotificationService'
 import { leagueRealtimeStore } from '@/lib/league-events/realtime-store'
 import { invokeLeagueFanoutHandlers } from '@/lib/league-events/subscribers'
+import {
+  leagueFanoutNotificationsAllowed,
+  parseLeagueNotificationPrefs,
+} from '@/lib/league/league-notification-prefs'
 import type { LeagueEventVisibility, LeagueFanoutEventType } from '@/lib/league-events/types'
 
 async function getAllLeagueMemberUserIds(leagueId: string): Promise<string[]> {
@@ -116,6 +120,8 @@ export async function publishLeagueFanoutEvent(input: PublishLeagueFanoutInput):
     }
   }
 
+  const effectiveSkipNotifications = skipNotifications
+
   if (!skipRealtime) {
     leagueRealtimeStore.publish(leagueId, {
       eventType: String(eventType),
@@ -124,7 +130,7 @@ export async function publishLeagueFanoutEvent(input: PublishLeagueFanoutInput):
     })
   }
 
-  if (!skipNotifications) {
+  if (!effectiveSkipNotifications) {
     const userIds =
       visibility === 'commissioners_only'
         ? await getElevatedCommissionerUserIds(leagueId)

@@ -51,8 +51,10 @@ export type DraftTypeId =
   | 'slow_draft'
   | 'mock_draft'
   | 'devy_snake'
+  | 'devy_linear'
   | 'devy_auction'
   | 'c2c_snake'
+  | 'c2c_linear'
   | 'c2c_auction'
 
 export interface WizardDraftSettings {

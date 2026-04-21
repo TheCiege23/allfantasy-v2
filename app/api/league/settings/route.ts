@@ -6,6 +6,7 @@ import { assertLeagueMember } from '@/lib/league/league-access'
 import { commissionerLeagueFieldsFromRow } from '@/lib/league/commissioner-league-patch'
 import { getLeagueRole } from '@/lib/league/permissions'
 import { executeLeagueSettingsPatch } from '@/lib/league/execute-league-settings-patch'
+import { getLeagueScoringConfig } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   const gate = await assertLeagueMember(leagueId, userId)
   if (!gate.ok) return jsonError(gate.status === 404 ? 'League not found' : 'Forbidden', gate.status)
 
-  const [league, userRole, profile] = await Promise.all([
+  const [league, userRole, profile, scoringConfig] = await Promise.all([
     prisma.league.findFirst({
       where: { id: leagueId },
       include: {
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
       where: { userId },
       select: { afCommissionerSub: true },
     }),
+    getLeagueScoringConfig(leagueId),
   ])
 
   if (!league) return jsonError('League not found', 404)
@@ -64,10 +66,14 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     userRole,
+    /** League creator (`League.userId`) — used for remove-from-AF and head-only tools. */
+    leagueOwnerUserId: league.userId,
     viewerHasTeam,
     survivorFairPlayLimited,
     hasAfCommissionerSub: profile?.afCommissionerSub ?? false,
     canEdit,
+    /** Raw `League.settings` JSON for commissioner merges (description, schedule prefs, etc.). */
+    settingsSnapshot: rawLeagueSettings && typeof rawLeagueSettings === 'object' ? rawLeagueSettings : {},
     league: {
       id: league.id,
       name: league.name,
@@ -105,6 +111,8 @@ export async function GET(req: NextRequest) {
           updatedAt: ls.updatedAt.toISOString(),
         }
       : null,
+    /** Effective league scoring rules (template + overrides) for commissioner UI. */
+    scoringConfig: scoringConfig ?? null,
   })
 }
 

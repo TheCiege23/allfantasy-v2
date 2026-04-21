@@ -7,10 +7,12 @@
  */
 
 import type { CreateLeagueV2State } from './state'
-import { getEffectiveLeagueType, isFootballLike } from './state'
+import { getDefaultKeeperSetup } from './state'
+import { getEffectiveLeagueType, isFootballLike, isDynastyConcept } from './state'
 import { resolveEffectiveDraftType, isThirdRoundReversalAvailable } from '@/lib/create-league-v2/rules-engine'
 import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigation'
 import type { LeagueTypeId } from '@/lib/league-creation-wizard/types'
+import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
 /** Execution modes must stay verbatim on the wire so persistence keeps isOffline / isAuto flags. */
 const EXECUTION_DRAFT_IDS = new Set(['offline', 'auto', 'team'])
@@ -67,6 +69,50 @@ function buildCanonicalPayload(state: CreateLeagueV2State): Record<string, unkno
   }
   if (isFootballLike(state.sport) && state.thirdRoundReversal && isThirdRoundReversalAvailable(state.draftType)) {
     conceptSetup.thirdRoundReversal = true
+  }
+  if (isDynastyConcept(lt)) {
+    const d = state.dynasty
+    conceptSetup.taxiSlots = d.taxiSlotCount
+    conceptSetup.taxiEligibilityYears = d.taxiEligibilityYears
+    conceptSetup.taxiLockDeadlineWeek = d.taxiLockDeadlineWeek
+    conceptSetup.taxiAllowNonRookies = d.taxiAllowNonRookies
+    conceptSetup.taxiAllowMoveOutAfterDeadline = d.taxiAllowMoveOutAfterDeadline
+    conceptSetup.rookieDraftRounds = d.rookieDraftRounds
+    conceptSetup.rookieDraftType = d.rookieDraftType
+    conceptSetup.rookieDraftOrderMethod = d.rookieDraftOrderMethod
+    conceptSetup.futurePicksYearsOut = d.futurePickTradeYears
+    conceptSetup.regularSeasonWeeks = d.regularSeasonLength
+    conceptSetup.playoffTeamCount = d.playoffTeamCount
+    conceptSetup.playoffByeCount = d.playoffByeCount
+    conceptSetup.waiverTypeRecommended = d.waiverType
+    conceptSetup.faabBudget = d.faabBudget
+    conceptSetup.divisionCount = d.divisionCount
+    conceptSetup.commissionerAi = d.commissionerAi
+    conceptSetup.userAi = d.userAi
+    if (d.introVideoUrl) conceptSetup.introVideoUrl = d.introVideoUrl
+  }
+
+  if (lt === 'keeper') {
+    const k = state.keeper ?? getDefaultKeeperSetup()
+    conceptSetup.keeper_max_keepers = k.keeperMaxKeepers
+    conceptSetup.keeperMaxKeepers = k.keeperMaxKeepers
+    conceptSetup.keeper_max_years = k.keeperMaxYears
+    conceptSetup.keeper_round_penalty = k.keeperRoundPenalty
+    conceptSetup.keeper_waiver_allowed = k.keeperWaiverAllowed
+    conceptSetup.keeper_eligibility_rule = k.keeperEligibilityRule
+    if (k.introVideoUrl?.trim()) conceptSetup.introVideoUrl = k.introVideoUrl.trim()
+    if (k.introPosterUrl?.trim()) conceptSetup.introPosterUrl = k.introPosterUrl.trim()
+  }
+
+  if (lt === 'best_ball') {
+    const bestBall = normalizeBestBallSettings({
+      sport: state.sport,
+      draftType: state.draftType,
+      timezone: state.timezone,
+      language: state.language,
+      conceptSetup: { bestBall: state.bestBall },
+    })
+    conceptSetup.bestBall = bestBall
   }
 
   const apiDraftType = canonicalDraftTypeForApi(state)

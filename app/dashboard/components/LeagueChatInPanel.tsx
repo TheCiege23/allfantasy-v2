@@ -27,6 +27,18 @@ export type LeagueChatMessage = {
   messageSubtype?: string
 }
 
+type BigBrotherChannelKey = 'main' | 'hoh_room' | 'have_nots' | 'jury' | 'nominees'
+
+type BigBrotherChannelAccess = {
+  key: BigBrotherChannelKey
+  label: string
+  description: string
+  canRead: boolean
+  canWrite: boolean
+  memberRosterIds: string[]
+  drawback?: string
+}
+
 function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -35,6 +47,14 @@ function toRecord(value: unknown): Record<string, unknown> | null {
 
 function toStringValue(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback
+}
+
+function readBbChannelFromMessage(meta: Record<string, unknown> | null | undefined): BigBrotherChannelKey {
+  const raw = meta?.bbChannel
+  if (raw === 'main' || raw === 'hoh_room' || raw === 'have_nots' || raw === 'jury' || raw === 'nominees') {
+    return raw
+  }
+  return 'main'
 }
 
 export function formatChatTime(d: Date | string): string {
@@ -187,8 +207,11 @@ export function LeagueChatInPanel({
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [bbChannels, setBbChannels] = useState<BigBrotherChannelAccess[]>([])
+  const [selectedBbChannel, setSelectedBbChannel] = useState<BigBrotherChannelKey>('main')
   const bottomRef = useRef<HTMLDivElement>(null)
   const errorTimeoutRef = useRef<number | null>(null)
+  const isBigBrotherLeague = selectedLeague.leagueVariant === 'big_brother'
 
   const clearError = useCallback(() => {
     setError(null)
@@ -215,8 +238,10 @@ export function LeagueChatInPanel({
     clearError()
 
     try {
+      const channelQuery =
+        isBigBrotherLeague ? `&channel=${encodeURIComponent(selectedBbChannel)}` : ''
       const response = await fetch(
-        `/api/league/chat?leagueId=${encodeURIComponent(selectedLeague.id)}&limit=50`,
+        `/api/league/chat?leagueId=${encodeURIComponent(selectedLeague.id)}&limit=50${channelQuery}`,
         { cache: 'no-store' }
       )
 
@@ -237,11 +262,48 @@ export function LeagueChatInPanel({
     } finally {
       setLoading(false)
     }
-  }, [clearError, selectedLeague.id, showTimedError])
+  }, [clearError, isBigBrotherLeague, selectedBbChannel, selectedLeague.id, showTimedError])
 
   useEffect(() => {
     void loadMessages()
   }, [loadMessages])
+
+  useEffect(() => {
+    if (!isBigBrotherLeague) {
+      setBbChannels([])
+      setSelectedBbChannel('main')
+      return
+    }
+
+    let active = true
+    const loadChannels = async () => {
+      try {
+        const response = await fetch(
+          `/api/leagues/${encodeURIComponent(selectedLeague.id)}/big-brother/channels`,
+          { cache: 'no-store' }
+        )
+        if (!response.ok) throw new Error('channel list unavailable')
+        const payload = (await response.json().catch(() => ({}))) as { channels?: BigBrotherChannelAccess[] }
+        const channels = Array.isArray(payload.channels) ? payload.channels : []
+        const readable = channels.filter((channel) => channel.canRead)
+        if (!active) return
+        setBbChannels(readable)
+        setSelectedBbChannel((current) => {
+          if (readable.some((channel) => channel.key === current)) return current
+          return readable[0]?.key ?? 'main'
+        })
+      } catch {
+        if (!active) return
+        setBbChannels([])
+        setSelectedBbChannel('main')
+      }
+    }
+
+    void loadChannels()
+    return () => {
+      active = false
+    }
+  }, [isBigBrotherLeague, selectedLeague.id])
 
   useEffect(() => {
     if (selectedLeague.leagueVariant !== 'big_brother') return
@@ -347,6 +409,10 @@ export function LeagueChatInPanel({
 
       if (!displayText && !Object.keys(metadata).length) return
 
+      if (isBigBrotherLeague) {
+        metadata.bbChannel = selectedBbChannel
+      }
+
       setSending(true)
       clearError()
 
@@ -423,13 +489,53 @@ export function LeagueChatInPanel({
         setSending(false)
       }
     },
-    [clearError, selectedLeague.id, showTimedError, userDisplayName, userId, userImage]
+    [
+      clearError,
+      isBigBrotherLeague,
+      selectedBbChannel,
+      selectedLeague.id,
+      showTimedError,
+      userDisplayName,
+      userId,
+      userImage,
+    ]
   )
 
   const isUserCommissioner = selectedLeague.isCommissioner === true
+  const visibleMessages = isBigBrotherLeague
+    ? messages.filter((message) => readBbChannelFromMessage(message.metadata) === selectedBbChannel)
+    : messages
+  const selectedChannelMeta = bbChannels.find((channel) => channel.key === selectedBbChannel) ?? null
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
+      {isBigBrotherLeague && bbChannels.length > 0 ? (
+        <div className="shrink-0 border-b border-white/[0.07] px-3 py-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {bbChannels.map((channel) => (
+              <button
+                key={channel.key}
+                type="button"
+                onClick={() => setSelectedBbChannel(channel.key)}
+                className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                  selectedBbChannel === channel.key
+                    ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-100'
+                    : 'border-white/15 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]'
+                }`}
+              >
+                {channel.label}
+              </button>
+            ))}
+          </div>
+          {selectedChannelMeta ? (
+            <p className="mt-1 text-[11px] text-white/45">
+              {selectedChannelMeta.description}
+              {selectedChannelMeta.drawback ? ` ${selectedChannelMeta.drawback}` : ''}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
         {loading ? (
           <div className="space-y-2">
@@ -437,13 +543,13 @@ export function LeagueChatInPanel({
               <div key={index} className="h-10 rounded-xl bg-white/5 animate-pulse" />
             ))}
           </div>
-        ) : messages.length === 0 ? (
+        ) : visibleMessages.length === 0 ? (
           <div className="flex h-full min-h-[120px] items-center justify-center px-4 text-center text-[13px] text-white/40">
             No messages yet. Start the conversation!
           </div>
         ) : (
           <div>
-            {messages.map((message, index) => {
+            {visibleMessages.map((message, index) => {
               const meta = message.metadata
               const isChimmyBubble =
                 meta?.chimmy === true && (meta?.bigBrother === true || meta?.idp === true)
@@ -543,7 +649,7 @@ export function LeagueChatInPanel({
               }
 
               const isOutgoing = message.authorId === userId
-              const prev = index > 0 ? messages[index - 1] : undefined
+              const prev = index > 0 ? visibleMessages[index - 1] : undefined
               const prevSystem =
                 prev &&
                 (prev.author_display_name === 'AllFantasy' ||

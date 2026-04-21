@@ -8,6 +8,29 @@ import type { SettingsSnapshot } from '@/lib/league-contract/types'
 export const IMPORT_PROVIDERS = ['sleeper', 'espn', 'yahoo', 'fantrax', 'mfl', 'fleaflicker'] as const
 export type ImportProvider = (typeof IMPORT_PROVIDERS)[number]
 
+/** Which side of a C2C import a source covers. */
+export type C2CImportSide = 'pro' | 'college'
+
+/** One source in a multi-source (e.g. C2C) import job. */
+export interface C2CImportSource {
+  side: C2CImportSide
+  provider: ImportProvider
+  sourceId: string
+  /** Commissioner depth: 'all' imports full rosters; a number caps per-team spots. */
+  rosterDepth: number | 'all'
+}
+
+/**
+ * Multi-source import job payload. `sources` must include exactly one 'pro'
+ * and one 'college' entry. Downstream normalizer runs each source through
+ * the single-provider pipeline, then merges by manager email/name match.
+ */
+export interface MultiSourceImportJob {
+  leagueId?: string
+  leagueName?: string
+  sources: C2CImportSource[]
+}
+
 export interface SourceTracking {
   source_provider: ImportProvider
   source_league_id: string
@@ -41,6 +64,9 @@ export interface NormalizedRoster {
   owner_name: string
   team_name: string
   avatar_url: string | null
+  is_commissioner?: boolean
+  is_co_commissioner?: boolean
+  is_orphan?: boolean
   wins: number
   losses: number
   ties: number

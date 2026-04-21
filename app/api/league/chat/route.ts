@@ -8,6 +8,7 @@ import {
 } from '@/lib/league-chat/LeagueChatMessageService'
 import { syncOutboundLeagueChat } from '@/lib/discord/sync-outbound'
 import { isBigBrotherLeague } from '@/lib/big-brother/BigBrotherLeagueConfig'
+import { getAccessibleBbChannels, type BigBrotherChannelKey } from '@/lib/big-brother/BigBrotherChatChannels'
 import { processBigBrotherLeagueChatInput } from '@/lib/big-brother/chimmyCommandHandler'
 import { processIdpLeagueChatInput } from '@/lib/idp/idpChimmyLeagueChat'
 import { processDevyLeagueChatInput } from '@/lib/devy/devyChimmyLeagueChat'
@@ -25,6 +26,14 @@ function gifUrlFromMetadata(meta: Record<string, unknown> | undefined): string |
   if (!meta) return null
   const g = meta.gifUrl ?? meta.previewUrl ?? meta.imageUrl
   return typeof g === 'string' ? g : null
+}
+
+function readBbChannelKeyFromMetadata(metadata: Record<string, unknown> | undefined): BigBrotherChannelKey | null {
+  const raw = metadata?.bbChannel
+  if (raw === 'main' || raw === 'hoh_room' || raw === 'have_nots' || raw === 'jury' || raw === 'nominees') {
+    return raw
+  }
+  return null
 }
 
 async function canAccessLeague(leagueId: string, userId: string) {
@@ -101,11 +110,42 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const bigBrotherLeague = await isBigBrotherLeague(leagueId)
+  let selectedBbChannel: BigBrotherChannelKey | null = null
+  if (bigBrotherLeague) {
+    const requested = req.nextUrl.searchParams?.get('channel')?.trim()
+    selectedBbChannel =
+      requested === 'main' ||
+      requested === 'hoh_room' ||
+      requested === 'have_nots' ||
+      requested === 'jury' ||
+      requested === 'nominees'
+        ? requested
+        : 'main'
+
+    const access = await getAccessibleBbChannels(leagueId, userId)
+    const readable = new Set(access.filter((c) => c.canRead).map((c) => c.key))
+    if (!readable.has(selectedBbChannel)) {
+      return NextResponse.json({ error: 'Forbidden channel' }, { status: 403 })
+    }
+  }
+
   const limit = Math.min(Number(req.nextUrl.searchParams?.get('limit') || '50'), 100)
   const messages = await getLeagueChatMessages(leagueId, { limit, requestingUserId: userId })
+  const filteredMessages =
+    bigBrotherLeague && selectedBbChannel
+      ? messages.filter((message) => {
+          const metadata =
+            message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+              ? (message.metadata as Record<string, unknown>)
+              : undefined
+          const channel = readBbChannelKeyFromMetadata(metadata) ?? 'main'
+          return channel === selectedBbChannel
+        })
+      : messages
 
   return NextResponse.json({
-    messages: messages.map((message) =>
+    messages: filteredMessages.map((message) =>
       toClientMessage({
         id: message.id,
         senderUserId: message.senderUserId ?? null,
@@ -164,8 +204,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const bigBrotherLeague = await isBigBrotherLeague(leagueId)
+  let selectedBbChannel: BigBrotherChannelKey | null = null
+  if (bigBrotherLeague) {
+    selectedBbChannel = readBbChannelKeyFromMetadata(metadata) ?? 'main'
+    const access = await getAccessibleBbChannels(leagueId, userId)
+    const writeable = new Set(access.filter((c) => c.canWrite).map((c) => c.key))
+    if (!writeable.has(selectedBbChannel)) {
+      return NextResponse.json({ error: 'Forbidden channel' }, { status: 403 })
+    }
+  }
+
+  const persistedMetadata: Record<string, unknown> | undefined =
+    metadata && Object.keys(metadata).length > 0 ? { ...metadata } : undefined
+
+  const finalMetadata =
+    bigBrotherLeague && selectedBbChannel
+      ? { ...(persistedMetadata ?? {}), bbChannel: selectedBbChannel }
+      : persistedMetadata
+
   let bbProcessed: Awaited<ReturnType<typeof processBigBrotherLeagueChatInput>> | null = null
-  if (!hasRich && message.trim() && (await isBigBrotherLeague(leagueId))) {
+  if (!hasRich && message.trim() && bigBrotherLeague) {
     bbProcessed = await processBigBrotherLeagueChatInput(leagueId, userId, message)
     if (bbProcessed.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -178,7 +237,7 @@ export async function POST(req: NextRequest) {
   let c2cProcessed: Awaited<ReturnType<typeof processC2cLeagueChatInput>> | null = null
   let devyProcessed: Awaited<ReturnType<typeof processDevyLeagueChatInput>> | null = null
   let idpProcessed: Awaited<ReturnType<typeof processIdpLeagueChatInput>> | null = null
-  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId))) {
+  if (!hasRich && message.trim() && !bigBrotherLeague) {
     c2cProcessed = await processC2cLeagueChatInput(leagueId, userId, message)
     if (c2cProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -187,7 +246,7 @@ export async function POST(req: NextRequest) {
       })
     }
   }
-  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && c2cProcessed === null) {
+  if (!hasRich && message.trim() && !bigBrotherLeague && c2cProcessed === null) {
     devyProcessed = await processDevyLeagueChatInput(leagueId, userId, message)
     if (devyProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -196,7 +255,7 @@ export async function POST(req: NextRequest) {
       })
     }
   }
-  if (!hasRich && message.trim() && !(await isBigBrotherLeague(leagueId)) && c2cProcessed === null && devyProcessed === null) {
+  if (!hasRich && message.trim() && !bigBrotherLeague && c2cProcessed === null && devyProcessed === null) {
     idpProcessed = await processIdpLeagueChatInput(leagueId, userId, message)
     if (idpProcessed?.outcome === 'suppress_public') {
       return NextResponse.json({
@@ -218,7 +277,7 @@ export async function POST(req: NextRequest) {
   if (wantsChimmyPrivateDm) {
     const mentionParsed = parseAtMentions(message)
     const privateUserMsg = await createLeagueChatMessage(leagueId, userId, message, {
-      metadata: metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
+      metadata: finalMetadata,
       isPrivate: true,
       visibleToUserId: userId,
       messageSubtype: 'chimmy_private',
@@ -278,7 +337,7 @@ export async function POST(req: NextRequest) {
 
   const mentionInfo = parseAtMentions(message)
   const created = await createLeagueChatMessage(leagueId, userId, bodyText, {
-    metadata: metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
+    metadata: finalMetadata,
     messageSubtype: mentionInfo.hasAll ? 'at_all' : null,
     mentionedUserIds: mentionInfo.userMentions,
   })
@@ -315,6 +374,7 @@ export async function POST(req: NextRequest) {
             ...(c2cProcessed?.outcome === 'post_user_and_chimmy' ? { c2c: true } : {}),
             ...(devyProcessed?.outcome === 'post_user_and_chimmy' ? { devy: true } : {}),
             ...(idpProcessed?.outcome === 'post_user_and_chimmy' ? { idp: true } : {}),
+            ...(bigBrotherLeague && selectedBbChannel ? { bbChannel: selectedBbChannel } : {}),
             ...(chimmy.metadata ?? {}),
           },
         })

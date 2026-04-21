@@ -1,8 +1,6 @@
 /**
- * Zombie leagues: all 7 platform league sports (NFL, NBA, NHL, MLB, NCAAF,
- * NCAAB, SOCCER). Soccer was previously excluded as a product rule but the
- * current spec calls for full coverage — sportRulesConfig already ships a
- * soccer rules document so the engine has everything it needs.
+ * Zombie leagues support all 7 platform league sports: NFL, NBA, NHL, MLB,
+ * NCAAF, NCAAB, SOCCER. sportRulesConfig ships a rules document per sport.
  */
 import type { LeagueSport } from '@prisma/client'
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'

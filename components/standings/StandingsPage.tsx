@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import StandingsTable, { type StandingsRow } from '@/components/standings/StandingsTable'
 
@@ -12,8 +13,12 @@ export default function StandingsPage({
   leagueId: string
   initialSeason: number
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [season, setSeason] = useState(initialSeason)
   const [rows, setRows] = useState<StandingsRow[]>([])
+  const [scoringMode, setScoringMode] = useState<'points' | 'h2h_category' | 'roto'>('points')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -25,6 +30,11 @@ export default function StandingsPage({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? 'Failed to load')
       const list = Array.isArray(data.standings) ? data.standings : []
+      const mode =
+        data.scoringMode === 'h2h_category' || data.scoringMode === 'roto'
+          ? data.scoringMode
+          : 'points'
+      setScoringMode(mode)
       setRows(
         list.map(
           (r: {
@@ -36,6 +46,9 @@ export default function StandingsPage({
             pointsFor: number
             pointsAgainst: number
             rank: number | null
+            categoryWinsFor?: number
+            categoryLossesFor?: number
+            categoryTiesFor?: number
           }) => ({
             rosterId: r.rosterId,
             teamName: r.teamName,
@@ -45,6 +58,9 @@ export default function StandingsPage({
             pointsFor: r.pointsFor,
             pointsAgainst: r.pointsAgainst,
             rank: r.rank,
+            categoryWinsFor: r.categoryWinsFor ?? 0,
+            categoryLossesFor: r.categoryLossesFor ?? 0,
+            categoryTiesFor: r.categoryTiesFor ?? 0,
           }),
         ),
       )
@@ -79,7 +95,13 @@ export default function StandingsPage({
             type="number"
             className="w-20 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
             value={season}
-            onChange={(e) => setSeason(Number(e.target.value) || initialSeason)}
+            onChange={(e) => {
+              const next = Number(e.target.value) || initialSeason
+              setSeason(next)
+              const params = new URLSearchParams(searchParams?.toString() ?? '')
+              params.set('season', String(next))
+              router.push(`${pathname}?${params.toString()}`)
+            }}
           />
         </label>
         <button
@@ -104,7 +126,7 @@ export default function StandingsPage({
         <p className="text-center text-sm text-white/50">No standings yet — run weekly scoring processing.</p>
       ) : null}
 
-      {rows.length > 0 ? <StandingsTable rows={rows} /> : null}
+      {rows.length > 0 ? <StandingsTable rows={rows} scoringMode={scoringMode} /> : null}
     </div>
   )
 }

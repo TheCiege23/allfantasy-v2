@@ -7,6 +7,7 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { DEFAULT_TOURNAMENT_SETTINGS } from '@/lib/tournament-mode/constants'
 import type { TournamentSettings } from '@/lib/tournament-mode/types'
+import type { DraftPhaseKey, DraftScheduleV1, PhaseDraftPlan, PhaseScheduleFields } from '@/lib/tournament/draft-schedule-types'
 import { getQualificationAdvancementTotal } from '@/lib/tournament-mode/tournament-sport-cutoffs'
 
 export type SerializedConference = {
@@ -220,6 +221,116 @@ function slugifySegment(s: string, fallback: string): string {
   return x || fallback
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function asFiniteInt(value: unknown, fallback: number): number {
+  const next = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(next) ? Math.floor(next) : fallback
+}
+
+function normalizeLowerString(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, '_')
+  return normalized || fallback
+}
+
+function parseDraftSchedule(raw: unknown): DraftScheduleV1 | null {
+  const root = asRecord(raw)
+  const phases = asRecord(root.draftScheduleV1).phases
+  if (typeof phases === 'object' && phases !== null && !Array.isArray(phases)) {
+    return { phases: phases as DraftScheduleV1['phases'] }
+  }
+  return null
+}
+
+function resolveLegacyPhaseKey(phase: string | null | undefined, roundIndex: number): DraftPhaseKey {
+  const normalized = String(phase ?? '').toLowerCase()
+  if (roundIndex <= 0 || normalized.includes('qual')) return 'startup'
+  if (normalized.includes('champ') || normalized.includes('final') || normalized.includes('elite')) {
+    return 'redraft_finals'
+  }
+  return 'redraft_first'
+}
+
+function resolveDraftPhaseFields(
+  schedule: DraftScheduleV1 | null,
+  key: DraftPhaseKey,
+  leagueId: string | null | undefined,
+): { fields: PhaseScheduleFields | null; simultaneousDrafts: boolean } {
+  const phases = schedule?.phases ?? {}
+  const plan = (phases[key] ?? null) as PhaseDraftPlan | null
+  if (!plan) return { fields: null, simultaneousDrafts: true }
+
+  if (plan.mode === 'per_league' && leagueId) {
+    return {
+      fields: plan.perLeague?.[leagueId] ?? plan.uniform ?? null,
+      simultaneousDrafts: false,
+    }
+  }
+
+  if (plan.mode === 'grouped' && leagueId) {
+    const group = plan.groups?.find((candidate) => candidate.leagueIds.includes(leagueId))
+    return {
+      fields: group?.schedule ?? plan.uniform ?? null,
+      simultaneousDrafts: false,
+    }
+  }
+
+  return { fields: plan.uniform ?? null, simultaneousDrafts: plan.mode === 'uniform' }
+}
+
+function buildAdvancersByLeagueId(
+  leagueIds: string[],
+  totalAdvancers: number,
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  if (leagueIds.length === 0) return counts
+  const base = Math.floor(totalAdvancers / leagueIds.length)
+  const remainder = Math.max(0, totalAdvancers % leagueIds.length)
+  leagueIds.forEach((id, index) => {
+    counts.set(id, base + (index < remainder ? 1 : 0))
+  })
+  return counts
+}
+
+function deriveRepresentativeLeagueSettings(
+  leagueRows: Array<{ settings: unknown }> | Array<{ settings: unknown } | undefined>,
+  settings: TournamentSettings,
+): {
+  scoringSystem: string
+  waiverType: string
+  openingRosterSize: number
+  tournamentRosterSize: number
+  eliteRosterSize: number
+} {
+  const representative = leagueRows
+    .map((row) => asRecord(row?.settings))
+    .find((settings) => Object.keys(settings).length > 0) ?? {}
+
+  const openingRosterSize = asFiniteInt(representative.rosterSize, 15)
+  const qualificationBenchSize = Math.max(0, asFiniteInt(representative.benchSize, settings.benchSpotsQualification ?? 7))
+  const eliminationBenchSize = Math.max(0, settings.benchSpotsElimination ?? 2)
+  const starterSlots = Math.max(1, openingRosterSize - qualificationBenchSize)
+  const tournamentRosterSize = Math.max(1, starterSlots + eliminationBenchSize)
+
+  return {
+    scoringSystem: normalizeLowerString(representative.scoring, 'ppr'),
+    waiverType: normalizeLowerString(representative.waiverType, 'faab'),
+    openingRosterSize,
+    tournamentRosterSize,
+    eliteRosterSize: tournamentRosterSize,
+  }
+}
+
+function resolveLegacyBubbleEnabled(settings: TournamentSettings, raw: unknown): boolean {
+  const record = asRecord(raw)
+  return record.bubbleEnabled === true || settings.bubbleWeekEnabled === true
+}
+
 function mergeLegacySettings(raw: unknown): TournamentSettings {
   const patch =
     typeof raw === 'object' && raw !== null && !Array.isArray(raw)
@@ -254,6 +365,11 @@ async function loadLegacyTournamentLayoutPayloadLoose(
   if (!t) return null
 
   const settings = mergeLegacySettings(t.settings)
+  const rawSettings = asRecord(t.settings)
+  const draftSchedule = parseDraftSchedule(t.hubSettings)
+  const startupDraftPlan = resolveDraftPhaseFields(draftSchedule, 'startup', null)
+  const representativeLeagueSettings = deriveRepresentativeLeagueSettings([], settings)
+  const bubbleEnabled = resolveLegacyBubbleEnabled(settings, rawSettings)
   const participantCount = await prisma.legacyTournamentParticipant
     .count({ where: { tournamentId: t.id } })
     .catch(() => 0)
@@ -278,19 +394,19 @@ async function loadLegacyTournamentLayoutPayloadLoose(
     currentRoundNumber: 1,
     totalRounds: 1,
     advancersPerLeague: 1,
-    wildcardCount: 0,
-    bubbleEnabled: settings.bubbleWeekEnabled,
-    bubbleSize: 8,
-    bubbleScoringMode: 'cumulative_points',
-    scoringSystem: 'ppr',
-    draftType: settings.draftType,
-    waiverType: 'faab',
-    openingRosterSize: 15,
-    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
-    eliteRosterSize: 8,
+    wildcardCount: Math.max(0, asFiniteInt(rawSettings.wildcardCount, 0)),
+    bubbleEnabled,
+    bubbleSize: bubbleEnabled ? Math.max(0, asFiniteInt(rawSettings.bubbleSize, 8)) : 0,
+    bubbleScoringMode: normalizeLowerString(rawSettings.bubbleScoringMode, 'cumulative_points'),
+    scoringSystem: representativeLeagueSettings.scoringSystem,
+    draftType: normalizeLowerString(startupDraftPlan.fields?.draftMode, settings.draftType),
+    waiverType: representativeLeagueSettings.waiverType,
+    openingRosterSize: representativeLeagueSettings.openingRosterSize,
+    tournamentRosterSize: representativeLeagueSettings.tournamentRosterSize,
+    eliteRosterSize: representativeLeagueSettings.eliteRosterSize,
     faabResetOnRedraft: settings.faabResetByRound,
-    draftClockSeconds: 90,
-    simultaneousDrafts: true,
+    draftClockSeconds: asFiniteInt(startupDraftPlan.fields?.pickTimerSec, asFiniteInt(rawSettings.draftClockSeconds, 90)),
+    simultaneousDrafts: startupDraftPlan.simultaneousDrafts,
     tiebreakerMode: 'points_for',
     standingsVisibility: 'league_only',
   }
@@ -365,6 +481,8 @@ async function loadLegacyTournamentLayoutPayload(
   const leagueById = new Map(leagueRows.map((l) => [l.id, l]))
 
   const settings = mergeLegacySettings(t.settings)
+  const rawSettings = asRecord(t.settings)
+  const draftSchedule = parseDraftSchedule(t.hubSettings)
   const dbFirstRound = t.rounds[0]
   const primaryRoundId = dbFirstRound?.id ?? `${t.id}:legacy-round-placeholder`
   const primaryRoundIndex = dbFirstRound?.roundIndex ?? 0
@@ -378,6 +496,21 @@ async function loadLegacyTournamentLayoutPayload(
     settings.qualificationAdvancementTotal ??
     getQualificationAdvancementTotal(String(t.sport), settings.participantPoolSize)
   const advancersPerLeagueDisplay = Math.max(1, Math.floor(advancementTotal / feederLeagueCount))
+  const qualificationLeagueIds = t.leagues
+    .filter((league) => league.roundIndex === primaryRoundIndex)
+    .map((league) => league.id)
+  const qualificationAdvancersByLeagueId = buildAdvancersByLeagueId(qualificationLeagueIds, advancementTotal)
+  const representativeLeagueSettings = deriveRepresentativeLeagueSettings(leagueRows, settings)
+  const startupDraftPlan = resolveDraftPhaseFields(draftSchedule, 'startup', t.leagues[0]?.leagueId ?? null)
+  const bubbleEnabled = resolveLegacyBubbleEnabled(settings, rawSettings)
+  const bubbleSize = bubbleEnabled ? Math.max(0, asFiniteInt(rawSettings.bubbleSize, 8)) : 0
+  const eliminationAdvancersPerLeague = Math.max(
+    1,
+    (typeof settings.eliminationAdvancementPerLeague === 'number'
+      ? settings.eliminationAdvancementPerLeague
+      : DEFAULT_TOURNAMENT_SETTINGS.eliminationAdvancementPerLeague) ?? 1,
+  )
+  const roundsByIndex = new Map(t.rounds.map((round) => [round.roundIndex, round]))
 
   const serializedShell: SerializedShell = {
     id: t.id,
@@ -393,19 +526,19 @@ async function loadLegacyTournamentLayoutPayload(
     currentRoundNumber: primaryRoundIndex + 1,
     totalRounds: Math.max(t.rounds.length, 1),
     advancersPerLeague: advancersPerLeagueDisplay,
-    wildcardCount: 0,
-    bubbleEnabled: settings.bubbleWeekEnabled,
-    bubbleSize: 8,
-    bubbleScoringMode: 'cumulative_points',
-    scoringSystem: 'ppr',
-    draftType: settings.draftType,
-    waiverType: 'faab',
-    openingRosterSize: 15,
-    tournamentRosterSize: Number(settings.initialLeagueSize) || 12,
-    eliteRosterSize: 8,
+    wildcardCount: Math.max(0, asFiniteInt(rawSettings.wildcardCount, 0)),
+    bubbleEnabled,
+    bubbleSize,
+    bubbleScoringMode: normalizeLowerString(rawSettings.bubbleScoringMode, 'cumulative_points'),
+    scoringSystem: representativeLeagueSettings.scoringSystem,
+    draftType: normalizeLowerString(startupDraftPlan.fields?.draftMode, settings.draftType),
+    waiverType: representativeLeagueSettings.waiverType,
+    openingRosterSize: representativeLeagueSettings.openingRosterSize,
+    tournamentRosterSize: representativeLeagueSettings.tournamentRosterSize,
+    eliteRosterSize: representativeLeagueSettings.eliteRosterSize,
     faabResetOnRedraft: settings.faabResetByRound,
-    draftClockSeconds: 90,
-    simultaneousDrafts: true,
+    draftClockSeconds: asFiniteInt(startupDraftPlan.fields?.pickTimerSec, asFiniteInt(rawSettings.draftClockSeconds, 90)),
+    simultaneousDrafts: startupDraftPlan.simultaneousDrafts,
     tiebreakerMode: Array.isArray(settings.qualificationTiebreakers)
       ? String(settings.qualificationTiebreakers[0] ?? 'points_for')
       : 'points_for',
@@ -578,20 +711,26 @@ async function loadLegacyTournamentLayoutPayload(
     tournamentLeagues: t.leagues.map((tl) => {
       const lg = tl.leagueId ? leagueById.get(tl.leagueId) : undefined
       const label = lg?.name ?? 'League'
+      const round = roundsByIndex.get(tl.roundIndex)
+      const phaseKey = resolveLegacyPhaseKey(round?.phase ?? tl.phase, tl.roundIndex)
+      const draftPlan = resolveDraftPhaseFields(draftSchedule, phaseKey, tl.leagueId)
       return {
         id: tl.id,
         name: label,
         slug: slugifySegment(label, 'league'),
-        roundId: primaryRoundId,
+        roundId: round?.id ?? primaryRoundId,
         conferenceId: tl.conferenceId,
         leagueId: tl.leagueId,
         status: tl.phase,
         teamSlots: lg?.leagueSize ?? 12,
         currentTeamCount: lg?._count?.teams ?? 0,
-        draftScheduledAt: null,
+        draftScheduledAt: draftPlan.fields?.scheduledAt ?? null,
         colorHex: null,
         logoUrl: lg?.logoUrl ?? lg?.avatarUrl ?? null,
-        advancersCount: 0,
+        advancersCount:
+          tl.roundIndex === primaryRoundIndex
+            ? qualificationAdvancersByLeagueId.get(tl.id) ?? advancersPerLeagueDisplay
+            : eliminationAdvancersPerLeague,
       }
     }),
     participant: serializedParticipant,

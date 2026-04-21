@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { signIn } from "next-auth/react"
 import { supabase } from "@/lib/supabaseClient"
 import { DiscordIcon } from "@/app/components/icons/DiscordIcon"
@@ -38,7 +37,7 @@ export function ConnectedAccountsSettingsSection({
   profile: SettingsProfile
   onRefetchProfile: () => void
 }) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -137,7 +136,7 @@ export function ConnectedAccountsSettingsSection({
     if (!canDisconnectProvider(provider, linkedProvidersCount, hasPassword)) {
       setStatusTone("error")
       setStatusMessage(
-        interpolateTemplate(t("settings.connected.disconnectBlocked"), {
+        tInterpolate("settings.connected.disconnectBlocked", {
           provider: signInProviderLabel(provider.id, t),
         }),
       )
@@ -145,7 +144,7 @@ export function ConnectedAccountsSettingsSection({
     }
     if (typeof window !== "undefined") {
       const shouldDisconnect = window.confirm(
-        interpolateTemplate(t("settings.connected.confirmDisconnectProvider"), {
+        tInterpolate("settings.connected.confirmDisconnectProvider", {
           provider: provider.name,
         }),
       )
@@ -172,7 +171,7 @@ export function ConnectedAccountsSettingsSection({
     }
     setStatusTone("success")
     setStatusMessage(
-      interpolateTemplate(t("settings.connected.disconnectSuccess"), { provider: provider.name }),
+      tInterpolate("settings.connected.disconnectSuccess", { provider: provider.name }),
     )
   }
 
@@ -356,7 +355,7 @@ export function ConnectedAccountsSettingsSection({
               <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("settings.connected.sleeper")}</span>
               <p className="text-xs" style={{ color: "var(--muted)" }}>
                 {profile?.sleeperUsername
-                  ? interpolateTemplate(t("settings.connected.linkedAs"), { username: profile.sleeperUsername })
+                  ? tInterpolate("settings.connected.linkedAs", { username: profile.sleeperUsername })
                   : t("settings.connected.notLinked")}
               </p>
             </div>

@@ -11,9 +11,12 @@ import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigati
 import { getRedraftSportIntegration } from '@/lib/redraft-creation/sport-config'
 import type { SoccerPipeline } from '@/lib/redraft-creation/sport-config'
 import { soccerPipelineToPrismaVariant } from '@/lib/redraft-creation/create-redraft-league'
+import { getGuillotineSportConfig } from '@/lib/guillotine/sportConfig'
 import type { PresetEngineOutput } from '@/lib/league-creation/canonical/types'
 import type { ValidatedCreateLeagueBody } from '@/lib/league-creation/canonical/validateCreateLeague'
 import { mapCanonicalDraftTypeToEngineCore } from '@/lib/draft-types/draftTypeRegistry'
+import { mapKeeperCreationFromWizard } from '@/lib/keeper/mapKeeperCreationFromWizard'
+import { normalizeBestBallSettings } from '@/lib/bestball/rules'
 
 type Tx = Prisma.TransactionClient
 
@@ -99,9 +102,21 @@ export async function createCanonicalLeagueInTransaction(
   const pickTimerPreset = secondsToPickTimerPreset(timerSeconds)
   const isOffline = body.draftType.toLowerCase() === 'offline'
   const isAuto = body.draftType.toLowerCase() === 'auto'
+  const bestBallSettings =
+    formatId === 'best_ball'
+      ? normalizeBestBallSettings({
+          sport,
+          conceptSetup: (body.conceptSetup ?? null) as Record<string, unknown> | null,
+          draftType: body.draftType,
+          timezone: body.timezone ?? null,
+          language: body.language ?? null,
+        })
+      : null
 
   const tradeReview =
-    body.tradeReviewMode === 'none' || body.tradeReviewMode == null
+    bestBallSettings && !bestBallSettings.tradesEnabled
+      ? 'none'
+      : body.tradeReviewMode === 'none' || body.tradeReviewMode == null
       ? 'commissioner'
       : body.tradeReviewMode
 
@@ -121,12 +136,33 @@ export async function createCanonicalLeagueInTransaction(
       requestedAt: new Date().toISOString(),
       notes: '',
     },
+    best_ball_settings: bestBallSettings ?? undefined,
   }
 
   log?.('canonical_transaction_start', { appUserId, sport, formatId })
 
+  const keeperBootstrap =
+    formatId === 'keeper'
+      ? mapKeeperCreationFromWizard({
+          draftType: body.draftType,
+          settings: mergedSettings,
+          conceptSetup: (body.conceptSetup ?? null) as Record<string, unknown> | null,
+        })
+      : null
+  if (keeperBootstrap) {
+    mergedSettings.keeper_policy_snapshot = {
+      maxKeepers: keeperBootstrap.draftKeeperConfig.maxKeepers,
+      deadline: keeperBootstrap.draftKeeperConfig.deadline ?? null,
+      maxKeepersPerPosition: keeperBootstrap.draftKeeperConfig.maxKeepersPerPosition ?? null,
+    }
+  }
+
   const joinCode = await uniqueJoinCode(tx)
   const platformLeagueId = `manual-${randomUUID()}`
+
+  const isGuillotine = formatId === 'guillotine'
+  const guillotineProfile = isGuillotine ? getGuillotineSportConfig(sport) : undefined
+  const guillotineDefaultWaiverDelayHours = guillotineProfile?.dailyGames ? 48 : 24
 
   const league = await tx.league.create({
     data: {
@@ -151,9 +187,119 @@ export async function createCanonicalLeagueInTransaction(
       presetKey: engine.presetKey,
       scoringPresetId: body.scoringPreset,
       settingsSnapshotVersion: SETTINGS_SNAPSHOT_VERSION,
+      bestBallVariant:
+        bestBallSettings == null
+          ? undefined
+          : bestBallSettings.contestStructure === 'tournament'
+            ? 'tournament'
+            : 'standard',
+      bbWaiversEnabled: bestBallSettings?.waiversEnabled,
+      bbTradesEnabled: bestBallSettings?.tradesEnabled,
+      bbFaEnabled: bestBallSettings?.waiversEnabled,
+      bbIrEnabled: false,
+      bbTaxiEnabled: false,
+      bbScoringPeriod: bestBallSettings?.scoringPeriod,
+      bbMatchupFormat: bestBallSettings?.matchupFormat,
+      bbTiebreaker: bestBallSettings?.tieRule,
+      bbOptimizerTiming: 'period_end',
+      playoffTeams: bestBallSettings?.playoffTeams,
+      playoffSeedingRule:
+        bestBallSettings?.matchupFormat === 'cumulative'
+          ? 'points_only'
+          : bestBallSettings?.playoffFormat === 'advancement'
+            ? 'points_only'
+            : undefined,
+      playoffStartWeek:
+        bestBallSettings && bestBallSettings.playoffTeams > 0
+          ? bestBallSettings.regularSeasonLength + 1
+          : undefined,
+      playoffWeeksPerRound:
+        bestBallSettings && bestBallSettings.playoffTeams > 0 && bestBallSettings.playoffFormat !== 'none'
+          ? 1
+          : undefined,
+      ...(keeperBootstrap ? keeperBootstrap.league : {}),
+      ...(isGuillotine
+        ? {
+            playoffStartWeek: null,
+            playoffTeams: null,
+            playoffWeeksPerRound: null,
+            playoffSeedingRule: null,
+            playoffLowerBracket: null,
+            guillotineEndgame: 'final_two',
+            guillotineEndgameThreshold: 2,
+            guillotineEliminationsPerPeriod: 1,
+            guillotineProtectedWeek1: false,
+            guillotineTiebreaker: 'lowest_bench_points',
+            guillotineSamePeriodPickups: false,
+            guillotineWaiverDelay: guillotineDefaultWaiverDelayHours,
+            guillotineFinalStageScoring: 'cumulative',
+          }
+        : {}),
       ...leagueModeColumns(formatId),
     },
   })
+
+  if (isGuillotine) {
+    await tx.guillotineLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        eliminationStartWeek: 1,
+        eliminationEndWeek: guillotineProfile?.regularSeasonWeeks ?? null,
+        teamsPerChop: 1,
+        correctionWindow: 'after_stat_corrections',
+        statCorrectionHours: guillotineProfile?.correctionWindowHours ?? 48,
+        tiebreakerOrder: ['bench_points', 'season_points', 'previous_period', 'draft_slot', 'commissioner', 'random'] as unknown as Prisma.InputJsonValue,
+        dangerMarginPoints: 10,
+        rosterReleaseTiming: 'next_waiver_run',
+        commissionerOverride: true,
+      },
+      update: {
+        eliminationEndWeek: guillotineProfile?.regularSeasonWeeks ?? null,
+        statCorrectionHours: guillotineProfile?.correctionWindowHours ?? 48,
+      },
+    })
+  }
+
+  const isDynastyFormat = formatId === 'dynasty' || formatId === 'devy' || formatId === 'c2c'
+  if (isDynastyFormat) {
+    const ds = (body.conceptSetup ?? {}) as Record<string, unknown>
+    const num = (v: unknown, fallback: number) => (v !== undefined && v !== null ? Number(v) : fallback)
+    const str = (v: unknown, fallback: string) => (v !== undefined && v !== null ? String(v) : fallback)
+    await tx.dynastyLeagueConfig.upsert({
+      where: { leagueId: league.id },
+      create: {
+        leagueId: league.id,
+        regularSeasonWeeks: num(ds.regularSeasonWeeks, 14),
+        rookiePickOrderMethod: str(ds.rookieDraftOrderMethod, 'max_pf'),
+        useMaxPfForNonPlayoff: true,
+        rookieDraftRounds: num(ds.rookieDraftRounds, 4),
+        rookieDraftType: str(ds.rookieDraftType, 'linear'),
+        divisionsEnabled: num(ds.divisionCount, 0) > 0,
+        futurePicksYearsOut: num(ds.futurePicksYearsOut, 3),
+        waiverTypeRecommended: str(ds.waiverTypeRecommended, 'faab'),
+        taxiSlots: num(ds.taxiSlots, 4),
+        taxiEligibilityYears: num(ds.taxiEligibilityYears, 1),
+        taxiLockBehavior: 'once_promoted_no_return',
+        taxiInSeasonMoves: true,
+        taxiPostseasonMoves: false,
+        taxiScoringOn: false,
+        taxiDeadlineWeek: ds.taxiLockDeadlineWeek != null ? num(ds.taxiLockDeadlineWeek, 0) || null : null,
+      },
+      update: {
+        regularSeasonWeeks: num(ds.regularSeasonWeeks, 14),
+        rookiePickOrderMethod: str(ds.rookieDraftOrderMethod, 'max_pf'),
+        rookieDraftRounds: num(ds.rookieDraftRounds, 4),
+        rookieDraftType: str(ds.rookieDraftType, 'linear'),
+        divisionsEnabled: num(ds.divisionCount, 0) > 0,
+        futurePicksYearsOut: num(ds.futurePicksYearsOut, 3),
+        waiverTypeRecommended: str(ds.waiverTypeRecommended, 'faab'),
+        taxiSlots: num(ds.taxiSlots, 4),
+        taxiEligibilityYears: num(ds.taxiEligibilityYears, 1),
+        taxiDeadlineWeek: ds.taxiLockDeadlineWeek != null ? num(ds.taxiLockDeadlineWeek, 0) || null : null,
+      },
+    })
+  }
 
   await tx.leagueSettings.create({
     data: {
@@ -165,7 +311,7 @@ export async function createCanonicalLeagueInTransaction(
       pickTimerCustomValue: null,
       cpuAutoPick: true,
       aiAutoPick: isAuto,
-      draftOrderMethod: 'manual',
+      draftOrderMethod: bestBallSettings?.orderMethod === 'randomize' ? 'random' : 'manual',
     },
   })
 
@@ -193,11 +339,12 @@ export async function createCanonicalLeagueInTransaction(
       rosterPresetKey: `default-${sport}-${formatId}`,
       playoffPresetKey: 'default',
       draftTimerSecondsDefault: timerSeconds,
-      isPublic: false,
+      isPublic: bestBallSettings?.visibility === 'public',
       allowInviteLinks: true,
       settingsJson: {
         tradeReviewMode: tradeReview,
         canonicalFormatId: formatId,
+        bestBallSettings: bestBallSettings ?? undefined,
       },
     },
   })
@@ -217,6 +364,7 @@ export async function createCanonicalLeagueInTransaction(
         coreDraftSessionType: coreDraft,
         canonicalCreate: true,
         presetKey: engine.presetKey,
+        bestBallSettings: bestBallSettings ?? undefined,
       },
     },
   })
@@ -314,6 +462,12 @@ export async function createCanonicalLeagueInTransaction(
       sessionKind: 'live',
       cpuAutoPick: true,
       aiAutoPick: isAuto,
+      ...(keeperBootstrap
+        ? {
+            keeperConfig: keeperBootstrap.draftKeeperConfig as unknown as Prisma.InputJsonValue,
+            keeperSelections: [] as Prisma.InputJsonValue,
+          }
+        : {}),
     },
   })
 

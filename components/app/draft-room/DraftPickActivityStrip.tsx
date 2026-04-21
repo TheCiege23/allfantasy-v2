@@ -14,14 +14,14 @@ export function DraftPickActivityStrip({ picks, slotOrder, limit = 14 }: DraftPi
 
   return (
     <div
-      className="flex h-full min-h-[72px] flex-col border-r border-white/8 bg-[#050c1d]/95 md:min-w-[200px]"
+      className="flex h-full min-h-[72px] flex-col bg-[#050c1d]/95"
       data-testid="draft-activity-strip"
     >
       <div className="shrink-0 border-b border-white/8 px-2 py-1.5">
         <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">Live activity</p>
       </div>
       <div className="flex-1 overflow-x-auto overflow-y-auto px-2 py-1.5">
-        <ul className="flex gap-2 md:flex-col md:gap-1.5">
+        <ul className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-3">
           {recent.length === 0 ? (
             <li className="text-[10px] text-white/35">No picks yet.</li>
           ) : (

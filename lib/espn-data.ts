@@ -1,6 +1,10 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev } from './team-abbrev';
 import { recordProviderSync } from './provider-sync-logger';
+import {
+  shouldIncludeInjuryInFanoutBatch,
+  type InjurySyncFanoutRow,
+} from '@/lib/realtime-events/injuryFanoutPolicy';
 
 const SITE_API = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl'; // db-first-exception: provider adapter layer
 const CORE_API = 'https://sports.core.api.espn.com/v2/sports/football/leagues/nfl'; // db-first-exception: provider adapter layer
@@ -319,6 +323,7 @@ export async function syncESPNInjuriesToDb(): Promise<{ synced: number; teams: n
   let synced = 0;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+  const fanoutByPlayer = new Map<string, InjurySyncFanoutRow>();
 
   for (const { team, injuries } of allInjuries) {
     for (const inj of injuries) {
@@ -360,6 +365,18 @@ export async function syncESPNInjuriesToDb(): Promise<{ synced: number; teams: n
           },
         });
         synced++;
+        if (shouldIncludeInjuryInFanoutBatch(inj.status)) {
+          const k = inj.athlete.displayName.trim().toLowerCase();
+          if (k) {
+            fanoutByPlayer.set(k, {
+              playerName: inj.athlete.displayName,
+              team,
+              status: inj.status,
+              type: inj.details?.type || inj.type?.name || null,
+              description: inj.longComment || inj.shortComment || null,
+            });
+          }
+        }
       } catch (err) {
         console.error(`[ESPN] Failed to sync injury for ${inj.athlete.displayName}:`, err);
       }
@@ -368,6 +385,13 @@ export async function syncESPNInjuriesToDb(): Promise<{ synced: number; teams: n
       { provider: 'espn', entityType: 'injury', sport: 'NFL', key: team },
       { recordsImported: injuries.length },
     );
+  }
+
+  if (fanoutByPlayer.size > 0) {
+    const injuriesPayload = [...fanoutByPlayer.values()];
+    void import('@/lib/realtime-events/injurySyncFanout')
+      .then((m) => m.fanoutInjurySyncBatch({ sport: 'NFL', injuries: injuriesPayload }))
+      .catch(() => {});
   }
 
   return { synced, teams: allInjuries.length };

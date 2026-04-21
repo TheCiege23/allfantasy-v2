@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 import { processWaiverClaimsForLeague } from "@/lib/waiver-wire/process-engine"
 import { logAction } from "@/server/services/auditService"
 import { assertLeagueActionGate } from "@/server/services/leagueActionGate"
+import { dedupeLeagueRequest } from "@/lib/league-engine-performance/leagueRequestDedupe"
+import { withLeagueEngineTimedOperation } from "@/lib/league-engine-performance/jobRunner"
+import { DEFAULT_SLOW_ROUTE_MS } from "@/lib/league-engine-performance/observability"
 
 /**
  * POST: run waiver processing for the league (cron or commissioner).
@@ -35,10 +38,23 @@ export async function POST(
   }
 
   const isOwnerTrigger = Boolean(userId && league.userId === userId)
-  const results = await processWaiverClaimsForLeague(leagueId, {
-    runType: isOwnerTrigger ? "manual" : "scheduled",
-    processedByUserId: isOwnerTrigger ? userId : null,
-  })
+  const results = await dedupeLeagueRequest(
+    { leagueId, surface: "waiver_process" },
+    () =>
+      withLeagueEngineTimedOperation(
+        {
+          subsystem: "waiver",
+          action: "waiver_process_http",
+          leagueId,
+          slowThresholdMs: DEFAULT_SLOW_ROUTE_MS,
+        },
+        () =>
+          processWaiverClaimsForLeague(leagueId, {
+            runType: isOwnerTrigger ? "manual" : "scheduled",
+            processedByUserId: isOwnerTrigger ? userId : null,
+          }),
+      ),
+  )
 
   if (!isCron && userId) {
     void logAction({

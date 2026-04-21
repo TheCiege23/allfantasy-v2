@@ -48,3 +48,30 @@ export function supportsKeeperDeclarations(leagueType?: string | null): boolean 
   const key = String(leagueType ?? '').toLowerCase()
   return key === 'keeper' || key === 'dynasty' || key === 'devy' || key === 'c2c'
 }
+
+/**
+ * Commissioner settings: show `/api/keeper/session` progress (KeeperCommissionerDashboard) for any
+ * format that uses keeper selection phases — not only `leagueType === 'keeper'`.
+ * Honors legacy rows where `isDynasty` is set but `leagueType` was left as redraft.
+ */
+export function showKeeperSelectionInCommissionerSettings(options: {
+  leagueType?: string | null
+  isDynasty?: boolean | null
+}): boolean {
+  if (supportsKeeperDeclarations(options.leagueType)) return true
+  return options.isDynasty === true
+}
+
+/** Short heading for the keeper-session strip in commissioner settings (sport-agnostic). */
+export function commissionerKeeperSectionHeading(options: {
+  leagueType?: string | null
+  isDynasty?: boolean | null
+}): string {
+  const key = String(options.leagueType ?? '').toLowerCase()
+  if (key === 'keeper') return 'Keeper selection'
+  if (key === 'dynasty') return 'Dynasty carryover'
+  if (key === 'devy') return 'Devy keeper selection'
+  if (key === 'c2c') return 'Campus-to-Campus carryover'
+  if (options.isDynasty === true) return 'Dynasty carryover'
+  return 'Keeper & carryover'
+}

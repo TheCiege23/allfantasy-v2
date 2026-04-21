@@ -35,6 +35,7 @@ export interface SurvivorSummaryConfig {
   minigameFrequency?: string
   /** Commissioner headline (e.g. Heroes vs Villains); not a default tribe split. */
   seasonThemeLabel?: string | null
+  visualThemeId?: string | null
   challengesSystemRun?: boolean
   regularSeasonEndWeek?: number | null
   faqSeededAt?: string | null
@@ -58,6 +59,7 @@ export interface SurvivorSeasonCalendar {
 export interface SurvivorSummaryTribe {
   id: string
   name: string
+  emoji?: string | null
   slotIndex: number
   members: { rosterId: string; isLeader: boolean }[]
 }

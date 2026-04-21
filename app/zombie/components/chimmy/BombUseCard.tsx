@@ -1,11 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import { useZombieDmCommand } from '@/app/zombie/components/chimmy/useZombieDmCommand'
 
 export function BombUseCard({ leagueId, hasBomb, isSurvivor }: { leagueId: string; hasBomb: boolean; isSurvivor: boolean }) {
   const [open, setOpen] = useState(false)
   const [typed, setTyped] = useState('')
+  const { isSending, feedback, sendCommand } = useZombieDmCommand(leagueId)
 
   if (!hasBomb || !isSurvivor) return null
 
@@ -34,14 +35,30 @@ export function BombUseCard({ leagueId, hasBomb, isSurvivor }: { leagueId: strin
               <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg bg-white/10 py-3 text-[13px]">
                 Cancel
               </button>
-              <Link
-                href={`/league/${leagueId}?zombieChimmy=${encodeURIComponent('@Chimmy 💣 detonate bomb')}`}
-                onClick={() => setOpen(false)}
-                className={typed === 'DETONATE' ? 'flex flex-1 items-center justify-center rounded-lg bg-red-600 py-3 text-center text-[13px] font-bold text-white' : 'pointer-events-none flex flex-1 items-center justify-center rounded-lg bg-red-900/40 py-3 text-center text-[13px] text-red-300/50'}
+              <button
+                type="button"
+                onClick={async () => {
+                  const ok = await sendCommand('@Chimmy 💣 detonate bomb')
+                  if (ok) {
+                    setTyped('')
+                    setOpen(false)
+                  }
+                }}
+                disabled={typed !== 'DETONATE' || isSending}
+                className={
+                  typed === 'DETONATE' && !isSending
+                    ? 'flex flex-1 items-center justify-center rounded-lg bg-red-600 py-3 text-center text-[13px] font-bold text-white'
+                    : 'pointer-events-none flex flex-1 items-center justify-center rounded-lg bg-red-900/40 py-3 text-center text-[13px] text-red-300/50'
+                }
               >
-                Confirm
-              </Link>
+                {isSending ? 'Sending…' : 'Confirm'}
+              </button>
             </div>
+            {feedback ? (
+              <p className={feedback.kind === 'success' ? 'mt-3 text-[12px] text-emerald-200/90' : 'mt-3 text-[12px] text-red-200/90'}>
+                {feedback.text}
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

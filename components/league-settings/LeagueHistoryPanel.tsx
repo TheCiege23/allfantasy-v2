@@ -51,26 +51,46 @@ interface Props {
   leagueId: string
 }
 
+type BackfillStatus = {
+  status: string
+  startedAt: string | null
+  completedAt: string | null
+  error: string | null
+}
+
 export function LeagueHistoryPanel({ leagueId }: Props) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [seasons, setSeasons] = useState<HistorySeason[]>([])
-  const [leagueName, setLeagueName] = useState<string | null>(null)
+  const [, setLeagueName] = useState<string | null>(null)
+  const [backfill, setBackfill] = useState<BackfillStatus | null>(null)
 
   useEffect(() => {
     let active = true
-    fetch(`/api/leagues/${encodeURIComponent(leagueId)}/history`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!active) return
-        if (data.error) { setError(data.error); return }
-        setSeasons(data.seasons ?? [])
-        setLeagueName(data.leagueName ?? null)
-      })
-      .catch(() => { if (active) setError('Failed to load league history') })
-      .finally(() => { if (active) setLoading(false) })
-    return () => { active = false }
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const load = () => {
+      fetch(`/api/leagues/${encodeURIComponent(leagueId)}/history`, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => {
+          if (!active) return
+          if (data.error) { setError(data.error); return }
+          setSeasons(data.seasons ?? [])
+          setLeagueName(data.leagueName ?? null)
+          setBackfill(data.historicalBackfill ?? null)
+          // Poll while the background backfill is still running.
+          if (data.historicalBackfill?.status === 'pending') {
+            timer = setTimeout(load, 5000)
+          }
+        })
+        .catch(() => { if (active) setError('Failed to load league history') })
+        .finally(() => { if (active) setLoading(false) })
+    }
+    load()
+    return () => {
+      active = false
+      if (timer) clearTimeout(timer)
+    }
   }, [leagueId])
 
   if (loading) {
@@ -87,6 +107,29 @@ export function LeagueHistoryPanel({ leagueId }: Props) {
 
   return (
     <div className="space-y-4">
+      {backfill?.status === 'pending' && (
+        <div className="rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-2 text-[12px] text-sky-100">
+          Importing historical seasons in the background — years will appear as they finish.
+        </div>
+      )}
+      {backfill?.status === 'failed' && backfill.error && (
+        <div className="rounded-lg border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2 text-[12px] text-rose-100">
+          <p>Historical backfill hit a snag: {backfill.error}</p>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/backfill/retry`, {
+                method: 'POST',
+                credentials: 'include',
+              })
+              setBackfill({ ...backfill, status: 'pending', error: null })
+            }}
+            className="mt-2 inline-flex items-center gap-1 rounded-full border border-rose-400/40 bg-rose-400/10 px-3 py-1 text-[11px] font-semibold text-rose-100 hover:bg-rose-400/20"
+          >
+            Retry backfill
+          </button>
+        </div>
+      )}
       {/* Season list — matching Sleeper's clean year layout */}
       {seasons.length === 0 ? (
         <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-8 text-center">

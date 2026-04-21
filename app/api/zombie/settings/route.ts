@@ -6,6 +6,9 @@ import { requireCommissionerOnly } from '@/lib/league/permissions'
 
 export const dynamic = 'force-dynamic'
 
+const ZOMBIE_ALLOWED_TEAM_COUNTS = [8, 10, 12, 14, 16] as const
+const ZOMBIE_ALLOWED_WHISPERER_SELECTION_MODES = ['random', 'veteran_priority'] as const
+
 export async function PATCH(req: Request) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
@@ -24,23 +27,63 @@ export async function PATCH(req: Request) {
   const bool = (k: string) => (typeof body[k] === 'boolean' ? (body[k] as boolean) : undefined)
   const str = (k: string) => (typeof body[k] === 'string' ? (body[k] as string) : undefined)
 
+  const teamCountPatch = num('teamCount')
+  if (
+    teamCountPatch !== undefined &&
+    !(ZOMBIE_ALLOWED_TEAM_COUNTS as readonly number[]).includes(teamCountPatch)
+  ) {
+    return NextResponse.json(
+      { error: `teamCount must be one of ${ZOMBIE_ALLOWED_TEAM_COUNTS.join(', ')}` },
+      { status: 400 },
+    )
+  }
+
+  const weeklyUpdateDayPatch = num('weeklyUpdateDay')
+  if (
+    weeklyUpdateDayPatch !== undefined &&
+    (!Number.isInteger(weeklyUpdateDayPatch) || weeklyUpdateDayPatch < 0 || weeklyUpdateDayPatch > 6)
+  ) {
+    return NextResponse.json({ error: 'weeklyUpdateDay must be an integer between 0 and 6.' }, { status: 400 })
+  }
+
+  const weeklyUpdateHourPatch = num('weeklyUpdateHour')
+  if (
+    weeklyUpdateHourPatch !== undefined &&
+    (!Number.isInteger(weeklyUpdateHourPatch) || weeklyUpdateHourPatch < 0 || weeklyUpdateHourPatch > 23)
+  ) {
+    return NextResponse.json({ error: 'weeklyUpdateHour must be an integer between 0 and 23.' }, { status: 400 })
+  }
+
+  const whispererSelectionModePatch = str('whispererSelectionMode')
+  if (
+    whispererSelectionModePatch !== undefined &&
+    !(ZOMBIE_ALLOWED_WHISPERER_SELECTION_MODES as readonly string[]).includes(whispererSelectionModePatch)
+  ) {
+    return NextResponse.json(
+      {
+        error: `whispererSelectionMode must be one of ${ZOMBIE_ALLOWED_WHISPERER_SELECTION_MODES.join(', ')}`,
+      },
+      { status: 400 },
+    )
+  }
+
   const leaguePatch = {
     ...(str('name') !== undefined ? { name: str('name') } : {}),
     ...(str('status') !== undefined ? { status: str('status') } : {}),
-    ...(num('teamCount') !== undefined ? { teamCount: num('teamCount') } : {}),
+    ...(teamCountPatch !== undefined ? { teamCount: teamCountPatch } : {}),
     ...(num('currentWeek') !== undefined ? { currentWeek: num('currentWeek') } : {}),
     ...(num('buyInAmount') !== undefined ? { buyInAmount: num('buyInAmount') } : {}),
     ...(bool('isPaid') !== undefined ? { isPaid: bool('isPaid') } : {}),
     ...(str('namingMode') !== undefined ? { namingMode: str('namingMode') } : {}),
-    ...(str('whispererSelectionMode') !== undefined
-      ? { whispererSelectionMode: str('whispererSelectionMode') }
+    ...(whispererSelectionModePatch !== undefined
+      ? { whispererSelectionMode: whispererSelectionModePatch }
       : {}),
     ...(bool('whispererIsPublic') !== undefined ? { whispererIsPublic: bool('whispererIsPublic') } : {}),
     ...(num('whispererAmbushCount') !== undefined ? { whispererAmbushCount: num('whispererAmbushCount') } : {}),
     ...(bool('weeklyPayoutEnabled') !== undefined ? { weeklyPayoutEnabled: bool('weeklyPayoutEnabled') } : {}),
     ...(bool('ultimateSurvivorPot') !== undefined ? { ultimateSurvivorPot: bool('ultimateSurvivorPot') } : {}),
-    ...(num('weeklyUpdateDay') !== undefined ? { weeklyUpdateDay: num('weeklyUpdateDay') } : {}),
-    ...(num('weeklyUpdateHour') !== undefined ? { weeklyUpdateHour: num('weeklyUpdateHour') } : {}),
+    ...(weeklyUpdateDayPatch !== undefined ? { weeklyUpdateDay: weeklyUpdateDayPatch } : {}),
+    ...(weeklyUpdateHourPatch !== undefined ? { weeklyUpdateHour: weeklyUpdateHourPatch } : {}),
     ...(bool('weeklyUpdateAutoPost') !== undefined ? { weeklyUpdateAutoPost: bool('weeklyUpdateAutoPost') } : {}),
     ...(bool('weeklyUpdateApproval') !== undefined ? { weeklyUpdateApproval: bool('weeklyUpdateApproval') } : {}),
     ...(bool('updateIncludeProjections') !== undefined

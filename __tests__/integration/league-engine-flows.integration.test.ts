@@ -11,6 +11,7 @@ import { validateCreatePayload } from '@/lib/league-creation/canonical/validateC
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
 import { buildCanonicalImportBundle } from '@/lib/league-import/canonicalImportNormalizer'
 import { buildMinimalNormalizedImport } from '@/lib/engine-testing/fixtures/importNormalizationFixtures'
+import { runFullLeagueEngineDryRun } from '@/lib/engine-testing/simulation/fullEngineDryRun'
 
 function slots(n: number): SlotOrderEntry[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -72,6 +73,14 @@ describe('league engine integration (no DB)', () => {
       const r = runExtendedLeagueEngineSimulation(fx)
       expect(r.ok, fx.id).toBe(true)
       expect(r.extendedOk, fx.id).toBe(true)
+    }
+  })
+
+  it('full dry-run + consistency probe: all fixtures (no DB)', () => {
+    for (const fx of LEAGUE_ENGINE_SCENARIO_FIXTURES) {
+      const r = runFullLeagueEngineDryRun(fx)
+      expect(r.fullOk, fx.id).toBe(true)
+      expect(r.consistencyProbe.allPass, fx.id).toBe(true)
     }
   })
 })

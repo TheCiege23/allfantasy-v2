@@ -209,18 +209,17 @@ export async function condenseRound(
 
     // Use first conference as parent (arbitrary for final)
     const firstConfId = tournament.conferences[0]?.id
-    if (firstConfId) {
-      await prisma.legacyTournamentLeague.create({
-        data: {
-          tournamentId,
-          conferenceId: firstConfId,
-          leagueId: league.id,
-          roundIndex: newRoundIndex,
-          phase: 'championship',
-          orderInConference: 0,
-        },
-      })
-    }
+    if (!firstConfId) throw new Error('Tournament has no conferences — cannot create championship league join record')
+    await prisma.legacyTournamentLeague.create({
+      data: {
+        tournamentId,
+        conferenceId: firstConfId,
+        leagueId: league.id,
+        roundIndex: newRoundIndex,
+        phase: 'championship',
+        orderInConference: 0,
+      },
+    })
 
     for (const p of allAdvancing) {
       if (!p.userId) continue

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { useThemeMode } from "./ThemeProvider"
 import { type ThemeId } from "@/lib/theme"
 import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
@@ -12,7 +11,7 @@ const THEME_IDS: ThemeId[] = ["light", "dark", "legacy", "system"]
 
 export function ThemeModeSelector({ className }: { className?: string }) {
   const { data: session } = useSession()
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const { mode, setMode } = useThemeMode()
   const [mounted, setMounted] = useState(false)
 
@@ -51,7 +50,7 @@ export function ThemeModeSelector({ className }: { className?: string }) {
                   ? "border-cyan-400/70 bg-cyan-500/15 text-cyan-300"
                   : "border-white/[0.08] bg-white/[0.03] text-white/50 hover:bg-white/[0.07] hover:text-white/80"
               }`}
-              aria-label={interpolateTemplate(t("theme.current"), { label })}
+              aria-label={tInterpolate("theme.current", { label })}
               suppressHydrationWarning
             >
               {label}

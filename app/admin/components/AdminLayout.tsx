@@ -30,10 +30,11 @@ import {
   ToggleLeft,
   Zap,
   ScrollText,
+  LifeBuoy,
 } from "lucide-react";
 import { AdminTabsBar } from "./AdminTabsBar";
 
-export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "moderation" | "audit" | "features" | "system" | "providers" | "content";
+export type AdminTab = "overview" | "signups" | "questionnaire" | "ideas" | "feedback" | "email" | "blog" | "tools" | "analytics" | "ai_issues" | "share_rewards" | "calibration" | "model_drift" | "users" | "leagues" | "operations" | "moderation" | "audit" | "features" | "system" | "providers" | "content";
 
 const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus: string }> = {
   overview: {
@@ -111,6 +112,11 @@ const TAB_SUMMARY: Record<AdminTab, { title: string; description: string; focus:
     description: "Active leagues by sport, largest leagues, recent and flagged.",
     focus: "View league and open league in app from row actions.",
   },
+  operations: {
+    title: "Operations",
+    description: "League inspect, recovery jobs, finance/audit visibility, support notes, risk & disputes.",
+    focus: "Search a league id, load snapshot, then run audited repairs or enqueue engine jobs.",
+  },
   moderation: {
     title: "Moderation",
     description: "Reported content, reported users, and blocked users.",
@@ -165,6 +171,7 @@ const NAV: Array<{
   { tab: "model_drift", label: "Model Drift", icon: Shield, desc: "Drift & monitoring", color: "from-red-500 to-orange-600", glow: "red" },
   { tab: "users", label: "Users", icon: Users, desc: "Account management", color: "from-indigo-500 to-purple-600", glow: "indigo" },
   { tab: "leagues", label: "Leagues", icon: Trophy, desc: "By sport & size", color: "from-emerald-500 to-teal-600", glow: "emerald" },
+  { tab: "operations", label: "Operations", icon: LifeBuoy, desc: "Inspect & recovery", color: "from-cyan-500 to-sky-600", glow: "cyan" },
   { tab: "moderation", label: "Moderation", icon: Flag, desc: "Reports & blocks", color: "from-rose-500 to-red-600", glow: "rose" },
   { tab: "audit", label: "Audit", icon: ScrollText, desc: "Action log", color: "from-slate-500 to-slate-600", glow: "slate" },
   { tab: "features", label: "Features", icon: ToggleLeft, desc: "Feature toggles", color: "from-violet-500 to-purple-600", glow: "violet" },

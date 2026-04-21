@@ -2,14 +2,19 @@
 
 ## 1. Implementation / QA Summary
 
+This document is historical. The current Best Ball product in `allfantasy-v2-main` now treats the following as the authoritative sport support list:
+
+- **Supported Best Ball sports**: **NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER**
+- **Current product direction**: Standard Best Ball and Underdog-style Best Ball both live under `league_type = 'best_ball'`, with sport validation and draft-mode rules enforced by the shared Best Ball rules layer.
+
 This pass **audited and fixed** the existing Best Ball scaffolding in AllFantasy without replacing or simplifying working systems. The following was done:
 
-- **League creation**: Best Ball is a valid league type in the wizard. When selected, `settings.best_ball` and `settings.league_type = 'best_ball'` are now set correctly on create, and sport feature-flag validation (`supportsBestBall`) blocks unsupported sports (MLB, NHL, SOCCER).
-- **Sport filtering**: Best Ball is only offered in the league-type dropdown for sports that support it: **NFL, NBA, NCAAB, NCAAF** (aligned with `SportFeatureFlagsService`).
+- **League creation**: Best Ball is a valid league type in the wizard. When selected, `settings.best_ball` and `settings.league_type = 'best_ball'` are set correctly on create, and sport validation now reads from the shared Best Ball rules layer instead of stale doc assumptions.
+- **Sport filtering**: Best Ball is offered for all currently supported Best Ball sports: **NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER**.
 - **League home / shell**: League page and API already exposed `leagueType`; the app shell now shows a **Best Ball** mode label when the league is best ball and does not treat it as redraft.
 - **Chimmy**: Best-ball league context was added so Chimmy explains auto-lineup optimization, draft/waiver/trade advice for best ball, and does not assume manual start/sit.
 - **Trade evaluator**: League context schema and payload now support `format: 'best_ball'` and set `leagueType: 'bestball'` for AI so valuation uses best-ball framing (spike weeks, depth) where applicable.
-- **Optimizer gap (documented)**: The codebase has **IDP**, **Devy**, and **C2C** best-ball lineup snapshot/optimizer paths. There is **no generic best-ball lineup optimizer** that runs each scoring period for standalone Best Ball leagues (league type `best_ball` with no devy/C2C/IDP). Weekly matchup points for those leagues currently come from the same source as redraft (e.g. platform sync). **No fake support was added.** Options for a future pass: (1) add a generic best-ball optimizer job + persistence (e.g. snapshot or override of weekly points), or (2) keep current behavior and document that “standalone best ball” is creation + UX + AI aware, with optimization only in IDP/Devy/C2C.
+- **Optimizer status (current)**: Standalone Best Ball leagues now use deterministic weekly optimization in scoring (`server/services/weeklyProcessor.ts` via `lib/bestball/leagueOptimizer.ts`) with legal-slot lineup selection per sport. Selected starters are persisted to `weekly_scores.isStarter` with `statLine.bestBallSlot`, and team totals flow into `team_week_results`, standings, and playoff seeding.
 
 ---
 
@@ -36,16 +41,16 @@ This pass **audited and fixed** the existing Best Ball scaffolding in AllFantasy
 
 | Area | Pass/Fail | Notes |
 |------|-----------|--------|
-| **1. League creation** | **PASS** | Best ball league can be created; `best_ball` and `league_type` persist; sport defaults load; `supportsBestBall` validation blocks MLB/NHL/SOCCER. |
+| **1. League creation** | **PASS** | Best ball league can be created; `best_ball` and `league_type` persist; sport defaults load; validation uses the shared 7-sport support matrix. |
 | **2. Draft setup** | **PASS** | Draft types unchanged; 3RR only for snake; best ball flag persists via settings. |
 | **3. Draft room** | **PASS** | No changes to draft room; no manual start/sit copy found in best-ball-specific paths; pool/queue logic unchanged. |
 | **4. Post-draft roster** | **PASS** | Roster legality and display unchanged; best ball does not introduce conflicting lineup-edit requirements in current code. |
-| **5. Regular season** | **GAP** | Standalone best ball has no dedicated optimizer run each period; IDP/Devy/C2C best ball optimization exists. Documented; not faked. |
+| **5. Regular season** | **PASS** | Standalone best ball uses deterministic optimizer scoring each period; starter selection and totals persist and feed standings/playoffs. |
 | **6. Waivers / FA** | **PASS** | Waiver logic unchanged; best ball does not disable waivers; optimizer (where present) uses updated rosters. |
 | **7. Trades** | **PASS** | Trade flow unchanged; trade evaluator now receives best-ball league context and `leagueType: 'bestball'`. |
 | **8. Playoffs / endgame** | **PASS** | Playoff logic unchanged; best ball does not alter bracket or champion resolution. |
-| **9. Best ball optimizer (deterministic)** | **PARTIAL** | IDP/Devy/C2C best ball paths exist; generic standalone best ball optimizer not implemented (see Summary). |
-| **10. Sport-aware best ball** | **PASS** | Best Ball only offered for NFL, NBA, NCAAB, NCAAF; creation validates `supportsBestBall`. |
+| **9. Best ball optimizer (deterministic)** | **PASS** | Generic standalone best-ball optimizer is wired through weekly scoring with sport-aware slot legality and persisted starter flags. |
+| **10. Sport-aware best ball** | **PASS** | Best Ball supports NFL, NBA, MLB, NHL, NCAAF, NCAAB, and SOCCER through the shared rules layer. |
 | **11. AI (Chimmy)** | **PASS** | Chimmy gets best-ball context; explains auto-lineup and best-ball strategy; no manual start/sit assumption. |
 | **12. AI (trade evaluator)** | **PASS** | Format `best_ball` and `leagueType: 'bestball'` passed so AI can use best-ball valuation. |
 | **13. Regression** | **PASS** | Redraft, keeper, dynasty, devy, specialty (guillotine, survivor, etc.) unchanged; sport defaults and validation intact. |
@@ -70,7 +75,7 @@ This pass **audited and fixed** the existing Best Ball scaffolding in AllFantasy
 | # | File(s) | Fix |
 |---|---------|-----|
 | 1 | `app/api/league/create/route.ts` | When `leagueTypeWizard === 'best_ball'`, set `initialSettings.best_ball = true` so validation and persistence are correct. |
-| 2 | `lib/league-creation-wizard/league-type-registry.ts` | Introduced `SPORTS_SUPPORTING_BEST_BALL` (NFL, NBA, NCAAB, NCAAF) and filter so `best_ball` is only in the allowed league types for those sports. |
+| 2 | `lib/league-creation-wizard/league-type-registry.ts` | Best Ball sport filtering is now sourced from shared Best Ball rules / format engine matrix and supports NFL, NBA, MLB, NHL, NCAAF, NCAAB, SOCCER. |
 | 3 | `app/app/league/[leagueId]/page.tsx` | Added `isBestBall` state from `leagueData.leagueType === 'best_ball'` and set `leagueModeLabel` to `'Best Ball'` when true. |
 | 4 | `app/api/chat/chimmy/route.ts` | In league format context, added branch for `leagueType === 'best_ball'` or `settings.best_ball === true` and return best-ball instructions (auto-lineup, no manual start/sit, draft/waiver/trade advice). |
 | 5 | `app/api/trade-evaluator/route.ts` | Added `'best_ball'` to league context format enum; set `leagueSettings.leagueType: 'bestball'` when `data.league?.format === 'best_ball'`. |

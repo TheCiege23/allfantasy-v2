@@ -12,6 +12,30 @@ import { tribeChatSource } from './constants'
 
 const AI_HOST_USER_ID = 'survivor-ai-host'
 
+async function rosterIdsToUserIds(rosterIds: string[]): Promise<string[]> {
+  if (rosterIds.length === 0) return []
+  const rosters = await prisma.roster.findMany({
+    where: { id: { in: rosterIds } },
+    select: { id: true, platformUserId: true },
+  })
+  return rosters
+    .map((row) => row.platformUserId)
+    .filter((value): value is string => Boolean(value))
+}
+
+async function syncChannelMembersForTribe(leagueId: string, tribeId: string, rosterIds: string[]): Promise<void> {
+  const memberUserIds = await rosterIdsToUserIds(rosterIds)
+  const deduped = [...new Set([...memberUserIds, AI_HOST_USER_ID])]
+  const channel = await prisma.survivorChatChannel.findFirst({
+    where: { leagueId, channelType: 'tribe', tribeId },
+  })
+  if (!channel) return
+  await prisma.survivorChatChannel.update({
+    where: { id: channel.id },
+    data: { memberUserIds: deduped },
+  })
+}
+
 /**
  * Bootstrap tribe chat memberships after tribes are created: add all tribe members + AI host per tribe.
  */
@@ -48,19 +72,13 @@ export async function bootstrapTribeChatMembers(leagueId: string): Promise<{ ok:
     })
   }
 
-  // Sync memberUserIds on SurvivorChatChannel so permission guard works
+  // Sync memberUserIds on SurvivorChatChannel so permission guard works.
   for (const tribe of tribes) {
-    const memberUserIds = tribe.members.map((m: { rosterId: string }) => m.rosterId)
-    memberUserIds.push(AI_HOST_USER_ID)
-    const channel = await prisma.survivorChatChannel.findFirst({
-      where: { leagueId, channelType: 'tribe', tribeId: tribe.id },
-    })
-    if (channel) {
-      await prisma.survivorChatChannel.update({
-        where: { id: channel.id },
-        data: { memberUserIds },
-      })
-    }
+    await syncChannelMembersForTribe(
+      leagueId,
+      tribe.id,
+      tribe.members.map((member) => member.rosterId),
+    )
   }
 
   await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', {
@@ -77,9 +95,25 @@ export async function removeRosterFromTribeChat(leagueId: string, rosterId: stri
   const config = await getSurvivorConfig(leagueId)
   if (!config) return { ok: false, error: 'Not a Survivor league' }
 
+  const memberships = await prisma.survivorTribeChatMember.findMany({
+    where: { rosterId, tribe: { configId: config.configId } },
+    select: { tribeId: true },
+  })
+
   const deleted = await prisma.survivorTribeChatMember.deleteMany({
     where: { rosterId, tribe: { configId: config.configId } },
   })
+  for (const membership of memberships) {
+    const remaining = await prisma.survivorTribeChatMember.findMany({
+      where: { tribeId: membership.tribeId, isAiHost: false },
+      select: { rosterId: true },
+    })
+    await syncChannelMembersForTribe(
+      leagueId,
+      membership.tribeId,
+      remaining.map((row) => row.rosterId),
+    )
+  }
   if (deleted.count > 0) {
     await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', {
       action: 'remove',
@@ -135,6 +169,7 @@ export async function syncTribeChatMembersAfterShuffle(leagueId: string): Promis
         update: {},
       })
     }
+    await syncChannelMembersForTribe(leagueId, tribe.id, [...currentRosterIds])
   }
   await appendSurvivorAudit(leagueId, config.configId, 'chat_membership_updated', { action: 'sync_after_shuffle' })
   return { ok: true }

@@ -88,7 +88,7 @@ export function isAllowedRosterModeForGuillotine(mode: string | null | undefined
 }
 
 /**
- * Get allowed draft types for Guillotine. Returns snake, linear, auction.
+ * Get allowed draft types for Guillotine. Returns snake and auction.
  * 3RR applies only to snake (enforced in UI/settings).
  */
 export function getAllowedDraftTypesForGuillotine(): readonly string[] {
@@ -109,6 +109,35 @@ export function isAllowedDraftTypeForGuillotine(draftType: string | null | undef
 export function isSportSupportedForGuillotine(sport: LeagueSport | string): boolean {
   const s = String(sport).toUpperCase()
   return SUPPORTED_SPORTS.includes(s as LeagueSport)
+}
+
+/**
+ * Validate that the final elimination week lands in the last two weeks of
+ * the sport's regular season. Prevents the commissioner from scheduling the
+ * final too early (leaving orphaned weeks) or past season end.
+ */
+export async function validateGuillotineFinalWeek(
+  sport: LeagueSport | string,
+  eliminationEndWeek: number,
+): Promise<{ ok: true } | { ok: false; error: string; regularSeasonWeeks: number }> {
+  const sportType = toSportType(sport as LeagueSport) as SportType
+  const template = await getScheduleTemplate(sportType, 'DEFAULT')
+  const weeks = template.regularSeasonWeeks ?? 17
+  if (eliminationEndWeek > weeks) {
+    return {
+      ok: false,
+      error: `eliminationEndWeek (${eliminationEndWeek}) exceeds regular season length (${weeks}).`,
+      regularSeasonWeeks: weeks,
+    }
+  }
+  if (eliminationEndWeek < weeks - 1) {
+    return {
+      ok: false,
+      error: `eliminationEndWeek (${eliminationEndWeek}) must be within the last two weeks of the regular season (>= ${weeks - 1}).`,
+      regularSeasonWeeks: weeks,
+    }
+  }
+  return { ok: true }
 }
 
 export interface ValidateGuillotineCreationInput {

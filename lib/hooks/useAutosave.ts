@@ -23,6 +23,11 @@ export function useAutosave(leagueId: string) {
           return
         }
         setStatus('saved')
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('af-league-settings-saved', { detail: { leagueId } }),
+          )
+        }
         setTimeout(() => setStatus('idle'), 1500)
       } catch {
         setStatus('error')

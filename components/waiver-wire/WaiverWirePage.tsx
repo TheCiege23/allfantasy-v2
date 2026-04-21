@@ -35,6 +35,7 @@ import WaiverPriorityCard from "@/components/waivers/WaiverPriorityCard"
 import CommissionerWaiverControls from "@/components/waivers/CommissionerWaiverControls"
 import PendingClaimsList, { buildPendingClaimPatch } from "@/components/waivers/PendingClaimsList"
 import WaiverResultsFeed from "@/components/waivers/WaiverResultsFeed"
+import { formatWaiverOutcomeLabel, outcomeCodeFromMetadata } from "@/lib/waiver-wire/waiver-outcome-labels"
 
 type WaiverSettings = {
   leagueId?: string
@@ -57,6 +58,9 @@ type Claim = {
   faabBid: number | null
   priorityOrder: number
   status: string
+  resultMessage?: string | null
+  processedAt?: string | null
+  metadata?: { outcomeCode?: string; commissionerOverrides?: unknown } | null
   roster?: { id: string; faabRemaining: number | null; waiverPriority: number | null }
 }
 type Transaction = {
@@ -825,7 +829,7 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
       {activeTab === "history" && (
         <div className="rounded-xl border border-white/10 bg-black/20 p-4">
           <h3 className="mb-2 text-sm font-semibold text-white">Processed claims</h3>
-          {history.transactions.length === 0 && history.claims.length === 0 ? (
+          {history.transactions.length === 0 && history.claims.filter((c) => c.status === "failed").length === 0 ? (
             <p className="py-4 text-center text-sm text-white/50">{WAIVER_EMPTY_HISTORY_TITLE}</p>
           ) : (
             <div className="space-y-4">
@@ -845,24 +849,47 @@ export default function WaiverWirePage({ leagueId }: { leagueId: string }) {
                   formatTime={formatInTimezone}
                 />
               )}
-              {history.claims.length > 0 && (
+              {history.claims.filter((c) => c.status === "failed").length > 0 && (
                 <ul className="space-y-1.5 text-sm" data-testid="waiver-history-failed-claims">
-                  {history.claims.map((c) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-white/90"
-                    >
-                      <span className="flex h-4 w-4 items-center justify-center rounded-full border border-red-400/60 text-[10px] leading-none text-red-300">
-                        !
-                      </span>
-                      <span>
-                        Failed claim for {c.addPlayerId}
-                        {c.dropPlayerId && <> · Drop {c.dropPlayerId}</>}
-                      </span>
-                      {c.faabBid != null && <span className="text-cyan-300">${c.faabBid}</span>}
-                      <span className="ml-auto text-xs text-white/50">{c.status || "failed"}</span>
-                    </li>
-                  ))}
+                  {history.claims
+                    .filter((c) => c.status === "failed")
+                    .map((c) => {
+                    const oc = outcomeCodeFromMetadata(c.metadata)
+                    const headline = formatWaiverOutcomeLabel(oc, c.resultMessage)
+                    return (
+                      <li
+                        key={c.id}
+                        className="flex flex-col gap-1 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2 text-white/90 sm:flex-row sm:items-start sm:justify-between"
+                      >
+                        <div className="flex min-w-0 items-start gap-2">
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-red-400/60 text-[10px] leading-none text-red-300">
+                            !
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-medium text-white">{headline}</div>
+                            <div className="text-xs text-white/70">
+                              Add {c.addPlayerId}
+                              {c.dropPlayerId && <> · Drop {c.dropPlayerId}</>}
+                            </div>
+                            {c.resultMessage && c.resultMessage !== headline && (
+                              <div className="mt-1 text-[11px] text-white/50">{c.resultMessage}</div>
+                            )}
+                            {oc && (
+                              <span className="mt-1 inline-block rounded bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/45">
+                                {oc.replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-end">
+                          {c.faabBid != null && <span className="text-cyan-300">${c.faabBid}</span>}
+                          {c.processedAt && (
+                            <span className="text-xs text-white/50">{formatInTimezone(c.processedAt)}</span>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
             </div>

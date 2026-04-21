@@ -10,7 +10,7 @@ import type { GuillotineDangerRow, DangerTier } from './types'
 export interface GetDangerTiersInput {
   leagueId: string
   weekOrPeriod: number
-  /** Projected points per roster for this period (rosterId -> points). If not provided, uses seasonPointsCumul as proxy. */
+  /** Projected points per roster for this period (rosterId -> points). If not provided, uses latest in-period score data as proxy. */
   projectedPointsByRoster?: Map<string, number>
   /** Override danger margin (points below lowest = danger). */
   dangerMarginPoints?: number | null
@@ -32,11 +32,30 @@ export async function getDangerTiers(input: GetDangerTiersInput): Promise<Guillo
 
   let projectedByRoster = input.projectedPointsByRoster
   if (!projectedByRoster || projectedByRoster.size === 0) {
-    const scores = await prisma.guillotinePeriodScore.findMany({
-      where: { leagueId: input.leagueId, weekOrPeriod: input.weekOrPeriod - 1 },
+    const currentPeriodScores = await prisma.guillotinePeriodScore.findMany({
+      where: { leagueId: input.leagueId, weekOrPeriod: input.weekOrPeriod },
+      select: { rosterId: true, periodPoints: true },
+    })
+
+    if (currentPeriodScores.length > 0) {
+      projectedByRoster = new Map(
+        currentPeriodScores
+          .filter((s) => !choppedSet.has(s.rosterId))
+          .map((s) => [s.rosterId, s.periodPoints])
+      )
+    }
+  }
+
+  if (!projectedByRoster || projectedByRoster.size === 0) {
+    const fallbackScores = await prisma.guillotinePeriodScore.findMany({
+      where: { leagueId: input.leagueId, weekOrPeriod: Math.max(1, input.weekOrPeriod - 1) },
       select: { rosterId: true, seasonPointsCumul: true },
     })
-    projectedByRoster = new Map(scores.filter((s) => !choppedSet.has(s.rosterId)).map((s) => [s.rosterId, s.seasonPointsCumul]))
+    projectedByRoster = new Map(
+      fallbackScores
+        .filter((s) => !choppedSet.has(s.rosterId))
+        .map((s) => [s.rosterId, s.seasonPointsCumul])
+    )
   }
 
   const active = [...projectedByRoster.entries()].filter(([id]) => !choppedSet.has(id))
@@ -45,6 +64,7 @@ export async function getDangerTiers(input: GetDangerTiersInput): Promise<Guillo
   const sorted = [...active].sort((a, b) => a[1] - b[1])
   const minProjected = sorted[0]?.[1] ?? 0
   const dangerThreshold = minProjected + margin
+  const bubbleCount = Math.min(4, sorted.length)
 
   const rosters = await prisma.roster.findMany({
     where: { leagueId: input.leagueId, id: { in: sorted.map(([id]) => id) } },
@@ -67,7 +87,7 @@ export async function getDangerTiers(input: GetDangerTiersInput): Promise<Guillo
 
   const result: GuillotineDangerRow[] = sorted.map(([rosterId, projectedPoints], i) => {
     const tier: DangerTier =
-      i === 0 ? 'chop_zone' : projectedPoints <= dangerThreshold ? 'danger' : 'safe'
+      i === 0 ? 'chop_zone' : i < bubbleCount || projectedPoints <= dangerThreshold ? 'danger' : 'safe'
     return {
       rosterId,
       displayName: displayByUserId[

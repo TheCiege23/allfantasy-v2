@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State, SoccerPipeline, SupportedSport } from '@/lib/create-league-v2/state'
 import { SUPPORTED_SPORTS, getEffectiveLeagueType } from '@/lib/create-league-v2/state'
 import {
-  getDefaultScoringPresetId,
-  isScoringPresetValidForContext,
   listScoringPresetOptions,
+  resolveScoringPresetId,
 } from '@/lib/league-creation-preset/scoring-presets'
 import {
   getDefaultTeamCount,
@@ -15,6 +14,7 @@ import {
   isSportAllowedForType,
 } from '@/lib/create-league-v2/rules-engine'
 import { GlassCard, SectionHeader, SelectableCard, Segmented } from '@/components/create-league-v2/primitives'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const SPORT_ICONS: Record<SupportedSport, string> = {
   NFL: '🏈',
@@ -49,22 +49,20 @@ export function SportScoringSelector({
   sportError?: string
   scoringError?: string
 }) {
+  const { t } = useLanguage()
   const effectiveType = getEffectiveLeagueType(state)
-  const presetCtx = effectiveType
-    ? { leagueType: effectiveType, sport: state.sport, idpSelected: state.idpSelected }
-    : null
+  const presetCtx = useMemo(
+    () =>
+      effectiveType
+        ? { leagueType: effectiveType, sport: state.sport, idpSelected: state.idpSelected }
+        : null,
+    [effectiveType, state.sport, state.idpSelected],
+  )
 
   const scoringOptions = useMemo(
     () => (presetCtx ? listScoringPresetOptions(presetCtx) : []),
     [presetCtx?.leagueType, presetCtx?.sport, presetCtx?.idpSelected],
   )
-
-  useEffect(() => {
-    if (!presetCtx) return
-    if (!state.scoringPresetId || !isScoringPresetValidForContext(state.scoringPresetId, presetCtx)) {
-      onChange({ scoringPresetId: getDefaultScoringPresetId(presetCtx) })
-    }
-  }, [presetCtx, state.scoringPresetId, onChange])
 
   const isSoccer = state.sport === 'SOCCER'
 
@@ -76,6 +74,11 @@ export function SportScoringSelector({
     }
     if (effectiveType) {
       patch.teamCount = getDefaultTeamCount(sport, effectiveType, patch.soccerPipeline ?? null)
+      patch.scoringPresetId = resolveScoringPresetId(state.scoringPresetId, {
+        leagueType: effectiveType,
+        sport,
+        idpSelected: patch.idpSelected ?? state.idpSelected,
+      })
     }
     patch.nameTouched = false
     onChange(patch)
@@ -84,8 +87,8 @@ export function SportScoringSelector({
   return (
     <GlassCard className={!effectiveType ? 'pointer-events-none opacity-40' : ''}>
       <SectionHeader
-        title="2 · Sport & scoring preset"
-        hint="Pick a sport, then choose a scoring curve tuned for this concept."
+        title={t('createLeague.section.sportTitle')}
+        hint={t('createLeague.section.sportHint')}
       />
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
         {SUPPORTED_SPORTS.map((sport) => {
@@ -99,7 +102,7 @@ export function SportScoringSelector({
               disabled={disabled}
               onClick={() => handleSportChange(sport)}
               accent={accent}
-              title={SPORT_LABELS[sport]}
+              title={sport === 'SOCCER' ? t('createLeague.sport.soccer') : SPORT_LABELS[sport]}
               icon={<span className="text-lg">{SPORT_ICONS[sport]}</span>}
             />
           )
@@ -113,11 +116,14 @@ export function SportScoringSelector({
 
       {isSoccer && effectiveType ? (
         <div className="mt-5">
-          <SectionHeader title="Soccer region" hint="MLS vs European data pipelines." />
+          <SectionHeader
+            title={t('createLeague.section.soccerRegionTitle')}
+            hint={t('createLeague.section.soccerRegionHint')}
+          />
           <Segmented
             options={[
-              { value: 'mls' as const, label: 'MLS', hint: 'North America' },
-              { value: 'euro' as const, label: 'European', hint: 'Top 5 leagues' },
+              { value: 'mls' as const, label: t('createLeague.sport.mls.label'), hint: t('createLeague.sport.mls.hint') },
+              { value: 'euro' as const, label: t('createLeague.sport.euro.label'), hint: t('createLeague.sport.euro.hint') },
             ]}
             value={state.soccerPipeline ?? 'euro'}
             onChange={(v) => {
@@ -130,14 +136,17 @@ export function SportScoringSelector({
               onChange(patch)
             }}
             accent={accent}
-            ariaLabel="Soccer data region"
+            ariaLabel={t('createLeague.sport.ariaRegion')}
           />
         </div>
       ) : null}
 
       {effectiveType && presetCtx ? (
         <div className="mt-6">
-          <SectionHeader title="Scoring preset" hint="Real scoring rules — tune further in League Settings." />
+          <SectionHeader
+            title={t('createLeague.section.scoringPresetTitle')}
+            hint={t('createLeague.section.scoringPresetHint')}
+          />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {scoringOptions.map((opt) => (
               <button

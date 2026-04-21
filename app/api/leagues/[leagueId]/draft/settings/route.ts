@@ -10,6 +10,7 @@ import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { assertCommissioner, isCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
 import { getDraftVariantSettings, updateDraftVariantSettings } from '@/lib/draft-defaults/DraftVariantSettingsHub'
+import { isDraftTypeAllowedOnSettingsTab } from '@/lib/draft-types/draftTypeRegistry'
 import { validateLeagueSettings } from '@/lib/league-settings-validation'
 import { getDraftOrderModeAndLotteryConfig, setDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
@@ -159,8 +160,22 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}))
+
+  // Resolve league format for draft-type validation so format-specific ids
+  // (devy_snake, c2c_auction, salary_cap → auction, etc.) are accepted here
+  // the same way they are on the dedicated settings/draft endpoint.
+  const leagueForFormat = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { leagueType: true },
+  })
+
   const configPatch: Record<string, unknown> = {}
-  if (['snake', 'linear', 'auction'].includes(body.draft_type)) configPatch.draft_type = body.draft_type
+  if (typeof body.draft_type === 'string' && body.draft_type.trim().length > 0) {
+    const normalizedDraftType = body.draft_type.trim().toLowerCase()
+    if (isDraftTypeAllowedOnSettingsTab(leagueForFormat?.leagueType ?? null, normalizedDraftType)) {
+      configPatch.draft_type = normalizedDraftType
+    }
+  }
   if (typeof body.rounds === 'number') configPatch.rounds = body.rounds
   if (body.timer_seconds !== undefined) configPatch.timer_seconds = body.timer_seconds
   if (body.slow_timer_seconds !== undefined) configPatch.slow_timer_seconds = body.slow_timer_seconds

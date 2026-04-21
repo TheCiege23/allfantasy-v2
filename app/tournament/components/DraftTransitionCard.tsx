@@ -1,6 +1,13 @@
 'use client'
 
 import Link from 'next/link'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import type { LanguageCode } from '@/lib/i18n/constants'
+
+function pickOrdinalLabel(n: number, lang: LanguageCode): string {
+  if (lang === 'es') return `${n}.º`
+  return `${n}${nth(n)}`
+}
 
 export function DraftTransitionCard({
   leagueName,
@@ -25,6 +32,7 @@ export function DraftTransitionCard({
   leagueRoomHref: string | null
   readOnly?: boolean
 }) {
+  const { t, tInterpolate, language } = useLanguage()
   const live = status === 'LIVE' || status === 'drafting'
   return (
     <div
@@ -51,7 +59,10 @@ export function DraftTransitionCard({
         {draftTypeLabel} · {clockLabel}
       </p>
       <p className="text-[12px] text-white/90">
-        You draft {draftSlot != null ? `${draftSlot}${nth(draftSlot)}` : '—'}
+        {tInterpolate('tournament.draft.youPick', {
+          ordinal:
+            draftSlot != null ? pickOrdinalLabel(draftSlot, language) : t('tournament.draft.pickDash'),
+        })}
       </p>
       <p className="mt-1 text-[12px] text-[var(--tournament-text-dim)]">{scheduledLabel}</p>
       {countdownLabel ? (
@@ -67,7 +78,7 @@ export function DraftTransitionCard({
           }`}
           data-testid="draft-enter-room"
         >
-          {live ? 'Enter draft room' : 'Open league workspace'}
+          {live ? t('tournament.draft.enterRoom') : t('tournament.draft.openWorkspace')}
         </Link>
       ) : null}
     </div>
@@ -95,34 +106,42 @@ export function RoundResetExplainer({
   rosterAfter: number
   faabReset: boolean
 }) {
+  const { t, tInterpolate } = useLanguage()
   return (
     <div className="tournament-panel p-4">
       <p className="text-[12px] font-bold uppercase tracking-wide text-[var(--tournament-text-dim)]">
-        Round {roundNumber} draft — what&apos;s changing
+        {tInterpolate('tournament.roundExplainer.title', { n: String(roundNumber) })}
       </p>
       <ul className="mt-3 space-y-2 text-[13px] text-[var(--tournament-text-mid)]">
         <li className="flex gap-2">
           <span>🔄</span>
           <span>
-            <strong className="text-white">New draft</strong> — fresh roster, no carryover
+            <strong className="text-white">{t('tournament.roundExplainer.newDraft')}</strong> —{' '}
+            {t('tournament.roundExplainer.newDraftDesc')}
           </span>
         </li>
         <li className="flex gap-2">
           <span>📋</span>
           <span>
-            <strong className="text-white">Roster size</strong> — {rosterAfter} players (was {rosterBefore})
+            <strong className="text-white">{t('tournament.roundExplainer.rosterSize')}</strong> —{' '}
+            {tInterpolate('tournament.roundExplainer.rosterSizeDesc', {
+              after: String(rosterAfter),
+              before: String(rosterBefore),
+            })}
           </span>
         </li>
         <li className="flex gap-2">
           <span>💰</span>
           <span>
-            <strong className="text-white">FAAB</strong> — {faabReset ? 'Reset to 100' : 'Carryover'}
+            <strong className="text-white">{t('tournament.roundExplainer.faab')}</strong> —{' '}
+            {faabReset ? t('tournament.roundExplainer.faabReset') : t('tournament.roundExplainer.faabCarryover')}
           </span>
         </li>
         <li className="flex gap-2">
           <span>⚡</span>
           <span>
-            <strong className="text-white">Draft order</strong> — randomized fresh
+            <strong className="text-white">{t('tournament.roundExplainer.draftOrder')}</strong> —{' '}
+            {t('tournament.roundExplainer.draftOrderDesc')}
           </span>
         </li>
       </ul>

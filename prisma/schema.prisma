@@ -2670,6 +2670,10 @@ model AppUser {
   adminSubscriptionGrants                  AdminSubscriptionGrant[]
   leagueAuditLogs                        LeagueAuditLog[]
   afLeagueTradesProposed                 AfLeagueTrade[]
+  leagueDues                             LeagueDues[]
+  payoutRequestsSubmitted                PayoutRequest[]                  @relation("PayoutRequester")
+  payoutApprovals                        PayoutApproval[]
+  financeAuditEvents                     FinanceAuditEvent[]              @relation("FinanceAuditActor")
 
   @@map("app_users")
 }
@@ -4421,6 +4425,10 @@ model League {
   auditLogs                             LeagueAuditLog[]
   statReprocessLogs                     StatReprocessLog[]
   platformNotifications                 PlatformNotification[]
+  leagueFinance                         LeagueFinance?
+  leagueDuesRecords                     LeagueDues[]
+  payoutRequests                        PayoutRequest[]
+  financeAuditEvents                    FinanceAuditEvent[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -4451,6 +4459,139 @@ model LeagueAuditLog {
   @@index([leagueId, createdAt])
   @@index([leagueId, actionType])
   @@map("audit_logs")
+}
+
+// --- League finance & payouts (paid leagues, dues, treasury, audit) ---
+
+enum LeagueDuesPaymentStatus {
+  pending
+  paid
+  waived
+  failed
+  refunded
+}
+
+enum LeagueTreasuryProvider {
+  none
+  stripe
+  paypal
+  coinbase
+  external_escrow
+  manual
+}
+
+enum PayoutRequestStatus {
+  draft
+  pending_approval
+  approved
+  rejected
+  paid
+  frozen
+  cancelled
+}
+
+/// One row per league: entry fee, treasury summary, external escrow hints (LeagueSafe-style).
+model LeagueFinance {
+  id                       String                @id @default(cuid())
+  leagueId                 String                @unique
+  isPaidLeague             Boolean               @default(false)
+  entryFeeCents            Int                   @default(0)
+  currency                 String                @default("usd") @db.VarChar(16)
+  treasuryBalanceCents     Int                   @default(0)
+  treasuryProvider         LeagueTreasuryProvider @default(none)
+  externalEscrowUrl        String?               @db.VarChar(512)
+  externalEscrowLabel      String?               @db.VarChar(128)
+  allowManualPaymentMark   Boolean               @default(false)
+  depositNotes             Json?
+  metadata                 Json?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  league                   League                @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("league_finance")
+}
+
+/// Per-user dues for a league season (join fee / deposits). Keyed before roster exists; linked after join.
+model LeagueDues {
+  id                        String                   @id @default(cuid())
+  leagueId                  String
+  userId                    String
+  season                    Int
+  amountDueCents            Int                      @default(0)
+  amountPaidCents           Int                      @default(0)
+  status                    LeagueDuesPaymentStatus  @default(pending)
+  paymentProvider           String?                  @db.VarChar(32)
+  stripeCheckoutSessionId   String?                  @unique @db.VarChar(128)
+  stripePaymentIntentId     String?                  @db.VarChar(128)
+  externalReference         String?                  @db.VarChar(256)
+  paidAt                    DateTime?
+  rosterId                  String?                  @unique
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  league                    League                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user                      AppUser                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roster                    Roster?                  @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+
+  @@unique([leagueId, userId, season])
+  @@index([leagueId, status])
+  @@index([userId, season])
+  @@map("league_dues")
+}
+
+/// Commissioner / member payout workflow. Approvals stored in `payout_approvals`.
+model PayoutRequest {
+  id                  String              @id @default(cuid())
+  leagueId            String
+  requestedByUserId   String
+  amountCents         Int
+  currency            String              @default("usd") @db.VarChar(16)
+  status              PayoutRequestStatus @default(pending_approval)
+  recipientNote       String?             @db.VarChar(512)
+  freezeReason        String?             @db.VarChar(512)
+  frozenAt            DateTime?
+  paidAt              DateTime?
+  paidReference       String?             @db.VarChar(256)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  league              League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  requestedBy         AppUser             @relation("PayoutRequester", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+  approvals           PayoutApproval[]
+
+  @@index([leagueId, status])
+  @@index([requestedByUserId])
+  @@map("payout_requests")
+}
+
+model PayoutApproval {
+  id              String        @id @default(cuid())
+  payoutRequestId String
+  approverUserId  String
+  decision        String        @db.VarChar(32)
+  note            String?       @db.VarChar(512)
+  createdAt       DateTime      @default(now())
+  payoutRequest   PayoutRequest @relation(fields: [payoutRequestId], references: [id], onDelete: Cascade)
+  approver        AppUser       @relation(fields: [approverUserId], references: [id], onDelete: Cascade)
+
+  @@index([payoutRequestId, createdAt])
+  @@map("payout_approvals")
+}
+
+/// Append-only finance events (manual overrides, payouts, provider updates).
+model FinanceAuditEvent {
+  id          String   @id @default(cuid())
+  leagueId    String
+  actorUserId String?
+  eventType   String   @db.VarChar(64)
+  entityType  String   @db.VarChar(64)
+  entityId    String?  @db.VarChar(128)
+  payload     Json?
+  createdAt   DateTime @default(now())
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  actor       AppUser? @relation("FinanceAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([leagueId, createdAt])
+  @@index([leagueId, eventType])
+  @@map("finance_audit_events")
 }
 
 /// Idempotent stat-correction / week reprocess marker (deterministic replays).
@@ -5587,6 +5728,7 @@ model Roster {
   afLineupAssignments  AfRosterLineupAssignment[]
   afRosterMoveHistory  AfRosterMoveHistory[]
   afLineupLockStates   AfLineupLockState[]
+  leagueDues           LeagueDues?
 
   @@unique([leagueId, platformUserId])
   @@index([leagueId])
@@ -5659,6 +5801,21 @@ model AfLineupLockState {
   @@map("af_lineup_lock_state")
 }
 
+/// Weekly in-app reminder dedupe for illegal roster notifications (one row per roster/week after notify).
+model RosterLegalityWeeklyReminder {
+  id         String   @id @default(cuid())
+  leagueId   String   @db.VarChar(64)
+  rosterId   String   @db.VarChar(64)
+  season     Int
+  week       Int
+  issueHash  String   @db.VarChar(128)
+  notifiedAt DateTime @default(now())
+
+  @@unique([rosterId, season, week])
+  @@index([leagueId, week])
+  @@map("roster_legality_weekly_reminders")
+}
+
 /// Per-player fantasy points for a league week (starters drive team total; bench stored for audit).
 model WeeklyScore {
   id        String   @id @default(uuid())
@@ -5691,6 +5848,10 @@ model TeamWeekResult {
   opponentRosterId String?
   winLoss          String? @db.VarChar(8)
   status           String  @default("final") @db.VarChar(16)
+  /// H2H-category mode: per-category team totals + winner breakdown for this week's matchup.
+  /// Shape matches CategoryMatchupResult in lib/category-scoring/types.ts.
+  /// Null for points-mode leagues.
+  categoryBreakdown Json?
   league           League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   roster           Roster  @relation(fields: [rosterId], references: [id], onDelete: Cascade)
 
@@ -5710,6 +5871,11 @@ model FantasyStanding {
   ties          Int      @default(0)
   pointsFor     Float    @default(0)
   pointsAgainst Float    @default(0)
+  /// H2H-category mode: cumulative category wins/losses/ties across all played weeks.
+  /// Null for points-mode leagues; summed by standingsEngine from TeamWeekResult.categoryBreakdown.
+  categoryWinsFor    Int? @default(0)
+  categoryLossesFor  Int? @default(0)
+  categoryTiesFor    Int? @default(0)
   rank          Int?
   playoffSeed   Int?
   updatedAt     DateTime @updatedAt
@@ -5921,6 +6087,8 @@ model LeagueWaiverSettings {
   dropRestrictions          Json?
   commissionerOverrideRules Json?
   specialtyConceptOverrides Json?
+  /// Extended waiver/FAAB rules (JSON): waiver_days, faab_min_bid, same_day_add_drop, drop lock overrides, playoff/offseason, undroppable ids, etc.
+  waiverEngineConfig        Json?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
   league                    League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
@@ -7085,10 +7253,25 @@ model BigBrotherCycle {
   voteProgressMessageId      String?                  @db.VarChar(64)
   config                     BigBrotherLeagueConfig   @relation(fields: [configId], references: [id], onDelete: Cascade)
   votes                      BigBrotherEvictionVote[]
+  hohRoomGuests              BigBrotherHohRoomGuest[]
 
   @@unique([configId, week])
   @@index([leagueId, week])
   @@map("big_brother_cycles")
+}
+
+/// Guests invited to the HOH private room for the current cycle.
+/// The HOH can invite and kick rosters; membership resets each new cycle.
+model BigBrotherHohRoomGuest {
+  id        String          @id @default(cuid())
+  cycleId   String
+  rosterId  String          @db.VarChar(64)
+  invitedAt DateTime        @default(now())
+  cycle     BigBrotherCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, rosterId])
+  @@index([cycleId])
+  @@map("big_brother_hoh_room_guests")
 }
 
 /// Private eviction vote: one per voter per cycle (last before deadline counts).
@@ -8460,6 +8643,9 @@ model DevyRights {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   slotCategory        String    @default("DEVY") @db.VarChar(16)
+  /// C2C-only lineup role for this rights row. 'STARTER' routes the player
+  /// to the college-starters bucket in league-home.ts; null = college bench.
+  /// Written by lib/workers/devy-data-worker.ts on campus lineup sync.
   c2cLineupRole       String?   @db.VarChar(16)
   league              League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   roster              Roster    @relation(fields: [rosterId], references: [id], onDelete: Cascade)

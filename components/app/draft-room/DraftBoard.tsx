@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { ArrowLeftRight, ChevronLeft, ChevronRight, Gavel } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronLeft, ChevronRight, Gavel } from 'lucide-react'
 import { DraftBoardCell, type DraftBoardCellPick, type PickHighlightTone } from './DraftBoardCell'
 import type { DraftPickSnapshot, SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
 import type { KeeperSessionSnapshot } from '@/lib/live-draft-engine/types'
@@ -28,6 +28,21 @@ export type DraftBoardProps = {
   currentUserRosterId?: string | null
   aiManagedRosterIds?: string[]
   orderSourceLabel?: string | null
+  /** Open pick-trade modal from a cell with rounds / receiver prefilled (logged-in user must have a roster). */
+  onCellTrade?: (ctx: {
+    round: number
+    ownerSlot: number
+    ownerRosterId: string
+    overall: number
+  }) => void
+  /** Open the read-only pick-trade history modal. */
+  onOpenTradeHistory?: () => void
+  /**
+   * Open the trade-history modal with a specific row pre-focused. Parent
+   * routes to PickTradeHistoryModal's `focusRound` / `focusOriginalRosterId`
+   * props so the matching traded-pick row highlights and scrolls into view.
+   */
+  onViewCellTradeHistory?: (ctx: { round: number; originalRosterId: string }) => void
 }
 
 type SequentialBoardEntry = {
@@ -69,7 +84,8 @@ function describeBoardMode(
 function buildAuctionCellPick(
   pick: DraftPickSnapshot,
   tintHex: string,
-  sport?: string,
+  sport: string | undefined,
+  ownerRosterId: string,
 ): DraftBoardCellPick {
   return {
     overall: pick.overall,
@@ -88,6 +104,7 @@ function buildAuctionCellPick(
     managerTintColor: tintHex,
     amount: pick.amount ?? null,
     source: pick.source,
+    ownerRosterId,
   }
 }
 
@@ -109,6 +126,9 @@ function DraftBoardInner({
   currentUserRosterId = null,
   aiManagedRosterIds = [],
   orderSourceLabel,
+  onCellTrade,
+  onOpenTradeHistory,
+  onViewCellTradeHistory,
 }: DraftBoardProps) {
   const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
   const [selectedRound, setSelectedRound] = useState(1)
@@ -162,6 +182,7 @@ function DraftBoardInner({
       const lock = keeperByKey[key]
       const resolved = resolvePickOwner(round, ownerSlot, slotOrder, tradedPicks)
       const defaultOwner = slotOrderBySlot.get(ownerSlot) ?? null
+      const ownerRosterId = resolved?.rosterId ?? defaultOwner?.rosterId ?? null
       const currentOwner = resolved?.rosterId ? (slotOrderByRosterId.get(resolved.rosterId) ?? null) : null
       const tintSlot = currentOwner?.slot ?? defaultOwner?.slot ?? ownerSlot
       const ownerColor = getManagerColorBySlot(tintSlot)
@@ -211,6 +232,7 @@ function DraftBoardInner({
           isProPick: isProPick || undefined,
           isPromotedFromDevy: isPromotedFromDevy || undefined,
           source: source || undefined,
+          ownerRosterId,
         },
       })
     }
@@ -251,7 +273,7 @@ function DraftBoardInner({
         const ownedPicks = picks
           .filter((pick) => pick.rosterId === entry.rosterId)
           .sort((a, b) => a.overall - b.overall)
-          .map((pick) => buildAuctionCellPick(pick, tintHex, sport))
+          .map((pick) => buildAuctionCellPick(pick, tintHex, sport, entry.rosterId))
 
         return {
           rosterId: entry.rosterId,
@@ -264,6 +286,10 @@ function DraftBoardInner({
   }, [draftType, picks, slotOrder, sport])
 
   const navigation = getRoundNavigationState(selectedRound, rounds)
+  const orderedSlots = useMemo(
+    () => slotOrder.slice().sort((a, b) => a.slot - b.slot),
+    [slotOrder],
+  )
   const visibleRounds =
     viewMode === 'single'
       ? [navigation.round]
@@ -295,10 +321,23 @@ function DraftBoardInner({
               {boardModeLabel}
             </span>
             {tradedPicks.length > 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/85">
-                <ArrowLeftRight className="h-3 w-3" />
-                {tradedPicks.length} traded {tradedPicks.length === 1 ? 'pick' : 'picks'}
-              </span>
+              onOpenTradeHistory ? (
+                <button
+                  type="button"
+                  onClick={onOpenTradeHistory}
+                  data-testid="draft-board-open-trade-history"
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/90 transition hover:bg-amber-500/20"
+                  title="View pick trade history"
+                >
+                  <ArrowLeftRight className="h-3 w-3" />
+                  {tradedPicks.length} traded {tradedPicks.length === 1 ? 'pick' : 'picks'}
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100/85">
+                  <ArrowLeftRight className="h-3 w-3" />
+                  {tradedPicks.length} traded {tradedPicks.length === 1 ? 'pick' : 'picks'}
+                </span>
+              )
             ) : null}
             {draftType === 'auction' ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100/85">
@@ -434,6 +473,26 @@ function DraftBoardInner({
                         tradedPickColorMode={tradedPickColorMode}
                         showNewOwnerInRed={showNewOwnerInRed}
                         pickHighlight={pickHighlight(existing)}
+                        onTradeFromCell={
+                          currentUserRosterId && onCellTrade && pick.ownerRosterId && typeof pick.slot === 'number'
+                            ? () =>
+                                onCellTrade({
+                                  round: pick.round,
+                                  ownerSlot: pick.slot,
+                                  ownerRosterId: pick.ownerRosterId ?? '',
+                                  overall: pick.overall,
+                                })
+                            : undefined
+                        }
+                        onViewTradeHistory={
+                          onViewCellTradeHistory && pick.tradedPickMeta?.originalRosterId
+                            ? () =>
+                                onViewCellTradeHistory({
+                                  round: pick.round,
+                                  originalRosterId: pick.tradedPickMeta!.originalRosterId!,
+                                })
+                            : undefined
+                        }
                       />
                     )
                   })}
@@ -444,42 +503,105 @@ function DraftBoardInner({
         </div>
       ) : (
         <div className="overflow-auto px-2 py-2">
-          <div className="min-w-max space-y-2">
-            {visibleRounds.map((round) => (
-              <section key={round} data-testid={`draft-board-round-${round}`}>
-                <div className="mb-1 flex items-center justify-between px-1 text-[10px] text-white/38">
-                  <span className="font-medium uppercase tracking-[0.14em]">Round {round}</span>
-                  <span>
-                    {isSnakeRoundReversed(round, draftType, thirdRoundReversal)
-                      ? 'Owner direction reverses'
-                      : 'Owner direction stays forward'}
+          <div className="min-w-max">
+            <div
+              className="sticky top-0 z-10 grid gap-1 border-b border-white/10 bg-[#070f24]/95 pb-1 backdrop-blur-sm sm:gap-1.5"
+              style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
+              data-testid="draft-board-team-header"
+            >
+              <div className="flex h-8 items-center justify-center rounded-md border border-white/10 bg-[#0a1228] text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+                Rd
+              </div>
+              {orderedSlots.map((entry) => (
+                <div
+                  key={entry.rosterId}
+                  className="flex h-8 min-w-0 items-center rounded-md border border-white/10 bg-[#0a1228] px-2"
+                >
+                  <span className="mr-1 shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
+                    {entry.slot}
+                  </span>
+                  <span className="truncate text-[10px] font-medium text-white/72" title={entry.displayName}>
+                    {entry.displayName}
                   </span>
                 </div>
-                <div
-                  className="grid gap-1.5"
-                  style={{ gridTemplateColumns: `repeat(${teamCount}, minmax(92px, 1fr))` }}
-                >
-                  {(sequentialBoard[round] ?? []).map(({ pick, overall }) => {
-                    const existing = picks.find((entry) => entry.overall === overall)
-                    const isCurrentPick = currentOverallPick != null && overall === currentOverallPick
+              ))}
+            </div>
 
-                    return (
-                      <DraftBoardCell
-                        key={overall}
-                        pick={pick}
-                        isEmpty={!pick.playerName}
-                        isCurrentPick={isCurrentPick}
-                        tradedPickColorMode={tradedPickColorMode}
-                        showNewOwnerInRed={showNewOwnerInRed}
-                        isDevyRound={devyRounds.includes(round) && !pick.playerName}
-                        isCollegeRound={c2cCollegeRounds.includes(round) && !pick.playerName}
-                        pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
-                      />
-                    )
-                  })}
-                </div>
-              </section>
-            ))}
+            <div className="space-y-1.5 pt-1.5">
+              {visibleRounds.map((round) => (
+                <section key={round} data-testid={`draft-board-round-${round}`}>
+                  <div
+                    className="grid gap-1 sm:gap-1.5"
+                    style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
+                  >
+                    {(() => {
+                      const reversed = isSnakeRoundReversed(round, draftType, thirdRoundReversal)
+                      const isSnake = draftType === 'snake'
+                      return (
+                        <div
+                          className="flex min-h-[52px] flex-col items-center justify-center gap-0.5 rounded-md border border-white/12 bg-[#0a1228] text-[10px] text-white/70 sm:min-h-[56px]"
+                          title={
+                            isSnake
+                              ? reversed
+                                ? 'Snake direction: reversed (right → left)'
+                                : 'Snake direction: forward (left → right)'
+                              : 'Linear order (left → right)'
+                          }
+                          data-testid={`draft-board-round-${round}-direction`}
+                          data-direction={reversed ? 'reverse' : 'forward'}
+                        >
+                          <span className="font-semibold uppercase tracking-[0.14em]">R{round}</span>
+                          {reversed ? (
+                            <ArrowLeft className="h-3 w-3 text-amber-300/80" aria-label="reverse" />
+                          ) : (
+                            <ArrowRight className="h-3 w-3 text-cyan-300/80" aria-label="forward" />
+                          )}
+                        </div>
+                      )
+                    })()}
+
+                    {(sequentialBoard[round] ?? []).map(({ pick, overall }) => {
+                      const existing = picks.find((entry) => entry.overall === overall)
+                      const isCurrentPick = currentOverallPick != null && overall === currentOverallPick
+
+                      return (
+                        <DraftBoardCell
+                          key={overall}
+                          pick={pick}
+                          isEmpty={!pick.playerName}
+                          isCurrentPick={isCurrentPick}
+                          tradedPickColorMode={tradedPickColorMode}
+                          showNewOwnerInRed={showNewOwnerInRed}
+                          isDevyRound={devyRounds.includes(round) && !pick.playerName}
+                          isCollegeRound={c2cCollegeRounds.includes(round) && !pick.playerName}
+                          pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
+                          onTradeFromCell={
+                            currentUserRosterId && onCellTrade && pick.ownerRosterId && typeof pick.slot === 'number'
+                              ? () =>
+                                  onCellTrade({
+                                    round: pick.round,
+                                    ownerSlot: pick.slot,
+                                    ownerRosterId: pick.ownerRosterId ?? '',
+                                    overall: pick.overall,
+                                  })
+                              : undefined
+                          }
+                          onViewTradeHistory={
+                            onViewCellTradeHistory && pick.tradedPickMeta?.originalRosterId
+                              ? () =>
+                                  onViewCellTradeHistory({
+                                    round: pick.round,
+                                    originalRosterId: pick.tradedPickMeta!.originalRosterId!,
+                                  })
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
           </div>
         </div>
       )}

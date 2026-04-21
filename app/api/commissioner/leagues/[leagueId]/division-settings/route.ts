@@ -46,7 +46,27 @@ export async function GET(
   const { leagueId } = await params
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { userId: true, sport: true, settings: true, leagueVariant: true, teams: { select: { id: true, teamName: true, ownerName: true, avatarUrl: true } } },
+    select: {
+      userId: true,
+      sport: true,
+      settings: true,
+      leagueVariant: true,
+      teams: {
+        select: {
+          id: true,
+          teamName: true,
+          ownerName: true,
+          avatarUrl: true,
+          wins: true,
+          losses: true,
+          platformUserId: true,
+          isCommissioner: true,
+          isCoCommissioner: true,
+          isOrphan: true,
+          role: true,
+        },
+      },
+    },
   })
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 

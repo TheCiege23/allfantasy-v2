@@ -35,6 +35,7 @@ type Props = {
   userName: string
   inviteCode?: string | null
   isCommissioner?: boolean
+  sport?: string | null
   /** When true, show best-ball depth reminder (no behavior change). */
   bestBallMode?: boolean
   bestBallSport?: string | null
@@ -87,6 +88,7 @@ export function DraftShell({
   userName,
   inviteCode,
   isCommissioner = false,
+  sport = 'NFL',
   bestBallMode = false,
   bestBallSport = null,
 }: Props) {
@@ -147,7 +149,7 @@ export function DraftShell({
       .then((j: { playerIds?: string[] }) => {
         const ids = j.playerIds ?? []
         if (!ids.length) return
-        void fetch('/api/draft/players?sport=NFL')
+        void fetch(`/api/draft/players?sport=${encodeURIComponent(String(sport || 'NFL'))}`)
           .then((r) => r.json())
           .then((d: { players?: DraftPlayerRow[] }) => {
             const all = d.players ?? []
@@ -155,7 +157,7 @@ export function DraftShell({
             setQueue(ids.map((id) => map.get(id)).filter(Boolean) as DraftPlayerRow[])
           })
       })
-  }, [sessionId])
+  }, [sessionId, sport])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !state?.id) return
@@ -373,6 +375,7 @@ export function DraftShell({
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 px-2 pb-4 lg:grid-cols-2">
         <div className="min-h-[320px]">
           <PlayerPool
+            sport={String(sport || 'NFL')}
             draftedIds={draftedIds}
             onDraft={(p) => void onDraft(p)}
             onQueue={onQueueAdd}
@@ -447,7 +450,7 @@ export function DraftShell({
       <DraftPlayerModal
         open={Boolean(activePlayerId)}
         playerId={activePlayerId}
-        sport="NFL"
+        sport={String(sport || 'NFL')}
         onClose={() => setActivePlayerId(null)}
       />
     </motion.div>

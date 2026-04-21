@@ -8,6 +8,7 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
 import { DEFAULT_MERGE_WEEK_BY_SPORT } from './constants'
 import { DEFAULT_SURVIVOR_ENGINE_SPEC_V2 } from './survivor-engine-spec-v2'
+import { readSurvivorVisualThemeId, withSurvivorVisualTheme } from './survivorVisuals'
 import type { SurvivorConfig, SurvivorMode, TribeFormation, MergeTrigger } from './types'
 
 export async function isSurvivorLeague(leagueId: string): Promise<boolean> {
@@ -76,6 +77,7 @@ export async function getSurvivorConfig(leagueId: string): Promise<SurvivorConfi
       tribalCouncilTimeUtc: row.tribalCouncilTimeUtc,
       minigameFrequency: row.minigameFrequency ?? 'none',
       seasonThemeLabel: row.seasonThemeLabel ?? null,
+      visualThemeId: readSurvivorVisualThemeId(row.engineSpecV2, row.leagueId),
       challengesSystemRun: row.challengesSystemRun ?? true,
       regularSeasonEndWeek: row.regularSeasonEndWeek ?? null,
       faqSeededAt: row.faqSeededAt?.toISOString() ?? null,
@@ -109,6 +111,7 @@ export async function getSurvivorConfig(leagueId: string): Promise<SurvivorConfi
     tribalCouncilTimeUtc: null,
     minigameFrequency: 'none',
     seasonThemeLabel: null,
+    visualThemeId: readSurvivorVisualThemeId(DEFAULT_SURVIVOR_ENGINE_SPEC_V2, league.id),
     challengesSystemRun: true,
     regularSeasonEndWeek: null,
     faqSeededAt: null,
@@ -181,7 +184,10 @@ export async function upsertSurvivorConfig(
       seasonThemeLabel: input.seasonThemeLabel ?? null,
       challengesSystemRun: input.challengesSystemRun ?? true,
       regularSeasonEndWeek: input.regularSeasonEndWeek ?? null,
-      engineSpecV2: (input.engineSpecV2 ?? DEFAULT_SURVIVOR_ENGINE_SPEC_V2) as object,
+      engineSpecV2: withSurvivorVisualTheme(
+        input.engineSpecV2 ?? DEFAULT_SURVIVOR_ENGINE_SPEC_V2,
+        leagueId,
+      ),
     },
     update: {
       ...(input.mode !== undefined && { mode: input.mode }),
@@ -210,7 +216,9 @@ export async function upsertSurvivorConfig(
       ...(input.seasonThemeLabel !== undefined && { seasonThemeLabel: input.seasonThemeLabel }),
       ...(input.challengesSystemRun !== undefined && { challengesSystemRun: input.challengesSystemRun }),
       ...(input.regularSeasonEndWeek !== undefined && { regularSeasonEndWeek: input.regularSeasonEndWeek }),
-      ...(input.engineSpecV2 !== undefined && { engineSpecV2: input.engineSpecV2 as object }),
+      ...(input.engineSpecV2 !== undefined && {
+        engineSpecV2: withSurvivorVisualTheme(input.engineSpecV2, leagueId),
+      }),
     },
   })
   return getSurvivorConfig(leagueId)

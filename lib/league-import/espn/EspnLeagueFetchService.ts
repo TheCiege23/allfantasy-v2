@@ -114,6 +114,7 @@ type EspnAuthContext = {
 type EspnMemberSummary = {
   id: string
   displayName: string
+  isCommissioner?: boolean
 }
 
 type EspnPlayerSummary = {
@@ -404,6 +405,15 @@ function buildEspnMemberDirectory(rawMembers: unknown): Map<string, EspnMemberSu
     const idCandidates = [member.id, member.memberId, member.guid]
       .map((value) => (value == null ? '' : String(value).trim()))
       .filter(Boolean)
+    const memberType = String(member.memberType ?? member.role ?? '').trim().toLowerCase()
+    const isCommissioner =
+      member.isLeagueManager === true ||
+      member.isManager === true ||
+      member.isLeagueManager === 1 ||
+      member.isManager === 1 ||
+      memberType === 'lm' ||
+      memberType === 'league_manager' ||
+      memberType === 'manager'
     const displayName =
       typeof member.displayName === 'string' && member.displayName.trim()
         ? member.displayName.trim()
@@ -413,6 +423,7 @@ function buildEspnMemberDirectory(rawMembers: unknown): Map<string, EspnMemberSu
       directory.set(id, {
         id,
         displayName: displayName || id,
+        isCommissioner,
       })
     }
   }
@@ -684,6 +695,45 @@ export function resolveEspnViewerTeamId(raw: unknown, swid: string | null | unde
   }
 
   return null
+}
+
+function resolveEspnCommissionerTeamIds(raw: unknown): string[] {
+  if (!isRecord(raw)) return []
+  const members = buildEspnMemberDirectory(raw.members)
+  const commissionerIds = new Set(
+    Array.from(members.values())
+      .filter((member) => member.isCommissioner)
+      .map((member) => normalizeEspnSwidSegment(member.id))
+      .filter(Boolean)
+  )
+  if (commissionerIds.size === 0) return []
+
+  const teamIds = new Set<string>()
+  const teamsRaw = Array.isArray(raw.teams) ? raw.teams : []
+  for (const team of teamsRaw) {
+    if (!isRecord(team)) continue
+    const teamId = String(team.id ?? '').trim()
+    if (!teamId) continue
+
+    const ownerRefs = Array.isArray(team.owners) ? team.owners : []
+    const ownerIds = ownerRefs
+      .map((ownerRef) => {
+        if (isRecord(ownerRef)) {
+          return String(ownerRef.id ?? ownerRef.memberId ?? ownerRef.guid ?? '').trim()
+        }
+        return String(ownerRef ?? '').trim()
+      })
+      .filter(Boolean)
+
+    if (
+      ownerIds.some((ownerId) => commissionerIds.has(normalizeEspnSwidSegment(ownerId))) ||
+      (team.primaryOwner != null && commissionerIds.has(normalizeEspnSwidSegment(String(team.primaryOwner))))
+    ) {
+      teamIds.add(teamId)
+    }
+  }
+
+  return Array.from(teamIds)
 }
 
 function upsertEspnMatchup(
@@ -1121,6 +1171,7 @@ export async function fetchEspnLeagueForImport(
     : []
 
   const viewerTeamId = resolveEspnViewerTeamId(raw, auth.swid)
+  const commissionerTeamIds = resolveEspnCommissionerTeamIds(raw)
 
   return {
     sourceInput,
@@ -1134,5 +1185,6 @@ export async function fetchEspnLeagueForImport(
     draftFetched: draftRaw != null,
     previousSeasons,
     viewerTeamId,
+    commissionerTeamIds,
   }
 }

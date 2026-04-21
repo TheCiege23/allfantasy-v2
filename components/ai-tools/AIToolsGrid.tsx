@@ -35,7 +35,6 @@ import { LongTermCoachingModal } from './modals/LongTermCoachingModal'
 import type { AIToolGridId } from './ai-tool-ids'
 import { isAiToolGridId } from './ai-tool-ids'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { interpolateTemplate } from '@/lib/i18n/interpolate'
 import { useIntelligenceSnapshot } from '@/hooks/useIntelligenceSnapshot'
 import type { IntelligenceChipState } from '@/lib/intelligence/types'
 import type { LongTermCoachingAnalysis } from '@/lib/long-term-coaching/types'
@@ -171,7 +170,7 @@ export function AIToolsGrid({
   /** Same league as League Intelligence widgets (persisted on dashboard home) */
   selectedLeagueId: string | null
 }) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const { data: intel, loading: intelLoading } = useIntelligenceSnapshot({ leagueId: selectedLeagueId })
   const [activeTool, setActiveTool] = useState<ToolId | null>(null)
   const [pendingWaiverJump, setPendingWaiverJump] = useState<{ name: string; position?: string } | null>(null)
@@ -595,7 +594,7 @@ export function AIToolsGrid({
             className="inline-flex max-w-full items-center truncate rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold text-cyan-100/95"
             title={resolvedLeague.name}
           >
-            {interpolateTemplate(t('dashboard.aiTools.contextLeagueMode'), { name: resolvedLeague.name })}
+            {tInterpolate('dashboard.aiTools.contextLeagueMode', { name: resolvedLeague.name })}
           </span>
         ) : (
           <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-medium text-white/55">

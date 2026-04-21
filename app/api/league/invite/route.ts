@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getInviteClaimEligibility, resolveLinkedPlatformUserIds } from '@/lib/league-invite/claimIdentity'
 
 const createInviteSchema = z.object({
   leagueId: z.string().min(1),
@@ -76,6 +77,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams?.get('token')?.trim()
+  const session = await getServerSession(authOptions)
+  const userId = session?.user?.id ?? null
 
   if (!token) {
     return NextResponse.json({ error: 'Missing token' }, { status: 400 })
@@ -98,6 +101,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invite not found or expired' }, { status: 404 })
   }
 
+  const linkedPlatformUserIds = userId
+    ? await resolveLinkedPlatformUserIds({ userId, platform: invite.league.platform })
+    : new Set<string>()
+
   return NextResponse.json({
     leagueId: invite.leagueId,
     leagueName: invite.league.name,
@@ -112,6 +119,12 @@ export async function GET(req: NextRequest) {
       role: team.role,
       isOrphan: team.isOrphan,
       isClaimed: !!team.claimedByUserId,
+      claimEligibility: getInviteClaimEligibility({
+        linkedPlatformUserIds,
+        platformUserId: team.platformUserId,
+        isClaimed: Boolean(team.claimedByUserId),
+        isOrphan: team.isOrphan,
+      }),
     })),
   })
 }

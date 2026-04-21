@@ -46,8 +46,8 @@ export function useNotifications(
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
       void load()
-    }, 60_000)
-    const unsub = addStateRefreshListener(['leagues', 'all'], () => {
+    }, 45_000)
+    const unsub = addStateRefreshListener(['leagues', 'notifications', 'all'], () => {
       void load()
     })
     return () => {

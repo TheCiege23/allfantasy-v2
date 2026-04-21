@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getInviteClaimEligibility, resolveLinkedPlatformUserIds } from '@/lib/league-invite/claimIdentity'
 
 const claimSchema = z.object({
   token: z.string().min(1),
@@ -29,6 +30,14 @@ export async function POST(req: NextRequest) {
 
   const invite = await prisma.leagueInvite.findFirst({
     where: { token, isActive: true },
+    include: {
+      league: {
+        select: {
+          id: true,
+          platform: true,
+        },
+      },
+    },
   })
 
   if (!invite) {
@@ -58,6 +67,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Team already claimed' }, { status: 409 })
   }
 
+  const linkedPlatformUserIds = await resolveLinkedPlatformUserIds({
+    userId,
+    platform: invite.league.platform,
+  })
+  const eligibility = getInviteClaimEligibility({
+    linkedPlatformUserIds,
+    platformUserId: team.platformUserId,
+    isClaimed: Boolean(team.claimedByUserId),
+    isOrphan: team.isOrphan,
+  })
+  if (eligibility === 'locked') {
+    return NextResponse.json(
+      { error: 'This imported team belongs to a different linked manager account.' },
+      { status: 403 }
+    )
+  }
+
   const existingClaim = await prisma.leagueManagerClaim.findFirst({
     where: {
       leagueId: invite.leagueId,
@@ -70,6 +96,19 @@ export async function POST(req: NextRequest) {
   }
 
   const nextUseCount = invite.useCount + 1
+  const rosters = await prisma.roster.findMany({
+    where: { leagueId: invite.leagueId },
+    select: { id: true, platformUserId: true, playerData: true },
+  })
+  const rosterToClaim = rosters.find((roster) => {
+    const playerData = roster.playerData as Record<string, unknown> | null
+    const importData =
+      playerData && typeof playerData.import === 'object' && playerData.import
+        ? (playerData.import as Record<string, unknown>)
+        : null
+    const sourceTeamId = typeof importData?.sourceTeamId === 'string' ? importData.sourceTeamId.trim() : ''
+    return sourceTeamId === teamExternalId
+  })
 
   await prisma.$transaction([
     prisma.leagueTeam.update({
@@ -79,11 +118,30 @@ export async function POST(req: NextRequest) {
         isOrphan: false,
       },
     }),
+    ...(rosterToClaim
+      ? [
+          prisma.roster.update({
+            where: { id: rosterToClaim.id },
+            data: {
+              platformUserId: userId,
+              playerData: {
+                ...((rosterToClaim.playerData as Record<string, unknown> | null) ?? {}),
+                import: {
+                  ...((((rosterToClaim.playerData as Record<string, unknown> | null)?.import as Record<string, unknown> | null) ?? {})),
+                  afUserId: userId,
+                  claimedAt: new Date().toISOString(),
+                },
+              },
+            },
+          }),
+        ]
+      : []),
     prisma.leagueManagerClaim.create({
       data: {
         leagueId: invite.leagueId,
         afUserId: userId,
         teamExternalId,
+        platformUserId: team.platformUserId,
         isConfirmed: true,
       },
     }),

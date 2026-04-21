@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
 import { ManagerRoleBadge } from '@/components/ManagerRoleBadge'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 type TeamOption = {
   id: string
@@ -16,6 +18,7 @@ type TeamOption = {
   role: string
   isOrphan: boolean
   isClaimed: boolean
+  claimEligibility?: 'claimed' | 'matched' | 'open' | 'locked'
 }
 
 type InvitePayload = {
@@ -97,7 +100,17 @@ export default function JoinLeagueInvitePage() {
   }, [fetchInvite])
 
   const availableTeams = useMemo(
-    () => (invite?.teams ?? []).filter((team) => !team.isClaimed),
+    () => {
+      const unclaimed = (invite?.teams ?? []).filter((team) => !team.isClaimed)
+      const matched = unclaimed.filter((team) => team.claimEligibility === 'matched')
+      if (matched.length > 0) return matched
+      return unclaimed.filter((team) => (team.claimEligibility ?? 'open') !== 'locked')
+    },
+    [invite]
+  )
+
+  const hasLockedTeams = useMemo(
+    () => (invite?.teams ?? []).some((team) => !team.isClaimed && team.claimEligibility === 'locked'),
     [invite]
   )
 
@@ -138,6 +151,12 @@ export default function JoinLeagueInvitePage() {
         return
       }
 
+      const claimedLeagueId = typeof payload?.leagueId === 'string' ? payload.leagueId : invite?.leagueId
+      sendProductAnalyticsBeacon(ENGAGEMENT.JOIN_INVITE_TEAM_CLAIM, {
+        leagueId: claimedLeagueId ?? null,
+        teamExternalId: selectedTeam.externalId,
+      })
+
       router.push('/dashboard')
       router.refresh()
     } catch {
@@ -145,7 +164,7 @@ export default function JoinLeagueInvitePage() {
     } finally {
       setClaiming(false)
     }
-  }, [fetchInvite, router, selectedTeam, token])
+  }, [fetchInvite, invite?.leagueId, router, selectedTeam, token])
 
   const callbackUrl = `/join/${token}`
 
@@ -203,11 +222,15 @@ export default function JoinLeagueInvitePage() {
           ) : availableTeams.length === 0 ? (
             <div className="mx-auto flex min-h-[360px] max-w-xl flex-col items-center justify-center text-center">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-slate-200">
-                League full
+                {hasLockedTeams ? 'Account match required' : 'League full'}
               </div>
-              <h1 className="mt-5 text-3xl font-black text-white">All teams have already been claimed</h1>
+              <h1 className="mt-5 text-3xl font-black text-white">
+                {hasLockedTeams ? 'Link the right platform account to claim your imported team' : 'All teams have already been claimed'}
+              </h1>
               <p className="mt-3 max-w-md text-sm text-slate-300">
-                {invite.leagueName ?? 'This league'} is already fully assigned. Head back to your dashboard to explore your leagues.
+                {hasLockedTeams
+                  ? `This invite found imported placeholders for ${invite.leagueName ?? 'this league'}, but none match your linked account yet.`
+                  : `${invite.leagueName ?? 'This league'} is already fully assigned. Head back to your dashboard to explore your leagues.`}
               </p>
               <Link
                 href="/dashboard"
@@ -224,7 +247,7 @@ export default function JoinLeagueInvitePage() {
                 </div>
                 <h1 className="mt-5 text-3xl font-black text-white sm:text-4xl">{invite.leagueName ?? 'Join this league'}</h1>
                 <p className="mt-3 text-sm text-slate-300">
-                  Pick the team that belongs to you in this {invite.sport} league. Only unclaimed teams are shown below.
+                  Pick the team that belongs to you in this {invite.sport} league. Imported placeholders are matched against your linked platform identity first.
                 </p>
               </div>
 

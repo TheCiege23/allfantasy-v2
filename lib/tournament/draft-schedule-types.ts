@@ -28,6 +28,8 @@ export type DraftScheduleV1 = {
   phases: Partial<Record<DraftPhaseKey, PhaseDraftPlan>>
 }
 
+export const DRAFT_PHASE_KEYS: DraftPhaseKey[] = ['startup', 'redraft_first', 'redraft_finals']
+
 export const DRAFT_PHASE_LABEL: Record<DraftPhaseKey, string> = {
   startup: 'Startup draft',
   redraft_first: 'First cut / redraft',

@@ -119,11 +119,13 @@ export async function applyBenchSpotsForRound(
     const config = await prisma.leagueRosterConfig.findUnique({
       where: { leagueId },
     })
-    if (config?.overrides && typeof config.overrides === 'object') {
-      const overrides = config.overrides as Record<string, unknown>
+    if (config) {
+      const existingOverrides = (config.overrides && typeof config.overrides === 'object')
+        ? config.overrides as Record<string, unknown>
+        : {}
       await prisma.leagueRosterConfig.update({
         where: { leagueId },
-        data: { overrides: { ...overrides, benchCount: benchSpots } },
+        data: { overrides: { ...existingOverrides, benchCount: benchSpots } },
       })
     }
   }

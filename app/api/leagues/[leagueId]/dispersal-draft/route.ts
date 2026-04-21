@@ -13,6 +13,10 @@ import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { isDispersalDraftDynastyEligible } from '@/lib/dispersal-draft/dynastyEligibility'
 import { DispersalDraftEngine } from '@/lib/dispersal-draft/DispersalDraftEngine'
 import type { DispersalDraftConfig } from '@/lib/dispersal-draft/types'
+import {
+  getSupportedEngineCoresForDraftType,
+  mapCanonicalDraftTypeToEngineCore,
+} from '@/lib/draft-types/draftTypeRegistry'
 
 export const dynamic = 'force-dynamic'
 
@@ -149,13 +153,33 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
     const scenario = body.scenario === 'league_downsizing' ? 'league_downsizing' : 'orphan_teams'
 
     const requestedDraftType = typeof body.draftType === 'string' ? body.draftType.trim().toLowerCase() : ''
-    if (requestedDraftType && requestedDraftType !== 'linear') {
+    const requestedEngineCore = requestedDraftType
+      ? mapCanonicalDraftTypeToEngineCore(requestedDraftType)
+      : 'linear'
+    const supportedForDispersal = getSupportedEngineCoresForDraftType('dispersal_draft')
+    if (!supportedForDispersal.includes(requestedEngineCore)) {
       return NextResponse.json(
-        { error: 'draftType "snake" is not implemented for dispersal drafts yet; use "linear".' },
+        {
+          error: `Draft type "${requestedDraftType || requestedEngineCore}" is not allowed for dispersal drafts.`,
+          allowedEngineCores: supportedForDispersal,
+        },
         { status: 400 }
       )
     }
-    const draftType: DispersalDraftConfig['draftType'] = 'linear'
+    // Dispersal order construction is still linear in the engine today; keep
+    // API-level validation explicit and block unsupported execution to prevent
+    // accepting a type that won't execute correctly.
+    if (requestedEngineCore !== 'linear') {
+      return NextResponse.json(
+        {
+          error: `Draft type "${requestedEngineCore}" is not implemented for dispersal draft execution yet; use "linear".`,
+          allowedNow: ['linear'],
+          supportedEngineCores: supportedForDispersal,
+        },
+        { status: 400 }
+      )
+    }
+    const draftType: DispersalDraftConfig['draftType'] = requestedEngineCore
 
     const config: DispersalDraftConfig = {
       leagueId,

@@ -7,9 +7,13 @@ import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
+import { PlayerDetailModal } from './PlayerDetailModal'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
+import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 56
+const DRAFT_WATCHLIST_STORAGE_KEY = 'af:draft-room-watchlist-v1'
 
 export type PlayerEntry = {
   id?: string
@@ -248,6 +252,10 @@ function PlayerPanelInner({
   const [showRosterView, setShowRosterView] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerEntry | null>(null)
   const [pendingPick, setPendingPick] = useState<{ mode: 'draft' | 'nominate'; player: PlayerEntry } | null>(null)
+  const [watchlistOnly, setWatchlistOnly] = useState(false)
+  const [rookiesOnly, setRookiesOnly] = useState(false)
+  const [hideDrafted, setHideDrafted] = useState(true)
+  const [watchlistKeys, setWatchlistKeys] = useState<Set<string>>(new Set())
   const isDevyRound = Boolean(devyConfig?.enabled && !c2cConfig?.enabled && currentRound != null && devyConfig.devyRounds?.includes(currentRound))
   const isCollegeRound = Boolean(c2cConfig?.enabled && currentRound != null && c2cConfig.collegeRounds?.includes(currentRound))
   const isProRound = Boolean(c2cConfig?.enabled && currentRound != null && !c2cConfig.collegeRounds?.includes(currentRound))
@@ -266,8 +274,45 @@ function PlayerPanelInner({
   const scrollRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  const watchKeyFor = useCallback((p: PlayerEntry) => {
+    return [String(p.id ?? '').trim(), p.name.trim().toLowerCase(), p.position.trim().toLowerCase(), String(p.team ?? '').trim().toLowerCase()].join('|')
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(DRAFT_WATCHLIST_STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as string[]
+      if (Array.isArray(parsed)) {
+        setWatchlistKeys(new Set(parsed.filter((v) => typeof v === 'string' && v.length > 0)))
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(DRAFT_WATCHLIST_STORAGE_KEY, JSON.stringify(Array.from(watchlistKeys)))
+    } catch {
+      // ignore storage failure
+    }
+  }, [watchlistKeys])
+
   const filtered = useMemo(() => {
-    let list = players.filter((p) => !draftedNames.has(p.name))
+    let list = hideDrafted ? players.filter((p) => !draftedNames.has(p.name)) : [...players]
+    if (watchlistOnly) {
+      list = list.filter((p) => watchlistKeys.has(watchKeyFor(p)))
+    }
+    if (rookiesOnly) {
+      list = list.filter((p) => {
+        if (p.isDevy) return true
+        const yr = String(p.classYearLabel ?? '').toLowerCase()
+        return yr.includes('rookie') || yr.includes('fr') || yr.includes('so') || yr.includes('jr') || yr.includes('sr')
+      })
+    }
     if (teamFilter !== 'All') {
       list = list.filter((p) => p.team === teamFilter)
     }
@@ -288,7 +333,7 @@ function PlayerPanelInner({
       searchQuery,
       positionFilter,
       draftedNames,
-      showDrafted: false,
+      showDrafted: !hideDrafted,
     })
     const searchLower = searchQuery.trim().toLowerCase()
     list = list.filter((p) => {
@@ -305,7 +350,9 @@ function PlayerPanelInner({
       list = [...list].sort((a, b) => nameVal(a).localeCompare(nameVal(b)))
     }
     return list
-  }, [players, draftedNames, searchQuery, positionFilter, teamFilter, poolFilter, devyConfig?.enabled, c2cConfig?.enabled, sortBy, useAiAdp])
+  }, [players, draftedNames, hideDrafted, watchlistOnly, rookiesOnly, watchlistKeys, watchKeyFor, searchQuery, positionFilter, teamFilter, poolFilter, devyConfig?.enabled, c2cConfig?.enabled, sortBy, useAiAdp])
+
+  const selectedIsWatchlisted = selectedPlayer ? watchlistKeys.has(watchKeyFor(selectedPlayer)) : false
 
   useEffect(() => {
     if (!showPoolFilter || currentRound == null) return
@@ -374,6 +421,16 @@ function PlayerPanelInner({
     return () => window.removeEventListener('af:draft-player-search-focus', onFocusSearch)
   }, [])
 
+  useEffect(() => {
+    if (!leagueId) return
+    const q = searchQuery.trim()
+    if (q.length < 2) return
+    const id = window.setTimeout(() => {
+      sendProductAnalyticsBeacon(DRAFT_ROOM.SEARCH, { leagueId, len: q.length })
+    }, 750)
+    return () => window.clearTimeout(id)
+  }, [searchQuery, leagueId])
+
   return (
     <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-player-panel">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-2.5">
@@ -392,7 +449,11 @@ function PlayerPanelInner({
         </div>
         <select
           value={positionFilter}
-          onChange={(e) => setPositionFilter(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: v })
+            setPositionFilter(v)
+          }}
           className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
           aria-label="Position filter"
           data-testid="draft-position-filter"
@@ -403,7 +464,11 @@ function PlayerPanelInner({
         </select>
         <select
           value={teamFilter}
-          onChange={(e) => setTeamFilter(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
+            setTeamFilter(v)
+          }}
           className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
           aria-label="Team filter"
           data-testid="draft-team-filter"
@@ -415,7 +480,11 @@ function PlayerPanelInner({
         {showPoolFilter && (
           <select
             value={poolFilter}
-            onChange={(e) => setPoolFilter(e.target.value as 'All' | 'Pro' | 'Devy' | 'College')}
+            onChange={(e) => {
+              const v = e.target.value as 'All' | 'Pro' | 'Devy' | 'College'
+              if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
+              setPoolFilter(v)
+            }}
             className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
             aria-label="Pool filter"
             data-testid="draft-pool-filter"
@@ -454,7 +523,10 @@ function PlayerPanelInner({
         <span className="text-[10px] text-white/50">Sort:</span>
         <button
           type="button"
-          onClick={() => setSortBy('adp')}
+          onClick={() => {
+            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'adp' })
+            setSortBy('adp')
+          }}
           data-testid="draft-sort-adp"
           className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'adp' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
         >
@@ -462,7 +534,10 @@ function PlayerPanelInner({
         </button>
         <button
           type="button"
-          onClick={() => setSortBy('name')}
+          onClick={() => {
+            if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.SORT, { leagueId, by: 'name' })
+            setSortBy('name')
+          }}
           data-testid="draft-sort-name"
           className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'name' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
         >
@@ -478,7 +553,12 @@ function PlayerPanelInner({
             <input
               type="checkbox"
               checked={useAiAdp}
-              onChange={(e) => onUseAiAdpChange(e.target.checked)}
+              onChange={(e) => {
+                if (leagueId) {
+                  sendProductAnalyticsBeacon(DRAFT_ROOM.AI_ADP_SORT, { leagueId, enabled: e.target.checked })
+                }
+                onUseAiAdpChange(e.target.checked)
+              }}
               className="rounded border-white/20 w-4 h-4 shrink-0"
               aria-label="Use AI ADP for sort order"
             />
@@ -512,6 +592,34 @@ function PlayerPanelInner({
       </div>
       <div className="flex items-center justify-between border-b border-white/8 px-2.5 py-1.5 text-[10px] text-white/55">
         <span>{filtered.length} players available</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            data-testid="draft-filter-watchlist-only"
+            onClick={() => setWatchlistOnly((v) => !v)}
+            className={`rounded border px-2 py-1 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+          >
+            Watchlist
+          </button>
+          <button
+            type="button"
+            data-testid="draft-filter-hide-drafted"
+            onClick={() => setHideDrafted((v) => !v)}
+            className={`rounded border px-2 py-1 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+          >
+            Hide drafted
+          </button>
+          {(devyConfig?.enabled || c2cConfig?.enabled) ? (
+            <button
+              type="button"
+              data-testid="draft-filter-rookies-only"
+              onClick={() => setRookiesOnly((v) => !v)}
+              className={`rounded border px-2 py-1 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            >
+              Rookies only
+            </button>
+          ) : null}
+        </div>
         <button
           type="button"
           data-testid="draft-clear-filters"
@@ -520,6 +628,9 @@ function PlayerPanelInner({
             setPositionFilter('All')
             setTeamFilter('All')
             setPoolFilter('All')
+            setWatchlistOnly(false)
+            setRookiesOnly(false)
+            setHideDrafted(true)
           }}
           className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 hover:bg-white/10"
         >
@@ -545,40 +656,50 @@ function PlayerPanelInner({
         </div>
       )}
       {selectedPlayer && (
-        <div className="border-b border-white/8 bg-cyan-500/8 px-2.5 py-2 text-[11px]" data-testid="draft-selected-player-panel">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="font-medium text-cyan-100">{selectedPlayer.name}</p>
-              <p className="text-white/75">
-                {selectedPlayer.position}
-                {selectedPlayer.team ? ` · ${selectedPlayer.team}` : ''}
-                {(useAiAdp ? selectedPlayer.aiAdp : selectedPlayer.adp) != null
-                  ? ` · ${useAiAdp ? 'AI ADP' : 'ADP'} ${useAiAdp ? selectedPlayer.aiAdp : selectedPlayer.adp}`
-                  : ''}
-              </p>
-              {(selectedPlayer.school || selectedPlayer.classYearLabel || selectedPlayer.draftGrade || selectedPlayer.projectedLandingSpot) && (
-                <p className="mt-1 text-white/55">
-                  {[
-                    selectedPlayer.school,
-                    selectedPlayer.classYearLabel,
-                    selectedPlayer.draftGrade ? `Grade ${selectedPlayer.draftGrade}` : null,
-                    selectedPlayer.projectedLandingSpot ? `Landing ${selectedPlayer.projectedLandingSpot}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              data-testid="draft-clear-selected-player"
-              onClick={() => setSelectedPlayer(null)}
-              className="rounded border border-white/15 bg-black/20 px-2 py-1 text-[10px] text-white/70 hover:bg-white/10"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+        <PlayerDetailModal
+          open={true}
+          onClose={() => setSelectedPlayer(null)}
+          player={{
+            id: selectedPlayer.id ?? null,
+            name: selectedPlayer.name,
+            position: selectedPlayer.position ?? null,
+            team: selectedPlayer.team ?? null,
+            byeWeek: selectedPlayer.byeWeek ?? null,
+            adp: useAiAdp ? (selectedPlayer.aiAdp ?? null) : (selectedPlayer.adp ?? null),
+            headshotUrl: selectedPlayer.display?.assets?.headshotUrl ?? null,
+            teamLogoUrl: selectedPlayer.display?.assets?.teamLogoUrl ?? null,
+            status: selectedPlayer.display?.metadata?.injuryStatus ?? null,
+            college: selectedPlayer.school ?? selectedPlayer.display?.metadata?.collegeOrPipeline ?? null,
+            // Physical stats (age/height/weight/exp/jersey) aren't on the
+            // current PlayerDisplayModel — rendered as "—" until a deeper
+            // player-profile source lands.
+            age: null,
+            heightIn: null,
+            weightLbs: null,
+            yearsExp: null,
+            jersey: null,
+          }}
+          sport={sport}
+          canDraft={canDraft && !draftedNames.has(selectedPlayer.name)}
+          onMakePick={() => {
+            onMakePick(selectedPlayer)
+            setSelectedPlayer(null)
+          }}
+          onAddToQueue={() => {
+            onAddToQueue(selectedPlayer)
+            setSelectedPlayer(null)
+          }}
+          isWatchlisted={selectedIsWatchlisted}
+          onToggleWatchlist={() => {
+            const key = watchKeyFor(selectedPlayer)
+            setWatchlistKeys((prev) => {
+              const next = new Set(prev)
+              if (next.has(key)) next.delete(key)
+              else next.add(key)
+              return next
+            })
+          }}
+        />
       )}
       <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain p-2.5">
         {loading ? (

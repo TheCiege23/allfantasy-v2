@@ -1,8 +1,11 @@
 'use client'
 
-import { type ReactNode } from 'react'
-import { LayoutGrid, MessageCircle, ListOrdered, User, Sparkles, Users, Shield } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { ChevronDown, ChevronUp, LayoutGrid, MessageCircle, ListOrdered, User, Sparkles, Users, Shield } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { cn } from '@/lib/utils'
+
+const BOTTOM_DOCK_PREF_KEY = 'af:draft-premium-bottom-dock-expanded'
 
 export type MobileDraftTab = 'board' | 'players' | 'queue' | 'helper' | 'roster' | 'keepers' | 'chat'
 
@@ -73,6 +76,26 @@ export function DraftRoomShell({
   bottomBar,
 }: DraftRoomShellProps) {
   const { t } = useLanguage()
+  const [bottomDockExpanded, setBottomDockExpanded] = useState(true)
+
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(BOTTOM_DOCK_PREF_KEY)
+      if (v === '0') setBottomDockExpanded(false)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const persistBottomDock = useCallback((expanded: boolean) => {
+    setBottomDockExpanded(expanded)
+    try {
+      window.localStorage.setItem(BOTTOM_DOCK_PREF_KEY, expanded ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   const visibleTabs = MOBILE_TABS.filter(
     (tab) =>
       (tab.id !== 'helper' || helperPanel) &&
@@ -129,11 +152,48 @@ export function DraftRoomShell({
               </aside>
             )}
           </div>
-          <div
-            className="flex h-[min(220px,30vh)] min-h-[140px] shrink-0 overflow-hidden border-t border-white/10 bg-[#040915]"
-            data-testid="draft-premium-bottom-dock"
-          >
-            {bottomBar}
+          <div className="relative shrink-0 border-t border-white/10 bg-[#040915]" data-testid="draft-premium-bottom-dock-wrap">
+            <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+              <button
+                type="button"
+                onClick={() => persistBottomDock(!bottomDockExpanded)}
+                className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/80 shadow-lg shadow-black/40 transition hover:bg-white/10 hover:text-white"
+                aria-expanded={bottomDockExpanded}
+                aria-controls="draft-premium-bottom-dock"
+                data-testid="draft-bottom-dock-toggle"
+                title={bottomDockExpanded ? t('draftRoom.shell.hideBottomDock') : t('draftRoom.shell.showBottomDock')}
+              >
+                {bottomDockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              </button>
+            </div>
+            <div
+              id="draft-premium-bottom-dock"
+              className={cn(
+                'flex w-full overflow-hidden transition-[max-height] duration-200 ease-out',
+                bottomDockExpanded ? 'max-h-[min(220px,30vh)]' : 'max-h-0',
+              )}
+              data-testid="draft-premium-bottom-dock"
+            >
+              <div
+                className={cn(
+                  'flex w-full min-h-0 overflow-hidden',
+                  bottomDockExpanded ? 'h-[min(220px,30vh)] min-h-[140px]' : 'h-0 min-h-0',
+                )}
+              >
+                {bottomBar}
+              </div>
+            </div>
+            {!bottomDockExpanded ? (
+              <button
+                type="button"
+                onClick={() => persistBottomDock(true)}
+                className="flex w-full items-center justify-center gap-2 border-t border-white/8 bg-[#050c1d] py-2 text-[11px] font-medium text-cyan-100/90 hover:bg-white/5"
+                data-testid="draft-bottom-dock-restore"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+                {t('draftRoom.shell.restoreBottomDock')}
+              </button>
+            ) : null}
           </div>
         </div>
         </>

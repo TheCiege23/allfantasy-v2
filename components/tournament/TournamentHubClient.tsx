@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Trophy, BarChart3, MessageSquare, ChevronRight, Users, GitBranch, Download, Sparkles } from 'lucide-react'
 import { useUserTimezone } from '@/hooks/useUserTimezone'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 interface Conference {
   id: string
@@ -84,6 +85,7 @@ interface Announcement {
 }
 
 export function TournamentHubClient({ tournamentId }: { tournamentId: string }) {
+  const { t, tInterpolate } = useLanguage()
   const { formatInTimezone } = useUserTimezone()
   const [tab, setTab] = useState<'overview' | 'standings' | 'bracket' | 'announcements' | 'ai'>('overview')
   const [tournament, setTournament] = useState<TournamentData | null>(null)
@@ -91,7 +93,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
   const [bracket, setBracket] = useState<BracketData | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<'loadTournament' | 'load' | null>(null)
   const [advancing, setAdvancing] = useState(false)
   const [aiType, setAiType] = useState<string>('standings_analysis')
   const [aiLoading, setAiLoading] = useState(false)
@@ -109,7 +111,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
         ])
         if (!active) return
         if (!tRes.ok) {
-          setError('Failed to load tournament')
+          setError('loadTournament')
           return
         }
         const tData = await tRes.json()
@@ -123,7 +125,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           setAnnouncements(aData.announcements ?? [])
         }
       } catch {
-        if (active) setError('Failed to load')
+        if (active) setError('load')
       } finally {
         if (active) setLoading(false)
       }
@@ -152,7 +154,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
       if (res.ok) {
         window.location.reload()
       } else {
-        alert(data.error ?? 'Failed to run advancement')
+        alert(typeof data.error === 'string' ? data.error : t('tournament.publicHub.advancement.failed'))
       }
     } finally {
       setAdvancing(false)
@@ -162,7 +164,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
   if (loading || !tournament) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/60">
-        {error ?? 'Loading…'}
+        {error ? t(`tournament.publicHub.error.${error}`) : t('tournament.publicHub.loading')}
       </div>
     )
   }
@@ -179,7 +181,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
               : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
           }`}
         >
-          <Trophy className="h-4 w-4" /> Overview
+          <Trophy className="h-4 w-4" /> {t('tournament.publicHub.tab.overview')}
         </button>
         <button
           type="button"
@@ -190,7 +192,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
               : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
           }`}
         >
-          <BarChart3 className="h-4 w-4" /> Universal standings
+          <BarChart3 className="h-4 w-4" /> {t('tournament.publicHub.tab.universalStandings')}
         </button>
         <button
           type="button"
@@ -201,7 +203,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
               : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
           }`}
         >
-          <GitBranch className="h-4 w-4" /> Bracket
+          <GitBranch className="h-4 w-4" /> {t('tournament.publicHub.tab.bracket')}
         </button>
         <button
           type="button"
@@ -212,7 +214,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
               : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
           }`}
         >
-          <MessageSquare className="h-4 w-4" /> Announcements
+          <MessageSquare className="h-4 w-4" /> {t('tournament.publicHub.tab.announcements')}
         </button>
         {tournament?.isCommissioner && (
           <button
@@ -224,7 +226,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                 : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
             }`}
           >
-            <Sparkles className="h-4 w-4" /> AI
+            <Sparkles className="h-4 w-4" /> {t('tournament.publicHub.tab.ai')}
           </button>
         )}
       </div>
@@ -235,7 +237,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 hover:bg-white/10"
           download
         >
-          <Download className="h-4 w-4" /> Export CSV
+          <Download className="h-4 w-4" /> {t('tournament.publicHub.exportCsv')}
         </a>
         {tournament?.isCommissioner && tournament?.status === 'qualification' && (
           <button
@@ -244,7 +246,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
             disabled={advancing}
             className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-600/30 px-4 py-2 text-sm font-medium text-amber-200 hover:bg-amber-600/50 disabled:opacity-50"
           >
-            {advancing ? 'Running…' : 'Run qualification advancement'}
+            {advancing ? t('tournament.publicHub.running') : t('tournament.publicHub.runAdvancement')}
           </button>
         )}
       </div>
@@ -252,9 +254,12 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
       {tab === 'overview' && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-            <h3 className="mb-3 text-lg font-semibold text-white">Conferences &amp; leagues</h3>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.conferencesTitle')}</h3>
             <p className="mb-4 text-sm text-white/60">
-              {tournament._leagueCount} leagues across {tournament.conferences.length} conferences
+              {tInterpolate('tournament.publicHub.leaguesAcrossConferences', {
+                leagues: String(tournament._leagueCount),
+                conferences: String(tournament.conferences.length),
+              })}
             </p>
             <div className="space-y-4">
               {tournament.conferences.map((conf) => (
@@ -267,7 +272,10 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                           href={`/league/${tl.leagueId}`}
                           className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10"
                         >
-                          {tl.league.name ?? `League ${tl.orderInConference + 1}`}
+                          {tl.league.name ??
+                            tInterpolate('tournament.publicHub.leagueN', {
+                              n: String(tl.orderInConference + 1),
+                            })}
                           <ChevronRight className="h-3 w-3" />
                         </Link>
                       </li>
@@ -278,14 +286,21 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-            <h3 className="mb-3 text-lg font-semibold text-white">Rounds</h3>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.roundsTitle')}</h3>
             <ul className="space-y-2">
               {tournament.rounds.map((r) => (
                 <li key={r.id} className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-sm">
-                  <span className="text-white/90">{r.name ?? `Round ${r.roundIndex}`}</span>
+                  <span className="text-white/90">
+                    {r.name ?? tInterpolate('tournament.hub.roundN', { n: String(r.roundIndex) })}
+                  </span>
                   <span className="text-white/50">{r.status}</span>
                   {r.startWeek != null && r.endWeek != null && (
-                    <span className="text-white/50">Weeks {r.startWeek}–{r.endWeek}</span>
+                    <span className="text-white/50">
+                      {tInterpolate('tournament.publicHub.weeksRange', {
+                        start: String(r.startWeek),
+                        end: String(r.endWeek),
+                      })}
+                    </span>
                   )}
                 </li>
               ))}
@@ -293,9 +308,11 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           </div>
           {tournament.settings?.roundRedraftSchedule && tournament.settings.roundRedraftSchedule.length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-              <h3 className="mb-2 text-lg font-semibold text-white">Draft schedule</h3>
+              <h3 className="mb-2 text-lg font-semibold text-white">{t('tournament.publicHub.draftScheduleTitle')}</h3>
               <p className="text-sm text-white/70">
-                Redraft weeks: {tournament.settings.roundRedraftSchedule.join(', ')}
+                {tInterpolate('tournament.publicHub.redraftWeeks', {
+                  weeks: tournament.settings.roundRedraftSchedule.join(', '),
+                })}
               </p>
             </div>
           )}
@@ -304,7 +321,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
               href={`/app/tournament/${tournamentId}/control`}
               className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-950/40"
             >
-              <Users className="h-4 w-4" /> Commissioner control
+              <Users className="h-4 w-4" /> {t('tournament.publicHub.commissionerControl')}
             </Link>
           )}
         </div>
@@ -313,21 +330,37 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
       {tab === 'bracket' && bracket && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-            <h3 className="mb-3 text-lg font-semibold text-white">Cut line &amp; tiebreakers</h3>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.cutLineTitle')}</h3>
             <p className="mb-2 text-sm text-white/80">{bracket.cutLine.description}</p>
             <p className="mb-2 text-sm text-white/70">{bracket.bubble.description}</p>
-            <p className="text-xs text-white/50">Tiebreakers: {bracket.tiebreakers.join(' → ')}</p>
+            <p className="text-xs text-white/50">
+              {tInterpolate('tournament.publicHub.tiebreakersLabel', {
+                list: bracket.tiebreakers.join(' → '),
+              })}
+            </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-            <h3 className="mb-3 text-lg font-semibold text-white">Round status</h3>
-            <p className="mb-2 text-sm text-white/70">Active: {bracket.activeCount} · Eliminated: {bracket.eliminatedCount}</p>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.roundStatusTitle')}</h3>
+            <p className="mb-2 text-sm text-white/70">
+              {tInterpolate('tournament.publicHub.activeEliminated', {
+                active: String(bracket.activeCount),
+                eliminated: String(bracket.eliminatedCount),
+              })}
+            </p>
             <ul className="space-y-2">
               {bracket.rounds.map((r) => (
                 <li key={r.roundIndex} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm">
-                  <span className="font-medium text-white/90">{r.name ?? `Round ${r.roundIndex}`}</span>
+                  <span className="font-medium text-white/90">
+                    {r.name ?? tInterpolate('tournament.hub.roundN', { n: String(r.roundIndex) })}
+                  </span>
                   <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/70">{r.status}</span>
                   {r.startWeek != null && r.endWeek != null && (
-                    <span className="text-white/50">Weeks {r.startWeek}–{r.endWeek}</span>
+                    <span className="text-white/50">
+                      {tInterpolate('tournament.publicHub.weeksRange', {
+                        start: String(r.startWeek),
+                        end: String(r.endWeek),
+                      })}
+                    </span>
                   )}
                 </li>
               ))}
@@ -335,10 +368,12 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           </div>
           {Object.keys(bracket.leaguesByRound).length > 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-              <h3 className="mb-3 text-lg font-semibold text-white">Leagues by round</h3>
+              <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.leaguesByRoundTitle')}</h3>
               {Object.entries(bracket.leaguesByRound).map(([roundIdx, list]) => (
                 <div key={roundIdx} className="mb-4 last:mb-0">
-                  <h4 className="mb-2 text-sm font-medium text-white/70">Round {roundIdx}</h4>
+                  <h4 className="mb-2 text-sm font-medium text-white/70">
+                    {tInterpolate('tournament.publicHub.roundIndex', { n: roundIdx })}
+                  </h4>
                   <ul className="flex flex-wrap gap-2">
                     {list.map((l) => (
                       <li key={l.leagueId}>
@@ -365,15 +400,15 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-left text-white/70">
-                <th className="p-3">Rank</th>
-                <th className="p-3">Conf rank</th>
-                <th className="p-3">League</th>
-                <th className="p-3">Conference</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">W</th>
-                <th className="p-3">L</th>
-                <th className="p-3">PF</th>
-                <th className="p-3">PA</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.rank')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.confRank')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.league')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.conference')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.status')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.w')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.l')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.pf')}</th>
+                <th className="p-3">{t('tournament.publicHub.standings.col.pa')}</th>
               </tr>
             </thead>
             <tbody>
@@ -384,9 +419,15 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                   <td className="p-3 text-white/80">{row.leagueName ?? '—'}</td>
                   <td className="p-3 text-white/70">{row.conferenceName}</td>
                   <td className="p-3">
-                    {row.advancementStatus === 'advanced' && <span className="text-amber-400">Advanced</span>}
-                    {row.advancementStatus === 'bubble' && <span className="text-yellow-500">Bubble</span>}
-                    {row.advancementStatus === 'out' && <span className="text-white/50">Out</span>}
+                    {row.advancementStatus === 'advanced' && (
+                      <span className="text-amber-400">{t('tournament.publicHub.standings.status.advanced')}</span>
+                    )}
+                    {row.advancementStatus === 'bubble' && (
+                      <span className="text-yellow-500">{t('tournament.publicHub.standings.status.bubble')}</span>
+                    )}
+                    {row.advancementStatus === 'out' && (
+                      <span className="text-white/50">{t('tournament.publicHub.standings.status.out')}</span>
+                    )}
                     {!row.advancementStatus && '—'}
                   </td>
                   <td className="p-3">{row.wins}</td>
@@ -398,7 +439,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
             </tbody>
           </table>
           {standings.length === 0 && (
-            <div className="p-8 text-center text-white/50">No standings data yet.</div>
+            <div className="p-8 text-center text-white/50">{t('tournament.publicHub.standings.empty')}</div>
           )}
         </div>
       )}
@@ -417,7 +458,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           ))}
           {announcements.length === 0 && (
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/50">
-              No announcements yet.
+              {t('tournament.publicHub.announcements.empty')}
             </div>
           )}
         </div>
@@ -425,19 +466,17 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
 
       {tab === 'ai' && tournament?.isCommissioner && (
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6">
-          <h3 className="mb-3 text-lg font-semibold text-white">Tournament AI</h3>
-          <p className="mb-4 text-sm text-white/60">
-            Generate recaps, standings analysis, draft prep, and more. AI uses only deterministic data; it never decides outcomes.
-          </p>
+          <h3 className="mb-3 text-lg font-semibold text-white">{t('tournament.publicHub.ai.title')}</h3>
+          <p className="mb-4 text-sm text-white/60">{t('tournament.publicHub.ai.body')}</p>
           <div className="mb-4 flex flex-wrap gap-2">
             {[
-              { type: 'weekly_recap', label: 'Weekly recap' },
-              { type: 'standings_analysis', label: 'Standings analysis' },
-              { type: 'bubble_watch', label: 'Bubble watch' },
-              { type: 'draft_prep', label: 'Draft prep' },
-              { type: 'commissioner_assistant', label: 'Commissioner assistant' },
-              { type: 'bracket_preview', label: 'Bracket preview' },
-            ].map(({ type, label }) => (
+              { type: 'weekly_recap', labelKey: 'tournament.publicHub.ai.weeklyRecap' },
+              { type: 'standings_analysis', labelKey: 'tournament.publicHub.ai.standingsAnalysis' },
+              { type: 'bubble_watch', labelKey: 'tournament.publicHub.ai.bubbleWatch' },
+              { type: 'draft_prep', labelKey: 'tournament.publicHub.ai.draftPrep' },
+              { type: 'commissioner_assistant', labelKey: 'tournament.publicHub.ai.commissionerAssistant' },
+              { type: 'bracket_preview', labelKey: 'tournament.publicHub.ai.bracketPreview' },
+            ].map(({ type, labelKey }) => (
               <button
                 key={type}
                 type="button"
@@ -454,20 +493,20 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                     })
                     const json = await res.json()
                     if (res.ok && json.text) setAiResult(json.text)
-                    else setAiResult(json.error ?? 'Generation failed')
+                    else setAiResult(typeof json.error === 'string' ? json.error : t('tournament.publicHub.ai.errorGeneration'))
                   } catch {
-                    setAiResult('Request failed')
+                    setAiResult(t('tournament.publicHub.ai.errorRequest'))
                   } finally {
                     setAiLoading(false)
                   }
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-950/40 disabled:opacity-50"
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
-          {aiLoading && <p className="text-sm text-white/60">Generating…</p>}
+          {aiLoading && <p className="text-sm text-white/60">{t('tournament.publicHub.ai.generating')}</p>}
           {aiResult && !aiLoading && (
             <div className="space-y-2">
               <textarea
@@ -494,7 +533,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-600/30 px-4 py-2 text-sm text-amber-200 disabled:opacity-50"
               >
-                {aiPosting ? 'Posting…' : 'Post as announcement'}
+                {aiPosting ? t('tournament.publicHub.ai.posting') : t('tournament.publicHub.ai.postAnnouncement')}
               </button>
             </div>
           )}

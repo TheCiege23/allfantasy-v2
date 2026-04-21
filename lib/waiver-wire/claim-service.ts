@@ -14,6 +14,7 @@ import {
   conceptOverridesBlockWaivers,
 } from "./waiver-validation"
 import { getLeagueWaiverState } from "./waiver-state-service"
+import { assertWaiverClaimEligibility } from "./transaction-eligibility"
 
 /**
  * Create a waiver claim. Validates that roster exists and belongs to the league (data consistency).
@@ -84,6 +85,15 @@ export async function createClaim(
   if (!windowCheck.ok) {
     throw new Error(windowCheck.message)
   }
+
+  await assertWaiverClaimEligibility({
+    leagueId,
+    rosterId,
+    addPlayerId: input.addPlayerId,
+    dropPlayerId: input.dropPlayerId ?? null,
+    faabBid: input.faabBid ?? null,
+    claimMetadata: input.metadata ?? null,
+  })
 
   const league = await (prisma as any).league.findUnique({
     where: { id: leagueId },
@@ -173,6 +183,20 @@ export async function updateClaim(
   if (waiversFrozen) {
     throw new Error("This roster's waiver moves are frozen by an active Survivor idol effect")
   }
+
+  const nextAdd = input.addPlayerId != null ? input.addPlayerId : existing.addPlayerId
+  const nextDrop = input.dropPlayerId !== undefined ? input.dropPlayerId : existing.dropPlayerId
+  const nextFaab = input.faabBid !== undefined ? input.faabBid : existing.faabBid
+  await assertWaiverClaimEligibility({
+    leagueId,
+    rosterId,
+    addPlayerId: nextAdd,
+    dropPlayerId: nextDrop ?? null,
+    faabBid: nextFaab ?? null,
+    claimMetadata: existing.metadata ?? null,
+    excludeClaimId: claimId,
+  })
+
   const updated = await (prisma as any).waiverClaim.update({
     where: { id: claimId },
     data: {

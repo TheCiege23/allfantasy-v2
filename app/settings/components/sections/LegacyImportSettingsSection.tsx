@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import {
   refreshLegacyImportStatus,
@@ -21,7 +20,7 @@ import { resolveNoResultsState } from "@/lib/ui-state"
 import { formatInTimezone } from "@/lib/preferences/TimezoneFormattingResolver"
 
 export function LegacyImportSettingsSection() {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const [legacyStatus, setLegacyStatus] = useState<LegacyImportStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -84,7 +83,7 @@ export function LegacyImportSettingsSection() {
       <div>
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("settings.legacy.title")}</h2>
         <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-          {interpolateTemplate(t("settings.legacy.subtitle"), { sports: SUPPORTED_SPORTS.join(", ") })}
+          {tInterpolate("settings.legacy.subtitle", { sports: SUPPORTED_SPORTS.join(", ") })}
         </p>
       </div>
       <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}>
@@ -114,7 +113,7 @@ export function LegacyImportSettingsSection() {
           </div>
           {lastUpdatedAt && (
             <p className="text-xs" style={{ color: "var(--muted)" }}>
-              {interpolateTemplate(t("settings.legacy.lastUpdated"), {
+              {tInterpolate("settings.legacy.lastUpdated", {
                 time: formatInTimezone(lastUpdatedAt, undefined, undefined, "en"),
               })}
             </p>
@@ -138,7 +137,7 @@ export function LegacyImportSettingsSection() {
                     <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
                       {available
                         ? linked
-                          ? interpolateTemplate(t("settings.legacy.linkedImport"), { status: importStatusLabel })
+                          ? tInterpolate("settings.legacy.linkedImport", { status: importStatusLabel })
                           : t("settings.legacy.notConnected")
                         : t("settings.legacy.comingSoon")}
                     </p>

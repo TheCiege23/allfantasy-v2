@@ -68,6 +68,16 @@ export interface BigBrotherSummary {
   rosterDisplayNames: Record<string, string>
   /** All houseguests — memory wall grid (status from current week). */
   memoryWall?: BigBrotherMemoryWallEntry[]
+  /** True when the requesting user is the league commissioner. */
+  isCommissioner?: boolean
+  /** Roster IDs designated as Have-Nots for the current cycle (computed or commissioner override). */
+  haveNotRosterIds?: string[]
+  /** Veto challenge context for VETO_CHALLENGE_OPEN phase. */
+  vetoChallenge?: {
+    competitorRosterIds: string[]
+    challengeMode: string
+    themeHints?: string[]
+  }
 }
 
 export type BigBrotherView =

@@ -5,11 +5,18 @@
 import { isImportProviderAvailable } from './provider-ui-config';
 import type { ImportProvider } from './types';
 
+export interface CommissionerAttestation {
+  accepted: boolean;
+  statement?: string;
+}
+
 export interface FetchPreviewResult {
   ok: boolean;
   data?: unknown;
   error?: string;
   status?: number;
+  /** True when the provider can't be auto-verified; caller must resubmit with an attestation. */
+  requiresAttestation?: boolean;
 }
 
 export interface SubmitImportResult {
@@ -17,6 +24,7 @@ export interface SubmitImportResult {
   data?: { league: { id: string; name: string; sport: string } };
   error?: string;
   status?: number;
+  requiresAttestation?: boolean;
 }
 
 function getImportApiErrorMessage(
@@ -38,7 +46,8 @@ function getImportApiErrorMessage(
  */
 export async function fetchImportPreview(
   provider: ImportProvider,
-  sourceInput: string
+  sourceInput: string,
+  attestation?: CommissionerAttestation
 ): Promise<FetchPreviewResult> {
   if (!isImportProviderAvailable(provider)) {
     return { ok: false, error: `Import from ${provider} is not yet available.` };
@@ -52,7 +61,11 @@ export async function fetchImportPreview(
     const res = await fetch('/api/leagues/import/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, sourceId: trimmed }),
+      body: JSON.stringify({
+        provider,
+        sourceId: trimmed,
+        ...(attestation?.accepted ? { attestation } : {}),
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -60,6 +73,7 @@ export async function fetchImportPreview(
         ok: false,
         error: getImportApiErrorMessage(data, 'Failed to load league'),
         status: res.status,
+        requiresAttestation: Boolean((data as { requiresAttestation?: boolean })?.requiresAttestation),
       };
     }
     return { ok: true, data };
@@ -75,7 +89,9 @@ export async function fetchImportPreview(
 export async function submitImportCreation(
   provider: ImportProvider,
   sourceInput: string,
-  userId: string
+  _userId: string,
+  attestation?: CommissionerAttestation,
+  options?: { force?: boolean }
 ): Promise<SubmitImportResult> {
   if (!isImportProviderAvailable(provider)) {
     return { ok: false, error: `Import from ${provider} is not yet available.` };
@@ -98,7 +114,12 @@ export async function submitImportCreation(
           }
         : {
             url: '/api/leagues/import/commit',
-            body: { provider, sourceId: trimmed },
+            body: {
+              provider,
+              sourceId: trimmed,
+              ...(attestation?.accepted ? { attestation } : {}),
+              ...(options?.force ? { force: true } : {}),
+            },
           };
 
     const res = await fetch(request.url, {
@@ -112,6 +133,7 @@ export async function submitImportCreation(
         ok: false,
         error: getImportApiErrorMessage(data, 'Failed to create league'),
         status: res.status,
+        requiresAttestation: Boolean((data as { requiresAttestation?: boolean })?.requiresAttestation),
       };
     }
     return { ok: true, data };

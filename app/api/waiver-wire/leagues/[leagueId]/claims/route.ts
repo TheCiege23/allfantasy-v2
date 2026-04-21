@@ -12,6 +12,9 @@ import {
 import { validateAiActionExecution } from '@/lib/ai/action-validation'
 import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
 import { logAction } from '@/server/services/auditService'
+import { assertRosterTransactionsAllowed } from '@/lib/roster-legality/rosterTransactionGates'
+import { getLeagueRole } from "@/lib/league/permissions"
+import { mergeCommissionerOverrides } from "@/lib/waiver-wire/commissioner-claim-override"
 
 export async function GET(
   req: NextRequest,
@@ -70,6 +73,19 @@ export async function POST(
     return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
   }
 
+  const rosterLegalityGate = await assertRosterTransactionsAllowed({
+    leagueId,
+    rosterIds: [roster.id],
+    userId,
+    kind: 'waiver_claim',
+  })
+  if (!rosterLegalityGate.ok) {
+    return NextResponse.json(
+      { error: rosterLegalityGate.error, code: rosterLegalityGate.code },
+      { status: 403 },
+    )
+  }
+
   const addPlayerId = body.addPlayerId ?? body.add_player_id
   if (!addPlayerId) return NextResponse.json({ error: "addPlayerId required" }, { status: 400 })
 
@@ -82,6 +98,27 @@ export async function POST(
   }
 
   try {
+    let metadataForCreate: Record<string, unknown> | undefined =
+      body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
+        ? { ...(body.metadata as Record<string, unknown>) }
+        : undefined
+
+    if (
+      body.commissionerOverrides &&
+      typeof body.commissionerOverrides === "object" &&
+      !Array.isArray(body.commissionerOverrides)
+    ) {
+      const role = await getLeagueRole(leagueId, userId)
+      if (role === "commissioner" || role === "co_commissioner") {
+        const co = body.commissionerOverrides as Record<string, unknown>
+        const patch: Parameters<typeof mergeCommissionerOverrides>[1] = { setByUserId: userId }
+        if (typeof co.bypassInsufficientFaab === "boolean") patch.bypassInsufficientFaab = co.bypassInsufficientFaab
+        if (typeof co.bypassWeeklyDropLimit === "boolean") patch.bypassWeeklyDropLimit = co.bypassWeeklyDropLimit
+        if (typeof co.note === "string") patch.note = co.note
+        metadataForCreate = mergeCommissionerOverrides(metadataForCreate ?? null, patch)
+      }
+    }
+
     const claim = await createClaim(leagueId, roster.id, {
       addPlayerId: String(addPlayerId),
       dropPlayerId: body.dropPlayerId ?? body.drop_player_id ?? null,
@@ -89,7 +126,7 @@ export async function POST(
       priorityOrder: body.priorityOrder ?? body.priority_order,
       userId,
       claimType: typeof body.claimType === "string" ? body.claimType : "add_drop",
-      metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : undefined,
+      metadata: metadataForCreate,
     })
 
     void logAction({
@@ -110,7 +147,7 @@ export async function POST(
 
     const eff = await getEffectiveLeagueWaiverSettings(leagueId)
     let fcfsProcessWarning: string | undefined
-    if (eff.waiverType === "fcfs") {
+    if (eff.normalizedWaiverType === "fcfs") {
       try {
         const { processWaiverClaimsForLeague } = await import("@/lib/waiver-wire/process-engine")
         await processWaiverClaimsForLeague(leagueId, {
@@ -125,7 +162,7 @@ export async function POST(
 
     return NextResponse.json({
       claim,
-      fcfsProcessedImmediately: eff.waiverType === "fcfs" && !fcfsProcessWarning,
+      fcfsProcessedImmediately: eff.normalizedWaiverType === "fcfs" && !fcfsProcessWarning,
       ...(fcfsProcessWarning ? { fcfsProcessWarning } : {}),
     })
   } catch (e) {
@@ -147,7 +184,21 @@ export async function POST(
       message.includes("submission window") ||
       message.includes("Waiver claims are closed") ||
       message.includes("Waiver submissions are") ||
-      message.includes("frozen for this league")
+      message.includes("frozen for this league") ||
+      message.includes("Roster full") ||
+      message.includes("your roster") ||
+      message.includes("over the limit") ||
+      message.includes("Insufficient FAAB") ||
+      message.includes("Minimum FAAB") ||
+      message.includes("undroppable") ||
+      message.includes("illegal state") ||
+      message.includes("resolve IR") ||
+      message.includes("taxi") ||
+      message.includes("devy") ||
+      message.includes("starter is locked") ||
+      message.includes("bench player is locked") ||
+      message.includes("All roster moves are locked") ||
+      message.includes("Weekly drop limit")
     ) {
       return NextResponse.json({ error: message }, { status: 400 })
     }

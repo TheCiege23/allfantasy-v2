@@ -59,7 +59,7 @@ const NHL_MAP = flattenCategories(NHL_ALL_SCORING_CATEGORIES as CatLike[])
 const SOCCER_MAP = flattenCategories(SOCCER_SCORING_CATEGORIES as CatLike[])
 
 /** Registry / template key → key used in commissioner category tables (for label lookup). */
-const KEY_ALIASES: Record<string, Record<string, string>> = {
+export const SCORING_STAT_KEY_ALIASES: Record<string, Record<string, string>> = {
   NFL: {
     interception: 'interception_thrown',
     receptions: 'reception',
@@ -134,6 +134,22 @@ const KEY_ALIASES: Record<string, Record<string, string>> = {
     shutout: 'shutouts',
   },
   SOCCER: {},
+}
+
+/** @deprecated use SCORING_STAT_KEY_ALIASES */
+const KEY_ALIASES = SCORING_STAT_KEY_ALIASES
+
+/**
+ * Map a commissioner UI / category row key to the canonical template stat key stored in
+ * `LeagueScoringOverride` and `ScoringTemplate.rules`.
+ */
+export function templateStatKeyFromUiKey(sport: string, uiKey: string): string {
+  const u = sport.toUpperCase()
+  const aliases = SCORING_STAT_KEY_ALIASES[u] ?? {}
+  for (const [templateKey, ui] of Object.entries(aliases)) {
+    if (ui === uiKey) return templateKey
+  }
+  return uiKey
 }
 
 /** When no category row exists, still show a clean label. */

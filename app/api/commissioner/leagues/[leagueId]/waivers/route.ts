@@ -73,6 +73,7 @@ export async function PUT(
     tiebreakRule: body.tiebreakRule,
     lockType: body.lockType,
     instantFaAfterClear: body.instantFaAfterClear,
+    waiverEngineConfig: body.waiverEngineConfig,
   })
   return NextResponse.json(settings)
 }

@@ -5,6 +5,8 @@ import { QUEUE_NAMES } from "@/lib/jobs/types";
 import type { NotificationJobPayload } from "@/lib/jobs/types";
 import type { NotificationCategoryId } from "@/lib/notification-settings/types";
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher";
+import { ENGINE } from "@/lib/analytics/eventNames";
+import { recordEngineTelemetrySample } from "@/lib/analytics/recordAnalyticsEvent";
 
 export type NotificationJobResult = {
   ok: boolean;
@@ -51,6 +53,15 @@ async function processNotificationJob(
     actionLabel: data.actionLabel,
     meta: data.meta,
     severity: data.severity,
+  });
+
+  recordEngineTelemetrySample(ENGINE.NOTIFICATION_DISPATCH, {
+    meta: {
+      ok: true,
+      category: data.category,
+      type: data.type,
+      recipientCount: data.userIds.length,
+    },
   });
 
   return {

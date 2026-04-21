@@ -4,6 +4,28 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 
+type EditableLeagueSettings = {
+  scoring: string
+  rosterSize: number
+  benchSize: number
+  waiverType: string
+  faabBudget: number
+  faabResetByRound: boolean
+  tradeDeadlineWeek: number
+  tradeLockHours: number
+}
+
+const EMPTY_LEAGUE_SETTINGS: EditableLeagueSettings = {
+  scoring: 'PPR',
+  rosterSize: 15,
+  benchSize: 7,
+  waiverType: 'FAAB',
+  faabBudget: 100,
+  faabResetByRound: true,
+  tradeDeadlineWeek: 12,
+  tradeLockHours: 0,
+}
+
 const TABS: { id: string; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: '🏆' },
   { id: 'conferences', label: 'Conferences', icon: '🗺' },
@@ -107,7 +129,8 @@ export function TournamentSettingsModalEditable({
   const [tab, setTab] = useState('general')
   const [saving, setSaving] = useState(false)
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
-  const [leagueSettings, setLeagueSettings] = useState<Record<string, any>>({})
+  const [leagueSettings, setLeagueSettings] = useState<EditableLeagueSettings>(EMPTY_LEAGUE_SETTINGS)
+  const [loadingLeagueSettings, setLoadingLeagueSettings] = useState(false)
   const [rebalancing, setRebalancing] = useState(false)
   // Tournament-level edits collected by the General/Playoffs/Advanced tabs.
   // Keys must match the body shape accepted by /api/tournament/[id]/settings/update.
@@ -176,21 +199,41 @@ export function TournamentSettingsModalEditable({
     return m
   }, [tournamentLeagues])
 
-  const handleLoadLeagueSettings = (leagueId: string) => {
+  const resetLeagueEditor = () => {
+    setSelectedLeagueId(null)
+    setLeagueSettings(EMPTY_LEAGUE_SETTINGS)
+    setLoadingLeagueSettings(false)
+  }
+
+  const handleLoadLeagueSettings = async (leagueId: string) => {
     const feederLeague = legacyFeederLeagues?.find((l) => l.leagueId === leagueId)
-    if (feederLeague) {
-      setSelectedLeagueId(leagueId)
-      // Load current settings (you'd fetch these from the league data)
+    if (!feederLeague) return
+
+    setSelectedLeagueId(leagueId)
+    setLeagueSettings(EMPTY_LEAGUE_SETTINGS)
+    setLoadingLeagueSettings(true)
+    try {
+      const res = await fetch(
+        `/api/tournament/${tournamentId}/feeder-league/settings?leagueId=${encodeURIComponent(leagueId)}`,
+        { cache: 'no-store' }
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.settings) {
+        toast.error(data?.error ?? 'Failed to load league settings')
+        resetLeagueEditor()
+        return
+      }
+
       setLeagueSettings({
-        scoring: 'PPR',
-        rosterSize: 15,
-        benchSize: 7,
-        waiverType: 'FAAB',
-        faabBudget: 100,
-        faabResetByRound: true,
-        tradeDeadlineWeek: 12,
-        tradeLockHours: 0,
+        ...EMPTY_LEAGUE_SETTINGS,
+        ...(data.settings as Partial<EditableLeagueSettings>),
       })
+    } catch (err) {
+      console.error('[tournament-settings-load]', err)
+      toast.error('Failed to load league settings')
+      resetLeagueEditor()
+    } finally {
+      setLoadingLeagueSettings(false)
     }
   }
 
@@ -343,6 +386,11 @@ export function TournamentSettingsModalEditable({
 
               {selectedLeagueId && (
                 <>
+                  {loadingLeagueSettings ? (
+                    <div className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-[var(--tournament-text-mid)]">
+                      Loading league settings...
+                    </div>
+                  ) : null}
                   <Section title="Scoring settings">
                     <SettingRow
                       label="Scoring format"
@@ -361,10 +409,7 @@ export function TournamentSettingsModalEditable({
                       {saving ? 'Saving...' : 'Save & Notify All'}
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedLeagueId(null)
-                        setLeagueSettings({})
-                      }}
+                      onClick={resetLeagueEditor}
                       className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-[13px] font-bold text-white hover:bg-white/10"
                     >
                       Cancel
@@ -397,6 +442,11 @@ export function TournamentSettingsModalEditable({
 
               {selectedLeagueId && (
                 <>
+                  {loadingLeagueSettings ? (
+                    <div className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-[var(--tournament-text-mid)]">
+                      Loading league settings...
+                    </div>
+                  ) : null}
                   <Section title="Roster settings">
                     <SettingRow
                       label="Roster size"
@@ -421,10 +471,7 @@ export function TournamentSettingsModalEditable({
                       {saving ? 'Saving...' : 'Save & Notify All'}
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedLeagueId(null)
-                        setLeagueSettings({})
-                      }}
+                      onClick={resetLeagueEditor}
                       className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-[13px] font-bold text-white hover:bg-white/10"
                     >
                       Cancel
@@ -457,6 +504,11 @@ export function TournamentSettingsModalEditable({
 
               {selectedLeagueId && (
                 <>
+                  {loadingLeagueSettings ? (
+                    <div className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-[var(--tournament-text-mid)]">
+                      Loading league settings...
+                    </div>
+                  ) : null}
                   <Section title="Waiver settings">
                     <SettingRow
                       label="Waiver type"
@@ -486,10 +538,7 @@ export function TournamentSettingsModalEditable({
                       {saving ? 'Saving...' : 'Save & Notify All'}
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedLeagueId(null)
-                        setLeagueSettings({})
-                      }}
+                      onClick={resetLeagueEditor}
                       className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-[13px] font-bold text-white hover:bg-white/10"
                     >
                       Cancel
@@ -522,6 +571,11 @@ export function TournamentSettingsModalEditable({
 
               {selectedLeagueId && (
                 <>
+                  {loadingLeagueSettings ? (
+                    <div className="mb-4 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-[12px] text-[var(--tournament-text-mid)]">
+                      Loading league settings...
+                    </div>
+                  ) : null}
                   <Section title="Trade settings">
                     <SettingRow
                       label="Trade deadline week"
@@ -546,10 +600,7 @@ export function TournamentSettingsModalEditable({
                       {saving ? 'Saving...' : 'Save & Notify All'}
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedLeagueId(null)
-                        setLeagueSettings({})
-                      }}
+                      onClick={resetLeagueEditor}
                       className="flex-1 rounded-lg border border-white/20 px-4 py-2 text-[13px] font-bold text-white hover:bg-white/10"
                     >
                       Cancel

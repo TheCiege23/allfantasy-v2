@@ -112,28 +112,70 @@ export function buildPlayerDataFromSections(
   }
 }
 
+export type TemplateSectionIssue = {
+  code: string
+  message: string
+  section?: RosterSectionKey
+  playerId?: string
+}
+
+/** Granular issues for roster legality UI and APIs (replaces single-string `validateRosterSectionsAgainstTemplate` internally). */
+export function collectTemplateSectionIssues(
+  playerData: unknown,
+  template: RosterTemplateDto,
+): TemplateSectionIssue[] {
+  const sections = getNormalizedLineupSections(playerData)
+  const slotLimits = getSlotLimitsFromTemplate(template)
+  const issues: TemplateSectionIssue[] = []
+  for (const section of Object.keys(sections) as RosterSectionKey[]) {
+    const max = slotLimits[section]
+    if (sections[section].length > max) {
+      issues.push({
+        code: 'SECTION_OVERFLOW',
+        message: `${section.toUpperCase()} has ${sections[section].length} players, max ${max}.`,
+        section,
+      })
+    }
+  }
+  const starterAllowed = getStarterAllowedSet(template)
+  if (starterAllowed.size > 0 && !starterAllowed.has('*')) {
+    for (const starter of sections.starters) {
+      const normalizedPosition = normalizePositionForStarterEligibility(String(starter.position ?? ''))
+      const id = String((starter as Record<string, unknown>).id ?? '')
+      if (!normalizedPosition) continue
+      if (!starterAllowed.has(normalizedPosition)) {
+        issues.push({
+          code: 'STARTER_POSITION_INELIGIBLE',
+          message: `Starter position ${normalizedPosition} is not eligible for this league template.`,
+          section: 'starters',
+          playerId: id || undefined,
+        })
+      }
+    }
+  }
+  const totalMax =
+    slotLimits.starters + slotLimits.bench + slotLimits.ir + slotLimits.taxi + slotLimits.devy
+  const totalActual =
+    sections.starters.length +
+    sections.bench.length +
+    sections.ir.length +
+    sections.taxi.length +
+    sections.devy.length
+  if (totalMax > 0 && totalActual > totalMax) {
+    issues.push({
+      code: 'ROSTER_TOTAL_OVER_LIMIT',
+      message: `Roster has ${totalActual} players; maximum for this template is ${totalMax}.`,
+    })
+  }
+  return issues
+}
+
 export function validateRosterSectionsAgainstTemplate(
   playerData: unknown,
   template: RosterTemplateDto
 ): string | null {
-  const sections = getNormalizedLineupSections(playerData)
-  const slotLimits = getSlotLimitsFromTemplate(template)
-  for (const section of Object.keys(sections) as RosterSectionKey[]) {
-    const max = slotLimits[section]
-    if (sections[section].length > max) {
-      return `${section.toUpperCase()} has ${sections[section].length} players, max ${max}.`
-    }
-  }
-  const starterAllowed = getStarterAllowedSet(template)
-  if (starterAllowed.size === 0 || starterAllowed.has('*')) return null
-  for (const starter of sections.starters) {
-    const normalizedPosition = normalizePositionForStarterEligibility(String(starter.position ?? ''))
-    if (!normalizedPosition) continue
-    if (!starterAllowed.has(normalizedPosition)) {
-      return `Starter position ${normalizedPosition} is not eligible for this league template.`
-    }
-  }
-  return null
+  const issues = collectTemplateSectionIssues(playerData, template)
+  return issues.length ? issues.map((i) => i.message).join(' ') : null
 }
 
 export function autoCorrectPlayerDataToTemplate(

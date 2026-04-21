@@ -38,9 +38,9 @@ function evenTeamRange(min: number, max: number): number[] {
   return out
 }
 
-const ZOMBIE_TEAM_COUNT_OPTIONS = [18, 20, 22] as const
+const ZOMBIE_TEAM_COUNT_OPTIONS = [8, 10, 12, 14, 16] as const
 
-/** Preferred Zombie sizes; capped per sport max (e.g. NBA max 20). */
+/** Preferred Zombie sizes; capped per sport max. */
 export function getZombieTeamCountOptionsForSport(sport: string): number[] {
   const max = getMaxTeamsForSport(sport)
   const filtered = ZOMBIE_TEAM_COUNT_OPTIONS.filter((n) => n <= max)

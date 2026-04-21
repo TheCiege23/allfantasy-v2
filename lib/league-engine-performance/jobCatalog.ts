@@ -44,6 +44,15 @@ const KIND_RETRY: Record<LeagueEngineJobKind, { notes: string; idempotency: stri
   },
 }
 
+/**
+ * Jobs that should use the **AI** queue (`enqueueAi`), not `LEAGUE_ENGINE`:
+ * - matchup explanation, start/sit synthesis — use `buildAiMatchupRefreshEnqueueKey` as `jobId` when enqueueing.
+ * - trade/waiver AI analysis — dedupe by league + proposal/claim id.
+ *
+ * Jobs that should use **notifications** queue:
+ * - bulk PlatformNotification dispatch — `enqueueNotification` with stable `jobId` from dedupe keys.
+ */
+
 export function describeLeagueEngineJobKind(kind: LeagueEngineJobKind): (typeof KIND_RETRY)[LeagueEngineJobKind] {
   return KIND_RETRY[kind]
 }

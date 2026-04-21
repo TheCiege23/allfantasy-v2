@@ -9,14 +9,21 @@
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type { LeagueSport } from '@prisma/client'
 
-/** Allowed tournament participant pool sizes (must equal 12 × feeder league count). */
-export const TOURNAMENT_POOL_TIERS = [72, 144, 216] as const
+/** Allowed tournament participant pool sizes exposed by create flows. */
+export const TOURNAMENT_POOL_TIERS = [32, 64, 72, 96, 128, 144, 160, 192, 216, 224] as const
 
-/** Feeder league counts for each tier (12 teams per league). */
+/** Feeder league counts for each tier (12-team feeders; final league may be partial). */
 export const FEEDER_LEAGUES_BY_POOL: Record<(typeof TOURNAMENT_POOL_TIERS)[number], number> = {
+  32: 2,
+  64: 5,
   72: 6,
+  96: 8,
+  128: 10,
   144: 12,
+  160: 13,
+  192: 16,
   216: 18,
+  224: 18,
 }
 
 /** Fixed teams per feeder league for tournament qualification. */

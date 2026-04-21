@@ -14,6 +14,7 @@ import { buildCanonicalImportBundle } from '@/lib/league-import/canonicalImportN
 import { recordCanonicalImportAuditForExistingLeague } from '@/lib/league-import/importPersistenceService'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
+import { assertImportCommissioner } from '@/lib/league-import/commissionerGate'
 import {
   applyImportedLeagueToExistingLeague,
   type ExistingLeagueImportApplyOptions,
@@ -67,6 +68,15 @@ export async function POST(
   }
   if (!isImportProviderAvailable(provider)) {
     return NextResponse.json({ error: `Import from ${provider} is not yet available.` }, { status: 400 })
+  }
+
+  const importGate = await assertImportCommissioner({
+    appUserId: userId,
+    provider,
+    sourceLeagueId: sourceId,
+  })
+  if (!importGate.ok) {
+    return NextResponse.json({ error: importGate.reason ?? 'Only commissioners can import this league.' }, { status: 403 })
   }
 
   const result = await runImportedLeagueNormalizationPipeline({

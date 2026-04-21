@@ -15,6 +15,8 @@ import { getLeagueMode } from '@/lib/zombie/zombieLeagueMode'
 export type WeeklyResolutionOptions = {
   /** Re-run infections + recap even if this week already resolved (stat corrections / commissioner). */
   force?: boolean
+  /** Optional reason for forced replay. */
+  reason?: 'manual' | 'stat_correction'
 }
 
 export type WeeklyResolutionRunResult = {
@@ -73,6 +75,16 @@ export async function runWeeklyResolution(
     week,
     actorRole: 'system',
   }).catch(() => {})
+
+  if (opts?.force === true && opts.reason === 'stat_correction') {
+    await logAuditEntry(zombieLeagueId, {
+      category: 'weekly_update',
+      action: 'STAT_CORRECTION_REPLAY',
+      description: `Week ${week} resolution replayed after score/stat correction ingest.`,
+      week,
+      actorRole: 'system',
+    }).catch(() => {})
+  }
 
   const mode = getLeagueMode(z)
 

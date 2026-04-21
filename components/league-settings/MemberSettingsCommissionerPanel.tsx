@@ -12,8 +12,9 @@
  * Works for ALL sports and ALL league types including specialty leagues.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { UserMinus, UserPlus, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { UserMinus, UserPlus, X, Search, Link2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ interface TeamMember {
   isOrphan: boolean
   isCommissioner: boolean
   isCoCommissioner: boolean
+  teamRole: string
   starters: string[]  // player display names
   allPlayers: string[] // all player display names on roster
   position: number // 1-based order
@@ -54,15 +56,21 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [isCommissioner, setIsCommissioner] = useState(false)
+  /** True when viewer can load commissioner managers API (head or co-commissioner). */
+  const [canManageMembers, setCanManageMembers] = useState(false)
   const [members, setMembers] = useState<TeamMember[]>([])
   const [availableUsers, setAvailableUsers] = useState<AvailableUser[]>([])
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [addPickerOpen, setAddPickerOpen] = useState<string | null>(null) // teamId of open picker
+  const [search, setSearch] = useState('')
+  type MemberFilter = 'all' | 'commissioner' | 'coowner' | 'orphan' | 'assigned'
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>('all')
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   // Load member data
   const load = useCallback(async () => {
     try {
+      setCanManageMembers(false)
       const res = await fetch(
         `/api/commissioner/leagues/${encodeURIComponent(leagueId)}/managers`,
         { cache: 'no-store' }
@@ -75,9 +83,16 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
         )
         if (leagueRes.ok) {
           const leagueData = await leagueRes.json()
-          setIsCommissioner(leagueData.isCommissioner ?? false)
+          setCanManageMembers(false)
           const teams = (leagueData.teams ?? []) as Array<{
-            id: string; teamName: string | null; ownerName: string | null; avatarUrl: string | null
+            id: string
+            teamName: string | null
+            ownerName: string | null
+            avatarUrl: string | null
+            isOrphan?: boolean
+            isCommissioner?: boolean
+            isCoCommissioner?: boolean
+            role?: string
           }>
           setMembers(teams.map((t, i) => ({
             teamId: t.id,
@@ -86,9 +101,10 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
             avatarUrl: t.avatarUrl,
             rosterId: null,
             platformUserId: null,
-            isOrphan: !t.ownerName || t.ownerName.startsWith('Team '),
-            isCommissioner: false,
-            isCoCommissioner: false,
+            isOrphan: Boolean(t.isOrphan) || !t.ownerName || t.ownerName.startsWith('Team '),
+            isCommissioner: Boolean(t.isCommissioner),
+            isCoCommissioner: Boolean(t.isCoCommissioner),
+            teamRole: typeof t.role === 'string' ? t.role : 'member',
             starters: [],
             allPlayers: [],
             position: i + 1,
@@ -99,9 +115,9 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to load'); return }
 
-      setIsCommissioner(true)
+      setCanManageMembers(true)
 
-      const teamsRaw = data.teams ?? []
+      const teamsRaw = data.teams ?? [] as Array<Record<string, unknown>>
       const rostersRaw = data.rosters ?? []
       const managersRaw = data.managers ?? []
 
@@ -130,7 +146,9 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
         const externalId = t.externalId as string
         const roster = rosterMap.get(externalId) ?? null
         const manager = roster ? managerMap.get(roster.id) : null
-        const isOrphan = !manager?.userId
+        const isOrphanFlag = Boolean(t.isOrphan)
+        const isOrphan = isOrphanFlag
+          || !manager?.userId
           || (manager.userId as string).startsWith('orphan-')
           || (t.ownerName as string ?? '').toLowerCase().includes('unassigned')
         const rp = roster ? (rosterPlayers[roster.id] ?? { starters: [], allPlayers: [] }) : { starters: [], allPlayers: [] }
@@ -143,8 +161,9 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
           rosterId: roster?.id ?? null,
           platformUserId: manager?.userId ?? null,
           isOrphan,
-          isCommissioner: false,
-          isCoCommissioner: false,
+          isCommissioner: Boolean(t.isCommissioner),
+          isCoCommissioner: Boolean(t.isCoCommissioner),
+          teamRole: typeof t.role === 'string' ? t.role : 'member',
           starters: rp.starters,
           allPlayers: rp.allPlayers,
           position: i + 1,
@@ -171,6 +190,56 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
   }, [leagueId])
 
   useEffect(() => { load() }, [load])
+
+  const displayedMembers = useMemo(() => {
+    let list = members
+    const q = search.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (m) =>
+          m.teamName.toLowerCase().includes(q) ||
+          m.ownerName.toLowerCase().includes(q) ||
+          m.teamRole.toLowerCase().includes(q)
+      )
+    }
+    switch (memberFilter) {
+      case 'commissioner':
+        return list.filter((m) => m.isCommissioner)
+      case 'coowner':
+        return list.filter((m) => m.isCoCommissioner)
+      case 'orphan':
+        return list.filter((m) => m.isOrphan)
+      case 'assigned':
+        return list.filter((m) => !m.isOrphan)
+      default:
+        return list
+    }
+  }, [members, search, memberFilter])
+
+  const copyInviteLink = useCallback(async () => {
+    setInviteLoading(true)
+    try {
+      const res = await fetch('/api/league/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ leagueId }),
+      })
+      const data = (await res.json()) as { inviteUrl?: string; error?: string }
+      if (!res.ok) {
+        toast.error(data.error ?? 'Could not create invite link')
+        return
+      }
+      if (data.inviteUrl) {
+        await navigator.clipboard.writeText(data.inviteUrl)
+        toast.success('Invite link copied to clipboard')
+      }
+    } catch {
+      toast.error('Failed to create invite')
+    } finally {
+      setInviteLoading(false)
+    }
+  }, [leagueId])
 
   // Unassign/Remove a manager from a team
   const handleUnassign = useCallback(async (rosterId: string) => {
@@ -235,9 +304,62 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300">{success}</div>
       )}
 
+      {canManageMembers ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={inviteLoading}
+            onClick={() => void copyInviteLink()}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/25 bg-cyan-950/25 px-3 py-1.5 text-[11px] font-semibold text-cyan-200 transition hover:bg-cyan-950/40 disabled:opacity-50"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            {inviteLoading ? 'Preparing…' : 'Copy invite link'}
+          </button>
+        </div>
+      ) : null}
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Search members</p>
+        <div className="relative">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Team or owner…"
+            className="w-full rounded-lg border border-white/15 bg-[#0d1526] py-2.5 pl-4 pr-10 text-[13px] text-white placeholder:text-white/30 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+          />
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {(
+          [
+            ['all', 'All'],
+            ['commissioner', 'Commissioner'],
+            ['coowner', 'Co-owner'],
+            ['orphan', 'Orphan'],
+            ['assigned', 'Assigned'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setMemberFilter(id)}
+            className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition ${
+              memberFilter === id
+                ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-100'
+                : 'border-white/10 bg-white/[0.03] text-white/45 hover:border-white/20'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Team list */}
       <div className="space-y-0">
-        {members.map((member) => (
+        {displayedMembers.map((member) => (
           <div key={member.teamId} className="border-b border-white/[0.06] py-4 last:border-0">
             {/* Team header: avatar + name + owner */}
             <div className="flex items-start gap-3">
@@ -264,9 +386,24 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
                     <span className="ml-1.5 text-[11px] font-normal text-white/30">{t('member.unassigned')}</span>
                   )}
                 </p>
-                {member.ownerName && !member.isOrphan && (
-                  <p className="mt-0.5 text-[12px] text-white/40">{member.ownerName}</p>
-                )}
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {member.ownerName && !member.isOrphan && (
+                    <p className="text-[12px] text-white/40">{member.ownerName}</p>
+                  )}
+                  {member.isCommissioner ? (
+                    <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+                      Commissioner
+                    </span>
+                  ) : null}
+                  {member.isCoCommissioner ? (
+                    <span className="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase text-cyan-200">
+                      Co-comm
+                    </span>
+                  ) : null}
+                  <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-white/35">
+                    {member.teamRole}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -304,7 +441,7 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
               <span className="text-[13px] font-medium text-white/30">{member.position}.</span>
 
               {/* Action buttons - commissioner only */}
-              {isCommissioner && (
+              {canManageMembers && (
                 <div>
                   {member.isOrphan ? (
                     /* ADD button for unassigned teams */
@@ -372,15 +509,15 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
           </div>
         ))}
 
-        {members.length === 0 && (
+        {displayedMembers.length === 0 && (
           <div className="py-8 text-center text-[13px] text-white/30">
-            {t('member.noMembers')}
+            {members.length === 0 ? t('member.noMembers') : 'No teams match this filter.'}
           </div>
         )}
       </div>
 
       {/* Non-commissioner notice */}
-      {!isCommissioner && (
+      {!canManageMembers && (
         <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-[11px] text-white/40">
           {t('member.readOnlyBanner')}
         </div>

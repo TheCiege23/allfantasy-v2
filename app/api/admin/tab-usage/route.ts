@@ -22,6 +22,7 @@ const KNOWN_TABS = new Set([
   'model_drift',
   'users',
   'leagues',
+  'operations',
   'moderation',
   'audit',
   'features',

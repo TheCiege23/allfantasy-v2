@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mockLeagueSettingsGetForScoring } from './helpers/mockLeagueSettingsForScoring'
 
 test.describe.configure({ timeout: 180_000 })
 
@@ -178,6 +179,8 @@ test.describe('@scoring scoring settings full-shell regression', () => {
         body: JSON.stringify(scoringState),
       })
     })
+
+    await mockLeagueSettingsGetForScoring(page, leagueId, () => scoringState)
 
     await page.goto(`/league/${leagueId}?tab=Settings`)
     await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Settings`))

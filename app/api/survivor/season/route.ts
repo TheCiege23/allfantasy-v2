@@ -11,6 +11,7 @@ import {
 } from '@/lib/survivor/survivorFairPlay'
 import { seedIdolsAfterDraft } from '@/lib/survivor/idolEngine'
 import { assignPlayersToTribes } from '@/lib/survivor/tribeEngine'
+import { readSurvivorVisualThemeId, extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,7 +122,11 @@ export async function GET(req: NextRequest) {
   const payload = {
     phase: league?.survivorPhase,
     mode: league?.survivorMode,
-    tribes,
+    visualThemeId: readSurvivorVisualThemeId((await prisma.survivorLeagueConfig.findUnique({ where: { leagueId }, select: { engineSpecV2: true } }))?.engineSpecV2, leagueId),
+    tribes: tribes.map((tribe) => ({
+      ...tribe,
+      emoji: extractLeadingTribeIcon(tribe.name),
+    })),
     players,
     activeCouncil: council,
     currentChallenge: challenge,

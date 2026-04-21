@@ -4,6 +4,12 @@
  */
 
 import { dispatchNotification } from "@/lib/notifications/NotificationDispatcher"
+import { prisma } from "@/lib/prisma"
+import {
+  isLeaguePrefEnabled,
+  leagueMatchupReminderDispatchAllowed,
+  parseLeagueNotificationPrefs,
+} from "@/lib/league/league-notification-prefs"
 import {
   buildDraftAlertMessage,
   buildTradeAlertMessage,
@@ -62,6 +68,13 @@ export async function sendTradeAlert(
   options: SendTradeAlertOptions
 ): Promise<void> {
   if (userIds.length === 0) return
+  const league = await prisma.league.findUnique({
+    where: { id: options.leagueId },
+    select: { settings: true },
+  })
+  const prefs = parseLeagueNotificationPrefs(league?.settings)
+  if (!isLeaguePrefEnabled(prefs, "tradeAlerts")) return
+
   const { title, body } = buildTradeAlertMessage(payload)
   const category: NotificationCategoryId =
     options.category ??
@@ -84,6 +97,8 @@ export async function sendTradeAlert(
 export interface SendMatchupReminderOptions {
   leagueId: string
   actionHref?: string
+  /** When true, `matchup_result` reminders respect the league "Playoff race & clinch" toggle. */
+  playoffContext?: boolean
 }
 
 /**
@@ -95,6 +110,13 @@ export async function sendMatchupReminder(
   options: SendMatchupReminderOptions
 ): Promise<void> {
   if (userIds.length === 0) return
+  const league = await prisma.league.findUnique({
+    where: { id: options.leagueId },
+    select: { settings: true },
+  })
+  const prefs = parseLeagueNotificationPrefs(league?.settings)
+  if (!leagueMatchupReminderDispatchAllowed(prefs, payload, { playoffContext: options.playoffContext })) return
+
   const { title, body } = buildMatchupReminderMessage(payload)
   const category: NotificationCategoryId =
     payload.type === "matchup_result" ? "matchup_results" : "lineup_reminders"

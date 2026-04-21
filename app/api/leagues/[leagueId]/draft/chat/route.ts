@@ -14,13 +14,49 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+type ReactionEntry = { emoji: string; count: number; userIds: string[] }
+
+/**
+ * Extract the reactions list stored on LeagueChatMessage.metadata.reactions.
+ * Shape matches the shared reactions route
+ * (app/api/shared/chat/threads/[threadId]/messages/[messageId]/reactions).
+ */
+function normalizeReactionEntries(metadata: unknown): ReactionEntry[] {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
+  const raw = (metadata as Record<string, unknown>).reactions
+  if (!Array.isArray(raw)) return []
+  const out: ReactionEntry[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    const e = entry as { emoji?: unknown; count?: unknown; userIds?: unknown }
+    const emoji = typeof e.emoji === 'string' ? e.emoji.trim() : ''
+    if (!emoji) continue
+    const userIds = Array.isArray(e.userIds)
+      ? e.userIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      : []
+    const countRaw = e.count
+    const count =
+      typeof countRaw === 'number' && Number.isFinite(countRaw)
+        ? Math.max(0, Math.floor(countRaw))
+        : userIds.length
+    out.push({ emoji, count, userIds })
+  }
+  return out
+}
+
 function toDraftMessage(m: {
   id: string
   senderName: string | null
   body: string
   createdAt: string
   messageType?: string
-  metadata?: { imageUrl?: string; mediaUrl?: string; mentions?: string[]; lastActiveAt?: string } | null
+  metadata?: {
+    imageUrl?: string
+    mediaUrl?: string
+    mentions?: string[]
+    lastActiveAt?: string
+    reactions?: unknown
+  } | null
 }) {
   const metadata = m.metadata ?? null
   const normalizedType = String(m.messageType ?? 'text').toLowerCase()
@@ -37,6 +73,7 @@ function toDraftMessage(m: {
       null,
     mentions: Array.isArray(metadata?.mentions) ? metadata?.mentions : [],
     lastActiveAt: typeof metadata?.lastActiveAt === 'string' ? metadata.lastActiveAt : null,
+    reactions: normalizeReactionEntries(metadata),
   }
 }
 

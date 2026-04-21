@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
-import { motion } from 'framer-motion'
 import type { AccentTone } from '@/lib/create-league-v2/theme'
 import type { CreateLeagueV2State } from '@/lib/create-league-v2/state'
-import { getEffectiveLeagueType } from '@/lib/create-league-v2/state'
+import { getEffectiveLeagueType, isDynastyConcept } from '@/lib/create-league-v2/state'
 import type { CreateLeagueFieldErrors } from '@/lib/create-league-v2/submit'
 import { buildSuggestedLeagueName } from '@/lib/create-league-v2/suggested-league-name'
 import {
@@ -13,15 +12,10 @@ import {
   SportScoringSelector,
   TeamNameSection,
   DraftTypeSelector,
+  DynastyAdvancedSettings,
+  KeeperAdvancedSettings,
+  BestBallAdvancedSettings,
 } from '@/components/create-league'
-
-function sectionMotion(open: boolean) {
-  return {
-    initial: { opacity: 0, y: 12 },
-    animate: { opacity: open ? 1 : 0.35, y: open ? 0 : 8 },
-    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
-  }
-}
 
 export function CreateLeagueUnifiedForm({
   state,
@@ -71,7 +65,7 @@ export function CreateLeagueUnifiedForm({
         error={fe?.concept}
       />
 
-      <motion.section {...sectionMotion(Boolean(effectiveType))}>
+      <section className={!effectiveType ? 'opacity-35' : undefined}>
         <SportScoringSelector
           state={state}
           accent={accent}
@@ -79,9 +73,9 @@ export function CreateLeagueUnifiedForm({
           sportError={fe?.sport}
           scoringError={fe?.scoringPreset}
         />
-      </motion.section>
+      </section>
 
-      <motion.section {...sectionMotion(Boolean(effectiveType && state.scoringPresetId))}>
+      <section className={!effectiveType || !state.scoringPresetId ? 'opacity-35' : undefined}>
         <TeamNameSection
           state={state}
           accent={accent}
@@ -90,9 +84,9 @@ export function CreateLeagueUnifiedForm({
           teamCountError={fe?.teamCount}
           leagueNameError={fe?.leagueName}
         />
-      </motion.section>
+      </section>
 
-      <motion.section {...sectionMotion(Boolean(effectiveType && state.name.trim().length >= 3))}>
+      <section className={!effectiveType || state.name.trim().length < 3 ? 'opacity-35' : undefined}>
         <DraftTypeSelector
           state={state}
           accent={accent}
@@ -100,7 +94,31 @@ export function CreateLeagueUnifiedForm({
           onDraftSectionVisible={onDraftSectionVisible}
           draftError={fe?.draftType}
         />
-      </motion.section>
+      </section>
+
+      {isDynastyConcept(effectiveType) && (
+        <DynastyAdvancedSettings
+          state={state}
+          accent={accent}
+          onChange={onChange}
+        />
+      )}
+
+      {effectiveType === 'keeper' && (
+        <KeeperAdvancedSettings
+          state={state}
+          accent={accent}
+          onChange={onChange}
+        />
+      )}
+
+      {effectiveType === 'best_ball' && (
+        <BestBallAdvancedSettings
+          state={state}
+          accent={accent}
+          onChange={onChange}
+        />
+      )}
     </div>
   )
 }

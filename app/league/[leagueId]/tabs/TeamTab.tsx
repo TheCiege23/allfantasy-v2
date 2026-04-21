@@ -34,6 +34,23 @@ import {
   swapPlayersInLists,
   type RosterLineupLists,
 } from '@/app/league/[leagueId]/tabs/team-tab-roster-helpers'
+import type { RosterLegalityFullResult } from '@/lib/roster-legality/types'
+
+function dispatchRosterLegalityEvent(leagueId: string, result: RosterLegalityFullResult | null) {
+  if (typeof window === 'undefined') return
+  if (!result || result.isLegal) {
+    window.dispatchEvent(new CustomEvent('af-roster-legality', { detail: { leagueId, count: 0 } }))
+  } else {
+    const count = Math.max(
+      result.requiredMovesCount,
+      result.blockingReasons?.length ?? 0,
+      result.highlightedPlayerIds?.length ?? 0,
+      1,
+    )
+    window.dispatchEvent(new CustomEvent('af-roster-legality', { detail: { leagueId, count } }))
+  }
+  window.dispatchEvent(new CustomEvent('af-roster-legality-summary-invalidate'))
+}
 
 type DbLineupSwapCtx =
   | { kind: 'starter'; index: number; slot: ExpandedStarterSlot }
@@ -246,6 +263,7 @@ function RosterRow({
   season,
   onSlotClick,
   emptyLabel,
+  issueHighlight,
 }: {
   playerId: string
   sport: string
@@ -258,6 +276,8 @@ function RosterRow({
   /** Position badge opens lineup swap (Team tab). */
   onSlotClick?: () => void
   emptyLabel?: string
+  /** Roster legality / IR / taxi / slot lock highlight */
+  issueHighlight?: boolean
 }) {
   const leftBadgeEarly = slotLabel ?? '—'
   const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('—')
@@ -293,7 +313,10 @@ function RosterRow({
     <button
       type="button"
       onClick={() => onPlayerClick(playerId)}
-      className="flex w-full items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]"
+      className={[
+        'flex w-full items-center gap-2 rounded-lg border px-2 py-2 text-left transition hover:border-white/[0.08] hover:bg-white/[0.04]',
+        issueHighlight ? 'border-amber-500/45 bg-amber-500/10 ring-1 ring-amber-400/25' : 'border-transparent',
+      ].join(' ')}
       data-testid={`roster-row-${playerId}`}
     >
       <span
@@ -439,6 +462,27 @@ export function TeamTab({
   } | null>(null)
   const [autoCoachLoading, setAutoCoachLoading] = useState(false)
   const [localAutoCoachGate, setLocalAutoCoachGate] = useState(false)
+  const [legalitySnapshot, setLegalitySnapshot] = useState<RosterLegalityFullResult | null>(null)
+  const [legalityBump, setLegalityBump] = useState(0)
+  const highlightSet = useMemo(
+    () => new Set(legalitySnapshot?.highlightedPlayerIds ?? []),
+    [legalitySnapshot],
+  )
+  const [draftPickRows, setDraftPickRows] = useState<
+    Array<{
+      id: string
+      label: string
+      tradeHint?: 'received' | 'traded_away' | 'owned' | null
+      status: string
+    }>
+  >([])
+  const [draftPickFallback, setDraftPickFallback] = useState<unknown[]>([])
+  const [draftPickDetailOpen, setDraftPickDetailOpen] = useState(false)
+  const [draftPickDetailLoading, setDraftPickDetailLoading] = useState(false)
+  const [draftPickDetail, setDraftPickDetail] = useState<{
+    pick: { id: string; label: string; status: string } | null
+    tradeChain: Array<{ tradeId: string; status: string; createdAt: string; summary: string }>
+  } | null>(null)
   const proEnt = useEntitlement('pro_autocoach')
   const gateOptional = useSubscriptionGateOptional()
   const hasProAutoCoach = proEnt.hasAccess('pro_autocoach')
@@ -560,6 +604,74 @@ export function TeamTab({
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (isSleeper || !userTeam) {
+      setLegalitySnapshot(null)
+      dispatchRosterLegalityEvent(league.id, null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(league.id)}/roster/legality`, {
+          cache: 'no-store',
+        })
+        if (!res.ok) {
+          if (!cancelled) {
+            setLegalitySnapshot(null)
+            dispatchRosterLegalityEvent(league.id, null)
+          }
+          return
+        }
+        const j = (await res.json()) as { result?: RosterLegalityFullResult }
+        const result = j.result
+        if (cancelled || !result) return
+        setLegalitySnapshot(result)
+        dispatchRosterLegalityEvent(league.id, result)
+      } catch {
+        if (!cancelled) {
+          setLegalitySnapshot(null)
+          dispatchRosterLegalityEvent(league.id, null)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isSleeper, league.id, userTeam, legalityBump])
+
+  useEffect(() => {
+    if (isSleeper || !userTeam) {
+      setDraftPickRows([])
+      setDraftPickFallback([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(league.id)}/roster/draft-picks`, {
+          cache: 'no-store',
+        })
+        if (!res.ok || cancelled) return
+        const j = (await res.json()) as {
+          picks?: Array<{ id: string; label: string; tradeHint?: 'received' | 'traded_away' | 'owned' | null; status: string }>
+          fallbackPicks?: unknown[]
+        }
+        if (cancelled) return
+        setDraftPickRows(Array.isArray(j.picks) ? j.picks : [])
+        setDraftPickFallback(Array.isArray(j.fallbackPicks) ? j.fallbackPicks : [])
+      } catch {
+        if (!cancelled) {
+          setDraftPickRows([])
+          setDraftPickFallback([])
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isSleeper, league.id, userTeam])
+
   const sleeperParts = useMemo(() => {
     if (!payload || payload.source !== 'sleeper' || !payload.roster) return null
     return partitionSleeperRoster(payload.roster)
@@ -646,6 +758,7 @@ export function TeamTab({
         toast.success('Lineup saved')
         setLineupLists(next)
         await load()
+        setLegalityBump((n) => n + 1)
       } finally {
         setSavingLineup(false)
       }
@@ -720,6 +833,26 @@ export function TeamTab({
 
   return (
     <div className="space-y-4 p-5">
+      {legalitySnapshot && !legalitySnapshot.isLegal ? (
+        <div
+          className="rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+          data-testid="team-tab-roster-legality-banner"
+          role="status"
+        >
+          <p className="font-semibold text-amber-50">Roster needs attention</p>
+          <p className="mt-1 text-xs text-amber-100/85">
+            {legalitySnapshot.blockingReasons[0]?.message ??
+              'Resolve lineup or roster rule issues before your lineup locks.'}
+          </p>
+          {legalitySnapshot.blockingReasons.length > 1 ? (
+            <p className="mt-1 text-[11px] text-amber-200/70">
+              +{legalitySnapshot.blockingReasons.length - 1} more{' '}
+              {legalitySnapshot.blockingReasons.length === 2 ? 'issue' : 'issues'}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -976,6 +1109,7 @@ export function TeamTab({
                 <RosterRow
                   key={`${id}-${i}`}
                   playerId={id}
+                  issueHighlight={highlightSet.has(id)}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -995,6 +1129,7 @@ export function TeamTab({
                 <RosterRow
                   key={id}
                   playerId={id}
+                  issueHighlight={highlightSet.has(id)}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -1014,6 +1149,7 @@ export function TeamTab({
                   <RosterRow
                     key={id}
                     playerId={id}
+                    issueHighlight={highlightSet.has(id)}
                     sport={resolvedSport}
                     players={players}
                     playersLoading={playersLoading}
@@ -1034,6 +1170,7 @@ export function TeamTab({
                   <RosterRow
                     key={id}
                     playerId={id}
+                    issueHighlight={highlightSet.has(id)}
                     sport={resolvedSport}
                     players={players}
                     playersLoading={playersLoading}
@@ -1086,6 +1223,7 @@ export function TeamTab({
                 <RosterRow
                   key={`slot-${slot.index}-${i}`}
                   playerId={lineupLists.starters[i] ?? ''}
+                  issueHighlight={highlightSet.has(lineupLists.starters[i] ?? '')}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -1113,6 +1251,7 @@ export function TeamTab({
                 <RosterRow
                   key={id}
                   playerId={id}
+                  issueHighlight={highlightSet.has(id)}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -1142,6 +1281,7 @@ export function TeamTab({
                     <RosterRow
                       key={id}
                       playerId={id}
+                      issueHighlight={highlightSet.has(id)}
                       sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
@@ -1175,6 +1315,7 @@ export function TeamTab({
                     <RosterRow
                       key={id}
                       playerId={id}
+                      issueHighlight={highlightSet.has(id)}
                       sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
@@ -1208,6 +1349,7 @@ export function TeamTab({
                     <RosterRow
                       key={id}
                       playerId={id}
+                      issueHighlight={highlightSet.has(id)}
                       sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
@@ -1300,6 +1442,7 @@ export function TeamTab({
                 <RosterRow
                   key={id}
                   playerId={id}
+                  issueHighlight={highlightSet.has(id)}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -1318,6 +1461,7 @@ export function TeamTab({
                 <RosterRow
                   key={id}
                   playerId={id}
+                  issueHighlight={highlightSet.has(id)}
                   sport={resolvedSport}
                   players={players}
                   playersLoading={playersLoading}
@@ -1338,6 +1482,7 @@ export function TeamTab({
                     <RosterRow
                       key={id}
                       playerId={id}
+                      issueHighlight={highlightSet.has(id)}
                       sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
@@ -1362,6 +1507,7 @@ export function TeamTab({
                     <RosterRow
                       key={id}
                       playerId={id}
+                      issueHighlight={highlightSet.has(id)}
                       sport={resolvedSport}
                       players={players}
                       playersLoading={playersLoading}
@@ -1379,12 +1525,142 @@ export function TeamTab({
         </>
       ) : null}
 
+      {!loading && !error && !isSleeper && userTeam && (draftPickRows.length > 0 || draftPickFallback.length > 0) ? (
+        <section
+          className="rounded-xl border border-white/[0.08] bg-[#0a1228]/40 p-4"
+          data-testid="team-tab-draft-picks-section"
+        >
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-wide text-white/35">Draft picks</p>
+          <ul className="space-y-1.5">
+            {draftPickRows.map((p) => (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  data-testid={`team-tab-draft-pick-${p.id}`}
+                  onClick={() => {
+                    setDraftPickDetailOpen(true)
+                    setDraftPickDetail(null)
+                    setDraftPickDetailLoading(true)
+                    void (async () => {
+                      try {
+                        const res = await fetch(
+                          `/api/leagues/${encodeURIComponent(league.id)}/roster/draft-picks?pickId=${encodeURIComponent(p.id)}`,
+                          { cache: 'no-store' },
+                        )
+                        const j = (await res.json()) as {
+                          pick?: { id: string; label: string; status: string } | null
+                          tradeChain?: Array<{
+                            tradeId: string
+                            status: string
+                            createdAt: string
+                            summary: string
+                          }>
+                        }
+                        setDraftPickDetail({
+                          pick: j.pick ?? { id: p.id, label: p.label, status: p.status },
+                          tradeChain: Array.isArray(j.tradeChain) ? j.tradeChain : [],
+                        })
+                      } finally {
+                        setDraftPickDetailLoading(false)
+                      }
+                    })()
+                  }}
+                  className={[
+                    'w-full rounded-lg border px-3 py-2 text-left text-xs text-white/85 transition hover:brightness-110',
+                    p.tradeHint === 'traded_away'
+                      ? 'border-rose-500/35 bg-rose-500/10'
+                      : p.tradeHint === 'received'
+                        ? 'border-emerald-500/35 bg-emerald-500/10'
+                        : 'border-white/[0.06] bg-white/[0.03]',
+                  ].join(' ')}
+                >
+                  {p.label}
+                  {p.status && p.status !== 'pending' && p.status !== 'scheduled' ? (
+                    <span className="ml-2 text-[10px] text-white/35">({p.status})</span>
+                  ) : null}
+                  <span className="mt-1 block text-[10px] text-cyan-400/80">Tap for trade history</span>
+                </button>
+              </li>
+            ))}
+            {draftPickFallback.map((p, i) => (
+              <li
+                key={`fb-${i}`}
+                className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-white/70"
+              >
+                {formatDraftPick(p)}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {!loading && !error && payload?.source === 'sleeper' && payload.roster && !sleeperParts ? (
         <p className="text-sm text-white/45">No roster data.</p>
       ) : null}
 
       {!loading && !error && payload && payload.source !== 'sleeper' && !dbParts ? (
         <p className="text-sm text-white/45">No roster data.</p>
+      ) : null}
+
+      {draftPickDetailOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-4 sm:items-center"
+          role="dialog"
+          aria-modal
+          aria-labelledby="draft-pick-detail-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Close"
+            onClick={() => setDraftPickDetailOpen(false)}
+          />
+          <div className="relative z-[81] w-full max-w-md rounded-2xl border border-white/[0.12] bg-[#0a1228] p-5 shadow-2xl">
+            <h3 id="draft-pick-detail-title" className="text-sm font-bold text-white">
+              Draft pick
+            </h3>
+            {draftPickDetailLoading ? (
+              <p className="mt-3 text-xs text-white/50">Loading…</p>
+            ) : draftPickDetail?.pick ? (
+              <>
+                <p className="mt-2 text-sm text-white/90">{draftPickDetail.pick.label}</p>
+                <p className="mt-1 text-[11px] text-white/40">Status: {draftPickDetail.pick.status}</p>
+                <div className="mt-4 border-t border-white/[0.08] pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Trade chain (AF)</p>
+                  {draftPickDetail.tradeChain.length === 0 ? (
+                    <p className="mt-2 text-xs text-white/45">No linked trades found for this pick id.</p>
+                  ) : (
+                    <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs text-white/75">
+                      {draftPickDetail.tradeChain.map((t) => (
+                        <li key={t.tradeId} className="rounded-lg border border-white/[0.06] bg-white/[0.04] px-2 py-1.5">
+                          <span className="text-white/50">{new Date(t.createdAt).toLocaleString()}</span>
+                          <span className="mx-1 text-white/30">·</span>
+                          <span className="text-amber-200/90">{t.status}</span>
+                          <p className="mt-0.5 text-[11px] text-white/60">{t.summary}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <Link
+                    href={`/league/${encodeURIComponent(league.id)}?view=trades`}
+                    className="mt-2 inline-block text-[10px] font-semibold text-cyan-400/90 hover:text-cyan-300"
+                  >
+                    Open trades tab →
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-xs text-white/50">Could not load pick details.</p>
+            )}
+            <button
+              type="button"
+              className="mt-4 w-full rounded-xl border border-white/[0.12] py-2 text-sm font-semibold text-white/80 hover:bg-white/[0.06]"
+              onClick={() => setDraftPickDetailOpen(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   )

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   getServerSessionMock,
@@ -53,6 +53,21 @@ vi.mock('@/lib/prisma', () => ({
       findUnique: leagueWaiverSettingsFindUniqueMock,
       upsert: leagueWaiverSettingsUpsertMock,
     },
+    // Prevents TypeError when real RosterTemplateService/ScheduleTemplateResolver/
+    // FeatureToggleService code runs (due to module-cache state in full test runs).
+    rosterTemplate: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    scheduleTemplate: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    featureToggle: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    storyline: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({ id: 'sl-1' }),
+    },
   },
 }))
 
@@ -86,6 +101,14 @@ vi.mock('@/lib/league-creation/legacyWizardSpecialtyBootstraps', () => ({
 }))
 
 describe('POST /api/league/create sport defaults integration', () => {
+  // Extend timeout for all tests — dynamic route imports cold-load in 30–50s under full suite parallelism
+  vi.setConfig({ testTimeout: 60000 })
+
+  beforeAll(async () => {
+    // Pre-warm the route module so per-test dynamic imports don't cold-load under parallelism pressure
+    await import('@/app/api/league/create/route')
+  }, 60000)
+
   beforeEach(() => {
     vi.clearAllMocks()
 
@@ -485,16 +508,16 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(payload.isCommissioner).toBe(true)
       cases[index]!.assert(payload)
     }
-  })
+  }, 60000)
 
-  it('supports next paths: tournament+slow_draft and redraft+mock_draft', async () => {
+  it('supports next paths: tournament+linear and redraft+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'tournament',
-        draftType: 'slow_draft',
+        draftType: 'linear',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -503,8 +526,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'tournament',
               format_id: 'tournament',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'linear',
+              requested_draft_type: 'linear',
             })
           )
         },
@@ -512,7 +535,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'redraft',
-        draftType: 'mock_draft',
+        draftType: 'auction',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -521,10 +544,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'redraft',
               format_id: 'redraft',
-              draft_type: 'snake',
-              requested_draft_type: 'mock_draft',
-              mock_draft_enabled: true,
-              mock_draft_type: 'mock_draft',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
             })
           )
         },
@@ -702,14 +723,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: zombie+auction and salary_cap+slow_draft', async () => {
+  it('supports next paths: zombie+snake and salary_cap+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'zombie',
-        draftType: 'auction',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -718,8 +739,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'zombie',
               format_id: 'zombie',
-              draft_type: 'auction',
-              requested_draft_type: 'auction',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -727,7 +748,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'salary_cap',
-        draftType: 'slow_draft',
+        draftType: 'auction',
         isDynasty: true,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(true)
@@ -736,8 +757,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'salary_cap',
               format_id: 'salary_cap',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
             })
           )
         },
@@ -988,14 +1009,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: best_ball+slow_draft and keeper+linear', async () => {
+  it('supports next paths: best_ball+snake and keeper+linear', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'best_ball',
-        draftType: 'slow_draft',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1004,8 +1025,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'best_ball',
               format_id: 'best_ball',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
               best_ball: true,
             })
           )
@@ -1060,14 +1081,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: salary_cap+mock_draft and tournament+auction', async () => {
+  it('supports next paths: salary_cap+auction and tournament+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'salary_cap',
-        draftType: 'mock_draft',
+        draftType: 'auction',
         isDynasty: true,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(true)
@@ -1076,10 +1097,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'salary_cap',
               format_id: 'salary_cap',
-              draft_type: 'snake',
-              requested_draft_type: 'mock_draft',
-              mock_draft_enabled: true,
-              mock_draft_type: 'mock_draft',
+              draft_type: 'auction',
+              requested_draft_type: 'auction',
             })
           )
         },
@@ -1133,14 +1152,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: zombie+auction and survivor+auction', async () => {
+  it('supports next paths: zombie+snake and survivor+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'zombie',
-        draftType: 'auction',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1149,8 +1168,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'zombie',
               format_id: 'zombie',
-              draft_type: 'auction',
-              requested_draft_type: 'auction',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -1202,7 +1221,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(payload.isCommissioner).toBe(true)
       cases[index]!.assert(payload)
     }
-  })
+  }, 60000)
 
   it('supports next paths: guillotine+linear and survivor+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
@@ -1273,6 +1292,29 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(payload.isCommissioner).toBe(true)
       cases[index]!.assert(payload)
     }
+  }, 60000)
+
+  it('rejects zombie+auction draft path (snake-only)', async () => {
+    const { POST } = await import('@/app/api/league/create/route')
+
+    const req = new Request('http://localhost/api/league/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'zombie auction invalid path',
+        platform: 'espn',
+        platformLeagueId: 'espn-import-defaults-test',
+        sport: 'NFL',
+        leagueType: 'zombie',
+        draftType: 'auction',
+        leagueSize: 12,
+        scoring: 'standard',
+        isDynasty: false,
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(400)
   })
 
   it('supports next paths: dynasty+linear and tournament+snake', async () => {
@@ -1417,14 +1459,14 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: redraft+slow_draft and keeper+slow_draft', async () => {
+  it('supports next paths: redraft+snake and keeper+snake', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
       {
         sport: 'NFL',
         leagueType: 'redraft',
-        draftType: 'slow_draft',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1433,8 +1475,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'redraft',
               format_id: 'redraft',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
               roster_mode: 'redraft',
             })
           )
@@ -1443,7 +1485,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'keeper',
-        draftType: 'slow_draft',
+        draftType: 'snake',
         isDynasty: false,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(false)
@@ -1452,8 +1494,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'keeper',
               format_id: 'keeper',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -1489,7 +1531,7 @@ describe('POST /api/league/create sport defaults integration', () => {
     }
   })
 
-  it('supports next paths: best_ball+linear and dynasty+slow_draft', async () => {
+  it('supports next paths: best_ball+linear and dynasty+snake', async () => {
     const { POST } = await import('@/app/api/league/create/route')
 
     const cases = [
@@ -1515,7 +1557,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       {
         sport: 'NFL',
         leagueType: 'dynasty',
-        draftType: 'slow_draft',
+        draftType: 'snake',
         isDynasty: true,
         assert: (payload: any) => {
           expect(payload.isDynasty).toBe(true)
@@ -1524,8 +1566,8 @@ describe('POST /api/league/create sport defaults integration', () => {
             expect.objectContaining({
               league_type: 'dynasty',
               format_id: 'dynasty',
-              draft_type: 'slow_draft',
-              requested_draft_type: 'slow_draft',
+              draft_type: 'snake',
+              requested_draft_type: 'snake',
             })
           )
         },
@@ -1630,7 +1672,7 @@ describe('POST /api/league/create sport defaults integration', () => {
       expect(payload.isCommissioner).toBe(true)
       cases[index]!.assert(payload)
     }
-  })
+  }, 60000)
 
   it('supports next paths: zombie+snake and salary_cap+auction', async () => {
     const { POST } = await import('@/app/api/league/create/route')
@@ -1737,5 +1779,5 @@ describe('POST /api/league/create sport defaults integration', () => {
     const st = data.settings as Record<string, unknown>
     expect(st.league_size).toBe(16)
     expect(st.survivor_creation_team_count).toBe(16)
-  })
+  }, 60000)
 })

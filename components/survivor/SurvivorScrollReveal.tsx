@@ -49,13 +49,13 @@ function parseSequence(raw: unknown): SurvivorScrollRevealStep[] {
 function stepLabel(step: SurvivorScrollRevealStep): string {
   switch (step.type) {
     case 'vote':
-      return `${step.voterName} voted for ${step.targetName}`
+      return `${step.voterName} voted for @${step.targetName}`
     case 'does_not_count':
       return `${step.voterName}'s vote does not count`
     case 'pause':
       return '…'
     case 'elimination':
-      return `${step.userName} is voted out`
+      return `@${step.userName}, you have been voted off the island.`
     case 'idol_play':
       return `Idol played: ${step.powerLabel}`
     default:

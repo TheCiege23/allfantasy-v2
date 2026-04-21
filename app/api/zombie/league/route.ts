@@ -6,6 +6,7 @@ import { createZombieLeague } from '@/lib/zombie/setupEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { getLeagueRole } from '@/lib/league/permissions'
 import { isZombieEligibleLeagueSport } from '@/lib/zombie/zombie-sport-eligibility'
+import { getRandomZombieTheme } from '@/lib/zombie/zombieBackgroundThemes'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,12 +106,18 @@ export async function POST(req: Request) {
       whispererSelectionMode:
         typeof body.whispererSelectionMode === 'string' ? body.whispererSelectionMode : 'random',
       namingMode: typeof body.namingMode === 'string' ? body.namingMode : 'hybrid',
+      backgroundTheme: getRandomZombieTheme(),
     },
     universeId ?? null,
     tierId ?? null,
   )
 
-  return NextResponse.json({ zombieLeague: row })
+  return NextResponse.json({
+    zombieLeague: {
+      ...row,
+      backgroundTheme: row.themeLabel,
+    },
+  })
 }
 
 export async function GET(req: Request) {

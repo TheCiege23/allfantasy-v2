@@ -60,11 +60,18 @@ export interface MatchupLineupSlotInput {
   slotId: string
   slotLabel?: string
   playerName?: string
-  projection: number
+  /** Fantasy points for this slot; optional when sending `projectedStats` with `leagueId` (server fills before sim). */
+  projection?: number
   floor?: number
   ceiling?: number
   /** 1 = baseline slot volatility; >1 widens range, <1 tightens it. */
   volatility?: number
+  /**
+   * Optional projected raw stat line (keys aligned with league scoring template, e.g. `pass_yd`, `passing_td`).
+   * When the simulation request includes `leagueId`, the server recomputes `projection` via the league’s
+   * effective rules (`resolveScoringRulesForLeague` + `computeFantasyPointsFromStats`) before Monte Carlo.
+   */
+  projectedStats?: Record<string, unknown>
 }
 
 export interface MatchupSimulationTeamInput {

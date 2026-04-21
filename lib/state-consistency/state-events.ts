@@ -11,6 +11,8 @@ export type StateRefreshDomain =
   | 'ai'
   | 'tokens'
   | 'subscriptions'
+  /** In-app notification inbox + top-bar unread badge */
+  | 'notifications'
   | 'all'
 
 export type StateRefreshEventDetail = {

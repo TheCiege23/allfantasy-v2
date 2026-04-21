@@ -5,7 +5,7 @@
 
 import 'server-only'
 
-import { unstable_cache } from 'next/cache'
+import { revalidateTag, unstable_cache } from 'next/cache'
 
 export function leagueCacheTag(leagueId: string): string {
   return `league:${leagueId}`
@@ -13,6 +13,18 @@ export function leagueCacheTag(leagueId: string): string {
 
 export function standingsCacheTag(leagueId: string, season: number): string {
   return `standings:${leagueId}:${season}`
+}
+
+export function matchupCenterCacheTag(leagueId: string, season: number, week: number): string {
+  return `matchup:${leagueId}:${season}:w${week}`
+}
+
+export function notificationInboxTag(userId: string): string {
+  return `notifications:user:${userId}`
+}
+
+export function leagueSettingsSnapshotTag(leagueId: string, version?: number): string {
+  return version != null ? `leagueSettings:${leagueId}:v${version}` : `leagueSettings:${leagueId}`
 }
 
 /**
@@ -35,4 +47,19 @@ export async function withLeagueUnstableCache<T>(
     },
   )
   return cached()
+}
+
+/**
+ * Invalidate Next.js cache tags for league surfaces (call from server actions / route handlers after writes).
+ * Safe to call from Route Handlers; may no-op outside a Next request context.
+ */
+export function revalidateLeagueEngineTags(tags: string[]): void {
+  if (tags.length === 0) return
+  try {
+    for (const t of tags) {
+      revalidateTag(t)
+    }
+  } catch {
+    // next/cache unavailable outside App Router request — ignore
+  }
 }

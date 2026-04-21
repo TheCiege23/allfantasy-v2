@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import clsx from 'clsx'
+import { RotateCcw } from 'lucide-react'
 import { ZombieUpdatesPanel } from './commissioner/ZombieUpdatesPanel'
 import { ZombieAutomationPanel } from './commissioner/ZombieAutomationPanel'
 import { ZombieAuditLogPanel } from './commissioner/ZombieAuditLogPanel'
@@ -14,6 +15,8 @@ import { ZombiePaidPanel } from './commissioner/ZombiePaidPanel'
 import { ZombieUniversePanel } from './commissioner/ZombieUniversePanel'
 import { ZombieAnimationsPanel } from './commissioner/ZombieAnimationsPanel'
 import { ZombieAdvancedPanel } from './commissioner/ZombieAdvancedPanel'
+import { ZombieIntroModal } from '@/components/zombie/ZombieIntroModal'
+import { getZombieTheme } from '@/lib/zombie/zombieBackgroundThemes'
 
 type Tab =
   | 'general'
@@ -54,17 +57,59 @@ export function ZombieCommissionerModal({
   leagueId: string
 }) {
   const [tab, setTab] = useState<Tab>('general')
+  const [backgroundTheme, setBackgroundTheme] = useState<string | null>(null)
+  const [showIntroReplay, setShowIntroReplay] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`/api/zombie/league?leagueId=${encodeURIComponent(leagueId)}`, {
+          credentials: 'include',
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        setBackgroundTheme(data.league?.backgroundTheme)
+        
+        // Get current user ID for intro modal
+        const sessionRes = await fetch('/api/auth/session', { credentials: 'include' })
+        if (sessionRes.ok) {
+          const session = await sessionRes.json()
+          setUserId(session?.user?.id ?? null)
+        }
+      } catch {}
+    }
+    void fetchData()
+  }, [open, leagueId])
 
   if (!open) return null
+  const theme = getZombieTheme(backgroundTheme)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-label="Commissioner Settings"
-    >
+    <>
+      <ZombieIntroModal
+        leagueId={leagueId}
+        userId={userId ?? ''}
+        leagueName="Zombie League"
+        backgroundTheme={backgroundTheme}
+        enabled={showIntroReplay}
+        forceReplay
+        onClose={() => setShowIntroReplay(false)}
+      />
       <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 backdrop-blur-sm"
+        style={{
+          backgroundColor: theme ? 'rgba(0, 0, 0, 0.95)' : 'rgba(0, 0, 0, 0.5)',
+          backgroundImage: theme
+            ? `linear-gradient(135deg, ${theme.gradientClass})`
+            : undefined,
+        }}
+        onClick={onClose}
+        role="dialog"
+        aria-label="Commissioner Settings"
+      >
+        <div
         className="flex h-[90vh] max-h-[700px] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-[var(--zombie-border)] bg-[var(--zombie-bg)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -86,6 +131,15 @@ export function ZombieCommissionerModal({
           >
             ✕
           </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowIntroReplay(true)}
+                    className="ml-2 flex items-center gap-1.5 h-8 px-2 rounded-lg text-[12px] font-medium text-amber-200 bg-amber-900/20 hover:bg-amber-900/40 transition border border-amber-700/20"
+                    title="Replay intro video"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Replay Intro</span>
+                  </button>
         </div>
 
         {/* Body: sidebar + content */}
@@ -147,6 +201,7 @@ export function ZombieCommissionerModal({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

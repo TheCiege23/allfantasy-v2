@@ -9,9 +9,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { isSurvivorLeague } from '@/lib/survivor/SurvivorLeagueConfig'
-import { createTribes } from '@/lib/survivor/SurvivorTribeService'
+import { createTribes, getTribesWithMembers, setTribeName } from '@/lib/survivor/SurvivorTribeService'
 import { bootstrapTribeChatMembers } from '@/lib/survivor/SurvivorChatMembershipService'
 import { prisma } from '@/lib/prisma'
+import { assertLeagueMember } from '@/lib/league/league-access'
+import { composeTribeName, extractLeadingTribeIcon, stripLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,4 +63,55 @@ export async function POST(
   })
 
   return NextResponse.json({ ok: true, tribes: result.tribes })
+}
+
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: Promise<{ leagueId: string }> }
+) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { leagueId } = await ctx.params
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+
+  const member = await assertLeagueMember(leagueId, userId)
+  if (!member.ok) return NextResponse.json({ error: 'Forbidden' }, { status: member.status })
+
+  const tribes = await getTribesWithMembers(leagueId)
+  return NextResponse.json({
+    tribes: tribes.map((tribe) => ({
+      ...tribe,
+      emoji: extractLeadingTribeIcon(tribe.name),
+      plainName: stripLeadingTribeIcon(tribe.name),
+    })),
+  })
+}
+
+export async function PATCH(
+  req: NextRequest,
+  ctx: { params: Promise<{ leagueId: string }> }
+) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { leagueId } = await ctx.params
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+
+  const commissioner = await isCommissioner(leagueId, userId)
+  if (!commissioner) return NextResponse.json({ error: 'Commissioner only' }, { status: 403 })
+
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>
+  const tribeId = typeof body.tribeId === 'string' ? body.tribeId.trim() : ''
+  const name = typeof body.name === 'string' ? body.name : ''
+  const emoji = typeof body.emoji === 'string' ? body.emoji : null
+  if (!tribeId) return NextResponse.json({ error: 'tribeId required' }, { status: 400 })
+
+  const finalName = composeTribeName(emoji, name).slice(0, 128)
+  const result = await setTribeName(leagueId, tribeId, finalName)
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
+
+  return NextResponse.json({ ok: true, tribeId, name: finalName, emoji: extractLeadingTribeIcon(finalName) })
 }

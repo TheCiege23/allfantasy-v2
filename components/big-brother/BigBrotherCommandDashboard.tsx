@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { LayoutDashboard, MessageSquare, Sparkles, Vote, Wand2 } from 'lucide-react'
+import { LayoutDashboard, MessageSquare, Sparkles, Vote, Wand2, Trophy, Users } from 'lucide-react'
 
 /**
  * Premium commissioner surface for Big Brother — links into league shell, Chimmy cards, and voting center.
@@ -59,6 +59,24 @@ export function BigBrotherCommandDashboard({ leagueId }: { leagueId: string }) {
           <MessageSquare className="h-5 w-5 text-white/70" aria-hidden />
           <span className="mt-3 text-sm font-semibold text-white">House chat</span>
           <span className="mt-1 text-[12px] text-white/50">Default league channel — left rail in the shell.</span>
+        </Link>
+        <Link
+          href={`/big-brother/${encodeURIComponent(leagueId)}?panel=challenge_scores`}
+          className="group flex flex-col rounded-2xl border border-emerald-500/20 bg-[#0a1228]/90 p-4 transition-colors hover:border-emerald-400/35 hover:bg-[#0c162e]"
+          data-testid="bb-command-challenge-scores"
+        >
+          <Trophy className="h-5 w-5 text-emerald-300/90" aria-hidden />
+          <span className="mt-3 text-sm font-semibold text-white">Challenge scores</span>
+          <span className="mt-1 text-[12px] text-white/50">Enter HOH and Veto challenge scores to resolve outcomes.</span>
+        </Link>
+        <Link
+          href={`/big-brother/${encodeURIComponent(leagueId)}?panel=have_nots`}
+          className="group flex flex-col rounded-2xl border border-rose-500/20 bg-[#0a1228]/90 p-4 transition-colors hover:border-rose-400/35 hover:bg-[#0c162e]"
+          data-testid="bb-command-have-nots"
+        >
+          <Users className="h-5 w-5 text-rose-300/90" aria-hidden />
+          <span className="mt-3 text-sm font-semibold text-white">Have-Nots</span>
+          <span className="mt-1 text-[12px] text-white/50">Override the weekly Have-Not roster and apply penalties.</span>
         </Link>
       </div>
 

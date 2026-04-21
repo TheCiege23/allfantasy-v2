@@ -18,6 +18,10 @@ import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import { normalizeConceptToFormat } from '@/lib/league-creation/canonical/normalizeConcept'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import type { ValidationIssue } from '@/lib/league-creation/canonical/types'
+import {
+  isBestBallSupportedSport,
+  normalizeBestBallSettings,
+} from '@/lib/bestball/rules'
 
 /** Maps execution modes (offline/auto/team) to a core draft id for format-engine checks. */
 export function normalizeDraftTypeForEngine(draftType: string): string {
@@ -173,6 +177,45 @@ export function validateCreatePayload(input: unknown): ValidateCreateLeagueResul
 
   if (stripped.strippedKeys.length > 0) {
     // non-fatal — caller may log
+  }
+
+  if (formatId === 'best_ball') {
+    if (!isBestBallSupportedSport(sport)) {
+      return {
+        ok: false,
+        error: 'Best Ball is not supported for this sport',
+        status: 400,
+        errors: [{ path: 'sport', message: `Best Ball is not available for ${sport}` }],
+      }
+    }
+    const bestBall = normalizeBestBallSettings({
+      sport,
+      conceptSetup: (data.conceptSetup ?? null) as Record<string, unknown> | null,
+      draftType: data.draftType,
+      timezone: data.timezone ?? null,
+      language: data.language ?? null,
+    })
+    if (bestBall.mode === 'underdog' && (bestBall.waiversEnabled || bestBall.tradesEnabled || bestBall.substitutionsEnabled)) {
+      return {
+        ok: false,
+        error: 'Underdog-style Best Ball does not allow waivers, trades, or manual substitutions',
+        status: 400,
+        errors: [
+          {
+            path: 'conceptSetup.bestBall',
+            message: 'Underdog-style Best Ball must keep waivers, trades, and manual substitutions disabled',
+          },
+        ],
+      }
+    }
+    if (bestBall.playoffTeams > data.teamCount) {
+      return {
+        ok: false,
+        error: 'Playoff teams cannot exceed team count',
+        status: 400,
+        errors: [{ path: 'conceptSetup.bestBall.playoffTeams', message: 'Playoff teams cannot exceed the number of teams in the league' }],
+      }
+    }
   }
 
   return { ok: true, data: { ...data, sport } }

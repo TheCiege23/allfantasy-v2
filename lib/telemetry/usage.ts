@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { logApiFailure } from "@/lib/error-tracking"
+import { ENGINE } from "@/lib/analytics/eventNames"
+import { recordEngineTelemetrySample } from "@/lib/analytics/recordAnalyticsEvent"
 
 type UsageScope = "api" | "legacy_tool"
 type BucketType = "hour" | "day" | "week" | "month"
@@ -166,6 +168,20 @@ export async function logUsageEvent(args: {
     bytesIn: args.bytesIn ?? null,
     bytesOut: args.bytesOut ?? null
   })
+
+  if (!ok || (args.status != null && args.status >= 400)) {
+    recordEngineTelemetrySample(ENGINE.API_FAILURE, {
+      userId: args.userId ?? null,
+      meta: {
+        scope: args.scope,
+        tool: args.tool ?? "",
+        endpoint: args.endpoint ?? "",
+        method: args.method ?? null,
+        status: args.status ?? null,
+        durationMs: args.durationMs ?? null,
+      },
+    })
+  }
 }
 
 export function withApiUsage(meta: { endpoint: string; tool?: string; leagueIdFromParams?: string }) {

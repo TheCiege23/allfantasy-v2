@@ -50,6 +50,10 @@ export interface RosterSettingsSlice {
   taxiSlots?: number
   devyCollegeSlots?: number
   positionEligibility?: Record<string, unknown>
+  /** Mirrors commissioner flags for UI split — `resolveRosterTransactionRules` reads these as fallbacks. */
+  illegalRosterBlocksTrades?: boolean
+  illegalRosterBlocksWaiverClaims?: boolean
+  illegalRosterCommissionerBypass?: boolean
 }
 
 export interface ScoringSettingsSlice {
@@ -59,6 +63,15 @@ export interface ScoringSettingsSlice {
   rules?: Record<string, unknown>
   source?: string
   preset?: string
+  /**
+   * Canonical scoring-mode identifier. Mirrors `settings.scoring_mode` in the
+   * flat snapshot and `ScoringMode` in `lib/category-scoring/types.ts`. When
+   * set to `'h2h_category'`, the weekly matchup engine resolves winners per
+   * category instead of summing fantasy points; paired with `categoryPresetId`.
+   */
+  scoringMode?: 'points' | 'h2h_category' | 'roto'
+  /** Resolves to a list of category definitions at runtime (NBA 8/9-cat, more to come). */
+  categoryPresetId?: string
   [key: string]: unknown
 }
 
@@ -90,6 +103,14 @@ export interface PlayoffSettingsSlice {
 export interface CommissionerSettingsSlice {
   tradeReviewMode?: string
   tradeDeadlineWeek?: number
+  /** When true, block proposing/accepting/processing trades if either party’s roster fails legality (see `rosterTransactionGates`). */
+  illegalRosterBlocksTrades?: boolean
+  /** When true, block waiver / add-drop claims while roster is illegal. */
+  illegalRosterBlocksWaiverClaims?: boolean
+  /** Alias supported in gates: `illegalRosterBlocksWaivers` */
+  illegalRosterBlocksWaivers?: boolean
+  /** When true (default in resolver), elevated commissioners bypass illegal-roster blocks on trades/waivers. */
+  illegalRosterCommissionerBypass?: boolean
   [key: string]: unknown
 }
 

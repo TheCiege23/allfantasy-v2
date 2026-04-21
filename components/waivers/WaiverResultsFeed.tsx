@@ -12,6 +12,8 @@ export type ResultTransaction = {
   dropPlayerPosition?: string
   isDefensiveAdd?: boolean
   isDefensiveDrop?: boolean
+  /** Shown next to successful adds (default: Awarded). */
+  outcomeLabel?: string
 }
 
 type Props = {
@@ -46,6 +48,9 @@ export default function WaiverResultsFeed({
         >
           <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400/90" />
           <span>
+            <span className="mr-1.5 rounded bg-emerald-500/15 px-1 text-[10px] font-medium uppercase tracking-wide text-emerald-200/90">
+              {t.outcomeLabel ?? "Awarded"}
+            </span>
             {t.isDefensiveAdd && (
               <span className="mr-1 rounded bg-amber-500/20 px-1 text-[10px] text-amber-300">Defensive add</span>
             )}

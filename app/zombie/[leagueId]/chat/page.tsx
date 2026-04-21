@@ -96,7 +96,7 @@ export default function ZombieChatHubPage() {
     <div className="mx-auto max-w-lg space-y-4">
       <h1 className="text-lg font-bold text-white">Chat & @Chimmy</h1>
       <p className="text-[12px] text-[var(--zombie-text-dim)]">
-        League chat lives on the main league screen. Use the cards below to jump in with a pre-filled @Chimmy line.
+        Use the cards below to send DM commands directly to @Chimmy. League chat still lives on the main league screen.
       </p>
 
       {resolving ? (

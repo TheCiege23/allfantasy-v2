@@ -1,12 +1,7 @@
 /**
  * Authoritative roster / lineup validation against league template + IR/taxi/devy rules.
  */
-import {
-  getNormalizedLineupSections,
-  normalizePositionForStarterEligibility,
-  validateRosterSectionsAgainstTemplate,
-  getSlotLimitsFromTemplate,
-} from '@/lib/roster/LineupTemplateValidation'
+import { getNormalizedLineupSections, collectTemplateSectionIssues } from '@/lib/roster/LineupTemplateValidation'
 import type { RosterTemplateDto } from '@/lib/multi-sport/RosterTemplateService'
 import type { LineupValidationContext, RosterValidationIssue, RosterValidationResult } from './types'
 import { ROSTER_SECTION_KEYS, type RosterSectionKey } from './types'
@@ -55,6 +50,86 @@ export function collectDuplicatePlayerIssues(playerData: unknown): RosterValidat
   return issues
 }
 
+function readYearsExperience(row: Record<string, unknown>): number | null {
+  const raw =
+    row.years_exp ??
+    row.yearsExp ??
+    (row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>).years_exp ??
+        (row.metadata as Record<string, unknown>).yearsExp
+      : undefined)
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.floor(raw))
+  if (typeof raw === 'string') {
+    const n = parseInt(raw, 10)
+    return Number.isFinite(n) ? Math.max(0, n) : null
+  }
+  return null
+}
+
+/**
+ * Dynasty taxi: rookie-only and experience caps from `League` columns.
+ * Player rows must carry `years_exp` / `yearsExp` (or metadata) when enforcing non-rookie or year limits.
+ */
+export function validateTaxiSectionAgainstLeague(
+  league: LineupValidationContext['league'],
+  playerData: unknown,
+): RosterValidationIssue[] {
+  const taxiSlots = league.taxiSlots ?? 0
+  if (taxiSlots <= 0) return []
+  const sections = getNormalizedLineupSections(playerData)
+  const issues: RosterValidationIssue[] = []
+  const limit = league.taxiYearsLimit ?? null
+  const allowNonRookies = league.taxiAllowNonRookies === true
+
+  for (const row of sections.taxi) {
+    const o = row as Record<string, unknown>
+    const id = String(o.id ?? '').trim()
+    if (!id) continue
+    const y = readYearsExperience(o)
+    if (!allowNonRookies && y !== null && y > 0) {
+      issues.push({
+        code: 'taxi_non_rookie_disallowed',
+        message: `Player ${id} is not a rookie — taxi is rookie-only in this league.`,
+        section: 'taxi',
+        playerId: id,
+      })
+    }
+    if (limit != null && limit > 0 && y !== null && y > limit) {
+      issues.push({
+        code: 'taxi_too_experienced',
+        message: `Player ${id} exceeds ${limit} taxi experience years for this league.`,
+        section: 'taxi',
+        playerId: id,
+      })
+    }
+  }
+  return issues
+}
+
+/** Devy slots: flag when row explicitly marks player as no longer devy-eligible. */
+export function validateDevySectionAgainstLeague(
+  _league: LineupValidationContext['league'],
+  playerData: unknown,
+): RosterValidationIssue[] {
+  const sections = getNormalizedLineupSections(playerData)
+  const issues: RosterValidationIssue[] = []
+  for (const row of sections.devy) {
+    const o = row as Record<string, unknown>
+    const id = String(o.id ?? '').trim()
+    if (!id) continue
+    const eligible = o.devyEligible ?? o.devy_eligible ?? o.is_devy
+    if (eligible === false) {
+      issues.push({
+        code: 'devy_ineligible',
+        message: `Player ${id} is marked as not devy-eligible — move off devy slots.`,
+        section: 'devy',
+        playerId: id,
+      })
+    }
+  }
+  return issues
+}
+
 export function validateIrSectionAgainstLeague(
   league: LineupValidationContext['league'],
   playerData: unknown,
@@ -94,7 +169,8 @@ export function validateRosterPlayerDataAgainstTemplate(
   playerData: unknown,
   template: RosterTemplateDto,
 ): string | null {
-  return validateRosterSectionsAgainstTemplate(playerData, template)
+  const list = collectTemplateSectionIssues(playerData, template)
+  return list.length ? list.map((i) => i.message).join(' ') : null
 }
 
 /**
@@ -137,9 +213,16 @@ export function validateCanonicalRosterPayload(
     }
   }
 
-  const templateErr = validateRosterPlayerDataAgainstTemplate(playerData, ctx.template)
-  if (templateErr) {
-    issues.push({ code: 'template_violation', message: templateErr })
+  for (const ti of collectTemplateSectionIssues(playerData, ctx.template)) {
+    const code =
+      ti.code === 'SECTION_OVERFLOW'
+        ? 'section_overflow'
+        : ti.code === 'STARTER_POSITION_INELIGIBLE'
+          ? 'starter_position_ineligible'
+          : ti.code === 'ROSTER_TOTAL_OVER_LIMIT'
+            ? 'roster_total_over_limit'
+            : ti.code.toLowerCase()
+    issues.push({ code, message: ti.message, section: ti.section, playerId: ti.playerId })
   }
 
   issues.push(...collectDuplicatePlayerIssues(playerData))
@@ -154,26 +237,8 @@ export function validateCanonicalRosterPayload(
     })
   }
 
-  const starterAllowed = new Set(
-    ctx.template.slots
-      .filter((s) => s.starterCount > 0)
-      .flatMap((s) => s.allowedPositions ?? [])
-      .map((p) => normalizePositionForStarterEligibility(String(p))),
-  )
-  if (starterAllowed.size > 0 && !starterAllowed.has('*')) {
-    for (const row of sections.starters) {
-      const o = row as Record<string, unknown>
-      const pos = normalizePositionForStarterEligibility(String(o.position ?? ''))
-      if (pos && !starterAllowed.has(pos)) {
-        issues.push({
-          code: 'starter_position_ineligible',
-          message: `Position ${pos} is not eligible for a starter slot.`,
-          section: 'starters',
-          playerId: String(o.id ?? ''),
-        })
-      }
-    }
-  }
+  issues.push(...validateTaxiSectionAgainstLeague(ctx.league, playerData))
+  issues.push(...validateDevySectionAgainstLeague(ctx.league, playerData))
 
   return {
     ok: issues.length === 0,

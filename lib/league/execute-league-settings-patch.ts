@@ -13,8 +13,11 @@ import {
 import { requireCommissionerRole } from '@/lib/league/permissions'
 import { isValidIanaTimeZone } from '@/lib/timezone'
 import { syncDraftSessionFromLeagueSettings } from '@/lib/league/league-settings-draft-sync'
+import { syncCommissionerDerivedLeagueState } from '@/lib/league/commissioner-settings-derived-sync'
 import { assertSettingsEditAllowed } from '@/server/services/commissionerService'
 import { logAction } from '@/server/services/auditService'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 
 const DRAFT_TYPES = new Set(['snake', 'linear', '3rd_reversal', 'auction'])
 const ORDER_METHODS = new Set([
@@ -41,6 +44,9 @@ const TIMER_PRESETS = new Set([
   '24h',
   'custom',
 ])
+
+const LEAGUE_SPORTS = new Set(['NFL', 'NBA', 'NHL', 'MLB', 'NCAAF', 'NCAAB', 'SOCCER'])
+const LEAGUE_LANGUAGES = new Set(['en', 'es'])
 
 /** Keys stored on `LeagueSettings` (draft / draft-room row). */
 export const LEAGUE_SETTINGS_ROW_PATCH_KEYS = new Set([
@@ -143,6 +149,19 @@ export async function executeLeagueSettingsPatch(
   if (body.timezone != null) {
     const tz = String(body.timezone)
     if (!isValidIanaTimeZone(tz)) return jsonError('Invalid timezone', 400)
+  }
+
+  if (body.sport != null && !LEAGUE_SPORTS.has(String(body.sport))) {
+    return jsonError('Invalid sport', 400)
+  }
+
+  if (body.season != null) {
+    const y = Number(body.season)
+    if (!Number.isFinite(y) || y < 2000 || y > 2100) return jsonError('Invalid season year', 400)
+  }
+
+  if (body.language != null && !LEAGUE_LANGUAGES.has(String(body.language))) {
+    return jsonError('Invalid language', 400)
   }
 
   if (body.draftType != null && !DRAFT_TYPES.has(String(body.draftType))) {
@@ -269,6 +288,30 @@ export async function executeLeagueSettingsPatch(
     updatedFieldNames.push('settingsMerge')
   }
 
+  const derivedSyncKeys = new Set([
+    'playoffStartWeek',
+    'playoffTeams',
+    'playoffWeeksPerRound',
+    'playoffSeedingRule',
+    'playoffLowerBracket',
+    'waiverType',
+    'waiverBudget',
+    'waiverMinBid',
+    'waiverClearAfterGames',
+    'waiverHours',
+    'customDailyWaivers',
+    'waiverProcessTime',
+    'waiverSchedule',
+  ])
+  if (leagueKeys.some((k) => derivedSyncKeys.has(k))) {
+    try {
+      await syncCommissionerDerivedLeagueState(leagueId)
+      updatedFieldNames.push('derived_playoff_waiver_sync')
+    } catch (e) {
+      console.warn('[executeLeagueSettingsPatch] syncCommissionerDerivedLeagueState', e)
+    }
+  }
+
   const lsUpdate: Prisma.LeagueSettingsUpdateInput = { updatedBy: userId }
 
   if (body.draftDateUtc !== undefined) {
@@ -382,6 +425,15 @@ export async function executeLeagueSettingsPatch(
       }),
     )
     .catch(() => {})
+
+  recordProductEvent(ENGAGEMENT.COMMISSIONER_SETTINGS, {
+    userId,
+    meta: {
+      leagueId,
+      fieldCount: [...new Set(updatedFieldNames)].length,
+      section: patchOptions?.section ?? null,
+    },
+  })
 
   return NextResponse.json({
     success: true,

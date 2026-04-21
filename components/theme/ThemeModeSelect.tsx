@@ -4,7 +4,6 @@ import { useSession } from "next-auth/react"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { type ThemeId } from "@/lib/theme"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 const ROW: ThemeId[] = ["light", "dark", "legacy", "system"]
 
@@ -18,7 +17,7 @@ export function ThemeModeSelect(props: {
 }) {
   const { data: session } = useSession()
   const { mode, setMode } = useThemeMode()
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const size = props.size ?? "md"
 
   const onChange = (next: ThemeId) => {
@@ -56,7 +55,7 @@ export function ThemeModeSelect(props: {
           borderColor: "var(--border)",
           background: "var(--panel)",
         }}
-        aria-label={interpolateTemplate(t("theme.current"), {
+        aria-label={tInterpolate("theme.current", {
           label: t(`theme.${mode}`),
         })}
         data-testid="theme-mode-select"

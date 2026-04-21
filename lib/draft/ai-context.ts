@@ -133,9 +133,38 @@ export async function buildDraftAiContext(input: {
         .join('\n')
     : '(no active injury entries cached)'
 
-  const promptSection = `\nLatest news (most recent first):\n${newsSection}\n\nInjury report:\n${injurySection}\n`
+  const promptSection = `\nSport: ${sport}\n${getSportStrategyHint(sport)}\n\nLatest news (most recent first):\n${newsSection}\n\nInjury report:\n${injurySection}\n`
 
   return { sport, news, injuries, promptSection }
+}
+
+/**
+ * One-line per-sport hint injected into the AI prompt so recommendations
+ * reason about the right position shapes and scarcity curves. Keeps Claude
+ * from applying NFL heuristics (RB/WR scarcity, QB depth) to NBA/MLB/NHL/
+ * Soccer leagues where those positions don't exist. Intentionally short —
+ * the rest of the body (picks, queue, roster) already carries the concrete
+ * state; this is a top-of-prompt strategy primer.
+ */
+function getSportStrategyHint(sport: string): string {
+  switch (sport) {
+    case 'NFL':
+      return 'Strategy: weigh QB/RB/WR/TE scarcity; FLEX is RB/WR/TE eligible; SUPERFLEX leagues elevate QB value. TE premium inflates elite TEs.'
+    case 'NCAAF':
+      return 'Strategy: college football — QB premium, RB/WR volume tied to program scheme; secondary scarcity grows mid-season as injuries compound.'
+    case 'NBA':
+      return 'Strategy: 5 positions (PG/SG/SF/PF/C); C is shallowest; punting categories (FT%, TO) is a valid construction; dual-eligible guards gain value.'
+    case 'NCAAB':
+      return 'Strategy: college basketball — G/F/C with UTIL flex; roster churn is high season-over-season; lean on usage-rate and minutes over volume stats.'
+    case 'MLB':
+      return 'Strategy: split pools — hitter (C/1B/2B/3B/SS/OF/UTIL) vs pitcher (SP/RP). Closers swing SV categories; SP volume matters for K/W/QS.'
+    case 'NHL':
+      return 'Strategy: C/LW/RW/D/G; goalies are scarce and volatile; PP1 forwards drive PPP; defensemen with power-play time outscore depth skaters.'
+    case 'SOCCER':
+      return 'Strategy: GKP/DEF/MID/FWD; GKP scarcity is highest; defenders with clean sheets + attacking output are most valuable; rotation risk on midweek fixtures matters.'
+    default:
+      return 'Strategy: apply sport-specific positional scarcity and scoring weight.'
+  }
 }
 
 /**

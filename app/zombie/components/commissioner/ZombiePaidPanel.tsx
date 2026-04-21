@@ -82,6 +82,12 @@ export function ZombiePaidPanel({ leagueId, canEdit }: { leagueId: string; canEd
 
   return (
     <div className="space-y-5 px-6 py-6 text-[13px] text-white/85">
+      <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] leading-relaxed text-amber-100/90">
+        <p className="font-semibold uppercase tracking-[0.14em] text-amber-200/90">Zombie rules</p>
+        <p className="mt-1 text-amber-100/85">
+          Playoffs are disabled for Zombie leagues. Snake drafts only (no auction). Paid leagues route through LeagueSafe or Fancred — direct Stripe checkout is not supported.
+        </p>
+      </div>
       <p className="text-[11px] text-[#9fe89a]/90">
         Payment mode is configured here — not during league creation. Free leagues hide payouts and payment tracking.
       </p>

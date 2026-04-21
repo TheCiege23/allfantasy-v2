@@ -32,6 +32,12 @@ import {
 import { TournamentSubscriptionTokensPanel } from '@/components/tournament/TournamentSubscriptionTokensPanel'
 import { SurvivorPremiumCommandCenterPanel } from '@/components/survivor/SurvivorPremiumCommandCenterPanel'
 import type { AfPlanId } from '@/lib/tournament/af-premium-plans'
+import {
+  SURVIVOR_TRIBE_ICON_CHOICES,
+  composeTribeName,
+  getSurvivorThemeById,
+  stripLeadingTribeIcon,
+} from '@/lib/survivor/survivorVisuals'
 
 type TabId =
   | 'overview'
@@ -68,6 +74,7 @@ type DashboardPayload = {
   ok: true
   role?: string
   league: { id: string; name: string; sport: string; leagueSize: number | null }
+  config?: { visualThemeId?: string | null } | null
   shell: { draftSessionExists: boolean; survivorChatChannels: number; exileLeagueLinked: boolean }
   gameState: {
     phase: string
@@ -97,6 +104,7 @@ export function SurvivorCommissionerDashboard({ leagueId }: { leagueId: string }
   const [tab, setTab] = useState<TabId>('overview')
   const [data, setData] = useState<DashboardPayload | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tribeDrafts, setTribeDrafts] = useState<Record<string, { name: string; emoji: string }>>({})
 
   const base = `/survivor/${leagueId}`
 
@@ -123,6 +131,20 @@ export function SurvivorCommissionerDashboard({ leagueId }: { leagueId: string }
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!data?.tribes?.length) return
+    setTribeDrafts((current) => {
+      const next = { ...current }
+      for (const tribe of data.tribes) {
+        next[tribe.id] = next[tribe.id] ?? {
+          name: stripLeadingTribeIcon(tribe.name),
+          emoji: tribe.emoji ?? '',
+        }
+      }
+      return next
+    })
+  }, [data?.tribes])
+
   const heroAccent = useMemo((): 'cyan' | 'amber' | 'violet' | 'emerald' => {
     const p = String(data?.gameState?.phase ?? '')
     if (p.includes('jury') || p.includes('finale')) return 'amber'
@@ -132,10 +154,28 @@ export function SurvivorCommissionerDashboard({ leagueId }: { leagueId: string }
   }, [data?.gameState?.phase])
 
   const gs = data?.gameState
+  const theme = getSurvivorThemeById(data?.config?.visualThemeId, leagueId)
+
+  const saveTribe = useCallback(async (tribeId: string) => {
+    const draft = tribeDrafts[tribeId]
+    if (!draft) return
+    const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/survivor/tribes`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tribeId, name: draft.name, emoji: draft.emoji || null }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setError(typeof body.error === 'string' ? body.error : 'Failed to save tribe')
+      return
+    }
+    await load()
+  }, [leagueId, load, tribeDrafts])
 
   return (
-    <div className="relative min-h-[80vh] text-white">
+    <div className={`relative min-h-[80vh] overflow-hidden rounded-[28px] ${theme.backgroundClass} p-4 text-white`}>
       <SurvivorIslandAmbient />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),transparent_25%,rgba(0,0,0,0.3)_100%)] opacity-40" />
       <div className="relative z-10">
         <div className="mb-6">
           <WarRoomHeroCard phaseAccent={heroAccent}>
@@ -301,6 +341,63 @@ export function SurvivorCommissionerDashboard({ leagueId }: { leagueId: string }
                   ? `${data.tribes.length} tribes configured.`
                   : 'Tribes appear after draft bootstrap assigns players.'}
               </p>
+              {data?.tribes?.length ? (
+                <div className="mb-5 space-y-4">
+                  {data.tribes.map((tribe) => {
+                    const draft = tribeDrafts[tribe.id] ?? { name: stripLeadingTribeIcon(tribe.name), emoji: tribe.emoji ?? '' }
+                    return (
+                      <div key={tribe.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-white">{tribe.name}</p>
+                          <span className="text-xs text-white/45">{Array.isArray(tribe.members) ? tribe.members.length : 0} members</span>
+                        </div>
+                        <div className="grid gap-3 lg:grid-cols-[120px_minmax(0,1fr)_auto]">
+                          <div>
+                            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">Icon</label>
+                            <div className="grid max-h-28 grid-cols-5 gap-1 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] p-2">
+                              {SURVIVOR_TRIBE_ICON_CHOICES.map((icon) => (
+                                <button
+                                  key={`${tribe.id}-${icon}`}
+                                  type="button"
+                                  onClick={() => setTribeDrafts((current) => ({
+                                    ...current,
+                                    [tribe.id]: { ...draft, emoji: icon },
+                                  }))}
+                                  className={`rounded-lg px-2 py-1 text-lg ${draft.emoji === icon ? 'bg-emerald-500/25 ring-1 ring-emerald-300/50' : 'bg-white/5 hover:bg-white/10'}`}
+                                >
+                                  {icon}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">Tribe name</label>
+                            <input
+                              value={draft.name}
+                              onChange={(event) => setTribeDrafts((current) => ({
+                                ...current,
+                                [tribe.id]: { ...draft, name: event.target.value },
+                              }))}
+                              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none ring-0 placeholder:text-white/30 focus:border-emerald-400/40"
+                              placeholder="Enter tribe name or include emoji"
+                            />
+                            <p className="mt-2 text-xs text-white/45">Preview: {composeTribeName(draft.emoji, draft.name)}</p>
+                          </div>
+                          <div className="flex items-end">
+                            <button
+                              type="button"
+                              onClick={() => void saveTribe(tribe.id)}
+                              className="inline-flex rounded-xl border border-emerald-500/35 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-50 hover:bg-emerald-500/25"
+                            >
+                              Save tribe
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null}
               <Link
                 href={`${base}/tribe`}
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/35 bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-50 hover:bg-emerald-500/25"

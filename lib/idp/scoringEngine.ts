@@ -1,12 +1,19 @@
 /**
  * IDP fantasy scoring — apply league preset + overrides to canonical `idp_*` stat lines.
  * NFL only. Pure math + optional Prisma load via `getIdpLeagueConfig`.
+ *
+ * Commissioner edits persist to `LeagueScoringOverride` and merge in `getLeagueScoringRules`.
+ * `getMergedScoringRulesForLeague` overlays those effective `idp_*` rules so IDP surfaces
+ * (scores API, Chimmy) stay aligned with the main weekly scoring pipeline.
  */
 
+import type { LeagueSport } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { getIdpLeagueConfig } from '@/lib/idp/IDPLeagueConfig'
 import { getIdpPresetScoring } from '@/lib/idp/IDPScoringPresets'
 import type { IdpScoringOverrides } from '@/lib/idp/types'
 import type { IdpWeeklyStatLine } from '@/lib/idp/statIngestionEngine'
+import { resolveScoringRulesForLeague } from '@/lib/multi-sport/MultiSportScoringResolver'
 
 export type IdpFantasyPointsResult = {
   total: number
@@ -28,13 +35,29 @@ export function mergeIdpScoringRules(preset: string, overrides?: IdpScoringOverr
 }
 
 /**
- * Load `IdpLeagueConfig` scoring preset + overrides and return merged point weights.
+ * Load `IdpLeagueConfig` scoring preset + legacy JSON overrides, then overlay commissioner
+ * template rules from `LeagueScoringOverride` for every `idp_*` stat key.
  */
 export async function getMergedScoringRulesForLeague(leagueId: string): Promise<Record<string, number>> {
   const cfg = await getIdpLeagueConfig(leagueId)
   const preset = cfg?.scoringPreset ?? 'balanced'
   const base = getIdpPresetScoring(preset)
-  return mergeOverrides(base, cfg?.scoringOverrides ?? null)
+  const merged = mergeOverrides(base, cfg?.scoringOverrides ?? null)
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { sport: true },
+  })
+  if (!league?.sport) return merged
+
+  const rules = await resolveScoringRulesForLeague(leagueId, league.sport as LeagueSport)
+  const out = { ...merged }
+  for (const r of rules) {
+    if (!r.statKey.startsWith('idp_')) continue
+    const mult = r.multiplier ?? 1
+    out[r.statKey] = r.enabled ? r.pointsValue * mult : 0
+  }
+  return out
 }
 
 /**

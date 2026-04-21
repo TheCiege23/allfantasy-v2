@@ -30,7 +30,7 @@ import {
 } from '@/lib/dashboard/favorite-sports-storage'
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { interpolateTemplate } from '@/lib/i18n/interpolate'
+import { tInterpolate as interpolateI18nMessage } from '@/lib/i18n/tInterpolate'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 
@@ -99,7 +99,7 @@ export function DashboardOverview({
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
 }: DashboardOverviewProps) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
   const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
@@ -503,22 +503,28 @@ export function DashboardOverview({
 
   const lineupPrimaryLabel = useMemo(() => {
     if (!lineupData) return ''
-    return interpolateTemplate(t(lineupData.displayLabelKey), lineupData.displayLabelParams as Record<string, string | number>)
+    return interpolateI18nMessage(
+      t,
+      lineupData.displayLabelKey,
+      lineupData.displayLabelParams as Record<string, string | number>,
+    )
   }, [lineupData, t])
 
   const lineupSecondaryFromApi = useMemo(() => {
     if (!lineupData?.displaySubtextKey || !lineupData.displaySubtextParams) return null
-    return interpolateTemplate(
-      t(lineupData.displaySubtextKey),
-      lineupData.displaySubtextParams as Record<string, string | number>
+    return interpolateI18nMessage(
+      t,
+      lineupData.displaySubtextKey,
+      lineupData.displaySubtextParams as Record<string, string | number>,
     )
   }, [lineupData, t])
 
   const lineupUrgentHint = useMemo(() => {
     if (!lineupData?.urgentSubtextKey || !lineupData.urgentSubtextParams) return null
-    return interpolateTemplate(
-      t(lineupData.urgentSubtextKey),
-      lineupData.urgentSubtextParams as Record<string, string | number>
+    return interpolateI18nMessage(
+      t,
+      lineupData.urgentSubtextKey,
+      lineupData.urgentSubtextParams as Record<string, string | number>,
     )
   }, [lineupData, t])
 
@@ -529,8 +535,8 @@ export function DashboardOverview({
     if (n <= 0) return null
     return n === 1
       ? t('dashboard.today.lineupScannedLeaguesOne')
-      : interpolateTemplate(t('dashboard.today.lineupScannedLeaguesMany'), { n })
-  }, [lineupData, t])
+      : tInterpolate('dashboard.today.lineupScannedLeaguesMany', { n })
+  }, [lineupData, t, tInterpolate])
 
   const lineupChipState = useMemo(() => {
     if (!lineupReady || !lineupData) return 'loading' as const
@@ -625,7 +631,7 @@ export function DashboardOverview({
               <div>
                 <p className="text-sm font-bold text-white">{t('dashboard.overview.getStarted')}</p>
                 <p className="mt-1 text-xs text-white/40">
-                  {interpolateTemplate(t('dashboard.overview.checklistProgress'), { done: completedCount })}
+                  {tInterpolate('dashboard.overview.checklistProgress', { done: completedCount })}
                 </p>
               </div>
               <span
@@ -731,7 +737,7 @@ export function DashboardOverview({
             className="flex h-10 w-full cursor-pointer items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-4 text-[12px] text-white/50 transition hover:bg-white/[0.06]"
           >
             <span>
-              {interpolateTemplate(t('dashboard.overview.setupCollapsed'), { done: completedCount })}
+              {tInterpolate('dashboard.overview.setupCollapsed', { done: completedCount })}
             </span>
             <span
               className="text-white/40 transition-transform"

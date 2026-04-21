@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { SURVIVOR_LEAGUE_INTRO_VIDEO } from '@/lib/survivor/constants'
 import { SURVIVOR_ISLAND_TAGLINE, SURVIVOR_TIPS, SURVIVOR_WELCOME_BLURB } from '@/lib/survivor/survivorIslandContent'
+import { getSurvivorThemeById } from '@/lib/survivor/survivorVisuals'
 
 const STORAGE_KEY_PREFIX = 'survivor_intro_seen_'
 
@@ -14,6 +15,7 @@ export interface SurvivorFirstEntryModalProps {
   onClose: () => void
   videoSrc?: string
   forceReplay?: boolean
+  visualThemeId?: string | null
 }
 
 export function SurvivorFirstEntryModal({
@@ -23,12 +25,14 @@ export function SurvivorFirstEntryModal({
   onClose,
   videoSrc = SURVIVOR_LEAGUE_INTRO_VIDEO,
   forceReplay = false,
+  visualThemeId,
 }: SurvivorFirstEntryModalProps) {
   const [visible, setVisible] = useState(false)
   const [videoKey, setVideoKey] = useState(0)
   const [videoFailed, setVideoFailed] = useState(false)
 
   const storageKey = `${STORAGE_KEY_PREFIX}${leagueId}_${userId}`
+  const theme = getSurvivorThemeById(visualThemeId, leagueId)
 
   const markSeen = useCallback(() => {
     if (typeof window !== 'undefined' && leagueId && userId) {
@@ -78,7 +82,8 @@ export function SurvivorFirstEntryModal({
       aria-label="Survivor League intro"
     >
       <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-amber-500/25 bg-[#050a14] shadow-2xl">
-        <div className="border-b border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-transparent px-4 py-3">
+        <div className={`absolute inset-0 ${theme.backgroundClass} opacity-95`} />
+        <div className="relative border-b border-amber-500/20 bg-gradient-to-r from-amber-950/40 to-transparent px-4 py-3">
           <p className="text-[15px] font-bold text-amber-100">Welcome to the island</p>
           <p className="mt-1 text-[12px] leading-snug text-white/60">{SURVIVOR_ISLAND_TAGLINE}</p>
           <p className="mt-2 text-[11px] leading-relaxed text-white/50">{SURVIVOR_WELCOME_BLURB}</p>
@@ -102,7 +107,7 @@ export function SurvivorFirstEntryModal({
             custom URL in league settings.
           </div>
         )}
-        <div className="max-h-[28vh] overflow-y-auto border-t border-white/[0.06] bg-[#040914] px-4 py-3">
+        <div className="relative max-h-[28vh] overflow-y-auto border-t border-white/[0.06] bg-[#040914]/90 px-4 py-3">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-white/45">Quick tips</p>
           <ul className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-white/55">
             {SURVIVOR_TIPS.map((t) => (
@@ -115,7 +120,7 @@ export function SurvivorFirstEntryModal({
             ))}
           </ul>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] bg-white/[0.04] p-4">
+        <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] bg-white/[0.04] p-4">
           <button
             type="button"
             onClick={handleReplay}

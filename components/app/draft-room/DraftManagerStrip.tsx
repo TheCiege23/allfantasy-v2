@@ -1,6 +1,7 @@
 'use client'
 
 import { Crown } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { getManagerColorBySlot, withAlpha } from '@/lib/draft-room'
 import { sleeperAvatarUrl } from '@/lib/sleeper-avatar'
 
@@ -24,6 +25,10 @@ export type DraftManagerStripProps = {
   showNewOwnerInRed?: boolean
   /** Optional: e.g. "Weighted Lottery Order" when order came from lottery */
   orderSourceLabel?: string | null
+  /** Roster IDs the current user can claim (member without a team; placeholder rosters). */
+  claimableRosterIds?: readonly string[] | null
+  onClaimSlot?: (rosterId: string) => void
+  claimSlotLoadingRosterId?: string | null
 }
 
 function managerInitials(value: string): string {
@@ -44,9 +49,15 @@ export function DraftManagerStrip({
   tradedPickColorMode = false,
   showNewOwnerInRed = false,
   orderSourceLabel,
+  claimableRosterIds = null,
+  onClaimSlot,
+  claimSlotLoadingRosterId = null,
 }: DraftManagerStripProps) {
+  const { t } = useLanguage()
+  const claimSet = claimableRosterIds?.length ? new Set(claimableRosterIds) : null
+
   return (
-    <div className="border-b border-white/8 bg-[#071020] px-3 pb-3 pt-1.5 sm:px-4">
+    <div className="border-b border-white/8 bg-[#060b14] px-2 pb-2 pt-1 sm:px-3 sm:pb-2.5 sm:pt-1.5">
       {orderSourceLabel ? (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/38">
@@ -58,12 +69,12 @@ export function DraftManagerStrip({
         </div>
       ) : null}
 
-      <div className="flex gap-3 overflow-x-auto pb-1" data-testid="draft-manager-strip">
+      <div className="flex gap-2 overflow-x-auto pb-0.5 sm:gap-2.5" data-testid="draft-manager-strip">
         {managers.map((manager) => {
           const isActive = manager.rosterId === activeRosterId
           const color = getManagerColorBySlot(manager.slot)
           const avatarSrc = sleeperAvatarUrl(manager.avatarUrl)
-          const displayHandle = (manager.handle?.trim() || manager.displayName?.trim() || `Manager ${manager.slot}`).replace(/^@/, '')
+          const displayHandle = (manager.handle?.trim() || manager.displayName?.trim() || manager.teamName?.trim() || `Team ${manager.slot}`).replace(/^@/, '')
           const initials = managerInitials(manager.handle?.trim() || manager.displayName?.trim() || manager.teamName?.trim() || `Manager ${manager.slot}`)
           const tradedTint =
             tradedPickColorMode && manager.tradedPickMeta?.tintColor
@@ -73,23 +84,26 @@ export function DraftManagerStrip({
                 }
               : undefined
 
+          const showClaim = Boolean(claimSet?.has(manager.rosterId) && onClaimSlot)
+          const claiming = claimSlotLoadingRosterId === manager.rosterId
+
           return (
             <div
               key={manager.rosterId}
-              className="group flex min-w-[72px] flex-col items-center gap-1.5 pb-0.5 text-center"
+              className="group flex min-w-[64px] flex-col items-center gap-1 pb-0.5 text-center sm:min-w-[70px]"
               data-slot={manager.slot}
               data-roster-id={manager.rosterId}
               data-testid={`draft-manager-slot-${manager.slot}`}
             >
-              <div className="relative flex h-12 w-12 items-center justify-center sm:h-14 sm:w-14">
+              <div className="relative flex h-11 w-11 items-center justify-center sm:h-[52px] sm:w-[52px]">
                 <span
                   className="absolute inset-1 rounded-full blur-[10px] transition-opacity duration-200 group-hover:opacity-100"
                   style={{ backgroundColor: withAlpha(color.tintHex, isActive ? 0.48 : 0.3) }}
                   aria-hidden
                 />
                 <div
-                  className={`relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border bg-[#020814] shadow-[0_10px_30px_rgba(0,0,0,0.35)] sm:h-12 sm:w-12 ${
-                    isActive ? 'ring-2 ring-cyan-300/75 ring-offset-2 ring-offset-[#071020]' : ''
+                  className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border bg-[#020814] shadow-[0_8px_24px_rgba(0,0,0,0.35)] sm:h-11 sm:w-11 ${
+                    isActive ? 'ring-2 ring-cyan-300/75 ring-offset-2 ring-offset-[#060b14]' : ''
                   }`}
                   style={
                     tradedTint ?? {
@@ -119,17 +133,34 @@ export function DraftManagerStrip({
                 ) : null}
               </div>
 
-              <div className="w-[78px] sm:w-[84px]">
-                <p className={`truncate text-[12px] font-medium ${isActive ? 'text-white' : 'text-[#9fb7ff]'}`}>
+              <div className="w-[70px] sm:w-[78px]">
+                <p className={`truncate text-[10px] font-semibold leading-tight sm:text-[11px] ${isActive ? 'text-white' : 'text-[#9fb7ff]'}`}>
                   {displayHandle}
                 </p>
 
                 {showNewOwnerInRed && manager.tradedPickMeta?.newOwnerName ? (
-                  <p className="truncate text-[10px] text-red-300" title={`Now: ${manager.tradedPickMeta.newOwnerName}`}>
+                  <p className="truncate text-[9px] text-red-300 sm:text-[10px]" title={`Now: ${manager.tradedPickMeta.newOwnerName}`}>
                     Now {manager.tradedPickMeta.newOwnerName}
                   </p>
                 ) : manager.teamName ? (
-                  <p className="truncate text-[10px] text-white/32">{manager.teamName}</p>
+                  <p className="truncate text-[9px] text-white/32 sm:text-[10px]">{manager.teamName}</p>
+                ) : null}
+
+                {!manager.teamName ? (
+                  <p className="truncate text-[9px] text-white/32 sm:text-[10px]">Team {manager.slot}</p>
+                ) : null}
+
+                {showClaim ? (
+                  <button
+                    type="button"
+                    onClick={() => onClaimSlot?.(manager.rosterId)}
+                    disabled={claiming}
+                    data-testid={`draft-manager-claim-${manager.slot}`}
+                    aria-label={t('draftRoom.managerStrip.aria.claim')}
+                    className="mt-1 w-full rounded border border-cyan-400/35 bg-cyan-500/14 px-1 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-500/22 disabled:opacity-50"
+                  >
+                    {claiming ? t('draftRoom.managerStrip.claiming') : t('draftRoom.managerStrip.claim')}
+                  </button>
                 ) : null}
               </div>
             </div>

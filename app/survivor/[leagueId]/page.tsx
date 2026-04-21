@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { LeagueClipOverlayHost } from '@/components/league/LeagueClipOverlayHost'
+import { SurvivorFirstEntryModal } from '@/components/survivor/SurvivorFirstEntryModal'
 import { SURVIVOR_ISLAND_TAGLINE } from '@/lib/survivor/survivorIslandContent'
 import { useSurvivorUi } from '@/lib/survivor/SurvivorUiContext'
 import { TribeCard } from '@/app/survivor/components/TribeCard'
 import { SurvivorStatusBadge } from '@/app/survivor/components/SurvivorStatusBadge'
 import type { SurvivorSeasonPlayer } from '@/lib/survivor/survivorUiTypes'
+import { getSurvivorThemeById } from '@/lib/survivor/survivorVisuals'
 
 function phaseBadgeClass(phase: string) {
   if (phase === 'merge') return 'bg-gradient-to-r from-cyan-500/25 to-orange-500/25 text-orange-100'
@@ -54,11 +56,19 @@ export default function SurvivorIslandHomePage() {
   const council = ctx.season?.activeCouncil
   const ch = ctx.season?.currentChallenge
   const us = ctx.season?.userState
+  const theme = getSurvivorThemeById(ctx.season?.visualThemeId, leagueId)
+  const [showIntro, setShowIntro] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (ctx.survivorModeEnabled && us?.userId) {
+      setShowIntro(true)
+    }
+  }, [ctx.survivorModeEnabled, us?.userId])
 
   const playersByTribe = new Map<string, SurvivorSeasonPlayer[]>()
   for (const p of ctx.season?.players ?? []) {
@@ -125,8 +135,15 @@ export default function SurvivorIslandHomePage() {
 
   return (
     <>
+      <SurvivorFirstEntryModal
+        leagueId={leagueId}
+        userId={us?.userId ?? 'viewer'}
+        enabled={showIntro}
+        onClose={() => setShowIntro(false)}
+        visualThemeId={ctx.season?.visualThemeId}
+      />
       {leagueId ? <LeagueClipOverlayHost leagueId={leagueId} variant="survivor" enabled /> : null}
-      <div className="px-3 py-4 md:px-6 md:py-6">
+      <div className={`min-h-screen px-3 py-4 md:px-6 md:py-6 ${theme.backgroundClass}`}>
       {/* Header */}
       <div
         className="survivor-panel relative overflow-hidden rounded-2xl p-4 md:p-6"

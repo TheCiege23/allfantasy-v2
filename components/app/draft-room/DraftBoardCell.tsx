@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowRight, Gavel } from 'lucide-react'
+import { ArrowLeftRight, ArrowRight, Gavel, History } from 'lucide-react'
 import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -28,12 +28,15 @@ export type DraftBoardCellPick = {
   isPromotedFromDevy?: boolean
   source?: string | null
   tradedPickMeta?: {
+    originalRosterId?: string
     newOwnerName?: string
     previousOwnerName?: string
     showNewOwnerInRed?: boolean
     tintColor?: string
   } | null
   managerTintColor?: string | null
+  /** Current owner of this pick slot (for trade targeting). */
+  ownerRosterId?: string | null
 }
 
 function TinyHeadshot({
@@ -103,6 +106,14 @@ export type DraftBoardCellProps = {
   isDevyRound?: boolean
   isCollegeRound?: boolean
   pickHighlight?: PickHighlightTone
+  /** When set, show a trade affordance (opens pick-trade flow from parent). */
+  onTradeFromCell?: () => void
+  /**
+   * When set on a cell whose pick has `tradedPickMeta`, shows a secondary
+   * "history" chip. Parent routes this to PickTradeHistoryModal with
+   * focusRound / focusOriginalRosterId so the relevant row highlights.
+   */
+  onViewTradeHistory?: () => void
 }
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
@@ -138,6 +149,8 @@ function DraftBoardCellInner({
   isDevyRound = false,
   isCollegeRound = false,
   pickHighlight = 'none',
+  onTradeFromCell,
+  onViewTradeHistory,
 }: DraftBoardCellProps) {
   const assets = React.useMemo(() => {
     const sport = normalizeToSupportedSport(pick.sport ?? DEFAULT_SPORT)
@@ -177,7 +190,9 @@ function DraftBoardCellInner({
 
   return (
     <div
-      className={`relative flex min-h-[60px] flex-col overflow-hidden rounded-md border px-2 pb-1.5 pt-1.5 text-[10px] transition-colors hover:border-white/20 ${
+      className={`relative flex min-h-[52px] flex-col overflow-hidden rounded-md border px-1.5 pb-1 pt-1 text-[10px] transition-colors hover:border-white/20 sm:min-h-[56px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
+        onTradeFromCell ? 'pr-7 sm:pr-8' : ''
+      } ${
         isCurrentPick
           ? 'border-cyan-300/60 bg-cyan-500/12 ring-1 ring-cyan-300/35'
           : `border-white/10 bg-[#232c40] ${highlightClass(pickHighlight)}`
@@ -186,8 +201,39 @@ function DraftBoardCellInner({
       data-overall={pick.overall}
       data-round={pick.round}
       data-slot={pick.slot}
+      data-owner-roster={pick.ownerRosterId ?? ''}
       data-testid={`draft-board-cell-${pick.overall}`}
     >
+      {onTradeFromCell ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onTradeFromCell()
+          }}
+          data-testid={`draft-board-cell-trade-${pick.overall}`}
+          title="Offer pick trade"
+          aria-label="Offer pick trade for this slot"
+          className="absolute right-0.5 top-0.5 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/12 bg-[#0a1228]/95 text-white/55 shadow-sm backdrop-blur-sm transition hover:border-cyan-400/35 hover:text-cyan-100"
+        >
+          <ArrowLeftRight className="h-3 w-3" />
+        </button>
+      ) : null}
+      {onViewTradeHistory && pick.tradedPickMeta ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewTradeHistory()
+          }}
+          data-testid={`draft-board-cell-history-${pick.overall}`}
+          title="View trade history for this pick"
+          aria-label="View trade history for this pick"
+          className={`absolute ${onTradeFromCell ? 'right-0.5 top-7' : 'right-0.5 top-0.5'} z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/25 bg-amber-500/10 text-amber-200/80 shadow-sm backdrop-blur-sm transition hover:border-amber-300/45 hover:text-amber-100`}
+        >
+          <History className="h-3 w-3" />
+        </button>
+      ) : null}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
         style={{ backgroundColor: withAlpha(pick.managerTintColor ?? '#94a3b8', isCurrentPick ? 0.78 : 0.38) }}

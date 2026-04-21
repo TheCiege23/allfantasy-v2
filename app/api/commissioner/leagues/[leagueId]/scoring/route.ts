@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { assertLeagueMember } from '@/lib/league/league-access'
+import { getLeagueRole } from '@/lib/league/permissions'
 import { getLeagueScoringConfig } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 import { replaceLeagueScoringOverrides } from '@/lib/scoring-defaults/ScoringOverrideService'
 import { normalizeScoringStatKey } from '@/lib/scoring-defaults/ScoringKeyAliasResolver'
+import { queueLeagueScoringRecalcAfterRulesChange } from '@/lib/scoring-defaults/queueLeagueScoringRecalc'
 
 type IncomingRule = {
   statKey?: unknown
@@ -25,10 +27,9 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  try {
-    await assertCommissioner(params.leagueId, userId)
-  } catch {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const gate = await assertLeagueMember(params.leagueId, userId)
+  if (!gate.ok) {
+    return NextResponse.json({ error: gate.status === 404 ? 'League not found' : 'Forbidden' }, { status: gate.status })
   }
 
   const type = req.nextUrl.searchParams?.get('type') || 'settings'
@@ -59,9 +60,8 @@ export async function PUT(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  try {
-    await assertCommissioner(params.leagueId, userId)
-  } catch {
+  const role = await getLeagueRole(params.leagueId, userId)
+  if (role !== 'commissioner' && role !== 'co_commissioner') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -107,7 +107,9 @@ export async function PUT(
         { status: 400 }
       )
     }
-    const pointsValue = Number(row.pointsValue)
+    const rawPv = row.pointsValue
+    const pointsValue =
+      rawPv === '' || rawPv === null || rawPv === undefined ? 0 : Number(rawPv)
     if (!Number.isFinite(pointsValue)) {
       return NextResponse.json(
         { error: `Invalid points value for ${statKey}` },
@@ -141,6 +143,8 @@ export async function PUT(
     .filter((v): v is { statKey: string; pointsValue: number; enabled: boolean } => v !== null)
 
   await replaceLeagueScoringOverrides(params.leagueId, overrides)
+
+  queueLeagueScoringRecalcAfterRulesChange(params.leagueId)
 
   revalidatePath(`/league/${params.leagueId}`)
 

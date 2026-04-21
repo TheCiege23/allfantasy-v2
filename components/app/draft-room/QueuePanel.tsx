@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { ListOrdered, GripVertical, X, Zap, UserMinus, Play } from 'lucide-react'
 import type { QueueEntry } from '@/lib/live-draft-engine/types'
+import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 export type QueuePanelProps = {
   queue: QueueEntry[]
@@ -26,6 +28,8 @@ export type QueuePanelProps = {
   aiReorderExecutionMode?: string | null
   /** Global commissioner setting for allowing auto-pick behaviors */
   autoPickEnabled?: boolean
+  /** When set, queue autopick/away/AI reorder emit product analytics beacons */
+  analyticsLeagueId?: string
 }
 
 export function QueuePanel({
@@ -46,6 +50,7 @@ export function QueuePanel({
   aiReorderExplanation,
   aiReorderExecutionMode,
   autoPickEnabled = true,
+  analyticsLeagueId,
 }: QueuePanelProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
@@ -65,7 +70,15 @@ export function QueuePanel({
                 <input
                   type="checkbox"
                   checked={aiReorderEnabled}
-                  onChange={(e) => onAiReorderEnabledChange(e.target.checked)}
+                  onChange={(e) => {
+                    if (analyticsLeagueId) {
+                      sendProductAnalyticsBeacon(DRAFT_ROOM.AI_REORDER_EXPLAIN_TOGGLE, {
+                        leagueId: analyticsLeagueId,
+                        enabled: e.target.checked,
+                      })
+                    }
+                    onAiReorderEnabledChange(e.target.checked)
+                  }}
                   data-testid="draft-queue-ai-reorder-toggle"
                   className="rounded border-cyan-300/40 w-4 h-4"
                 />
@@ -74,7 +87,15 @@ export function QueuePanel({
             )}
             <button
               type="button"
-              onClick={onAiReorder}
+              onClick={() => {
+                if (analyticsLeagueId) {
+                  sendProductAnalyticsBeacon(DRAFT_ROOM.AI_QUEUE_REORDER, {
+                    leagueId: analyticsLeagueId,
+                    queueLen: queue.length,
+                  })
+                }
+                onAiReorder()
+              }}
               disabled={aiReorderLoading || !aiReorderEnabled || queue.length < 2}
               data-testid="draft-queue-ai-reorder"
               className="min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/35 bg-cyan-500/10 px-3 py-2.5 text-xs text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50 touch-manipulation"
@@ -88,7 +109,15 @@ export function QueuePanel({
           <input
             type="checkbox"
             checked={autoPickFromQueue}
-            onChange={(e) => onAutoPickFromQueueChange(e.target.checked)}
+            onChange={(e) => {
+              if (analyticsLeagueId) {
+                sendProductAnalyticsBeacon(DRAFT_ROOM.AUTOPICK_QUEUE, {
+                  leagueId: analyticsLeagueId,
+                  enabled: e.target.checked,
+                })
+              }
+              onAutoPickFromQueueChange(e.target.checked)
+            }}
             disabled={!autoPickEnabled}
             data-testid="draft-queue-autopick-toggle"
             className="rounded border-white/20 w-4 h-4"
@@ -99,7 +128,15 @@ export function QueuePanel({
           <input
             type="checkbox"
             checked={awayMode}
-            onChange={(e) => onAwayModeChange(e.target.checked)}
+            onChange={(e) => {
+              if (analyticsLeagueId) {
+                sendProductAnalyticsBeacon(DRAFT_ROOM.AWAY_MODE, {
+                  leagueId: analyticsLeagueId,
+                  enabled: e.target.checked,
+                })
+              }
+              onAwayModeChange(e.target.checked)
+            }}
             disabled={!autoPickEnabled}
             data-testid="draft-queue-away-toggle"
             className="rounded border-white/20 w-4 h-4"

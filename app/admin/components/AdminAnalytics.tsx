@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { PlatformAnalyticsPanel } from "./PlatformAnalyticsPanel";
+import { ProductTelemetryPanel } from "./ProductTelemetryPanel";
 import { useUserTimezone } from "@/hooks/useUserTimezone";
 
 type AnalyticsRow = {
@@ -1384,6 +1385,8 @@ export default function AdminAnalytics() {
   return (
     <div className="w-full">
       <PlatformAnalyticsPanel />
+
+      <ProductTelemetryPanel />
 
       <RetentionPanel />
 

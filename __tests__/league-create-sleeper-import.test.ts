@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   getServerSessionMock,
   requireVerifiedUserMock,
+  assertImportCommissionerMock,
   runImportedLeagueNormalizationPipelineMock,
   buildCanonicalImportBundleMock,
   persistImportWithCanonicalAuditMock,
@@ -14,6 +15,7 @@ const {
 } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn(),
   requireVerifiedUserMock: vi.fn(),
+  assertImportCommissionerMock: vi.fn(),
   runImportedLeagueNormalizationPipelineMock: vi.fn(),
   buildCanonicalImportBundleMock: vi.fn(() => ({
     inferredConcept: 'dynasty',
@@ -65,6 +67,10 @@ vi.mock('@/lib/auth-guard', () => ({
   requireVerifiedUser: requireVerifiedUserMock,
 }))
 
+vi.mock('@/lib/league-import/commissionerGate', () => ({
+  assertImportCommissioner: assertImportCommissionerMock,
+}))
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     league: {
@@ -107,6 +113,7 @@ describe('POST /api/league/create Sleeper import flow', () => {
       ok: true,
       userId: 'u1',
     })
+    assertImportCommissionerMock.mockResolvedValue({ ok: true, sourceManagerId: 'sleeper-user-1' })
     leagueFindFirstMock.mockResolvedValue(null)
     leagueFindUniqueMock.mockResolvedValue({ sport: 'NFL', leagueVariant: null })
     leagueWaiverSettingsFindUniqueMock.mockResolvedValue(null)
@@ -207,6 +214,11 @@ describe('POST /api/league/create Sleeper import flow', () => {
       canonical: expect.any(Object),
       allowUpdateExisting: false,
     })
+    expect(assertImportCommissionerMock).toHaveBeenCalledWith({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: '12345',
+    })
   })
 
   it('maps Sleeper import conflicts to 409', async () => {
@@ -269,5 +281,30 @@ describe('POST /api/league/create Sleeper import flow', () => {
     await expect(res.json()).resolves.toEqual({
       error: 'This league already exists in your account',
     })
+  })
+
+  it('blocks Sleeper import when the user is not commissioner', async () => {
+    assertImportCommissionerMock.mockResolvedValue({
+      ok: false,
+      reason: 'Only the commissioner or a co-commissioner can import this Sleeper league.',
+    })
+
+    const { POST } = await import('@/app/api/league/create/route')
+    const req = new Request('http://localhost/api/league/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform: 'sleeper',
+        createFromSleeperImport: true,
+        sleeperLeagueId: '12345',
+      }),
+    })
+
+    const res = await POST(req)
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toEqual({
+      error: 'Only the commissioner or a co-commissioner can import this Sleeper league.',
+    })
+    expect(runImportedLeagueNormalizationPipelineMock).not.toHaveBeenCalled()
   })
 })

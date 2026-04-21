@@ -15,6 +15,7 @@ import type {
   PlayerCardMatchupPrediction,
   PlayerCardCareerProjection,
 } from './types'
+import type { PlayerCardSeasonStat } from './types'
 
 type NormalizedMetaTrend = {
   playerId: string
@@ -148,6 +149,44 @@ export async function getPlayerCardAnalytics(
     playerId ? getTrendFeedItemForPlayer(playerId, sport).catch(() => null) : Promise.resolve(null),
   ])
 
+  // Fetch historical season stats from DB (multi-sport, DB-first).
+  // Used for: non-NFL analytics fallback, season history display in player card.
+  const rawSeasonStats = await (async () => {
+    const where = playerId
+      ? { playerId, sport: sport.toUpperCase() }
+      : name
+        ? { playerName: { equals: name, mode: 'insensitive' as const }, sport: sport.toUpperCase() }
+        : null
+    if (!where) return []
+    return prisma.playerSeasonStats
+      .findMany({
+        where,
+        orderBy: { season: 'desc' },
+        take: 6,
+        select: {
+          season: true,
+          gamesPlayed: true,
+          fantasyPoints: true,
+          fantasyPointsPerGame: true,
+          team: true,
+          stats: true,
+        },
+      })
+      .catch(() => [])
+  })()
+
+  const seasonHistory: PlayerCardSeasonStat[] = rawSeasonStats.map((r) => ({
+    season: r.season,
+    gamesPlayed: r.gamesPlayed ?? null,
+    fantasyPoints: r.fantasyPoints ?? null,
+    fantasyPointsPerGame: r.fantasyPointsPerGame ?? null,
+    team: r.team ?? null,
+    stats: (r.stats as Record<string, unknown>) ?? {},
+  }))
+
+  // For non-NFL sports, playerAnalyticsSnapshot is NFL-only — use PlayerSeasonStats as fallback context.
+  const fallbackStats = !analytics && seasonHistory.length > 0 ? seasonHistory[0] : null
+
   let metaForPlayer: NormalizedMetaTrend | null = null
   if (playerId != null) {
     const dbMetaRow = await prisma.playerMetaTrend
@@ -207,7 +246,7 @@ export async function getPlayerCardAnalytics(
     : null
 
   const opponentTier = deriveOpponentTier({
-    expectedPointsPerGame: analytics?.expectedFantasyPointsPerGame ?? null,
+    expectedPointsPerGame: analytics?.expectedFantasyPointsPerGame ?? fallbackStats?.fantasyPointsPerGame ?? null,
     trendingDirection: metaForPlayer?.trendingDirection ?? trendFeedItem?.direction ?? null,
     volatility: analytics?.weeklyVolatility ?? careerRow?.volatilityScore ?? null,
   })
@@ -227,7 +266,14 @@ export async function getPlayerCardAnalytics(
             ? `Expected ${analytics.expectedFantasyPointsPerGame.toFixed(1)} PPG (${opponentTier ?? 'neutral'} matchup tier).`
             : undefined,
       }
-    : null
+    : fallbackStats?.fantasyPointsPerGame != null
+      ? {
+          expectedPoints: fallbackStats.fantasyPoints ?? null,
+          expectedPointsPerGame: fallbackStats.fantasyPointsPerGame,
+          opponentTier,
+          outlook: `${fallbackStats.season} season: ${fallbackStats.fantasyPointsPerGame.toFixed(1)} PPG across ${fallbackStats.gamesPlayed ?? '?'} games.`,
+        }
+      : null
 
   const careerProjection: PlayerCardCareerProjection | null = careerRow
     ? {
@@ -256,6 +302,12 @@ export async function getPlayerCardAnalytics(
     }
     if (analytics.draft?.currentAdp != null) {
       contextParts.push(`ADP: ${analytics.draft.currentAdp.toFixed(1)}.`)
+    }
+  }
+  if (!analytics && fallbackStats) {
+    contextParts.push(`Sport: ${sport}. Team: ${fallbackStats.team ?? 'FA'}. Season: ${fallbackStats.season}.`)
+    if (fallbackStats.fantasyPointsPerGame != null) {
+      contextParts.push(`FP/G: ${fallbackStats.fantasyPointsPerGame.toFixed(1)} over ${fallbackStats.gamesPlayed ?? '?'} games.`)
     }
   }
   if (metaForPlayer) {
@@ -316,5 +368,6 @@ export async function getPlayerCardAnalytics(
     metaTrends,
     matchupPrediction,
     careerProjection,
+    seasonHistory: seasonHistory.length > 0 ? seasonHistory : null,
   }
 }

@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { AlertTriangle, RadioTower, ShieldAlert, Skull, Sparkles } from 'lucide-react'
 import { CommissionerSettingsModal } from '@/app/league/[leagueId]/components/CommissionerSettingsModal'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type ZMeta = {
   league?: {
@@ -45,6 +46,7 @@ export default function ZombieLeagueShell({
   leagueId: string
   children: React.ReactNode
 }) {
+  const { t, tInterpolate } = useLanguage()
   const pathname = usePathname()
   const currentPath = pathname ?? ''
   const [meta, setMeta] = useState<ZMeta | null>(null)
@@ -58,7 +60,7 @@ export default function ZombieLeagueShell({
       .catch(() => setMeta(null))
   }, [leagueId])
 
-  const title = meta?.league?.name ?? 'Zombie League'
+  const title = meta?.league?.name ?? t('zombie.shell.defaultTitle')
   const universeId = meta?.league?.universeId
   const itemCount = meta?.myActiveItemCount ?? 0
   const pendingCount = meta?.myPendingItemCount ?? 0
@@ -70,32 +72,62 @@ export default function ZombieLeagueShell({
   const unreadOps = meta?.commissionerNotifications?.unread ?? 0
   const urgentOps = meta?.commissionerNotifications?.actionRequired ?? 0
 
-  const desktopNav: { href: string; label: string; emoji?: string }[] = [
-    { href: `/zombie/${leagueId}`, label: 'Home', emoji: '🏚' },
-    { href: `/zombie/${leagueId}/standings`, label: 'Standings', emoji: '📊' },
-    { href: `/zombie/${leagueId}/matchups`, label: 'Matchups', emoji: '🎯' },
-    { href: `/zombie/${leagueId}/chat`, label: 'Chat', emoji: '💬' },
-    { href: `/zombie/${leagueId}/items`, label: 'Items', emoji: '🎒' },
-    ...(universeId ? [{ href: `/app/zombie-universe/${universeId}`, label: 'Universe', emoji: '🌍' }] : []),
-    { href: `/zombie/${leagueId}/rules`, label: 'Rules', emoji: '📜' },
-    { href: `/zombie/${leagueId}/history`, label: 'History', emoji: '📖' },
-    ...(showComm ? [{ href: '#ops', label: 'Commissioner', emoji: '⚙️' }] : []),
-  ]
+  const desktopNav = useMemo(
+    () =>
+      [
+        { key: 'home', href: `/zombie/${leagueId}`, label: t('zombie.shell.nav.home'), emoji: '🏚' as const },
+        { key: 'standings', href: `/zombie/${leagueId}/standings`, label: t('zombie.shell.nav.standings'), emoji: '📊' as const },
+        { key: 'matchups', href: `/zombie/${leagueId}/matchups`, label: t('zombie.shell.nav.matchups'), emoji: '🎯' as const },
+        { key: 'chat', href: `/zombie/${leagueId}/chat`, label: t('zombie.shell.nav.chat'), emoji: '💬' as const },
+        { key: 'items', href: `/zombie/${leagueId}/items`, label: t('zombie.shell.nav.items'), emoji: '🎒' as const },
+        ...(universeId
+          ? [{ key: 'universe', href: `/app/zombie-universe/${universeId}`, label: t('zombie.shell.nav.universe'), emoji: '🌍' as const }]
+          : []),
+        { key: 'rules', href: `/zombie/${leagueId}/rules`, label: t('zombie.shell.nav.rules'), emoji: '📜' as const },
+        { key: 'history', href: `/zombie/${leagueId}/history`, label: t('zombie.shell.nav.history'), emoji: '📖' as const },
+        ...(showComm
+          ? [{ key: 'commissioner', href: '#ops' as const, label: t('zombie.shell.nav.commissioner'), emoji: '⚙️' as const }]
+          : []),
+      ] as const,
+    [leagueId, universeId, showComm, t],
+  )
 
-  const bottomMain: { href: string; label: string }[] = [
-    { href: `/zombie/${leagueId}`, label: 'Home' },
-    { href: `/zombie/${leagueId}/standings`, label: 'Standings' },
-    { href: `/zombie/${leagueId}/matchups`, label: 'Matchups' },
-    { href: `/zombie/${leagueId}/chat`, label: 'Chat' },
-  ]
+  const bottomMain = useMemo(
+    () =>
+      [
+        { key: 'home', href: `/zombie/${leagueId}`, label: t('zombie.shell.nav.home') },
+        { key: 'standings', href: `/zombie/${leagueId}/standings`, label: t('zombie.shell.nav.standings') },
+        { key: 'matchups', href: `/zombie/${leagueId}/matchups`, label: t('zombie.shell.nav.matchups') },
+        { key: 'chat', href: `/zombie/${leagueId}/chat`, label: t('zombie.shell.nav.chat') },
+      ] as const,
+    [leagueId, t],
+  )
 
-  const drawerLinks: { href: string; label: string; emoji: string }[] = [
-    { href: `/zombie/${leagueId}/items`, label: 'Items / Inventory', emoji: '🎒' },
-    ...(universeId ? [{ href: `/app/zombie-universe/${universeId}`, label: 'Universe', emoji: '🌍' }] : []),
-    { href: `/zombie/${leagueId}/rules`, label: 'Rules', emoji: '📜' },
-    { href: `/zombie/${leagueId}/history`, label: 'History', emoji: '📖' },
-    ...(showComm ? [{ href: '#ops', label: 'Commissioner', emoji: '⚙️' }] : []),
-  ]
+  const drawerLinks = useMemo(
+    () =>
+      [
+        { key: 'items', href: `/zombie/${leagueId}/items`, label: t('zombie.shell.nav.itemsInventory'), emoji: '🎒' },
+        ...(universeId
+          ? [{ key: 'universe', href: `/app/zombie-universe/${universeId}`, label: t('zombie.shell.nav.universe'), emoji: '🌍' }]
+          : []),
+        { key: 'rules', href: `/zombie/${leagueId}/rules`, label: t('zombie.shell.nav.rules'), emoji: '📜' },
+        { key: 'history', href: `/zombie/${leagueId}/history`, label: t('zombie.shell.nav.history'), emoji: '📖' },
+        ...(showComm ? [{ key: 'commissioner', href: '#ops' as const, label: t('zombie.shell.nav.commissioner'), emoji: '⚙️' }] : []),
+      ] as const,
+    [leagueId, universeId, showComm, t],
+  )
+
+  const weekLine = tInterpolate('zombie.shell.weekOutbreak', { week })
+  const leagueStatusRaw = meta?.league?.status ?? 'active'
+  const leagueStatusLabel =
+    leagueStatusRaw === 'active' ? t('zombie.shell.active') : leagueStatusRaw.replace(/_/g, ' ')
+  const opsBadgeText =
+    urgentOps > 0
+      ? tInterpolate('zombie.shell.urgent', { n: urgentOps })
+      : unreadOps > 0
+        ? tInterpolate('zombie.shell.unreadBadge', { n: unreadOps })
+        : t('zombie.shell.ready')
+  const dangerStateLabel = hordeCount > survivorCount ? t('zombie.shell.escalating') : t('zombie.shell.contained')
 
   function openOps() {
     if (showComm) setOpsOpen(true)
@@ -105,32 +137,32 @@ export default function ZombieLeagueShell({
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="hidden w-[270px] shrink-0 border-r border-[var(--zombie-border)] bg-[radial-gradient(circle_at_top,_rgba(220,38,38,0.14),_transparent_35%),linear-gradient(180deg,#0a0b10_0%,#12141c_52%,#0c0d12_100%)] p-4 md:block">
         <div className="rounded-2xl border border-white/10 bg-black/20 p-4 shadow-[0_0_40px_rgba(220,38,38,0.08)]">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">Zombie Ops</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">{t('zombie.shell.ops')}</p>
           <div className="mt-3 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-red-500/25 bg-red-950/40 text-red-200">
               <Skull className="h-6 w-6" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-[16px] font-bold leading-tight text-[var(--zombie-text-full)]">{title}</h1>
-              <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-red-200/70">Week {week} outbreak</p>
+              <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-red-200/70">{weekLine}</p>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
             <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/8 p-2">
-              <p className="text-white/45">Alive</p>
+              <p className="text-white/45">{t('zombie.shell.alive')}</p>
               <p className="mt-1 text-[16px] font-black text-emerald-200">{survivorCount}</p>
             </div>
             <div className="rounded-xl border border-red-500/15 bg-red-500/8 p-2">
-              <p className="text-white/45">Horde</p>
+              <p className="text-white/45">{t('zombie.shell.horde')}</p>
               <p className="mt-1 text-[16px] font-black text-red-100">{hordeCount}</p>
             </div>
             <div className="rounded-xl border border-amber-500/15 bg-amber-500/8 p-2">
-              <p className="text-white/45">Whisperer</p>
+              <p className="text-white/45">{t('zombie.shell.whisperer')}</p>
               <p className="mt-1 text-[16px] font-black text-amber-200">{whispererCount}</p>
             </div>
             <div className="rounded-xl border border-sky-500/15 bg-sky-500/8 p-2">
-              <p className="text-white/45">Inventory</p>
+              <p className="text-white/45">{t('zombie.shell.inventory')}</p>
               <p className="mt-1 text-[16px] font-black text-sky-100">{itemCount}</p>
             </div>
           </div>
@@ -143,28 +175,28 @@ export default function ZombieLeagueShell({
             >
               <span className="inline-flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4" />
-                Commissioner Ops
+                {t('zombie.shell.commissionerOps')}
               </span>
               <span className="rounded-full bg-black/25 px-2 py-1 text-[10px]">
-                {urgentOps > 0 ? `${urgentOps} urgent` : unreadOps > 0 ? `${unreadOps} unread` : 'ready'}
+                {opsBadgeText}
               </span>
             </button>
           ) : null}
         </div>
 
-        <p className="mt-5 text-[10px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">Navigation</p>
+        <p className="mt-5 text-[10px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">{t('zombie.shell.navigation')}</p>
         <nav className="mt-3 flex flex-col gap-1">
           {desktopNav.map((n) =>
             n.href === '#ops' ? (
               <button
-                key={n.href}
+                key={n.key}
                 type="button"
                 onClick={openOps}
                 className={clsx(
                   'flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] transition-colors',
                   opsOpen ? 'bg-amber-500/15 text-amber-100' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90',
                 )}
-                data-testid={`zombie-nav-${n.label.toLowerCase().replace(/\s.*/, '')}`}
+                data-testid={`zombie-nav-${n.key}`}
               >
                 <span>
                   {n.emoji ? `${n.emoji} ` : ''}
@@ -178,19 +210,19 @@ export default function ZombieLeagueShell({
               </button>
             ) : (
               <Link
-                key={n.href}
+                key={n.key}
                 href={n.href}
                 className={clsx(
                   'flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] transition-colors',
                   navActive(currentPath, n.href, leagueId) ? 'bg-sky-500/15 text-sky-200' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90',
                 )}
-                data-testid={`zombie-nav-${n.label.toLowerCase().replace(/\s.*/, '')}`}
+                data-testid={`zombie-nav-${n.key}`}
               >
                 <span>
                   {n.emoji ? `${n.emoji} ` : ''}
                   {n.label}
                 </span>
-                {n.label === 'Items' && itemCount > 0 ? (
+                {n.key === 'items' && itemCount > 0 ? (
                   <span className="rounded-full bg-teal-500/25 px-1.5 text-[10px] font-bold text-teal-200">{itemCount}</span>
                 ) : null}
               </Link>
@@ -202,23 +234,23 @@ export default function ZombieLeagueShell({
           <div className="flex items-center justify-between text-white/70">
             <span className="inline-flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5 text-red-300" />
-              Live danger
+              {t('zombie.shell.liveDanger')}
             </span>
-            <span>{hordeCount > survivorCount ? 'Escalating' : 'Contained'}</span>
+            <span>{dangerStateLabel}</span>
           </div>
           <div className="flex items-center justify-between text-white/70">
             <span className="inline-flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-              Pending items
+              {t('zombie.shell.pendingItems')}
             </span>
             <span>{pendingCount}</span>
           </div>
           <div className="flex items-center justify-between text-white/70">
             <span className="inline-flex items-center gap-1.5">
               <RadioTower className="h-3.5 w-3.5 text-amber-300" />
-              League state
+              {t('zombie.shell.leagueState')}
             </span>
-            <span className="capitalize">{meta?.league?.status ?? 'active'}</span>
+            <span className="capitalize">{leagueStatusLabel}</span>
           </div>
         </div>
       </aside>
@@ -228,7 +260,7 @@ export default function ZombieLeagueShell({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <span className="truncate text-[14px] font-semibold text-white">{title}</span>
-              <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/45">Week {week} outbreak</p>
+              <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-white/45">{weekLine}</p>
             </div>
             {showComm ? (
               <button
@@ -236,25 +268,25 @@ export default function ZombieLeagueShell({
                 onClick={openOps}
                 className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100"
               >
-                Ops
+                {t('zombie.shell.opsShort')}
               </button>
             ) : null}
           </div>
           <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[10px]">
             <div className="rounded-lg bg-white/5 px-2 py-2 text-white/70">
-              <div className="text-white/40">Alive</div>
+              <div className="text-white/40">{t('zombie.shell.alive')}</div>
               <div className="mt-1 font-black text-emerald-200">{survivorCount}</div>
             </div>
             <div className="rounded-lg bg-white/5 px-2 py-2 text-white/70">
-              <div className="text-white/40">Horde</div>
+              <div className="text-white/40">{t('zombie.shell.horde')}</div>
               <div className="mt-1 font-black text-red-100">{hordeCount}</div>
             </div>
             <div className="rounded-lg bg-white/5 px-2 py-2 text-white/70">
-              <div className="text-white/40">Items</div>
+              <div className="text-white/40">{t('zombie.shell.nav.items')}</div>
               <div className="mt-1 font-black text-sky-100">{itemCount}</div>
             </div>
             <div className="rounded-lg bg-white/5 px-2 py-2 text-white/70">
-              <div className="text-white/40">Ops</div>
+              <div className="text-white/40">{t('zombie.shell.opsShort')}</div>
               <div className="mt-1 font-black text-amber-100">{urgentOps || unreadOps}</div>
             </div>
           </div>
@@ -278,11 +310,11 @@ export default function ZombieLeagueShell({
             onClick={() => setMoreOpen(true)}
             className="flex min-h-[48px] flex-col items-center justify-center px-1 py-2 text-[10px] font-medium text-white/60"
             aria-expanded={moreOpen}
-            aria-label="More navigation"
+            aria-label={t('zombie.shell.moreAria')}
             data-testid="zombie-nav-more"
           >
             ···
-            <span className="text-[11px]">More</span>
+            <span className="text-[11px]">{t('zombie.shell.moreNav')}</span>
           </button>
         </nav>
 
@@ -296,14 +328,14 @@ export default function ZombieLeagueShell({
               className="absolute bottom-0 left-0 right-0 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-[var(--zombie-border)] bg-[var(--zombie-panel)] p-4 shadow-xl"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
-              aria-label="More zombie navigation"
+              aria-label={t('zombie.shell.moreDialogAria')}
             >
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">More</p>
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-[var(--zombie-text-dim)]">{t('zombie.shell.moreNav')}</p>
               <div className="flex flex-col gap-1">
                 {drawerLinks.map((n) =>
                   n.href === '#ops' ? (
                     <button
-                      key={n.href}
+                      key={n.key}
                       type="button"
                       onClick={() => {
                         setMoreOpen(false)
@@ -322,7 +354,7 @@ export default function ZombieLeagueShell({
                     </button>
                   ) : (
                     <Link
-                      key={n.href}
+                      key={n.key}
                       href={n.href}
                       onClick={() => setMoreOpen(false)}
                       className="flex min-h-[44px] items-center justify-between rounded-xl px-3 py-2 text-[14px] text-white/85 hover:bg-white/[0.06]"
@@ -330,7 +362,7 @@ export default function ZombieLeagueShell({
                       <span>
                         {n.emoji} {n.label}
                       </span>
-                      {n.label.startsWith('Items') && itemCount > 0 ? (
+                      {n.key === 'items' && itemCount > 0 ? (
                         <span className="rounded-full bg-teal-500/25 px-2 text-[11px] font-bold text-teal-200">🎒 {itemCount}</span>
                       ) : null}
                     </Link>

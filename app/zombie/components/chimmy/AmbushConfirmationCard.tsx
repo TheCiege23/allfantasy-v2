@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import { useZombieDmCommand } from '@/app/zombie/components/chimmy/useZombieDmCommand'
 
 const TYPES = ['Steal Winnings', 'Horde Boost', 'Intel Gather', 'Force Drop'] as const
 
@@ -15,6 +15,7 @@ export function AmbushConfirmationCard({
   ambushesLeft: number
 }) {
   const [t, setT] = useState<string>(TYPES[0])
+  const { isSending, feedback, sendCommand } = useZombieDmCommand(leagueId)
   if (!isWhisperer || ambushesLeft < 1) return null
 
   const msg = `@Chimmy ambush ${t.toLowerCase().replace(/\s+/g, '_')}`
@@ -35,12 +36,19 @@ export function AmbushConfirmationCard({
           </button>
         ))}
       </div>
-      <Link
-        href={`/league/${leagueId}?zombieChimmy=${encodeURIComponent(msg)}`}
-        className="mt-3 flex min-h-[56px] items-center justify-center rounded-xl bg-red-600/40 text-[13px] font-bold text-white hover:bg-red-600/55"
+      <button
+        type="button"
+        onClick={() => void sendCommand(msg)}
+        disabled={isSending}
+        className="mt-3 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-red-600/40 text-[13px] font-bold text-white hover:bg-red-600/55 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Invoke Ambush
-      </Link>
+        {isSending ? 'Sending…' : 'Invoke Ambush'}
+      </button>
+      {feedback ? (
+        <p className={feedback.kind === 'success' ? 'mt-2 text-[12px] text-emerald-200/90' : 'mt-2 text-[12px] text-red-200/90'}>
+          {feedback.text}
+        </p>
+      ) : null}
     </div>
   )
 }

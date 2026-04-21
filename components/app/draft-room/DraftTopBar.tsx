@@ -27,6 +27,8 @@ import type { TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 
 export type DraftTopBarProps = {
   leagueName: string
+  /** League avatar / logo URL. Rendered next to the name when provided. */
+  leagueLogoUrl?: string | null
   sport: string
   draftType: string
   teamCount: number
@@ -42,7 +44,8 @@ export type DraftTopBarProps = {
   timerMode?: TimerMode
   autoPickEnabled?: boolean
   inviteLink?: string | null
-  onCopyInvite?: () => void
+  /** Called after copy succeeds (parent handles clipboard). `source` distinguishes inline vs overflow menu. */
+  onCopyInvite?: (source: 'inline' | 'menu') => void
   onStartDraft?: () => void
   onCommissionerOpen?: () => void
   onPause?: () => void
@@ -72,6 +75,10 @@ export type DraftTopBarProps = {
   onResync?: () => void
   resyncLoading?: boolean
   backHref?: string
+  /** When set, the settings gear opens league settings on the Draft panel (members + commissioners). */
+  leagueDraftSettingsHref?: string | null
+  /** Number of browsers currently viewing the draft room (from Supabase presence). */
+  onlineCount?: number
 }
 
 const TIMER_COLORS = {
@@ -138,7 +145,7 @@ function TopIconToggle({
       type="button"
       onClick={onClick}
       data-testid={dataTestId}
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition ${
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition ${
         active
           ? 'border-[#7d8cff] bg-[#8f9cff]/16 text-[#dbe1ff]'
           : 'border-white/10 bg-[#7180a8]/18 text-white/78 hover:bg-[#7b89af]/26'
@@ -154,6 +161,7 @@ function TopIconToggle({
 
 export function DraftTopBar({
   leagueName,
+  leagueLogoUrl,
   sport,
   draftType,
   teamCount,
@@ -192,6 +200,8 @@ export function DraftTopBar({
   onResync,
   resyncLoading = false,
   backHref,
+  leagueDraftSettingsHref = null,
+  onlineCount,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -289,9 +299,9 @@ export function DraftTopBar({
     )
   })()
 
-  const handleCopyInvite = async () => {
+  const handleCopyInvite = async (source: 'inline' | 'menu') => {
     if (onCopyInvite) {
-      onCopyInvite()
+      onCopyInvite(source)
     } else if (inviteLink && typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(inviteLink)
     }
@@ -323,9 +333,35 @@ export function DraftTopBar({
               </Link>
             ) : null}
 
+            {leagueLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={leagueLogoUrl}
+                alt=""
+                aria-hidden
+                className="h-9 w-9 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] object-cover"
+                data-testid="draft-topbar-league-logo"
+                onError={(e) => {
+                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                }}
+              />
+            ) : null}
+
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold tracking-tight text-white">{leagueName}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#97a8d7]">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-xl font-semibold tracking-tight text-white">{leagueName}</h1>
+                {onlineCount != null && onlineCount > 0 && (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200"
+                    title={`${onlineCount} manager${onlineCount === 1 ? '' : 's'} online`}
+                    data-testid="draft-topbar-online-count"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
+                    {onlineCount}
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#97a8d7]">
                 <span>{timerSummary}</span>
                 <span className="text-white/24">·</span>
                 <span>{teamCount} Teams</span>
@@ -335,7 +371,7 @@ export function DraftTopBar({
                 <button
                   type="button"
                   onClick={() => {
-                    void handleCopyInvite()
+                    void handleCopyInvite('inline')
                   }}
                   data-testid="draft-copy-invite-inline"
                   className="inline-flex items-center gap-1 text-[#c6d0ff] transition hover:text-white"
@@ -395,6 +431,22 @@ export function DraftTopBar({
         </div>
 
         <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
+          <div
+            className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+              autoPickEnabled
+                ? 'border-emerald-400/35 bg-emerald-500/12 text-emerald-100'
+                : 'border-white/14 bg-white/6 text-white/62'
+            }`}
+            data-testid="draft-topbar-autopick-pill"
+            title="Autopick state"
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${autoPickEnabled ? 'bg-emerald-300' : 'bg-white/35'}`}
+              aria-hidden
+            />
+            Auto-pick {autoPickEnabled ? 'On' : 'Off'}
+          </div>
+
           <TopIconToggle
             active={prefs.notifications}
             icon={Bell}
@@ -437,7 +489,7 @@ export function DraftTopBar({
               type="button"
               onClick={onTradesClick}
               data-testid="draft-open-trades-button"
-              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/85 transition hover:bg-[#7b89af]/26"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/85 transition hover:bg-[#7b89af]/26"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
               Trades
@@ -455,20 +507,30 @@ export function DraftTopBar({
               onClick={onResync}
               disabled={resyncLoading}
               data-testid="draft-resync-button"
-              className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/82 transition hover:bg-[#7b89af]/26 disabled:opacity-55"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-[#7180a8]/18 px-3 text-[11px] font-medium text-white/82 transition hover:bg-[#7b89af]/26 disabled:opacity-55"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${resyncLoading ? 'animate-spin' : ''}`} />
               Resync
             </button>
           ) : null}
 
-          {isCommissioner ? (
+          {leagueDraftSettingsHref ? (
+            <Link
+              href={leagueDraftSettingsHref}
+              data-testid="draft-topbar-league-draft-settings"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26"
+              aria-label={t('draftRoom.topBar.aria.leagueDraftSettings')}
+              title={t('draftRoom.topBar.leagueDraftSettings')}
+            >
+              <Settings2 className="h-4 w-4" />
+            </Link>
+          ) : isCommissioner ? (
             <button
               type="button"
               onClick={onCommissionerOpen}
               data-testid="draft-open-commissioner-controls"
               disabled={commissionerLoading}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26 disabled:opacity-55"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26 disabled:opacity-55"
               aria-label={t('draftRoom.topBar.aria.commissioner')}
               title={t('draftRoom.topBar.commissioner')}
             >
@@ -481,7 +543,7 @@ export function DraftTopBar({
               type="button"
               onClick={() => setMenuOpen((prev) => !prev)}
               data-testid="draft-topbar-menu-toggle"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#7180a8]/18 text-white/82 transition hover:bg-[#7b89af]/26"
               aria-expanded={menuOpen}
               aria-label="Draft options"
             >
@@ -496,7 +558,7 @@ export function DraftTopBar({
                 <button
                   type="button"
                   onClick={() => {
-                    void handleCopyInvite()
+                    void handleCopyInvite('menu')
                   }}
                   data-testid="draft-topbar-copy-invite"
                   className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/6"

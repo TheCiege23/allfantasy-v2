@@ -76,6 +76,30 @@ export async function POST(req: Request) {
     )
   }
 
+  // Paid universe leagues are allowed, but must route dues through supported
+  // external providers only.
+  const requestedIsPaid = Boolean(leagueCreatePayload.isPaid)
+  const requestedPaymentProvider =
+    typeof leagueCreatePayload.paymentProvider === 'string'
+      ? leagueCreatePayload.paymentProvider.toLowerCase()
+      : null
+  const requestedBuyIn =
+    typeof leagueCreatePayload.buyIn === 'number' ? leagueCreatePayload.buyIn : null
+  if (requestedIsPaid) {
+    if (!requestedPaymentProvider || !['leaguesafe', 'fancred'].includes(requestedPaymentProvider)) {
+      return NextResponse.json(
+        { error: "Paid zombie leagues require paymentProvider: 'leaguesafe' or 'fancred'." },
+        { status: 400 },
+      )
+    }
+    if (requestedBuyIn == null || !Number.isFinite(requestedBuyIn) || requestedBuyIn <= 0) {
+      return NextResponse.json(
+        { error: 'Paid leagues require a buyIn amount greater than zero.' },
+        { status: 400 },
+      )
+    }
+  }
+
   const baseName =
     typeof leagueCreatePayload.name === 'string' && leagueCreatePayload.name.trim()
       ? String(leagueCreatePayload.name).trim()
@@ -149,7 +173,9 @@ export async function POST(req: Request) {
             tierId: level.id,
             name: merged.name,
             teamCount: typeof leagueCreatePayload.leagueSize === 'number' ? leagueCreatePayload.leagueSize : 12,
-            isPaid: false,
+            isPaid: requestedIsPaid,
+            paymentProvider: requestedPaymentProvider,
+            buyIn: requestedBuyIn,
             whispererSelectionMode:
               (merged.settings as Record<string, unknown>)?.zombie_whisperer_selection === 'veteran_priority'
                 ? 'veteran_priority'

@@ -465,7 +465,7 @@ export function DashboardShell({
   const handleTriggerImport = () => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent('af-dashboard-open-import'))
-    window.location.assign('/import')
+    window.location.assign('/import?returnTo=/dashboard')
   }
 
   const handleOpenChimmy = () => {

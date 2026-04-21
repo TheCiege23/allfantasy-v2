@@ -6,6 +6,14 @@ import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-lea
 import { useAutosave } from '@/lib/hooks/useAutosave'
 import { LeagueSettingsPanel } from './settings/LeagueSettingsPanel'
 import { PlaceholderPanel } from './settings/PlaceholderPanel'
+import { PlayoffSettingsPanel } from './settings/PlayoffSettingsPanel'
+import { TradeSettingsPanel } from './settings/TradeSettingsPanel'
+import { WaiverLeagueSettingsPanel } from './settings/WaiverLeagueSettingsPanel'
+import { RosterComplianceSettingsPanel } from './settings/RosterComplianceSettingsPanel'
+import { AiLeagueSettingsPanel } from './settings/AiLeagueSettingsPanel'
+import { DraftSettingsPanel } from './settings/DraftSettingsPanel'
+import { ScheduleSettingsPanel } from './settings/ScheduleSettingsPanel'
+import { NotificationsSettingsPanel } from './settings/NotificationsSettingsPanel'
 import {
   SettingsNav,
   type SettingsNavTabId,
@@ -57,14 +65,33 @@ import { C2CDraftsPanel } from '@/app/c2c/components/settings/C2CDraftsPanel'
 import { C2CAIPanel } from '@/app/c2c/components/settings/C2CAIPanel'
 import type { C2CConfigClient } from '@/lib/c2c/c2cUiLabels'
 import { SportConfigSettingsPanel } from './settings/SportConfigSettingsPanel'
+import { CommissionerScoringSettingsPanel } from './settings/CommissionerScoringSettingsPanel'
+import type { LeagueScoringConfig } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 import { SubscriptionGateProvider } from '@/hooks/useSubscriptionGate'
 import { useEntitlements } from '@/hooks/useEntitlements'
+import { MemberSettingsCommissionerPanel } from '@/components/league-settings/MemberSettingsCommissionerPanel'
+import { CoOwnerSettingsPanel } from '@/components/league-settings/CoOwnerSettingsPanel'
+import { CommissionerControlPanel } from '@/components/league-settings/CommissionerControlPanel'
+import { DivisionSettingsCommissionerPanel } from '@/components/league-settings/DivisionSettingsCommissionerPanel'
+import { LeaguePreviousSeasonsPanel } from '@/components/league-settings/LeaguePreviousSeasonsPanel'
+import { CommissionerLeagueDeletePanel } from '@/components/league-settings/CommissionerLeagueDeletePanel'
+import {
+  commissionerKeeperSectionHeading,
+  showKeeperSelectionInCommissionerSettings,
+} from '@/lib/league/keeper-policy'
 
 type ApiGet = {
   userRole: 'commissioner' | 'co_commissioner' | 'member' | null
+  /** Head commissioner — `League.userId` */
+  leagueOwnerUserId?: string
   hasAfCommissionerSub: boolean
   canEdit: boolean
+  /** Raw `League.settings` JSON for merges (description, schedule, notification prefs). */
+  settingsSnapshot?: Record<string, unknown>
   league: CommissionerSettingsFormData & Record<string, unknown>
+  settings?: Record<string, unknown> | null
+  /** Template + overrides for commissioner scoring UI. */
+  scoringConfig?: LeagueScoringConfig | null
 }
 
 export function CommissionerSettingsModal({
@@ -101,6 +128,20 @@ export function CommissionerSettingsModal({
       .then((data: ApiGet) => setPayload(data))
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
+  }, [isOpen, leagueId])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onSaved = (ev: Event) => {
+      const e = ev as CustomEvent<{ leagueId?: string }>
+      if (e.detail?.leagueId !== leagueId) return
+      fetch(`/api/league/settings?leagueId=${encodeURIComponent(leagueId)}`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((data: ApiGet) => setPayload(data))
+        .catch(() => {})
+    }
+    window.addEventListener('af-league-settings-saved', onSaved as EventListener)
+    return () => window.removeEventListener('af-league-settings-saved', onSaved as EventListener)
   }, [isOpen, leagueId])
 
   useEffect(() => {
@@ -217,6 +258,15 @@ export function CommissionerSettingsModal({
   const hasSub = hasCommissioner || (payload?.hasAfCommissionerSub ?? false)
   const initialData = payload?.league as CommissionerSettingsFormData | undefined
 
+  const showKeeperSessionStrip = showKeeperSelectionInCommissionerSettings({
+    leagueType: initialData?.leagueType ?? null,
+    isDynasty: initialData?.isDynasty ?? null,
+  })
+  const keeperSectionTitle = commissionerKeeperSectionHeading({
+    leagueType: initialData?.leagueType ?? null,
+    isDynasty: initialData?.isDynasty ?? null,
+  })
+
   const survivorProps = { leagueId, canEdit, hasAfCommissionerSub: hasSub }
 
   return (
@@ -228,14 +278,14 @@ export function CommissionerSettingsModal({
       aria-labelledby="commissioner-settings-title"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="relative flex h-[100dvh] w-full max-w-[900px] flex-col overflow-hidden rounded-none border border-white/[0.08] bg-[#0d1117] shadow-2xl md:h-[85vh] md:rounded-2xl md:flex-row">
+      <div className="relative flex h-[100dvh] w-full max-w-[min(1120px,100vw)] flex-col overflow-hidden rounded-none border border-white/[0.1] bg-[#0a0f18] shadow-2xl md:h-[min(88vh,920px)] md:max-h-[920px] md:rounded-[24px] md:flex-row">
         <h2 id="commissioner-settings-title" className="sr-only">
           Commissioner settings
         </h2>
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.06] text-[14px] text-white/50 transition-colors hover:bg-white/[0.12] hover:text-white"
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.06] text-[15px] text-white/55 transition-colors hover:bg-white/[0.12] hover:text-white md:right-4 md:top-4"
           aria-label="Close settings"
         >
           ✕
@@ -252,7 +302,8 @@ export function CommissionerSettingsModal({
           showC2cTabs={c2cMode}
         />
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-t border-white/[0.06] bg-[#0c111c] md:border-l md:border-t-0">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
           {tournamentShellId ? (
             <div className="border-b border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-[12px] text-cyan-50">
               <p className="font-semibold text-white">
@@ -288,42 +339,134 @@ export function CommissionerSettingsModal({
             <LeagueSettingsPanel
               leagueId={leagueId}
               initialData={initialData}
+              settingsSnapshot={payload?.settingsSnapshot ?? {}}
               hasAfCommissionerSub={hasSub}
               canEdit={canEdit}
               save={save}
               debouncedSave={debouncedSave}
             />
-          ) : activeTab === 'sport_config' ? (
-            <SportConfigSettingsPanel
-              sport={String((initialData as Record<string, unknown>).sport ?? 'NFL')}
-              leagueSettings={initialData as Record<string, unknown>}
-              canEdit={canEdit}
-              onSportConfigChange={(next) => debouncedSave({ sportConfig: next })}
-            />
           ) : activeTab === 'team' ? (
-            <PlaceholderPanel title="Team Settings" />
+            <PlaceholderPanel title="Team Settings" subtitle="Names, logos, and owner assignment." />
           ) : activeTab === 'roster' ? (
-            <PlaceholderPanel title="Roster Settings" />
+            <RosterComplianceSettingsPanel initialData={initialData} canEdit={canEdit} debouncedSave={debouncedSave} />
           ) : activeTab === 'scoring' ? (
-            <PlaceholderPanel title="Scoring Settings" />
+            <div className="flex min-h-0 flex-1 flex-col">
+              <CommissionerScoringSettingsPanel
+                key={String((initialData as Record<string, unknown>).sport ?? 'NFL')}
+                leagueId={leagueId}
+                sport={String((initialData as Record<string, unknown>).sport ?? 'NFL')}
+                canEdit={canEdit}
+                scoringConfig={payload?.scoringConfig ?? null}
+              />
+              <details className="border-t border-white/[0.06] bg-[#0a0f18]/40">
+                <summary className="cursor-pointer px-6 py-3 text-[12px] font-semibold text-cyan-200/80">
+                  League format, roster slots & advanced sport config
+                </summary>
+                <SportConfigSettingsPanel
+                  sport={String((initialData as Record<string, unknown>).sport ?? 'NFL')}
+                  leagueSettings={initialData as Record<string, unknown>}
+                  canEdit={canEdit}
+                  onSportConfigChange={(next) => debouncedSave({ sportConfig: next })}
+                  omitSections={{ scoring: true }}
+                />
+              </details>
+            </div>
           ) : activeTab === 'draft' ? (
-            <PlaceholderPanel title="Draft Settings" />
+            <DraftSettingsPanel
+              draftRow={payload?.settings ?? null}
+              canEdit={canEdit}
+              save={save}
+              debouncedSave={debouncedSave}
+            />
           ) : activeTab === 'divisions' ? (
-            <PlaceholderPanel title="Division Settings" />
+            <div className="px-6 py-6">
+              <DivisionSettingsCommissionerPanel leagueId={leagueId} />
+            </div>
           ) : activeTab === 'members' ? (
-            <PlaceholderPanel title="Member Settings" />
+            <div className="px-6 py-6">
+              <MemberSettingsCommissionerPanel leagueId={leagueId} />
+            </div>
           ) : activeTab === 'coowners' ? (
-            <PlaceholderPanel title="Co-owner Settings" />
+            <div className="px-6 py-6">
+              <CoOwnerSettingsPanel leagueId={leagueId} />
+            </div>
+          ) : activeTab === 'trade' ? (
+            <TradeSettingsPanel initialData={initialData} canEdit={canEdit} debouncedSave={debouncedSave} save={save} />
+          ) : activeTab === 'waiver' ? (
+            <WaiverLeagueSettingsPanel leagueId={leagueId} initialData={initialData} canEdit={canEdit} debouncedSave={debouncedSave} />
+          ) : activeTab === 'playoff' ? (
+            <PlayoffSettingsPanel initialData={initialData} canEdit={canEdit} debouncedSave={debouncedSave} />
+          ) : activeTab === 'schedule' ? (
+            <ScheduleSettingsPanel
+              settingsSnapshot={payload?.settingsSnapshot ?? {}}
+              canEdit={canEdit}
+              debouncedSave={debouncedSave}
+            />
+          ) : activeTab === 'ai' ? (
+            <AiLeagueSettingsPanel
+              initialData={initialData}
+              canEdit={canEdit}
+              debouncedSave={debouncedSave}
+              save={save}
+              hasAfCommissionerSub={hasSub}
+            />
+          ) : activeTab === 'notifications' ? (
+            <NotificationsSettingsPanel
+              settingsSnapshot={payload?.settingsSnapshot ?? {}}
+              canEdit={canEdit}
+              save={save}
+            />
+          ) : activeTab === 'dues' ? (
+            <PlaceholderPanel title="Payments / League Dues" subtitle="Buy-ins, deadlines, and tracked payouts." />
+          ) : activeTab === 'import_sync' ? (
+            <PlaceholderPanel title="Import / Sync" subtitle="Provider mapping, refresh, and conflict handling." />
+          ) : activeTab === 'advanced' ? (
+            <PlaceholderPanel title="Advanced Rules" subtitle="Overrides, offseason mode, and custom enforcement." />
+          ) : activeTab === 'appearance' ? (
+            <PlaceholderPanel title="Appearance / Branding" subtitle="League visuals and discovery presentation." />
+          ) : activeTab === 'security' ? (
+            <PlaceholderPanel title="Security / Permissions" subtitle="Who can change what, audit, and locks." />
+          ) : activeTab === 'draft_picks' ? (
+            <PlaceholderPanel title="Draft Pick Settings" subtitle="Future picks, years traded, and display rules." />
+          ) : activeTab === 'integrations' ? (
+            <PlaceholderPanel title="Integrations" subtitle="External tools and webhooks (when enabled)." />
           ) : activeTab === 'commissioner' ? (
-            initialData?.leagueType === 'keeper' ? (
-              <KeeperCommissionerDashboard leagueId={leagueId} />
-            ) : (
-              <PlaceholderPanel title="Commissioner Control" />
-            )
+            <div className="space-y-8 px-6 py-6">
+              {showKeeperSessionStrip ? (
+                <section className="space-y-3">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                    {keeperSectionTitle}
+                  </h3>
+                  <KeeperCommissionerDashboard leagueId={leagueId} />
+                </section>
+              ) : null}
+              <section className={showKeeperSessionStrip ? 'border-t border-white/[0.08] pt-6' : ''}>
+                {showKeeperSessionStrip ? (
+                  <h3 className="mb-3 text-[10px] font-bold uppercase tracking-wider text-white/40">
+                    Commissioner tools
+                  </h3>
+                ) : null}
+                <CommissionerControlPanel leagueId={leagueId} />
+              </section>
+            </div>
           ) : activeTab === 'previous' ? (
-            <PlaceholderPanel title="Previous Leagues" />
+            <div className="px-6 py-6">
+              <LeaguePreviousSeasonsPanel
+                leagueId={leagueId}
+                sportLabel={String((initialData as Record<string, unknown>).sport ?? '')}
+                leagueFormatLabel={initialData?.leagueType ? String(initialData.leagueType) : null}
+              />
+            </div>
           ) : activeTab === 'delete' ? (
-            <PlaceholderPanel title="Delete League" />
+            <div className="px-6 py-6">
+              <CommissionerLeagueDeletePanel
+                leagueId={leagueId}
+                leagueName={String((initialData as Record<string, unknown>).name ?? 'League')}
+                leagueOwnerUserId={payload?.leagueOwnerUserId ?? ''}
+                userRole={payload?.userRole ?? null}
+                settingsSnapshot={payload?.settingsSnapshot ?? {}}
+              />
+            </div>
           ) : activeTab === 'survivor_setup' ? (
             <SurvivorSetupPanel {...survivorProps} />
           ) : activeTab === 'survivor_tribes' ? (
@@ -405,6 +548,7 @@ export function CommissionerSettingsModal({
           ) : (
             <PlaceholderPanel title="Settings" />
           )}
+          </div>
         </div>
       </div>
     </div>

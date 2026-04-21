@@ -11,6 +11,8 @@ import { normalizeDraftTypeForEngine } from '@/lib/league-creation/canonical/val
 import type { ValidatedCreateLeagueBody } from '@/lib/league-creation/canonical/validateCreateLeague'
 import type { CreateLeagueErrorResponse, CreateLeagueSuccessResponse } from '@/lib/league-creation/canonical/types'
 import { logLeagueCreated } from '@/server/services/auditService'
+import { CREATE_LEAGUE } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 
 const LOG_PREFIX = '[create-league-canonical]'
 
@@ -53,6 +55,10 @@ export async function executeCanonicalLeagueCreation(args: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     log('preset_engine_failed', { msg })
+    recordProductEvent(CREATE_LEAGUE.SERVER_FAIL, {
+      userId: appUserId,
+      meta: { stage: 'preset', sport: String(body.sport), message: msg.slice(0, 400) },
+    })
     return {
       ok: false,
       status: 400,
@@ -85,6 +91,10 @@ export async function executeCanonicalLeagueCreation(args: {
   } catch (e) {
     const detail = prismaErrorDetail(e)
     console.error(`${LOG_PREFIX} transaction_failed`, detail)
+    recordProductEvent(CREATE_LEAGUE.SERVER_FAIL, {
+      userId: appUserId,
+      meta: { stage: 'database', sport: String(body.sport), detail: detail.slice(0, 400) },
+    })
     return {
       ok: false,
       status: 500,
@@ -161,6 +171,18 @@ export async function executeCanonicalLeagueCreation(args: {
   }
 
   log('success', { leagueId: createdLeagueId, homepageUrl })
+
+  recordProductEvent(CREATE_LEAGUE.SERVER_SUCCESS, {
+    userId: appUserId,
+    meta: {
+      leagueId: createdLeagueId,
+      sport: String(body.sport),
+      concept: engine.leagueFormatId,
+      draftType: body.draftType,
+      teamCount: body.teamCount,
+      presetKey: engine.presetKey,
+    },
+  })
 
   return { ok: true, response: resBody }
 }

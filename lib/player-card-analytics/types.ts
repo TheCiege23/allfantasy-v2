@@ -31,6 +31,16 @@ export interface PlayerCardCareerProjection {
   season: number
 }
 
+/** One row of historical season stats for a player (from PlayerSeasonStats). */
+export interface PlayerCardSeasonStat {
+  season: string
+  gamesPlayed: number | null
+  fantasyPoints: number | null
+  fantasyPointsPerGame: number | null
+  team: string | null
+  stats: Record<string, unknown>
+}
+
 export interface PlayerCardAnalyticsPayload {
   playerId: string | null
   playerName: string
@@ -41,4 +51,6 @@ export interface PlayerCardAnalyticsPayload {
   metaTrends: PlayerCardMetaTrend | null
   matchupPrediction: PlayerCardMatchupPrediction | null
   careerProjection: PlayerCardCareerProjection | null
+  /** Historical season stats from DB (multi-sport, DB-first). */
+  seasonHistory: PlayerCardSeasonStat[] | null
 }

@@ -1,7 +1,10 @@
-import type { League, Prisma } from '@prisma/client'
+import type { League, LeagueSport, Prisma } from '@prisma/client'
 
 /** Subset of `League` exposed to commissioner settings UI (GET + PATCH). */
 export type CommissionerSettingsFormData = {
+  sport?: LeagueSport | null
+  season?: number | null
+  language?: string | null
   logoUrl?: string | null
   timezone?: string | null
   waiverType?: string | null
@@ -74,6 +77,9 @@ export function commissionerLeagueFieldsFromRow(
   league: Pick<
     League,
     | 'name'
+    | 'sport'
+    | 'season'
+    | 'language'
     | 'logoUrl'
     | 'timezone'
     | 'waiverType'
@@ -142,6 +148,9 @@ export function commissionerLeagueFieldsFromRow(
 ): CommissionerSettingsFormData {
   return {
     name: league.name,
+    sport: league.sport,
+    season: league.season,
+    language: league.language,
     logoUrl: league.logoUrl,
     timezone: league.timezone,
     waiverType: league.waiverType,
@@ -211,6 +220,9 @@ export function commissionerLeagueFieldsFromRow(
 
 const LEAGUE_PATCH_KEYS: (keyof Prisma.LeagueUpdateInput)[] = [
   'name',
+  'sport',
+  'season',
+  'language',
   'logoUrl',
   'timezone',
   'waiverType',

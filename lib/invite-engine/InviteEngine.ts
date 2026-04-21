@@ -2,7 +2,9 @@
  * Viral Invite Engine (PROMPT 142): create, preview, accept, list, analytics.
  */
 
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { assertPaidJoinAllowed, linkDuesToRoster } from '@/lib/league-finance/joinGate'
 import { validateInviteCode, validateFantasyInviteCode } from '@/lib/league-invite'
 import { attributeSignupToReferrer, grantRewardForSignup } from '@/lib/referral'
 import { joinByInviteCode } from '@/lib/creator-system'
@@ -222,6 +224,11 @@ async function createFantasyLeagueRoster(leagueId: string, userId: string) {
       return { ok: false as const, error: 'Survivor leagues lock after the draft starts' }
     }
 
+    const paidGate = await assertPaidJoinAllowed({ leagueId, userId, tx: tx as Prisma.TransactionClient })
+    if (!paidGate.ok) {
+      return { ok: false as const, error: paidGate.message }
+    }
+
     const roster = await tx.roster.create({
       data: {
         leagueId,
@@ -230,6 +237,8 @@ async function createFantasyLeagueRoster(leagueId: string, userId: string) {
       },
       select: { id: true },
     })
+
+    await linkDuesToRoster({ leagueId, userId, rosterId: roster.id, tx: tx as Prisma.TransactionClient })
 
     if (league.platform === 'manual') {
       const manualTeamCount = await tx.leagueTeam.count({

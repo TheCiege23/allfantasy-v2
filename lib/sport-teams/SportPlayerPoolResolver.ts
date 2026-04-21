@@ -141,6 +141,7 @@ export async function getPlayerPoolForSport(
     experience: null,
     secondary_positions: [],
     metadata: {},
+    image_url: (r as { imageUrl?: string | null }).imageUrl ?? null,
   }))
 
   const limit = options?.limit ?? 2000
@@ -202,6 +203,7 @@ export async function getPlayerPoolForSport(
       age: null,
       experience: null,
       secondary_positions: [],
+      image_url: null,
       metadata: { source: 'identity_fallback' },
     })
     existingExternalIds.add(String(externalId))

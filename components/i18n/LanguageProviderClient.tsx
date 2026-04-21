@@ -11,6 +11,10 @@ import { translations } from "@/lib/i18n/translations";
 import { LANG_STORAGE_KEY, DEFAULT_LANG, resolveLanguage, type LanguageCode } from "@/lib/i18n/constants";
 import { setStoredLanguage } from "@/lib/preferences/LanguagePreferenceService";
 import { applyLanguageToDocument } from "@/lib/preferences/HtmlPreferenceSync";
+import {
+  tInterpolate as resolveTInterpolate,
+  type InterpolationVars,
+} from "@/lib/i18n/tInterpolate";
 
 type Language = LanguageCode;
 
@@ -18,6 +22,8 @@ type LanguageContextValue = {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
+  /** Same as `interpolateTemplate(t(key), vars)` — for copy with `{{placeholders}}`. */
+  tInterpolate: (key: string, vars?: InterpolationVars) => string;
 };
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(
@@ -107,17 +113,19 @@ export function LanguageProviderClient({
     }).catch(() => {});
   };
 
-  const value = useMemo<LanguageContextValue>(
-    () => ({
+  const value = useMemo<LanguageContextValue>(() => {
+    const t = (key: string) => {
+      const dict = messages || translations[language] || translations.en;
+      return dict[key] ?? translations.en[key] ?? key;
+    };
+    return {
       language,
       setLanguage,
-      t: (key: string) => {
-        const dict = messages || translations[language] || translations.en;
-        return dict[key] ?? translations.en[key] ?? key;
-      },
-    }),
-    [language, messages]
-  );
+      t,
+      tInterpolate: (key: string, vars: InterpolationVars = {}) =>
+        resolveTInterpolate(t, key, vars),
+    };
+  }, [language, messages]);
 
   return (
     <LanguageContext.Provider value={value}>

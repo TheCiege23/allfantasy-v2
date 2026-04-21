@@ -8,12 +8,45 @@ import { prisma } from '@/lib/prisma'
 const AI_HOST_ID = 'survivor-ai-host'
 const AI_HOST_NAME = '@Chimmy'
 
+async function getTribeChatChannelId(leagueId: string, tribeId: string): Promise<string | null> {
+  const channel = await (prisma as any).survivorChatChannel.findFirst({
+    where: { leagueId, channelType: 'tribe', tribeId },
+    select: { id: true },
+  })
+  return channel?.id ?? null
+}
+
 async function getLeagueChatChannelId(leagueId: string): Promise<string | null> {
   const channel = await (prisma as any).survivorChatChannel.findFirst({
     where: { leagueId, channelType: 'league' },
     select: { id: true },
   })
   return channel?.id ?? null
+}
+
+async function postToChannel(
+  leagueId: string,
+  channelId: string,
+  channelType: 'league' | 'tribe' | 'exile' | 'jury' | 'private_ai',
+  content: string,
+  contentType: 'text' | 'card' | 'system' | 'announcement' = 'announcement',
+  cardData?: Record<string, unknown>,
+): Promise<void> {
+  await (prisma as any).survivorChatMessage.create({
+    data: {
+      leagueId,
+      channelId,
+      channelType,
+      senderUserId: AI_HOST_ID,
+      senderName: AI_HOST_NAME,
+      senderIsHost: true,
+      isSystemMessage: true,
+      content,
+      contentType,
+      cardData: cardData ?? undefined,
+      isPinned: contentType === 'announcement',
+    },
+  })
 }
 
 async function postToLeagueChat(
@@ -25,20 +58,41 @@ async function postToLeagueChat(
   const channelId = await getLeagueChatChannelId(leagueId)
   if (!channelId) return
 
-  await (prisma as any).survivorChatMessage.create({
-    data: {
-      leagueId,
-      channelId,
-      channelType: 'league',
-      senderUserId: AI_HOST_ID,
-      senderName: AI_HOST_NAME,
-      senderIsHost: true,
-      isSystemMessage: true,
-      content,
-      contentType,
-      cardData: cardData ?? undefined,
-      isPinned: contentType === 'announcement',
-    },
+  await postToChannel(leagueId, channelId, 'league', content, contentType, cardData)
+}
+
+export async function postScrollRevealToTribeChat(
+  leagueId: string,
+  tribeId: string,
+  tribeName: string,
+  eliminatedName: string,
+  week: number,
+): Promise<void> {
+  const channelId = await getTribeChatChannelId(leagueId, tribeId)
+  if (!channelId) return
+
+  const content = `Scroll reveal complete for ${tribeName}. The tribe has spoken. **${eliminatedName}** was voted out in Week ${week}.`
+  await postToChannel(leagueId, channelId, 'tribe', content, 'card', {
+    type: 'tribal_scroll_reveal',
+    tribeId,
+    tribeName,
+    eliminatedName,
+    week,
+  })
+}
+
+export async function postLeagueRevealFollowUp(
+  leagueId: string,
+  tribeName: string,
+  eliminatedName: string,
+  week: number,
+): Promise<void> {
+  const content = `please wlecome the new look "${tribeName}". The tribe has spoken. **${eliminatedName}** was voted out in Week ${week}.`
+  await postToLeagueChat(leagueId, content, 'announcement', {
+    type: 'tribal_reveal_follow_up',
+    tribeName,
+    eliminatedName,
+    week,
   })
 }
 

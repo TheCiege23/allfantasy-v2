@@ -15,6 +15,9 @@ import {
   logAfTradeAudit,
 } from '@/lib/league-trade-engine/tradeAudit'
 import type { CreateLeagueTradeInput, TradeAssetInput } from '@/lib/league-trade-engine/types'
+import { assertRosterTransactionsAllowed } from '@/lib/roster-legality/rosterTransactionGates'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 
 async function fanout(leagueId: string, input: {
   eventType: string
@@ -61,6 +64,15 @@ export async function createAfLeagueTrade(input: CreateLeagueTradeInput & { curr
   if (proposer.platformUserId !== input.proposedByUserId) {
     throw new Error('Proposer must own the proposing roster')
   }
+
+  const rosterTxGate = await assertRosterTransactionsAllowed({
+    leagueId: input.leagueId,
+    league,
+    rosterIds: [proposer.id, receiver.id],
+    userId: input.proposedByUserId,
+    kind: 'trade',
+  })
+  if (!rosterTxGate.ok) throw new Error(rosterTxGate.error)
 
   const settings = resolveLeagueTradeSettings(league)
   const v = validateTradeAssets({
@@ -176,6 +188,15 @@ export async function acceptAfLeagueTrade(input: {
   const league = await prisma.league.findUnique({ where: { id: input.leagueId } })
   if (!league) throw new Error('League not found')
 
+  const rosterTxGateAccept = await assertRosterTransactionsAllowed({
+    leagueId: input.leagueId,
+    league,
+    rosterIds: [trade.proposerRosterId, trade.receiverRosterId],
+    userId: input.userId,
+    kind: 'trade',
+  })
+  if (!rosterTxGateAccept.ok) throw new Error(rosterTxGateAccept.error)
+
   const life = await assertLifecycleActionAllowed(input.leagueId, 'trade_act', input.userId, {
     isElevatedCommissioner: await isElevatedCommissioner(input.leagueId, input.userId),
   })
@@ -254,6 +275,15 @@ export async function finalizeAfLeagueTradeProcessing(input: { tradeId: string; 
   }
 
   const league = await prisma.league.findUniqueOrThrow({ where: { id: trade.leagueId } })
+  const rosterTxGateFinalize = await assertRosterTransactionsAllowed({
+    leagueId: trade.leagueId,
+    league,
+    rosterIds: [trade.proposerRosterId, trade.receiverRosterId],
+    userId: input.actorUserId,
+    kind: 'trade',
+  })
+  if (!rosterTxGateFinalize.ok) throw new Error(rosterTxGateFinalize.error)
+
   const settings = resolveLeagueTradeSettings(league)
   const delayH = settings.processingDelayHours ?? trade.processingDelayHours ?? 0
 
@@ -317,6 +347,11 @@ export async function finalizeAfLeagueTradeProcessing(input: { tradeId: string; 
       tradeId: trade.id,
       afterState: { status: 'processed' },
     })
+  })
+
+  recordProductEvent(ENGAGEMENT.TRADE_PROCESSED, {
+    userId: input.actorUserId,
+    meta: { leagueId: trade.leagueId, tradeId: trade.id, itemCount: trade.items.length },
   })
 
   await fanout(trade.leagueId, {

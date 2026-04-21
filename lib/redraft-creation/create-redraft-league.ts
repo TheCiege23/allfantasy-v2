@@ -15,6 +15,20 @@ import { buildPostCreateLeagueHomeHref } from '@/lib/league/post-create-navigati
 
 type Tx = Prisma.TransactionClient
 
+/**
+ * Sport-specific auction budget defaults (dollars per team).
+ * MLB's $260 tracks the classic 23-player rotisserie budget used by Yahoo /
+ * CBS / Fantrax leagues. Other sports default to $200, matching Sleeper /
+ * ESPN / Yahoo conventions for NFL, NBA, NHL, and college sports. Soccer
+ * defaults low because most soccer auctions mirror FPL's £100 squad cap.
+ * Commissioners can override in the draft settings panel after create.
+ */
+function getDefaultAuctionBudget(sport: LeagueSport): number {
+  if (sport === 'MLB') return 260
+  if (sport === 'SOCCER') return 100
+  return 200
+}
+
 function secondsToPickTimerPreset(sec: number): string {
   const presets: [string, number][] = [
     ['30s', 30],
@@ -207,7 +221,7 @@ export async function createRedraftLeagueInTransaction(
       rounds: draftDefaults.rounds_default,
       timerSeconds,
       orderMode: coreDraft,
-      auctionBudget: body.draftType === 'auction' ? 200 : null,
+      auctionBudget: body.draftType === 'auction' ? getDefaultAuctionBudget(sport) : null,
       draftStatus: isOffline ? 'offline' : 'pre_draft',
       configJson: {
         coreDraftSessionType: coreDraft,
@@ -294,7 +308,7 @@ export async function createRedraftLeagueInTransaction(
   }
   await tx.leagueEntrySlot.createMany({ data: slotData })
 
-  const auctionBudget = body.draftType === 'auction' ? 200 : null
+  const auctionBudget = body.draftType === 'auction' ? getDefaultAuctionBudget(sport) : null
   await tx.draftSession.create({
     data: {
       leagueId: league.id,

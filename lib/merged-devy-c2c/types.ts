@@ -62,7 +62,7 @@ export interface C2CCommissionerSettings {
   proLineupSlots: C2CLineupSlots | null
   proBenchSize: number
   proIRSize: number
-  startupDraftType: 'snake' | 'linear'
+  startupDraftType: 'snake' | 'linear' | 'auction'
   rookieDraftType: 'snake' | 'linear'
   collegeDraftType: 'snake' | 'linear'
   rookiePickOrderMethod: string

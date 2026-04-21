@@ -5,12 +5,11 @@ import { useSession } from "next-auth/react"
 import { useThemeMode } from "./ThemeProvider"
 import { getNextTheme } from "@/lib/theme"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 export function ModeToggle(props: { className?: string }) {
   const { data: session } = useSession()
   const { mode, cycleMode } = useThemeMode()
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
 
   const handleClick = useCallback(() => {
     const next = getNextTheme(mode)
@@ -25,7 +24,7 @@ export function ModeToggle(props: { className?: string }) {
   }, [mode, cycleMode, session?.user])
 
   const label = t(`theme.${mode}`)
-  const title = interpolateTemplate(t("theme.current"), { label })
+  const title = tInterpolate("theme.current", { label })
 
   return (
     <button

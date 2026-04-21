@@ -7,12 +7,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { getLeagueChatThreadId } from '@/lib/commissioner-settings/CommissionerAnnouncementService'
 import { createSystemMessage } from '@/lib/platform/chat-service'
 import { getLeagueMemberAppUserIds } from '@/lib/draft-notifications/DraftNotificationService'
 import { dispatchNotification } from '@/lib/notifications/NotificationDispatcher'
+import { isLeaguePrefEnabled, parseLeagueNotificationPrefs } from '@/lib/league/league-notification-prefs'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +48,12 @@ export async function POST(req: NextRequest) {
       results.push({ leagueId, sent: !!created })
     }
     const memberIds = await getLeagueMemberAppUserIds(leagueId)
-    if (memberIds.length > 0) {
+    const leagueRow = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { settings: true },
+    })
+    const prefs = parseLeagueNotificationPrefs(leagueRow?.settings)
+    if (memberIds.length > 0 && isLeaguePrefEnabled(prefs, 'commissionerBroadcasts')) {
       dispatchNotification({
         userIds: memberIds,
         category: 'commissioner_alerts',

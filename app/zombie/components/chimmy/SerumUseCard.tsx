@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
 import { useState } from 'react'
+import { useZombieDmCommand } from '@/app/zombie/components/chimmy/useZombieDmCommand'
 
 export function SerumUseCard({
   leagueId,
@@ -15,6 +15,7 @@ export function SerumUseCard({
   const [step, setStep] = useState<'pick' | 'confirm'>('pick')
   const [mode, setMode] = useState<'self' | 'ally'>('self')
   const [allyId, setAllyId] = useState('')
+  const { isSending, feedback, sendCommand } = useZombieDmCommand(leagueId)
 
   if (serumCount < 1) return null
 
@@ -72,13 +73,23 @@ export function SerumUseCard({
         </div>
       ) : (
         <div className="mt-3 space-y-2">
-          <p className="text-[12px] text-[var(--zombie-text-mid)]">Confirm in league chat:</p>
-          <Link
-            href={`/league/${leagueId}?zombieChimmy=${encodeURIComponent(text)}`}
-            className="flex min-h-[56px] items-center justify-center rounded-xl bg-teal-600 text-[13px] font-bold text-white"
+          <p className="text-[12px] text-[var(--zombie-text-mid)]">Send this as a DM command:</p>
+          <button
+            type="button"
+            onClick={async () => {
+              const ok = await sendCommand(text)
+              if (ok) setStep('pick')
+            }}
+            disabled={isSending}
+            className="flex min-h-[56px] w-full items-center justify-center rounded-xl bg-teal-600 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Open chat with message
-          </Link>
+            {isSending ? 'Sending…' : 'Send DM to @Chimmy'}
+          </button>
+          {feedback ? (
+            <p className={feedback.kind === 'success' ? 'text-[12px] text-emerald-200/90' : 'text-[12px] text-red-200/90'}>
+              {feedback.text}
+            </p>
+          ) : null}
           <button type="button" onClick={() => setStep('pick')} className="w-full text-[12px] text-white/50 underline">
             Back
           </button>

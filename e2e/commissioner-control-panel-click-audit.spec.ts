@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mockLeagueSettingsGetForScoring } from './helpers/mockLeagueSettingsForScoring'
 
 test.describe.configure({ timeout: 240_000 })
 
@@ -441,6 +442,8 @@ test.describe('@commissioner commissioner control panel click audit', () => {
         body: JSON.stringify(scoringState),
       })
     })
+
+    await mockLeagueSettingsGetForScoring(page, leagueId, () => scoringState)
 
     await page.route(`**/api/leagues/${leagueId}/draft/settings`, async (route) => {
       if (route.request().method() === 'PATCH') {

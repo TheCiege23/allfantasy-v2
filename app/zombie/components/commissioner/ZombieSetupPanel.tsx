@@ -13,8 +13,8 @@ export function ZombieSetupPanel({ leagueId, canEdit }: { leagueId: string; canE
         <SettingsRow
           label="Team count"
           control={
-            <Select value="20" onChange={() => {}} disabled={d}>
-              {['12', '14', '16', '20', '24'].map((n) => (
+            <Select value="12" onChange={() => {}} disabled={d}>
+              {['8', '10', '12', '14', '16'].map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>

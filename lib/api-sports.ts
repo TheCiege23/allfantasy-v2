@@ -1,6 +1,10 @@
 import { prisma } from './prisma';
 import { normalizeTeamAbbrev, normalizePosition, normalizePlayerName } from './team-abbrev';
 import { rateLimitManager } from '@/lib/workers/rate-limit-manager'
+import {
+  shouldIncludeInjuryInFanoutBatch,
+  type InjurySyncFanoutRow,
+} from '@/lib/realtime-events/injuryFanoutPolicy'
 
 const BASE_URL = 'https://v1.american-football.api-sports.io';
 
@@ -530,6 +534,7 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
   let synced = 0;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000);
+  const fanoutByPlayer = new Map<string, InjurySyncFanoutRow>();
 
   for (const injury of injuries) {
     const team = teamNameToAbbrev(injury.team?.name || null);
@@ -574,12 +579,30 @@ export async function syncAPISportsInjuriesToDb(season?: string): Promise<number
         },
       });
       synced++;
+      if (shouldIncludeInjuryInFanoutBatch(injury.status)) {
+        const k = injury.player.name.trim().toLowerCase();
+        if (k) {
+          fanoutByPlayer.set(k, {
+            playerName: injury.player.name,
+            team,
+            status: injury.status ?? '',
+            type: injury.type ?? null,
+            description: injury.description ?? null,
+          });
+        }
+      }
     } catch (err) {
       console.error(`[API-Sports] Failed to sync injury for ${injury.player.name}:`, err);
     }
   }
 
   console.log(`[API-Sports] Synced ${synced}/${injuries.length} injuries`);
+  if (fanoutByPlayer.size > 0) {
+    const injuriesPayload = [...fanoutByPlayer.values()];
+    void import('@/lib/realtime-events/injurySyncFanout')
+      .then((m) => m.fanoutInjurySyncBatch({ sport: 'NFL', injuries: injuriesPayload }))
+      .catch(() => {});
+  }
   return synced;
 }
 

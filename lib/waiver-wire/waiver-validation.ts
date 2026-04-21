@@ -22,6 +22,54 @@ function startOfWeekUtc(d: Date): Date {
 /**
  * Count claims submitted by roster in the current UTC week (pending + processed).
  */
+/**
+ * Count drop actions in the current UTC week: completed waiver transactions with a drop
+ * plus pending claims that specify a drop (optional exclude for claim edits).
+ */
+export async function countWeeklyDropActions(
+  leagueId: string,
+  rosterId: string,
+  opts?: { excludeClaimId?: string },
+): Promise<number> {
+  const from = startOfWeekUtc(new Date())
+  const txDrops = await (prisma as any).waiverTransaction.count({
+    where: {
+      leagueId,
+      rosterId,
+      dropPlayerId: { not: null },
+      processedAt: { gte: from },
+    },
+  })
+  const pendingWhere: Record<string, unknown> = {
+    leagueId,
+    rosterId,
+    status: 'pending',
+    dropPlayerId: { not: null },
+  }
+  if (opts?.excludeClaimId) {
+    pendingWhere.id = { not: opts.excludeClaimId }
+  }
+  const pendingDrops = await (prisma as any).waiverClaim.count({ where: pendingWhere })
+  return txDrops + pendingDrops
+}
+
+export async function assertWeeklyDropLimit(
+  leagueId: string,
+  rosterId: string,
+  maxDropsPerWeek: number | null | undefined,
+  opts?: { excludeClaimId?: string },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (maxDropsPerWeek == null || maxDropsPerWeek <= 0) return { ok: true }
+  const n = await countWeeklyDropActions(leagueId, rosterId, opts)
+  if (n >= maxDropsPerWeek) {
+    return {
+      ok: false,
+      message: `Weekly drop limit reached (${maxDropsPerWeek} max).`,
+    }
+  }
+  return { ok: true }
+}
+
 export async function countClaimsThisWeekUtc(leagueId: string, rosterId: string): Promise<number> {
   const from = startOfWeekUtc(new Date())
   return (prisma as any).waiverClaim.count({

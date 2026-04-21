@@ -13,7 +13,7 @@ export type ScoringPresetOption = {
   hint: string
 }
 
-type PresetCtx = {
+export type PresetCtx = {
   leagueType: LeagueTypeId
   sport: SupportedSport
   idpSelected: boolean
@@ -53,9 +53,20 @@ function fbPreset(
     matches: (ctx) =>
       isFootballLike(ctx.sport) &&
       !ctx.idpSelected &&
-      ['redraft', 'dynasty', 'keeper', 'best_ball', 'guillotine', 'tournament', 'devy', 'c2c', 'zombie', 'salary_cap'].includes(
-        ctx.leagueType,
-      ),
+      [
+        'redraft',
+        'dynasty',
+        'keeper',
+        'best_ball',
+        'guillotine',
+        'survivor',
+        'tournament',
+        'devy',
+        'c2c',
+        'zombie',
+        'salary_cap',
+        'big_brother',
+      ].includes(ctx.leagueType),
     build: () => {
       const pprValue = pprMap[opts.ppr]
       const scoring = opts.ppr === 'full' ? 'ppr' : opts.ppr === 'half' ? 'half_ppr' : 'standard'
@@ -129,6 +140,43 @@ const RULES: PresetRule[] = [
       }),
     }),
   ),
+  // NBA H2H-category presets. Matchups are resolved per category (PTS, REB,
+  // AST, STL, BLK, TO, FG%, FT%, optional 3PM) instead of by summed points.
+  // Standings track category wins/losses. Category-mode leagues still share
+  // the same stat ingestion (PlayerGameStat.normalizedStatMap) — the branch
+  // happens in the weekly processor once Turn 3 lands.
+  {
+    id: 'nba_9cat',
+    label: '9-cat H2H',
+    hint: 'Head-to-head categories: PTS, REB, AST, STL, BLK, TO, FG%, FT%, 3PM.',
+    matches: (ctx) => ctx.sport === 'NBA' && !ctx.idpSelected,
+    build: () => ({
+      scoring: 'default',
+      isSuperflex: false,
+      scoringSettings: {
+        preset: 'nba_9cat',
+        source: 'af',
+        scoringMode: 'h2h_category',
+        categoryPresetId: 'nba_9cat',
+      },
+    }),
+  },
+  {
+    id: 'nba_8cat',
+    label: '8-cat H2H',
+    hint: 'Head-to-head categories: PTS, REB, AST, STL, BLK, TO, FG%, FT% (no 3PM).',
+    matches: (ctx) => ctx.sport === 'NBA' && !ctx.idpSelected,
+    build: () => ({
+      scoring: 'default',
+      isSuperflex: false,
+      scoringSettings: {
+        preset: 'nba_8cat',
+        source: 'af',
+        scoringMode: 'h2h_category',
+        categoryPresetId: 'nba_8cat',
+      },
+    }),
+  },
 ]
 
 export function listScoringPresetOptions(ctx: PresetCtx): ScoringPresetOption[] {
@@ -152,13 +200,20 @@ function dedupeById(rows: ScoringPresetOption[]): ScoringPresetOption[] {
 
 export function getDefaultScoringPresetId(ctx: PresetCtx): string {
   const opts = listScoringPresetOptions(ctx)
-  if (opts.length === 0) return 'fb_half_ppr'
+  if (opts.length === 0) return ''
   if (ctx.idpSelected) {
     const idp = opts.find((o) => o.id === 'fb_idp')
     if (idp) return idp.id
   }
   const half = opts.find((o) => o.id === 'fb_half_ppr')
   return half?.id ?? opts[0]!.id
+}
+
+export function resolveScoringPresetId(presetId: string, ctx: PresetCtx): string {
+  if (presetId && isScoringPresetValidForContext(presetId, ctx)) {
+    return presetId
+  }
+  return getDefaultScoringPresetId(ctx)
 }
 
 export function findScoringPresetRule(presetId: string): PresetRule | undefined {

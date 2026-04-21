@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { signOut } from "next-auth/react"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 
 export function AccountSettingsSection({
   accountCreatedAt,
@@ -12,7 +11,7 @@ export function AccountSettingsSection({
   accountCreatedAt: string | null
   planLabel: string | null
 }) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState("")
 
@@ -56,7 +55,7 @@ export function AccountSettingsSection({
         </div>
         {createdLabel && (
           <p className="text-sm" style={{ color: "var(--muted)" }}>
-            {interpolateTemplate(t("settings.account.memberSince"), { date: createdLabel })}
+            {tInterpolate("settings.account.memberSince", { date: createdLabel })}
           </p>
         )}
       </div>

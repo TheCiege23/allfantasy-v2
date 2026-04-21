@@ -17,14 +17,14 @@ import type { GuillotineConfig, TiebreakStep } from './types'
 
 const GUILLOTINE_VARIANT = 'guillotine'
 
-/** Default elimination end week by sport (approximate). */
+/** Default elimination end week by sport (must match guillotine sport regular-season lengths). */
 const DEFAULT_END_WEEK_BY_SPORT: Partial<Record<LeagueSport, number>> = {
   NFL: 18,
-  NHL: 28,
-  NBA: 26,
+  NHL: 24,
+  NBA: 24,
   MLB: 26,
-  NCAAF: 15,
-  NCAAB: 14,
+  NCAAF: 14,
+  NCAAB: 20,
   SOCCER: 38,
 }
 

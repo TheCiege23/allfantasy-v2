@@ -10,6 +10,10 @@ import { JuryVoteCard } from '@/app/big-brother/components/chimmy/JuryVoteCard'
 import { HOHTiebreakCard } from '@/app/big-brother/components/chimmy/HOHTiebreakCard'
 import { StatusCard } from '@/app/big-brother/components/chimmy/StatusCard'
 import { DeadlinesCard } from '@/app/big-brother/components/chimmy/DeadlinesCard'
+import { VetoChallengeCard } from '@/app/big-brother/components/chimmy/VetoChallengeCard'
+import { CommissionerChallengeScoreCard } from '@/app/big-brother/components/chimmy/CommissionerChallengeScoreCard'
+import { HaveNotSelectorCard } from '@/app/big-brother/components/chimmy/HaveNotSelectorCard'
+import { HaveNotStatusCard } from '@/app/big-brother/components/chimmy/HaveNotStatusCard'
 
 export function BBChimmyCard({ leagueId }: { leagueId: string }) {
   const [summary, setSummary] = useState<BigBrotherSummary | null>(null)
@@ -82,6 +86,27 @@ export function BBChimmyCard({ leagueId }: { leagueId: string }) {
 
       {summary.myStatus === 'JURY' && finaleActive ? (
         <JuryVoteCard leagueId={leagueId} summary={summary} onDone={load} />
+      ) : null}
+
+      {phase === 'VETO_CHALLENGE_OPEN' && cycle ? (
+        <VetoChallengeCard leagueId={leagueId} summary={summary} onDone={load} />
+      ) : null}
+
+      {summary.isCommissioner && (phase === 'HOH_OPEN' || phase === 'VETO_CHALLENGE_OPEN') ? (
+        <CommissionerChallengeScoreCard leagueId={leagueId} summary={summary} onDone={load} />
+      ) : null}
+
+      {summary.isCommissioner && cycle ? (
+        <HaveNotSelectorCard
+          leagueId={leagueId}
+          rosterDisplayNames={summary.rosterDisplayNames}
+          allActiveRosterIds={summary.eligibility?.canBeNominated ?? []}
+          onDone={load}
+        />
+      ) : null}
+
+      {!summary.isCommissioner && summary.haveNotRosterIds?.includes(summary.myRosterId ?? '') && cycle ? (
+        <HaveNotStatusCard weekNumber={cycle.week} />
       ) : null}
 
       <HOHTiebreakCard leagueId={leagueId} show={false} />

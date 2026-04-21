@@ -14,6 +14,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import type { NotificationCategoryId } from '@/lib/notification-settings/types'
 import type { NewsCategory } from '@/lib/workers/x-news-ingestion'
 
 type OptionalPlayerNewsNotificationModel = {
@@ -108,6 +109,10 @@ export async function dispatchPlayerNewsNotifications(
   let dispatched = 0
 
   const seen = new Set<string>()
+  const icon = CATEGORY_ICONS[category] ?? '📰'
+  const label = CATEGORY_LABELS[category] ?? 'News'
+  const rowTitle = `${icon} ${label}: ${playerName}`
+  const leaguesForFanout = new Set<string>()
 
   for (const rp of rosterPlayers) {
     const userId = rp.roster?.ownerId
@@ -130,10 +135,6 @@ export async function dispatchPlayerNewsNotifications(
 
     if (existing) continue
 
-    // Create notification record
-    const icon = CATEGORY_ICONS[category] ?? '📰'
-    const label = CATEGORY_LABELS[category] ?? 'News'
-    const title = `${icon} ${label}: ${playerName}`
     const body = headline.slice(0, 200)
 
     await playerNewsNotification.create?.({
@@ -142,7 +143,7 @@ export async function dispatchPlayerNewsNotifications(
         leagueId,
         playerName,
         team,
-        headline: title,
+        headline: rowTitle,
         body,
         category,
         impact,
@@ -152,6 +153,26 @@ export async function dispatchPlayerNewsNotifications(
     }).catch(() => {})
 
     dispatched++
+    leaguesForFanout.add(leagueId)
+  }
+
+  if (leaguesForFanout.size > 0) {
+    const { emitPlayerInjuryOrNewsFanout } = await import('@/lib/realtime-events/realtimeEventService')
+    const eventType = category === 'injury' ? 'player_injury_update' : 'player_news_update'
+    const fanoutCategory: NotificationCategoryId =
+      category === 'injury' ? 'injury_alerts' : 'league_announcements'
+    for (const lid of leaguesForFanout) {
+      void emitPlayerInjuryOrNewsFanout({
+        leagueId: lid,
+        eventType,
+        title: rowTitle.slice(0, 256),
+        message: headline.slice(0, 500),
+        category: fanoutCategory,
+        meta: { playerName, team, newsCategory: category, sport },
+        dedupeKey: `player-news-fanout:${sport}:${playerName}:${category}:${lid}`,
+        skipNotifications: true,
+      }).catch(() => {})
+    }
   }
 
   return dispatched

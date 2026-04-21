@@ -172,3 +172,96 @@ export function assertStandingsGamesPlayedConsistency(row: {
   }
   return { ok: true }
 }
+
+/** Draft session completion: at most one canonical completion marker per league (caller supplies count). */
+export function assertSingleDraftCompletionMarker(params: { completionMarkerCount: number }): InvariantResult {
+  if (params.completionMarkerCount > 1) {
+    return {
+      ok: false,
+      code: 'DUPLICATE_DRAFT_COMPLETION',
+      message: 'Multiple draft completion markers for the same league',
+    }
+  }
+  return { ok: true }
+}
+
+/** Matchup hub: payload week must match the week the API intended to serve. */
+export function assertMatchupPayloadWeekAligned(params: {
+  payloadWeek: number
+  expectedWeek: number
+}): InvariantResult {
+  if (params.payloadWeek !== params.expectedWeek) {
+    return {
+      ok: false,
+      code: 'STALE_MATCHUP_PAYLOAD',
+      message: `Matchup payload week ${params.payloadWeek} !== expected ${params.expectedWeek}`,
+    }
+  }
+  return { ok: true }
+}
+
+/** Trade assets: every player moved off a roster must exist on that roster at validation time. */
+export function assertTradePlayersOwnedBySendingRoster(params: {
+  rosterPlayerIds: string[]
+  sendingPlayerIds: string[]
+}): InvariantResult {
+  const set = new Set(params.rosterPlayerIds.map((s) => String(s).trim()).filter(Boolean))
+  for (const pid of params.sendingPlayerIds) {
+    const p = String(pid).trim()
+    if (!set.has(p)) {
+      return {
+        ok: false,
+        code: 'TRADE_ASSET_NOT_ON_ROSTER',
+        message: `Player ${p} is not on the sending roster`,
+      }
+    }
+  }
+  return { ok: true }
+}
+
+/** Import merge: external roster keys should not collide when merging two sources. */
+export function assertImportExternalIdBatchUnique(externalIds: string[]): InvariantResult {
+  const trimmed = externalIds.map((s) => String(s).trim()).filter(Boolean)
+  const set = new Set(trimmed)
+  if (set.size !== trimmed.length) {
+    return {
+      ok: false,
+      code: 'IMPORT_DUPLICATE_EXTERNAL_ID',
+      message: 'Duplicate external ids in import merge batch',
+    }
+  }
+  return { ok: true }
+}
+
+const AUTOMATION_TRIGGERS = new Set([
+  'onWeekFinalized',
+  'onStandingsUpdated',
+  'onDraftCompleted',
+  'onWaiverProcessed',
+  'onPhaseTransition',
+  'onManualRun',
+  'onScheduledPass',
+])
+
+export function assertValidSpecialtyAutomationTrigger(trigger: string): InvariantResult {
+  if (!AUTOMATION_TRIGGERS.has(trigger)) {
+    return {
+      ok: false,
+      code: 'INVALID_AUTOMATION_TRIGGER',
+      message: `Unknown automation trigger: ${trigger}`,
+    }
+  }
+  return { ok: true }
+}
+
+/** Weekly team points should never be negative after normalization (guard against bad pipelines). */
+export function assertNonNegativeWeeklyPoints(points: number): InvariantResult {
+  if (!Number.isFinite(points) || points < 0) {
+    return {
+      ok: false,
+      code: 'NEGATIVE_WEEKLY_POINTS',
+      message: 'Weekly points must be finite and >= 0',
+    }
+  }
+  return { ok: true }
+}

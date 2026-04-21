@@ -10,6 +10,8 @@ import { getLeagueListDestinationHref } from '@/lib/dashboard/league-list-destin
 
 export type LeagueSidebarCardProps = {
   league: UserLeague
+  /** Illegal roster / lineup issue count (My Leagues rail). */
+  rosterIssueCount?: number
   isSelected?: boolean
   isFavorite?: boolean
   onSelect?: (league: UserLeague) => void
@@ -30,6 +32,7 @@ export type LeagueSidebarCardProps = {
 
 export function LeagueSidebarCard({
   league,
+  rosterIssueCount = 0,
   isSelected = false,
   isFavorite = false,
   onSelect,
@@ -165,6 +168,15 @@ export function LeagueSidebarCard({
               >
                 {league.name}
               </p>
+              {rosterIssueCount > 0 ? (
+                <span
+                  className="min-w-[1.125rem] shrink-0 rounded-full bg-amber-500/95 px-1 py-0.5 text-center text-[9px] font-extrabold text-[#050814]"
+                  title="Roster or lineup issues"
+                  data-testid={`league-sidebar-roster-issues-${league.id}`}
+                >
+                  {rosterIssueCount > 99 ? '99+' : rosterIssueCount}
+                </span>
+              ) : null}
               {league.isCommissioner ? (
                 <span
                   className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-300"

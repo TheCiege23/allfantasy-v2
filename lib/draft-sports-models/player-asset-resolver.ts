@@ -8,7 +8,10 @@ import { getPrimaryLogoUrlForTeam } from '@/lib/sport-teams/SportTeamMetadataReg
 import { buildPlayerMedia } from '@/lib/player-media'
 import type { PlayerAssetModel, TeamDisplayModel } from './types'
 
-const SLEEPER_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
+const SLEEPER_NFL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nfl/players/thumb'
+const SLEEPER_NBA_HEADSHOT_BASE = 'https://sleepercdn.com/content/nba/players'
+const SLEEPER_MLB_HEADSHOT_BASE = 'https://sleepercdn.com/content/mlb/players'
+const SLEEPER_NHL_HEADSHOT_BASE = 'https://sleepercdn.com/content/nhl/players'
 const FALLBACK_HEADSHOT_PLACEHOLDER = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="#1f2937"/><text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="28" font-weight="700">AF</text></svg>'
 )}`
@@ -38,11 +41,17 @@ export function resolveTeamLogoUrlSync(teamAbbreviation: string | null, sport: D
 }
 
 /**
- * Build headshot URL from Sleeper ID (NFL) or leave null for other sports when no ID.
+ * Build headshot URL from Sleeper CDN by sport.
+ * NFL uses /thumb/ subdirectory; NBA/MLB/NHL use the base players path.
+ * Returns null for unsupported sports (NCAAF, Soccer, etc.).
  */
 export function resolveHeadshotUrl(playerId: string | null, sport: string): string | null {
   if (!playerId) return null
-  if (sport.toUpperCase() === 'NFL') return `${SLEEPER_HEADSHOT_BASE}/${playerId}.jpg`
+  const s = sport.toUpperCase()
+  if (s === 'NFL') return `${SLEEPER_NFL_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'NBA') return `${SLEEPER_NBA_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'MLB') return `${SLEEPER_MLB_HEADSHOT_BASE}/${playerId}.jpg`
+  if (s === 'NHL') return `${SLEEPER_NHL_HEADSHOT_BASE}/${playerId}.jpg`
   return null
 }
 

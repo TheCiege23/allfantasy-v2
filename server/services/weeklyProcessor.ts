@@ -14,6 +14,28 @@ import { applyConceptWeeklyPoints } from '@/lib/scoring-engine/conceptAdjustment
 import { isRosterChopped } from '@/lib/guillotine/guillotineGuard'
 import { isRosterCurrentlyEliminated } from '@/lib/survivor/SurvivorRosterState'
 import { parseSettingsSnapshot } from '@/lib/league-contract/types'
+import { publishMatchupLiveTickDebounced } from '@/lib/realtime-events/realtimeEventService'
+import type { TeamStatTotals } from '@/lib/category-scoring'
+import { optimizeBestBallLeagueLineup } from '@/lib/bestball/leagueOptimizer'
+
+/**
+ * Read `scoring_mode` off a league's flat settings snapshot.
+ * Defaults to 'points' so every existing league keeps its current behavior.
+ */
+function resolveScoringMode(settingsJson: unknown): 'points' | 'h2h_category' | 'roto' {
+  if (!settingsJson || typeof settingsJson !== 'object') return 'points'
+  const raw = (settingsJson as Record<string, unknown>).scoring_mode
+  return raw === 'h2h_category' || raw === 'roto' ? raw : 'points'
+}
+
+/** Accumulate one player's raw stat map into a running team totals map. */
+function mergePlayerStatsIntoTeam(target: TeamStatTotals, rawStats: Record<string, unknown>): void {
+  for (const key of Object.keys(rawStats)) {
+    const v = rawStats[key]
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue
+    target[key] = (target[key] ?? 0) + v
+  }
+}
 
 export type ProcessWeekResult = {
   leagueId: string
@@ -41,6 +63,9 @@ export async function processLeagueWeek(params: {
   const rules = await resolveScoringRulesForLeague(leagueId, league.sport as LeagueSport)
   const snap = parseSettingsSnapshot(league.settings)
   const scoringSettings = (snap?.scoringSettings ?? null) as Record<string, unknown> | null
+  const scoringMode = resolveScoringMode(league.settings)
+  const isCategoryMode = scoringMode === 'h2h_category' || scoringMode === 'roto'
+  const isBestBallCumulative = league.bestBallMode === true && league.bbMatchupFormat === 'cumulative'
 
   const rosterIds = league.rosters.map((r) => r.id).sort((a, b) => a.localeCompare(b))
   const pairMap = buildRoundRobinPairsForWeek(rosterIds, week)
@@ -61,12 +86,27 @@ export async function processLeagueWeek(params: {
     }> = []
 
     const teamTotals = new Map<string, number>()
+    /**
+     * Category-mode only: raw team stat totals summed across starters. Empty
+     * for points-mode leagues (no overhead since we skip the accumulation).
+     */
+    const teamStatTotals = new Map<string, TeamStatTotals>()
 
     for (const roster of league.rosters) {
       const chopped = await isRosterChopped(leagueId, roster.id)
       const survivorOut = await isRosterCurrentlyEliminated(leagueId, roster.id).catch(() => false)
       const starterIds = new Set(getStarterPlayerIdsForScoring(roster.playerData))
       const allIds = getRosterPlayerIds(roster.playerData)
+      const scoredPlayers: Array<{
+        playerId: string
+        points: number
+        statLine: Record<string, unknown>
+        rawStats: Record<string, unknown>
+        playerName: string
+        position: string
+        team: string | null
+      }> = []
+      const duplicateRows: typeof weeklyRows = []
 
       let teamSum = 0
 
@@ -93,7 +133,7 @@ export async function processLeagueWeek(params: {
         const isStarter = starterIds.size === 0 ? true : starterIds.has(playerId)
 
         if (seenPlayer.has(playerId)) {
-          weeklyRows.push({
+          duplicateRows.push({
             leagueId,
             season,
             week,
@@ -125,7 +165,7 @@ export async function processLeagueWeek(params: {
         const posRow = await tx.sportsPlayer
           .findUnique({
             where: { id: playerId },
-            select: { position: true },
+            select: { name: true, position: true, team: true },
           })
           .catch(() => null)
 
@@ -136,20 +176,76 @@ export async function processLeagueWeek(params: {
           scoringSettings,
         })
 
-        weeklyRows.push({
-          leagueId,
-          season,
-          week,
-          rosterId: roster.id,
+        scoredPlayers.push({
           playerId,
           points,
-          isStarter,
           statLine,
+          rawStats,
+          playerName: posRow?.name ?? `Player ${playerId}`,
+          position: posRow?.position ?? 'UTIL',
+          team: posRow?.team ?? null,
         })
+      }
 
-        if (isStarter) {
-          teamSum += points
+      if (league.bestBallMode) {
+        const optimized = optimizeBestBallLeagueLineup(
+          league.sport as LeagueSport,
+          scoredPlayers.map((player) => ({
+            playerId: player.playerId,
+            playerName: player.playerName,
+            position: player.position,
+            team: player.team,
+            points: player.points,
+          })),
+        )
+        const optimizedStarterIds = new Set(optimized.starterIds)
+
+        for (const player of scoredPlayers) {
+          const isStarter = optimizedStarterIds.has(player.playerId)
+          weeklyRows.push({
+            leagueId,
+            season,
+            week,
+            rosterId: roster.id,
+            playerId: player.playerId,
+            points: player.points,
+            isStarter,
+            statLine: {
+              ...player.statLine,
+              bestBallSlot: optimized.starters.find((starter) => starter.playerId === player.playerId)?.slot ?? null,
+            },
+          })
+          if (isStarter && isCategoryMode) {
+            const bucket = teamStatTotals.get(roster.id) ?? {}
+            mergePlayerStatsIntoTeam(bucket, player.rawStats)
+            teamStatTotals.set(roster.id, bucket)
+          }
         }
+        weeklyRows.push(...duplicateRows)
+        teamSum = optimized.totalPoints
+      } else {
+        for (const player of scoredPlayers) {
+          const isStarter = starterIds.size === 0 ? true : starterIds.has(player.playerId)
+          weeklyRows.push({
+            leagueId,
+            season,
+            week,
+            rosterId: roster.id,
+            playerId: player.playerId,
+            points: player.points,
+            isStarter,
+            statLine: player.statLine,
+          })
+          if (isStarter) {
+            teamSum += player.points
+            if (isCategoryMode) {
+              const bucket = teamStatTotals.get(roster.id) ?? {}
+              mergePlayerStatsIntoTeam(bucket, player.rawStats)
+              teamStatTotals.set(roster.id, bucket)
+            }
+          }
+        }
+        weeklyRows.push(...duplicateRows)
       }
 
       teamSum = applyConceptWeeklyPoints({
@@ -182,7 +278,14 @@ export async function processLeagueWeek(params: {
 
     for (const roster of league.rosters) {
       const total = teamTotals.get(roster.id) ?? 0
-      const opp = pairMap.get(roster.id) ?? null
+      const opp = isBestBallCumulative ? null : (pairMap.get(roster.id) ?? null)
+      // Category mode: seed the categoryBreakdown column with this team's raw
+      // stat totals. matchupEngine.resolveMatchupOutcomesForWeek reads this
+      // column from both sides, resolves per-category winners, and rewrites
+      // the row with the full breakdown. Points mode writes null.
+      const initialBreakdown = isCategoryMode
+        ? { teamStats: teamStatTotals.get(roster.id) ?? {} }
+        : null
       await tx.teamWeekResult.create({
         data: {
           leagueId,
@@ -192,6 +295,7 @@ export async function processLeagueWeek(params: {
           totalPoints: total,
           opponentRosterId: opp,
           status: 'final',
+          categoryBreakdown: initialBreakdown ?? undefined,
         },
       })
     }
@@ -199,6 +303,13 @@ export async function processLeagueWeek(params: {
 
   await resolveMatchupOutcomesForWeek(leagueId, season, week)
   await recomputeStandingsForSeason(leagueId, season)
+
+  void publishMatchupLiveTickDebounced(
+    leagueId,
+    week,
+    { source: 'weekly_processor', season },
+    2000,
+  )
 
   try {
     const { resolveSpecialtyConceptKey, isSpecialtyConcept } = await import('@/lib/specialty-automation/types')

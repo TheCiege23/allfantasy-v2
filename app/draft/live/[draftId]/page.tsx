@@ -61,6 +61,7 @@ export default async function LiveDraftByDraftIdPage({ params }: { params: { dra
       userName={session.user.name ?? 'Manager'}
       inviteCode={null}
       isCommissioner={league.userId === uid}
+      sport={String(league.sport)}
       bestBallMode={Boolean(league.bestBallMode)}
       bestBallSport={String(league.sport)}
     />

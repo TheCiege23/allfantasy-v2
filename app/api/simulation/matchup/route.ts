@@ -1,5 +1,9 @@
 /**
  * Matchup simulation API — deterministic, lineup-aware simulation output with optional AI overlays.
+ *
+ * Lineup slots may include `projectedStats` (raw stat projections). When `leagueId` is set, the server
+ * converts those lines to fantasy points using `resolveScoringRulesForLeague` before Monte Carlo
+ * (`runMatchupSimulation` → `applyLeagueScoringToMatchupInput`).
  */
 
 import { NextRequest, NextResponse } from 'next/server'

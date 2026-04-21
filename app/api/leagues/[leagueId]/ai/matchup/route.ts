@@ -5,11 +5,16 @@ import { prisma } from '@/lib/prisma'
 import { buildMatchupCenterPayload } from '@/server/services/matchupCenterService'
 import { runLeagueMatchupAiEngine } from '@/lib/ai-matchup-engine/runLeagueMatchupAiEngine'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import { buildLeagueScoringContextForAi } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
+import { AI_USAGE } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 async function leagueScoringHint(leagueId: string): Promise<string | null> {
+  const detailed = await buildLeagueScoringContextForAi(leagueId)
+  if (detailed) return detailed
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
     select: { scoring: true, settings: true, sport: true },
@@ -58,6 +63,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
 
   const hint = await leagueScoringHint(leagueId)
   const analysis = await runLeagueMatchupAiEngine({ payload, leagueScoringHint: hint })
+
+  recordProductEvent(AI_USAGE.MATCHUP_ANALYSIS, {
+    userId: session.user.id,
+    meta: { leagueId, season: payload.season, week: payload.week },
+  })
 
   return NextResponse.json({ analysis, leagueId, season: payload.season, week: payload.week })
 }

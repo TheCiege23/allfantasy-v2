@@ -132,9 +132,9 @@ function updateLineupField(
     if (field === 'playerName') return { ...slot, playerName: nextValue }
 
     const numericValue = Math.max(0, sanitizeNumericInput(nextValue))
-    const projection = slot.projection
-    const floor = slot.floor ?? Math.max(0, projection - 3)
-    const ceiling = slot.ceiling ?? projection + 3
+    const projection = slot.projection ?? 0
+    const floor = slot.floor ?? Math.max(0, (projection ?? 0) - 3)
+    const ceiling = slot.ceiling ?? (projection ?? 0) + 3
 
     if (field === 'projection') {
       return {
@@ -146,10 +146,10 @@ function updateLineupField(
     }
 
     if (field === 'floor') {
-      return { ...slot, floor: roundToTenth(Math.min(numericValue, projection)) }
+      return { ...slot, floor: roundToTenth(Math.min(numericValue, projection ?? 0)) }
     }
 
-    return { ...slot, ceiling: roundToTenth(Math.max(numericValue, projection)) }
+    return { ...slot, ceiling: roundToTenth(Math.max(numericValue, projection ?? 0)) }
   })
 }
 

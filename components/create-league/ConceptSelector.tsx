@@ -11,9 +11,11 @@ import {
   isIdpAvailableForSport,
   isSportAllowedForType,
 } from '@/lib/create-league-v2/rules-engine'
+import { resolveScoringPresetId } from '@/lib/league-creation-preset/scoring-presets'
 import type { SupportedSport } from '@/lib/create-league-v2/state'
 import { GlassCard, SelectableCard, SectionHeader } from '@/components/create-league-v2/primitives'
 import { LEAGUE_TYPE_MEDIA } from '@/lib/create-league-v2/theme'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 export type LeagueConceptCard = {
   id: LeagueTypeId | 'idp'
@@ -38,6 +40,20 @@ export const LEAGUE_CONCEPT_CARDS: LeagueConceptCard[] = [
   { id: 'big_brother', title: 'Big Brother', subtitle: 'Weekly nominations', icon: '◎' },
 ]
 
+function localizedConceptCard(
+  t: (key: string) => string,
+  card: LeagueConceptCard,
+): { title: string; subtitle: string } {
+  const tk = `createLeague.concept.${card.id}.title`
+  const sk = `createLeague.concept.${card.id}.subtitle`
+  const tv = t(tk)
+  const sv = t(sk)
+  return {
+    title: tv === tk ? card.title : tv,
+    subtitle: sv === sk ? card.subtitle : sv,
+  }
+}
+
 function isCardSelected(card: LeagueConceptCard, state: CreateLeagueV2State): boolean {
   if (card.id === 'idp') return state.idpSelected
   return state.leagueType === card.id && !state.idpSelected
@@ -54,6 +70,7 @@ export function ConceptSelector({
   onChange: (patch: Partial<CreateLeagueV2State>) => void
   error?: string
 }) {
+  const { t } = useLanguage()
   const effectiveType = getEffectiveLeagueType(state)
 
   function handleLeagueTypeSelect(card: LeagueConceptCard) {
@@ -88,6 +105,11 @@ export function ConceptSelector({
     const nextSport = (patch.sport ?? state.sport) as SupportedSport
     const nextPipeline = patch.soccerPipeline ?? state.soccerPipeline
     patch.teamCount = getDefaultTeamCount(nextSport, resolvedType, nextPipeline)
+    patch.scoringPresetId = resolveScoringPresetId(state.scoringPresetId, {
+      leagueType: resolvedType,
+      sport: nextSport,
+      idpSelected: patch.idpSelected ?? state.idpSelected,
+    })
     patch.nameTouched = false
     onChange(patch)
   }
@@ -95,21 +117,24 @@ export function ConceptSelector({
   return (
     <GlassCard>
       <SectionHeader
-        title="1 · League concept"
-        hint="Choose your format first — it unlocks sports, scoring, teams, and draft options."
+        title={t('createLeague.section.conceptTitle')}
+        hint={t('createLeague.section.conceptHint')}
       />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {LEAGUE_CONCEPT_CARDS.map((card) => (
-          <SelectableCard
-            key={card.id}
-            selected={isCardSelected(card, state)}
-            onClick={() => handleLeagueTypeSelect(card)}
-            accent={accent}
-            title={card.title}
-            subtitle={card.subtitle}
-            icon={card.icon}
-          />
-        ))}
+        {LEAGUE_CONCEPT_CARDS.map((card) => {
+          const copy = localizedConceptCard(t, card)
+          return (
+            <SelectableCard
+              key={card.id}
+              selected={isCardSelected(card, state)}
+              onClick={() => handleLeagueTypeSelect(card)}
+              accent={accent}
+              title={copy.title}
+              subtitle={copy.subtitle}
+              icon={card.icon}
+            />
+          )
+        })}
       </div>
       {effectiveType ? (
         <p className="mt-4 text-[11px] text-white/35">

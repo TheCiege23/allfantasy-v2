@@ -38,7 +38,24 @@ export async function GET(
     if (!g.ok) {
       return NextResponse.json({ error: g.err.error, code: g.err.code }, { status: g.err.status })
     }
-    await computePlayoffSeeds(leagueId, season)
+    const seedRows = await computePlayoffSeeds(leagueId, season)
+    void import('@/lib/realtime-events/realtimeEventService')
+      .then(({ emitPlayoffAdvancementFanout }) =>
+        emitPlayoffAdvancementFanout({
+          leagueId,
+          title: 'Playoff seeds updated',
+          message:
+            seedRows.length > 0
+              ? `The top ${seedRows.length} teams are seeded for the playoffs.`
+              : 'Playoff seeding was recalculated.',
+          meta: {
+            season,
+            seeds: seedRows.map((s) => ({ rosterId: s.rosterId, seed: s.seed })),
+          },
+          dedupeKey: `playoff-seeds:${leagueId}:${season}`,
+        }),
+      )
+      .catch(() => {})
   }
 
   const [labels, rows] = await Promise.all([

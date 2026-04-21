@@ -85,7 +85,7 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
             Pick the <span className="text-white/85">total manager count</span> for the whole tournament. Each feeder
             league is always <span className="text-white/85">{TOURNAMENT_TEAMS_PER_LEAGUE} managers</span> (one fantasy
             team per manager). The tier you choose sets how many parallel feeder leagues we spin up:{' '}
-            <span className="text-white/85">6, 12, or 18</span>.
+            <span className="text-white/85">2–18</span>.
           </p>
           <div className="space-y-1.5">
             <Label className="text-white/85">Participant pool</Label>
@@ -421,9 +421,8 @@ export function LeagueFormatOptionsPanel({ sport, leagueType, value, onChange }:
             </Select>
           </div>
           <p className="text-[10px] text-white/40">
-            Draft format on the previous step is limited to <span className="text-white/60">Snake</span> or{' '}
-            <span className="text-white/60">Auction</span>. Long pick windows are controlled with draft timers — there is no
-            separate &quot;slow draft&quot; type.
+            Draft format on the previous step is limited to <span className="text-white/60">Snake</span>. Long pick windows
+            are controlled with draft timers — there is no separate &quot;slow draft&quot; type.
           </p>
         </div>
       )}

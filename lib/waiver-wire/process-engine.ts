@@ -9,12 +9,16 @@ import {
 import { onWaiverRunComplete } from './run-hooks'
 import { getSpecialtySpecByVariant } from '@/lib/specialty-league/registry'
 import { isWaiverFrozenForRoster } from '@/lib/survivor/SurvivorEffectEngine'
-import type { ProcessedClaimResult } from './types'
+import type { ProcessedClaimResult, WaiverClaimOutcomeCode } from './types'
+import { normalizeWaiverTypeForEngine } from './waiver-engine-config'
+import { commissionerOverrideAllowed, getCommissionerOverrides } from './commissioner-claim-override'
 import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { upsertLeagueWaiverStateAfterRun, getLeagueWaiverState } from './waiver-state-service'
 import { assertNonEmptyIdempotencyKey } from '@/lib/engine-testing/hardening/engineInvariants'
 import { logEngineInvariantOptional } from '@/lib/engine-testing/runtime/invariantRuntime'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 
 type ClaimRow = {
   id: string
@@ -26,6 +30,7 @@ type ClaimRow = {
   priorityOrder: number
   status: string
   createdAt?: Date
+  metadata?: unknown
   roster: {
     id: string
     platformUserId: string
@@ -33,6 +38,15 @@ type ClaimRow = {
     faabRemaining: number | null
     waiverPriority: number | null
   }
+}
+
+function outcomeFromFailureMessage(msg: string): WaiverClaimOutcomeCode {
+  const m = msg.toLowerCase()
+  if (m.includes('insufficient faab')) return 'insufficient_faab'
+  if (m.includes('no longer available')) return 'player_no_longer_available'
+  if (m.includes('frozen')) return 'blocked_by_lineup_lock'
+  if (m.includes('roster full') || m.includes('drop player not on roster')) return 'invalid_due_to_roster'
+  return 'failed'
 }
 
 export async function processWaiverClaimsForLeague(
@@ -103,7 +117,15 @@ export async function processWaiverClaimsForLeague(
   if (!league) return []
   const specialtySpec = getSpecialtySpecByVariant(league.leagueVariant ?? null)
   const rosterGuard = specialtySpec?.rosterGuard
-  const waiverType = effectiveSettings.waiverType ?? 'standard'
+  const waiverType =
+    effectiveSettings.normalizedWaiverType ?? normalizeWaiverTypeForEngine(effectiveSettings.waiverType)
+  const tiebreakRule =
+    (effectiveSettings.tiebreakRule ?? effectiveSettings.waiverEngineConfig?.faab_tiebreaker ?? '')
+      .toString()
+      .trim()
+      .toLowerCase() || 'priority_lowest_first'
+  const faabMinBid = effectiveSettings.faabMinBid ?? 0
+  const allowZeroFaab = effectiveSettings.allowZeroFaabBid
 
   const rankByPlatformUserId = new Map<string, number>()
   for (const t of (leagueTeams as { externalId: string; currentRank: number | null }[]) || []) {
@@ -119,7 +141,8 @@ export async function processWaiverClaimsForLeague(
   const ordered = orderClaimsForProcessing(
     pendingClaims as ClaimRow[],
     waiverType,
-    rankByPlatformUserId
+    rankByPlatformUserId,
+    tiebreakRule,
   )
 
   if (ordered.length === 0) {
@@ -139,6 +162,7 @@ export async function processWaiverClaimsForLeague(
     },
   })
   const runId: string = waiverRun.id
+  const waiverRunStartedAt = Date.now()
 
   const results: ProcessedClaimResult[] = []
   const rosterSize = league.rosterSize ?? 20
@@ -158,9 +182,19 @@ export async function processWaiverClaimsForLeague(
   for (const claim of ordered) {
     const roster = claim.roster
     const pushFail = async (msg: string, extra?: Record<string, unknown>) => {
+      const oc = outcomeFromFailureMessage(msg)
+      const prevMeta =
+        claim.metadata && typeof claim.metadata === 'object' && !Array.isArray(claim.metadata)
+          ? (claim.metadata as Record<string, unknown>)
+          : {}
       await (prisma as any).waiverClaim.update({
         where: { id: claim.id },
-        data: { status: 'failed', processedAt: new Date(), resultMessage: msg },
+        data: {
+          status: 'failed',
+          processedAt: new Date(),
+          resultMessage: msg,
+          metadata: { ...prevMeta, outcomeCode: oc, ...extra },
+        },
       })
       resultRows.push({
         claimId: claim.id,
@@ -172,7 +206,7 @@ export async function processWaiverClaimsForLeague(
         priorityAfter: roster.waiverPriority ?? null,
         rosterApplied: false,
         resultType: 'failed',
-        metadata: { reason: msg, ...extra },
+        metadata: { reason: msg, outcomeCode: oc, ...extra },
       })
       results.push({
         claimId: claim.id,
@@ -182,6 +216,7 @@ export async function processWaiverClaimsForLeague(
         dropPlayerId: claim.dropPlayerId ?? undefined,
         message: msg,
         waiverRunId: runId,
+        outcomeCode: oc,
       })
     }
 
@@ -222,14 +257,31 @@ export async function processWaiverClaimsForLeague(
 
     const bid = claim.faabBid ?? 0
     const faabRem = roster.faabRemaining ?? 0
-    if (waiverType === 'faab' && bid > faabRem) {
-      await pushFail('Insufficient FAAB')
-      continue
+    const bypassInsufficientFaab =
+      commissionerOverrideAllowed(
+        effectiveSettings.waiverEngineConfig ?? {},
+        effectiveSettings.commissionerOverrideRules ?? null,
+      ) && getCommissionerOverrides(claim.metadata).bypassInsufficientFaab
+
+    let faabSpent: number | null = null
+    if (waiverType === 'faab') {
+      if (!allowZeroFaab && bid <= 0) {
+        await pushFail('This league requires a FAAB bid greater than zero.')
+        continue
+      }
+      if (bid < faabMinBid) {
+        await pushFail(`Minimum FAAB bid is $${faabMinBid}.`)
+        continue
+      }
+      if (bid > faabRem && !bypassInsufficientFaab) {
+        await pushFail('Insufficient FAAB')
+        continue
+      }
+      faabSpent = Math.min(bid, faabRem)
     }
 
     let newPlayerData = addPlayerToRosterData(roster.playerData, addId)
     if (dropId) newPlayerData = removePlayerFromRosterData(newPlayerData, dropId)
-    const faabSpent = waiverType === 'faab' ? bid : null
     const priorityBefore = roster.waiverPriority ?? null
     /** Rolling: winner moves to the back of the line (max priority + 1). Standard: order is fixed for the period. */
     const isRolling = waiverType === 'rolling'
@@ -322,6 +374,7 @@ export async function processWaiverClaimsForLeague(
       faabSpent: faabSpent ?? undefined,
       message: 'Awarded',
       waiverRunId: runId,
+      outcomeCode: 'won',
     })
 
     const fresh = await (prisma as any).roster.findUnique({
@@ -385,6 +438,18 @@ export async function processWaiverClaimsForLeague(
   }).catch(() => {})
 
   await onWaiverRunComplete(leagueId, results).catch(() => {})
+  recordProductEvent(ENGAGEMENT.WAIVER_RUN, {
+    meta: {
+      leagueId,
+      runId,
+      durationMs: Date.now() - waiverRunStartedAt,
+      claimCount: ordered.length,
+      resultCount: results.length,
+      waiverType,
+      sport: league?.sport ? String(league.sport) : null,
+      runType: opts?.runType ?? 'scheduled',
+    },
+  })
   return results
 }
 
@@ -392,13 +457,30 @@ export async function processWaiverClaimsForLeague(
 export function orderClaimsForProcessing(
   claims: ClaimRow[],
   waiverType: string,
-  rankByPlatformUserId: Map<string, number>
+  rankByPlatformUserId: Map<string, number>,
+  tiebreakRule: string = 'priority_lowest_first',
 ): ClaimRow[] {
   if (waiverType === 'faab') {
     return [...claims].sort((a, b) => {
       const bidA = a.faabBid ?? 0
       const bidB = b.faabBid ?? 0
       if (bidB !== bidA) return bidB - bidA
+      const tb = tiebreakRule
+      if (tb === 'reverse_standings' || tb === 'reverse_standings_order') {
+        const rankA = rankByPlatformUserId.get(a.roster?.platformUserId ?? '') ?? 999
+        const rankB = rankByPlatformUserId.get(b.roster?.platformUserId ?? '') ?? 999
+        if (rankA !== rankB) return rankA - rankB
+      }
+      if (tb === 'earliest_claim' || tb === 'earliest_claim_timestamp') {
+        const ta = (a as any).createdAt
+        const tbAt = (b as any).createdAt
+        const t1 = ta instanceof Date ? ta.getTime() : typeof ta === 'string' ? new Date(ta).getTime() : 0
+        const t2 = tbAt instanceof Date ? tbAt.getTime() : typeof tbAt === 'string' ? new Date(tbAt).getTime() : 0
+        if (t1 !== t2) return t1 - t2
+      }
+      const pA = a.roster?.waiverPriority ?? 999
+      const pB = b.roster?.waiverPriority ?? 999
+      if (pA !== pB) return pA - pB
       return a.priorityOrder - b.priorityOrder
     })
   }

@@ -16,7 +16,9 @@ import {
   getDraftTypeUiLabel,
   resolveEffectiveDraftTypeForConcept,
 } from '@/lib/draft-types/draftTypeRegistry'
-import { getAllowedDraftTypesForFormat } from '@/lib/league/format-engine'
+import { getCreateLeagueDraftTypes } from '@/lib/league/format-engine'
+import { getGuillotineSportConfig } from '@/lib/guillotine/sportConfig'
+import { BEST_BALL_DRAFT_MODES } from '@/lib/bestball/rules'
 
 // ── Sport filtering ─────────────────────────────────────────────────
 
@@ -77,20 +79,6 @@ function evenTeamCountsUpTo(max: number): number[] {
   return out
 }
 
-/**
- * Guillotine: one team eliminated per regular-season week, so the max team
- * count equals the sport's regular-season week count (no playoffs in guillotine).
- */
-const GUILLOTINE_MAX_TEAMS_BY_SPORT: Record<string, number> = {
-  NFL: 18, // 18-week regular season
-  NBA: 24, // 24 weeks of regular season
-  MLB: 26, // ~26 weeks of regular season
-  NHL: 26, // ~26 weeks of regular season
-  NCAAF: 14, // 14-week regular season
-  NCAAB: 19, // ~19 weeks of regular season
-  SOCCER: 38, // Premier League / Big 5 average — 38 matchweeks
-}
-
 /** Fixed tournament pool sizes — user-facing tiers. */
 const TOURNAMENT_POOL_SIZES = [32, 64, 96, 128, 160, 192, 224] as const
 
@@ -117,8 +105,14 @@ export function getTeamCountOptions(
     return [...BIG_BROTHER_SIZES]
   }
   if (leagueType === 'guillotine') {
-    const max = GUILLOTINE_MAX_TEAMS_BY_SPORT[sport] ?? 18
-    return evenTeamCountsUpTo(max)
+    const profile = getGuillotineSportConfig(sport)
+    const minTeams = Math.max(4, profile?.minTeams ?? 8)
+    const maxTeams = Math.max(minTeams, profile?.maxTeams ?? 18)
+    const options: number[] = []
+    for (let teams = minTeams; teams <= maxTeams; teams += 1) {
+      options.push(teams)
+    }
+    return options
   }
   if (leagueType === 'survivor') {
     return [16, 20, 24]
@@ -143,14 +137,14 @@ export function getDefaultTeamCount(
 // ── Draft types ─────────────────────────────────────────────────────
 
 /**
- * Wizard-visible draft types. Beyond the sport-registry filters (snake/linear/auction),
- * we always offer `team`, `auto`, and `offline` as universal execution modes because
- * they describe *how* the draft runs, not who's eligible.
+ * Execution modes shown on the create-league wizard.
+ * Best Ball exposes `offline` + `auto` because those modes are part of the
+ * core Best Ball product surface. Other formats keep `offline` settings-tab-only.
  */
-const EXECUTION_DRAFT_IDS = ['team', 'auto', 'offline'] as const
+const EXECUTION_DRAFT_IDS = ['auto', 'offline'] as const
 
-/** Widened string type so the UI can accept the execution modes that aren't in Prisma's DraftTypeId. */
-export type WizardDraftTypeId = DraftTypeId | 'team' | 'auto' | 'offline'
+/** Widened string type so the UI can accept execution-mode ids that aren't Prisma DraftTypeIds. */
+export type WizardDraftTypeId = DraftTypeId | 'auto' | 'offline' | 'team'
 
 export interface DraftTypeOption {
   id: WizardDraftTypeId
@@ -158,9 +152,11 @@ export interface DraftTypeOption {
   hint: string
 }
 
-/** Draft types to show in the UI for a given league type + sport (canonical ids from support matrix). */
+/** Draft types to show in the create-league wizard for a given league type + sport. */
 export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSport = 'NFL'): DraftTypeOption[] {
-  const allowed = getAllowedDraftTypesForFormat(sport, leagueType)
+  // Use the create-league-specific list: snake-only for standard formats,
+  // full variant lists for devy/c2c/salary_cap.
+  const allowed = getCreateLeagueDraftTypes(sport, leagueType)
   const result: DraftTypeOption[] = []
 
   for (const dt of allowed) {
@@ -171,17 +167,24 @@ export function getDraftTypeOptions(leagueType: LeagueTypeId, sport: SupportedSp
     })
   }
 
-  for (const dt of EXECUTION_DRAFT_IDS) {
+  // Best Ball keeps execution modes visible on the create surface so the
+  // underlying order algorithm and execution mode can both be selected up front.
+  if (leagueType === 'best_ball') {
+    const existing = new Set(result.map((option) => option.id))
+    for (const mode of BEST_BALL_DRAFT_MODES) {
+      if (mode === 'snake' || mode === 'linear' || mode === 'auction') continue
+      if (existing.has(mode)) continue
+      result.push({
+        id: mode,
+        label: mode === 'auto' ? 'Auto' : 'Offline',
+        hint: mode === 'auto' ? 'CPU drafts for every team' : 'Commissioner records picks manually',
+      })
+    }
+  } else if (leagueType !== 'big_brother' && leagueType !== 'zombie') {
     result.push({
-      id: dt,
-      label:
-        dt === 'team' ? 'Team' : dt === 'auto' ? 'Auto' : 'Offline',
-      hint:
-        dt === 'team'
-          ? 'Co-managed by multiple users'
-          : dt === 'auto'
-            ? 'CPU drafts for everyone'
-            : 'Track an in-person draft',
+      id: 'auto',
+      label: 'Auto',
+      hint: 'CPU drafts for everyone',
     })
   }
 

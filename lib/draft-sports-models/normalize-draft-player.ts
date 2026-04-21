@@ -45,6 +45,8 @@ export type RawDraftPlayerLike = {
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' */
   poolType?: 'college' | 'pro'
+  /** Pre-resolved image URL from TheSportsDB/DB ingestion (used for NCAAF, Soccer, etc.) */
+  imageUrl?: string | null
   [key: string]: unknown
 }
 
@@ -88,6 +90,11 @@ export function normalizeDraftPlayer(
   )
 
   const assets = resolvePlayerAssets(playerId || null, teamStr, sportNorm)
+  // For sports without Sleeper CDN (NCAAF, Soccer), use DB-stored image URL if available
+  if (assets.headshotFallbackUsed && raw.imageUrl) {
+    assets.headshotUrl = String(raw.imageUrl)
+    assets.headshotFallbackUsed = false
+  }
   const team = buildTeamDisplayModel(teamStr, sportNorm)
 
   const metadata: PlayerDraftMetadataModel = {

@@ -94,3 +94,4 @@ export type GuillotineEventType =
   | 'weekly_recap'
   | 'chop_animation_trigger'
   | 'roster_released'
+  | 'removal_request'

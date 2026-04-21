@@ -5,7 +5,15 @@ import { cn } from '@/lib/utils'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import type { DraftPlayerRow } from '../types'
 
-const POS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'K', 'DEF'] as const
+const SPORT_POS_FILTERS: Record<string, string[]> = {
+  NFL: ['ALL', 'QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF'],
+  NBA: ['ALL', 'PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL'],
+  MLB: ['ALL', 'C', '1B', '2B', '3B', 'SS', 'OF', 'UTIL', 'SP', 'RP', 'P'],
+  NHL: ['ALL', 'C', 'LW', 'RW', 'W', 'D', 'G', 'UTIL'],
+  NCAAF: ['ALL', 'QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'DEF'],
+  NCAAB: ['ALL', 'G', 'F', 'C', 'PG', 'SG', 'SF', 'PF', 'UTIL'],
+  SOCCER: ['ALL', 'GK', 'DEF', 'MID', 'FWD', 'UTIL'],
+}
 
 /**
  * Map Sleeper / RI status strings to a short uppercase chip + tone.
@@ -25,6 +33,7 @@ function injuryChip(status: string | null | undefined): { label: string; tone: '
 }
 
 type Props = {
+  sport: string
   draftedIds: Set<string>
   onDraft: (p: DraftPlayerRow) => void
   onQueue: (p: DraftPlayerRow) => void
@@ -33,7 +42,7 @@ type Props = {
   onPlayerClick?: (playerId: string) => void
 }
 
-export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerClick }: Props) {
+export function PlayerPool({ sport, draftedIds, onDraft, onQueue, canDraft, onPlayerClick }: Props) {
   const { t } = useLanguage()
   const [players, setPlayers] = useState<DraftPlayerRow[]>([])
   const [pos, setPos] = useState<string>('ALL')
@@ -50,7 +59,7 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerCli
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/draft/players?sport=NFL')
+    fetch(`/api/draft/players?sport=${encodeURIComponent(String(sport || 'NFL').toUpperCase())}`)
       .then((r) => r.json())
       .then((j: { players?: DraftPlayerRow[] }) => {
         if (!cancelled) setPlayers(j.players ?? [])
@@ -61,7 +70,24 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerCli
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sport])
+
+  const posOptions = useMemo(() => {
+    const normalizedSport = String(sport || 'NFL').toUpperCase()
+    const defaults = SPORT_POS_FILTERS[normalizedSport] ?? ['ALL']
+    const seen = new Set(defaults)
+    const extras = players
+      .map((p) => String(p.position ?? '').trim().toUpperCase())
+      .filter((p) => p.length > 0 && !seen.has(p))
+      .sort((a, b) => a.localeCompare(b))
+    return [...defaults, ...extras]
+  }, [players, sport])
+
+  useEffect(() => {
+    if (!posOptions.includes(pos)) {
+      setPos('ALL')
+    }
+  }, [pos, posOptions])
 
   const filtered = useMemo(() => {
     return players.filter((p) => {
@@ -82,7 +108,7 @@ export function PlayerPool({ draftedIds, onDraft, onQueue, canDraft, onPlayerCli
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.08] bg-[#0d1117]">
       <div className="shrink-0 border-b border-white/[0.06] p-2">
         <div className="flex flex-wrap gap-1">
-          {POS.map((p) => (
+          {posOptions.map((p) => (
             <button
               key={p}
               type="button"

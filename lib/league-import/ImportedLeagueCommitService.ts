@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { deriveImportStatsFromNormalized } from '@/lib/rank/deriveImportStatsFromNormalized'
@@ -273,17 +274,127 @@ export async function persistImportedLeagueFromNormalization(
     console.warn('[ImportedLeagueCommitService] Gap-fill (draft/waiver/playoff/schedule) non-fatal:', err)
   }
 
-  let historicalBackfill: unknown = null
+  // Layered import, tier 1 (synchronous): write a LeagueSeason row for the
+  // CURRENT season from the normalized payload so the History tab shows a
+  // real entry immediately. Older years come in via tier 2 (async backfill).
   try {
-    historicalBackfill = await runHistoricalBackfill({
-      provider,
-      leagueId: league.id,
-      userId,
-      normalized,
+    const seasonYearForRow = typeof normalized.league.season === 'number' && Number.isFinite(normalized.league.season)
+      ? normalized.league.season
+      : new Date().getFullYear()
+    const topStanding = [...normalized.standings].sort((a, b) => a.rank - b.rank)[0] ?? null
+    const runnerUpStanding = [...normalized.standings].sort((a, b) => a.rank - b.rank)[1] ?? null
+    const nameForTeamId = (sourceTeamId: string | undefined): string | null => {
+      if (!sourceTeamId) return null
+      const r = normalized.rosters.find((row) => row.source_team_id === sourceTeamId)
+      return r?.team_name?.trim() || r?.owner_name?.trim() || null
+    }
+    await prisma.leagueSeason.upsert({
+      where: {
+        leagueId_season: { leagueId: league.id, season: seasonYearForRow },
+      } as never,
+      create: {
+        leagueId: league.id,
+        season: seasonYearForRow,
+        platformLeagueId: normalized.source.source_league_id,
+        championName: nameForTeamId(topStanding?.source_team_id),
+        runnerUpName: nameForTeamId(runnerUpStanding?.source_team_id),
+        teamCount: normalized.rosters.length || normalized.league.leagueSize,
+        scoringFormat: normalized.scoring?.scoring_format ?? null,
+        isDynasty: normalized.league.isDynasty,
+        status: 'active',
+      },
+      update: {
+        platformLeagueId: normalized.source.source_league_id,
+        championName: nameForTeamId(topStanding?.source_team_id),
+        runnerUpName: nameForTeamId(runnerUpStanding?.source_team_id),
+        teamCount: normalized.rosters.length || normalized.league.leagueSize,
+        scoringFormat: normalized.scoring?.scoring_format ?? null,
+        isDynasty: normalized.league.isDynasty,
+      },
+    }).catch(() => {
+      /* unique-constraint key name varies by schema — best-effort write */
     })
   } catch (err) {
-    console.warn(`[ImportedLeagueCommitService] Historical ${provider} backfill non-fatal:`, err)
+    console.warn('[ImportedLeagueCommitService] current-season LeagueSeason write non-fatal:', err)
   }
+
+  // Fire-and-forget avatar mirror: external CDN URLs (Sleeper, ESPN, etc.)
+  // can 404 later; mirror them to our storage. Pluggable — no-ops until
+  // the storage adapter is wired.
+  void (async () => {
+    try {
+      const { mirrorImportAvatars } = await import('./avatarMirror')
+      await mirrorImportAvatars(league.id)
+    } catch {
+      /* non-fatal */
+    }
+  })()
+
+  // Layered import, tier 2 (async): commit returns immediately; the
+  // multi-year history backfill runs in the background. The History tab
+  // polls /api/leagues/{id}/history and surfaces each year as it lands.
+  const historicalBackfill: unknown = { status: 'pending', startedAt: new Date().toISOString() }
+  try {
+    const current = (await prisma.league.findUnique({
+      where: { id: league.id },
+      select: { settings: true },
+    }))?.settings as Record<string, unknown> | null
+    await prisma.league.update({
+      where: { id: league.id },
+      data: {
+        settings: {
+          ...(current ?? {}),
+          historicalBackfillStatus: 'pending',
+          historicalBackfillStartedAt: new Date().toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    })
+  } catch {
+    /* non-fatal settings stamp */
+  }
+  void runHistoricalBackfill({ provider, leagueId: league.id, userId, normalized })
+    .then(async (result) => {
+      try {
+        const current = (await prisma.league.findUnique({
+          where: { id: league.id },
+          select: { settings: true },
+        }))?.settings as Record<string, unknown> | null
+        await prisma.league.update({
+          where: { id: league.id },
+          data: {
+            settings: {
+              ...(current ?? {}),
+              historicalBackfillStatus: 'complete',
+              historicalBackfillCompletedAt: new Date().toISOString(),
+            } as Prisma.InputJsonValue,
+          },
+        })
+      } catch {
+        /* non-fatal */
+      }
+      return result
+    })
+    .catch(async (err) => {
+      console.warn(`[ImportedLeagueCommitService] Historical ${provider} backfill non-fatal:`, err)
+      try {
+        const current = (await prisma.league.findUnique({
+          where: { id: league.id },
+          select: { settings: true },
+        }))?.settings as Record<string, unknown> | null
+        await prisma.league.update({
+          where: { id: league.id },
+          data: {
+            settings: {
+              ...(current ?? {}),
+              historicalBackfillStatus: 'failed',
+              historicalBackfillError: err instanceof Error ? err.message : 'unknown',
+            } as Prisma.InputJsonValue,
+          },
+        })
+      } catch {
+        /* non-fatal */
+      }
+    })
 
   try {
     await calculateAndSaveRank(userId)

@@ -1,7 +1,28 @@
 export * from "./types"
 export {
+  normalizeWaiverTypeForEngine,
+  parseWaiverEngineConfig,
+  isFcfsStyleEngineType,
+  type WaiverEngineConfigJson,
+} from "./waiver-engine-config"
+export {
+  assertWaiverClaimEligibility,
+  mapWaiverFailureMessageToCode,
+  WAIVER_TX_RESULT_CODES,
+  type WaiverTxResultCode,
+} from "./transaction-eligibility"
+export {
+  getCommissionerOverrides,
+  commissionerOverrideAllowed,
+  mergeCommissionerOverrides,
+  type CommissionerClaimOverrides,
+} from "./commissioner-claim-override"
+export { formatWaiverOutcomeLabel, outcomeCodeFromMetadata } from "./waiver-outcome-labels"
+export {
   assertClaimWithinPerRunLimit,
   assertWaiverSubmissionWindow,
+  assertWeeklyDropLimit,
+  countWeeklyDropActions,
 } from "./waiver-validation"
 export {
   getLeagueWaiverSettings,

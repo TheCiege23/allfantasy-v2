@@ -10,6 +10,8 @@ import {
   revealWinner,
   tallyJuryVotes,
 } from '@/lib/survivor/juryEngine'
+import { submitJuryVote } from '@/lib/survivor/SurvivorFinaleEngine'
+import { resolveSurvivorCurrentWeek } from '@/lib/survivor/SurvivorTimelineResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +24,10 @@ export async function POST(req: NextRequest) {
     intent?: string
     leagueId?: string
     finalistUserIds?: string[]
+    finalistRosterId?: string
     deadline?: string
     finalistUserId?: string
+    week?: number
   }
   try {
     body = (await req.json()) as typeof body
@@ -54,23 +58,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  if (body.intent === 'jury_vote' && body.finalistUserId) {
+  if (body.intent === 'jury_vote' && (body.finalistUserId || body.finalistRosterId)) {
     const gate = await assertLeagueMember(body.leagueId, userId)
     if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
-    const sessionRow = await prisma.jurySession.findUnique({ where: { leagueId: body.leagueId } })
-    if (!sessionRow) return NextResponse.json({ error: 'No jury session' }, { status: 400 })
-    await prisma.juryVote.upsert({
-      where: {
-        sessionId_jurorUserId: { sessionId: sessionRow.id, jurorUserId: userId },
-      },
-      create: {
-        sessionId: sessionRow.id,
-        jurorUserId: userId,
-        finalistUserId: body.finalistUserId,
-      },
-      update: { finalistUserId: body.finalistUserId },
+    const jurorRoster = await prisma.roster.findFirst({
+      where: { leagueId: body.leagueId, platformUserId: userId },
+      select: { id: true },
     })
-    return NextResponse.json({ ok: true })
+    if (!jurorRoster) return NextResponse.json({ error: 'You have no roster in this league' }, { status: 403 })
+
+    let finalistRosterId = typeof body.finalistRosterId === 'string' ? body.finalistRosterId.trim() : ''
+    if (!finalistRosterId && body.finalistUserId) {
+      const finalistRoster = await prisma.roster.findFirst({
+        where: { leagueId: body.leagueId, platformUserId: body.finalistUserId },
+        select: { id: true },
+      })
+      finalistRosterId = finalistRoster?.id ?? ''
+    }
+    if (!finalistRosterId) {
+      return NextResponse.json({ error: 'finalistUserId/finalistRosterId is required' }, { status: 400 })
+    }
+
+    const week =
+      typeof body.week === 'number' && Number.isFinite(body.week)
+        ? Math.max(1, Math.floor(body.week))
+        : await resolveSurvivorCurrentWeek(body.leagueId)
+
+    const result = await submitJuryVote({
+      leagueId: body.leagueId,
+      jurorRosterId: jurorRoster.id,
+      finalistRosterId,
+      week,
+      source: 'api.survivor.jury.route',
+    })
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error ?? 'Final jury vote failed' }, { status: 400 })
+    }
+    return NextResponse.json({ ok: true, state: result.state })
   }
 
   if (body.intent === 'reveal') {

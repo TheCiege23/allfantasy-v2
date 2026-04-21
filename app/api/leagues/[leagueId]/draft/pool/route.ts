@@ -231,6 +231,7 @@ export async function GET(
         playerId: p.external_source_id ?? (p as { player_id?: string | null }).player_id ?? null,
         injuryStatus: p.injury_status,
         status: (p as { status?: string | null }).status ?? null,
+        imageUrl: (p as { image_url?: string | null }).image_url ?? null,
         ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
       }))
       }

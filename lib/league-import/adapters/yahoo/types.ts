@@ -106,4 +106,6 @@ export interface YahooImportPayload {
   }>
   /** Yahoo team_key for the OAuth user when `managerGuid` matches logged-in guid. */
   viewerTeamKey?: string | null
+  /** Team keys flagged as commissioner/co-commissioner in Yahoo manager metadata. */
+  commissionerTeamKeys?: string[]
 }

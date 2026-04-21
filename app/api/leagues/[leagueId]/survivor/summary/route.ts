@@ -32,6 +32,7 @@ import {
   shouldApplySurvivorFairPlayRedaction,
 } from '@/lib/survivor/survivorFairPlay'
 import { seasonWeekBoundsForSport } from '@/lib/survivor/survivorSeasonCalendar'
+import { extractLeadingTribeIcon } from '@/lib/survivor/survivorVisuals'
 
 export const dynamic = 'force-dynamic'
 
@@ -245,6 +246,7 @@ export async function GET(
       tribalCouncilTimeUtc: config.tribalCouncilTimeUtc,
       minigameFrequency: config.minigameFrequency,
       seasonThemeLabel: config.seasonThemeLabel,
+      visualThemeId: config.visualThemeId,
       challengesSystemRun: config.challengesSystemRun,
       regularSeasonEndWeek: config.regularSeasonEndWeek,
       faqSeededAt: config.faqSeededAt,
@@ -254,6 +256,7 @@ export async function GET(
     tribes: tribes.map((t) => ({
       id: t.id,
       name: t.name,
+      emoji: extractLeadingTribeIcon(t.name),
       slotIndex: t.slotIndex,
       members: t.members.map((m) => ({ rosterId: m.rosterId, isLeader: m.isLeader })),
     })),

@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import ChimmyVoiceSettingsCard from "@/components/settings/ChimmyVoiceSettingsCard"
 import { useThemeMode } from "@/components/theme/ThemeProvider"
 import { useLanguage } from "@/components/i18n/LanguageProviderClient"
-import { interpolateTemplate } from "@/lib/i18n/interpolate"
 import { DEFAULT_THEME, normalizeStoredTheme, type ThemeId } from "@/lib/theme"
 import { setStoredTheme } from "@/lib/preferences/ThemePreferenceService"
 import { SIGNUP_TIMEZONES } from "@/lib/signup/timezones"
@@ -28,7 +27,7 @@ export function PreferencesSettingsSection({
   onSave: SettingsOnSave
 }) {
   const { setMode } = useThemeMode()
-  const { language, setLanguage, t } = useLanguage()
+  const { language, setLanguage, t, tInterpolate } = useLanguage()
   const [timezone, setTimezone] = useState(profile?.timezone ?? "")
   const [lang, setLang] = useState<"en" | "es">(profile?.preferredLanguage ?? language)
   const [theme, setTheme] = useState<ThemeId>(() =>
@@ -133,7 +132,7 @@ export function PreferencesSettingsSection({
         </select>
         {timezone && (
           <p className="mt-1.5 text-xs text-white/45">
-            {interpolateTemplate(t("settings.preferences.localTime"), {
+            {tInterpolate("settings.preferences.localTime", {
               time: formatInTimezone(new Date(), timezone, undefined, lang),
             })}
           </p>

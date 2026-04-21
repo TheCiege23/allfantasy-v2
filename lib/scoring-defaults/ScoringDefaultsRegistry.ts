@@ -5,10 +5,18 @@
  * Stat keys are canonical; data providers can map feed fields to these keys (e.g. Soccer goal, shot_on_target; IDP idp_sack, idp_solo_tackle).
  */
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
+import { templateStatKeyFromUiKey } from '@/lib/league/scoring-stat-metadata'
+import { buildFullNflDefaultConfig } from '@/lib/nfl-scoring/NflScoringCategories'
+import { buildFullNbaDefaultConfig } from '@/lib/nba-scoring/NbaScoringCategories'
+import { buildMlbScoringDefaults } from '@/lib/mlb-scoring/MlbScoringCategories'
+import { buildNcaafScoringDefaults } from '@/lib/ncaaf-scoring/NcaafScoringCategories'
+import { buildFullNcaabDefaultConfig } from '@/lib/ncaab-scoring/NcaabScoringCategories'
+import { buildNhlScoringDefaults } from '@/lib/nhl-scoring/NhlScoringCategories'
+import { buildSoccerDefaultRulesFromCategories } from '@/lib/soccer-scoring/SoccerScoringCategories'
 import type { SportType, ScoringRuleDefinition, ScoringTemplateDefinition } from './types'
 
 /** Bumped whenever a template definition or stat key changes. */
-export const SCORING_DEFAULTS_REGISTRY_VERSION = '2026-03-20.1'
+export const SCORING_DEFAULTS_REGISTRY_VERSION = '2026-04-20.1'
 
 export interface LeagueSettingsForScoringDefaults {
   scoring_format?: string | null
@@ -24,6 +32,25 @@ function rule(
   enabled: boolean = true
 ): ScoringRuleDefinition {
   return { statKey, pointsValue, multiplier, enabled }
+}
+
+/**
+ * Merge compact engine defaults with full commissioner-category stat keys so overrides
+ * and UI rows resolve to real template keys.
+ */
+function mergeCategoryDefaults(
+  base: ScoringRuleDefinition[],
+  sport: SportType,
+  categoryDefaults: Record<string, number>,
+): ScoringRuleDefinition[] {
+  const byKey = new Map(base.map((r) => [r.statKey, r]))
+  for (const [uiKey, val] of Object.entries(categoryDefaults)) {
+    const tk = templateStatKeyFromUiKey(sport, uiKey)
+    if (!byKey.has(tk)) {
+      byKey.set(tk, rule(tk, val))
+    }
+  }
+  return Array.from(byKey.values())
 }
 
 /** NFL: PPR (default), Half-PPR, Standard — plus K and DST. */
@@ -252,32 +279,52 @@ const NFL_IDP_BIG_PLAY: ScoringRuleDefinition[] = [
   rule('idp_blocked_kick', 3),
 ]
 
+const NFL_PPR_FULL = mergeCategoryDefaults(NFL_PPR, 'NFL', buildFullNflDefaultConfig())
+const NFL_HALF_PPR_FULL = mergeCategoryDefaults(NFL_HALF_PPR, 'NFL', buildFullNflDefaultConfig())
+const NFL_STANDARD_FULL = mergeCategoryDefaults(NFL_STANDARD, 'NFL', buildFullNflDefaultConfig())
+const NFL_TE_PREMIUM_FULL = mergeCategoryDefaults(NFL_TE_PREMIUM, 'NFL', buildFullNflDefaultConfig())
+const NFL_6PT_PASS_TD_FULL = mergeCategoryDefaults(NFL_6PT_PASS_TD, 'NFL', buildFullNflDefaultConfig())
+const NFL_IDP_RULES_FULL = mergeCategoryDefaults(NFL_IDP_RULES, 'NFL', buildFullNflDefaultConfig())
+const NFL_IDP_TACKLE_HEAVY_FULL = mergeCategoryDefaults(NFL_IDP_TACKLE_HEAVY, 'NFL', buildFullNflDefaultConfig())
+const NFL_IDP_BIG_PLAY_FULL = mergeCategoryDefaults(NFL_IDP_BIG_PLAY, 'NFL', buildFullNflDefaultConfig())
+
+const NBA_POINTS_FULL = mergeCategoryDefaults(NBA_POINTS, 'NBA', buildFullNbaDefaultConfig())
+const MLB_STANDARD_FULL = mergeCategoryDefaults(MLB_STANDARD, 'MLB', buildMlbScoringDefaults())
+const NHL_STANDARD_FULL = mergeCategoryDefaults(NHL_STANDARD, 'NHL', buildNhlScoringDefaults())
+const NCAAF_PPR_FULL = mergeCategoryDefaults(NCAAF_PPR, 'NCAAF', buildNcaafScoringDefaults())
+const NCAAB_POINTS_FULL = mergeCategoryDefaults(NCAAB_POINTS, 'NCAAB', buildFullNcaabDefaultConfig())
+const SOCCER_STANDARD_FULL = mergeCategoryDefaults(
+  SOCCER_STANDARD,
+  'SOCCER',
+  buildSoccerDefaultRulesFromCategories(),
+)
+
 const REGISTRY: Record<
   string,
   { name: string; rules: ScoringRuleDefinition[] }
 > = {
-  'NFL-PPR': { name: 'Default NFL PPR', rules: NFL_PPR },
-  'NFL-Half PPR': { name: 'Default NFL Half PPR', rules: NFL_HALF_PPR },
-  'NFL-half_ppr': { name: 'Default NFL Half PPR', rules: NFL_HALF_PPR },
-  'NFL-Standard': { name: 'Default NFL Standard', rules: NFL_STANDARD },
-  'NFL-standard': { name: 'Default NFL Standard', rules: NFL_STANDARD },
-  'NBA-points': { name: 'Default NBA Points', rules: NBA_POINTS },
-  'NBA-standard': { name: 'Default NBA Points', rules: NBA_POINTS },
-  'MLB-standard': { name: 'Default MLB Standard', rules: MLB_STANDARD },
-  'NHL-standard': { name: 'Default NHL Standard', rules: NHL_STANDARD },
-  'NCAAF-PPR': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR },
-  'NCAAF-standard': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR },
-  'NCAAB-points': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS },
-  'NCAAB-standard': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS },
-  'SOCCER-standard': { name: 'Default Soccer Standard', rules: SOCCER_STANDARD },
-  'NFL-IDP': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES },
-  'NFL-idp': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES },
-  'NFL-IDP-balanced': { name: 'NFL IDP Balanced', rules: NFL_IDP_RULES },
-  'NFL-IDP-tackle_heavy': { name: 'NFL IDP Tackle-Heavy', rules: NFL_IDP_TACKLE_HEAVY },
-  'NFL-IDP-big_play_heavy': { name: 'NFL IDP Big-Play-Heavy', rules: NFL_IDP_BIG_PLAY },
-  'NFL-ppr': { name: 'Default NFL PPR', rules: NFL_PPR },
-  'NFL-TE_PREMIUM': { name: 'NFL TE Premium', rules: NFL_TE_PREMIUM },
-  'NFL-dynasty_6pt_pass_td': { name: 'Dynasty 6pt Pass TD', rules: NFL_6PT_PASS_TD },
+  'NFL-PPR': { name: 'Default NFL PPR', rules: NFL_PPR_FULL },
+  'NFL-Half PPR': { name: 'Default NFL Half PPR', rules: NFL_HALF_PPR_FULL },
+  'NFL-half_ppr': { name: 'Default NFL Half PPR', rules: NFL_HALF_PPR_FULL },
+  'NFL-Standard': { name: 'Default NFL Standard', rules: NFL_STANDARD_FULL },
+  'NFL-standard': { name: 'Default NFL Standard', rules: NFL_STANDARD_FULL },
+  'NBA-points': { name: 'Default NBA Points', rules: NBA_POINTS_FULL },
+  'NBA-standard': { name: 'Default NBA Points', rules: NBA_POINTS_FULL },
+  'MLB-standard': { name: 'Default MLB Standard', rules: MLB_STANDARD_FULL },
+  'NHL-standard': { name: 'Default NHL Standard', rules: NHL_STANDARD_FULL },
+  'NCAAF-PPR': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR_FULL },
+  'NCAAF-standard': { name: 'Default NCAA Football PPR', rules: NCAAF_PPR_FULL },
+  'NCAAB-points': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS_FULL },
+  'NCAAB-standard': { name: 'Default NCAA Basketball Points', rules: NCAAB_POINTS_FULL },
+  'SOCCER-standard': { name: 'Default Soccer Standard', rules: SOCCER_STANDARD_FULL },
+  'NFL-IDP': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES_FULL },
+  'NFL-idp': { name: 'Default NFL IDP (Balanced)', rules: NFL_IDP_RULES_FULL },
+  'NFL-IDP-balanced': { name: 'NFL IDP Balanced', rules: NFL_IDP_RULES_FULL },
+  'NFL-IDP-tackle_heavy': { name: 'NFL IDP Tackle-Heavy', rules: NFL_IDP_TACKLE_HEAVY_FULL },
+  'NFL-IDP-big_play_heavy': { name: 'NFL IDP Big-Play-Heavy', rules: NFL_IDP_BIG_PLAY_FULL },
+  'NFL-ppr': { name: 'Default NFL PPR', rules: NFL_PPR_FULL },
+  'NFL-TE_PREMIUM': { name: 'NFL TE Premium', rules: NFL_TE_PREMIUM_FULL },
+  'NFL-dynasty_6pt_pass_td': { name: 'Dynasty 6pt Pass TD', rules: NFL_6PT_PASS_TD_FULL },
 }
 
 function toSportType(s: string): SportType {

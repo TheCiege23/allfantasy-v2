@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Copy } from 'lucide-react'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useTournamentUi } from '@/app/tournament/[tournamentId]/TournamentUiContext'
 import { useTournamentParticipantState } from '@/lib/tournament/useTournamentParticipantState'
 import { AdvancementOverlay, EliminationOverlay } from '@/app/tournament/components/AdvancementCard'
@@ -21,23 +22,39 @@ import {
 } from '@/components/commissioner-hub/CommissionerFeederGrid'
 import { resolveHubAccent } from '@/lib/commissioner-hub/feeder-accent'
 import { LEAGUE_TYPE_MEDIA } from '@/lib/create-league-v2/theme'
+import type { LanguageCode } from '@/lib/i18n/constants'
 
-function useCountdown(target: Date | null) {
+function formatConferenceOrdinal(rank: number, lang: LanguageCode): string {
+  if (lang === 'es') return `${rank}.º`
+  const m = rank % 10
+  const m100 = rank % 100
+  if (m100 >= 11 && m100 <= 13) return `${rank}th`
+  if (m === 1) return `${rank}st`
+  if (m === 2) return `${rank}nd`
+  if (m === 3) return `${rank}rd`
+  return `${rank}th`
+}
+
+function useCountdown(
+  target: Date | null,
+  formatLine: (parts: { d: number; h: number; m: number; s: number }) => string,
+) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
   if (!target || target.getTime() <= now) return null
-  const s = Math.floor((target.getTime() - now) / 1000)
-  const d = Math.floor(s / 86400)
-  const h = Math.floor((s % 86400) / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  return `${d}d ${h}h ${m}m ${sec}s`
+  const total = Math.floor((target.getTime() - now) / 1000)
+  const d = Math.floor(total / 86400)
+  const h = Math.floor((total % 86400) / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return formatLine({ d, h, m, s })
 }
 
 export default function TournamentHomePage() {
+  const { t, tInterpolate, language } = useLanguage()
   const tournamentId = useParams<{ tournamentId: string }>()?.tournamentId ?? ''
   const base = `/tournament/${tournamentId}`
   const router = useRouter()
@@ -73,7 +90,14 @@ export default function TournamentHomePage() {
     return ctx.tournamentLeagues.find((l) => l.id === participant.currentLeagueId) ?? null
   }, [ctx.tournamentLeagues, participant?.currentLeagueId])
 
-  const countdownDraft = useCountdown(state.nextDraftAt)
+  const countdownDraft = useCountdown(state.nextDraftAt, (parts) =>
+    tInterpolate('tournament.hub.countdown', {
+      d: String(parts.d),
+      h: String(parts.h),
+      m: String(parts.m),
+      s: String(parts.s),
+    }),
+  )
   const within24h =
     state.nextDraftAt && state.nextDraftAt.getTime() - Date.now() < 86400000 && state.nextDraftAt.getTime() > Date.now()
 
@@ -95,15 +119,15 @@ export default function TournamentHomePage() {
       const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/waitlist`, { method: 'POST' })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(typeof j.error === 'string' ? j.error : 'Could not join waitlist')
+        toast.error(typeof j.error === 'string' ? j.error : t('tournament.hub.waitlist.errorJoin'))
         return
       }
-      toast.success(j.already ? 'You are already on the waitlist' : 'You joined the waitlist')
+      toast.success(j.already ? t('tournament.hub.waitlist.successAlready') : t('tournament.hub.waitlist.successJoined'))
       router.refresh()
     } finally {
       setWaitlistBusy(false)
     }
-  }, [router, tournamentId])
+  }, [router, t, tournamentId])
 
   const leaveWaitlist = useCallback(async () => {
     setWaitlistBusy(true)
@@ -111,15 +135,15 @@ export default function TournamentHomePage() {
       const res = await fetch(`/api/tournament/${encodeURIComponent(tournamentId)}/waitlist`, { method: 'DELETE' })
       const j = await res.json().catch(() => ({}))
       if (!res.ok) {
-        toast.error(typeof j.error === 'string' ? j.error : 'Could not leave waitlist')
+        toast.error(typeof j.error === 'string' ? j.error : t('tournament.hub.waitlist.errorLeave'))
         return
       }
-      toast.success('Removed from waitlist')
+      toast.success(t('tournament.hub.waitlist.successLeft'))
       router.refresh()
     } finally {
       setWaitlistBusy(false)
     }
-  }, [router, tournamentId])
+  }, [router, t, tournamentId])
 
   useEffect(() => {
     if (state.status !== 'eliminated') return
@@ -166,18 +190,21 @@ export default function TournamentHomePage() {
 
   const latest = announcements[0]
 
-  const copyInvite = useCallback(async (url: string, label: string) => {
-    if (!url?.trim()) {
-      toast.error('No invite link yet for this league.')
-      return
-    }
-    try {
-      await navigator.clipboard.writeText(url)
-      toast.success(`${label}: invite link copied`)
-    } catch {
-      toast.error('Could not copy link')
-    }
-  }, [])
+  const copyInvite = useCallback(
+    async (url: string, label: string) => {
+      if (!url?.trim()) {
+        toast.error(t('tournament.hub.copyNoLink'))
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(url)
+        toast.success(tInterpolate('tournament.hub.copySuccess', { label }))
+      } catch {
+        toast.error(t('tournament.hub.copyError'))
+      }
+    },
+    [t, tInterpolate],
+  )
 
   const adv = shell.advancersPerLeague
   const bubbleN = shell.bubbleEnabled ? Math.min(shell.bubbleSize, 8) : 0
@@ -206,35 +233,58 @@ export default function TournamentHomePage() {
     }))
   }, [legacyFeederLeagues, shell.sport])
 
+  const roundLabelDisplay =
+    currentRoundMeta?.roundLabel ??
+    tInterpolate('tournament.hub.roundN', { n: String(shell.currentRoundNumber || 1) })
+
+  const commissionerSubtitle = tInterpolate('tournament.hub.commissioner.subtitle', {
+    sport: shell.sport,
+    current: String(shell.currentParticipantCount),
+    max: String(shell.maxParticipants),
+    count: String(feederCards.length),
+    leagueWord:
+      feederCards.length === 1
+        ? t('tournament.hub.commissioner.feederLeagueOne')
+        : t('tournament.hub.commissioner.feederLeagueMany'),
+  })
+
+  const shellStatusLabel =
+    shell.status === 'bubble'
+      ? t('tournament.hub.status.bubbleWeek')
+      : isFinals
+        ? t('tournament.hub.status.finals')
+        : t('tournament.hub.status.active')
+
   return (
     <div className={`mx-auto max-w-3xl space-y-4 md:max-w-4xl ${isFinals ? 'rounded-2xl ring-1 ring-yellow-500/20' : ''}`}>
       {shell.status === 'bubble' ? (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-center text-[13px] font-bold text-amber-100">
-          ⚠ BUBBLE WEEK — scores lock after this window
+          {t('tournament.hub.bubbleWeekBanner')}
         </div>
       ) : null}
 
       {within24h && state.nextDraftAt ? (
         <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-[12px] text-amber-50">
-          ⚡ Draft soon — {tlFromCtx?.name ?? 'Your league'} · {state.nextDraftAt.toLocaleString()}
+          {tInterpolate('tournament.hub.draftSoon', {
+            league: tlFromCtx?.name ?? t('tournament.hub.draftSoonYourLeague'),
+            when: state.nextDraftAt.toLocaleString(),
+          })}
           <Link href={`${base}/drafts`} className="ml-2 font-bold underline">
-            Drafts
+            {t('tournament.hub.draftsLink')}
           </Link>
         </div>
       ) : null}
 
       {state.status === 'advanced' && state.hasSeenAdvancement && tlFromCtx ? (
         <div className="rounded-xl border border-yellow-500/50 bg-gradient-to-br from-yellow-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(245,184,0,0.12)]">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-yellow-200/90">⚡ New league assigned</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-yellow-200/90">{t('tournament.hub.newLeagueEyebrow')}</p>
           <p className="mt-1 text-[18px] font-bold text-white">{tlFromCtx.name}</p>
-          <p className="mt-2 text-[12px] text-[var(--tournament-text-mid)]">
-            You&apos;re already in — open the league workspace for draft & lineups.
-          </p>
+          <p className="mt-2 text-[12px] text-[var(--tournament-text-mid)]">{t('tournament.hub.newLeagueBody')}</p>
           <Link
             href={tlFromCtx.leagueId ? `/league/${tlFromCtx.leagueId}` : `${base}/league`}
             className="mt-3 inline-flex min-h-[48px] items-center justify-center rounded-xl bg-yellow-500/90 px-4 text-[14px] font-bold text-black hover:bg-yellow-400"
           >
-            Go to my new league
+            {t('tournament.hub.newLeagueCta')}
           </Link>
         </div>
       ) : null}
@@ -258,11 +308,13 @@ export default function TournamentHomePage() {
             </div>
           ) : null}
           <span className="self-start rounded-full bg-white/10 px-4 py-2 text-center text-[11px] font-bold uppercase tracking-wide text-cyan-200 md:self-end">
-            {currentRoundMeta?.roundLabel ?? `Round ${shell.currentRoundNumber || 1}`}
+            {roundLabelDisplay}
           </span>
           <p className="text-[12px] text-[var(--tournament-text-mid)]">
-            <span className="font-mono text-white">{shell.currentParticipantCount}</span> participants · max{' '}
-            {shell.maxParticipants}
+            {tInterpolate('tournament.hub.participantsLine', {
+              current: String(shell.currentParticipantCount),
+              max: String(shell.maxParticipants),
+            })}
           </p>
         </div>
       </div>
@@ -272,11 +324,11 @@ export default function TournamentHomePage() {
           className="rounded-2xl border border-cyan-500/25 bg-[#081226]/90 p-4 shadow-[0_0_24px_rgba(34,211,238,0.06)]"
           data-testid="tournament-waitlist-panel"
         >
-          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-100/90">Waitlist</p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-cyan-100/90">{t('tournament.hub.waitlist.title')}</p>
           <p className="mt-2 text-[12px] leading-relaxed text-[var(--tournament-text-mid)]">
             {legacyWaitlistUi.viewerOnWaitlist
-              ? "You're on the waitlist. The commissioner may assign you when a feeder league opens a spot."
-              : 'All feeder leagues are at capacity (or the participant pool is full). Join the waitlist for the next opening.'}
+              ? t('tournament.hub.waitlist.bodyOnList')
+              : t('tournament.hub.waitlist.bodyCapacity')}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {legacyWaitlistUi.viewerOnWaitlist ? (
@@ -287,7 +339,7 @@ export default function TournamentHomePage() {
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 text-[12px] font-semibold text-white hover:bg-white/10 disabled:opacity-50"
                 data-testid="tournament-waitlist-leave"
               >
-                {waitlistBusy ? '…' : 'Leave waitlist'}
+                {waitlistBusy ? t('tournament.hub.waitlist.busy') : t('tournament.hub.waitlist.leave')}
               </button>
             ) : viewerUserId ? (
               <button
@@ -297,7 +349,7 @@ export default function TournamentHomePage() {
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-cyan-500/25 px-4 text-[12px] font-bold text-cyan-50 ring-1 ring-cyan-400/35 hover:bg-cyan-500/35 disabled:opacity-50"
                 data-testid="tournament-waitlist-join"
               >
-                {waitlistBusy ? '…' : 'Join waitlist'}
+                {waitlistBusy ? t('tournament.hub.waitlist.busy') : t('tournament.hub.waitlist.join')}
               </button>
             ) : (
               <Link
@@ -305,7 +357,7 @@ export default function TournamentHomePage() {
                 className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-cyan-500/25 px-4 text-[12px] font-bold text-cyan-50 ring-1 ring-cyan-400/35 hover:bg-cyan-500/35"
                 data-testid="tournament-waitlist-sign-in"
               >
-                Sign in to join
+                {t('tournament.hub.waitlist.signIn')}
               </Link>
             )}
           </div>
@@ -315,23 +367,22 @@ export default function TournamentHomePage() {
       {hubKind === 'legacy' && isCommissioner && feederCards.length > 0 ? (
         <>
           <CommissionerHubHeader
-            chip={`TOURNAMENT · ${currentRoundMeta?.roundLabel ?? `Round ${shell.currentRoundNumber || 1}`}`}
+            chip={tInterpolate('tournament.hub.commissioner.chip', { round: roundLabelDisplay })}
             title={shell.name}
-            subtitle={`${shell.sport} · ${shell.currentParticipantCount} of ${shell.maxParticipants} participants · ${feederCards.length} feeder ${feederCards.length === 1 ? 'league' : 'leagues'}`}
+            subtitle={commissionerSubtitle}
             accent={hubAccent}
             videoSrc={tournamentMedia?.video ?? '/af-crest.png'}
             videoFallback={tournamentMedia?.fallback ?? null}
             stats={[
-              { label: 'Feeder leagues', value: String(feederCards.length) },
-              { label: 'Participants', value: String(shell.currentParticipantCount) },
-              { label: 'Round', value: currentRoundMeta?.roundLabel ?? `R${shell.currentRoundNumber || 1}` },
+              { label: t('tournament.hub.stat.feederLeagues'), value: String(feederCards.length) },
+              { label: t('tournament.hub.stat.participants'), value: String(shell.currentParticipantCount) },
               {
-                label: 'Status',
-                value: (
-                  <span className="text-sm font-medium text-white/70">
-                    {shell.status === 'bubble' ? 'Bubble week' : isFinals ? 'Finals' : 'Active'}
-                  </span>
-                ),
+                label: t('tournament.hub.stat.round'),
+                value: currentRoundMeta?.roundLabel ?? `R${shell.currentRoundNumber || 1}`,
+              },
+              {
+                label: t('tournament.hub.stat.status'),
+                value: <span className="text-sm font-medium text-white/70">{shellStatusLabel}</span>,
               },
             ]}
             actions={
@@ -340,15 +391,15 @@ export default function TournamentHomePage() {
                 className={`inline-flex items-center rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/85 transition hover:bg-white/[0.08] ${hubAccent.text}`}
                 data-testid="tournament-commissioner-dashboard-link"
               >
-                Commissioner dashboard →
+                {t('tournament.hub.commissionerDashboard')}
               </Link>
             }
           />
           <CommissionerFeederGrid
             leagues={feederCards}
             accent={hubAccent}
-            title="Feeder leagues"
-            hint={`Share each invite only with managers assigned to that league. Click to open the league workspace.`}
+            title={t('tournament.hub.feederGrid.title')}
+            hint={t('tournament.hub.feederGrid.hint')}
             footer={
               <div className="flex flex-wrap gap-2">
                 {(legacyFeederLeagues ?? []).map((row) => (
@@ -357,7 +408,7 @@ export default function TournamentHomePage() {
                     type="button"
                     onClick={() => void copyInvite(row.joinUrl, row.name)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold text-white/75 transition hover:border-white/20 hover:bg-white/[0.06]"
-                    title={`Copy invite link: ${row.name}`}
+                    title={tInterpolate('tournament.hub.feederGrid.copyTitle', { name: row.name })}
                   >
                     <Copy className="h-3 w-3" strokeWidth={2} aria-hidden />
                     <span className="max-w-[9rem] truncate">{row.name}</span>
@@ -406,14 +457,14 @@ export default function TournamentHomePage() {
         />
       ) : (
         <div className="tournament-panel p-4 text-[13px] text-[var(--tournament-text-mid)]">
-          You&apos;re viewing this tournament hub. Register from the commissioner flow when open.
+          {t('tournament.hub.notRegistered')}
         </div>
       )}
 
       <div className="rounded-xl border border-orange-500/35 bg-[#0c1219] p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-md bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-orange-100">
-            {state.isDraftLive ? 'DRAFT / MATCHUP' : 'NEXT EVENT'}
+            {state.isDraftLive ? t('tournament.hub.nextEvent.draftMatchup') : t('tournament.hub.nextEvent.nextEvent')}
           </span>
         </div>
         {countdownDraft ? (
@@ -421,19 +472,23 @@ export default function TournamentHomePage() {
             {countdownDraft}
           </p>
         ) : (
-          <p className="mt-2 text-[14px] text-[var(--tournament-text-mid)]">Schedule updates as rounds progress</p>
+          <p className="mt-2 text-[14px] text-[var(--tournament-text-mid)]">{t('tournament.hub.nextEvent.scheduleUpdates')}</p>
         )}
         <p className="mt-1 text-[12px] text-[var(--tournament-text-dim)]">
           {currentRoundMeta
-            ? `Weeks ${currentRoundMeta.weekStart}–${currentRoundMeta.weekEnd} · ${currentRoundMeta.roundLabel}`
-            : 'Season clock from commissioner setup'}
+            ? tInterpolate('tournament.hub.nextEvent.weeksLine', {
+                start: String(currentRoundMeta.weekStart),
+                end: String(currentRoundMeta.weekEnd),
+                label: currentRoundMeta.roundLabel,
+              })
+            : t('tournament.hub.nextEvent.seasonClock')}
         </p>
         {tlFromCtx?.leagueId ? (
           <Link
             href={`/league/${tlFromCtx.leagueId}`}
             className="mt-3 inline-block text-[13px] font-semibold text-[var(--tournament-active)] hover:underline"
           >
-            Go to draft room →
+            {t('tournament.hub.nextEvent.goDraftRoom')}
           </Link>
         ) : null}
       </div>
@@ -442,7 +497,7 @@ export default function TournamentHomePage() {
         <LeagueIdentityCard
           name={tlFromCtx.name}
           conference={conference}
-          roundLabel={currentRoundMeta?.roundLabel ?? 'Round'}
+          roundLabel={currentRoundMeta?.roundLabel ?? t('tournament.hub.roundWord')}
           teamSlots={tlFromCtx.teamSlots}
           currentCount={tlFromCtx.currentTeamCount}
           status={tlFromCtx.status}
@@ -455,7 +510,7 @@ export default function TournamentHomePage() {
       {conference && top5.length ? (
         <div className="tournament-panel overflow-x-auto p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-[13px] font-bold text-white">Conference race</h2>
+            <h2 className="text-[13px] font-bold text-white">{t('tournament.hub.conferenceRace')}</h2>
             <span className="text-[10px] text-[var(--tournament-text-dim)]">{conference.name}</span>
           </div>
           <ul className="space-y-2">
@@ -485,23 +540,26 @@ export default function TournamentHomePage() {
           </ul>
           {adv > 0 ? (
             <div className="mt-3 border-t border-dashed border-[var(--tournament-gold)]/50 pt-2 text-center text-[10px] font-bold uppercase tracking-wide text-[var(--tournament-gold)]">
-              — QUALIFICATION LINE — Top {adv} advance —
+              {tInterpolate('tournament.hub.qualificationLine', { adv: String(adv) })}
             </div>
           ) : null}
           {bubbleN > 0 ? (
             <div className="mt-2 border-t border-dashed border-amber-500/50 pt-2 text-center text-[10px] font-bold uppercase tracking-wide text-amber-200">
-              — BUBBLE ZONE — Next {bubbleN} —
+              {tInterpolate('tournament.hub.bubbleZone', { n: String(bubbleN) })}
             </div>
           ) : null}
         </div>
       ) : null}
 
       <div className="tournament-panel p-4">
-        <h2 className="text-[13px] font-bold text-white">Overall snapshot</h2>
+        <h2 className="text-[13px] font-bold text-white">{t('tournament.hub.overall.title')}</h2>
         {globalBoard.idx >= 0 ? (
           <>
             <p className="mt-2 text-[15px] text-white">
-              You rank <strong>#{globalBoard.idx + 1}</strong> of {globalBoard.total} by points for
+              {tInterpolate('tournament.hub.overall.rankLine', {
+                rank: String(globalBoard.idx + 1),
+                total: String(globalBoard.total),
+              })}
             </p>
             {percentile != null ? (
               <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-white/10">
@@ -512,11 +570,11 @@ export default function TournamentHomePage() {
               </div>
             ) : null}
             <p className="mt-2 text-[11px] text-[var(--tournament-text-dim)]">
-              Top 10% / 25% markers are illustrative — tiebreakers follow commissioner rules.
+              {t('tournament.hub.overall.tiebreakerNote')}
             </p>
           </>
         ) : (
-          <p className="mt-2 text-[12px] text-[var(--tournament-text-dim)]">Join a league to appear on the board.</p>
+          <p className="mt-2 text-[12px] text-[var(--tournament-text-dim)]">{t('tournament.hub.overall.joinToAppear')}</p>
         )}
       </div>
 
@@ -529,7 +587,7 @@ export default function TournamentHomePage() {
       {latest ? (
         <div>
           <h2 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-[var(--tournament-text-dim)]">
-            Latest announcement
+            {t('tournament.hub.latestAnnouncement')}
           </h2>
           <ForumPostCard
             type={latest.type}
@@ -539,7 +597,7 @@ export default function TournamentHomePage() {
             readOnly={state.status === 'eliminated'}
           />
           <Link href={`${base}/forum`} className="mt-2 inline-block text-[12px] font-semibold text-cyan-300 hover:underline">
-            Open forum →
+            {t('tournament.hub.openForum')}
           </Link>
         </div>
       ) : null}
@@ -551,8 +609,10 @@ export default function TournamentHomePage() {
           fromRound={state.currentRound - 1 > 0 ? state.currentRound - 1 : 1}
           toRound={state.currentRound}
           record={`${state.myStandingsRow?.wins ?? 0}-${state.myStandingsRow?.losses ?? 0}`}
-          conferenceRank={state.conferenceRank ? `${state.conferenceRank}${nth(state.conferenceRank)}` : '—'}
-          conferenceName={conference?.name ?? 'Conference'}
+          conferenceRank={
+            state.conferenceRank ? formatConferenceOrdinal(state.conferenceRank, language) : '—'
+          }
+          conferenceName={conference?.name ?? t('tournament.advancement.conferenceFallback')}
           newLeagueName={tlFromCtx.name}
           draftAt={tlFromCtx.draftScheduledAt ? new Date(tlFromCtx.draftScheduledAt).toLocaleString() : null}
           basePath={base}
@@ -572,14 +632,4 @@ export default function TournamentHomePage() {
       ) : null}
     </div>
   )
-}
-
-function nth(n: number): string {
-  const m = n % 10
-  const m100 = n % 100
-  if (m100 >= 11 && m100 <= 13) return 'th'
-  if (m === 1) return 'st'
-  if (m === 2) return 'nd'
-  if (m === 3) return 'rd'
-  return 'th'
 }

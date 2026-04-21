@@ -13,6 +13,7 @@ import type { LeagueSport } from '@prisma/client'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport } from '@/lib/sport-scope'
 import { ZOMBIE_ELIGIBLE_LEAGUE_SPORTS } from '@/lib/zombie/zombie-sport-eligibility'
 import type { LeagueTypeId, DraftTypeId } from '@/lib/league-creation-wizard/types'
+import { BEST_BALL_SUPPORTED_SPORTS } from '@/lib/bestball/rules'
 
 /** League format ids that participate in the draft-type matrix (matches `LeagueFormatId` in format-engine). */
 export type DraftMatrixLeagueFormatId = LeagueTypeId
@@ -47,6 +48,8 @@ export type DraftTypeDefinition = {
    * Null for execution modes and lifecycle-only types.
    */
   engineCore: EngineCoreDraftType | null
+  /** Supported pick-order cores for this id (default to [engineCore] when omitted). */
+  supportedEngineCores?: readonly EngineCoreDraftType[]
   lifecycle: DraftLifecycleScope
   /** Requires conceptSetup / league settings beyond default draft settings. */
   requiresConceptSetup: boolean
@@ -55,10 +58,11 @@ export type DraftTypeDefinition = {
 // ── Per-format draft type lists (must stay aligned with `lib/league/format-engine` FORMAT_REGISTRY) ──
 
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
-const SURVIVOR_ELIGIBLE_SPORTS = ALL_SPORTS.filter((s) => s !== 'SOCCER') as LeagueSport[]
-const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
-const DRAFT_TYPES_STANDARD: DraftTypeId[] = ['snake', 'linear', 'auction', 'slow_draft', 'mock_draft']
+const SURVIVOR_ELIGIBLE_SPORTS: LeagueSport[] = [...ALL_SPORTS]
+const BEST_BALL_SPORTS: LeagueSport[] = [...BEST_BALL_SUPPORTED_SPORTS]
+const DRAFT_TYPES_STANDARD: DraftTypeId[] = ['snake', 'linear', 'auction']
 const DRAFT_TYPES_SURVIVOR: DraftTypeId[] = ['snake', 'auction']
+const DRAFT_TYPES_BIG_BROTHER: DraftTypeId[] = ['snake', 'auction']
 
 /** Exported for format-engine — authoritative draft-type lists per league format concept. */
 export const DRAFT_TYPES_BY_LEAGUE_FORMAT: Record<DraftMatrixLeagueFormatId, readonly DraftTypeId[]> = {
@@ -66,14 +70,14 @@ export const DRAFT_TYPES_BY_LEAGUE_FORMAT: Record<DraftMatrixLeagueFormatId, rea
   dynasty: DRAFT_TYPES_STANDARD,
   keeper: DRAFT_TYPES_STANDARD,
   best_ball: DRAFT_TYPES_STANDARD,
-  guillotine: ['snake', 'linear', 'auction', 'mock_draft'],
+  guillotine: ['snake', 'linear', 'auction'],
   survivor: DRAFT_TYPES_SURVIVOR,
   tournament: DRAFT_TYPES_STANDARD,
-  devy: ['devy_snake', 'devy_auction'],
-  c2c: ['c2c_snake', 'c2c_auction'],
-  zombie: ['snake', 'auction'],
-  salary_cap: ['auction', 'slow_draft', 'mock_draft'],
-  big_brother: DRAFT_TYPES_STANDARD,
+  devy: ['devy_snake', 'devy_linear', 'devy_auction'],
+  c2c: ['c2c_snake', 'c2c_linear', 'c2c_auction'],
+  zombie: ['snake'],
+  salary_cap: ['auction'],
+  big_brother: DRAFT_TYPES_BIG_BROTHER,
 }
 
 /** Sports that support each league format concept (mirrors format-engine). */
@@ -184,6 +188,7 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: true,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    supportedEngineCores: ['snake', 'linear'],
     lifecycle: 'create_league',
     requiresConceptSetup: true,
   }),
@@ -195,6 +200,7 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: true,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    supportedEngineCores: ['snake', 'linear'],
     lifecycle: 'create_league',
   }),
   devy_snake: DEF({
@@ -206,6 +212,18 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: true,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    lifecycle: 'create_league',
+    requiresConceptSetup: true,
+  }),
+  devy_linear: DEF({
+    id: 'devy_linear',
+    label: 'Devy Linear',
+    shortLabel: 'Linear',
+    category: 'specialty_variant',
+    description: 'Linear (fixed-order) draft with devy college asset pool.',
+    createLeagueSelectable: true,
+    downstreamEngineSupported: true,
+    engineCore: 'linear',
     lifecycle: 'create_league',
     requiresConceptSetup: true,
   }),
@@ -230,6 +248,18 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: true,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    lifecycle: 'create_league',
+    requiresConceptSetup: true,
+  }),
+  c2c_linear: DEF({
+    id: 'c2c_linear',
+    label: 'C2C Linear',
+    shortLabel: 'Linear',
+    category: 'specialty_variant',
+    description: 'Campus-to-Canton linear (fixed-order) draft.',
+    createLeagueSelectable: true,
+    downstreamEngineSupported: true,
+    engineCore: 'linear',
     lifecycle: 'create_league',
     requiresConceptSetup: true,
   }),
@@ -323,6 +353,7 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: false,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    supportedEngineCores: ['snake', 'linear'],
     lifecycle: 'commissioner',
   }),
   dispersal_draft: DEF({
@@ -333,6 +364,7 @@ export const DRAFT_TYPE_DEFINITIONS: Record<string, DraftTypeDefinition> = {
     createLeagueSelectable: false,
     downstreamEngineSupported: true,
     engineCore: 'snake',
+    supportedEngineCores: ['snake', 'linear'],
     lifecycle: 'commissioner',
   }),
 }
@@ -387,12 +419,56 @@ export function isExecutionModeDraftType(id: string): boolean {
 export function mapCanonicalDraftTypeToEngineCore(draftType: string): EngineCoreDraftType {
   const x = String(draftType ?? '').trim().toLowerCase()
   if (x === 'offline' || x === 'auto' || x === 'team') return 'snake'
+
+  // Lifecycle/practice aliases can explicitly encode order mode without
+  // changing canonical ids globally (e.g. dispersal_draft_linear).
+  if (
+    x === 'mock_linear' ||
+    x === 'slow_linear' ||
+    x === 'supplemental_linear' ||
+    x === 'dispersal_linear' ||
+    x === 'mock_draft_linear' ||
+    x === 'slow_draft_linear' ||
+    x === 'supplemental_draft_linear' ||
+    x === 'dispersal_draft_linear'
+  ) {
+    return 'linear'
+  }
+  if (
+    x === 'mock_snake' ||
+    x === 'slow_snake' ||
+    x === 'supplemental_snake' ||
+    x === 'dispersal_snake' ||
+    x === 'mock_draft_snake' ||
+    x === 'slow_draft_snake' ||
+    x === 'supplemental_draft_snake' ||
+    x === 'dispersal_draft_snake'
+  ) {
+    return 'snake'
+  }
+
   if (x.includes('auction')) return 'auction'
   if (x === 'linear') return 'linear'
   if (x === 'mock_draft' || x === 'slow_draft') return 'snake'
   const d = getDraftTypeDefinition(x)
   if (d?.engineCore) return d.engineCore
   return 'snake'
+}
+
+/**
+ * Supported engine cores for a draft id.
+ * - Uses explicit `supportedEngineCores` when present.
+ * - Falls back to singleton `[engineCore]` when only one is defined.
+ * - Falls back to `['snake']` when id is unknown.
+ */
+export function getSupportedEngineCoresForDraftType(draftTypeId: string): readonly EngineCoreDraftType[] {
+  const d = getDraftTypeDefinition(draftTypeId)
+  if (!d) return ['snake']
+  if (Array.isArray(d.supportedEngineCores) && d.supportedEngineCores.length > 0) {
+    return d.supportedEngineCores
+  }
+  if (d.engineCore) return [d.engineCore]
+  return ['snake']
 }
 
 /**
@@ -415,10 +491,12 @@ export function resolveEffectiveDraftTypeForConcept(leagueType: LeagueTypeId | s
   if (isExecutionModeDraftType(raw)) return raw
   if (lt === 'devy') {
     if (raw === 'auction' || raw === 'devy_auction') return 'devy_auction'
+    if (raw === 'linear' || raw === 'devy_linear') return 'devy_linear'
     return 'devy_snake'
   }
   if (lt === 'c2c') {
     if (raw === 'auction' || raw === 'c2c_auction') return 'c2c_auction'
+    if (raw === 'linear' || raw === 'c2c_linear') return 'c2c_linear'
     return 'c2c_snake'
   }
   return raw
@@ -448,6 +526,83 @@ export function isDraftTypeAllowedForConceptAndSport(
   draftType: string | null | undefined
 ): boolean {
   const allowed = getDraftTypesForConceptAndSport(sport, leagueFormat)
+  const x = String(draftType ?? '').trim().toLowerCase()
+  return allowed.includes(x as DraftTypeId)
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Settings-tab draft-type surface
+//
+// The create-league form intentionally keeps options minimal (snake +
+// auction, per product policy). Once the league exists, the commissioner
+// gets the full menu — auction, offline, linear, and weighted-lottery
+// pick order — via the Draft Settings tab. These helpers expose that
+// broader allowlist without relaxing create-time validation.
+// ───────────────────────────────────────────────────────────────────────
+
+export type DraftExecutionMode = 'live' | 'auto' | 'offline'
+export type RookiePickOrderMethod =
+  | 'linear'
+  | 'weighted_lottery'
+  | 'inverse_standings'
+  | 'reverse_finish'
+  | 'random'
+
+/** Concrete draft types that commissioners may select post-create for any format. */
+export function getSettingsTabDraftTypesForFormat(leagueFormat: string | null | undefined): DraftTypeId[] {
+  const formatKey = String(leagueFormat ?? 'redraft').trim().toLowerCase() as DraftMatrixLeagueFormatId
+  const fromRegistry = DRAFT_TYPES_BY_LEAGUE_FORMAT[formatKey] ?? DRAFT_TYPES_BY_LEAGUE_FORMAT.redraft
+  // Settings tab exposes the full menu that the create-league form intentionally
+  // hides: linear (for rookie/devy-style orders), auction (for startup or
+  // subsequent-year switch), and offline / auto (as execution-mode aliases).
+  const merged = new Set<DraftTypeId>(fromRegistry)
+  if (formatKey === 'devy') {
+    // devy_linear and devy_auction may already be in fromRegistry, but
+    // add defensively in case the registry row is ever trimmed.
+    merged.add('devy_linear' as DraftTypeId)
+    merged.add('devy_auction' as DraftTypeId)
+  } else if (formatKey === 'c2c') {
+    merged.add('c2c_linear' as DraftTypeId)
+    merged.add('c2c_auction' as DraftTypeId)
+  } else {
+    // For all other formats (redraft, dynasty, keeper, best_ball, guillotine,
+    // survivor, tournament, zombie, salary_cap, big_brother) ensure both
+    // linear and auction are reachable from the settings tab so commissioners
+    // can switch pick-order algorithms post-create or on year 2+.
+    merged.add('linear')
+    if (formatKey !== 'salary_cap') {
+      // salary_cap already has auction as its only create-time type; don't
+      // double-add or change its canonical identity.
+      merged.add('auction')
+    }
+  }
+  return Array.from(merged)
+}
+
+/** Execution modes available on the settings tab — all leagues get live/auto/offline. */
+export function getSettingsTabExecutionModes(): readonly DraftExecutionMode[] {
+  return ['live', 'auto', 'offline'] as const
+}
+
+/** Rookie-draft pick-order methods. 'linear' and 'weighted_lottery' are the common choices. */
+export function getRookiePickOrderMethods(): readonly RookiePickOrderMethod[] {
+  return ['linear', 'weighted_lottery', 'inverse_standings', 'reverse_finish', 'random'] as const
+}
+
+export function isRookiePickOrderMethod(x: unknown): x is RookiePickOrderMethod {
+  return typeof x === 'string' && (getRookiePickOrderMethods() as readonly string[]).includes(x)
+}
+
+/**
+ * Validate a post-create draft-type change for a league. Broader than the
+ * create-time allowlist — includes linear (and format-specific linear
+ * variants) so commissioners can opt into rookie-style drafts mid-season.
+ */
+export function isDraftTypeAllowedOnSettingsTab(
+  leagueFormat: string | null | undefined,
+  draftType: string | null | undefined,
+): boolean {
+  const allowed = getSettingsTabDraftTypesForFormat(leagueFormat)
   const x = String(draftType ?? '').trim().toLowerCase()
   return allowed.includes(x as DraftTypeId)
 }

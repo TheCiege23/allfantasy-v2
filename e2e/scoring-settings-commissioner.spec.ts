@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { mockLeagueSettingsGetForScoring } from './helpers/mockLeagueSettingsForScoring'
 
 test.describe.configure({ timeout: 180_000 })
 
@@ -41,6 +42,8 @@ async function mockScoringSettingsApi(page: Page, leagueId: string) {
   }
 
   const capturedPuts: Array<Record<string, unknown>> = []
+
+  await mockLeagueSettingsGetForScoring(page, leagueId, () => persisted)
 
   await page.route(`**/api/app/league/${leagueId}/scoring/config`, async (route) => {
     await route.fulfill({

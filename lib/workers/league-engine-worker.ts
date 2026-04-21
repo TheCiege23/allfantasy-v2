@@ -16,6 +16,8 @@ import { resyncImportedLeague } from '@/lib/league-import/resyncImportUtility'
 import { reprocessWeekAfterStatCorrection } from '@/server/services/statCorrectionService'
 import { enqueueNotification } from '@/lib/jobs/enqueue'
 import type { NotificationJobPayload } from '@/lib/jobs/types'
+import { ENGINE } from '@/lib/analytics/eventNames'
+import { recordEngineTelemetrySample } from '@/lib/analytics/recordAnalyticsEvent'
 
 export type LeagueEngineWorkerResult = {
   ok: boolean
@@ -47,6 +49,19 @@ async function processLeagueEngineJob(
     processedAt: new Date().toISOString(),
   }
 
+  const persistJobSample = (ok: boolean, extra?: Record<string, unknown>) => {
+    recordEngineTelemetrySample(ENGINE.JOB, {
+      meta: {
+        kind: data.kind,
+        leagueId: data.leagueId ?? null,
+        jobId: job.id,
+        durationMs: timer.elapsedMs(),
+        ok,
+        ...extra,
+      },
+    })
+  }
+
   try {
     switch (data.kind) {
       case 'waiver_process': {
@@ -67,6 +82,7 @@ async function processLeagueEngineJob(
           ok: true,
           extra: { claimResults: claims.length },
         })
+        persistJobSample(true, { claimResults: claims.length })
         return { ok: true, ...base, detail: { claimResults: claims.length } }
       }
       case 'scoring_week': {
@@ -93,6 +109,7 @@ async function processLeagueEngineJob(
           ok: true,
           extra: { season, weekOrRound },
         })
+        persistJobSample(true, { season, weekOrRound })
         return { ok: true, ...base, detail: { season, weekOrRound } }
       }
       case 'standings_refresh': {
@@ -101,6 +118,7 @@ async function processLeagueEngineJob(
         const season = Number(data.payload?.season ?? new Date().getUTCFullYear())
         const weekOrRound = Number(data.payload?.weekOrRound ?? 1)
         await runScoringWorker({ leagueIds: [leagueId], season, weekOrRound })
+        persistJobSample(true, { season, weekOrRound, branch: 'standings_refresh' })
         return { ok: true, ...base, detail: { season, weekOrRound } }
       }
       case 'specialty_automation': {
@@ -118,6 +136,7 @@ async function processLeagueEngineJob(
           force: data.payload?.force === true,
           source: 'league_engine_queue',
         })
+        persistJobSample(true, { runId: out.runId, duplicate: out.duplicate, trigger })
         return { ok: true, ...base, detail: { runId: out.runId, duplicate: out.duplicate } }
       }
       case 'import_resync': {
@@ -133,8 +152,10 @@ async function processLeagueEngineJob(
         }
         const res = await resyncImportedLeague({ userId, provider, sourceId })
         if (!res.ok) {
+          persistJobSample(false, { branch: 'import_resync', error: res.error })
           return { ok: false, ...base, error: res.error }
         }
+        persistJobSample(true, { branch: 'import_resync', leagueId: res.leagueId, runId: res.runId })
         return { ok: true, ...base, detail: { leagueId: res.leagueId, runId: res.runId } }
       }
       case 'notification_fanout': {
@@ -143,6 +164,11 @@ async function processLeagueEngineJob(
           throw new Error('notification_fanout requires payload.notification (NotificationJobPayload)')
         }
         const enq = await enqueueNotification(n, { jobId: data.idempotencyKey })
+        persistJobSample(enq.ok, {
+          branch: 'notification_fanout',
+          downstreamJobId: enq.ok ? enq.jobId : undefined,
+          error: enq.ok ? undefined : enq.error,
+        })
         return {
           ok: enq.ok,
           ...base,
@@ -167,14 +193,26 @@ async function processLeagueEngineJob(
           idempotencyKey,
           refreshPlayoffSeeds: data.payload?.refreshPlayoffSeeds !== false,
         })
+        persistJobSample(true, { season, week, skipped: r.skipped })
         return { ok: true, ...base, detail: { skipped: r.skipped } }
       }
       default: {
+        persistJobSample(false, { error: 'unknown_kind' })
         return { ok: false, ...base, error: `Unknown kind: ${String((data as LeagueEngineJobPayload).kind)}` }
       }
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
+    recordEngineTelemetrySample(ENGINE.JOB, {
+      meta: {
+        kind: data.kind,
+        leagueId: data.leagueId ?? null,
+        jobId: job.id,
+        durationMs: timer.elapsedMs(),
+        ok: false,
+        error: message.slice(0, 500),
+      },
+    })
     logJobDeadLetter({
       queueName: QUEUE_NAMES.LEAGUE_ENGINE,
       jobName: data.kind,

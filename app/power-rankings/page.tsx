@@ -13,7 +13,6 @@ import {
   type SupportedSport,
 } from "@/lib/sport-scope";
 import { useLanguage } from "@/components/i18n/LanguageProviderClient";
-import { interpolateTemplate } from "@/lib/i18n/interpolate";
 
 type LeagueFormat = "redraft" | "dynasty" | "keeper";
 type RankingView = "power" | "dynasty" | "composite";
@@ -660,7 +659,7 @@ function LoadingCard() {
 }
 
 function LoginRequiredState() {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
       <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
@@ -693,7 +692,7 @@ function LeagueGate({
   error: string | null;
   onSelect: (league: UserLeague) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   return (
     <div className="min-h-screen bg-[#07071a] text-white">
       <div className="border-b border-white/6 bg-[#07071a]/90 backdrop-blur-xl">
@@ -769,7 +768,7 @@ function LeagueGate({
                   </div>
                   <div className="mt-4 text-lg font-bold text-white">{league.name}</div>
                   <div className="mt-2 text-sm text-white/45">
-                    {interpolateTemplate(t("powerRankingsPage.leagueTeamsLine"), {
+                    {tInterpolate("powerRankingsPage.leagueTeamsLine", {
                       n: league.teamCount,
                       scoring: league.scoring,
                       season: league.season,
@@ -908,7 +907,7 @@ function ExpandedTeamDetail({
   onCoach: (team: TeamRanking) => void;
   onRoadmap: (team: TeamRanking) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   const rankExplanation = team.rankExplanation;
   const psychologyLoading =
     currentJob?.kind === "psychology" && currentJob.rosterId === team.rosterId;
@@ -937,7 +936,7 @@ function ExpandedTeamDetail({
           {rankExplanation ? (
             <CollapsibleCard
               title={t("powerRankingsPage.detail.rankExplanation")}
-              badge={interpolateTemplate(t("powerRankingsPage.confidenceSuffix"), {
+              badge={tInterpolate("powerRankingsPage.confidenceSuffix", {
                 level: t(`powerRankingsPage.confidence.${rankExplanation.confidence.toLowerCase()}`),
               })}
             >
@@ -987,7 +986,7 @@ function ExpandedTeamDetail({
           {team.forwardOdds ? (
             <CollapsibleCard
               title={t("powerRankingsPage.detail.forwardOdds")}
-              badge={interpolateTemplate(t("powerRankingsPage.forwardOdds.sims"), {
+              badge={tInterpolate("powerRankingsPage.forwardOdds.sims", {
                 n: team.forwardOdds.simCount.toLocaleString(),
               })}
             >
@@ -1054,7 +1053,7 @@ function ExpandedTeamDetail({
                 </div>
                 <p className="text-sm leading-6 text-white/60">{team.winWindow.detail}</p>
                 <div className="text-xs text-white/35">
-                  {interpolateTemplate(t("powerRankingsPage.winWindow.confidenceLabel"), {
+                  {tInterpolate("powerRankingsPage.winWindow.confidenceLabel", {
                     level: t(`powerRankingsPage.level.${team.winWindow.confidence.toLowerCase()}`),
                   })}
                 </div>
@@ -1089,7 +1088,7 @@ function ExpandedTeamDetail({
                   </div>
                 </div>
                 <div className="text-sm text-white/60">
-                  {interpolateTemplate(t("powerRankingsPage.luck.winsLine"), {
+                  {tInterpolate("powerRankingsPage.luck.winsLine", {
                     sign: team.luckMeter.luckWins > 0 ? "+" : "",
                     n: team.luckMeter.luckWins.toFixed(1),
                   })}
@@ -1169,7 +1168,7 @@ function ExpandedTeamDetail({
               </div>
               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/45">
                 {team.rankExplanation?.rankLabel ??
-                  interpolateTemplate(t("powerRankingsPage.coach.scoreFallback"), { n: team.score })}
+                  tInterpolate("powerRankingsPage.coach.scoreFallback", { n: team.score })}
               </span>
             </div>
 
@@ -1204,7 +1203,7 @@ function ExpandedTeamDetail({
               <div className="mt-4 space-y-2">
                 <div className="flex items-center justify-between text-xs text-white/45">
                   <span>
-                    {interpolateTemplate(t("powerRankingsPage.job.label"), {
+                    {tInterpolate("powerRankingsPage.job.label", {
                       kind:
                         currentJob.kind === "psychology"
                           ? t("powerRankingsPage.job.psychology")
@@ -1290,7 +1289,7 @@ function ExpandedTeamDetail({
                     {team.dynastyRoadmap.yearPlans.map((year) => (
                       <div key={year.year} className="w-60 rounded-2xl border border-white/10 bg-[#0c0c1e] p-4">
                         <div className="inline-flex rounded-full bg-gradient-to-r from-cyan-500/20 to-teal-500/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-200">
-                          {interpolateTemplate(t("powerRankingsPage.roadmap.year"), { n: year.year })}
+                          {tInterpolate("powerRankingsPage.roadmap.year", { n: year.year })}
                         </div>
                         <div className="mt-3 text-sm font-bold text-white">
                           {year.label.replace(`Year ${year.year}: `, "")}
@@ -1346,7 +1345,7 @@ function TeamRow({
   onCoach: (team: TeamRanking) => void;
   onRoadmap: (team: TeamRanking) => void;
 }) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   const avatarUrl = buildAvatarUrl(team.avatar);
   const phaseLabel = t(phaseTranslationKey(team.phase));
 
@@ -1475,7 +1474,7 @@ function TeamRow({
 
 export default function PowerRankingsPage() {
   const { data: session, status } = useSession();
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   const [leagues, setLeagues] = useState<UserLeague[]>([]);
   const [leagueLoading, setLeagueLoading] = useState(false);
   const [leagueError, setLeagueError] = useState<string | null>(null);
@@ -1976,7 +1975,7 @@ export default function PowerRankingsPage() {
               <HeroCard
                 title={t("powerRankingsPage.hero.champion")}
                 headline={heroData.champion.teamName}
-                detail={interpolateTemplate(t("powerRankingsPage.hero.championDetail"), {
+                detail={tInterpolate("powerRankingsPage.hero.championDetail", {
                   rank: heroData.champion.rank,
                   record: heroData.champion.record,
                   score: heroData.champion.score,
@@ -1986,7 +1985,7 @@ export default function PowerRankingsPage() {
               <HeroCard
                 title={t("powerRankingsPage.hero.strongest")}
                 headline={heroData.strongest.teamName}
-                detail={interpolateTemplate(t("powerRankingsPage.hero.strongestDetail"), {
+                detail={tInterpolate("powerRankingsPage.hero.strongestDetail", {
                   value: Math.round(
                     heroData.strongest.raw.starterValue + heroData.strongest.raw.benchValue
                   ).toLocaleString(),
@@ -1996,7 +1995,7 @@ export default function PowerRankingsPage() {
               <HeroCard
                 title={t("powerRankingsPage.hero.marketLeader")}
                 headline={heroData.marketLeader.teamName}
-                detail={interpolateTemplate(t("powerRankingsPage.hero.marketLeaderDetail"), {
+                detail={tInterpolate("powerRankingsPage.hero.marketLeaderDetail", {
                   mv: heroData.marketLeader.mvScore,
                 })}
                 accent="border-cyan-500/20 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.15),transparent_45%),#0c0c1e]"
@@ -2005,7 +2004,7 @@ export default function PowerRankingsPage() {
                 title={t("powerRankingsPage.hero.tradeMarket")}
                 headline={
                   heroData.marketInsight
-                    ? interpolateTemplate(t("powerRankingsPage.hero.tradeDemand"), {
+                    ? tInterpolate("powerRankingsPage.hero.tradeDemand", {
                         position: heroData.marketInsight.position,
                       })
                     : t("powerRankingsPage.hero.tradeNoData")
@@ -2027,11 +2026,11 @@ export default function PowerRankingsPage() {
                   </div>
                   <div className="mt-1 text-sm text-white/45">
                     {rankingsMeta
-                      ? interpolateTemplate(t("powerRankingsPage.tableMeta"), {
+                      ? tInterpolate("powerRankingsPage.tableMeta", {
                           name: rankingsMeta.leagueName,
                           week: String(rankingsMeta.week),
                           updated: rankingsMeta.computedAt
-                            ? interpolateTemplate(t("powerRankingsPage.updatedPrefix"), {
+                            ? tInterpolate("powerRankingsPage.updatedPrefix", {
                                 time: new Date(rankingsMeta.computedAt).toLocaleString(),
                               })
                             : t("powerRankingsPage.freshLoad"),
@@ -2040,7 +2039,7 @@ export default function PowerRankingsPage() {
                   </div>
                 </div>
                 <div className="text-xs text-white/35">
-                  {interpolateTemplate(t("powerRankingsPage.managerCount"), {
+                  {tInterpolate("powerRankingsPage.managerCount", {
                     n: displayedTeams.length,
                   })}
                 </div>

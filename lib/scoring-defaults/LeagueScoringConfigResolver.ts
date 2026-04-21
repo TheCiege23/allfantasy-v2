@@ -1,3 +1,8 @@
+/**
+ * Effective league scoring for UI + AI: `getLeagueScoringRules` (template + `LeagueScoringOverride`).
+ * Downstream: `resolveScoringRulesForLeague` → weekly processor / matchup engine; `buildLeagueScoringContextForAi`
+ * for start-sit + matchup routes; IDP `getMergedScoringRulesForLeague` overlays `idp_*` from the same rules.
+ */
 import { prisma } from '@/lib/prisma'
 import {
   getLeagueSettingsForScoring,
@@ -25,6 +30,20 @@ export interface LeagueScoringConfig {
   formatType: string
   templateId: string
   rules: LeagueScoringRuleConfig[]
+}
+
+/**
+ * Compact rule summary for AI routes (start/sit, matchup, waiver) — uses live overrides + template.
+ */
+export async function buildLeagueScoringContextForAi(leagueId: string): Promise<string | null> {
+  const config = await getLeagueScoringConfig(leagueId)
+  if (!config) return null
+  const active = config.rules
+    .filter((r) => r.enabled && Math.abs(r.pointsValue) > 1e-9)
+    .slice(0, 56)
+    .map((r) => `${r.statKey}=${r.pointsValue}`)
+  const s = `${config.sport} · ${config.formatType} · ${active.join('; ')}`
+  return s.length > 8000 ? `${s.slice(0, 8000)}…` : s
 }
 
 export async function getLeagueScoringConfig(

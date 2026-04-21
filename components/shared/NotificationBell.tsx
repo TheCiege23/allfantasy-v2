@@ -7,6 +7,7 @@ import { useNotifications } from "@/hooks/useNotifications"
 import { NotificationPanelView } from "@/components/notifications/NotificationPanel"
 import { getUnreadCount } from "@/lib/notification-center"
 import { isNotificationDrawerCloseKey } from "@/lib/notification-center"
+import { addStateRefreshListener } from "@/lib/state-consistency/state-events"
 
 const USER_NOTIFICATIONS_UNREAD = "/api/user/notifications?unread=true&limit=1"
 
@@ -61,10 +62,14 @@ export default function NotificationBell() {
     const id = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return
       void pollUnread()
-    }, 60_000)
+    }, 45_000)
+    const unsub = addStateRefreshListener(["notifications", "all"], () => {
+      void pollUnread()
+    })
     return () => {
       cancelled = true
       clearInterval(id)
+      unsub()
     }
   }, [pollUnread])
 

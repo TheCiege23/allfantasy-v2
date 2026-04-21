@@ -9,6 +9,7 @@ import { resolveFormatRosterDefaults, type FormatRosterModifierId } from './rost
 import { resolveFormatScoringDefaults, type FormatScoringModifierId } from './scoring-defaults'
 import { resolveKeeperPolicy } from './keeper-policy'
 import { DRAFT_TYPES_BY_LEAGUE_FORMAT } from '@/lib/draft-types/draftTypeRegistry'
+import { BEST_BALL_SUPPORTED_SPORTS } from '@/lib/bestball/rules'
 
 export type LeagueFormatId =
   | 'redraft'
@@ -31,8 +32,10 @@ export type LeagueDraftTypeId =
   | 'slow_draft'
   | 'mock_draft'
   | 'devy_snake'
+  | 'devy_linear'
   | 'devy_auction'
   | 'c2c_snake'
+  | 'c2c_linear'
   | 'c2c_auction'
 
 export type LeagueFormatModifierId =
@@ -78,7 +81,7 @@ export type LeagueFormatResolution = {
 const ALL_SPORTS = [...SUPPORTED_SPORTS]
 /** Survivor fantasy format is not offered for Soccer in create flows. */
 const SURVIVOR_ELIGIBLE_SPORTS = ALL_SPORTS.filter((s) => s !== 'SOCCER') as LeagueSport[]
-const BEST_BALL_SPORTS: LeagueSport[] = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'SOCCER']
+const BEST_BALL_SPORTS: LeagueSport[] = [...BEST_BALL_SUPPORTED_SPORTS]
 
 const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
   redraft: {
@@ -227,7 +230,7 @@ const FORMAT_REGISTRY: Record<LeagueFormatId, LeagueFormatDefinition> = {
     defaultRosterMode: 'dynasty',
     draftTypes: [...DRAFT_TYPES_BY_LEAGUE_FORMAT.c2c] as LeagueDraftTypeId[],
     defaultModifiers: ['c2c', 'taxi'],
-    supportedModifiers: ['c2c', 'taxi', 'superflex', 'te_premium'],
+    supportedModifiers: ['c2c', 'taxi', 'superflex', 'te_premium', 'best_ball'],
     capabilities: {
       deterministicFeatures: ['college_scoring', 'promotion_rules', 'dual_rosters'],
       aiOptionalFeatures: ['c2c_strategy', 'matchup_preview', 'storyline'],
@@ -356,6 +359,33 @@ export function getAllowedDraftTypesForFormat(
     return FORMAT_REGISTRY.redraft.draftTypes
   }
   return [...format.draftTypes]
+}
+
+/**
+ * Draft types to show on the **create-league wizard** for a given sport + format.
+ *
+ * Rules (per product spec):
+ * - `devy` / `c2c` — keep all specialty variants (devy_snake/linear/auction, c2c_*)
+ * - `guillotine`   — keep full guillotine variants (snake/linear/auction)
+ * - `salary_cap`  — auction only (that format's canonical type)
+ * - `best_ball`    — show snake / linear / auction on create, then layer
+ *   `offline` / `auto` execution modes in the v2 rules engine.
+ * - All other formats — snake only at create time; linear and auction are
+ *   moved to the Draft Settings tab so the wizard stays simple.
+ */
+export function getCreateLeagueDraftTypes(
+  sport: LeagueSport | string,
+  rawFormat?: string | null
+): LeagueDraftTypeId[] {
+  const all = getAllowedDraftTypesForFormat(sport, rawFormat)
+  const fmt = String(rawFormat ?? 'redraft').trim().toLowerCase()
+  // Specialty formats keep their full variant list on the create form.
+  if (fmt === 'devy' || fmt === 'c2c' || fmt === 'salary_cap' || fmt === 'guillotine' || fmt === 'best_ball') {
+    return all
+  }
+  // All other formats: only snake at create time.
+  const snakeTypes = all.filter((t) => t === 'snake')
+  return snakeTypes.length > 0 ? snakeTypes : ['snake' as LeagueDraftTypeId]
 }
 
 export function isLeagueFormatAllowedForSport(

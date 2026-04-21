@@ -59,7 +59,15 @@ export default async function LeagueDraftPage({
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, sport: true, isDynasty: true, leagueVariant: true },
+    select: {
+      id: true,
+      name: true,
+      sport: true,
+      isDynasty: true,
+      leagueVariant: true,
+      logoUrl: true,
+      avatarUrl: true,
+    },
   })
   if (!league) redirect('/dashboard')
 
@@ -72,6 +80,7 @@ export default async function LeagueDraftPage({
       <DraftRoomPageClient
         leagueId={leagueId}
         leagueName={league.name ?? 'League'}
+        leagueLogoUrl={league.logoUrl ?? league.avatarUrl ?? null}
         sport={String(league.sport ?? 'NFL')}
         isDynasty={league.isDynasty ?? false}
         isCommissioner={commissioner}

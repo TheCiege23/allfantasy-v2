@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useLanguage } from '@/components/i18n/LanguageProviderClient';
-import { interpolateTemplate } from '@/lib/i18n/interpolate';
 import type { PowerRankingTeam } from '@/lib/league-power-rankings/types';
 import { MovementIndicators } from './MovementIndicators';
 import { getLeagueRosterTabHref } from '@/lib/league-power-rankings/rosterLinkResolver';
@@ -13,7 +12,7 @@ export interface RankingTableProps {
 }
 
 export function RankingTable({ leagueId, teams }: RankingTableProps) {
-  const { t } = useLanguage();
+  const { t, tInterpolate } = useLanguage();
   return (
     <div
       className="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]"
@@ -41,7 +40,7 @@ export function RankingTable({ leagueId, teams }: RankingTableProps) {
             const name =
               team.displayName ||
               team.username ||
-              interpolateTemplate(t('leaguePowerRankings.teamFallback'), { id: team.rosterId });
+              tInterpolate('leaguePowerRankings.teamFallback', { id: team.rosterId });
             const r = team.record;
             const rosterHref = getLeagueRosterTabHref(leagueId, team.rosterId);
             return (

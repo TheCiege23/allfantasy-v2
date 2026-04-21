@@ -178,6 +178,49 @@ export async function runLeagueBootstrap(
     }
   }
 
+  const isSurvivor =
+    leagueType === 'survivor' ||
+    scoringFormat === 'survivor' ||
+    Boolean((settings as Record<string, unknown>).survivorMode)
+  if (isSurvivor) {
+    try {
+      const [{ upsertSurvivorConfig }, { getOrCreateExileLeague }, { runSurvivorLeagueBootstrap }] = await Promise.all([
+        import('@/lib/survivor/SurvivorLeagueConfig'),
+        import('@/lib/survivor/SurvivorExileEngine'),
+        import('@/lib/survivor/survivorLeagueBootstrap'),
+      ])
+      const teamCount =
+        (await prisma.league.findUnique({ where: { id: leagueId }, select: { leagueSize: true } }))?.leagueSize ?? 20
+      const sw = settings as Record<string, unknown>
+      const suggested =
+        typeof sw.survivor_suggested_tribe_count === 'number' && Number.isFinite(sw.survivor_suggested_tribe_count)
+          ? Math.max(2, Math.min(4, Math.round(Number(sw.survivor_suggested_tribe_count))))
+          : null
+      const tribeCount =
+        suggested ??
+        (typeof sw.tribeCount === 'number' && Number.isFinite(sw.tribeCount)
+          ? Math.max(2, Math.min(4, Math.round(Number(sw.tribeCount))))
+          : 4)
+      const tribeSize = Math.max(1, Math.ceil(teamCount / tribeCount))
+      const mode = String(sw.mode ?? 'redraft').toLowerCase() === 'bestball' ? 'bestball' : 'redraft'
+      await upsertSurvivorConfig(leagueId, {
+        mode,
+        tribeCount,
+        tribeSize,
+        tribeFormation: String(sw.tribeFormation ?? 'random'),
+        seasonThemeLabel:
+          typeof sw.survivor_season_theme_label === 'string' && sw.survivor_season_theme_label.trim().length > 0
+            ? String(sw.survivor_season_theme_label).trim()
+            : null,
+        challengesSystemRun: sw.survivor_challenges_system_run !== false,
+      })
+      await getOrCreateExileLeague(leagueId).catch(() => {})
+      await runSurvivorLeagueBootstrap(leagueId).catch(() => {})
+    } catch {
+      // non-fatal; legacy wizard path will fill in if used
+    }
+  }
+
   void warmLeagueSportsDataAfterCreate(leagueSport).catch(() => {
     // non-fatal — chain warms on first read if this fails
   })

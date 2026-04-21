@@ -1,0 +1,164 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import type { CommissionerSettingsFormData } from '@/lib/league/commissioner-league-patch'
+import { SettingsPanelHeading, SettingsSectionLabel, SettingsToggleRow } from './settings-ui'
+import { PremiumGate } from '@/components/subscription/PremiumGate'
+import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
+import { useEntitlements } from '@/hooks/useEntitlements'
+import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+
+export function AiLeagueSettingsPanel({
+  initialData,
+  canEdit,
+  debouncedSave,
+  save,
+  hasAfCommissionerSub,
+}: {
+  initialData: CommissionerSettingsFormData
+  canEdit: boolean
+  debouncedSave: (partial: Record<string, unknown>) => void
+  save: (partial: Record<string, unknown>) => Promise<void>
+  hasAfCommissionerSub: boolean
+}) {
+  const disabled = !canEdit
+  const { hasCommissioner } = useEntitlements()
+  const hasCommAccess = hasCommissioner || hasAfCommissionerSub
+  const subscriptionGate = useSubscriptionGateOptional()
+
+  const [chimmy, setChimmy] = useState(Boolean(initialData.aiChimmyEnabled))
+  const [waiver, setWaiver] = useState(Boolean(initialData.aiWaiverSuggestions))
+  const [trade, setTrade] = useState(Boolean(initialData.aiTradeAnalysis))
+  const [lineup, setLineup] = useState(Boolean(initialData.aiLineupHelp))
+  const [draft, setDraft] = useState(Boolean(initialData.aiDraftRecs))
+  const [recaps, setRecaps] = useState(Boolean(initialData.aiRecaps))
+  const [commAlerts, setCommAlerts] = useState(Boolean(initialData.leagueAiCommissionerAlerts))
+  const [mod, setMod] = useState(Boolean(initialData.aiModeration))
+  const [pr, setPr] = useState(Boolean(initialData.aiPowerRankings))
+
+  useEffect(() => {
+    setChimmy(Boolean(initialData.aiChimmyEnabled))
+    setWaiver(Boolean(initialData.aiWaiverSuggestions))
+    setTrade(Boolean(initialData.aiTradeAnalysis))
+    setLineup(Boolean(initialData.aiLineupHelp))
+    setDraft(Boolean(initialData.aiDraftRecs))
+    setRecaps(Boolean(initialData.aiRecaps))
+    setCommAlerts(Boolean(initialData.leagueAiCommissionerAlerts))
+    setMod(Boolean(initialData.aiModeration))
+    setPr(Boolean(initialData.aiPowerRankings))
+  }, [initialData])
+
+  return (
+    <div className="min-h-0 flex-1 space-y-6 px-6 py-6 text-[13px] text-white/85" data-testid="settings-ai-panel">
+      <SettingsPanelHeading
+        title="AI settings"
+        subtitle="League-wide AI features. Deterministic engines still enforce rules; AI explains and recommends."
+      />
+
+      {!hasCommAccess ? (
+        <PremiumGate featureId="commissioner_ai_tools" hasAccess={hasCommAccess} mode="overlay">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-[12px] text-amber-100">
+            <span>AF Commissioner / Pro unlocks advanced league AI controls.</span>
+            <SubscriptionGateBadge
+              featureId="commissioner_ai_tools"
+              onClick={() => subscriptionGate?.gate('commissioner_ai_tools', { highlightParam: 'ai_tools' })}
+            />
+          </div>
+        </PremiumGate>
+      ) : null}
+
+      <div>
+        <SettingsSectionLabel>Core</SettingsSectionLabel>
+        <div className="space-y-2">
+          <SettingsToggleRow
+            label="Chimmy league assistant"
+            checked={chimmy}
+            disabled={disabled}
+            onChange={(v) => {
+              setChimmy(v)
+              void save({ aiChimmyEnabled: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI waiver suggestions"
+            checked={waiver}
+            disabled={disabled}
+            onChange={(v) => {
+              setWaiver(v)
+              void save({ aiWaiverSuggestions: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI trade analysis"
+            checked={trade}
+            disabled={disabled}
+            onChange={(v) => {
+              setTrade(v)
+              void save({ aiTradeAnalysis: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI start / sit help"
+            checked={lineup}
+            disabled={disabled}
+            onChange={(v) => {
+              setLineup(v)
+              void save({ aiLineupHelp: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI draft recommendations"
+            checked={draft}
+            disabled={disabled}
+            onChange={(v) => {
+              setDraft(v)
+              void save({ aiDraftRecs: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI recaps & narratives"
+            checked={recaps}
+            disabled={disabled}
+            onChange={(v) => {
+              setRecaps(v)
+              void save({ aiRecaps: v })
+            }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <SettingsSectionLabel>Commissioner & league ops</SettingsSectionLabel>
+        <div className="space-y-2">
+          <SettingsToggleRow
+            label="AI commissioner alerts"
+            checked={commAlerts}
+            disabled={disabled}
+            onChange={(v) => {
+              setCommAlerts(v)
+              void save({ leagueAiCommissionerAlerts: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI moderation assists"
+            checked={mod}
+            disabled={disabled}
+            onChange={(v) => {
+              setMod(v)
+              void save({ aiModeration: v })
+            }}
+          />
+          <SettingsToggleRow
+            label="AI power rankings"
+            checked={pr}
+            disabled={disabled}
+            onChange={(v) => {
+              setPr(v)
+              void save({ aiPowerRankings: v })
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { interpolateTemplate } from '@/lib/i18n/interpolate'
 import { getChimmyChatHref } from '@/lib/ai-product-layer/UnifiedChimmyEntryResolver'
 import type { UserLeague } from '@/app/dashboard/types'
 import { AIToolsModal, type DashboardAIToolId } from '@/app/dashboard/components/AIToolsModal'
@@ -42,7 +41,7 @@ const SHORTCUT_SPECS: ShortcutSpec[] = [
 ]
 
 export function AIShortcutsGrid({ leagues }: AIShortcutsGridProps) {
-  const { t } = useLanguage()
+  const { t, tInterpolate } = useLanguage()
   const [openFaqKey, setOpenFaqKey] = useState<string | null>(null)
   const [activeTool, setActiveTool] = useState<DashboardAIToolId | null>(null)
 
@@ -96,7 +95,7 @@ export function AIShortcutsGrid({ leagues }: AIShortcutsGridProps) {
             </button>
             <button
               type="button"
-              aria-label={interpolateTemplate(t('dashboard.shortcut.faqAria'), { label: s.label })}
+              aria-label={tInterpolate('dashboard.shortcut.faqAria', { label: s.label })}
               onClick={(e) => {
                 e.stopPropagation()
                 toggleFaq(s.id)

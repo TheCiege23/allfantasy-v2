@@ -28,11 +28,14 @@ export function SportConfigSettingsPanel({
   leagueSettings,
   onSportConfigChange,
   canEdit,
+  omitSections,
 }: {
   sport: string
   leagueSettings: Record<string, unknown>
   onSportConfigChange: (next: Record<string, unknown>) => void
   canEdit: boolean
+  /** Hide sport-config subsections (e.g. scoring moved to dedicated commissioner scoring panel). */
+  omitSections?: Partial<Record<(typeof SECTION_ORDER)[number], boolean>>
 }) {
   const disabled = !canEdit
   const sportKey = resolveSportConfigKey(sport)
@@ -239,6 +242,7 @@ export function SportConfigSettingsPanel({
       </p>
 
       {SECTION_ORDER.map((section) => {
+        if (omitSections?.[section]) return null
         const defs = defsBySection[section] ?? []
         if (defs.length === 0 && section !== 'scoring' && section !== 'roster') return null
         const title =

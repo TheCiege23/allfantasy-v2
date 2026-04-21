@@ -37,6 +37,8 @@ export interface SurvivorConfig {
   minigameFrequency: string
   /** Commissioner headline — e.g. Heroes vs Villains (not a built-in default). */
   seasonThemeLabel: string | null
+  /** Persistent visual theme used by the island and commissioner surfaces. */
+  visualThemeId: string | null
   /** Engine-generated weekly challenges from templates when true. */
   challengesSystemRun: boolean
   /** Optional last regular-season week (no playoffs). */

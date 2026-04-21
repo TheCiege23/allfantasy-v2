@@ -10,6 +10,126 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createPlatformNotification } from '@/lib/platform/notification-service'
 
+type EditableFeederLeagueSettings = {
+  scoring: string
+  rosterSize: number
+  benchSize: number
+  waiverType: string
+  faabBudget: number
+  faabResetByRound: boolean
+  tradeDeadlineWeek: number
+  tradeLockHours: number
+}
+
+function normalizeEditableLeagueSettings(raw: unknown): EditableFeederLeagueSettings {
+  const settings = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {}
+
+  const asNumber = (value: unknown, fallback: number): number => {
+    const numberValue = typeof value === 'number' ? value : Number(value)
+    return Number.isFinite(numberValue) ? Math.floor(numberValue) : fallback
+  }
+
+  return {
+    scoring: typeof settings.scoring === 'string' ? settings.scoring : 'PPR',
+    rosterSize: asNumber(settings.rosterSize, 15),
+    benchSize: asNumber(settings.benchSize, 7),
+    waiverType: typeof settings.waiverType === 'string' ? settings.waiverType : 'FAAB',
+    faabBudget: asNumber(settings.faabBudget, 100),
+    faabResetByRound: settings.faabResetByRound !== false,
+    tradeDeadlineWeek: asNumber(settings.tradeDeadlineWeek, 12),
+    tradeLockHours: asNumber(settings.tradeLockHours, 0),
+  }
+}
+
+async function resolveTournamentOwnerId(tournamentId: string): Promise<string | null> {
+  const [legacy, shell] = await Promise.all([
+    prisma.legacyTournament.findUnique({
+      where: { id: tournamentId },
+      select: { creatorId: true },
+    }),
+    (prisma as any).tournamentShell
+      ?.findUnique?.({ where: { id: tournamentId }, select: { commissionerId: true, createdBy: true } })
+      .catch(() => null),
+  ])
+
+  return legacy?.creatorId ?? shell?.commissionerId ?? shell?.createdBy ?? null
+}
+
+async function loadLeagueForTournament(tournamentId: string, leagueId: string) {
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: {
+      id: true,
+      settings: true,
+      name: true,
+      teams: { select: { claimedByUserId: true } },
+    },
+  })
+
+  if (!league) {
+    return {
+      league: null,
+      error: NextResponse.json({ error: 'League not found' }, { status: 404 }),
+    }
+  }
+
+  const leagueInTournament = await prisma.legacyTournamentLeague.findFirst({
+    where: { tournamentId, leagueId },
+  })
+
+  if (!leagueInTournament) {
+    return {
+      league: null,
+      error: NextResponse.json({ error: 'League is not part of this tournament' }, { status: 403 }),
+    }
+  }
+
+  return { league, error: null }
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ tournamentId: string }> }
+) {
+  const { tournamentId } = await params
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const url = new URL(req.url)
+  const leagueId = url.searchParams.get('leagueId')
+  if (!leagueId) {
+    return NextResponse.json({ error: 'Missing or invalid leagueId' }, { status: 400 })
+  }
+
+  try {
+    const ownerId = await resolveTournamentOwnerId(tournamentId)
+    if (!ownerId || ownerId !== userId) {
+      return NextResponse.json({ error: 'Not authorized as tournament commissioner' }, { status: 403 })
+    }
+
+    const { league, error } = await loadLeagueForTournament(tournamentId, leagueId)
+    if (error) return error
+
+    return NextResponse.json({
+      success: true,
+      leagueId,
+      settings: normalizeEditableLeagueSettings(league.settings),
+    })
+  } catch (err) {
+    console.error('[tournament-feeder-league-settings:get]', err)
+    return NextResponse.json(
+      { error: 'Failed to load league settings' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ tournamentId: string }> }
@@ -40,65 +160,17 @@ export async function PATCH(
   }
 
   try {
-    // Authorize against either schema. The legacy LegacyTournament uses
-    // creatorId, while the newer TournamentShell exposes commissionerId — we
-    // accept either so commissioners of new-style tournaments aren't locked
-    // out of the feeder-league settings UI.
-    const [legacy, shell] = await Promise.all([
-      prisma.legacyTournament.findUnique({
-        where: { id: tournamentId },
-        select: { creatorId: true },
-      }),
-      (prisma as any).tournamentShell
-        ?.findUnique?.({ where: { id: tournamentId }, select: { commissionerId: true, createdBy: true } })
-        .catch(() => null),
-    ])
-
-    const ownerId =
-      legacy?.creatorId ?? shell?.commissionerId ?? shell?.createdBy ?? null
+    const ownerId = await resolveTournamentOwnerId(tournamentId)
     if (!ownerId || ownerId !== userId) {
       return NextResponse.json({ error: 'Not authorized as tournament commissioner' }, { status: 403 })
     }
 
-    // Get the league
-    const league = await prisma.league.findUnique({
-      where: { id: leagueId },
-      select: {
-        id: true,
-        settings: true,
-        name: true,
-        teams: { select: { claimedByUserId: true } },
-      },
-    })
-
-    if (!league) {
-      return NextResponse.json({ error: 'League not found' }, { status: 404 })
-    }
-
-    // Verify league is part of this tournament
-    const leagueInTournament = await prisma.legacyTournamentLeague.findFirst({
-      where: { tournamentId, leagueId },
-    })
-
-    if (!leagueInTournament) {
-      return NextResponse.json(
-        { error: 'League is not part of this tournament' },
-        { status: 403 }
-      )
-    }
+    const { league, error } = await loadLeagueForTournament(tournamentId, leagueId)
+    if (error) return error
 
     // Prepare old state for audit log
     const oldSettings = league.settings && typeof league.settings === 'object' ? league.settings : {}
-    const oldState: Record<string, unknown> = {
-      scoring: (oldSettings as any).scoring ?? 'PPR',
-      rosterSize: (oldSettings as any).rosterSize ?? 15,
-      benchSize: (oldSettings as any).benchSize ?? 7,
-      waiverType: (oldSettings as any).waiverType ?? 'FAAB',
-      faabBudget: (oldSettings as any).faabBudget ?? 100,
-      faabResetByRound: (oldSettings as any).faabResetByRound ?? true,
-      tradeDeadlineWeek: (oldSettings as any).tradeDeadlineWeek ?? 12,
-      tradeLockHours: (oldSettings as any).tradeLockHours ?? 0,
-    }
+    const oldState = normalizeEditableLeagueSettings(oldSettings)
 
     // Build new settings
     const newSettings = {
@@ -152,7 +224,7 @@ export async function PATCH(
     if (recipientIds.length > 0) {
       const changesSummary = Object.entries(changes)
         .map(([key, value]) => {
-          const prev = oldState[key]
+          const prev = (oldState as any)[key]
           return `${formatFieldName(key)}: ${String(prev)} -> ${String(value)}`
         })
         .join(' | ')

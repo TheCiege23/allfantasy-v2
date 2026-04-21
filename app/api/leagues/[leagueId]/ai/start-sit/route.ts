@@ -5,14 +5,20 @@ import { prisma } from '@/lib/prisma'
 import { runStartSitAiEngine } from '@/lib/ai-matchup-engine/runStartSitAiEngine'
 import type { MatchupPlayerSlot } from '@/lib/matchup-center/types'
 import { sanitizeStarterRow } from '@/lib/matchup-center/validateMatchupPayload'
+import { AI_USAGE } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
+import { evaluateLegalityForPersistedRoster } from '@/lib/roster-legality/loadLegalityEvaluationContext'
+import { buildLeagueScoringContextForAi } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 async function leagueScoringHint(leagueId: string): Promise<string | null> {
+  const detailed = await buildLeagueScoringContextForAi(leagueId)
+  if (detailed) return detailed
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
-    select: { scoring: true, settings: true, sport: true },
+    select: { scoring: true, sport: true },
   })
   if (!league) return null
   const parts: string[] = []
@@ -47,6 +53,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
     sport?: string
     playerA?: MatchupPlayerSlot
     playerB?: MatchupPlayerSlot
+    /** When true, include roster legality blockers (IR / taxi / overflow) for premium UX. */
+    includeRosterLegality?: boolean
   }
   try {
     body = (await req.json()) as typeof body
@@ -75,5 +83,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
     leagueScoringHint: hint,
   })
 
-  return NextResponse.json({ result, leagueId })
+  let rosterLegalitySummary: {
+    isLegal: boolean
+    blockingMessages: string[]
+    highlightedPlayerIds: string[]
+  } | null = null
+  if (body.includeRosterLegality) {
+    const roster = await prisma.roster.findFirst({
+      where: { leagueId, platformUserId: session.user.id },
+      select: { id: true, leagueId: true, playerData: true },
+    })
+    if (roster) {
+      const ev = await evaluateLegalityForPersistedRoster(roster)
+      if (ev) {
+        rosterLegalitySummary = {
+          isLegal: ev.result.isLegal,
+          blockingMessages: ev.result.blockingReasons.map((b) => b.message).slice(0, 8),
+          highlightedPlayerIds: ev.result.highlightedPlayerIds,
+        }
+      }
+    }
+  }
+
+  recordProductEvent(AI_USAGE.START_SIT, {
+    userId: session.user.id,
+    meta: { leagueId, sport },
+  })
+
+  return NextResponse.json({ result, leagueId, rosterLegality: rosterLegalitySummary })
 }

@@ -91,6 +91,29 @@ export function LeagueListPanel({
   const refreshInFlightRef = useRef<Set<string>>(new Set())
   const deleteInFlightRef = useRef<Set<string>>(new Set())
   const [deleting, setDeleting] = useState<Record<string, boolean>>({})
+  const [rosterIssueCounts, setRosterIssueCounts] = useState<Record<string, number>>({})
+
+  const refreshRosterIssueCounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/roster-legality-summary', { cache: 'no-store', credentials: 'include' })
+      if (!res.ok) return
+      const j = (await res.json()) as { counts?: Record<string, number> }
+      if (j.counts && typeof j.counts === 'object') setRosterIssueCounts(j.counts)
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshRosterIssueCounts()
+    const iv = window.setInterval(() => void refreshRosterIssueCounts(), 120_000)
+    const onInv = () => void refreshRosterIssueCounts()
+    window.addEventListener('af-roster-legality-summary-invalidate', onInv as EventListener)
+    return () => {
+      window.clearInterval(iv)
+      window.removeEventListener('af-roster-legality-summary-invalidate', onInv as EventListener)
+    }
+  }, [refreshRosterIssueCounts])
 
   useEffect(() => {
     const syncFromStorage = () => {
@@ -333,6 +356,7 @@ export function LeagueListPanel({
                 >
                   <LeagueSidebarCard
                     league={league}
+                    rosterIssueCount={rosterIssueCounts[league.id] ?? 0}
                     isSelected={league.id === selectedId}
                     isFavorite={favoriteSet.has(league.id)}
                     onSelect={onSelect}
@@ -381,7 +405,7 @@ export function LeagueListPanel({
               </button>
               <button
                 type="button"
-                onClick={() => router.push('/import')}
+                onClick={() => router.push('/import?returnTo=/dashboard')}
                 className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs font-semibold text-white/50 transition hover:border-white/20 hover:text-white/70"
               >
                 Import a League

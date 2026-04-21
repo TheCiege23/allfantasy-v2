@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { buildMatchupCenterPayload } from '@/server/services/matchupCenterService'
 import { assertValidMatchupPayload } from '@/lib/matchup-center/validateMatchupPayload'
+import { dedupeLeagueRequest } from '@/lib/league-engine-performance/leagueRequestDedupe'
+import { withLeagueEngineTimedOperation } from '@/lib/league-engine-performance/jobRunner'
+import { DEFAULT_SLOW_ROUTE_MS } from '@/lib/league-engine-performance/observability'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,17 +13,37 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ leag
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const userId = session.user!.id
   const { leagueId } = await params
   const sp = req.nextUrl.searchParams
   const season = sp.get('season') ? Number(sp.get('season')) : undefined
   const week = sp.get('week') ? Number(sp.get('week')) : undefined
+  const seasonKey = Number.isFinite(season!) ? String(season) : 'current'
+  const weekKey = Number.isFinite(week!) ? String(week) : 'current'
 
-  const out = await buildMatchupCenterPayload({
-    leagueId,
-    viewerUserId: session.user.id,
-    season: Number.isFinite(season!) ? season : undefined,
-    week: Number.isFinite(week!) ? week : undefined,
-  })
+  const out = await dedupeLeagueRequest(
+    {
+      leagueId,
+      surface: 'matchup_center',
+      fragments: [userId, seasonKey, weekKey],
+    },
+    () =>
+      withLeagueEngineTimedOperation(
+        {
+          subsystem: 'matchup',
+          action: 'matchup_center_get',
+          leagueId,
+          slowThresholdMs: DEFAULT_SLOW_ROUTE_MS,
+        },
+        () =>
+          buildMatchupCenterPayload({
+            leagueId,
+            viewerUserId: userId,
+            season: Number.isFinite(season!) ? season : undefined,
+            week: Number.isFinite(week!) ? week : undefined,
+          }),
+      ),
+  )
 
   if ('error' in out) {
     return NextResponse.json({ error: out.error }, { status: out.status })

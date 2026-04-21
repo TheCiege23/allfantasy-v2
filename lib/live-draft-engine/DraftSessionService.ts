@@ -28,6 +28,8 @@ import { buildKeeperLocks } from './keeper/KeeperDraftOrder'
 import type { KeeperConfig, KeeperSelection } from './keeper/types'
 import { draftOrderSlotsToSlotOrder } from '@/lib/league/league-settings-draft-sync'
 import { pickTimerSecondsFromLeagueSettings } from '@/lib/league/league-settings-pick-timer'
+import { ENGAGEMENT } from '@/lib/analytics/eventNames'
+import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
 
@@ -621,6 +623,9 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
       import('@/lib/achievement-system').then((m) => m.awardAchievement(league.userId, 'draft_completed', { leagueId })).catch(() => {})
     }
   }).catch(() => {})
+  recordProductEvent(ENGAGEMENT.DRAFT_COMPLETED, {
+    meta: { leagueId, source: 'completeDraftSession' },
+  })
   return true
 }
 

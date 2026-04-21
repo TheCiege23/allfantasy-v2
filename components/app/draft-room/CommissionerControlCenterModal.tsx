@@ -19,6 +19,8 @@ import {
 import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { DEFAULT_TRADE_RULES } from '@/lib/commissioner-ai-draft-manager/types'
 import { DraftImportFlow } from './DraftImportFlow'
+import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
+import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 
 const TIMER_MODE_OPTIONS: Array<{ value: TimerMode; label: string }> = [
   { value: 'per_pick', label: 'Per pick' },
@@ -186,6 +188,11 @@ export function CommissionerControlCenterModal({
     setSettingsSaving(true)
     try {
       await onSettingsPatch({ [key]: value })
+      if (key === 'autoPickEnabled') {
+        sendProductAnalyticsBeacon(DRAFT_ROOM.COMMISSIONER_AUTOPICK_LEAGUE, { leagueId, enabled: value })
+      } else if (key === 'commissionerForceAutoPickEnabled') {
+        sendProductAnalyticsBeacon(DRAFT_ROOM.COMMISSIONER_FORCE_AUTOPICK, { leagueId, enabled: value })
+      }
     } finally {
       setSettingsSaving(false)
     }

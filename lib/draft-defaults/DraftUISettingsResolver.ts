@@ -20,6 +20,9 @@ export interface SlowDraftPauseWindow {
 /** Commissioner choice for empty/orphan teams: CPU (rules-based, no API) or AI (optional API, fallback to CPU). */
 export type OrphanDrafterMode = 'cpu' | 'ai'
 
+/** How the draft is run: live room, auto-draft, or offline (commissioner logs picks from an in-person draft). */
+export type DraftExecutionMode = 'live' | 'auto' | 'offline'
+
 export interface DraftUISettings {
   tradedPickColorModeEnabled: boolean
   tradedPickOwnerNameRedEnabled: boolean
@@ -44,6 +47,8 @@ export interface DraftUISettings {
   auctionAutoNominationEnabled: boolean
   /** Draft import flow availability for commissioner tools. */
   importEnabled: boolean
+  /** Execution mode — drives draft-room UI (offline banner, commissioner-elevated pick source). */
+  executionMode: DraftExecutionMode
 }
 
 const DRAFT_UI_DEFAULTS: DraftUISettings = {
@@ -62,6 +67,7 @@ const DRAFT_UI_DEFAULTS: DraftUISettings = {
   pickTradeEnabled: true,
   auctionAutoNominationEnabled: false,
   importEnabled: true,
+  executionMode: 'live',
 }
 
 const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
@@ -81,6 +87,7 @@ const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
   pickTradeEnabled: 'draft_pick_trade_enabled',
   auctionAutoNominationEnabled: 'draft_auction_auto_nomination_enabled',
   importEnabled: 'draft_import_enabled',
+  executionMode: 'draft_execution_mode',
 }
 
 function fromStorage(settings: Record<string, unknown>): DraftUISettings {
@@ -102,7 +109,19 @@ function fromStorage(settings: Record<string, unknown>): DraftUISettings {
     pickTradeEnabled: settings[SETTINGS_KEYS.pickTradeEnabled] as boolean ?? DRAFT_UI_DEFAULTS.pickTradeEnabled,
     auctionAutoNominationEnabled: settings[SETTINGS_KEYS.auctionAutoNominationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.auctionAutoNominationEnabled,
     importEnabled: settings[SETTINGS_KEYS.importEnabled] as boolean ?? DRAFT_UI_DEFAULTS.importEnabled,
+    executionMode: resolveExecutionMode(settings),
   }
+}
+
+function resolveExecutionMode(settings: Record<string, unknown>): DraftExecutionMode {
+  const direct = settings[SETTINGS_KEYS.executionMode]
+  if (direct === 'live' || direct === 'auto' || direct === 'offline') return direct
+  if (settings.draft_execution_offline === true) return 'offline'
+  if (settings.draft_execution_auto === true) return 'auto'
+  const requested = String(settings.requested_draft_type ?? settings.draft_type ?? '').toLowerCase()
+  if (requested === 'offline') return 'offline'
+  if (requested === 'auto') return 'auto'
+  return DRAFT_UI_DEFAULTS.executionMode
 }
 
 /**

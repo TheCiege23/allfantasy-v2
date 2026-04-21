@@ -9,11 +9,9 @@
  */
 
 import { prisma } from '@/lib/prisma'
-// handleChimmyIdolPlayRequest is not (yet) exported from
-// SurvivorIdolRegistry — the engine takes explicit args (idolId,
-// rosterId, councilId, targetPlayerId) and requires the caller to
-// pick which idol to burn. We stub the conversational entry point
-// below so Chimmy gracefully tells the user to use the UI instead.
+import { applyIdolPower } from './SurvivorIdolRegistry'
+import { resolveSurvivorCurrentWeek } from './SurvivorTimelineResolver'
+import { getCouncil } from './SurvivorTribalCouncilService'
 import { postIdolPlayAnnouncement } from './leagueChatPoster'
 import { IDOL_POWER_DESCRIPTIONS, EXILE_KEY_POSITION_BY_SPORT } from './constants'
 import { getSportSchedule } from './sportScheduleEngine'
@@ -61,11 +59,44 @@ export async function handleChimmyPrivateMessage(leagueId: string, userId: strin
     if (!player) return 'You are not registered as a Survivor player in this league.'
     if (player.playerState === 'eliminated') return 'Your journey has ended — you can no longer play idols.'
 
-    // Conversational idol play isn't wired to the engine yet — the
-    // engine needs (idolId, rosterId, councilId, targetPlayerId) which
-    // Chimmy can't infer from freeform text reliably. Direct the user
-    // to the Tribal Council UI which has the full picker.
-    return 'To play an idol, open the active Tribal Council and tap "Play Idol" on your inventory — I need to know which idol and who you want to protect, which the UI will ask for.'
+    const roster = await prisma.roster.findFirst({
+      where: { leagueId, platformUserId: userId },
+      select: { id: true },
+    })
+    if (!roster) return 'No roster found for you in this league.'
+
+    const playable = await prisma.survivorIdol.findMany({
+      where: { leagueId, rosterId: roster.id, status: { in: ['hidden', 'revealed'] }, isUsed: false },
+      select: { id: true, powerType: true, powerLabel: true },
+    })
+    if (playable.length === 0) return 'You currently hold no idols to play.'
+
+    const currentWeek = await resolveSurvivorCurrentWeek(leagueId)
+    const council = typeof currentWeek === 'number' ? await getCouncil(leagueId, currentWeek) : null
+    if (!council || council.closedAt || new Date() > council.voteDeadlineAt) {
+      return 'Idols can only be played during an active Tribal Council before the vote deadline. Wait for the next council.'
+    }
+
+    // Auto-play only when unambiguous: one idol + no target needed (self-protect).
+    const selfOnly = playable.filter((i) => i.powerType === 'protect_self')
+    if (playable.length === 1 && selfOnly.length === 1) {
+      const idol = playable[0]
+      const result = await applyIdolPower(leagueId, idol.id, roster.id, {
+        councilId: council.id,
+        week: currentWeek,
+      })
+      if (!result.ok) return `I could not play that idol: ${result.error ?? 'unknown error'}`
+      await postIdolPlayAnnouncement(
+        leagueId,
+        `${player.displayName} has played an idol!`,
+        player.displayName,
+        idol.powerType,
+      ).catch(() => {})
+      return `Your **${idol.powerLabel ?? idol.powerType}** has been played. The tribe will see its effect when votes are read.`
+    }
+
+    const lines = playable.map((i) => `• **${i.powerLabel ?? i.powerType}**`).join('\n')
+    return `You have multiple powers or a power that needs a target — open the active Tribal Council and tap "Play Idol" to choose the idol and target.\n${lines}`
   }
 
   // ===== CHECK MY IDOLS =====

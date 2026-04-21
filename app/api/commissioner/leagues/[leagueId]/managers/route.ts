@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { getLeagueRole } from '@/lib/league/permissions'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { trackDiscoveryOrphanAdoption } from '@/lib/discovery-analytics/server'
 
@@ -18,16 +18,26 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { leagueId } = await params
 
-  try {
-    await assertCommissioner(leagueId, userId)
-  } catch {
+  const role = await getLeagueRole(leagueId, userId)
+  if (role !== 'commissioner' && role !== 'co_commissioner') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const [teams, rosters] = await Promise.all([
     prisma.leagueTeam.findMany({
       where: { leagueId },
-      select: { id: true, externalId: true, ownerName: true, teamName: true, avatarUrl: true },
+      select: {
+        id: true,
+        externalId: true,
+        ownerName: true,
+        teamName: true,
+        avatarUrl: true,
+        isCommissioner: true,
+        isCoCommissioner: true,
+        isOrphan: true,
+        role: true,
+        platformUserId: true,
+      },
     }),
     prisma.roster.findMany({
       where: { leagueId },
@@ -53,6 +63,11 @@ export async function GET(
       userId: r.platformUserId,
       username: appUser?.username ?? null,
       displayName: team?.ownerName ?? appUser?.displayName ?? team?.teamName ?? r.platformUserId,
+      leagueTeamId: team?.id ?? null,
+      isCommissioner: team?.isCommissioner ?? false,
+      isCoCommissioner: team?.isCoCommissioner ?? false,
+      isOrphanTeam: team?.isOrphan ?? false,
+      teamRole: team?.role ?? 'member',
     }
   })
 
@@ -72,9 +87,8 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { leagueId } = await params
 
-  try {
-    await assertCommissioner(leagueId, userId)
-  } catch {
+  const delRole = await getLeagueRole(leagueId, userId)
+  if (delRole !== 'commissioner' && delRole !== 'co_commissioner') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -122,9 +136,8 @@ export async function PATCH(
   if (!commissionerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { leagueId } = await params
-  try {
-    await assertCommissioner(leagueId, commissionerId)
-  } catch {
+  const patchRole = await getLeagueRole(leagueId, commissionerId)
+  if (patchRole !== 'commissioner' && patchRole !== 'co_commissioner') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

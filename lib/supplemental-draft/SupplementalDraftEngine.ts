@@ -13,6 +13,10 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import {
+  getSupportedEngineCoresForDraftType,
+  mapCanonicalDraftTypeToEngineCore,
+} from '@/lib/draft-types/draftTypeRegistry'
 
 export type SupplementalDraftConfig = {
   leagueId: string
@@ -137,10 +141,18 @@ export async function createSupplementalDraft(
   config: SupplementalDraftConfig,
   commissionerId: string,
 ): Promise<{ draftSessionId: string }> {
+  const requestedEngineCore = mapCanonicalDraftTypeToEngineCore(config.draftType)
+  const supportedForSupplemental = getSupportedEngineCoresForDraftType('supplemental_draft')
+  if (!supportedForSupplemental.includes(requestedEngineCore)) {
+    throw new Error(
+      `Draft type "${config.draftType}" is not allowed for supplemental drafts. Allowed: ${supportedForSupplemental.join(', ')}`
+    )
+  }
+
   const session = await prisma.draftSession.create({
     data: {
       leagueId,
-      draftType: config.draftType,
+      draftType: requestedEngineCore,
       status: 'configuring',
       rounds: config.rounds,
       timerSeconds: config.timerSeconds,

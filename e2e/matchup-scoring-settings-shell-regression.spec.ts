@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mockLeagueSettingsGetForScoring } from './helpers/mockLeagueSettingsForScoring'
 
 test.describe.configure({ timeout: 180_000 })
 
@@ -11,6 +12,25 @@ test.describe('@matchups matchup scoring-settings shell regression', () => {
     )
 
     const leagueId = `e2e-matchup-scoring-shell-${Date.now()}`
+
+    const matchupScoringState = {
+      leagueId,
+      sport: 'NFL',
+      leagueVariant: 'IDP',
+      formatType: 'IDP-balanced',
+      templateId: 'default-NFL-IDP-balanced',
+      rules: [
+        {
+          statKey: 'idp_solo_tackle',
+          pointsValue: 1.5,
+          multiplier: 1,
+          enabled: true,
+          defaultPointsValue: 1.5,
+          defaultEnabled: true,
+          isOverridden: false,
+        },
+      ],
+    }
 
     await page.route(`**/api/leagues/${leagueId}`, async (route) => {
       await route.fulfill({
@@ -129,35 +149,18 @@ test.describe('@matchups matchup scoring-settings shell regression', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          leagueId,
-          sport: 'NFL',
-          leagueVariant: 'IDP',
-          formatType: 'IDP-balanced',
-          templateId: 'default-NFL-IDP-balanced',
-          rules: [
-            {
-              statKey: 'idp_solo_tackle',
-              pointsValue: 1.5,
-              multiplier: 1,
-              enabled: true,
-              defaultPointsValue: 1.5,
-              defaultEnabled: true,
-              isOverridden: false,
-            },
-          ],
-        }),
+        body: JSON.stringify(matchupScoringState),
       })
     })
     await page.route(`**/api/commissioner/leagues/${leagueId}/scoring?type=settings`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          ok: true,
-        }),
+        body: JSON.stringify(matchupScoringState),
       })
     })
+
+    await mockLeagueSettingsGetForScoring(page, leagueId, () => matchupScoringState)
 
     await page.goto(`/league/${leagueId}?tab=Matchups`)
     await expect(page).toHaveURL(new RegExp(`/league/${leagueId}\\?tab=Matchups`))

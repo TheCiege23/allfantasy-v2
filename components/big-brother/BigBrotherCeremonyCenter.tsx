@@ -14,6 +14,21 @@ export interface BigBrotherCeremonyCenterProps {
 
 const CEREMONY_TABS = ['Nomination', 'Veto Draw', 'Veto Ceremony', 'Replacement', 'Eviction'] as const
 
+function PersonPill({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'hoh' | 'danger' | 'safe' | 'veto' }) {
+  const toneClass =
+    tone === 'hoh'
+      ? 'border-amber-400/50 bg-amber-500/15 text-amber-100'
+      : tone === 'danger'
+        ? 'border-rose-400/50 bg-rose-500/15 text-rose-100'
+        : tone === 'safe'
+          ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100'
+          : tone === 'veto'
+            ? 'border-sky-400/50 bg-sky-500/15 text-sky-100'
+            : 'border-white/15 bg-white/[0.06] text-white/80'
+
+  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${toneClass}`}>{label}</span>
+}
+
 export function BigBrotherCeremonyCenter({ leagueId, summary }: BigBrotherCeremonyCenterProps) {
   const [tab, setTab] = useState<(typeof CEREMONY_TABS)[number]>('Nomination')
   const names = summary.rosterDisplayNames ?? {}
@@ -38,10 +53,22 @@ export function BigBrotherCeremonyCenter({ leagueId, summary }: BigBrotherCeremo
         {tab === 'Nomination' && (
           <>
             <h3 className="text-sm font-medium text-white/90">Nomination Ceremony</h3>
+            {cycle?.hohRosterId ? (
+              <div className="mt-2">
+                <PersonPill
+                  tone="hoh"
+                  label={`HOH: ${names[cycle.hohRosterId] ?? cycle.hohRosterId}`}
+                />
+              </div>
+            ) : null}
             {cycle?.nominee1RosterId && cycle?.nominee2RosterId ? (
-              <p className="mt-2 text-sm text-white/70">
-                HOH nominated {names[cycle.nominee1RosterId] ?? cycle.nominee1RosterId} and {names[cycle.nominee2RosterId] ?? cycle.nominee2RosterId} to the block.
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="text-sm text-white/70">HOH nominations for the block:</p>
+                <div className="flex flex-wrap gap-2">
+                  <PersonPill tone="danger" label={names[cycle.nominee1RosterId] ?? cycle.nominee1RosterId} />
+                  <PersonPill tone="danger" label={names[cycle.nominee2RosterId] ?? cycle.nominee2RosterId} />
+                </div>
+              </div>
             ) : (
               <p className="mt-2 text-sm text-white/50">Nominations not yet set for this week.</p>
             )}
@@ -51,11 +78,11 @@ export function BigBrotherCeremonyCenter({ leagueId, summary }: BigBrotherCeremo
           <>
             <h3 className="text-sm font-medium text-white/90">Veto Players</h3>
             {cycle?.vetoParticipantRosterIds?.length ? (
-              <ul className="mt-2 list-inside list-disc text-sm text-white/70">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {cycle.vetoParticipantRosterIds.map((id) => (
-                  <li key={id}>{names[id] ?? id}</li>
+                  <PersonPill key={id} tone="veto" label={names[id] ?? id} />
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="mt-2 text-sm text-white/50">Veto draw not yet run.</p>
             )}
@@ -65,10 +92,27 @@ export function BigBrotherCeremonyCenter({ leagueId, summary }: BigBrotherCeremo
           <>
             <h3 className="text-sm font-medium text-white/90">Veto Result</h3>
             {cycle?.vetoWinnerRosterId ? (
-              <p className="mt-2 text-sm text-white/70">
-                {names[cycle.vetoWinnerRosterId] ?? cycle.vetoWinnerRosterId} won the Veto.
-                {cycle.vetoUsed ? ` Used it to save ${cycle.vetoSavedRosterId ? names[cycle.vetoSavedRosterId] ?? cycle.vetoSavedRosterId : 'a nominee'}.` : ' Kept nominations the same.'}
-              </p>
+              <div className="mt-2 space-y-2">
+                <PersonPill tone="veto" label={`Veto Winner: ${names[cycle.vetoWinnerRosterId] ?? cycle.vetoWinnerRosterId}`} />
+                {cycle.vetoUsed ? (
+                  <div className="flex flex-wrap gap-2">
+                    {cycle.vetoSavedRosterId ? (
+                      <PersonPill
+                        tone="safe"
+                        label={`Saved: ${names[cycle.vetoSavedRosterId] ?? cycle.vetoSavedRosterId}`}
+                      />
+                    ) : null}
+                    {cycle.replacementNomineeRosterId ? (
+                      <PersonPill
+                        tone="danger"
+                        label={`Replacement: ${names[cycle.replacementNomineeRosterId] ?? cycle.replacementNomineeRosterId}`}
+                      />
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/70">Veto was not used. Nominations remain unchanged.</p>
+                )}
+              </div>
             ) : (
               <p className="mt-2 text-sm text-white/50">Veto not yet decided.</p>
             )}
@@ -90,9 +134,10 @@ export function BigBrotherCeremonyCenter({ leagueId, summary }: BigBrotherCeremo
           <>
             <h3 className="text-sm font-medium text-white/90">Eviction</h3>
             {cycle?.evictedRosterId ? (
-              <p className="mt-2 text-sm text-white/70">
-                {names[cycle.evictedRosterId] ?? cycle.evictedRosterId} was evicted this week.
-              </p>
+              <div className="mt-2 space-y-2">
+                <PersonPill tone="danger" label={`Evicted: ${names[cycle.evictedRosterId] ?? cycle.evictedRosterId}`} />
+                <p className="text-sm text-white/70">The house vote has concluded and the roster is removed from active competition.</p>
+              </div>
             ) : (
               <p className="mt-2 text-sm text-white/50">Eviction not yet held.</p>
             )}

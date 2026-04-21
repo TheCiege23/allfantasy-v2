@@ -43,3 +43,19 @@ export async function prismaTransactionWithLeagueLock<T>(
     return fn(tx)
   })
 }
+
+/**
+ * Non-blocking: returns false if another transaction holds the same league scope lock.
+ * Use to skip duplicate work (e.g. overlapping waiver cron) — caller must not proceed when false.
+ */
+export async function tryLeagueTransactionLock(
+  tx: Prisma.TransactionClient,
+  leagueId: string,
+  purpose: string,
+): Promise<boolean> {
+  const scope = leagueLockScope(leagueId, purpose)
+  const rows = await tx.$queryRaw<Array<{ acquired: boolean }>>(
+    Prisma.sql`SELECT pg_try_advisory_xact_lock(abs(hashtext(${scope}::text))::bigint) AS acquired`,
+  )
+  return Boolean(rows[0]?.acquired)
+}

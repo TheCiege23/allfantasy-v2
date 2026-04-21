@@ -31,7 +31,16 @@ export interface PlayoffBracketConfig {
 export async function getBracketConfigForLeague(leagueId: string): Promise<PlayoffBracketConfig | null> {
   const league = await (prisma as any).league.findUnique({
     where: { id: leagueId },
-    select: { sport: true, leagueVariant: true, settings: true },
+    select: {
+      sport: true,
+      leagueVariant: true,
+      settings: true,
+      playoffStartWeek: true,
+      playoffTeams: true,
+      playoffWeeksPerRound: true,
+      playoffSeedingRule: true,
+      playoffLowerBracket: true,
+    },
   })
   if (!league) return null
 
@@ -51,15 +60,42 @@ export async function getBracketConfigForLeague(leagueId: string): Promise<Playo
     if (valueInTopLevel !== undefined && valueInTopLevel !== null) return valueInTopLevel as T
     return fallback
   }
-  const teamCount = fromSettings<number>(
+  const teamCountFromJson = fromSettings<number>(
     'playoff_team_count',
     defaults.playoff_team_count
   )
-  const playoffStart = fromSettings<number | null>(
+  const teamCount =
+    league.playoffTeams != null && Number.isFinite(Number(league.playoffTeams))
+      ? Number(league.playoffTeams)
+      : teamCountFromJson
+
+  const playoffStartFromJson = fromSettings<number | null>(
     'playoff_start_week',
     defaults.playoff_start_week ?? null
   )
+  const playoffStart =
+    league.playoffStartWeek != null && Number.isFinite(Number(league.playoffStartWeek))
+      ? Number(league.playoffStartWeek)
+      : playoffStartFromJson
   const playoffStartPoint = fromSettings<number | null>('playoff_start_point', playoffStart)
+
+  const matchupLengthFromJson = fromSettings<number>('matchup_length', defaults.matchup_length ?? 1)
+  const matchupLength =
+    league.playoffWeeksPerRound != null && Number.isFinite(Number(league.playoffWeeksPerRound))
+      ? Number(league.playoffWeeksPerRound)
+      : matchupLengthFromJson
+
+  const toiletFromJson = fromSettings<boolean>(
+    'toilet_bowl_enabled',
+    defaults.toilet_bowl_enabled ?? false,
+  )
+  const consolationFromJson = fromSettings<boolean>(
+    'consolation_bracket_enabled',
+    defaults.consolation_bracket_enabled ?? defaults.consolation_plays_for !== 'none',
+  )
+  const lb = String(league.playoffLowerBracket ?? '').toLowerCase()
+  const toiletBowlEnabled = lb ? lb === 'toilet' : toiletFromJson
+  const consolationEnabled = lb ? lb === 'consolation' || lb === 'consolation_bracket' : consolationFromJson
 
   return {
     playoff_team_count: teamCount as number,
@@ -68,20 +104,14 @@ export async function getBracketConfigForLeague(leagueId: string): Promise<Playo
     playoff_start_point: playoffStartPoint,
     first_round_byes: fromSettings<number>('first_round_byes', defaults.first_round_byes),
     bracket_type: fromSettings<string>('bracket_type', defaults.bracket_type),
-    matchup_length: fromSettings<number>('matchup_length', defaults.matchup_length ?? 1),
+    matchup_length: matchupLength,
     total_rounds: fromSettings<number | null>('total_rounds', defaults.total_rounds ?? null),
-    consolation_bracket_enabled: fromSettings<boolean>(
-      'consolation_bracket_enabled',
-      defaults.consolation_bracket_enabled ?? defaults.consolation_plays_for !== 'none'
-    ),
+    consolation_bracket_enabled: consolationEnabled,
     third_place_game_enabled: fromSettings<boolean>(
       'third_place_game_enabled',
       defaults.third_place_game_enabled ?? false
     ),
-    toilet_bowl_enabled: fromSettings<boolean>(
-      'toilet_bowl_enabled',
-      defaults.toilet_bowl_enabled ?? false
-    ),
+    toilet_bowl_enabled: toiletBowlEnabled,
     championship_length: fromSettings<number>(
       'championship_length',
       defaults.championship_length ?? 1

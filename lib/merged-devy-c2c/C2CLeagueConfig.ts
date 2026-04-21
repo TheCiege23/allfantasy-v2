@@ -163,7 +163,7 @@ export async function getC2CConfig(leagueId: string): Promise<C2CLeagueConfigSha
       proLineupSlots: parseLineupSlots(row.proLineupSlots) ?? defaults.proLineupSlots,
       proBenchSize: row.proBenchSize,
       proIRSize: row.proIRSize,
-      startupDraftType: row.startupDraftType as 'snake' | 'linear',
+      startupDraftType: row.startupDraftType as 'snake' | 'linear' | 'auction',
       rookieDraftType: row.rookieDraftType as 'snake' | 'linear',
       collegeDraftType: row.collegeDraftType as 'snake' | 'linear',
       rookiePickOrderMethod: row.rookiePickOrderMethod,

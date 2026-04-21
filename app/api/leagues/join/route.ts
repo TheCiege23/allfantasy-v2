@@ -4,11 +4,14 @@
  * Creates a Roster for the user if not already a member.
  */
 
+import type { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { validateFantasyInviteCode } from '@/lib/league-invite'
 import { prisma } from '@/lib/prisma'
+import { assertPaidJoinAllowed, linkDuesToRoster } from '@/lib/league-finance/joinGate'
+import { claimPlaceholderRoster } from '@/lib/league-import/placeholderClaim'
 
 export const dynamic = 'force-dynamic'
 
@@ -106,13 +109,95 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const roster = await tx.roster.create({
-      data: {
-        leagueId: result.leagueId,
-        platformUserId: userId,
-        playerData: { draftPicks: [] },
+    const paidGate = await assertPaidJoinAllowed({ leagueId: result.leagueId, userId, tx: tx as Prisma.TransactionClient })
+    if (!paidGate.ok) {
+      const st = paidGate.code === 'LEAGUE_NOT_FOUND' ? 404 : 402
+      return { success: false as const, status: st, error: paidGate.message }
+    }
+
+    // Any imported league ships with placeholder rosters whose
+    // platformUserId is the source manager id or "import:<provider>:<id>".
+    // Try to claim the one matching this user's profile before creating a
+    // fresh empty roster.
+    const userEmail = await tx.appUser
+      .findUnique({ where: { id: userId }, select: { email: true } })
+      .then((u) => u?.email ?? null)
+    const claim = await claimPlaceholderRoster({
+      tx: tx as Prisma.TransactionClient,
+      leagueId: result.leagueId,
+      candidate: {
+        appUserId: userId,
+        displayName: profile?.displayName ?? null,
+        sleeperUsername: profile?.sleeperUsername ?? null,
+        email: userEmail,
       },
-      select: { id: true },
+    })
+
+    // If auto-match failed but there ARE unclaimed placeholders in this
+    // league, skip fresh-roster creation and let the UI take the user to
+    // the manual picker at /api/leagues/{id}/claim-roster.
+    let claimPrompt = false
+    if (!claim.claimed) {
+      const unclaimedCount = await tx.roster.count({
+        where: {
+          leagueId: result.leagueId,
+          platformUserId: { not: userId },
+          NOT: {
+            platformUserId: {
+              in: (
+                await tx.appUser.findMany({
+                  where: {
+                    id: {
+                      in: (
+                        await tx.roster.findMany({
+                          where: { leagueId: result.leagueId },
+                          select: { platformUserId: true },
+                        })
+                      ).map((r) => r.platformUserId),
+                    },
+                  },
+                  select: { id: true },
+                })
+              ).map((u) => u.id),
+            },
+          },
+        },
+      })
+      if (unclaimedCount > 0) claimPrompt = true
+    }
+
+    const roster = claim.claimed && claim.rosterId
+      ? await tx.roster.findUnique({ where: { id: claim.rosterId }, select: { id: true } })
+      : claimPrompt
+        ? null
+        : await tx.roster.create({
+            data: {
+              leagueId: result.leagueId,
+              platformUserId: userId,
+              playerData: { draftPicks: [] },
+            },
+            select: { id: true },
+          })
+    if (!roster && !claimPrompt) {
+      return { success: false as const, status: 500, error: 'Failed to create roster' }
+    }
+
+    // Skip roster-linked setup when we deferred creation for manual claim;
+    // those steps run after the user picks their team via /claim-roster.
+    if (!roster) {
+      return {
+        success: true as const,
+        leagueId: result.leagueId,
+        alreadyMember: false as const,
+        claimPrompt: true,
+      }
+    }
+
+    await linkDuesToRoster({
+      leagueId: result.leagueId,
+      userId,
+      rosterId: roster.id,
+      tx: tx as Prisma.TransactionClient,
     })
 
     if (league.platform === 'manual') {
@@ -133,11 +218,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return { success: true as const, leagueId: result.leagueId, alreadyMember: false as const }
+    return {
+      success: true as const,
+      leagueId: result.leagueId,
+      alreadyMember: false as const,
+    }
   })
 
   if (!joinResult.success) {
-    return NextResponse.json({ error: joinResult.error }, { status: joinResult.status })
+    const code =
+      joinResult.status === 402 ? 'PAYMENT_REQUIRED' : joinResult.status === 404 ? 'LEAGUE_NOT_FOUND' : undefined
+    return NextResponse.json(
+      { error: joinResult.error, ...(code ? { code } : {}) },
+      { status: joinResult.status },
+    )
   }
 
   return NextResponse.json(joinResult)

@@ -14,9 +14,22 @@ export async function GET(
   const leagueId = params.leagueId
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
-    select: { id: true, season: true, userId: true, teams: { select: { platformUserId: true } } },
+    select: {
+      id: true,
+      season: true,
+      userId: true,
+      settings: true,
+      teams: { select: { platformUserId: true } },
+    },
   })
   if (!league) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const rawMode =
+    league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+      ? (league.settings as Record<string, unknown>).scoring_mode
+      : null
+  const scoringMode: 'points' | 'h2h_category' | 'roto' =
+    rawMode === 'h2h_category' || rawMode === 'roto' ? rawMode : 'points'
 
   const memberIds = new Set(
     league.teams.map((t) => t.platformUserId).filter((x): x is string => Boolean(x)),
@@ -46,7 +59,10 @@ export async function GET(
     pointsAgainst: r.pointsAgainst,
     rank: r.rank,
     playoffSeed: r.playoffSeed,
+    categoryWinsFor: r.categoryWinsFor ?? 0,
+    categoryLossesFor: r.categoryLossesFor ?? 0,
+    categoryTiesFor: r.categoryTiesFor ?? 0,
   }))
 
-  return NextResponse.json({ season, standings })
+  return NextResponse.json({ season, standings, scoringMode })
 }

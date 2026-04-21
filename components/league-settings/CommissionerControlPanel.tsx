@@ -185,16 +185,29 @@ export function CommissionerControlPanel({ leagueId }: Props) {
   // Recalculate matchup records
   const recalculate = useCallback(async () => {
     setActionLoading(true)
+    setError(null)
+    setSuccess(null)
     try {
-      await fetch(`/api/commissioner/leagues/${encodeURIComponent(leagueId)}/scoring`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recalcWeek: selectedWeek }),
-      })
+      const res = await fetch(
+        `/api/leagues/${encodeURIComponent(leagueId)}/scoring/process-week`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ week: selectedWeek }),
+        },
+      )
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(j.error ?? 'Recalc failed')
+        return
+      }
       setSuccess(`Recalculated matchup records for week ${selectedWeek}.`)
       setTimeout(() => setSuccess(null), 3000)
-    } catch { /* silent */ }
-    finally { setActionLoading(false) }
+    } catch {
+      setError('Recalc failed')
+    } finally {
+      setActionLoading(false)
+    }
   }, [leagueId, selectedWeek])
 
   const selectedTeam = useMemo(

@@ -15,6 +15,7 @@ import { orchestrateImportPreview } from '@/lib/league-import/importOrchestrator
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import { isImportProviderAvailable } from '@/lib/league-import/provider-ui-config'
 import { getSleeperImportPreview } from '@/lib/league-import/sleeper/SleeperImportPreviewService'
+import { assertImportCommissioner } from '@/lib/league-import/commissionerGate'
 
 function mapImportPreviewErrorStatus(code: string): number {
   if (code === 'LEAGUE_NOT_FOUND') return 404
@@ -29,7 +30,11 @@ export async function POST(req: NextRequest) {
     return auth.response
   }
 
-  let body: { provider?: string; sourceId?: string }
+  let body: {
+    provider?: string
+    sourceId?: string
+    attestation?: { accepted?: boolean; statement?: string }
+  }
   try {
     body = await req.json()
   } catch {
@@ -51,6 +56,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: `Import from ${provider} is not yet available.` },
       { status: 400 }
+    )
+  }
+
+  // Gate at preview too — no reason to surface data to someone who can't commit.
+  const gate = await assertImportCommissioner({
+    appUserId: auth.userId,
+    provider,
+    sourceLeagueId: sourceId,
+    attestation: body.attestation?.accepted
+      ? { accepted: true, statement: body.attestation.statement }
+      : undefined,
+  })
+  if (!gate.ok) {
+    return NextResponse.json(
+      {
+        error: gate.reason ?? 'Commissioner verification failed.',
+        code: gate.requiresAttestation ? 'ATTESTATION_REQUIRED' : 'NOT_COMMISSIONER',
+        requiresAttestation: gate.requiresAttestation ?? false,
+      },
+      { status: 403 },
     )
   }
 

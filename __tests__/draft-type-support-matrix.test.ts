@@ -20,28 +20,36 @@ describe('draft type support matrix', () => {
     }
   })
 
-  it('exposes salary cap draft modes (auction, slow_draft, mock_draft) — not snake', () => {
+  it('exposes salary cap draft mode (auction) — not snake', () => {
     const cap = getDraftTypesForConceptAndSport('NFL', 'salary_cap')
     expect(cap).toContain('auction')
-    expect(cap).toContain('slow_draft')
-    expect(cap).toContain('mock_draft')
     expect(cap).not.toContain('snake')
   })
 
   it('restricts devy/c2c to specialty ids for supported sports only', () => {
     const devy = getDraftTypesForConceptAndSport('NFL', 'devy')
-    expect(devy).toEqual(['devy_snake', 'devy_auction'])
+    expect(devy).toEqual(['devy_snake', 'devy_linear', 'devy_auction'])
     expect(getDraftTypesForConceptAndSport('MLB', 'devy')).toEqual(
       getDraftTypesForConceptAndSport('NFL', 'redraft')
     )
   })
 
-  it('create-league v2 options include slow_draft and mock_draft for salary_cap (regression)', () => {
+  it('create-league v2 salary_cap options include auction + auto only', () => {
     const opts = getDraftTypeOptions('salary_cap', 'NFL').map((o) => o.id)
     expect(opts).toContain('auction')
-    expect(opts).toContain('slow_draft')
-    expect(opts).toContain('mock_draft')
-    expect(opts).toContain('offline')
+    expect(opts).toContain('auto')
+    expect(opts).not.toContain('slow_draft')
+    expect(opts).not.toContain('mock_draft')
+    expect(opts).not.toContain('offline')
+  })
+
+  it('create-league v2 Big Brother startup stays constrained to snake only', () => {
+    const opts = getDraftTypeOptions('big_brother', 'NFL').map((o) => o.id)
+    expect(opts).toContain('snake')
+    expect(opts).not.toContain('auction')
+    expect(opts).not.toContain('team')
+    expect(opts).not.toContain('auto')
+    expect(opts).not.toContain('offline')
   })
 
   it('resolveEffectiveDraftTypeForConcept maps devy/c2c bases to canonical ids', () => {
@@ -57,6 +65,9 @@ describe('draft type support matrix', () => {
     expect(mapCanonicalDraftTypeToEngineCore('c2c_auction')).toBe('auction')
     expect(mapCanonicalDraftTypeToEngineCore('slow_draft')).toBe('snake')
     expect(mapCanonicalDraftTypeToEngineCore('mock_draft')).toBe('snake')
+    expect(mapCanonicalDraftTypeToEngineCore('mock_draft_linear')).toBe('linear')
+    expect(mapCanonicalDraftTypeToEngineCore('supplemental_draft_linear')).toBe('linear')
+    expect(mapCanonicalDraftTypeToEngineCore('dispersal_draft_snake')).toBe('snake')
     expect(mapCanonicalDraftTypeToEngineCore('offline')).toBe('snake')
   })
 
@@ -95,7 +106,7 @@ describe('draft type support matrix', () => {
   })
 
   it('isDraftTypeAllowedForConceptAndSport mirrors getDraftTypesForConceptAndSport', () => {
-    expect(isDraftTypeAllowedForConceptAndSport('NFL', 'redraft', 'slow_draft')).toBe(true)
+    expect(isDraftTypeAllowedForConceptAndSport('NFL', 'redraft', 'slow_draft')).toBe(false)
     expect(isDraftTypeAllowedForConceptAndSport('NFL', 'salary_cap', 'snake')).toBe(false)
   })
 })
