@@ -1,11 +1,54 @@
-import { permanentRedirect } from "next/navigation"
+import { redirect } from "next/navigation"
+import { prisma } from "@/lib/prisma"
+import { getSessionAndProfile } from "@/lib/auth-guard"
+import CreateEntryChooser from "./ui"
 
-export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
-export default async function LegacyBracketEntriesNewRedirect({
+export default async function NewEntryPage({
   params,
 }: {
   params: { tournamentId: string }
 }) {
-  permanentRedirect(`/tournament/bracket/${encodeURIComponent(params.tournamentId)}/entries/new`)
+  const tournamentId = params.tournamentId
+  const returnTo = `/tournament/bracket/${encodeURIComponent(tournamentId)}/entries/new`
+  const { userId, emailVerified, profile } = await getSessionAndProfile()
+
+  if (!userId) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(returnTo)}`)
+  }
+
+  if (!profile?.ageConfirmedAt) {
+    redirect(`/verify?error=AGE_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
+  }
+
+  if (!emailVerified && !profile?.phoneVerifiedAt) {
+    redirect(`/verify?error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`)
+  }
+
+  const leagues = await (prisma as any).bracketLeague.findMany({
+    where: {
+      tournamentId,
+      members: {
+        some: { userId },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      joinCode: true,
+      ownerId: true,
+      tournamentId: true,
+      _count: { select: { entries: true, members: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+
+  return (
+    <CreateEntryChooser
+      tournamentId={tournamentId}
+      leagues={leagues}
+      userId={userId}
+    />
+  )
 }
