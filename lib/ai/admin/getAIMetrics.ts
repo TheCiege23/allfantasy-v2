@@ -83,7 +83,7 @@ export type GlobalAIMetrics = {
 }
 
 export async function getGlobalMetrics(filters: AIDashboardFilters): Promise<GlobalAIMetrics> {
-  const { dateFrom, dateTo, feature, userSegment, sport } = filters
+  const { dateFrom, dateTo, feature = 'all', userSegment, sport } = filters
 
   const segmentIds =
     userSegment && userSegment !== 'all' ? await resolveSegmentUserIds(userSegment, sport) : null
@@ -199,7 +199,7 @@ async function windowMetrics(filters: AIDashboardFilters): Promise<{
   }
   const userWhere =
     segmentIds && segmentIds.length > 0 ? ({ userId: { in: segmentIds } } as const) : undefined
-  const { feature } = filters
+  const feature = filters.feature ?? 'all'
 
   const outcomes = await prisma.aiRecommendationOutcome.findMany({
     where: {
@@ -334,7 +334,8 @@ export async function getFollowVsIgnore(filters: AIDashboardFilters): Promise<Fo
     },
     select: { followed: true, outcomeScore: true, userId: true, type: true },
   })
-  const rows = rowsRaw.filter((r) => outcomeTypeMatchesFeature(r.type, filters.feature))
+  const feature = filters.feature ?? 'all'
+  const rows = rowsRaw.filter((r) => outcomeTypeMatchesFeature(r.type, feature))
 
   const users = new Map<string, { f: number; i: number }>()
   for (const r of rows) {
@@ -395,7 +396,8 @@ export async function getOutcomeDistribution(filters: AIDashboardFilters): Promi
     },
     select: { outcomeScore: true, type: true },
   })
-  const rows = raw.filter((r) => outcomeTypeMatchesFeature(r.type, filters.feature))
+  const feature = filters.feature ?? 'all'
+  const rows = raw.filter((r) => outcomeTypeMatchesFeature(r.type, feature))
 
   const buckets: Record<OutcomeDistributionBucket['bucket'], number> = {
     strong_success: 0,
@@ -667,7 +669,8 @@ export async function getTimeSeries(filters: AIDashboardFilters, range: '7d' | '
     }),
   ])
 
-  const outcomesFiltered = outcomes.filter((o) => outcomeTypeMatchesFeature(o.type, filters.feature))
+  const feature = filters.feature ?? 'all'
+  const outcomesFiltered = outcomes.filter((o) => outcomeTypeMatchesFeature(o.type, feature))
 
   const dayKey = (d: Date) => d.toISOString().slice(0, 10)
   const days = new Map<
@@ -750,24 +753,25 @@ export async function getRecommendationLogs(
 ): Promise<RecommendationLogsResult> {
   const search = opts.search?.trim() || ''
 
-  const featureClause = recommendationLogFeatureWhere(filters.feature)
+  const feature = filters.feature ?? 'all'
+  const featureClause = recommendationLogFeatureWhere(feature)
+
+  const searchClause: Prisma.AiRecommendationLogWhereInput | undefined = search
+    ? {
+        OR: [
+          { providerSummary: { contains: search, mode: 'insensitive' } },
+          { feature: { contains: search, mode: 'insensitive' } },
+          { user: { email: { contains: search, mode: 'insensitive' } } },
+          { league: { name: { contains: search, mode: 'insensitive' } } },
+        ],
+      }
+    : undefined
 
   const where: Prisma.AiRecommendationLogWhereInput = {
     AND: [
       { createdAt: { gte: filters.dateFrom, lte: filters.dateTo } },
       ...(featureClause ? [featureClause] : []),
-      ...(search
-        ? [
-            {
-              OR: [
-                { providerSummary: { contains: search, mode: 'insensitive' } },
-                { feature: { contains: search, mode: 'insensitive' } },
-                { user: { email: { contains: search, mode: 'insensitive' } } },
-                { league: { name: { contains: search, mode: 'insensitive' } } },
-              ],
-            },
-          ]
-        : []),
+      ...(searchClause ? [searchClause] : []),
     ],
   }
 
