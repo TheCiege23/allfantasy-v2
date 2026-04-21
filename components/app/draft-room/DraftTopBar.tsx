@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -358,15 +359,17 @@ export function DraftTopBar({
             ) : null}
 
             {leagueLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={leagueLogoUrl}
                 alt=""
+                width={40}
+                height={40}
                 aria-hidden
                 className="h-10 w-10 shrink-0 rounded-xl border border-white/15 bg-gradient-to-br from-white/[0.08] to-white/[0.02] object-cover shadow-[0_4px_20px_rgba(0,0,0,0.35)] ring-1 ring-white/10"
                 data-testid="draft-topbar-league-logo"
+                unoptimized
                 onError={(e) => {
-                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                  e.currentTarget.style.display = 'none'
                 }}
               />
             ) : null}

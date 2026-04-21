@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import type { LeagueTeam } from '@prisma/client'
@@ -81,7 +82,8 @@ export function AICoachingPage({
       leagueId: league.id,
       leagueName: league.name,
       sport: resolvedSport,
-      source: 'ai_coaching_plan' as const,
+      /** Matches `AIContextSource` in chimmy-chat/types — long-term / franchise coaching entry. */
+      source: 'long_term_coaching' as const,
       teamId: userTeam?.id ?? undefined,
       teamName: userTeam?.teamName ?? null,
     }),
@@ -133,8 +135,14 @@ export function AICoachingPage({
           <div className="flex flex-wrap items-start gap-4">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526] shadow-inner">
               {userTeam?.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={userTeam.avatarUrl} alt="" className="h-full w-full object-cover" />
+                <Image
+                  src={userTeam.avatarUrl}
+                  alt=""
+                  width={64}
+                  height={64}
+                  className="h-full w-full object-cover"
+                  unoptimized
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-lg font-bold text-cyan-200/90">{teamInitials}</div>
               )}
