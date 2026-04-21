@@ -140,6 +140,39 @@ export interface CurrentOnTheClock {
   pickLabel: string
 }
 
+/** Alias for pick rows in {@link DraftRoomCoreState} (same shape as API snapshots). */
+export type DraftRoomPick = DraftPickSnapshot
+
+/**
+ * Minimal normalized draft room state (UI reducers, tests, fixtures).
+ * Maps cleanly from {@link DraftSessionSnapshot} via `buildDraftRoomCoreState`.
+ */
+export interface DraftRoomCoreState {
+  draftStarted: boolean
+  currentOverall: number
+  currentRound: number
+  currentPickInRound: number
+  /** Roster id of the manager on the clock (fantasy team slot). */
+  currentTeamId: string
+  /** ISO 8601 UTC end time for the active pick timer, or empty string when none. */
+  timerEndAt: string
+  picks: DraftRoomPick[]
+}
+
+/**
+ * Payload recorded when a pick is committed (client log, optimistic updates, audits).
+ * `teamId` is the roster that made the pick; `slot` is the draft board column (1…teamCount).
+ */
+export interface CommitPickPayload {
+  playerId: string | null
+  teamId: string
+  overall: number
+  round: number
+  slot: number
+  /** ISO 8601 UTC when the pick was committed */
+  timestamp: string
+}
+
 export interface TimerState {
   status: 'running' | 'paused' | 'expired' | 'none'
   remainingSeconds: number | null

@@ -288,7 +288,7 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[11px] min-w-0 ${
+      className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[11px] min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${
         isDrafted ? 'border-white/5 bg-[#0a1228]/70 opacity-70' : 'border-white/10 bg-[#0a1228] hover:border-white/20'
       } ${isDevy ? 'border-l-2 border-l-violet-500/50' : ''}`}
     >

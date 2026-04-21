@@ -193,7 +193,7 @@ function DraftBoardCellInner({
 
   return (
     <div
-      className={`relative flex min-h-[52px] flex-col overflow-hidden rounded-md border px-1.5 pb-1 pt-1 text-[10px] transition-colors hover:border-white/20 sm:min-h-[56px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
+      className={`relative flex h-[64px] min-h-[64px] flex-col overflow-hidden rounded-md border px-1.5 pb-1 pt-1 text-[10px] transition-colors hover:border-white/20 sm:h-[68px] sm:min-h-[68px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
@@ -217,7 +217,7 @@ function DraftBoardCellInner({
           data-testid={`draft-board-cell-trade-${pick.overall}`}
           title="Offer pick trade"
           aria-label="Offer pick trade for this slot"
-          className="absolute right-0.5 top-0.5 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/12 bg-[#0a1228]/95 text-white/55 shadow-sm backdrop-blur-sm transition hover:border-cyan-400/35 hover:text-cyan-100"
+          className="absolute right-0.5 top-0.5 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/12 bg-[#0a1228]/95 text-white/55 shadow-sm backdrop-blur-sm transition hover:border-cyan-400/35 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
         >
           <ArrowLeftRight className="h-3 w-3" />
         </button>
@@ -232,7 +232,7 @@ function DraftBoardCellInner({
           data-testid={`draft-board-cell-history-${pick.overall}`}
           title="View trade history for this pick"
           aria-label="View trade history for this pick"
-          className={`absolute ${onTradeFromCell ? 'right-0.5 top-7' : 'right-0.5 top-0.5'} z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/25 bg-amber-500/10 text-amber-200/80 shadow-sm backdrop-blur-sm transition hover:border-amber-300/45 hover:text-amber-100`}
+          className={`absolute ${onTradeFromCell ? 'right-0.5 top-7' : 'right-0.5 top-0.5'} z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/25 bg-amber-500/10 text-amber-200/80 shadow-sm backdrop-blur-sm transition hover:border-amber-300/45 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50`}
         >
           <History className="h-3 w-3" />
         </button>

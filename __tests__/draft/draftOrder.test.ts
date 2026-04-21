@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   get3RRSlot,
+  buildBoardMatrix,
   getManagerForOverallPick,
+  getNextTeamsOnDeck,
   getPickIndexInRound,
   getRoundFromOverall,
   getSnakeSlot,
   getSlotInRoundForOverall,
+  getTimerRemaining,
+  isDraftComplete,
   canUserDraft,
 } from '@/lib/draft/draftOrder'
 
@@ -84,5 +88,42 @@ describe('draftOrder', () => {
     expect(canUserDraft(true, false, false)).toBe(false)
     expect(canUserDraft(false, false, true)).toBe(false)
     expect(canUserDraft(true, true, true)).toBe(false)
+  })
+
+  it('isDraftComplete', () => {
+    expect(isDraftComplete(96, 96)).toBe(true)
+    expect(isDraftComplete(95, 96)).toBe(false)
+    expect(isDraftComplete(0, 0)).toBe(false)
+  })
+
+  it('getTimerRemaining uses timerEndAt - now', () => {
+    const end = new Date('2026-06-01T12:00:30.000Z').toISOString()
+    expect(getTimerRemaining(end, new Date('2026-06-01T12:00:00.000Z').getTime())).toBe(30)
+    expect(getTimerRemaining(end, new Date('2026-06-01T12:00:31.000Z').getTime())).toBe(0)
+  })
+
+  it('buildBoardMatrix length matches rounds * teams', () => {
+    const m = buildBoardMatrix(3, 12, 'snake', false)
+    expect(m.length).toBe(36)
+    expect(m[0]?.overall).toBe(1)
+    expect(m[0]?.slot).toBe(1)
+    expect(m[11]?.slot).toBe(12)
+    expect(m[12]?.slot).toBe(12)
+  })
+
+  it('getNextTeamsOnDeck returns next slots after nextOverall', () => {
+    const slotOrder = managers12()
+    const total = 12 * 12
+    const next = getNextTeamsOnDeck({
+      nextOverall: 2,
+      count: 3,
+      teamCount: 12,
+      draftType: 'snake',
+      thirdRoundReversal: false,
+      slotOrder,
+      totalPicks: total,
+    })
+    expect(next.length).toBe(3)
+    expect(next[0]?.slot).toBe(2)
   })
 })

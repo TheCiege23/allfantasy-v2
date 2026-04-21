@@ -89,7 +89,7 @@ export function getTimerDisplay(
   isDraftStarted: boolean,
   draftComplete: boolean
 ): TimerDisplay {
-  const isUrgent = secondsRemaining <= 10 && secondsRemaining > 0
+  const isUrgent = secondsRemaining <= 15 && secondsRemaining > 0
   let label = `${secondsRemaining}s`
   if (!isDraftStarted || draftComplete) label = '—'
   return {

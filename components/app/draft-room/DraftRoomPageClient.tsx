@@ -42,6 +42,11 @@ const KeeperPanel = dynamic(
   { ssr: false }
 )
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
+import {
+  buildDraftRoomCoreState,
+  isPickCommitAllowed,
+  isPickCommitAllowedByName,
+} from '@/lib/live-draft-engine'
 import type { DraftIntelState } from '@/lib/draft-intelligence'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
@@ -85,6 +90,11 @@ type DraftRoomChromeTeam = {
 
 function normalizeManagerKey(value: string | null | undefined): string {
   return String(value ?? '').trim().toLowerCase()
+}
+
+/** Match `pickCommitFlow` / pool filters — session pick names are compared case-insensitively. */
+function normalizeDraftedPlayerName(name: string | null | undefined): string {
+  return String(name ?? '').trim().toLowerCase()
 }
 
 function resolveInviteLink(payload: { inviteLink?: string | null; inviteCode?: string | null } | null | undefined): string | null {
@@ -299,8 +309,25 @@ export function DraftRoomPageClient({
   const effectiveDraftSport = draftPool?.sport ?? sport
 
   const draftedNames = useMemo(
-    () => new Set(session?.picks?.map((p) => p.playerName) ?? []),
-    [session?.picks]
+    () =>
+      new Set(
+        (session?.picks ?? [])
+          .map((p) => normalizeDraftedPlayerName(p.playerName))
+          .filter(Boolean),
+      ),
+    [session?.picks],
+  )
+  const draftedPlayerIds = useMemo(() => {
+    const s = new Set<string>()
+    for (const p of session?.picks ?? []) {
+      if (p.playerId) s.add(String(p.playerId).trim())
+    }
+    return s
+  }, [session?.picks])
+  /** Single source for on-clock team, overall, and timer anchor — derived only from `session`. */
+  const draftCore = useMemo(
+    () => (session ? buildDraftRoomCoreState(session) : null),
+    [session],
   )
   const players: PlayerEntry[] = useMemo(() => {
     const rawEntries = Array.isArray(draftPool?.entries)
@@ -358,6 +385,24 @@ export function DraftRoomPageClient({
         })
   }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled])
   const currentUserRosterId = (session as any)?.currentUserRosterId as string | undefined
+
+  const commissionerOfflinePick = Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
+  const isCurrentUserOnClock = Boolean(
+    currentUserRosterId &&
+      draftCore?.draftStarted &&
+      draftCore.currentOverall > 0 &&
+      draftCore.currentTeamId === currentUserRosterId,
+  )
+  const canDraft = useMemo(
+    () =>
+      session != null &&
+      session.status === 'in_progress' &&
+      draftCore?.draftStarted === true &&
+      draftCore.currentOverall > 0 &&
+      pickSubmitting === false &&
+      (commissionerOfflinePick || isCurrentUserOnClock),
+    [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock],
+  )
 
   const fetchDraftPool = useCallback(async () => {
     if (!leagueId) return
@@ -894,7 +939,9 @@ export function DraftRoomPageClient({
       team: p.team ?? null,
       byeWeek: p.byeWeek ?? null,
     })) ?? []
-    const available = players.filter((p) => !draftedNames.has(p.name)).map((p) => ({
+    const available = players
+      .filter((p) => !draftedNames.has(normalizeDraftedPlayerName(p.name)))
+      .map((p) => ({
       name: p.name,
       position: p.position,
       team: p.team ?? null,
@@ -1138,6 +1185,8 @@ export function DraftRoomPageClient({
   const refetchOnceRef = useRef<(() => void) | null>(null)
   const pollTickRef = useRef(0)
   const pollInFlightRef = useRef(false)
+  /** Prevents double POST before React state catches up with rapid Draft clicks. */
+  const pickInflightRef = useRef(false)
   useEffect(() => {
     if (!leagueId) return
     const run = async () => {
@@ -1530,6 +1579,10 @@ export function DraftRoomPageClient({
     async (player: PlayerEntry) => {
       setPickError(null)
       const offlineCommissioner = draftUISettings?.executionMode === 'offline' && isCommissioner
+      if (!canDraft) {
+        setPickError('You cannot draft right now.')
+        return
+      }
       if (!offlineCommissioner) {
         const cp = session?.currentPick
         if (!cp || !currentUserRosterId || cp.rosterId !== currentUserRosterId) {
@@ -1537,6 +1590,17 @@ export function DraftRoomPageClient({
           return
         }
       }
+      const stablePlayerId = player.display?.playerId ?? player.id ?? null
+      if (!isPickCommitAllowedByName({ canDraft: true, playerName: player.name, draftedNames })) {
+        setPickError('That player is already drafted.')
+        return
+      }
+      if (!isPickCommitAllowed({ canDraft: true, playerId: stablePlayerId, draftedPlayerIds })) {
+        setPickError('That player is already drafted.')
+        return
+      }
+      if (pickInflightRef.current) return
+      pickInflightRef.current = true
       setPickSubmitting(true)
       try {
         const note = player.display?.metadata?.eligibilityNote?.toLowerCase() ?? ''
@@ -1578,11 +1642,15 @@ export function DraftRoomPageClient({
           setPickError(typeof data?.error === 'string' ? data.error : 'Pick failed. Try again.')
         }
       } finally {
+        pickInflightRef.current = false
         setPickSubmitting(false)
       }
     },
     [
       leagueId,
+      canDraft,
+      draftedNames,
+      draftedPlayerIds,
       draftUISettings?.executionMode,
       isCommissioner,
       session?.currentPick,
@@ -1604,7 +1672,9 @@ export function DraftRoomPageClient({
   )
 
   const handleDraftIntelPick = useCallback(() => {
-    const top = draftIntel?.queue.find((entry) => !draftedNames.has(entry.playerName))
+    const top = draftIntel?.queue.find(
+      (entry) => !draftedNames.has(normalizeDraftedPlayerName(entry.playerName)),
+    )
     if (!top) return
     const player = players.find(
       (candidate) =>
@@ -1820,14 +1890,14 @@ export function DraftRoomPageClient({
   )
 
   const queueFiltered = useMemo(
-    () => queue.filter((e) => !draftedNames.has(e.playerName)),
-    [queue, draftedNames]
+    () => queue.filter((e) => !draftedNames.has(normalizeDraftedPlayerName(e.playerName))),
+    [queue, draftedNames],
   )
   const draftIntelQueue = useMemo(
     () =>
       (draftIntel?.queue ?? []).map((entry) => ({
         ...entry,
-        isTaken: draftedNames.has(entry.playerName),
+        isTaken: draftedNames.has(normalizeDraftedPlayerName(entry.playerName)),
       })),
     [draftIntel?.queue, draftedNames]
   )
@@ -1892,7 +1962,6 @@ export function DraftRoomPageClient({
   const isOrphanOnClock = Boolean(
     currentPick?.rosterId && Array.isArray(orphanRosterIds) && orphanRosterIds.includes(currentPick.rosterId) && aiManagerEnabled
   )
-  const isCurrentUserOnClock = Boolean(currentPick && currentUserRosterId && currentPick.rosterId === currentUserRosterId)
   const autoPickEnabled = draftUISettings?.autoPickEnabled ?? false
   const chimmyHeadlineSummary = (draftAssistantContext?.headlines ?? [])
     .slice(0, 2)
@@ -1944,14 +2013,6 @@ export function DraftRoomPageClient({
     ]
   }, [chatMessages, isCurrentUserOnClock, recommendationResult?.recommendation, currentPick?.overall])
   const currentRoster: Array<{ playerName: string; position: string; team: string | null }> = []
-  const commissionerOfflinePick =
-    Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
-  const canDraft =
-    session != null &&
-    session.status === 'in_progress' &&
-    currentPick != null &&
-    pickSubmitting === false &&
-    (commissionerOfflinePick || isCurrentUserOnClock)
   const nextQueuedAvailable = queueFiltered.length > 0 && canDraft ? queueFiltered[0] : null
 
   const isAuctionDraft = session?.draftType === 'auction'
@@ -2604,7 +2665,7 @@ export function DraftRoomPageClient({
             overallPickNumber={currentPick?.overall ?? null}
             timerStatus={session.timer?.status ?? 'none'}
             timerRemainingSeconds={session.timer?.remainingSeconds ?? null}
-            timerEndAtIso={session.timer?.timerEndAt ?? null}
+            timerEndAtIso={draftCore?.timerEndAt ? draftCore.timerEndAt : (session.timer?.timerEndAt ?? null)}
             timerSeconds={session.timerSeconds ?? null}
             timerMode={draftUISettings?.timerMode ?? 'per_pick'}
             autoPickEnabled={autoPickEnabled}
@@ -2677,16 +2738,21 @@ export function DraftRoomPageClient({
             onPoolPreviewSelect={handlePoolPreviewSelect}
             poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
             showTimer={!isAuction}
+            hideFullDraftOrderList={session.draftType === 'snake'}
+            viewerRosterId={currentUserRosterId ?? null}
+            viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
           />
           <div className="flex min-w-0 flex-1 flex-col overflow-auto">
-            <DraftTeamStrip
-              teamCount={session.teamCount}
-              slotOrder={slotOrder}
-              teamMetaByRoster={teamMetaByRoster}
-              currentUserRosterId={currentUserRosterId ?? null}
-              onClockRosterId={currentPick?.rosterId ?? null}
-              canInvite={isCommissioner}
-            />
+            {session.draftType !== 'snake' ? (
+              <DraftTeamStrip
+                teamCount={session.teamCount}
+                slotOrder={slotOrder}
+                teamMetaByRoster={teamMetaByRoster}
+                currentUserRosterId={currentUserRosterId ?? null}
+                onClockRosterId={currentPick?.rosterId ?? null}
+                canInvite={isCommissioner}
+              />
+            ) : null}
             <DraftBoard
               picks={session.picks ?? []}
               slotOrder={slotOrder}

@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 
 /**
- * Client-side ticking countdown from server anchor `timerEndAt` (ISO).
- * Avoids stale remainingSeconds between session polls.
+ * Client-side display tick for draft timers. **Never** decrement a stored second count.
+ * Remaining is always recomputed as `max(0, ceil((timerEndAt - now) / 1000))` when `timerEndAtIso`
+ * is set; `tick` only forces a re-render on an interval so `Date.now()` updates.
  */
 export function useDraftCountdownSeconds(
   timerStatus: 'running' | 'paused' | 'expired' | 'none',
@@ -15,7 +16,7 @@ export function useDraftCountdownSeconds(
 
   useEffect(() => {
     if (timerStatus !== 'running' || !timerEndAtIso) return
-    const id = window.setInterval(() => setTick((t) => t + 1), 1000)
+    const id = window.setInterval(() => setTick((t) => t + 1), 250)
     return () => window.clearInterval(id)
   }, [timerStatus, timerEndAtIso])
 

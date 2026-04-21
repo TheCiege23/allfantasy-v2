@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronLeft, ChevronRight, Gavel } from 'lucide-react'
 import { DraftBoardCell, type DraftBoardCellPick, type PickHighlightTone } from './DraftBoardCell'
 import type { DraftPickSnapshot, SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
@@ -131,10 +131,23 @@ function DraftBoardInner({
 }: DraftBoardProps) {
   const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
   const [selectedRound, setSelectedRound] = useState(1)
+  const lastFollowedOverallRef = useRef<number | null>(null)
 
   useEffect(() => {
     setSelectedRound((prev) => Math.min(Math.max(1, prev), Math.max(1, rounds)))
   }, [rounds])
+
+  /** After each new pick, focus the board on the current round (single-round view) for readability. */
+  useEffect(() => {
+    if (draftType === 'auction' || currentOverallPick == null) return
+    const prev = lastFollowedOverallRef.current
+    lastFollowedOverallRef.current = currentOverallPick
+    if (prev === null) return
+    if (currentOverallPick <= prev) return
+    const round = Math.ceil(currentOverallPick / teamCount)
+    setSelectedRound((r) => Math.min(rounds, Math.max(1, round)))
+    setViewMode('single')
+  }, [currentOverallPick, teamCount, rounds, draftType])
 
   const slotOrderBySlot = useMemo(() => new Map(slotOrder.map((entry) => [entry.slot, entry])), [slotOrder])
   const slotOrderByRosterId = useMemo(() => new Map(slotOrder.map((entry) => [entry.rosterId, entry])), [slotOrder])

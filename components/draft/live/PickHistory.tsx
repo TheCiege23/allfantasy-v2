@@ -12,15 +12,18 @@ export function PickHistory({
   const rows = picks.slice(-max).reverse()
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-[#070d18]/90" data-testid="draft-pick-history">
-      <div className="border-b border-white/[0.06] px-3 py-2">
+      <div className="border-b border-white/[0.06] px-2.5 py-1.5">
         <p className="text-[11px] font-bold uppercase tracking-wide text-white/45">Recent picks</p>
       </div>
       <ul className="max-h-[min(50vh,420px)] divide-y divide-white/[0.05] overflow-y-auto">
         {rows.length === 0 ? (
-          <li className="px-3 py-6 text-center text-[12px] text-white/40">No picks yet</li>
+          <li className="px-3 py-8 text-center">
+            <p className="text-[12px] font-medium text-white/45">No picks yet</p>
+            <p className="mt-1 text-[11px] text-white/30">Picks will appear here as the draft runs.</p>
+          </li>
         ) : (
           rows.map((p) => (
-            <li key={p.id} className="flex items-start justify-between gap-2 px-3 py-2 text-[12px]">
+            <li key={p.id} className="flex items-start justify-between gap-2 px-2.5 py-1.5 text-[12px]">
               <span className="shrink-0 font-mono text-cyan-300/90">{p.pickLabel}</span>
               <span className="min-w-0 flex-1 text-right text-white/90">
                 <span className="font-semibold">{p.playerName}</span>

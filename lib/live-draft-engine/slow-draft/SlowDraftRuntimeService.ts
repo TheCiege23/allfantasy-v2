@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
+import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
+import { submitBestAvailableAutopickForExpiredTimer } from '@/lib/live-draft-engine/autopickBestAvailableSubmit'
 import { computeTimerStateWithPauseWindow, isInsidePauseWindow } from '@/lib/live-draft-engine/DraftTimerService'
 import { pauseDraftSession, resumeDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
@@ -279,12 +281,8 @@ export async function runSlowDraftAutomationTick(
           }
         })()
       } else {
-        const draftConfig = await prisma.league.findUnique({
-          where: { id: leagueId },
-          select: { settings: true },
-        })
-        const configSettings = ((draftConfig?.settings as Record<string, unknown>) ?? {}) as Record<string, unknown>
-        const autoPickBehavior = String(configSettings.draft_autopick_behavior ?? 'queue-first').toLowerCase()
+        const draftRoomConfig = await getDraftConfigForLeague(leagueId)
+        const autoPickBehavior = String(draftRoomConfig?.autopick_behavior ?? 'queue-first').toLowerCase()
         if (autoPickBehavior === 'skip') {
           const skip = await submitPick({
             leagueId,
@@ -309,6 +307,42 @@ export async function runSlowDraftAutomationTick(
               }).catch(() => [])
               for (const result of states) {
                 await sendDraftIntelDm(result.state).catch(() => null)
+              }
+            })()
+          }
+        } else {
+          const bpa = await submitBestAvailableAutopickForExpiredTimer(leagueId, onClockRosterId)
+          if (bpa.ok) {
+            changed = true
+            actions.push({ type: 'auto_pick', rosterId: onClockRosterId, playerName: bpa.pick.playerName })
+            nextRuntimeMeta.reminderOverallPick = null
+            nextRuntimeMeta.approachingTimeoutOverallPick = null
+            void notifyAutoPickFired(leagueId, onClockRosterId, bpa.pick.playerName)
+            void notifyDraftIntelPickConfirmation(leagueId, onClockRosterId, bpa.pick.playerName).catch(() => {})
+            if (queuePick.queuePlayerUnavailable) {
+              void notifyQueuePlayerUnavailable(leagueId, onClockRosterId)
+            }
+            void notifyOnTheClockAfterPick(leagueId)
+            void (async () => {
+              const states = await publishDraftIntelForUpcomingManagers({
+                leagueId,
+                trigger: 'pick_update',
+              }).catch(() => [])
+              for (const result of states) {
+                const state = result.state
+                await sendDraftIntelDm(state).catch(() => null)
+                if (state.status === 'active' && state.picksUntilUser === 5 && state.queue[0]) {
+                  await notifyDraftIntelQueueReady(leagueId, state.rosterId, {
+                    playerName: state.queue[0].playerName,
+                    availabilityProbability: state.queue[0].availabilityProbability,
+                  }).catch(() => null)
+                }
+                if (state.status === 'on_clock') {
+                  await notifyDraftIntelOnClockUrgent(leagueId, state.rosterId, {
+                    playerName: state.queue[0]?.playerName,
+                    pickLabel: current?.pickLabel,
+                  }).catch(() => null)
+                }
               }
             })()
           }

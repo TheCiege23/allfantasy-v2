@@ -147,6 +147,8 @@ export type DraftState = {
   currentUserRosterId: string | null
   timerSeconds: number | null
   timerRemainingSeconds: number | null
+  /** ISO UTC pick timer end — use for UI: remaining = timerEndAt - now */
+  timerEndAtIso: string | null
   timerActive: boolean
   adpSource: ADPSource
   slotOrder: Array<{ slot: number; rosterId: string; displayName: string; budgetRemaining?: number | null }>
@@ -482,6 +484,7 @@ export class DraftWorker {
       currentUserRosterId,
       timerSeconds: snapshot.timerSeconds,
       timerRemainingSeconds: snapshot.timer.remainingSeconds,
+      timerEndAtIso: snapshot.timer.timerEndAt ?? null,
       timerActive: snapshot.timer.status === 'running',
       adpSource,
       slotOrder: snapshot.slotOrder.map((entry) => ({

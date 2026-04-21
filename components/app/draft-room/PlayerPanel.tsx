@@ -15,6 +15,11 @@ import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 const PLAYER_ROW_ESTIMATE_HEIGHT = 56
 const DRAFT_WATCHLIST_STORAGE_KEY = 'af:draft-room-watchlist-v1'
 
+/** Align with draft room session: drafted name set is normalized lowercase. */
+function isPlayerNameDrafted(name: string, draftedNames: Set<string>): boolean {
+  return draftedNames.has(name.trim().toLowerCase())
+}
+
 export type PlayerEntry = {
   id?: string
   name: string
@@ -146,7 +151,7 @@ function PlayerListVirtualized({
               team={p.team}
               adp={useAiAdp ? p.aiAdp : p.adp}
               byeWeek={p.byeWeek}
-              isDrafted={draftedNames.has(p.name)}
+              isDrafted={isPlayerNameDrafted(p.name, draftedNames)}
               variant="row"
               isDevy={p.isDevy}
               school={p.school}
@@ -162,7 +167,7 @@ function PlayerListVirtualized({
                   type="button"
                   onClick={() => onCompareTap(p)}
                   data-testid={`draft-compare-player-${virtualRow.index}`}
-                  className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 inline-flex items-center justify-center rounded-lg border px-2 touch-manipulation ${
+                  className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 inline-flex items-center justify-center rounded-lg border px-2 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/45 ${
                     compareAnchor?.name === p.name
                       ? 'border-amber-400/55 bg-amber-500/15 text-amber-100'
                       : 'border-white/15 bg-black/20 text-white/70 hover:bg-white/10'
@@ -183,35 +188,35 @@ function PlayerListVirtualized({
                     type="button"
                     onClick={() => onNominateRequest(p)}
                     data-testid={`draft-nominate-player-${virtualRow.index}`}
-                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 touch-manipulation"
+                    className="min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/20 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50"
                   >
                     Nominate
                   </button>
                 ) : (
                   <button
                     type="button"
-                    disabled={!canDraft || draftedNames.has(p.name)}
+                    disabled={!canDraft || isPlayerNameDrafted(p.name, draftedNames)}
                     title={
-                      draftedNames.has(p.name)
+                      isPlayerNameDrafted(p.name, draftedNames)
                         ? 'Player already drafted'
                         : !canDraft
                           ? 'Not your turn'
                           : 'Draft this player'
                     }
                     onClick={() => {
-                      if (!canDraft || draftedNames.has(p.name)) return
+                      if (!canDraft || isPlayerNameDrafted(p.name, draftedNames)) return
                       onDraftRequest(p)
                     }}
                     data-testid={`draft-player-button-${virtualRow.index}`}
-                    className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs touch-manipulation ${
-                      draftedNames.has(p.name)
+                    className={`min-h-[44px] min-w-[44px] sm:min-w-0 sm:px-2 sm:py-1 inline-flex items-center justify-center rounded-lg border px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 ${
+                      isPlayerNameDrafted(p.name, draftedNames)
                         ? 'cursor-not-allowed border-white/10 bg-white/5 text-white/35'
                         : !canDraft
                           ? 'cursor-not-allowed border-white/10 bg-black/25 text-white/35'
                           : 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100 hover:bg-cyan-500/20'
                     }`}
                   >
-                    {draftedNames.has(p.name) ? 'Drafted' : 'Draft'}
+                    {isPlayerNameDrafted(p.name, draftedNames) ? 'Drafted' : 'Draft'}
                   </button>
                 )
               }
@@ -220,7 +225,7 @@ function PlayerListVirtualized({
                   type="button"
                   onClick={() => onAddToQueue(p)}
                   data-testid={`draft-queue-add-${virtualRow.index}`}
-                  className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-white/15 bg-black/20 text-white/70 hover:bg-white/10 touch-manipulation"
+                  className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-white/15 bg-black/20 text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
                   aria-label={`Add ${p.name} to queue`}
                 >
                   <Plus className="h-4 w-4" />
@@ -319,7 +324,7 @@ function PlayerPanelInner({
   }, [watchlistKeys])
 
   const filtered = useMemo(() => {
-    let list = hideDrafted ? players.filter((p) => !draftedNames.has(p.name)) : [...players]
+    let list = hideDrafted ? players.filter((p) => !isPlayerNameDrafted(p.name, draftedNames)) : [...players]
     if (watchlistOnly) {
       list = list.filter((p) => watchlistKeys.has(watchKeyFor(p)))
     }
@@ -448,10 +453,21 @@ function PlayerPanelInner({
     return () => window.clearTimeout(id)
   }, [searchQuery, leagueId])
 
+  const clearAllFilters = useCallback(() => {
+    setSearchQuery('')
+    setPositionFilter('All')
+    setTeamFilter('All')
+    setPoolFilter('All')
+    setWatchlistOnly(false)
+    setRookiesOnly(false)
+    setHideDrafted(true)
+  }, [])
+
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-player-panel">
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-2.5">
-        <div className="flex flex-1 min-h-[44px] items-center gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 touch-manipulation">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-player-panel">
+      <div className="sticky top-0 z-20 border-b border-white/10 bg-[#060d1e]/98 shadow-[0_10px_28px_rgba(0,0,0,0.45)] backdrop-blur-md">
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-2">
+        <div className="flex flex-1 min-h-[44px] items-center gap-2 rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 touch-manipulation transition focus-within:border-cyan-400/35 focus-within:ring-1 focus-within:ring-cyan-400/25">
           <Search className="h-4 w-4 shrink-0 text-white/50" />
           <input
             ref={searchInputRef}
@@ -459,7 +475,7 @@ function PlayerPanelInner({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search players..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40"
+            className="min-w-0 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
             aria-label="Search players"
             data-testid="draft-player-search-input"
           />
@@ -471,7 +487,7 @@ function PlayerPanelInner({
             if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_POSITION, { leagueId, value: v })
             setPositionFilter(v)
           }}
-          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
+          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           aria-label="Position filter"
           data-testid="draft-position-filter"
         >
@@ -486,7 +502,7 @@ function PlayerPanelInner({
             if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.FILTER_TEAM, { leagueId, value: v })
             setTeamFilter(v)
           }}
-          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
+          className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
           aria-label="Team filter"
           data-testid="draft-team-filter"
         >
@@ -502,7 +518,7 @@ function PlayerPanelInner({
               if (leagueId) sendProductAnalyticsBeacon(DRAFT_ROOM.POOL_FILTER, { leagueId, value: v })
               setPoolFilter(v)
             }}
-            className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation"
+            className="min-h-[44px] rounded-xl border border-white/12 bg-[#0a1228] px-3 py-2 text-sm text-white touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
             aria-label="Pool filter"
             data-testid="draft-pool-filter"
           >
@@ -536,7 +552,7 @@ function PlayerPanelInner({
           Devy round — select a college/devy-eligible player.
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/8 px-2.5 py-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-white/8 px-2 py-1.5">
         <span className="text-[10px] text-white/50">Sort:</span>
         <button
           type="button"
@@ -545,7 +561,7 @@ function PlayerPanelInner({
             setSortBy('adp')
           }}
           data-testid="draft-sort-adp"
-          className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'adp' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
+          className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${sortBy === 'adp' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
         >
           ADP
         </button>
@@ -556,7 +572,7 @@ function PlayerPanelInner({
             setSortBy('name')
           }}
           data-testid="draft-sort-name"
-          className={`min-h-[44px] rounded-lg px-3 py-2 text-xs touch-manipulation ${sortBy === 'name' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
+          className={`min-h-[40px] rounded-lg px-3 py-2 text-xs touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${sortBy === 'name' ? 'bg-cyan-500/12 text-cyan-100 border border-cyan-300/30' : 'text-white/70 hover:bg-white/10'}`}
         >
           Name
         </button>
@@ -601,20 +617,20 @@ function PlayerPanelInner({
           type="button"
           onClick={() => setShowRosterView((v) => !v)}
           data-testid="draft-toggle-roster-view"
-          className="ml-auto min-h-[44px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation"
+          className="ml-auto min-h-[40px] flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white/70 hover:bg-white/10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
         >
           <User className="h-3.5 w-3.5" />
           {showRosterView ? 'Pool' : 'My roster'}
         </button>
       </div>
-      <div className="flex items-center justify-between border-b border-white/8 px-2.5 py-1.5 text-[10px] text-white/55">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-2 py-1.5 text-[10px] text-white/55">
         <span>{filtered.length} players available</span>
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             data-testid="draft-filter-watchlist-only"
             onClick={() => setWatchlistOnly((v) => !v)}
-            className={`rounded border px-2 py-1 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${watchlistOnly ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
           >
             Watchlist
           </button>
@@ -622,7 +638,7 @@ function PlayerPanelInner({
             type="button"
             data-testid="draft-filter-hide-drafted"
             onClick={() => setHideDrafted((v) => !v)}
-            className={`rounded border px-2 py-1 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+            className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 ${hideDrafted ? 'border-cyan-300/35 bg-cyan-500/12 text-cyan-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
           >
             Hide drafted
           </button>
@@ -631,7 +647,7 @@ function PlayerPanelInner({
               type="button"
               data-testid="draft-filter-rookies-only"
               onClick={() => setRookiesOnly((v) => !v)}
-              className={`rounded border px-2 py-1 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
+              className={`rounded border px-2 py-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 ${rookiesOnly ? 'border-violet-300/40 bg-violet-500/14 text-violet-100' : 'border-white/15 bg-black/20 text-white/65 hover:bg-white/10'}`}
             >
               Rookies only
             </button>
@@ -640,19 +656,12 @@ function PlayerPanelInner({
         <button
           type="button"
           data-testid="draft-clear-filters"
-          onClick={() => {
-            setSearchQuery('')
-            setPositionFilter('All')
-            setTeamFilter('All')
-            setPoolFilter('All')
-            setWatchlistOnly(false)
-            setRookiesOnly(false)
-            setHideDrafted(true)
-          }}
-          className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 hover:bg-white/10"
+          onClick={clearAllFilters}
+          className="rounded border border-white/15 bg-black/20 px-2 py-1 text-white/65 transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40"
         >
           Clear filters
         </button>
+      </div>
       </div>
       {compareAnchor && (
         <div
@@ -704,7 +713,7 @@ function PlayerPanelInner({
             jersey: null,
           }}
           sport={sport}
-          canDraft={canDraft && !draftedNames.has(selectedPlayer.name)}
+          canDraft={canDraft && !isPlayerNameDrafted(selectedPlayer.name, draftedNames)}
           onMakePick={() => {
             onMakePick(selectedPlayer)
             setSelectedPlayer(null)
@@ -725,9 +734,24 @@ function PlayerPanelInner({
           }}
         />
       )}
-      <div ref={scrollRef} className="flex-1 overflow-auto overscroll-contain p-2.5">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto overscroll-contain p-2">
         {loading ? (
-          <p className="py-4 text-center text-xs text-white/50">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
+          <div className="space-y-2 py-1" aria-busy="true" aria-label={t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}>
+            <p className="sr-only">{t(DRAFT_ROOM_I18N_KEYS.playerPoolLoading)}</p>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex animate-pulse items-center gap-2 rounded-lg border border-white/10 bg-[#0a1228]/90 px-2 py-2"
+              >
+                <div className="h-7 w-7 shrink-0 rounded-full bg-white/10" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-2.5 w-24 rounded bg-white/10" />
+                  <div className="h-2 w-40 max-w-full rounded bg-white/[0.07]" />
+                </div>
+                <div className="h-8 w-16 shrink-0 rounded-md bg-white/[0.06]" />
+              </div>
+            ))}
+          </div>
         ) : showRosterView ? (
           <ul className="space-y-1">
             {currentRoster.length === 0 ? (
@@ -744,6 +768,19 @@ function PlayerPanelInner({
               ))
             )}
           </ul>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 px-4 py-14 text-center">
+            <p className="text-sm font-medium text-white/75">No players match your filters</p>
+            <p className="max-w-xs text-xs text-white/45">Widen search, reset position or team, or clear filters to see the pool again.</p>
+            <button
+              type="button"
+              onClick={clearAllFilters}
+              data-testid="draft-empty-clear-filters"
+              className="rounded-full border border-cyan-400/35 bg-cyan-500/12 px-4 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
           <PlayerListVirtualized
             filtered={filtered}

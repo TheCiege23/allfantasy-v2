@@ -55,7 +55,7 @@ export function getRosterIdForOverall(
   return entry ? { rosterId: entry.rosterId, displayName: entry.displayName } : null
 }
 
-/** Next `count` pick owners after `nextOverall` (1-based overall index). Used by Live Draft Brain predictions. */
+/** Next `count` pick owners after `nextOverall` (1-based overall index). Used by Live Draft Brain + on-deck UI. */
 export function getUpcomingPickOwners(
   nextOverall: number,
   count: number,
@@ -64,13 +64,14 @@ export function getUpcomingPickOwners(
   thirdRoundReversal: boolean,
   slotOrder: SlotOrderEntry[],
   totalPicks: number
-): Array<{ rosterId: string; displayName: string }> {
-  const out: Array<{ rosterId: string; displayName: string }> = []
+): Array<{ rosterId: string; displayName: string; slot: number }> {
+  const out: Array<{ rosterId: string; displayName: string; slot: number }> = []
   for (let k = 0; k < count; k += 1) {
     const overall = nextOverall + k
     if (overall > totalPicks) break
+    const slot = getSlotInRoundForOverall({ overall, teamCount, draftType, thirdRoundReversal })
     const r = getRosterIdForOverall(overall, teamCount, draftType, thirdRoundReversal, slotOrder)
-    if (r) out.push(r)
+    if (r) out.push({ ...r, slot })
   }
   return out
 }

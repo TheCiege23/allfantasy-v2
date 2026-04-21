@@ -81,7 +81,11 @@ export function BigScreenBoard({ draftId }: { draftId: string }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-200">Big Screen Mode</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">{heading}</h1>
         </div>
-        <PickTimer seconds={state.timerRemainingSeconds} active={state.timerActive} />
+        <PickTimer
+          timerEndAtIso={state.timerEndAtIso}
+          seconds={state.timerRemainingSeconds}
+          active={state.timerActive}
+        />
       </div>
       <DraftGrid state={state} bigScreen />
     </div>
