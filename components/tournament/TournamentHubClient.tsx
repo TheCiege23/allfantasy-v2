@@ -318,7 +318,7 @@ export function TournamentHubClient({ tournamentId }: { tournamentId: string }) 
           )}
           {tournament.isCommissioner && (
             <Link
-              href={`/app/tournament/${tournamentId}/control`}
+              href={`/tournament/${tournamentId}/control`}
               className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-2.5 text-sm font-medium text-amber-200 hover:bg-amber-950/40"
             >
               <Users className="h-4 w-4" /> {t('tournament.publicHub.commissionerControl')}

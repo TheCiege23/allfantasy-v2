@@ -56,7 +56,7 @@ export default function CreateEntryChooser({
         return
       }
 
-      router.push(`/bracket/${tournamentId}/entry/${data.entryId}`)
+      router.push(`/tournament/bracket/${tournamentId}/entry/${data.entryId}`)
     } catch {
       setLoading(false)
       setErr("Something went wrong. Please try again.")

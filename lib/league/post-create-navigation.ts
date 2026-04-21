@@ -48,7 +48,7 @@ export function buildPostCreateLeagueHomeHref(args: PostCreateLeagueHomeArgs): s
   if (!leagueId) {
     // Tournament create must return `leagueIds[0]`; if not, safe fallback.
     if (lt === 'tournament' && tid) {
-      return `/app/tournament/${encodeURIComponent(tid)}/commissioner?created=1`
+      return `/tournament/${encodeURIComponent(tid)}/commissioner?created=1`
     }
     return '/dashboard'
   }

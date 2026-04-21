@@ -33,7 +33,7 @@ export function getLeaguePath(leagueId: string): string {
 
 /** Entry bracket (fill picks) — tournament + entry. */
 export function getEntryBracketPath(tournamentId: string, entryId: string): string {
-  return `/bracket/${encodeURIComponent(tournamentId)}/entry/${encodeURIComponent(entryId)}`
+  return `/tournament/bracket/${encodeURIComponent(tournamentId)}/entry/${encodeURIComponent(entryId)}`
 }
 
 /** Sign-in next param for bracket flows. */

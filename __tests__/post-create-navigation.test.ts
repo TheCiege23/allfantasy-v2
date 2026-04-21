@@ -36,7 +36,7 @@ describe('post-create handoff normalization', () => {
       leagueType: 'tournament',
       tournamentId: 'tour_only',
     })
-    expect(href).toContain('/app/tournament/tour_only/commissioner')
+    expect(href).toContain('/tournament/tour_only/commissioner')
     expect(href).toContain('created=1')
   })
 

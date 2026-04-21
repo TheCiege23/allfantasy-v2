@@ -122,7 +122,7 @@ export function TournamentCreateWizard() {
     <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Link
-          href="/app/tournament"
+          href="/tournament"
           className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
         >
           <ChevronLeft className="h-4 w-4" /> Tournaments
@@ -437,7 +437,7 @@ export function TournamentCreateWizard() {
             {creating ? 'Creating…' : 'Create tournament'}
           </button>
           <Link
-            href="/app/tournament"
+            href="/tournament"
             className="rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-medium text-white/80 hover:bg-white/10"
           >
             Cancel

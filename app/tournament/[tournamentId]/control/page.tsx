@@ -13,7 +13,7 @@ export default function TournamentControlPage() {
     <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Link
-          href="/app/tournament"
+          href="/tournament"
           className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white"
         >
           <ChevronLeft className="h-4 w-4" /> Tournaments
@@ -21,7 +21,7 @@ export default function TournamentControlPage() {
         {tournamentId ? (
           <>
             <Link
-              href={`/app/tournament/${tournamentId}/commissioner`}
+              href={`/tournament/${tournamentId}/commissioner`}
               className="inline-flex items-center gap-2 text-sm text-cyan-400/90 hover:text-cyan-300"
             >
               Commissioner dashboard

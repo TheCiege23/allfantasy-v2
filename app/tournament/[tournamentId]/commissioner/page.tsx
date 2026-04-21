@@ -18,7 +18,7 @@ export default async function TournamentCommissionerPage({
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) {
-    redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(`/app/tournament/${tournamentId}/commissioner`)}`)
+    redirect(`/api/auth/signin?callbackUrl=${encodeURIComponent(`/tournament/${tournamentId}/commissioner`)}`)
   }
 
   const access = await getLegacyTournamentAccess(userId, tournamentId)

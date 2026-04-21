@@ -387,7 +387,7 @@ export default function TournamentHomePage() {
             ]}
             actions={
               <Link
-                href={`/app/tournament/${tournamentId}/commissioner`}
+                href={`/tournament/${tournamentId}/commissioner`}
                 className={`inline-flex items-center rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/85 transition hover:bg-white/[0.08] ${hubAccent.text}`}
                 data-testid="tournament-commissioner-dashboard-link"
               >

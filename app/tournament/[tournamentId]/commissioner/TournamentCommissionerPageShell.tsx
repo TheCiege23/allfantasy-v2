@@ -11,7 +11,7 @@ export function TournamentCommissionerPageShell({ tournamentId }: { tournamentId
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6 sm:px-6">
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-        <Link href="/app/tournament" className="inline-flex items-center gap-2 text-white/60 hover:text-white">
+        <Link href="/tournament" className="inline-flex items-center gap-2 text-white/60 hover:text-white">
           <ChevronLeft className="h-4 w-4" /> {t('tournament.appCommissioner.backTournaments')}
         </Link>
       </div>

@@ -37,6 +37,9 @@ type DraftBehaviorRow = {
 }
 
 export default function DraftTab({ leagueId }: LeagueTabProps) {
+  // TODO(api-migration): these two draft calls still route through `/api/app/*` catch-all proxy
+  // (→ `/api/leagues/{id}/draft/pool` and `/api/leagues/{id}/draft/config`). Swap to canonical
+  // URLs when `useLeagueSectionData` is replaced/forked; proxy kept temporarily for compat.
   const { data, loading, error, reload } =
     useLeagueSectionData<Record<string, unknown>>(leagueId, 'draft')
   const { data: scoringConfig } = useLeagueSectionData<{
@@ -115,7 +118,7 @@ export default function DraftTab({ leagueId }: LeagueTabProps) {
 
     setRunning(true)
     try {
-      const res = await fetch(`/api/app/league/${encodeURIComponent(leagueId)}/draft/recommend-ai`, {
+      const res = await fetch(`/api/mock-draft/ai-pick?leagueId=${encodeURIComponent(leagueId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

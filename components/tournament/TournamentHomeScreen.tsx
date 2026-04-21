@@ -152,14 +152,14 @@ export function TournamentHomeScreen({ tournamentId }: TournamentHomeScreenProps
 
       {/* Navigation Cards */}
       <div className="grid gap-2 sm:grid-cols-2">
-        <a href={`/app/tournament/${tournamentId}`} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:border-white/20 transition">
+        <a href={`/tournament/${tournamentId}`} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:border-white/20 transition">
           <BarChart3 className="h-5 w-5 text-cyan-400/60" />
           <div>
             <div className="text-sm font-medium text-white/80">Standings</div>
             <div className="text-[10px] text-white/40">League, conference, and global rankings</div>
           </div>
         </a>
-        <a href={`/app/tournament/${tournamentId}`} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:border-white/20 transition">
+        <a href={`/tournament/${tournamentId}`} className="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center gap-3 hover:border-white/20 transition">
           <Trophy className="h-5 w-5 text-purple-400/60" />
           <div>
             <div className="text-sm font-medium text-white/80">Tournament Central</div>

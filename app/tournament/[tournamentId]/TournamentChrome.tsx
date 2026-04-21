@@ -63,7 +63,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
-              href: `/app/tournament/${tournamentId}/control`,
+              href: `/tournament/${tournamentId}/control`,
               label: 'Commissioner ops',
               icon: <Wrench className="h-5 w-5" strokeWidth={1.75} />,
               commishOnly: true,
@@ -92,7 +92,7 @@ export function TournamentChrome({ children }: { children: React.ReactNode }) {
       ...(isCommissioner
         ? ([
             {
-              href: `/app/tournament/${tournamentId}/control`,
+              href: `/tournament/${tournamentId}/control`,
               label: 'Commissioner ops',
               icon: <span className="text-lg">🛠️</span>,
               commishOnly: true,

@@ -104,23 +104,7 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
   }
 
   if (leagueId && path[2] === 'draft' && path[3] === 'config') {
-    try {
-      const { getDraftConfigForLeague } = await import('@/lib/draft-defaults/DraftRoomConfigResolver')
-      const { prisma } = await import('@/lib/prisma')
-      const config = await getDraftConfigForLeague(leagueId)
-      const league = await (prisma as any).league.findUnique({
-        where: { id: leagueId },
-        select: { leagueSize: true },
-      })
-      if (!config) return NextResponse.json({ error: 'League or draft config not found' }, { status: 404 })
-      return NextResponse.json({
-        ...config,
-        leagueSize: league?.leagueSize ?? 12,
-      })
-    } catch (e) {
-      console.warn('[app/league/draft/config]', e)
-      return NextResponse.json({ error: 'Failed to load draft config' }, { status: 500 })
-    }
+    return proxyToExisting(req, { targetPath: `/api/leagues/${leagueId}/draft/config` })
   }
 
   if (leagueId && path[2] === 'waiver' && path[3] === 'config') {

@@ -49,7 +49,7 @@ export default function TournamentListPage() {
           </div>
         </div>
         <Link
-          href="/app/tournament/create"
+          href="/tournament/create"
           className="inline-flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-600/30 px-4 py-2.5 font-medium text-white hover:bg-amber-600/50"
         >
           <Plus className="h-5 w-5" /> Create tournament
@@ -64,7 +64,7 @@ export default function TournamentListPage() {
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center">
           <p className="text-white/70">You haven’t created any tournaments yet.</p>
           <Link
-            href="/app/tournament/create"
+            href="/tournament/create"
             className="mt-4 inline-block rounded-xl border border-amber-500/40 bg-amber-600/30 px-4 py-2.5 font-medium text-white hover:bg-amber-600/50"
           >
             Create tournament

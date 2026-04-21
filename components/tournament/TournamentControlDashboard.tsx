@@ -447,11 +447,11 @@ export function TournamentControlDashboard({
         </button>
         {advancedOpen && (
           <ul className="mt-2 space-y-1 text-sm text-white/70">
-            <li><Link href={`/app/tournament/${tournamentId}/control?action=force-advance`} className="hover:text-amber-400">Force advance participant</Link> (API: POST /api/tournament/[id]/force-advance)</li>
-            <li><Link href={`/app/tournament/${tournamentId}/control?action=tie-resolution`} className="hover:text-amber-400">Manual tie resolution</Link> (API: POST /api/tournament/[id]/tie-resolution)</li>
-            <li><Link href={`/app/tournament/${tournamentId}/control?action=archive-round`} className="hover:text-amber-400">Archive round</Link> (API: POST /api/tournament/[id]/archive-round)</li>
+            <li><Link href={`/tournament/${tournamentId}/control?action=force-advance`} className="hover:text-amber-400">Force advance participant</Link> (API: POST /api/tournament/[id]/force-advance)</li>
+            <li><Link href={`/tournament/${tournamentId}/control?action=tie-resolution`} className="hover:text-amber-400">Manual tie resolution</Link> (API: POST /api/tournament/[id]/tie-resolution)</li>
+            <li><Link href={`/tournament/${tournamentId}/control?action=archive-round`} className="hover:text-amber-400">Archive round</Link> (API: POST /api/tournament/[id]/archive-round)</li>
             <li><Link href={`/tournament/${tournamentId}`} className="hover:text-amber-400">Champion path</Link> (API: GET /api/tournament/[id]/champion-path)</li>
-            <li><Link href={`/app/tournament/${tournamentId}/control?action=resolve-state`} className="hover:text-amber-400">Resolve invalid state</Link> (API: POST /api/tournament/[id]/resolve-state)</li>
+            <li><Link href={`/tournament/${tournamentId}/control?action=resolve-state`} className="hover:text-amber-400">Resolve invalid state</Link> (API: POST /api/tournament/[id]/resolve-state)</li>
             <li>Redraft regenerate (API: POST /api/tournament/[id]/redraft/regenerate)</li>
             <li>Draft reopen (API: POST /api/tournament/[id]/draft/reopen)</li>
             <li>Bulk update names/theme (API: POST /api/tournament/[id]/bulk-update)</li>

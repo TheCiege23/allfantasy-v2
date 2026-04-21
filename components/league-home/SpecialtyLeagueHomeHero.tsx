@@ -573,7 +573,7 @@ export function SpecialtyLeagueHomeHero({
               {isHeadCommissioner && variant === 'tournament' && tournamentContext ? (
                 <HeroQuickButton
                   icon={Wrench}
-                  href={`/app/tournament/${tournamentContext.tournamentId}/control`}
+                  href={`/tournament/${tournamentContext.tournamentId}/control`}
                 >
                   Ops
                 </HeroQuickButton>
