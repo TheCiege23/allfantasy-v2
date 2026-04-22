@@ -87,6 +87,13 @@ export interface DraftSessionSnapshot {
   currentUserRosterId?: string
   /** Viewer-specific: orphan roster ids (GET `/draft/session`). */
   orphanRosterIds?: string[]
+  /** Viewer-specific: matches GET `/draft/session` orphan AI toggle. */
+  aiManagerEnabled?: boolean
+  /** Viewer-specific: commissioner orphan drafter mode (cpu vs ai). */
+  orphanDrafterMode?: 'cpu' | 'ai'
+  /** Weighted lottery / order metadata from league draft config. */
+  draftOrderMode?: string
+  lotteryLastRunAt?: string
 }
 
 export interface C2CSessionSnapshot {
