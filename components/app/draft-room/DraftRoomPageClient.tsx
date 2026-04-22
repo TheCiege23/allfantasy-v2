@@ -186,6 +186,7 @@ const AI_ADP_POLL_SKIP_MS = 30 * 60 * 1000
 const QUEUE_POLL_EVERY_N_TICKS = 2
 const SETTINGS_POLL_EVERY_N_TICKS = 3
 const CHAT_POLL_EVERY_N_TICKS = 2
+const POOL_POLL_EVERY_N_TICKS = 3
 const DRAFT_ROOM_LOCAL_PREFS_KEY_PREFIX = 'af:draft-room-prefs:'
 
 function mergeDraftChatWire(
@@ -1642,6 +1643,7 @@ export function DraftRoomPageClient({
         const shouldRefreshQueue = (tick % QUEUE_POLL_EVERY_N_TICKS) === 0 || onClockForCurrentUser
         const shouldRefreshSettings = (tick % SETTINGS_POLL_EVERY_N_TICKS) === 0 || showCommissionerModal
         const shouldRefreshChat = chatSyncActive || (tick % CHAT_POLL_EVERY_N_TICKS) === 0
+        const shouldRefreshPool = (tick % POOL_POLL_EVERY_N_TICKS) === 0
 
         const sessionPollOk = await fetchLiveSync({
           since,
@@ -1652,6 +1654,7 @@ export function DraftRoomPageClient({
         const secondary: Promise<unknown>[] = []
         if (shouldRefreshSettings) secondary.push(fetchDraftSettings())
         if (shouldRefreshSettings) secondary.push(fetchDraftAssistantContext())
+        if (shouldRefreshPool) secondary.push(fetchDraftPool())
 
         const aiAdpComputedAt = leagueAiAdp?.computedAt ? new Date(leagueAiAdp.computedAt).getTime() : 0
         const skipAiAdp = draftUISettings?.aiAdpEnabled && aiAdpComputedAt && Date.now() - aiAdpComputedAt < AI_ADP_POLL_SKIP_MS
@@ -1685,6 +1688,7 @@ export function DraftRoomPageClient({
     fetchLiveSync,
     fetchDraftSettings,
     fetchDraftAssistantContext,
+    fetchDraftPool,
     fetchLeagueAiAdp,
     draftUISettings?.aiAdpEnabled,
     leagueAiAdp?.computedAt,
@@ -1845,6 +1849,9 @@ export function DraftRoomPageClient({
           void fetchDraftPool()
           void fetchDraftAssistantContext()
         }
+        if (action === 'pause' || action === 'resume') {
+          void fetchDraftPool()
+        }
         if (action === 'set_timer_seconds') void fetchDraftSettings()
 
         const successMsg = commissionerActionSuccessCopy(action)
@@ -1919,6 +1926,7 @@ export function DraftRoomPageClient({
       if (res.ok && data.session) {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: true })
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+        await fetchDraftPool()
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
         setPickError(typeof data?.error === 'string' ? data.error : 'Could not start the draft. Check that the draft order is set and try again.')
@@ -1927,7 +1935,7 @@ export function DraftRoomPageClient({
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
       setPickError('Could not start the draft. Try again.')
     }
-  }, [leagueId])
+  }, [leagueId, fetchDraftPool])
 
   const handleSettingsPatch = useCallback(
     async (patch: Partial<DraftUISettings>) => {
