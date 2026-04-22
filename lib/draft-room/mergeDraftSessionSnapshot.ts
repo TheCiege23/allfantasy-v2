@@ -27,6 +27,78 @@ function inferCurrentPickFromSnapshot(s: DraftSessionSnapshot) {
   })
 }
 
+/** True when we have a usable clock anchor for an active draft that still needs picks. */
+function timerHasAuthority(s: DraftSessionSnapshot): boolean {
+  if (s.status === 'paused') {
+    return (
+      (typeof s.pausedRemainingSeconds === 'number' && Number.isFinite(s.pausedRemainingSeconds)) ||
+      s.timer?.status === 'paused' ||
+      (typeof s.timer?.remainingSeconds === 'number' && Number.isFinite(s.timer.remainingSeconds))
+    )
+  }
+  if (s.status !== 'in_progress') return false
+  return (
+    s.timer?.status === 'running' ||
+    s.timer?.status === 'expired' ||
+    Boolean(s.timerEndAt && String(s.timerEndAt).length > 0) ||
+    Boolean(s.timer?.timerEndAt && String(s.timer.timerEndAt).length > 0)
+  )
+}
+
+function isWeakActiveSnapshot(s: DraftSessionSnapshot): boolean {
+  const tc = Math.max(1, s.teamCount)
+  if (!draftNeedsClock(s)) return false
+  return (
+    !s.currentPick ||
+    !slotOrderLooksComplete(s.slotOrder, tc) ||
+    !timerHasAuthority(s)
+  )
+}
+
+/**
+ * After repair + merge stitching, overlay prev authority when incoming is incomplete on the same pick epoch.
+ * Prevents live-sync/events from blanking currentPick / slotOrder / timer between polls.
+ */
+function preserveStrongActiveOverWeakIncoming(
+  prev: DraftSessionSnapshot | null,
+  merged: DraftSessionSnapshot,
+): DraftSessionSnapshot {
+  if (!prev || !draftNeedsClock(prev)) return merged
+  const sameEpoch = (merged.picks?.length ?? 0) === (prev.picks?.length ?? 0)
+  if (!sameEpoch) return merged
+
+  const tc = Math.max(1, merged.teamCount)
+  const prevStrong =
+    (prev.status === 'in_progress' || prev.status === 'paused') &&
+    Boolean(prev.currentPick) &&
+    slotOrderLooksComplete(prev.slotOrder, Math.max(1, prev.teamCount)) &&
+    timerHasAuthority(prev)
+
+  if (!prevStrong || !isWeakActiveSnapshot(merged)) return merged
+
+  let out: DraftSessionSnapshot = {
+    ...merged,
+    slotOrder: slotOrderLooksComplete(merged.slotOrder, tc) ? merged.slotOrder : prev.slotOrder,
+    currentPick: merged.currentPick ?? prev.currentPick ?? null,
+    timerSeconds: merged.timerSeconds ?? prev.timerSeconds,
+    timerEndAt: merged.timerEndAt ?? prev.timerEndAt,
+    pausedRemainingSeconds:
+      merged.pausedRemainingSeconds !== undefined && merged.pausedRemainingSeconds !== null
+        ? merged.pausedRemainingSeconds
+        : prev.pausedRemainingSeconds,
+  }
+
+  if (!timerHasAuthority(out) && timerHasAuthority(prev)) {
+    out = {
+      ...out,
+      timer: prev.timer,
+      timerEndAt: prev.timerEndAt ?? out.timerEndAt,
+    }
+  }
+
+  return out
+}
+
 /**
  * When a snapshot drops authoritative clock/order/timer anchors, repair from `prev` or infer from the board
  * so live-sync merges cannot blank the room (null currentPick + empty slotOrder + timer none).
@@ -121,6 +193,16 @@ function mergeStrongerAuthorityFields(
     }
   }
 
+  const samePickEpoch = (merged.picks?.length ?? 0) === (prev.picks?.length ?? 0)
+  if (
+    draftNeedsClock(prev) &&
+    samePickEpoch &&
+    prev.timerSeconds != null &&
+    (merged.timerSeconds == null || merged.timerSeconds === undefined)
+  ) {
+    out = { ...out, timerSeconds: prev.timerSeconds }
+  }
+
   return out
 }
 
@@ -211,6 +293,18 @@ export function mergeDraftSessionSnapshot(
   next: DraftSessionSnapshot | null | undefined,
 ): DraftSessionSnapshot | null {
   if (!next) return prev ?? null
+
+  /** Never regress an in-flight live draft to pre-draft with the same board progress (stale reads, race ordering). */
+  if (
+    prev &&
+    draftNeedsClock(prev) &&
+    (prev.status === 'in_progress' || prev.status === 'paused') &&
+    next.status === 'pre_draft' &&
+    (next.picks?.length ?? 0) === (prev.picks?.length ?? 0)
+  ) {
+    return prev
+  }
+
   if (isStaleDraftSessionSnapshot(prev ?? null, next)) return prev ?? null
   const nextRepaired = repairDraftSessionAuthority(prev, next)
   if (prev && draftSessionLiveSurfaceKey(prev) === draftSessionLiveSurfaceKey(nextRepaired)) {
@@ -219,6 +313,19 @@ export function mergeDraftSessionSnapshot(
     for (const key of VIEWER_SESSION_KEYS) {
       const nv = snapshotRecord(nextRepaired)[key]
       const pv = snapshotRecord(prev)[key]
+      if (key === 'currentUserRosterId') {
+        const effective =
+          typeof nv === 'string' && nv.length > 0
+            ? nv
+            : typeof pv === 'string' && pv.length > 0
+              ? pv
+              : nv
+        if (effective !== undefined && effective !== pv) {
+          if (out === prev) out = { ...prev }
+          ;(snapshotRecord(out) as Record<string, unknown>)[key] = effective
+        }
+        continue
+      }
       if (nv !== undefined && nv !== pv) {
         if (out === prev) out = { ...prev }
         ;(snapshotRecord(out) as Record<string, unknown>)[key] = nv
@@ -233,11 +340,23 @@ export function mergeDraftSessionSnapshot(
     for (const key of VIEWER_SESSION_KEYS) {
       const pv = snapshotRecord(prev)[key]
       const nv = snapshotRecord(base)[key]
+      /** Keep roster mapping when the server omits or clears it on partial payloads. */
+      if (key === 'currentUserRosterId') {
+        if (
+          typeof pv === 'string' &&
+          pv.length > 0 &&
+          (nv === undefined || nv === null || nv === '')
+        ) {
+          if (merged === base) merged = { ...base }
+          snapshotRecord(merged)[key] = pv
+        }
+        continue
+      }
       if (nv === undefined && pv !== undefined) {
         if (merged === base) merged = { ...base }
         snapshotRecord(merged)[key] = pv
       }
     }
   }
-  return mergeStrongerAuthorityFields(prev, merged)
+  return preserveStrongActiveOverWeakIncoming(prev, mergeStrongerAuthorityFields(prev, merged))
 }

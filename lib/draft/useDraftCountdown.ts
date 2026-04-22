@@ -20,7 +20,7 @@ export function useDraftCountdownSeconds(
 
   useEffect(() => {
     if (timerStatus !== 'running' || !timerEndAtIso) return
-    const id = window.setInterval(() => setTick((t) => t + 1), 250)
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000)
     return () => window.clearInterval(id)
   }, [timerStatus, timerEndAtIso])
 
@@ -35,12 +35,12 @@ export function useDraftCountdownSeconds(
       return
     }
     softDeadlineMs.current = Date.now() + Math.ceil(sec) * 1000
-    const id = window.setInterval(() => setTick((t) => t + 1), 250)
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000)
     return () => window.clearInterval(id)
   }, [timerStatus, timerEndAtIso, serverRemainingSeconds])
 
   return useMemo(() => {
-    // Invalidate when `tick` bumps (interval) so `Date.now()` is recomputed ~4×/s while running.
+    // Invalidate when `tick` bumps (interval) so `Date.now()` is recomputed each second while running.
     void tick
 
     if (timerStatus === 'paused') return serverRemainingSeconds ?? null

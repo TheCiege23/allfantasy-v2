@@ -33,6 +33,28 @@ import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
 
+/** Same rules as session creation: LeagueSettings pick timer wins when present; else draft config + UI slow-draft mode. */
+function computeEffectivePickTimerSeconds(
+  leagueSettings: { pickTimerPreset: string; pickTimerCustomValue: number | null } | null | undefined,
+  config: Awaited<ReturnType<typeof getDraftConfigForLeague>>,
+  uiSettings: Awaited<ReturnType<typeof getDraftUISettingsForLeague>>,
+): number {
+  const baseTimerSeconds = config?.timer_seconds ?? 90
+  const slowTimerSeconds = config?.slow_timer_seconds ?? Math.max(3600, baseTimerSeconds)
+  let timerSeconds =
+    uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
+      ? slowTimerSeconds
+      : baseTimerSeconds
+  if (leagueSettings) {
+    timerSeconds = pickTimerSecondsFromLeagueSettings(
+      leagueSettings.pickTimerPreset,
+      leagueSettings.pickTimerCustomValue,
+    )
+  }
+  const rounded = Math.round(Number(timerSeconds))
+  return Number.isFinite(rounded) && rounded > 0 ? rounded : 90
+}
+
 function isCompleteSlotOrder(order: unknown, teamCount: number): boolean {
   if (!Array.isArray(order) || teamCount < 1) return false
   const slots = new Set<number>()
@@ -159,14 +181,8 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
   let rounds = config?.rounds ?? 15
   let draftType = (config?.draft_type ?? 'snake') as string
   let thirdRoundReversal = config?.third_round_reversal ?? false
-  const baseTimerSeconds = config?.timer_seconds ?? 90
-  const slowTimerSeconds = config?.slow_timer_seconds ?? Math.max(3600, baseTimerSeconds)
-  let timerSeconds =
-    uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
-      ? slowTimerSeconds
-      : baseTimerSeconds
-
   const ls = league.leagueSettings
+  const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
   let aiAutoPick = false
   let cpuAutoPick = true
   let playerPool = 'all'
@@ -187,7 +203,6 @@ export async function getOrCreateDraftSession(leagueId: string): Promise<{
       draftType = 'snake'
       thirdRoundReversal = false
     }
-    timerSeconds = pickTimerSecondsFromLeagueSettings(ls.pickTimerPreset, ls.pickTimerCustomValue)
     aiAutoPick = ls.aiAutoPick
     cpuAutoPick = ls.cpuAutoPick
     playerPool = ls.playerPool
@@ -445,7 +460,11 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
 
   const startedAtNow = new Date()
 
-  const ls = await prisma.leagueSettings.findUnique({ where: { leagueId } })
+  const [ls, config, uiSettings] = await Promise.all([
+    prisma.leagueSettings.findUnique({ where: { leagueId } }),
+    getDraftConfigForLeague(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+  ])
   if (ls) {
     await prisma.draftSession.update({
       where: { id: session.id },
@@ -485,12 +504,13 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
     return true
   }
 
-  const timerSeconds = session.timerSeconds ?? 90
+  const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
   const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
   await prisma.draftSession.update({
     where: { id: session.id },
     data: {
       status: 'in_progress',
+      timerSeconds,
       timerEndAt,
       pausedRemainingSeconds: null,
       startedAt: session.startedAt ?? startedAtNow,
@@ -523,8 +543,14 @@ export async function pauseDraftSession(leagueId: string, pausedByUserId?: strin
 export async function resumeDraftSession(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'paused') return false
-  const sec = session.pausedRemainingSeconds ?? session.timerSeconds ?? 90
-  const timerEndAt = new Date(Date.now() + sec * 1000)
+  const [ls, config, uiSettings] = await Promise.all([
+    prisma.leagueSettings.findUnique({ where: { leagueId } }),
+    getDraftConfigForLeague(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+  ])
+  const effectiveStored = computeEffectivePickTimerSeconds(ls, config, uiSettings)
+  const sec = session.pausedRemainingSeconds ?? effectiveStored
+  const timerEndAt = new Date(Date.now() + Math.max(1, sec) * 1000)
   const auctionState =
     session.draftType === 'auction' &&
     session.auctionState &&
@@ -536,6 +562,7 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
     where: { id: session.id },
     data: {
       status: 'in_progress',
+      timerSeconds: effectiveStored,
       timerEndAt,
       pausedRemainingSeconds: null,
       pausedByUserId: null,
@@ -556,13 +583,19 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
 export async function resetTimer(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return false
-  const timerSeconds = session.timerSeconds ?? 90
+  const [ls, config, uiSettings] = await Promise.all([
+    prisma.leagueSettings.findUnique({ where: { leagueId } }),
+    getDraftConfigForLeague(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+  ])
+  const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
 
   /** Full clock refresh while commissioner-paused: stay paused; only refresh stored remainder (do not resume). */
   if (session.status === 'paused') {
     await prisma.draftSession.update({
       where: { id: session.id },
       data: {
+        timerSeconds,
         pausedRemainingSeconds: timerSeconds,
         version: { increment: 1 },
       },
@@ -582,6 +615,7 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
     where: { id: session.id },
     data: {
       status: 'in_progress',
+      timerSeconds,
       timerEndAt,
       pausedRemainingSeconds: null,
       pausedByUserId: null,

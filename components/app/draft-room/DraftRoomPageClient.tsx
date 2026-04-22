@@ -438,7 +438,7 @@ export function DraftRoomPageClient({
   /** Fallback when Chimmy SSE has not emitted (no roster yet) or intel is idle — drives RedraftPlanningRibbon. */
   const ribbonPicksUntilUser = useMemo(() => {
     if (draftIntel?.picksUntilUser != null) return draftIntel.picksUntilUser
-    if (!session || session.status !== 'in_progress') return null
+    if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return null
     const rid = (session as DraftSessionSnapshot & { currentUserRosterId?: string }).currentUserRosterId
     return computePicksUntilViewerTurn(session as DraftSessionSnapshot, rid ?? null)
   }, [draftIntel?.picksUntilUser, session])
@@ -4054,7 +4054,8 @@ export function DraftRoomPageClient({
                 thirdRoundReversal={session.thirdRoundReversal}
                 backToBackSoon={redraftBackToBackSoon}
                 viewerRosterMissing={
-                  session.status === 'in_progress' && !(session as DraftSessionSnapshot).currentUserRosterId
+                  (session.status === 'in_progress' || session.status === 'paused') &&
+                  !(session as DraftSessionSnapshot & { currentUserRosterId?: string }).currentUserRosterId
                 }
               />
             </div>
