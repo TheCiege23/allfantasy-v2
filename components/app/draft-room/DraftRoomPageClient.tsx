@@ -679,6 +679,9 @@ export function DraftRoomPageClient({
       currentOverall: draftCore?.currentOverall,
       currentUserRosterId,
       currentTeamId: draftCore?.currentTeamId,
+      slotOrderLen: session.slotOrder?.length ?? 0,
+      rounds: session.rounds,
+      teamCount: session.teamCount,
       isCurrentUserOnClock,
       canDraft,
       pickSubmitting,
@@ -3422,7 +3425,10 @@ export function DraftRoomPageClient({
   const currentAuctionNominator = auctionSnapshot?.nominationOrder?.[auctionSnapshot?.auctionState?.nominationOrderIndex ?? 0]
   const isMyTurnToNominate = isAuction && currentUserRosterId != null && currentAuctionNominator?.rosterId === currentUserRosterId
   const isDraftCompleted = session.status === 'completed'
-  const totalBoardPicksPlanned = session.rounds * session.teamCount
+  /** Prevent blank board loop when corrupted API rows have rounds/teamCount = 0 */
+  const safeBoardRounds = Math.max(1, session.rounds ?? 1)
+  const safeBoardTeamCount = Math.max(1, session.teamCount ?? 1)
+  const totalBoardPicksPlanned = safeBoardRounds * safeBoardTeamCount
   const boardHasOpenPicks = (session.picks?.length ?? 0) < totalBoardPicksPlanned
   /** DB row occasionally missing timerEndAt — TopBar shows "—"; nudge user to resync rather than implying a dead room. */
   const showPickClockAnchorWarning =
@@ -4047,6 +4053,9 @@ export function DraftRoomPageClient({
                 onDeck={redraftRibbonOnDeck}
                 thirdRoundReversal={session.thirdRoundReversal}
                 backToBackSoon={redraftBackToBackSoon}
+                viewerRosterMissing={
+                  session.status === 'in_progress' && !(session as DraftSessionSnapshot).currentUserRosterId
+                }
               />
             </div>
           ) : null}
@@ -4076,6 +4085,18 @@ export function DraftRoomPageClient({
               </span>
             </div>
           ) : null}
+          {!isDraftCompleted &&
+          session.status === 'in_progress' &&
+          (!Array.isArray(session.slotOrder) || session.slotOrder.length < safeBoardTeamCount) ? (
+            <div
+              role="status"
+              data-testid="draft-board-order-incomplete-banner"
+              className="w-full shrink-0 rounded-lg border border-amber-400/40 bg-amber-950/35 px-3 py-2 text-[11px] text-amber-50"
+            >
+              Draft order is still syncing — board cells stay open below. Use <span className="font-semibold">Resync</span>{' '}
+              in the header if this message persists.
+            </div>
+          ) : null}
           <LiveDraftStatusColumn
             session={session as DraftSessionSnapshot}
             queueEntries={queueFiltered}
@@ -4094,7 +4115,7 @@ export function DraftRoomPageClient({
           />
           <div className="flex min-w-0 flex-1 flex-col overflow-auto">
             <DraftTeamStrip
-              teamCount={session.teamCount}
+              teamCount={safeBoardTeamCount}
               slotOrder={slotOrder}
               teamMetaByRoster={teamMetaByRoster}
               currentUserRosterId={currentUserRosterId ?? null}
@@ -4105,8 +4126,8 @@ export function DraftRoomPageClient({
               picks={session.picks ?? []}
               slotOrder={slotOrder}
               tradedPicks={(session as any).tradedPicks ?? []}
-              teamCount={session.teamCount}
-              rounds={session.rounds}
+              teamCount={safeBoardTeamCount}
+              rounds={safeBoardRounds}
               draftType={session.draftType}
               thirdRoundReversal={session.thirdRoundReversal}
               tradedPickColorMode={tradedPickColorMode}

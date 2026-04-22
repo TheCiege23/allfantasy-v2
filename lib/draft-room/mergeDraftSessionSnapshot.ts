@@ -15,7 +15,8 @@ function slotOrderLooksComplete(slotOrder: DraftSessionSnapshot['slotOrder'] | u
 
 function inferCurrentPickFromSnapshot(s: DraftSessionSnapshot) {
   const tc = Math.max(1, s.teamCount)
-  const total = Math.max(0, s.rounds * tc)
+  const rounds = Math.max(1, s.rounds ?? 1)
+  const total = Math.max(0, rounds * tc)
   return resolveCurrentOnTheClock({
     totalPicks: total,
     picksCount: s.picks?.length ?? 0,
@@ -91,8 +92,20 @@ function mergeStrongerAuthorityFields(
   if (!prev || !draftNeedsClock(merged)) return merged
   let out = merged
 
+  const tc = Math.max(1, merged.teamCount)
+  if (
+    draftNeedsClock(prev) &&
+    !slotOrderLooksComplete(merged.slotOrder, tc) &&
+    slotOrderLooksComplete(prev.slotOrder, Math.max(1, prev.teamCount))
+  ) {
+    out = { ...out, slotOrder: prev.slotOrder }
+  }
+
   if (draftNeedsClock(prev) && prev.currentPick && !merged.currentPick) {
-    out = { ...out, currentPick: prev.currentPick }
+    const samePickEpoch = (merged.picks?.length ?? 0) === (prev.picks?.length ?? 0)
+    if (samePickEpoch) {
+      out = { ...out, currentPick: prev.currentPick }
+    }
   }
 
   const prevRunning = prev.timer?.status === 'running' && Boolean(prev.timerEndAt || prev.timer?.timerEndAt)
@@ -177,7 +190,17 @@ export function isStaleDraftSessionSnapshot(
   return false
 }
 
-const VIEWER_SESSION_KEYS = ['currentUserRosterId', 'orphanRosterIds'] as const
+/** Incoming POST/GET payloads often omit viewer-only fields — preserve from `prev` when missing on `next`. */
+const VIEWER_SESSION_KEYS = [
+  'currentUserRosterId',
+  'orphanRosterIds',
+  'aiManagerEnabled',
+  'orphanDrafterMode',
+  'orphanAiProviderAvailable',
+  'orphanDrafterEffectiveMode',
+  'draftOrderMode',
+  'lotteryLastRunAt',
+] as const
 
 function snapshotRecord(s: DraftSessionSnapshot): Record<string, unknown> {
   return s as unknown as Record<string, unknown>

@@ -19,15 +19,17 @@ export function computePicksUntilViewerTurn(
   const currentOverall = cp?.overall ?? null
   if (currentOverall == null) return null
 
-  const total = session.teamCount * session.rounds
+  const rounds = Math.max(1, session.rounds ?? 1)
+  const tc = Math.max(1, session.teamCount ?? 1)
+  const total = rounds * tc
   const traded = Array.isArray(session.tradedPicks) ? session.tradedPicks : []
 
   let userNextOverall: number | null = null
   for (let overall = currentOverall; overall <= total; overall += 1) {
-    const round = Math.ceil(overall / session.teamCount)
+    const round = Math.ceil(overall / tc)
     const slot = getSlotInRoundForOverall({
       overall,
-      teamCount: session.teamCount,
+      teamCount: tc,
       draftType: session.draftType,
       thirdRoundReversal: session.thirdRoundReversal,
     })

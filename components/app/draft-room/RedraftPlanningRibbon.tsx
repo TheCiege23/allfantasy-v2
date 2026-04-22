@@ -9,6 +9,8 @@ export type RedraftPlanningRibbonProps = {
   onDeck: Array<{ slot: number; displayName: string }>
   thirdRoundReversal: boolean
   backToBackSoon: boolean
+  /** Session has no viewer roster mapping — prompts claim flow instead of generic “waiting”. */
+  viewerRosterMissing?: boolean
 }
 
 export function RedraftPlanningRibbon({
@@ -17,6 +19,7 @@ export function RedraftPlanningRibbon({
   onDeck,
   thirdRoundReversal,
   backToBackSoon,
+  viewerRosterMissing = false,
 }: RedraftPlanningRibbonProps) {
   const untilLabel =
     picksUntilUser == null
@@ -40,6 +43,10 @@ export function RedraftPlanningRibbon({
           <span className="font-semibold text-cyan-100">You are on the clock</span>
         ) : untilLabel ? (
           <span className="font-medium text-white/90">{untilLabel}</span>
+        ) : viewerRosterMissing ? (
+          <span className="text-amber-100/90">
+            Link your roster from the league page to see your place in the draft order.
+          </span>
         ) : (
           <span className="text-white/55">Waiting for draft state…</span>
         )}

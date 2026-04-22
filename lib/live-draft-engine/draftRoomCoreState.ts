@@ -10,9 +10,13 @@ function pickIndexInRound(overall: number, teamCount: number): number {
   return ((overall - 1) % teamCount) + 1
 }
 
+function effectiveRounds(session: DraftSessionSnapshot): number {
+  return Math.max(1, session.rounds ?? 1)
+}
+
 function isDraftBoardComplete(session: DraftSessionSnapshot): boolean {
   const tc = Math.max(1, session.teamCount)
-  const total = Math.max(0, session.rounds * tc)
+  const total = Math.max(0, effectiveRounds(session) * tc)
   return (session.picks?.length ?? 0) >= total
 }
 
@@ -27,9 +31,10 @@ export function resolveEffectiveCurrentPick(session: DraftSessionSnapshot): Curr
   const tc = Math.max(1, session.teamCount)
   if (isDraftBoardComplete(session)) return null
   if (session.status !== 'in_progress' && session.status !== 'paused') return null
+  const rounds = effectiveRounds(session)
   return (
     resolveCurrentOnTheClock({
-      totalPicks: session.rounds * tc,
+      totalPicks: rounds * tc,
       picksCount: picks.length,
       teamCount: tc,
       draftType: session.draftType,
