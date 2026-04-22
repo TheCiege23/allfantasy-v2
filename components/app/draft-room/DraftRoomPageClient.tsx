@@ -2622,7 +2622,7 @@ export function DraftRoomPageClient({
   )
 
   const redraftRibbonOnDeck = useMemo(() => {
-    if (!session || !currentPick || session.status !== 'in_progress') return []
+    if (!session || !currentPick || (session.status !== 'in_progress' && session.status !== 'paused')) return []
     const total = session.rounds * session.teamCount
     const next = currentPick.overall + 1
     if (next > total) return []
@@ -4042,11 +4042,20 @@ export function DraftRoomPageClient({
       managerStrip={null}
       draftBoard={
         <div
-          className="flex min-h-0 flex-col gap-1.5 p-1.5 lg:flex-row lg:gap-2.5 lg:p-2.5"
+          className="flex min-h-0 flex-col gap-1.5 p-1.5 lg:gap-2.5 lg:p-2.5"
           style={draftBoardSurfaceStyle}
         >
-          {presentationVariant === 'redraft_snake' && !isDynasty && session.status === 'in_progress' && !isDraftCompleted ? (
-            <div className="w-full shrink-0 lg:order-none">
+          {/*
+            Full-width chrome lives in the outer column only. Do not place these inside the same
+            lg:flex-row as LiveDraftStatusColumn + board: a first child with w-full in a row flex
+            consumes 100% width and collapses the board to zero — only visible once the redraft ribbon
+            mounts at in_progress (paused had no ribbon and avoided the bug).
+          */}
+          {presentationVariant === 'redraft_snake' &&
+          !isDynasty &&
+          (session.status === 'in_progress' || session.status === 'paused') &&
+          !isDraftCompleted ? (
+            <div className="w-full shrink-0">
               <RedraftPlanningRibbon
                 picksUntilUser={ribbonPicksUntilUser}
                 userOnClock={isCurrentUserOnClock}
@@ -4062,7 +4071,7 @@ export function DraftRoomPageClient({
           ) : null}
           {draftUISettings?.executionMode === 'offline' ? (
             <div
-              className="w-full shrink-0 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 lg:w-auto"
+              className="w-full shrink-0 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100"
               data-testid="draft-room-offline-banner"
               role="status"
             >
@@ -4076,7 +4085,7 @@ export function DraftRoomPageClient({
           ) : null}
           {isDraftCompleted ? (
             <div
-              className="w-full shrink-0 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-50 shadow-[0_8px_32px_rgba(16,185,129,0.12)] lg:max-w-[min(340px,32vw)]"
+              className="w-full shrink-0 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-50 shadow-[0_8px_32px_rgba(16,185,129,0.12)]"
               role="status"
               data-testid="draft-complete-board-banner"
             >
@@ -4087,7 +4096,7 @@ export function DraftRoomPageClient({
             </div>
           ) : null}
           {!isDraftCompleted &&
-          session.status === 'in_progress' &&
+          (session.status === 'in_progress' || session.status === 'paused') &&
           (!Array.isArray(session.slotOrder) || session.slotOrder.length < safeBoardTeamCount) ? (
             <div
               role="status"
@@ -4098,63 +4107,65 @@ export function DraftRoomPageClient({
               in the header if this message persists.
             </div>
           ) : null}
-          <LiveDraftStatusColumn
-            session={session as DraftSessionSnapshot}
-            queueEntries={queueFiltered}
-            leagueId={leagueId}
-            sport={effectiveDraftSport}
-            isCommissioner={isCommissioner}
-            onSessionUpdated={fetchSession}
-            poolPreview={draftPool?.entries ?? null}
-            onPoolPreviewSelect={handlePoolPreviewSelect}
-            poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
-            showTimer={!isAuction && !isDraftCompleted}
-            hideFullDraftOrderList={session.draftType === 'snake'}
-            viewerRosterId={currentUserRosterId ?? null}
-            viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
-            onClockSpotlight={onClockSpotlight}
-          />
-          <div className="flex min-w-0 flex-1 flex-col overflow-auto">
-            <DraftTeamStrip
-              teamCount={safeBoardTeamCount}
-              slotOrder={slotOrder}
-              teamMetaByRoster={teamMetaByRoster}
-              currentUserRosterId={currentUserRosterId ?? null}
-              onClockRosterId={currentPick?.rosterId ?? null}
-              canInvite={isCommissioner}
-            />
-            <DraftBoard
-              picks={session.picks ?? []}
-              slotOrder={slotOrder}
-              tradedPicks={(session as any).tradedPicks ?? []}
-              teamCount={safeBoardTeamCount}
-              rounds={safeBoardRounds}
-              draftType={session.draftType}
-              thirdRoundReversal={session.thirdRoundReversal}
-              tradedPickColorMode={tradedPickColorMode}
-              showNewOwnerInRed={showNewOwnerInRed}
-              keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
-              devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
-              c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
-              currentOverallPick={currentPick?.overall ?? null}
+          <div className="flex min-h-0 flex-1 flex-col gap-1.5 lg:flex-row lg:gap-2.5">
+            <LiveDraftStatusColumn
+              session={session as DraftSessionSnapshot}
+              queueEntries={queueFiltered}
+              leagueId={leagueId}
               sport={effectiveDraftSport}
-              currentUserRosterId={currentUserRosterId ?? null}
-              aiManagedRosterIds={aiManagedRosterIds}
-              orderSourceLabel={boardOrderSourceLabel}
-              presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-              onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
-              onOpenTradeHistory={() => {
-                setTradeHistoryFocus(null)
-                setTradeHistoryOpen(true)
-              }}
-              onViewCellTradeHistory={(ctx) => {
-                setTradeHistoryFocus({
-                  round: ctx.round,
-                  originalRosterId: ctx.originalRosterId,
-                })
-                setTradeHistoryOpen(true)
-              }}
+              isCommissioner={isCommissioner}
+              onSessionUpdated={fetchSession}
+              poolPreview={draftPool?.entries ?? null}
+              onPoolPreviewSelect={handlePoolPreviewSelect}
+              poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
+              showTimer={!isAuction && !isDraftCompleted}
+              hideFullDraftOrderList={session.draftType === 'snake'}
+              viewerRosterId={currentUserRosterId ?? null}
+              viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
+              onClockSpotlight={onClockSpotlight}
             />
+            <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-auto">
+              <DraftTeamStrip
+                teamCount={safeBoardTeamCount}
+                slotOrder={slotOrder}
+                teamMetaByRoster={teamMetaByRoster}
+                currentUserRosterId={currentUserRosterId ?? null}
+                onClockRosterId={currentPick?.rosterId ?? null}
+                canInvite={isCommissioner}
+              />
+              <DraftBoard
+                picks={session.picks ?? []}
+                slotOrder={slotOrder}
+                tradedPicks={(session as any).tradedPicks ?? []}
+                teamCount={safeBoardTeamCount}
+                rounds={safeBoardRounds}
+                draftType={session.draftType}
+                thirdRoundReversal={session.thirdRoundReversal}
+                tradedPickColorMode={tradedPickColorMode}
+                showNewOwnerInRed={showNewOwnerInRed}
+                keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
+                devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
+                c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
+                currentOverallPick={currentPick?.overall ?? null}
+                sport={effectiveDraftSport}
+                currentUserRosterId={currentUserRosterId ?? null}
+                aiManagedRosterIds={aiManagedRosterIds}
+                orderSourceLabel={boardOrderSourceLabel}
+                presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+                onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
+                onOpenTradeHistory={() => {
+                  setTradeHistoryFocus(null)
+                  setTradeHistoryOpen(true)
+                }}
+                onViewCellTradeHistory={(ctx) => {
+                  setTradeHistoryFocus({
+                    round: ctx.round,
+                    originalRosterId: ctx.originalRosterId,
+                  })
+                  setTradeHistoryOpen(true)
+                }}
+              />
+            </div>
           </div>
         </div>
       }
