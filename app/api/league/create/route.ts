@@ -1104,7 +1104,7 @@ export async function POST(req: Request) {
                 leagueId: league.id,
                 externalId: rosterId,
                 ownerName: displayName,
-                teamName: `${displayName}'s ${leagueName}`,
+                teamName: `${displayName}'s Team`,
                 claimedByUserId: userId,
                 platformUserId: userId,
                 isCommissioner: true,

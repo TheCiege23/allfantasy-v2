@@ -274,12 +274,18 @@ export async function createRedraftLeagueInTransaction(
     },
   })
 
+  const userProfile = await tx.userProfile.findUnique({
+    where: { userId: appUserId },
+    select: { displayName: true },
+  })
+  const displayName = userProfile?.displayName ?? 'User'
+
   await tx.leagueTeam.create({
     data: {
       leagueId: league.id,
       externalId: roster.id,
-      ownerName: 'Commissioner',
-      teamName: `${body.name.trim()} — Commissioner`,
+      ownerName: displayName,
+      teamName: `${displayName}'s Team`,
       claimedByUserId: appUserId,
       platformUserId: appUserId,
       isCommissioner: true,
