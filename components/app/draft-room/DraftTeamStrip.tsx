@@ -73,7 +73,7 @@ export function DraftTeamStrip({
 
   return (
     <section
-      className="border-b border-white/12 bg-[#0f1728] px-2 py-2.5"
+      className="border-b border-cyan-400/20 bg-gradient-to-r from-[#0f1728] via-[#132445] to-[#0f1728] px-2 py-2.5 backdrop-blur-sm"
       data-testid="draft-team-strip"
       aria-label="Draft managers"
     >
@@ -106,7 +106,7 @@ export function DraftTeamStrip({
                   <button
                     type="button"
                     onClick={() => onClaimSlot(slot)}
-                    className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-cyan-500/20 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200 hover:bg-cyan-500/30 shadow-md transition-colors"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/80 bg-gradient-to-br from-cyan-500/50 to-cyan-600/30 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100 hover:from-cyan-400/60 hover:to-cyan-500/40 shadow-lg shadow-cyan-500/30 transition-all hover:shadow-xl hover:shadow-cyan-500/40"
                   >
                     CLAIM
                   </button>
@@ -132,14 +132,14 @@ export function DraftTeamStrip({
               } ${isUser ? 'ring-1 ring-cyan-300/70' : ''}`}
             >
               <div
-                className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 shadow-md ${
+                className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 shadow-lg ${
                   isOnClock
-                    ? 'border-amber-300/80 shadow-[0_0_0_4px_rgba(252,211,77,0.3)]'
+                    ? 'border-amber-300/95 shadow-[0_0_0_4px_rgba(252,211,77,0.4),0_0_20px_rgba(252,211,77,0.5)]'
                     : isUser
-                      ? 'border-cyan-400/40'
-                      : 'border-white/18'
+                      ? 'border-cyan-400/70 shadow-[0_0_0_3px_rgba(34,211,238,0.3),0_0_16px_rgba(34,211,238,0.4)]'
+                      : 'border-cyan-400/30 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
                 }`}
-                style={{ backgroundColor: color.tintHex + '40' }}
+                style={{ backgroundColor: color.tintHex + '50' }}
               >
                 {meta?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element

@@ -91,7 +91,7 @@ function TinyTeamLogo({
     )
   }
   return (
-    <span className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded border border-white/12 bg-[#0a1228] px-0.5 text-[7px] font-bold text-white/75">
+    <span className="inline-flex h-[14px] min-w-[14px] items-center justify-center rounded border border-cyan-300/50 bg-[#1a2844] px-0.5 text-[7px] font-bold text-cyan-100">
       {team ? team.slice(0, 3).toUpperCase() : '—'}
     </span>
   )
@@ -153,7 +153,7 @@ function PositionBadge({ pos }: { pos: string | null }) {
   const p = (pos ?? '—').trim().slice(0, 4).toUpperCase()
   return (
     <span
-      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/25 px-1 py-0.5 text-[8px] font-bold text-cyan-200 shadow-md"
+      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-300/60 bg-gradient-to-r from-cyan-500/40 to-cyan-400/30 px-1 py-0.5 text-[8px] font-bold text-cyan-100 shadow-lg shadow-cyan-500/20"
       title={pos ?? undefined}
     >
       {p}
@@ -229,14 +229,14 @@ function DraftBoardCellInner({
 
   return (
     <div
-      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-lg border px-2.5 pb-2 pt-2 text-[10px] shadow-xl transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-1 hover:scale-[1.02] hover:border-white/35 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
+      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] shadow-xl backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-1.5 hover:scale-[1.03] hover:border-cyan-300/60 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
-          ? 'border-cyan-300/90 bg-gradient-to-br from-cyan-500/25 via-[#1f2d47] to-[#1a2844] shadow-[0_0_40px_rgba(0,217,255,0.5)] ring-2 ring-cyan-400/70'
+          ? 'border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
           : isRecentPick
-            ? 'border-amber-400/60 bg-gradient-to-br from-amber-500/18 to-[#1f2d47] ring-1 ring-amber-400/50 shadow-[0_0_24px_rgba(251,191,36,0.28)]'
-            : `border-white/18 bg-gradient-to-b from-[#1f2d47] to-[#141e35] ${highlightClass(pickHighlight)}`
+            ? 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
+            : `border-cyan-400/35 bg-gradient-to-b from-[#2a3d5a] to-[#1a2844] ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}

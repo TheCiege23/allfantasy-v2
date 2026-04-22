@@ -328,9 +328,9 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] shadow-md transition duration-200 hover:-translate-y-1 hover:scale-[1.01] hover:border-white/32 hover:bg-[#1a2844] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 active:scale-[0.995] ${
-        isDrafted ? 'border-white/[0.07] bg-[#0a1228]/65 opacity-65' : 'border-white/[0.1] bg-gradient-to-r from-[#0c1424] to-[#0a1228]'
-      } ${isDevy ? 'border-l-[3px] border-l-violet-500/55' : ''}`}
+      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] shadow-md backdrop-blur-sm transition duration-200 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-cyan-300/70 hover:bg-[#1f3a52] hover:shadow-lg hover:shadow-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
+        isDrafted ? 'border-cyan-400/20 bg-[#0a1228]/70 opacity-60' : 'border-cyan-400/40 bg-gradient-to-r from-[#1a2f48] via-[#142438] to-[#0a1228] shadow-cyan-500/10'
+      } ${isDevy ? 'border-l-[3px] border-l-violet-500/70' : ''}`}
     >
       <div className="relative h-10 w-10 shrink-0">
         <HeadshotOrFallback headshotUrl={headshotUrl} displayName={displayName} size={40} testIdBase={headshotTestBase} />
@@ -343,7 +343,7 @@ function DraftPlayerCardInner({
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="truncate font-bold text-white">{displayName}</p>
           {showProBadge && (
-            <span className="rounded bg-cyan-500/25 px-1 py-0.5 text-[9px] font-medium text-cyan-200 shrink-0" title="Pro / NFL">
+            <span className="rounded bg-gradient-to-r from-cyan-500/40 to-cyan-400/25 px-1 py-0.5 text-[9px] font-medium text-cyan-100 shrink-0 border border-cyan-400/40 shadow-sm shadow-cyan-500/15" title="Pro / NFL">
               Pro
             </span>
           )}
@@ -378,13 +378,13 @@ function DraftPlayerCardInner({
             </span>
           )}
         </div>
-        <p className="text-[10px] text-white/55">
+        <p className="text-[10px] text-cyan-100/75">
           {[teamAbbr ?? '—', position].join(' · ')}
           {resolvedClassYearLabel ? ` · ${resolvedClassYearLabel}` : ''}
           {resolvedProjectedLandingSpot ? ` · ${resolvedProjectedLandingSpot}` : ''}
           {injuryStatus ? ` · ${injuryStatus}` : ''}
         </p>
-        <p className="text-[10px] text-white/42 truncate" title={statLine}>
+        <p className="text-[10px] text-cyan-100/55 truncate" title={statLine}>
           {statLine}
         </p>
       </div>
@@ -394,12 +394,12 @@ function DraftPlayerCardInner({
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        <div className="text-right text-[10px] tabular-nums text-white/60">
+        <div className="text-right text-[10px] tabular-nums text-cyan-100 font-semibold">
           <div>
-            ADP <span className="font-semibold text-white/85">{formatAdpDisplay(normalized.adp)}</span>
+            ADP <span className="text-cyan-300">{formatAdpDisplay(normalized.adp)}</span>
           </div>
           <div>
-            Bye <span className="font-semibold text-white/85">{formatBye(normalized.byeWeek)}</span>
+            Bye <span className="text-cyan-300">{formatBye(normalized.byeWeek)}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">{compareAction}{secondaryAction}{primaryAction}</div>
