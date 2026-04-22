@@ -71,6 +71,7 @@ import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
+import { computePicksUntilViewerTurn } from '@/lib/draft-room/computePicksUntilViewer'
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
@@ -434,6 +435,13 @@ export function DraftRoomPageClient({
         : ''
     return `${session.version}-${session.picks.length}-${traded}-${session.updatedAt}${onClock}`
   }, [session, currentPick])
+  /** Fallback when Chimmy SSE has not emitted (no roster yet) or intel is idle — drives RedraftPlanningRibbon. */
+  const ribbonPicksUntilUser = useMemo(() => {
+    if (draftIntel?.picksUntilUser != null) return draftIntel.picksUntilUser
+    if (!session || session.status !== 'in_progress') return null
+    const rid = (session as DraftSessionSnapshot & { currentUserRosterId?: string }).currentUserRosterId
+    return computePicksUntilViewerTurn(session as DraftSessionSnapshot, rid ?? null)
+  }, [draftIntel?.picksUntilUser, session])
   const players: PlayerEntry[] = useMemo(() => {
     const rawEntries = Array.isArray(draftPool?.entries)
       ? draftPool.entries
@@ -2733,14 +2741,14 @@ export function DraftRoomPageClient({
       }
     }
 
-    const prepId = `ai-copilot-prep-${currentPick?.overall ?? 'x'}-${draftIntel?.picksUntilUser ?? 'n'}-${warRoomData?.bestPick?.name ?? 'na'}`
+    const prepId = `ai-copilot-prep-${currentPick?.overall ?? 'x'}-${ribbonPicksUntilUser ?? 'n'}-${warRoomData?.bestPick?.name ?? 'na'}`
     if (
       rs &&
       !isCurrentUserOnClock &&
       warRoomData?.bestPick &&
-      draftIntel?.picksUntilUser != null &&
-      draftIntel.picksUntilUser > 0 &&
-      draftIntel.picksUntilUser <= 4
+      ribbonPicksUntilUser != null &&
+      ribbonPicksUntilUser > 0 &&
+      ribbonPicksUntilUser <= 4
     ) {
       const w = warRoomData.bestPick
       const tip =
@@ -2763,7 +2771,7 @@ export function DraftRoomPageClient({
           ...aiCopilotWire,
           id: prepId,
           from: 'Draft copilot',
-          text: `Your pick approaches in ~${draftIntel.picksUntilUser} selection(s). Prep idea: ${w.name} (${w.position}) — ${tip}`,
+          text: `Your pick approaches in ~${ribbonPicksUntilUser} selection(s). Prep idea: ${w.name} (${w.position}) — ${tip}`,
           at: new Date().toISOString(),
           isAiSuggestion: true,
           messageType: 'copilot_prepare',
@@ -2810,7 +2818,7 @@ export function DraftRoomPageClient({
     currentPick?.overall,
     presentationVariant,
     warRoomData,
-    draftIntel?.picksUntilUser,
+    ribbonPicksUntilUser,
     queueFiltered,
     draftedNames,
     assistantFeedByName,
@@ -3174,11 +3182,13 @@ export function DraftRoomPageClient({
         <DraftIntelQueuePanel
           loading={draftIntelLoading}
           headline={draftIntel?.headline ?? null}
-          picksUntilUser={draftIntel?.picksUntilUser ?? null}
-          onClock={draftIntel?.status === 'on_clock'}
+          picksUntilUser={ribbonPicksUntilUser}
+          onClock={draftIntel?.status === 'on_clock' || isCurrentUserOnClock}
           queue={draftIntelQueue}
-          canDraft={Boolean(canDraft && draftIntel?.status === 'on_clock')}
-          onDraftTopChoice={canDraft && draftIntel?.status === 'on_clock' ? handleDraftIntelPick : undefined}
+          canDraft={Boolean(canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock))}
+          onDraftTopChoice={
+            canDraft && (draftIntel?.status === 'on_clock' || isCurrentUserOnClock) ? handleDraftIntelPick : undefined
+          }
           presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
           onAddIntelSuggestion={presentationVariant === 'redraft_snake' ? handleAddIntelQueueSuggestion : undefined}
         />
@@ -3209,11 +3219,12 @@ export function DraftRoomPageClient({
       presentationVariant,
       draftIntelLoading,
       draftIntel?.headline,
-      draftIntel?.picksUntilUser,
+      ribbonPicksUntilUser,
       draftIntel?.status,
       draftIntelQueue,
       handleAddIntelQueueSuggestion,
       canDraft,
+      isCurrentUserOnClock,
       handleDraftIntelPick,
       queueFiltered,
       handleRemoveFromQueue,
@@ -3489,11 +3500,11 @@ export function DraftRoomPageClient({
           <span className="text-white/80 truncate max-w-[55%]">On clock: {currentPick.displayName}</span>
         </div>
         {presentationVariant === 'redraft_snake' &&
-        draftIntel?.picksUntilUser != null &&
-        draftIntel.picksUntilUser > 0 &&
+        ribbonPicksUntilUser != null &&
+        ribbonPicksUntilUser > 0 &&
         !isCurrentUserOnClock ? (
           <p className="text-[10px] text-cyan-200/75" data-testid="draft-mobile-picks-until-you">
-            ~{draftIntel.picksUntilUser} pick{draftIntel.picksUntilUser === 1 ? '' : 's'} until your turn
+            ~{ribbonPicksUntilUser} pick{ribbonPicksUntilUser === 1 ? '' : 's'} until your turn
           </p>
         ) : null}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
@@ -4031,7 +4042,7 @@ export function DraftRoomPageClient({
           {presentationVariant === 'redraft_snake' && !isDynasty && session.status === 'in_progress' && !isDraftCompleted ? (
             <div className="w-full shrink-0 lg:order-none">
               <RedraftPlanningRibbon
-                picksUntilUser={draftIntel?.picksUntilUser ?? null}
+                picksUntilUser={ribbonPicksUntilUser}
                 userOnClock={isCurrentUserOnClock}
                 onDeck={redraftRibbonOnDeck}
                 thirdRoundReversal={session.thirdRoundReversal}
@@ -4212,7 +4223,7 @@ export function DraftRoomPageClient({
             onQueuePlayer: handleAddToQueue,
           }}
           presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-          picksUntilUser={draftIntel?.picksUntilUser ?? null}
+          picksUntilUser={ribbonPicksUntilUser}
           userOnTheClock={isCurrentUserOnClock}
           resolvedRecommendedPlayer={recommendedPlayerResolved}
           canCommitRecommendedPick={

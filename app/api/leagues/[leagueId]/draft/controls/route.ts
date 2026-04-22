@@ -29,6 +29,8 @@ import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigRes
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { prisma } from '@/lib/prisma'
+import { getProviderStatus } from '@/lib/provider-config'
+import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import {
   getLeagueMemberAppUserIds,
@@ -56,8 +58,22 @@ async function withViewerSession(
   snapshot: DraftSessionSnapshot | null,
 ): Promise<DraftSessionSnapshot | null> {
   if (!snapshot) return null
-  const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
-  return { ...snapshot, currentUserRosterId: currentUserRosterId ?? undefined }
+  const providerStatus = getProviderStatus()
+  const [currentUserRosterId, orphanRosterIds, uiSettings] = await Promise.all([
+    getCurrentUserRosterIdForLeague(leagueId, userId),
+    getOrphanRosterIdsForLeague(leagueId),
+    getDraftUISettingsForLeague(leagueId),
+  ])
+  return {
+    ...snapshot,
+    currentUserRosterId: currentUserRosterId ?? undefined,
+    orphanRosterIds,
+    aiManagerEnabled: uiSettings.orphanTeamAiManagerEnabled,
+    orphanDrafterMode: uiSettings.orphanDrafterMode,
+    orphanAiProviderAvailable: providerStatus.anyAi,
+    orphanDrafterEffectiveMode:
+      uiSettings.orphanDrafterMode === 'ai' && !providerStatus.anyAi ? 'cpu' : uiSettings.orphanDrafterMode,
+  }
 }
 
 const ALLOWED_ACTIONS = ['pause', 'resume', 'reset_timer', 'undo_pick', 'force_autopick', 'complete', 'set_timer_seconds', 'skip_pick', 'resolve_auction', 'auction_tick', 'slow_tick', 'keeper_tick', 'reset_draft']

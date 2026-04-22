@@ -81,6 +81,37 @@ export function repairDraftSessionAuthority(
 }
 
 /**
+ * If merge result still lost authoritative fields that `prev` held for the same draft beat, stitch back.
+ * Guards equal-version duplicate rows / flaky reads after repair.
+ */
+function mergeStrongerAuthorityFields(
+  prev: DraftSessionSnapshot | null,
+  merged: DraftSessionSnapshot,
+): DraftSessionSnapshot {
+  if (!prev || !draftNeedsClock(merged)) return merged
+  let out = merged
+
+  if (draftNeedsClock(prev) && prev.currentPick && !merged.currentPick) {
+    out = { ...out, currentPick: prev.currentPick }
+  }
+
+  const prevRunning = prev.timer?.status === 'running' && Boolean(prev.timerEndAt || prev.timer?.timerEndAt)
+  const mergedDead =
+    merged.timer?.status === 'none' &&
+    !merged.timerEndAt &&
+    !(merged.timer?.timerEndAt && merged.timer.timerEndAt !== '')
+  if (prevRunning && mergedDead && (merged.status === 'in_progress' || merged.status === 'paused')) {
+    out = {
+      ...out,
+      timer: prev.timer,
+      timerEndAt: prev.timerEndAt ?? out.timerEndAt,
+    }
+  }
+
+  return out
+}
+
+/**
  * Compact fingerprint for live-room surfaces — avoids React churn when poll returns identical authority.
  */
 export function draftSessionLiveSurfaceKey(s: DraftSessionSnapshot | null | undefined): string {
@@ -120,6 +151,29 @@ export function isStaleDraftSessionSnapshot(
   const nextAt = next.updatedAt ? new Date(next.updatedAt).getTime() : 0
   const prevAt = prev.updatedAt ? new Date(prev.updatedAt).getTime() : 0
   if (nextAt > 0 && prevAt > 0 && nextAt < prevAt) return true
+
+  /** Same version + timestamp + same pick count: reject a degraded duplicate read (no pick advanced). */
+  if (
+    nextAt > 0 &&
+    prevAt > 0 &&
+    nextAt === prevAt &&
+    typeof next.version === 'number' &&
+    typeof prev.version === 'number' &&
+    next.version === prev.version &&
+    (next.picks?.length ?? 0) === (prev.picks?.length ?? 0) &&
+    draftNeedsClock(prev)
+  ) {
+    const prevStrong =
+      Boolean(prev.currentPick) &&
+      (prev.timer?.status === 'running' ||
+        prev.timer?.status === 'paused' ||
+        Boolean(prev.timerEndAt || prev.timer?.timerEndAt))
+    const nextWeak =
+      !next.currentPick ||
+      (next.timer?.status === 'none' && !next.timerEndAt && !(next.timer?.timerEndAt && next.timer.timerEndAt !== ''))
+    if (prevStrong && nextWeak && draftNeedsClock(next)) return true
+  }
+
   return false
 }
 
@@ -162,5 +216,5 @@ export function mergeDraftSessionSnapshot(
       }
     }
   }
-  return merged
+  return mergeStrongerAuthorityFields(prev, merged)
 }
