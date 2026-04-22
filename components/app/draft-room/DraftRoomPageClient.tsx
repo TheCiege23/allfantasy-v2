@@ -50,6 +50,7 @@ const KeeperPanel = dynamic(
 import type { DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import {
   buildDraftRoomCoreState,
+  resolveEffectiveCurrentPick,
   isPickCommitAllowed,
   isPickCommitAllowedByName,
 } from '@/lib/live-draft-engine'
@@ -418,16 +419,21 @@ export function DraftRoomPageClient({
     () => (session ? buildDraftRoomCoreState(session) : null),
     [session],
   )
+  /** On-clock pick — uses resolver when session.currentPick is briefly null (poll/reconnect races). */
+  const currentPick = useMemo(
+    () => (session ? resolveEffectiveCurrentPick(session) : null),
+    [session],
+  )
   const tradeDraftStateFingerprint = useMemo(() => {
     if (!session) return ''
     const traded =
       Array.isArray(session.tradedPicks) && session.tradedPicks.length > 0 ? session.tradedPicks.length : 0
     const onClock =
-      session.currentPick?.overall != null && Number.isFinite(session.currentPick.overall)
-        ? `-o${session.currentPick.overall}`
+      currentPick?.overall != null && Number.isFinite(currentPick.overall)
+        ? `-o${currentPick.overall}`
         : ''
     return `${session.version}-${session.picks.length}-${traded}-${session.updatedAt}${onClock}`
-  }, [session])
+  }, [session, currentPick])
   const players: PlayerEntry[] = useMemo(() => {
     const rawEntries = Array.isArray(draftPool?.entries)
       ? draftPool.entries
@@ -659,6 +665,8 @@ export function DraftRoomPageClient({
     draftRoomPickTrace({
       event: 'draft-gate',
       sessionStatus: session.status,
+      sessionCurrentPickOverall: session.currentPick?.overall ?? null,
+      effectivePickOverall: currentPick?.overall ?? null,
       draftStarted: draftCore?.draftStarted,
       currentOverall: draftCore?.currentOverall,
       currentUserRosterId,
@@ -667,11 +675,13 @@ export function DraftRoomPageClient({
       canDraft,
       pickSubmitting,
       timerStatus: session.timer?.status,
-      timerEndAt: session.timer?.timerEndAt ?? null,
+      timerEndAt: session.timer?.timerEndAt ?? session.timerEndAt ?? null,
       sessionVersion: session.version,
+      updatedAt: session.updatedAt,
     })
   }, [
     session,
+    currentPick?.overall,
     draftCore?.draftStarted,
     draftCore?.currentOverall,
     draftCore?.currentTeamId,
@@ -1270,8 +1280,7 @@ export function DraftRoomPageClient({
   }, [broadcastSelectedIds, broadcastMessage, broadcastSending, leagueId, fetchChat])
 
   const fetchRecommendation = useCallback(async () => {
-    if (!session?.currentPick || !session.teamCount) return
-    const currentPick = session.currentPick
+    if (!session || !currentPick || !session.teamCount) return
     const myRoster = session.picks?.filter((p) => p.rosterId === currentUserRosterId).map((p) => ({
       position: p.position,
       team: p.team ?? null,
@@ -1436,7 +1445,7 @@ export function DraftRoomPageClient({
       setRecommendationLoading(false)
     }
   }, [
-    session?.currentPick,
+    currentPick,
     session?.teamCount,
     session?.picks,
     session,
@@ -1463,8 +1472,8 @@ export function DraftRoomPageClient({
 
   /** Off-the-clock: clear pick-specific AI so we never show another team's on-clock plan as yours. */
   useEffect(() => {
-    if (!session || !currentUserRosterId || !session.currentPick) return
-    if (session.currentPick.rosterId === currentUserRosterId) return
+    if (!session || !currentUserRosterId || !currentPick) return
+    if (currentPick.rosterId === currentUserRosterId) return
     setRecommendationResult({
       recommendation: null,
       alternatives: [],
@@ -1483,17 +1492,17 @@ export function DraftRoomPageClient({
     })
     setRecommendationError(null)
     recommendationRequestKeyRef.current = ''
-  }, [session?.currentPick?.rosterId, currentUserRosterId, session])
+  }, [currentPick?.rosterId, currentUserRosterId, session])
 
   useEffect(() => {
-    if (!session?.currentPick || !session.teamCount || players.length === 0) return
-    if (!currentUserRosterId || session.currentPick.rosterId !== currentUserRosterId) {
+    if (!session?.teamCount || !currentPick || players.length === 0) return
+    if (!currentUserRosterId || currentPick.rosterId !== currentUserRosterId) {
       recommendationRequestKeyRef.current = ''
       return
     }
     const recommendationKey = [
-      session.currentPick.overall ?? 0,
-      session.currentPick.rosterId ?? '',
+      currentPick.overall ?? 0,
+      currentPick.rosterId ?? '',
       session.picks?.length ?? 0,
       players.length,
       draftedPlayerIds.size,
@@ -1505,8 +1514,8 @@ export function DraftRoomPageClient({
     recommendationRequestKeyRef.current = recommendationKey
     fetchRecommendation()
   }, [
-    session?.currentPick?.overall,
-    session?.currentPick?.rosterId,
+    currentPick?.overall,
+    currentPick?.rosterId,
     session?.picks?.length,
     session?.teamCount,
     players.length,
@@ -2144,7 +2153,7 @@ export function DraftRoomPageClient({
         return
       }
       if (!offlineCommissioner) {
-        const cp = session?.currentPick
+        const cp = currentPick
         if (!cp || !currentUserRosterId || cp.rosterId !== currentUserRosterId) {
           draftRoomPickTrace({
             event: 'pick-blocked',
@@ -2181,6 +2190,7 @@ export function DraftRoomPageClient({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            rosterId: currentUserRosterId ?? undefined,
             playerName: player.name,
             position: player.position,
             team: player.team ?? null,
@@ -2256,7 +2266,7 @@ export function DraftRoomPageClient({
       draftedPlayerIds,
       draftUISettings?.executionMode,
       isCommissioner,
-      session?.currentPick,
+      currentPick,
       session?.status,
       draftCore?.draftStarted,
       draftCore?.currentOverall,
@@ -2594,7 +2604,6 @@ export function DraftRoomPageClient({
   const aiAdpUnavailable = Boolean(draftUISettings?.aiAdpEnabled && !poolLoading && (!leagueAiAdp?.entries?.length && leagueAiAdp?.message))
   const aiAdpStaleWarning = Boolean(draftUISettings?.aiAdpEnabled && leagueAiAdp?.stale)
   const aiAdpLowSampleWarning = Boolean(leagueAiAdp?.entries?.some((e) => e.lowSample))
-  const currentPick = session?.currentPick ?? null
 
   const viewerDraftedPicks = useMemo(
     () => (session?.picks ?? []).filter((p) => p.rosterId === currentUserRosterId),
@@ -2602,9 +2611,9 @@ export function DraftRoomPageClient({
   )
 
   const redraftRibbonOnDeck = useMemo(() => {
-    if (!session?.currentPick || session.status !== 'in_progress') return []
+    if (!session || !currentPick || session.status !== 'in_progress') return []
     const total = session.rounds * session.teamCount
-    const next = session.currentPick.overall + 1
+    const next = currentPick.overall + 1
     if (next > total) return []
     return getUpcomingPickOwners(
       next,
@@ -2615,7 +2624,7 @@ export function DraftRoomPageClient({
       session.slotOrder,
       total,
     )
-  }, [session])
+  }, [session, currentPick])
 
   const redraftBackToBackSoon = useMemo(
     () =>
@@ -2915,11 +2924,11 @@ export function DraftRoomPageClient({
 
   const fetchWarRoom = useCallback(
     async (force?: boolean) => {
-      if (!session?.currentPick || !session.teamCount || players.length === 0) return
+      if (!session || !currentPick || !session.teamCount || players.length === 0) return
       if (session.status !== 'in_progress') return
       if (session.draftType === 'auction' && !isMyTurnToNominateDraft) return
 
-      const cacheKey = `${session.currentPick.overall}|${session.picks?.length ?? 0}|${draftedPlayerIds.size}|${currentUserRosterId ?? ''}`
+      const cacheKey = `${currentPick.overall}|${session.picks?.length ?? 0}|${draftedPlayerIds.size}|${currentUserRosterId ?? ''}`
       if (force) warRoomCacheRef.current.delete(cacheKey)
       if (!force && warRoomCacheRef.current.has(cacheKey)) {
         setWarRoomData(warRoomCacheRef.current.get(cacheKey)!)
@@ -2957,7 +2966,7 @@ export function DraftRoomPageClient({
         }))
         const totalPicks = session.rounds * session.teamCount
         const upcoming = getUpcomingPickOwners(
-          session.currentPick.overall + 1,
+          currentPick.overall + 1,
           8,
           session.teamCount,
           session.draftType,
@@ -2978,9 +2987,9 @@ export function DraftRoomPageClient({
             userRoster: myRoster,
             recentPicks,
             nextTeams: upcoming.map((u) => u.displayName),
-            round: session.currentPick.round,
-            pick: session.currentPick.slot,
-            pickInRound: session.currentPick.slot,
+            round: currentPick.round,
+            pick: currentPick.slot,
+            pickInRound: currentPick.slot,
             totalTeams: session.teamCount,
             sport: effectiveDraftSport,
             draftType: session.draftType,
@@ -2991,10 +3000,10 @@ export function DraftRoomPageClient({
             aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
             mode: 'needs',
             currentPick: {
-              overall: session.currentPick.overall,
-              round: session.currentPick.round,
-              slot: session.currentPick.slot,
-              rosterId: session.currentPick.rosterId,
+              overall: currentPick.overall,
+              round: currentPick.round,
+              slot: currentPick.slot,
+              rosterId: currentPick.rosterId,
             },
           }),
         })
@@ -3029,6 +3038,7 @@ export function DraftRoomPageClient({
     },
     [
       session,
+      currentPick,
       players,
       draftedNames,
       draftedPlayerIds,
@@ -3056,14 +3066,14 @@ export function DraftRoomPageClient({
   )
 
   useEffect(() => {
-    if (!session?.currentPick || !session.teamCount || players.length === 0) return
+    if (!session?.teamCount || !currentPick || players.length === 0) return
     if (session.status !== 'in_progress') return
     scheduleWarRoomFetch(false)
     return () => {
       if (warRoomDebounceRef.current) clearTimeout(warRoomDebounceRef.current)
     }
   }, [
-    session?.currentPick?.overall,
+    currentPick?.overall,
     session?.picks?.length,
     session?.status,
     session?.draftType,
@@ -3108,7 +3118,7 @@ export function DraftRoomPageClient({
               ? { enabled: true, collegeRounds: (session as DraftSessionSnapshot).c2c?.collegeRounds ?? [] }
               : undefined
         }
-        currentRound={session?.currentPick?.round}
+        currentRound={currentPick?.round}
         formatType={formatType === 'IDP' || Boolean((draftPool as { isIdp?: boolean } | null)?.isIdp) ? 'IDP' : undefined}
         selectedPlayerTarget={helperSelectedPlayer}
         leagueId={leagueId}
@@ -3401,6 +3411,14 @@ export function DraftRoomPageClient({
   const currentAuctionNominator = auctionSnapshot?.nominationOrder?.[auctionSnapshot?.auctionState?.nominationOrderIndex ?? 0]
   const isMyTurnToNominate = isAuction && currentUserRosterId != null && currentAuctionNominator?.rosterId === currentUserRosterId
   const isDraftCompleted = session.status === 'completed'
+  const totalBoardPicksPlanned = session.rounds * session.teamCount
+  const boardHasOpenPicks = (session.picks?.length ?? 0) < totalBoardPicksPlanned
+  /** DB row occasionally missing timerEndAt — TopBar shows "—"; nudge user to resync rather than implying a dead room. */
+  const showPickClockAnchorWarning =
+    session.status === 'in_progress' &&
+    boardHasOpenPicks &&
+    session.timer?.status === 'none' &&
+    !(session.timer?.timerEndAt || session.timerEndAt)
 
   const myDraftedPicks = viewerDraftedPicks
   const myDevyAssetCount = myDraftedPicks.filter((p) => {
@@ -3912,6 +3930,23 @@ export function DraftRoomPageClient({
                 Pick clock is frozen until the commissioner resumes the draft.
               </span>
             </div>
+          ) : showPickClockAnchorWarning ? (
+            <div
+              role="status"
+              data-testid="draft-clock-anchor-warning"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-cyan-400/30 bg-cyan-950/30 px-4 py-2.5 text-sm text-cyan-50"
+            >
+              <span className="text-cyan-100/95">
+                Pick timer is syncing — tap <span className="font-semibold">Resync</span> if the clock stays blank.
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded-lg border border-cyan-400/35 bg-cyan-500/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.1em] text-cyan-50 hover:bg-cyan-500/25"
+                onClick={() => void handleResync()}
+              >
+                Resync
+              </button>
+            </div>
           ) : session?.status === 'in_progress' && !currentUserRosterId ? (
             <div
               role="status"
@@ -4128,8 +4163,8 @@ export function DraftRoomPageClient({
           uncertainty={recommendationResult?.uncertainty ?? null}
           executionMode={recommendationResult?.execution?.mode ?? null}
           sport={effectiveDraftSport}
-          round={session?.currentPick?.round ?? 1}
-          pick={session?.currentPick?.slot ?? 1}
+          round={currentPick?.round ?? 1}
+          pick={currentPick?.slot ?? 1}
           leagueId={leagueId}
           leagueName={leagueName}
           rosterSlots={effectiveRosterSlots}

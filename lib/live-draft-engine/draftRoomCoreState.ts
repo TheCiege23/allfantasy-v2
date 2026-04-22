@@ -2,11 +2,41 @@
  * Build {@link DraftRoomCoreState} from a full session snapshot (single source for UI/tests).
  */
 
-import type { DraftRoomCoreState, DraftSessionSnapshot } from './types'
+import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
+import type { CurrentOnTheClock, DraftRoomCoreState, DraftSessionSnapshot } from './types'
 
 function pickIndexInRound(overall: number, teamCount: number): number {
   if (teamCount < 1) return 1
   return ((overall - 1) % teamCount) + 1
+}
+
+function isDraftBoardComplete(session: DraftSessionSnapshot): boolean {
+  const tc = Math.max(1, session.teamCount)
+  const total = Math.max(0, session.rounds * tc)
+  return (session.picks?.length ?? 0) >= total
+}
+
+/**
+ * Authoritative on-clock pick for UI — uses `session.currentPick` when present, otherwise infers from
+ * slot order + picks count while the draft is active (covers transient nulls during reconnect/poll races).
+ */
+export function resolveEffectiveCurrentPick(session: DraftSessionSnapshot): CurrentOnTheClock | null {
+  if (session.status === 'pre_draft') return null
+  if (session.currentPick) return session.currentPick
+  const picks = session.picks ?? []
+  const tc = Math.max(1, session.teamCount)
+  if (isDraftBoardComplete(session)) return null
+  if (session.status !== 'in_progress' && session.status !== 'paused') return null
+  return (
+    resolveCurrentOnTheClock({
+      totalPicks: session.rounds * tc,
+      picksCount: picks.length,
+      teamCount: tc,
+      draftType: session.draftType,
+      thirdRoundReversal: session.thirdRoundReversal,
+      slotOrder: session.slotOrder ?? [],
+    }) ?? null
+  )
 }
 
 export function buildDraftRoomCoreState(session: DraftSessionSnapshot): DraftRoomCoreState {
@@ -30,7 +60,8 @@ export function buildDraftRoomCoreState(session: DraftSessionSnapshot): DraftRoo
     }
   }
 
-  const cp = session.currentPick
+  const cp = resolveEffectiveCurrentPick(session)
+
   if (!cp) {
     // Completed (or rare edge): no pick on the clock
     return {
