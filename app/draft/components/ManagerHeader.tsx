@@ -10,20 +10,20 @@ type Props = {
 
 export function ManagerHeader({ slots }: Props) {
   return (
-    <div className="flex min-w-max gap-1">
+    <div className="flex min-w-max gap-1.5">
       {slots.map((s, i) => {
         const m = managerColorForIndex(i)
         return (
           <div
             key={s.id}
             className={cn(
-              'flex w-[100px] shrink-0 flex-col items-center justify-center rounded-t border px-1 py-2 text-center',
+              'flex w-[100px] shrink-0 flex-col items-center justify-center rounded-t-xl border border-b-0 border-white/10 px-1 py-2.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]',
               m.border,
               m.bg,
             )}
           >
-            <span className={cn('truncate text-[10px] font-semibold', m.text)}>{s.label}</span>
-            {s.isCpu ? <span className="text-[8px] text-white/40">CPU</span> : null}
+            <span className={cn('max-w-full truncate text-[10px] font-semibold leading-tight', m.text)}>{s.label}</span>
+            {s.isCpu ? <span className="mt-0.5 text-[8px] font-medium uppercase tracking-wide text-white/45">CPU</span> : null}
           </div>
         )
       })}

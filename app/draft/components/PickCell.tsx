@@ -20,15 +20,17 @@ export function PickCell({ pickLabel, pick, managerIndex, isCurrentPick, isTrade
   return (
     <div
       className={cn(
-        'relative min-h-[60px] rounded border p-1 text-xs',
-        isCurrentPick && 'animate-pulse ring-2 ring-white',
-        isTraded && 'ring-1 ring-amber-400',
+        'relative min-h-[64px] rounded-xl border p-1.5 text-xs shadow-inner shadow-black/25 transition-colors duration-200',
+        isCurrentPick &&
+          'animate-pulse border-cyan-400/40 bg-cyan-500/[0.07] ring-2 ring-cyan-400/60 shadow-[0_0_22px_-6px_rgba(34,211,238,0.55)]',
+        !isCurrentPick && isTraded && 'ring-1 ring-amber-400/80',
+        isPicked && !isCurrentPick && 'border-white/15',
         isPicked && mgr.bg,
-        !isPicked && 'bg-slate-900/80',
+        !isPicked && !isCurrentPick && 'border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-transparent hover:border-white/15 hover:bg-white/[0.07]',
       )}
       title={pick ? `${pick.playerName ?? ''} · ${pick.timestamp}` : pickLabel}
     >
-      <span className="text-[10px] text-slate-500">{pickLabel}</span>
+      <span className="font-mono text-[10px] tabular-nums text-white/40">{pickLabel}</span>
       {isPicked ? (
         <div className={cn('mt-0.5 truncate font-medium', mgr.text)}>
           <div className="truncate">{pick!.playerName}</div>
@@ -36,7 +38,9 @@ export function PickCell({ pickLabel, pick, managerIndex, isCurrentPick, isTrade
             {pick!.position} {pick!.team ? `· ${pick!.team}` : ''}
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="mt-1 text-[9px] font-semibold uppercase tracking-widest text-white/30">OPEN</div>
+      )}
       {isTraded ? <TradedPickBadge /> : null}
     </div>
   )
