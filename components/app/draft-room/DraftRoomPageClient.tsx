@@ -1927,6 +1927,7 @@ export function DraftRoomPageClient({
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: true })
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         await fetchDraftPool()
+        await fetchSession()
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
         setPickError(typeof data?.error === 'string' ? data.error : 'Could not start the draft. Check that the draft order is set and try again.')
@@ -1935,7 +1936,7 @@ export function DraftRoomPageClient({
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
       setPickError('Could not start the draft. Try again.')
     }
-  }, [leagueId, fetchDraftPool])
+  }, [leagueId, fetchDraftPool, fetchSession])
 
   const handleSettingsPatch = useCallback(
     async (patch: Partial<DraftUISettings>) => {
