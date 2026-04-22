@@ -42,12 +42,43 @@ export function isStaleDraftSessionSnapshot(
   return false
 }
 
+const VIEWER_SESSION_KEYS = ['currentUserRosterId', 'orphanRosterIds'] as const
+
+function snapshotRecord(s: DraftSessionSnapshot): Record<string, unknown> {
+  return s as unknown as Record<string, unknown>
+}
+
 export function mergeDraftSessionSnapshot(
   prev: DraftSessionSnapshot | null,
   next: DraftSessionSnapshot | null | undefined,
 ): DraftSessionSnapshot | null {
   if (!next) return prev ?? null
   if (isStaleDraftSessionSnapshot(prev ?? null, next)) return prev ?? null
-  if (prev && draftSessionLiveSurfaceKey(prev) === draftSessionLiveSurfaceKey(next)) return prev
-  return next
+  if (prev && draftSessionLiveSurfaceKey(prev) === draftSessionLiveSurfaceKey(next)) {
+    /** Authority surface unchanged — still apply viewer-scoped updates from `next` if present. */
+    let out: DraftSessionSnapshot = prev
+    for (const key of VIEWER_SESSION_KEYS) {
+      const nv = snapshotRecord(next)[key]
+      const pv = snapshotRecord(prev)[key]
+      if (nv !== undefined && nv !== pv) {
+        if (out === prev) out = { ...prev }
+        ;(snapshotRecord(out) as Record<string, unknown>)[key] = nv
+      }
+    }
+    return out
+  }
+  const base = next
+  /** Pick/controls responses often omit viewer-scoped fields; keep them so on-clock / roster mapping does not flicker away. */
+  let merged: DraftSessionSnapshot = base
+  if (prev) {
+    for (const key of VIEWER_SESSION_KEYS) {
+      const pv = snapshotRecord(prev)[key]
+      const nv = snapshotRecord(base)[key]
+      if (nv === undefined && pv !== undefined) {
+        if (merged === base) merged = { ...base }
+        snapshotRecord(merged)[key] = pv
+      }
+    }
+  }
+  return merged
 }

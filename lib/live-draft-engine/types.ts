@@ -83,6 +83,10 @@ export interface DraftSessionSnapshot {
       acceptConfidenceMin: number
     }
   }
+  /** Viewer-specific: wired from GET `/draft/session`, `POST /draft/pick`, `POST /draft/controls`. */
+  currentUserRosterId?: string
+  /** Viewer-specific: orphan roster ids (GET `/draft/session`). */
+  orphanRosterIds?: string[]
 }
 
 export interface C2CSessionSnapshot {

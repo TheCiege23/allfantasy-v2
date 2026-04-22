@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { canAccessLeagueDraft, canSubmitPickForRoster } from '@/lib/live-draft-engine/auth'
+import { canAccessLeagueDraft, canSubmitPickForRoster, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
@@ -176,6 +176,7 @@ export async function POST(
   } catch (_) {}
 
   const updated = await buildSessionSnapshot(leagueId)
+  const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   void (async () => {
     const states = await publishDraftIntelForUpcomingManagers({
       leagueId,
@@ -213,6 +214,12 @@ export async function POST(
   return NextResponse.json({
     ok: true,
     pick: result.snapshot,
-    session: updated,
+    session:
+      updated != null
+        ? {
+            ...updated,
+            currentUserRosterId: currentUserRosterId ?? undefined,
+          }
+        : updated,
   })
 }

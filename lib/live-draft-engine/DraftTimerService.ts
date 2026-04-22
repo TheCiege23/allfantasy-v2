@@ -80,7 +80,8 @@ export function computeTimerState(input: TimerInput, now: Date = new Date()): Ti
       timerEndAt: null,
     }
   }
-  if (!input.timerEndAt || input.timerSeconds == null) {
+  /** Running clock is anchored by `timerEndAt`; `timerSeconds` may be unset on legacy rows — still derive remaining time. */
+  if (!input.timerEndAt) {
     return { status: 'none', remainingSeconds: null, timerEndAt: null }
   }
   const endMs = input.timerEndAt.getTime()
@@ -102,7 +103,7 @@ export function computeTimerStateWithPauseWindow(
   pauseWindow: PauseWindowConfig | null | undefined
 ): TimerState {
   const base = computeTimerState(input, now)
-  if (base.status === 'none' || !pauseWindow?.start || !pauseWindow?.end || !input.timerEndAt || input.timerSeconds == null) {
+  if (base.status === 'none' || !pauseWindow?.start || !pauseWindow?.end || !input.timerEndAt) {
     return base
   }
   if (!isInsidePauseWindow(now, pauseWindow)) {
@@ -110,7 +111,7 @@ export function computeTimerStateWithPauseWindow(
   }
   const remaining = remainingSecondsWhenPauseStarted(
     input.timerEndAt,
-    input.timerSeconds,
+    input.timerSeconds ?? 0,
     now,
     pauseWindow
   )

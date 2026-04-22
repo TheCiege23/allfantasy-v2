@@ -3,7 +3,7 @@
 import type { DraftPickSnapshot, DraftSessionSnapshot, QueueEntry } from '@/lib/live-draft-engine/types'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { getUpcomingPickOwners } from '@/lib/live-draft-engine/DraftOrderService'
-import { CommissionerDraftControls } from './CommissionerDraftControls'
+import type { OnClockTeamSpotlight } from './OnTheClockPanel'
 import { DraftQueue } from './DraftQueue'
 import { DraftTeamSidebar } from './DraftTeamSidebar'
 import { DraftTimer } from './DraftTimer'
@@ -35,6 +35,8 @@ export type LiveDraftStatusColumnProps = {
   viewerRosterId?: string | null
   /** Picks for the viewer’s roster (pre-filtered). */
   viewerRosterPicks?: DraftPickSnapshot[]
+  /** League chrome for the roster currently on the clock (snake spotlight). */
+  onClockSpotlight?: OnClockTeamSpotlight | null
 }
 
 function pickIndexInRound(overall: number, teamCount: number): number {
@@ -120,13 +122,12 @@ function UpcomingOnDeck({ session }: { session: DraftSessionSnapshot }) {
 function MyRosterSidebarSummary({
   picks,
   rounds,
-  hasRoster,
+  viewerRosterId,
 }: {
   picks: DraftPickSnapshot[]
   rounds: number
-  hasRoster: boolean
+  viewerRosterId: string | null
 }) {
-  if (!hasRoster) return null
   const recent = picks.slice(-4).reverse()
   return (
     <div
@@ -135,12 +136,20 @@ function MyRosterSidebarSummary({
     >
       <div className="border-b border-white/[0.06] bg-black/15 px-3 py-2.5">
         <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/50">My roster</p>
-        <p className="mt-0.5 text-[13px] font-semibold text-cyan-100/95">
-          {picks.length} / {rounds} picks
-        </p>
+        {!viewerRosterId ? (
+          <p className="mt-1 text-[11px] font-medium leading-snug text-amber-100/85">
+            Link your team in this league to track picks here.
+          </p>
+        ) : (
+          <p className="mt-0.5 text-[13px] font-semibold text-cyan-100/95">
+            {picks.length} / {rounds} picks
+          </p>
+        )}
       </div>
-      {recent.length === 0 ? (
-        <p className="px-3 py-4 text-center text-[12px] text-white/40">No picks yet</p>
+      {!viewerRosterId ? (
+        <p className="px-3 py-4 text-center text-[12px] text-white/45">Claim your seat from the league page if you haven&apos;t yet.</p>
+      ) : recent.length === 0 ? (
+        <p className="px-3 py-4 text-center text-[12px] text-white/40">No picks yet — slots fill as you draft.</p>
       ) : (
         <ul className="max-h-[200px] divide-y divide-white/[0.05] overflow-y-auto">
           {recent.map((p) => (
@@ -170,8 +179,8 @@ export function LiveDraftStatusColumn({
   queueEntries,
   leagueId,
   sport = DEFAULT_SPORT,
-  isCommissioner,
-  onSessionUpdated,
+  isCommissioner: _isCommissioner,
+  onSessionUpdated: _onSessionUpdated,
   poolPreview,
   onPoolPreviewSelect,
   poolSelectDisabled,
@@ -179,6 +188,7 @@ export function LiveDraftStatusColumn({
   hideFullDraftOrderList = false,
   viewerRosterId = null,
   viewerRosterPicks = [],
+  onClockSpotlight = null,
 }: LiveDraftStatusColumnProps) {
   const onClockId = session.currentPick?.rosterId ?? null
   const poolRows =
@@ -197,7 +207,7 @@ export function LiveDraftStatusColumn({
       data-testid="draft-live-status-column"
     >
       {showSnakeCompact ? <CurrentPickMeta session={session} /> : null}
-      <OnTheClockPanel status={session.status} currentPick={session.currentPick} />
+      <OnTheClockPanel status={session.status} currentPick={session.currentPick} spotlight={onClockSpotlight} />
       {showTimer ? <DraftTimer timer={session.timer} /> : null}
 
       {showSnakeCompact ? <UpcomingOnDeck session={session} /> : null}
@@ -209,11 +219,7 @@ export function LiveDraftStatusColumn({
       <PickHistory picks={session.picks ?? []} max={20} sport={sport} />
 
       {showSnakeCompact ? (
-        <MyRosterSidebarSummary
-          picks={viewerRosterPicks}
-          rounds={session.rounds}
-          hasRoster={Boolean(viewerRosterId)}
-        />
+        <MyRosterSidebarSummary picks={viewerRosterPicks} rounds={session.rounds} viewerRosterId={viewerRosterId} />
       ) : null}
 
       <DraftQueue entries={queueEntries} />
@@ -222,13 +228,6 @@ export function LiveDraftStatusColumn({
           players={poolRows}
           onSelect={onPoolPreviewSelect}
           disabled={poolSelectDisabled}
-        />
-      ) : null}
-      {isCommissioner ? (
-        <CommissionerDraftControls
-          leagueId={leagueId}
-          disabled={session.status === 'completed'}
-          onSessionUpdated={onSessionUpdated}
         />
       ) : null}
     </div>

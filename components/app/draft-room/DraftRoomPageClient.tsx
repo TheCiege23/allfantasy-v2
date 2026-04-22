@@ -18,6 +18,7 @@ import { DraftIntelQueuePanel } from '@/components/app/draft-room/DraftIntelQueu
 import { DraftChatPanel, type DraftChatMessage } from '@/components/app/draft-room/DraftChatPanel'
 import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
+import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
 import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
 import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
@@ -70,7 +71,7 @@ import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
-import { draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
+import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import { detectSnakeBackToBackSoon, computeRedraftStarterHints } from '@/lib/draft-room/redraftPlanningHints'
@@ -652,6 +653,33 @@ export function DraftRoomPageClient({
       (commissionerOfflinePick || isCurrentUserOnClock),
     [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock],
   )
+
+  useEffect(() => {
+    if (!session) return
+    draftRoomPickTrace({
+      event: 'draft-gate',
+      sessionStatus: session.status,
+      draftStarted: draftCore?.draftStarted,
+      currentOverall: draftCore?.currentOverall,
+      currentUserRosterId,
+      currentTeamId: draftCore?.currentTeamId,
+      isCurrentUserOnClock,
+      canDraft,
+      pickSubmitting,
+      timerStatus: session.timer?.status,
+      timerEndAt: session.timer?.timerEndAt ?? null,
+      sessionVersion: session.version,
+    })
+  }, [
+    session,
+    draftCore?.draftStarted,
+    draftCore?.currentOverall,
+    draftCore?.currentTeamId,
+    currentUserRosterId,
+    isCurrentUserOnClock,
+    canDraft,
+    pickSubmitting,
+  ])
 
   const fetchDraftPool = useCallback(async () => {
     if (!leagueId) return
@@ -2101,12 +2129,29 @@ export function DraftRoomPageClient({
       setPickError(null)
       const offlineCommissioner = draftUISettings?.executionMode === 'offline' && isCommissioner
       if (!canDraft) {
+        draftRoomPickTrace({
+          event: 'pick-blocked',
+          reason: 'canDraft_false',
+          sessionStatus: session?.status,
+          draftStarted: draftCore?.draftStarted,
+          currentOverall: draftCore?.currentOverall,
+          currentUserRosterId,
+          currentTeamId: draftCore?.currentTeamId,
+          isCurrentUserOnClock,
+          pickSubmitting,
+        })
         setPickError('You cannot draft right now.')
         return
       }
       if (!offlineCommissioner) {
         const cp = session?.currentPick
         if (!cp || !currentUserRosterId || cp.rosterId !== currentUserRosterId) {
+          draftRoomPickTrace({
+            event: 'pick-blocked',
+            reason: 'not_on_clock',
+            currentPickRosterId: cp?.rosterId,
+            currentUserRosterId,
+          })
           setPickError('You can only draft when your team is on the clock.')
           return
         }
@@ -2124,6 +2169,13 @@ export function DraftRoomPageClient({
       pickInflightRef.current = true
       setPickSubmitting(true)
       try {
+        draftRoomPickTrace({
+          event: 'pick-submit',
+          playerName: player.name,
+          playerId: stablePlayerId,
+          position: player.position,
+          leagueId,
+        })
         const note = player.display?.metadata?.eligibilityNote?.toLowerCase() ?? ''
         const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/pick`, {
           method: 'POST',
@@ -2133,7 +2185,7 @@ export function DraftRoomPageClient({
             position: player.position,
             team: player.team ?? null,
             byeWeek: player.byeWeek ?? null,
-            playerId: player.display?.playerId ?? player.id ?? null,
+            playerId: stablePlayerId,
             pickMetadata: {
               isRookie: note.includes('rookie') ? true : undefined,
             },
@@ -2181,7 +2233,12 @@ export function DraftRoomPageClient({
           setPickError('Pick response was incomplete — draft state was refreshed.')
         } else {
           sendProductAnalyticsBeacon(DRAFT_ROOM.PICK, { leagueId, position: player.position, ok: false })
-          setPickError(typeof data?.error === 'string' ? data.error : 'Pick failed. Try again.')
+          const errText = typeof data?.error === 'string' ? data.error : null
+          const codeText = typeof (data as { code?: unknown }).code === 'string' ? String((data as { code: string }).code) : null
+          const detail =
+            errText && codeText ? `${errText} (${codeText})` : errText ?? codeText ?? 'Pick failed. Try again.'
+          draftRoomPickTrace({ event: 'pick-error', status: res.status, error: errText, code: codeText })
+          setPickError(detail)
         }
       } catch (err) {
         draftRoomWarn('pick-network', err)
@@ -2200,7 +2257,13 @@ export function DraftRoomPageClient({
       draftUISettings?.executionMode,
       isCommissioner,
       session?.currentPick,
+      session?.status,
+      draftCore?.draftStarted,
+      draftCore?.currentOverall,
+      draftCore?.currentTeamId,
       currentUserRosterId,
+      isCurrentUserOnClock,
+      pickSubmitting,
       fetchQueue,
       fetchDraftPool,
       fetchSession,
@@ -2487,7 +2550,10 @@ export function DraftRoomPageClient({
       (session as DraftSessionSnapshot | null)?.c2c?.collegeRounds ?? [],
     )
     const showRosterStrip =
-      isDynasty || devyRoundsSet.size > 0 || c2cCollegeRoundsSet.size > 0
+      isDynasty ||
+      devyRoundsSet.size > 0 ||
+      c2cCollegeRoundsSet.size > 0 ||
+      presentationVariant === 'redraft_snake'
     return {
       leagueName,
       sport: effectiveDraftSport,
@@ -2523,6 +2589,7 @@ export function DraftRoomPageClient({
     commissionerAiDraft?.assignedAiTeams,
     isDynasty,
     rosterConfig,
+    presentationVariant,
   ])
   const aiAdpUnavailable = Boolean(draftUISettings?.aiAdpEnabled && !poolLoading && (!leagueAiAdp?.entries?.length && leagueAiAdp?.message))
   const aiAdpStaleWarning = Boolean(draftUISettings?.aiAdpEnabled && leagueAiAdp?.stale)
@@ -3249,6 +3316,18 @@ export function DraftRoomPageClient({
     return map
   }, [slotOrder, leagueTeams, orphanRosterIds, aiArchetypeByRoster])
 
+  const onClockSpotlight = useMemo(() => {
+    const rid = currentPick?.rosterId
+    if (!rid) return null
+    const m = teamMetaByRoster[rid]
+    if (!m) return null
+    return {
+      teamName: m.teamName ?? null,
+      ownerName: m.ownerName ?? null,
+      avatarUrl: m.avatarUrl ?? null,
+    }
+  }, [currentPick?.rosterId, teamMetaByRoster])
+
   if (loading && !session) {
     return (
       <div
@@ -3321,21 +3400,7 @@ export function DraftRoomPageClient({
   const auctionSnapshot = (session as any).auction
   const currentAuctionNominator = auctionSnapshot?.nominationOrder?.[auctionSnapshot?.auctionState?.nominationOrderIndex ?? 0]
   const isMyTurnToNominate = isAuction && currentUserRosterId != null && currentAuctionNominator?.rosterId === currentUserRosterId
-
-  if (session.status === 'completed') {
-    return (
-      <div className="min-h-screen">
-        <PostDraftView
-          leagueId={leagueId}
-          leagueName={leagueName}
-          sport={effectiveDraftSport}
-          session={session}
-          currentUserRosterId={currentUserRosterId ?? null}
-          slotOrder={slotOrder}
-        />
-      </div>
-    )
-  }
+  const isDraftCompleted = session.status === 'completed'
 
   const myDraftedPicks = viewerDraftedPicks
   const myDevyAssetCount = myDraftedPicks.filter((p) => {
@@ -3473,6 +3538,26 @@ export function DraftRoomPageClient({
         <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
       </div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">My roster</h3>
+      {draftTeamPanelProps.showRosterStrip ? (
+        <DraftRosterStrip
+          picks={myDraftedPicks.map((p) => ({
+            playerName: p.playerName,
+            position: p.position,
+            overall: p.overall,
+            isDevy:
+              ((session as DraftSessionSnapshot).c2c?.enabled ? [] : (session as DraftSessionSnapshot).devy?.devyRounds ?? []).includes(
+                p.round,
+              ) || ((session as DraftSessionSnapshot).c2c?.collegeRounds ?? []).includes(p.round),
+          }))}
+          starterSlots={draftTeamPanelProps.starterSlots ?? null}
+          benchSlots={draftTeamPanelProps.benchSlots ?? null}
+          taxiSlots={draftTeamPanelProps.taxiSlots ?? null}
+          devySlots={draftTeamPanelProps.devySlots ?? null}
+          isDynasty={isDynasty}
+          teamLabel={slotOrder.find((s) => s.rosterId === currentUserRosterId)?.displayName ?? null}
+          sport={effectiveDraftSport}
+        />
+      ) : null}
       {formatType === 'IDP' && (
         <IdpDraftExplainerCard
           scoringPreset={idpScoringPreset}
@@ -3495,9 +3580,7 @@ export function DraftRoomPageClient({
           <div>Promoted markers: {myPromotedAssetCount}</div>
         </div>
       )}
-      {myDraftedPicks.length === 0 ? (
-        <p className="text-white/50 text-sm">No picks yet.</p>
-      ) : (
+      {myDraftedPicks.length > 0 ? (
         <ul className="space-y-1.5">
           {myDraftedPicks.map((p) => {
             const source = String((p as { source?: string | null }).source ?? '').toLowerCase()
@@ -3524,6 +3607,10 @@ export function DraftRoomPageClient({
             )
           })}
         </ul>
+      ) : draftTeamPanelProps.showRosterStrip ? (
+        <p className="text-[11px] text-white/40">Starter and bench slots above fill as you draft.</p>
+      ) : (
+        <p className="text-white/50 text-sm">No picks yet.</p>
       )}
     </div>
   )
@@ -3585,7 +3672,25 @@ export function DraftRoomPageClient({
               : 'flex h-full min-h-0 flex-col bg-[#060d1e]'
           }
         >
-          <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
+          {!isDraftCompleted ? (
+            <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
+          ) : (
+            <>
+              <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-950/25 px-4 py-3 text-center text-sm text-emerald-100/90">
+                Draft is complete — browse the recap below. The live board stays visible above.
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto">
+                <PostDraftView
+                  leagueId={leagueId}
+                  leagueName={leagueName}
+                  sport={effectiveDraftSport}
+                  session={session}
+                  currentUserRosterId={currentUserRosterId ?? null}
+                  slotOrder={slotOrder}
+                />
+              </div>
+            </>
+          )}
         </div>
       }
       bottomBar={
@@ -3807,6 +3912,17 @@ export function DraftRoomPageClient({
                 Pick clock is frozen until the commissioner resumes the draft.
               </span>
             </div>
+          ) : session?.status === 'in_progress' && !currentUserRosterId ? (
+            <div
+              role="status"
+              data-testid="draft-room-no-roster-banner"
+              className="border-b border-amber-400/40 bg-amber-950/35 px-4 py-2.5 text-sm text-amber-50"
+            >
+              <span className="font-semibold text-amber-100">No roster linked to your account in this league.</span>{' '}
+              <span className="text-amber-100/85">
+                Claim your team from the league page to submit picks when you&apos;re on the clock.
+              </span>
+            </div>
           ) : null}
           <DraftTopBar
             leagueName={leagueName}
@@ -3877,7 +3993,7 @@ export function DraftRoomPageClient({
           className="flex min-h-0 flex-col gap-1.5 p-1.5 lg:flex-row lg:gap-2.5 lg:p-2.5"
           style={draftBoardSurfaceStyle}
         >
-          {presentationVariant === 'redraft_snake' && !isDynasty && session.status === 'in_progress' ? (
+          {presentationVariant === 'redraft_snake' && !isDynasty && session.status === 'in_progress' && !isDraftCompleted ? (
             <div className="w-full shrink-0 lg:order-none">
               <RedraftPlanningRibbon
                 picksUntilUser={draftIntel?.picksUntilUser ?? null}
@@ -3902,6 +4018,18 @@ export function DraftRoomPageClient({
               </p>
             </div>
           ) : null}
+          {isDraftCompleted ? (
+            <div
+              className="w-full shrink-0 rounded-xl border border-emerald-400/35 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-50 shadow-[0_8px_32px_rgba(16,185,129,0.12)] lg:max-w-[min(340px,32vw)]"
+              role="status"
+              data-testid="draft-complete-board-banner"
+            >
+              <span className="font-semibold uppercase tracking-[0.12em] text-emerald-200/95">Draft complete</span>
+              <span className="mt-1 block text-[13px] font-normal text-emerald-50/90">
+                Final board is below — open the player column for recap & export.
+              </span>
+            </div>
+          ) : null}
           <LiveDraftStatusColumn
             session={session as DraftSessionSnapshot}
             queueEntries={queueFiltered}
@@ -3912,22 +4040,21 @@ export function DraftRoomPageClient({
             poolPreview={draftPool?.entries ?? null}
             onPoolPreviewSelect={handlePoolPreviewSelect}
             poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
-            showTimer={!isAuction}
+            showTimer={!isAuction && !isDraftCompleted}
             hideFullDraftOrderList={session.draftType === 'snake'}
             viewerRosterId={currentUserRosterId ?? null}
             viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
+            onClockSpotlight={onClockSpotlight}
           />
           <div className="flex min-w-0 flex-1 flex-col overflow-auto">
-            {session.draftType !== 'snake' ? (
-              <DraftTeamStrip
-                teamCount={session.teamCount}
-                slotOrder={slotOrder}
-                teamMetaByRoster={teamMetaByRoster}
-                currentUserRosterId={currentUserRosterId ?? null}
-                onClockRosterId={currentPick?.rosterId ?? null}
-                canInvite={isCommissioner}
-              />
-            ) : null}
+            <DraftTeamStrip
+              teamCount={session.teamCount}
+              slotOrder={slotOrder}
+              teamMetaByRoster={teamMetaByRoster}
+              currentUserRosterId={currentUserRosterId ?? null}
+              onClockRosterId={currentPick?.rosterId ?? null}
+              canInvite={isCommissioner}
+            />
             <DraftBoard
               picks={session.picks ?? []}
               slotOrder={slotOrder}

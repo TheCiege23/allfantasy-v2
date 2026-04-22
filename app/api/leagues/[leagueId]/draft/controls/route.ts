@@ -45,8 +45,20 @@ import {
   publishDraftIntelRecap,
   sendDraftIntelDm,
 } from '@/lib/draft-intelligence'
+import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
+import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 
 export const dynamic = 'force-dynamic'
+
+async function withViewerSession(
+  leagueId: string,
+  userId: string,
+  snapshot: DraftSessionSnapshot | null,
+): Promise<DraftSessionSnapshot | null> {
+  if (!snapshot) return null
+  const currentUserRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
+  return { ...snapshot, currentUserRosterId: currentUserRosterId ?? undefined }
+}
 
 const ALLOWED_ACTIONS = ['pause', 'resume', 'reset_timer', 'undo_pick', 'force_autopick', 'complete', 'set_timer_seconds', 'skip_pick', 'resolve_auction', 'auction_tick', 'slow_tick', 'keeper_tick', 'reset_draft']
 
@@ -132,7 +144,7 @@ export async function POST(
       const { notifyDraftPaused } = await import('@/lib/draft-notifications')
       notifyDraftPaused(leagueId).catch(() => {})
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'pause', session: snapshot })
+      return NextResponse.json({ ok: true, action: 'pause', session: await withViewerSession(leagueId, userId, snapshot) })
     }
     if (action === 'resume') {
       const ok = await resumeDraftSession(leagueId)
@@ -140,19 +152,23 @@ export async function POST(
       const { notifyDraftResumed } = await import('@/lib/draft-notifications')
       notifyDraftResumed(leagueId).catch(() => {})
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'resume', session: snapshot })
+      return NextResponse.json({ ok: true, action: 'resume', session: await withViewerSession(leagueId, userId, snapshot) })
     }
     if (action === 'reset_timer') {
       const ok = await resetTimer(leagueId)
       if (!ok) return NextResponse.json({ error: 'Cannot reset timer' }, { status: 400 })
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'reset_timer', session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'reset_timer',
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
     if (action === 'undo_pick') {
       const ok = await undoLastPick(leagueId)
       if (!ok) return NextResponse.json({ error: 'No pick to undo' }, { status: 400 })
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'undo_pick', session: snapshot })
+      return NextResponse.json({ ok: true, action: 'undo_pick', session: await withViewerSession(leagueId, userId, snapshot) })
     }
     if (action === 'force_autopick') {
       const uiSettings = await getDraftUISettingsForLeague(leagueId)
@@ -368,7 +384,7 @@ export async function POST(
         action: 'force_autopick',
         selectedPlayerName: selectedCandidate.playerName,
         selectedPosition: selectedCandidate.position,
-        session: snapshot,
+        session: await withViewerSession(leagueId, userId, snapshot),
       })
     }
     if (action === 'complete') {
@@ -385,7 +401,11 @@ export async function POST(
           await notifyDraftIntelPostDraftRecap(leagueId, state.rosterId, state.recap).catch(() => null)
         }
       })()
-      return NextResponse.json({ ok: true, action: 'complete', session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'complete',
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
     if (action === 'set_timer_seconds') {
       const seconds = Number(body.seconds ?? body.timerSeconds ?? 90)
@@ -393,7 +413,11 @@ export async function POST(
       const ok = await setTimerSeconds(leagueId, seconds, { resetCurrentTimer })
       if (!ok) return NextResponse.json({ error: 'Failed to set timer' }, { status: 400 })
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'set_timer_seconds', session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'set_timer_seconds',
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
     if (action === 'skip_pick') {
       const draftConfig = await getDraftConfigForLeague(leagueId)
@@ -423,7 +447,11 @@ export async function POST(
           await sendDraftIntelDm(result.state).catch(() => null)
         }
       })()
-      return NextResponse.json({ ok: true, action: 'skip_pick', session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'skip_pick',
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
     if (action === 'resolve_auction') {
       const result = await resolveAuctionWin(leagueId, { force: true, now: new Date() })
@@ -458,7 +486,12 @@ export async function POST(
         const { runSurvivorPostDraftBootstrap } = await import('@/lib/survivor/SurvivorDraftBootstrapService')
         await runSurvivorPostDraftBootstrap(leagueId).catch(() => {})
       }
-      return NextResponse.json({ ok: true, action: 'resolve_auction', sold: result.sold, session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'resolve_auction',
+        sold: result.sold,
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
     if (action === 'auction_tick') {
       const automation = await runAuctionAutomationTick(leagueId)
@@ -468,7 +501,7 @@ export async function POST(
         action: 'auction_tick',
         changed: automation.changed,
         automationActions: automation.actions,
-        session: snapshot,
+        session: await withViewerSession(leagueId, userId, snapshot),
       })
     }
     if (action === 'slow_tick') {
@@ -479,7 +512,7 @@ export async function POST(
         action: 'slow_tick',
         changed: automation.changed,
         automationActions: automation.actions,
-        session: snapshot,
+        session: await withViewerSession(leagueId, userId, snapshot),
       })
     }
     if (action === 'keeper_tick') {
@@ -490,14 +523,18 @@ export async function POST(
         action: 'keeper_tick',
         changed: automation.changed,
         automationActions: automation.actions,
-        session: snapshot,
+        session: await withViewerSession(leagueId, userId, snapshot),
       })
     }
     if (action === 'reset_draft') {
       const ok = await resetDraftSession(leagueId)
       if (!ok) return NextResponse.json({ error: 'Cannot reset draft' }, { status: 400 })
       const snapshot = await buildSessionSnapshot(leagueId)
-      return NextResponse.json({ ok: true, action: 'reset_draft', session: snapshot })
+      return NextResponse.json({
+        ok: true,
+        action: 'reset_draft',
+        session: await withViewerSession(leagueId, userId, snapshot),
+      })
     }
   } catch (e) {
     console.error('[draft/controls POST]', e)

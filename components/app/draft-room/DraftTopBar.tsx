@@ -460,6 +460,18 @@ export function DraftTopBar({
                 </button>
                 {copyFeedback === 'copied' ? <span className="text-cyan-300">Copied</span> : null}
               </div>
+              {isCommissioner && onCommissionerOpen ? (
+                <button
+                  type="button"
+                  onClick={onCommissionerOpen}
+                  data-testid="draft-topbar-commissioner-primary"
+                  disabled={commissionerLoading}
+                  className="mt-3 inline-flex w-full max-w-xl items-center justify-center gap-2 rounded-xl border-2 border-amber-400/55 bg-[linear-gradient(135deg,rgba(251,191,36,0.22),rgba(124,58,237,0.18))] px-4 py-3 text-sm font-bold uppercase tracking-[0.14em] text-amber-50 shadow-[0_12px_40px_rgba(245,158,11,0.25)] transition duration-150 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/55 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99] sm:py-3.5"
+                >
+                  <Shield className="h-5 w-5 shrink-0 text-amber-100" aria-hidden />
+                  Commissioner control center
+                </button>
+              ) : null}
             </div>
           </div>
 
@@ -702,19 +714,6 @@ export function DraftTopBar({
               >
                 <Settings2 className="h-4 w-4" />
               </button>
-              {isCommissioner && onCommissionerOpen ? (
-                <button
-                  type="button"
-                  onClick={onCommissionerOpen}
-                  data-testid="draft-topbar-commissioner-shield"
-                  disabled={commissionerLoading}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-500/14 text-violet-100 transition duration-150 hover:bg-violet-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45 disabled:opacity-55 active:scale-95"
-                  aria-label="Commissioner controls"
-                  title="Pause, timer, undo, and league draft tools"
-                >
-                  <Shield className="h-4 w-4" />
-                </button>
-              ) : null}
             </div>
           ) : leagueDraftSettingsHref ? (
             <div className="inline-flex items-center gap-1">
@@ -727,19 +726,6 @@ export function DraftTopBar({
               >
                 <Settings2 className="h-4 w-4" />
               </Link>
-              {isCommissioner && onCommissionerOpen ? (
-                <button
-                  type="button"
-                  onClick={onCommissionerOpen}
-                  data-testid="draft-topbar-commissioner-shield"
-                  disabled={commissionerLoading}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-500/14 text-violet-100 transition duration-150 hover:bg-violet-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45 disabled:opacity-55 active:scale-95"
-                  aria-label="Commissioner controls"
-                  title="Pause, timer, undo, and league draft tools"
-                >
-                  <Shield className="h-4 w-4" />
-                </button>
-              ) : null}
             </div>
           ) : isCommissioner ? (
             <button

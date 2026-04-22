@@ -16,7 +16,7 @@ import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 /** Redraft rows use slightly taller estimate (chips + stats). */
-const PLAYER_ROW_ESTIMATE_HEIGHT_REDRAFT = 92
+const PLAYER_ROW_ESTIMATE_HEIGHT_REDRAFT = 104
 const DRAFT_WATCHLIST_STORAGE_KEY = 'af:draft-room-watchlist-v1'
 
 /** Align with draft room session: drafted name set is normalized lowercase. */
