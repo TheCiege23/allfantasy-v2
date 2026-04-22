@@ -49,6 +49,13 @@ export type DraftPlayerCardProps = {
   testId?: string
   /** War Room / AI helper badge on list rows */
   aiWarRoomBadge?: 'ai_pick' | 'value' | 'risky' | null
+  presentationVariant?: 'default' | 'redraft_snake'
+  /** List row keyboard/click selection highlight */
+  isSelected?: boolean
+  /** Matches a player on the user&apos;s draft queue */
+  isQueued?: boolean
+  /** Label for the ADP column (e.g. AI ADP when sorting by AI ADP). */
+  adpMetricLabel?: string
 }
 
 function formatAdpDisplay(v: number | null | undefined): string {
@@ -170,7 +177,12 @@ function DraftPlayerCardInner({
   graduatedToNFL = false,
   poolType,
   aiWarRoomBadge = null,
+  presentationVariant = 'default',
+  isSelected = false,
+  isQueued = false,
+  adpMetricLabel = 'ADP',
 }: DraftPlayerCardProps) {
+  const rs = presentationVariant === 'redraft_snake'
   const assets: PlayerAssetModel | null = display?.assets ?? null
   const teamAbbr = display?.metadata?.teamAbbreviation ?? team ?? null
   const displayName = display?.displayName ?? name
@@ -224,6 +236,8 @@ function DraftPlayerCardInner({
 
   const headshotUrl = getPlayerImage(normalized) ?? assets?.headshotUrl ?? null
   const teamLogoUrl = normalized.teamLogoUrl ?? assets?.teamLogoUrl ?? null
+  const rowHeadshotSize = rs ? 44 : 40
+  const rowLogoSize = rs ? 18 : 16
   const statLine = normalized.stats?.summary ?? 'No stats available'
   const headshotTestBase = testId ? `${testId}-headshot` : 'draft-player-headshot'
   const teamLogoTestBase = testId ? `${testId}-team-logo` : 'draft-player-team-logo'
@@ -328,20 +342,48 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] shadow-md backdrop-blur-sm transition duration-200 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-cyan-300/70 hover:bg-[#1f3a52] hover:shadow-lg hover:shadow-cyan-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
-        isDrafted ? 'border-cyan-400/20 bg-[#0a1228]/70 opacity-60' : 'border-cyan-400/40 bg-gradient-to-r from-[#1a2f48] via-[#142438] to-[#0a1228] shadow-cyan-500/10'
+      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] backdrop-blur-sm transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
+        rs
+          ? `shadow-[0_8px_28px_rgba(0,0,0,0.35)] ${
+              isDrafted
+                ? 'border-white/10 bg-black/40 opacity-50 saturate-50 hover:translate-y-0 hover:scale-100'
+                : isSelected
+                  ? 'border-cyan-300/55 bg-[linear-gradient(118deg,rgba(24,52,78,0.98)_0%,rgba(12,28,48,0.96)_100%)] ring-2 ring-cyan-400/35 ring-offset-2 ring-offset-[#040915] shadow-[0_12px_44px_rgba(34,211,238,0.15)]'
+                  : 'border-cyan-500/25 bg-[linear-gradient(118deg,rgba(18,36,58,0.95)_0%,rgba(8,16,32,0.92)_55%,rgba(6,12,24,0.96)_100%)] hover:-translate-y-0.5 hover:scale-[1.01] hover:border-cyan-400/45 hover:shadow-[0_12px_40px_rgba(34,211,238,0.12)]'
+            }`
+          : `shadow-md transition duration-200 hover:-translate-y-1.5 hover:scale-[1.03] hover:border-cyan-300/70 hover:bg-[#1f3a52] hover:shadow-lg hover:shadow-cyan-500/20 ${
+              isDrafted ? 'border-cyan-400/20 bg-[#0a1228]/70 opacity-60' : 'border-cyan-400/40 bg-gradient-to-r from-[#1a2f48] via-[#142438] to-[#0a1228] shadow-cyan-500/10'
+            }`
       } ${isDevy ? 'border-l-[3px] border-l-violet-500/70' : ''}`}
     >
-      <div className="relative h-10 w-10 shrink-0">
-        <HeadshotOrFallback headshotUrl={headshotUrl} displayName={displayName} size={40} testIdBase={headshotTestBase} />
+      <div className={`relative shrink-0 ${rs ? 'h-11 w-11' : 'h-10 w-10'}`}>
+        <HeadshotOrFallback
+          headshotUrl={headshotUrl}
+          displayName={displayName}
+          size={rowHeadshotSize}
+          testIdBase={headshotTestBase}
+        />
         <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/15 bg-[#0a1228] p-px shadow-md">
-          <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={16} testIdBase={teamLogoTestBase} />
+          <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={rowLogoSize} testIdBase={teamLogoTestBase} />
         </div>
       </div>
 
       <div className="min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="truncate font-bold text-white">{displayName}</p>
+          <p className={`truncate font-bold text-white ${rs ? 'text-[13px] tracking-tight' : ''}`}>{displayName}</p>
+          {rs && (
+            <span className="shrink-0 rounded-md border border-white/15 bg-black/35 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-cyan-100/90">
+              {position}
+            </span>
+          )}
+          {isQueued && (
+            <span
+              className="shrink-0 rounded-full border border-amber-400/35 bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-100"
+              title="On your queue"
+            >
+              Queued
+            </span>
+          )}
           {showProBadge && (
             <span className="rounded bg-gradient-to-r from-cyan-500/40 to-cyan-400/25 px-1 py-0.5 text-[9px] font-medium text-cyan-100 shrink-0 border border-cyan-400/40 shadow-sm shadow-cyan-500/15" title="Pro / NFL">
               Pro
@@ -378,15 +420,34 @@ function DraftPlayerCardInner({
             </span>
           )}
         </div>
-        <p className="text-[10px] text-cyan-100/75">
-          {[teamAbbr ?? '—', position].join(' · ')}
+        <p className={`${rs ? 'text-[11px] text-white/75' : 'text-[10px] text-cyan-100/75'}`}>
+          <span className="font-medium text-white/88">{teamAbbr ?? '—'}</span>
+          {!rs ? ` · ${position}` : ''}
           {resolvedClassYearLabel ? ` · ${resolvedClassYearLabel}` : ''}
           {resolvedProjectedLandingSpot ? ` · ${resolvedProjectedLandingSpot}` : ''}
-          {injuryStatus ? ` · ${injuryStatus}` : ''}
         </p>
-        <p className="text-[10px] text-cyan-100/55 truncate" title={statLine}>
+        {injuryStatus ? (
+          <span
+            className={`mt-0.5 inline-block max-w-full truncate rounded border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide ${
+              rs ? 'border-rose-400/35 bg-rose-500/15 text-rose-100' : 'border-rose-400/25 bg-rose-500/10 text-rose-100/90'
+            }`}
+          >
+            {injuryStatus}
+          </span>
+        ) : null}
+        <p className={`truncate ${rs ? 'mt-1 text-[10px] text-emerald-100/80' : 'text-[10px] text-cyan-100/55'}`} title={statLine}>
           {statLine}
         </p>
+        {rs &&
+        display?.stats?.secondaryStatLabel != null &&
+        display.stats.secondaryStatValue != null ? (
+          <p
+            className="text-[10px] text-emerald-200/75 truncate"
+            title={`${display.stats.secondaryStatLabel} ${display.stats.secondaryStatValue}`}
+          >
+            {display.stats.secondaryStatLabel} {display.stats.secondaryStatValue}
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -394,11 +455,14 @@ function DraftPlayerCardInner({
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
       >
-        <div className="text-right text-[10px] tabular-nums text-cyan-100 font-semibold">
+        <div
+          className={`text-right text-[10px] tabular-nums font-semibold ${rs ? 'rounded-lg border border-white/10 bg-black/25 px-1.5 py-1 text-cyan-50' : 'text-cyan-100'}`}
+        >
           <div>
-            ADP <span className="text-cyan-300">{formatAdpDisplay(normalized.adp)}</span>
+            <span className={rs ? 'text-[9px] font-medium text-white/45' : ''}>{adpMetricLabel}</span>{' '}
+            <span className="text-cyan-300">{formatAdpDisplay(normalized.adp)}</span>
           </div>
-          <div>
+          <div className={rs ? 'mt-0.5' : ''}>
             Bye <span className="text-cyan-300">{formatBye(normalized.byeWeek)}</span>
           </div>
         </div>

@@ -557,6 +557,19 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || (session.status !== 'in_progress' && session.status !== 'paused')) return false
   const timerSeconds = session.timerSeconds ?? 90
+
+  /** Full clock refresh while commissioner-paused: stay paused; only refresh stored remainder (do not resume). */
+  if (session.status === 'paused') {
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        pausedRemainingSeconds: timerSeconds,
+        version: { increment: 1 },
+      },
+    })
+    return true
+  }
+
   const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
   const auctionState =
     session.draftType === 'auction' &&
@@ -643,11 +656,16 @@ export async function undoLastPick(leagueId: string): Promise<boolean> {
 export async function completeDraftSession(leagueId: string): Promise<boolean> {
   const outcome = await prisma.$transaction(async (tx) => {
     const session = await tx.draftSession.findUnique({ where: { leagueId } })
-    if (!session) return { ok: false as const, lifecycle: null as ApplyPostDraftLifecycleResult | null }
+    if (!session) return { ok: false as const, transitioned: false as const, lifecycle: null }
+
+    /** Idempotent: board already finalized in DB — outer callers may heal artifacts. */
+    if (session.status === 'completed') {
+      return { ok: true as const, transitioned: false as const, lifecycle: null }
+    }
 
     const totalPicks = session.rounds * session.teamCount
     const count = await tx.draftPick.count({ where: { sessionId: session.id } })
-    if (count < totalPicks) return { ok: false as const, lifecycle: null }
+    if (count < totalPicks) return { ok: false as const, transitioned: false as const, lifecycle: null }
 
     const completedAt = session.completedAt ?? new Date()
     await tx.draftSession.update({
@@ -663,7 +681,7 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
     })
 
     const lifecycle = await applyPostDraftLifecycleInTransaction(tx as Prisma.TransactionClient, leagueId)
-    return { ok: true as const, lifecycle }
+    return { ok: true as const, transitioned: true as const, lifecycle }
   })
 
   if (!outcome.ok) return false
@@ -681,19 +699,28 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
     }).catch(() => {})
   }
 
-  import('@/lib/live-draft-engine/RosterAssignmentService').then((m) => m.finalizeRosterAssignments(leagueId)).catch(() => {})
-  import('@/lib/survivor/SurvivorDraftBootstrapService').then((m) => m.runSurvivorPostDraftBootstrap(leagueId)).catch(() => {})
-  // Post-draft manager rankings (PROMPT 231): compute in background so /draft-results loads fast
-  import('@/lib/post-draft-manager-ranking').then((m) => m.computeAndPersistDraftRankings(leagueId)).catch(() => {})
-  // PROMPT 307 — Award draft_completed achievement (progression only, no money)
-  prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }).then((league) => {
-    if (league?.userId) {
-      import('@/lib/achievement-system').then((m) => m.awardAchievement(league.userId, 'draft_completed', { leagueId })).catch(() => {})
-    }
-  }).catch(() => {})
-  recordProductEvent(ENGAGEMENT.DRAFT_COMPLETED, {
-    meta: { leagueId, source: 'completeDraftSession' },
-  })
+  try {
+    const { runPostDraftFinalizationArtifacts } = await import('@/lib/live-draft-engine/postDraftFinalizeArtifacts')
+    await runPostDraftFinalizationArtifacts(leagueId)
+  } catch (err) {
+    console.error('[completeDraftSession] post-draft artifacts failed', {
+      leagueId,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+
+  if (outcome.transitioned) {
+    import('@/lib/survivor/SurvivorDraftBootstrapService').then((m) => m.runSurvivorPostDraftBootstrap(leagueId)).catch(() => {})
+    prisma.league.findUnique({ where: { id: leagueId }, select: { userId: true } }).then((league) => {
+      if (league?.userId) {
+        import('@/lib/achievement-system').then((m) => m.awardAchievement(league.userId, 'draft_completed', { leagueId })).catch(() => {})
+      }
+    }).catch(() => {})
+    recordProductEvent(ENGAGEMENT.DRAFT_COMPLETED, {
+      meta: { leagueId, source: 'completeDraftSession' },
+    })
+  }
+
   return true
 }
 

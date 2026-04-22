@@ -303,7 +303,21 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   }
 
   if (overall >= totalPicks) {
-    await completeDraftSession(input.leagueId).catch(() => {})
+    let completed = await completeDraftSession(input.leagueId)
+    if (!completed) {
+      completed = await completeDraftSession(input.leagueId)
+    }
+    if (!completed) {
+      const { repairDraftCompletionIfBoardFull } = await import('@/lib/live-draft-engine/postDraftFinalizeArtifacts')
+      completed = await repairDraftCompletionIfBoardFull(input.leagueId)
+      if (!completed) {
+        console.error('[submitPick] completeDraftSession/repair failed after final pick — completion may heal on next poll', {
+          leagueId: input.leagueId,
+          overall,
+          totalPicks,
+        })
+      }
+    }
   }
 
   // ── Salary cap: auto-assign rookie contract on snake draft picks ──
@@ -331,6 +345,25 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   } catch {
     // non-fatal: contract assignment failure should never block pick persistence
   }
+
+  void import('@/lib/draft-room/postDraftPickChatEvent')
+    .then(({ postDraftPickChatEvent }) =>
+      postDraftPickChatEvent({
+        leagueId: input.leagueId,
+        rosterId: effectiveRosterId,
+        madeByUserId: input.madeByUserId ?? null,
+        playerName: input.playerName.trim(),
+        position: input.position.trim(),
+        rosterDisplayName: typeof displayName === 'string' && displayName.trim() ? displayName.trim() : 'Team',
+        overall: pick.overall,
+        pickLabel,
+        round: pick.round ?? round,
+        roundSlot: pick.slot ?? slot,
+        playerId: pick.playerId ?? input.playerId ?? null,
+        nflTeam: pick.team ?? input.team ?? null,
+      }),
+    )
+    .catch(() => {})
 
   return {
     success: true,

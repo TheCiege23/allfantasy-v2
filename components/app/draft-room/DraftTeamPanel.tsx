@@ -2,6 +2,7 @@
 
 import { Bot, User, TrendingUp } from 'lucide-react'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
+import type { RedraftStarterHint } from '@/lib/draft-room/redraftPlanningHints'
 import { DraftRosterStrip } from './DraftRosterStrip'
 
 export type DraftTeamPanelProps = {
@@ -32,6 +33,8 @@ export type DraftTeamPanelProps = {
   benchSlots?: number | null
   taxiSlots?: number | null
   devySlots?: number | null
+  /** Live redraft snake — soft starter balance cues (guidance only). */
+  redraftStarterHints?: RedraftStarterHint[]
 }
 
 function posCounts(picks: Array<{ position: string }>): Record<string, number> {
@@ -60,6 +63,7 @@ export function DraftTeamPanel({
   benchSlots = null,
   taxiSlots = null,
   devySlots = null,
+  redraftStarterHints,
 }: DraftTeamPanelProps) {
   const focus = focusRosterId ?? currentUserRosterId
   const slot = slotOrder.find((s) => s.rosterId === focus)
@@ -99,6 +103,36 @@ export function DraftTeamPanel({
           )}
         </div>
       </div>
+
+      {redraftStarterHints && redraftStarterHints.length > 0 ? (
+        <div className="border-b border-cyan-500/15 bg-black/20 px-3 py-2">
+          <p className="text-[9px] font-medium uppercase tracking-wider text-cyan-200/75">Starter balance (guide)</p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {redraftStarterHints.map((h) => (
+              <span
+                key={h.position}
+                title={
+                  h.tone === 'thin'
+                    ? 'Thin at this spot — consider filling soon.'
+                    : h.tone === 'heavy'
+                      ? 'Heavy here — OK if value dictates; watch other spots.'
+                      : 'On track'
+                }
+                className={`rounded border px-1.5 py-0.5 text-[9px] font-medium ${
+                  h.tone === 'thin'
+                    ? 'border-amber-400/40 bg-amber-500/12 text-amber-100'
+                    : h.tone === 'heavy'
+                      ? 'border-violet-400/35 bg-violet-500/12 text-violet-100'
+                      : 'border-white/12 bg-black/25 text-white/75'
+                }`}
+              >
+                {h.position} {h.have}/{h.target}
+              </span>
+            ))}
+          </div>
+          <p className="mt-1 text-[9px] text-white/38">Typical redraft targets — not your league&apos;s exact rules.</p>
+        </div>
+      ) : null}
 
       <div className="space-y-2 border-b border-white/8 px-3 py-2">
         <p className="text-[9px] font-medium uppercase tracking-wider text-white/40">Positional mix</p>

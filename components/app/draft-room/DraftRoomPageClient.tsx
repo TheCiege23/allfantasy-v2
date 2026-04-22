@@ -6,6 +6,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { DraftRoomShell, type MobileDraftTab } from '@/components/app/draft-room/DraftRoomShell'
 import { DraftTopBar } from '@/components/app/draft-room/DraftTopBar'
+import { DraftRoomSettingsModal } from '@/components/app/draft-room/DraftRoomSettingsModal'
 import { DraftBoard } from '@/components/app/draft-room/DraftBoard'
 import { DraftTeamStrip, type DraftTeamStripTeamMeta } from '@/components/app/draft-room/DraftTeamStrip'
 import { PickTradeHistoryModal } from '@/components/app/draft-room/PickTradeHistoryModal'
@@ -14,11 +15,14 @@ import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { SportAwareDraftRoom } from '@/components/app/draft-room/SportAwareDraftRoom'
 import { QueuePanel } from '@/components/app/draft-room/QueuePanel'
 import { DraftIntelQueuePanel } from '@/components/app/draft-room/DraftIntelQueuePanel'
-import { DraftChatPanel } from '@/components/app/draft-room/DraftChatPanel'
+import { DraftChatPanel, type DraftChatMessage } from '@/components/app/draft-room/DraftChatPanel'
 import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
 import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
+import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
+import type { RoundOneAnnouncementQueueItem } from '@/lib/draft-room/resolvePickAnnouncementAssets'
+import { resolvePickAnnouncementAssets } from '@/lib/draft-room/resolvePickAnnouncementAssets'
 import type { DraftWarRoomSnapshot } from '@/components/draft/ai/DraftWarRoom'
 import { LiveDraftStatusColumn } from '@/components/draft/live/LiveDraftStatusColumn'
 
@@ -49,7 +53,7 @@ import {
   isPickCommitAllowedByName,
 } from '@/lib/live-draft-engine'
 import { getUpcomingPickOwners } from '@/lib/live-draft-engine/DraftOrderService'
-import type { DraftIntelState } from '@/lib/draft-intelligence'
+import type { DraftIntelState, DraftIntelQueueEntry } from '@/lib/draft-intelligence'
 import type { DraftUISettings } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { normalizeDraftQueueSizeLimit, trimDraftQueue } from '@/lib/draft-defaults/DraftQueueLimitResolver'
 import type { NormalizedDraftEntry } from '@/lib/draft-sports-models/types'
@@ -65,8 +69,53 @@ import { confirmTokenSpend } from '@/lib/tokens/client-confirm'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
+import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
+import { draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
+import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
+import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
+import { detectSnakeBackToBackSoon, computeRedraftStarterHints } from '@/lib/draft-room/redraftPlanningHints'
+import { RedraftPlanningRibbon } from '@/components/app/draft-room/RedraftPlanningRibbon'
+import {
+  buildAssistantFeedByPlayerName,
+  getAssistantFeedForPlayer,
+} from '@/lib/draft-room/assistantFeedLookup'
+import {
+  buildDraftChatPlayerContextFromDisplay,
+  type DraftChatPlayerContext,
+} from '@/lib/draft-room/draft-chat-player-context'
+import type { DraftAssistantRoomContext } from '@/components/app/draft-room/PlayerDetailModal'
+
+/** User-visible copy after a successful commissioner POST to `/draft/controls`. */
+function commissionerActionSuccessCopy(action: string): string {
+  switch (String(action).toLowerCase()) {
+    case 'pause':
+      return 'Draft paused — pick clock frozen for everyone.'
+    case 'resume':
+      return 'Draft resumed — pick clock restored.'
+    case 'reset_timer':
+      return 'Pick timer reset to full time for the current pick.'
+    case 'undo_pick':
+      return 'Last pick was removed from the board.'
+    case 'set_timer_seconds':
+      return 'Pick clock length updated.'
+    case 'force_autopick':
+      return 'Auto-pick executed for the on-clock team.'
+    case 'skip_pick':
+      return 'Current pick was skipped.'
+    case 'complete':
+      return 'Draft marked complete.'
+    default:
+      return 'Commissioner action completed.'
+  }
+}
+
+type CommissionerControlApiResult =
+  | ({ ok: true } & Record<string, unknown>)
+  | { ok: false; error: string; cancelled?: boolean }
 
 export type DraftRoomPageClientProps = {
+  /** Draft session id from URL (`/draft/[draftId]/snake`) — used for telemetry / deep links only. */
+  draftId?: string
   leagueId: string
   leagueName: string
   /** League avatar/logo. Surfaced in draft-room chrome (top bar). */
@@ -76,6 +125,8 @@ export type DraftRoomPageClientProps = {
   isCommissioner: boolean
   /** When IDP league, pass 'IDP' for position filters and roster template. */
   formatType?: string
+  /** Premium chrome for live snake redraft route. */
+  presentationVariant?: 'default' | 'redraft_snake'
 }
 
 type DraftRoomChromeTeam = {
@@ -124,13 +175,30 @@ function resolveManagerChromeTeam(
 
 const POLL_MS = 8000
 const POLL_MS_BACKGROUND = 30000
+/** Require several consecutive lightweight poll failures before treating the room as degraded (avoids top-bar flicker). */
+const SESSION_POLL_FAILS_FOR_DEGRADED = 5
+/** Brief delay before showing the badge so transient blips do not flash "Sync issue". */
+const CONNECTION_DEGRADED_SHOW_DELAY_MS = 1600
 const AI_ADP_POLL_SKIP_MS = 30 * 60 * 1000
 const QUEUE_POLL_EVERY_N_TICKS = 2
 const SETTINGS_POLL_EVERY_N_TICKS = 3
 const CHAT_POLL_EVERY_N_TICKS = 2
 const DRAFT_ROOM_LOCAL_PREFS_KEY_PREFIX = 'af:draft-room-prefs:'
 
+function mergeDraftChatWire(
+  prev: DraftChatMessage[],
+  incoming: DraftChatMessage[],
+): DraftChatMessage[] {
+  const map = new Map<string, DraftChatMessage>()
+  for (const m of prev) map.set(m.id, m)
+  for (const m of incoming) map.set(m.id, m)
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+  )
+}
+
 export function DraftRoomPageClient({
+  draftId: _draftId,
   leagueId,
   leagueName,
   leagueLogoUrl,
@@ -138,32 +206,35 @@ export function DraftRoomPageClient({
   isDynasty = false,
   isCommissioner,
   formatType,
+  presentationVariant = 'default',
 }: DraftRoomPageClientProps) {
   type BottomDockTab = 'queue' | 'results' | 'chat' | 'ai'
   const { data: authSession } = useSession()
   const viewerAppUserId = (authSession?.user as { id?: string } | undefined)?.id ?? null
   const [session, setSession] = useState<DraftSessionSnapshot | null>(null)
+  const sessionRef = useRef<DraftSessionSnapshot | null>(null)
+  useEffect(() => {
+    sessionRef.current = session
+  }, [session])
   const [queue, setQueue] = useState<QueueEntry[]>([])
   const [draftIntel, setDraftIntel] = useState<DraftIntelState | null>(null)
   const [draftIntelLoading, setDraftIntelLoading] = useState(true)
-  const [chatMessages, setChatMessages] = useState<Array<{
-    id: string
-    from: string
-    text: string
-    at: string
-    messageType?: string
-    mediaUrl?: string | null
-    lastActiveAt?: string | null
-    isBroadcast?: boolean
-    isAiSuggestion?: boolean
-    reactions?: Array<{ emoji: string; count: number; userIds: string[] }>
-  }>>([])
+  const [chatMessages, setChatMessages] = useState<DraftChatMessage[]>([])
   const [chatSyncActive, setChatSyncActive] = useState(false)
   const [loading, setLoading] = useState(true)
   /** Set when GET draft/session returns 401/403 so we don't show the misleading "no draft session" copy. */
   const [draftSessionAccess, setDraftSessionAccess] = useState<"ok" | "unauthorized" | "forbidden" | null>(null)
-  const [reconnecting, setReconnecting] = useState(false)
+  /** True only after repeated failed draft session polls — not routine background sync (avoids top-bar flicker). */
+  const [connectionDegraded, setConnectionDegraded] = useState(false)
+  const pollSessionFailStreakRef = useRef(0)
+  /** Browser timers are numeric IDs; avoids NodeJS.Timeout vs DOM mismatch in `tsc`. */
+  const connectionDegradedTimerRef = useRef<number | null>(null)
   const [commissionerLoading, setCommissionerLoading] = useState(false)
+  const [governanceBanner, setGovernanceBanner] = useState<{
+    variant: 'success' | 'error' | 'info'
+    message: string
+  } | null>(null)
+  const governanceSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [pickSubmitting, setPickSubmitting] = useState(false)
   const [draftUISettings, setDraftUISettings] = useState<DraftUISettings | null>(null)
   const [skipPickAllowed, setSkipPickAllowed] = useState(false)
@@ -237,6 +308,9 @@ export function DraftRoomPageClient({
   } | null>(null)
   const [recommendationLoading, setRecommendationLoading] = useState(false)
   const [recommendationError, setRecommendationError] = useState<string | null>(null)
+  const recommendationRequestKeyRef = useRef('')
+  const warRoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const warRoomCacheRef = useRef<Map<string, DraftWarRoomSnapshot>>(new Map())
   const [warRoomData, setWarRoomData] = useState<DraftWarRoomSnapshot | null>(null)
   const [warRoomLoading, setWarRoomLoading] = useState(false)
   const [warRoomError, setWarRoomError] = useState<string | null>(null)
@@ -244,6 +318,7 @@ export function DraftRoomPageClient({
   const [runAiPickLoading, setRunAiPickLoading] = useState(false)
   const [resyncLoading, setResyncLoading] = useState(false)
   const [showCommissionerModal, setShowCommissionerModal] = useState(false)
+  const [draftRoomSettingsOpen, setDraftRoomSettingsOpen] = useState(false)
   const [showTradePanel, setShowTradePanel] = useState(false)
   const [tradePanelGeneration, setTradePanelGeneration] = useState(0)
   const [tradeInitialDraft, setTradeInitialDraft] = useState<{
@@ -252,6 +327,10 @@ export function DraftRoomPageClient({
     receiverRosterId?: string
   } | null>(null)
   const [pendingTradesCount, setPendingTradesCount] = useState(0)
+  const [roundOneAnnouncementQueue, setRoundOneAnnouncementQueue] = useState<RoundOneAnnouncementQueueItem[]>([])
+  const roundOneSeenPickIdsRef = useRef(new Set<string>())
+  const roundOneBootstrapRef = useRef(false)
+  const roundOneHeygenRequestedRef = useRef(new Set<string>())
   const [pickError, setPickError] = useState<string | null>(null)
   const [draftPool, setDraftPool] = useState<{ entries: NormalizedDraftEntry[]; sport: string; devyConfig?: { enabled: boolean; devyRounds: number[] }; c2cConfig?: { enabled: boolean; collegeRounds: number[] }; isIdp?: boolean } | null>(null)
   const [draftAssistantContext, setDraftAssistantContext] = useState<{
@@ -338,6 +417,16 @@ export function DraftRoomPageClient({
     () => (session ? buildDraftRoomCoreState(session) : null),
     [session],
   )
+  const tradeDraftStateFingerprint = useMemo(() => {
+    if (!session) return ''
+    const traded =
+      Array.isArray(session.tradedPicks) && session.tradedPicks.length > 0 ? session.tradedPicks.length : 0
+    const onClock =
+      session.currentPick?.overall != null && Number.isFinite(session.currentPick.overall)
+        ? `-o${session.currentPick.overall}`
+        : ''
+    return `${session.version}-${session.picks.length}-${traded}-${session.updatedAt}${onClock}`
+  }, [session])
   const players: PlayerEntry[] = useMemo(() => {
     const rawEntries = Array.isArray(draftPool?.entries)
       ? draftPool.entries
@@ -393,6 +482,157 @@ export function DraftRoomPageClient({
           }
         })
   }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled])
+
+  useEffect(() => {
+    roundOneSeenPickIdsRef.current.clear()
+    roundOneBootstrapRef.current = false
+    roundOneHeygenRequestedRef.current.clear()
+    setRoundOneAnnouncementQueue([])
+  }, [leagueId])
+
+  const dismissRoundOneAnnouncement = useCallback(() => {
+    setRoundOneAnnouncementQueue((q) => q.slice(1))
+  }, [])
+
+  const queueRoundOneHeyGenHighlight = useCallback(
+    (pickId: string) => {
+      if (!draftUISettings?.roundOneHeyGenHighlightEnabled) return
+      if (roundOneHeygenRequestedRef.current.has(pickId)) return
+      roundOneHeygenRequestedRef.current.add(pickId)
+      void fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/round-one-highlight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickId }),
+      }).catch(() => {})
+    },
+    [leagueId, draftUISettings?.roundOneHeyGenHighlightEnabled],
+  )
+
+  useEffect(() => {
+    if (!session?.picks || session.status !== 'in_progress') return
+
+    const picks = session.picks ?? []
+    if (!roundOneBootstrapRef.current) {
+      for (const p of picks) roundOneSeenPickIdsRef.current.add(p.id)
+      roundOneBootstrapRef.current = true
+      return
+    }
+
+    const rsRoom = presentationVariant === 'redraft_snake' && !isDynasty
+    const visualsOn = draftUISettings?.roundOnePickAnnouncementEnabled !== false
+
+    for (const p of picks) {
+      if (roundOneSeenPickIdsRef.current.has(p.id)) continue
+      roundOneSeenPickIdsRef.current.add(p.id)
+      if (!rsRoom || !visualsOn || p.round !== 1) continue
+
+      const assets = resolvePickAnnouncementAssets(p, players)
+      setRoundOneAnnouncementQueue((prev) =>
+        [...prev, { id: p.id, pick: p, ...assets }].slice(-4),
+      )
+      queueRoundOneHeyGenHighlight(p.id)
+    }
+  }, [
+    session?.picks,
+    session?.status,
+    session?.version,
+    players,
+    presentationVariant,
+    isDynasty,
+    draftUISettings?.roundOnePickAnnouncementEnabled,
+    draftUISettings?.roundOneHeyGenHighlightEnabled,
+    queueRoundOneHeyGenHighlight,
+  ])
+
+  const assistantFeedByName = useMemo(
+    () =>
+      buildAssistantFeedByPlayerName(draftAssistantContext?.headlines ?? [], draftAssistantContext?.injuries ?? []),
+    [draftAssistantContext],
+  )
+
+  const assistantFeedBriefForRecommend = useMemo(() => {
+    const ctx = draftAssistantContext
+    if (!ctx) return ''
+    const chunks: string[] = []
+    for (const h of ctx.headlines.slice(0, 5)) {
+      const t = typeof h.title === 'string' ? h.title.trim() : ''
+      if (!t) continue
+      chunks.push(h.playerName ? `${h.playerName}: ${t}` : t)
+    }
+    for (const inj of ctx.injuries.slice(0, 5)) {
+      const bits = [inj.playerName, inj.team, inj.status, inj.note].filter(
+        (x): x is string => typeof x === 'string' && x.trim().length > 0,
+      )
+      if (bits.length) chunks.push(bits.join(' '))
+    }
+    const digest = ctx.sportsFeed?.digest?.trim()
+    if (digest) chunks.push(digest)
+    return chunks.join(' | ').slice(0, 600)
+  }, [draftAssistantContext])
+
+  const resolvePlayerFromPool = useCallback(
+    (name: string, position: string) =>
+      players.find(
+        (p) =>
+          p.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+          p.position.trim().toLowerCase() === position.trim().toLowerCase(),
+      ) ?? null,
+    [players],
+  )
+
+  /** AI layers must never surface players who are already drafted or missing from the live pool. */
+  const isAiRecommendationPlayerAvailable = useCallback(
+    (name: string, position: string): boolean => {
+      const resolved = resolvePlayerFromPool(name, position)
+      if (!resolved) return false
+      if (
+        !isPickCommitAllowedByName({
+          canDraft: true,
+          playerName: resolved.name,
+          draftedNames,
+        })
+      ) {
+        return false
+      }
+      const pidRaw = resolved.display?.playerId ?? resolved.id ?? null
+      const pid =
+        pidRaw != null &&
+        String(pidRaw).trim() !== '' &&
+        !String(pidRaw).startsWith('name:')
+          ? String(pidRaw).trim()
+          : null
+      if (
+        pid &&
+        !isPickCommitAllowed({
+          canDraft: true,
+          playerId: pid,
+          draftedPlayerIds,
+        })
+      ) {
+        return false
+      }
+      return true
+    },
+    [resolvePlayerFromPool, draftedNames, draftedPlayerIds],
+  )
+
+  const getAssistantRoomContext = useCallback(
+    (player: PlayerEntry): DraftAssistantRoomContext | null => {
+      const snap = getAssistantFeedForPlayer(assistantFeedByName, player.name)
+      const digestRaw = draftAssistantContext?.sportsFeed?.digest?.trim()
+      const digestPreview =
+        digestRaw && digestRaw.length > 280 ? `${digestRaw.slice(0, 277)}…` : digestRaw ?? null
+      const headline = snap?.headlineTitle?.trim() || null
+      const injuryLine =
+        snap?.injuryStatus || snap?.injuryNote
+          ? [snap.injuryStatus, snap.injuryNote].filter(Boolean).join(' · ')
+          : null
+      if (!headline && !injuryLine && !digestPreview) return null
+      return { headline, injuryLine, digestPreview }
+    },
+    [assistantFeedByName, draftAssistantContext?.sportsFeed?.digest],
+  )
+
   const currentUserRosterId = (session as any)?.currentUserRosterId as string | undefined
 
   const commissionerOfflinePick = Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
@@ -745,75 +985,92 @@ export function DraftRoomPageClient({
     }
   }, [leagueId, draftUISettings?.aiAdpEnabled])
 
-  const fetchSession = useCallback(async () => {
+  const fetchSession = useCallback(async (): Promise<boolean> => {
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/session`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.status === 401) {
         setDraftSessionAccess("unauthorized")
         setSession(null)
-        return
+        return false
       }
       if (res.status === 403) {
         setDraftSessionAccess("forbidden")
         setSession(null)
-        return
+        return false
       }
       if (res.ok && data.session) {
         setDraftSessionAccess("ok")
-        setSession(data.session)
-        return
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+        return true
       }
       if (res.ok) {
         setDraftSessionAccess("ok")
         setSession(null)
-        return
+        return true
       }
       setDraftSessionAccess(null)
       setSession(null)
+      return false
     } catch {
       setDraftSessionAccess(null)
       setSession(null)
+      return false
     }
   }, [leagueId])
 
-  /** Lightweight poll: if since provided and server says not updated, skip heavy session build. Applies only newer session (by version/updatedAt) to avoid race conditions. */
-  const fetchDraftEvents = useCallback(
-    async (since: string | undefined) => {
+  /**
+   * Combined poll: authoritative session when changed (`since` vs row `updatedAt`) + optional queue + chat.
+   * Does not bump `updatedAt` when unchanged (avoids merge churn). Returns whether the HTTP round-trip succeeded.
+   */
+  const fetchLiveSync = useCallback(
+    async (opts: { since?: string; includeQueue: boolean; includeChat: boolean }): Promise<boolean> => {
       try {
-        const url = since
-          ? `/api/leagues/${encodeURIComponent(leagueId)}/draft/events?since=${encodeURIComponent(since)}`
-          : `/api/leagues/${encodeURIComponent(leagueId)}/draft/session`
-        const res = await fetch(url, { cache: 'no-store' })
+        const sp = new URLSearchParams()
+        if (opts.since) sp.set('since', opts.since)
+        if (!opts.includeQueue) sp.set('queue', '0')
+        if (!opts.includeChat) sp.set('chat', '0')
+        const res = await fetch(
+          `/api/leagues/${encodeURIComponent(leagueId)}/draft/live-sync?${sp.toString()}`,
+          { cache: 'no-store' },
+        )
         const data = await res.json().catch(() => ({}))
-        if (!res.ok) return
+        if (!res.ok) return false
+
         if (data.session) {
-          setSession((prev) => {
-            const next = data.session as DraftSessionSnapshot
-            if (!next) return prev
-            if (prev) {
-              if (typeof next.version === 'number' && typeof prev.version === 'number' && next.version < prev.version) return prev
-              const nextAt = next.updatedAt ? new Date(next.updatedAt).getTime() : 0
-              const prevAt = prev.updatedAt ? new Date(prev.updatedAt).getTime() : 0
-              if (nextAt > 0 && prevAt > 0 && nextAt < prevAt) return prev
-            }
-            return next
-          })
-        } else if (data.updatedAt && data.updated === false) {
-          setSession((prev) => (prev ? { ...prev, updatedAt: data.updatedAt } : null))
+          setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         }
+
+        if (opts.includeQueue && Array.isArray(data.queue)) {
+          const next = data.queue as QueueEntry[]
+          setQueue((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+        }
+
+        if (opts.includeChat && Array.isArray(data.messages)) {
+          const incoming = data.messages as DraftChatMessage[]
+          setChatMessages((prev) => {
+            const merged = mergeDraftChatWire(prev, incoming)
+            return JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged
+          })
+          if (typeof data.syncActive === 'boolean') setChatSyncActive(data.syncActive)
+        }
+
+        return true
       } catch {
-        setSession(null)
+        return false
       }
     },
-    [leagueId]
+    [leagueId],
   )
 
   const fetchQueue = useCallback(async () => {
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/queue`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && Array.isArray(data.queue)) setQueue(data.queue)
+      if (res.ok && Array.isArray(data.queue)) {
+        const next = data.queue as QueueEntry[]
+        setQueue((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+      }
     } catch {
       setQueue([])
     }
@@ -825,16 +1082,21 @@ export function DraftRoomPageClient({
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/chat`, { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (res.ok && Array.isArray(data.messages)) {
-        setChatMessages(data.messages)
+        const incoming = data.messages as DraftChatMessage[]
+        setChatMessages((prev) => {
+          const merged = mergeDraftChatWire(prev, incoming)
+          return JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged
+        })
         setChatSyncActive(Boolean(data.syncActive))
       }
     } catch {
-      setChatMessages([])
+      /* Keep last good messages — blanking chat on a flaky network reads like data loss */
       setChatSyncActive(false)
     }
   }, [leagueId])
 
   const handleChatReconnect = useCallback(() => {
+    setChatSendError(null)
     fetchSession()
     fetchQueue()
     fetchDraftSettings()
@@ -897,6 +1159,9 @@ export function DraftRoomPageClient({
   )
 
   const [chatSending, setChatSending] = useState(false)
+  const [chatSendError, setChatSendError] = useState<string | null>(null)
+  const [pickSuccessFlash, setPickSuccessFlash] = useState<string | null>(null)
+
   const handleSendChat = useCallback(
     async (text: string) => {
       if (!text.trim() || chatSending) return
@@ -909,16 +1174,26 @@ export function DraftRoomPageClient({
         })
         const data = await res.json().catch(() => ({}))
         if (res.ok && data.message) {
+          setChatSendError(null)
           sendProductAnalyticsBeacon(DRAFT_ROOM.CHAT_SEND, {
             leagueId,
             len: text.trim().length,
             leagueSync: typeof data.syncActive === 'boolean' ? data.syncActive : undefined,
           })
-          setChatMessages((prev) => [...prev, data.message])
+          setChatMessages((prev) => {
+            const msg = data.message as (typeof prev)[0]
+            if (prev.some((m) => m.id === msg.id)) return prev
+            return [...prev, msg].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+          })
           if (typeof data.syncActive === 'boolean') {
             setChatSyncActive(data.syncActive)
           }
+        } else {
+          setChatSendError(typeof data?.error === 'string' ? data.error : 'Message could not be sent. Try again.')
         }
+      } catch (err) {
+        draftRoomWarn('chat-send', err)
+        setChatSendError('Could not send message. Check your connection and try again.')
       } finally {
         setChatSending(false)
       }
@@ -974,9 +1249,8 @@ export function DraftRoomPageClient({
       team: p.team ?? null,
       byeWeek: p.byeWeek ?? null,
     })) ?? []
-    const available = players
-      .filter((p) => !draftedNames.has(normalizeDraftedPlayerName(p.name)))
-      .map((p) => ({
+    const availablePool = filterPlayersAvailableForDraftAi(players, draftedNames, draftedPlayerIds)
+    const available = availablePool.map((p) => ({
       name: p.name,
       position: p.position,
       team: p.team ?? null,
@@ -1061,6 +1335,9 @@ export function DraftRoomPageClient({
             leagueName,
             confirmTokenSpend: confirmTokenSpendForFallback,
             aiAdpByKey: Object.keys(aiAdpByKey).length ? aiAdpByKey : undefined,
+            ...(assistantFeedBriefForRecommend.trim()
+              ? { assistantFeedBrief: assistantFeedBriefForRecommend }
+              : {}),
           }),
         })
         const data = await res.json().catch(() => ({}))
@@ -1084,9 +1361,26 @@ export function DraftRoomPageClient({
 
       setLiveBrainEnvelope(await brainPromise)
       if (res.ok && data.ok) {
+        let recommendation = data.recommendation ?? null
+        let alternatives = Array.isArray(data.alternatives) ? data.alternatives : []
+        const caveatsBase = Array.isArray(data.caveats) ? [...data.caveats] : []
+
+        if (
+          recommendation &&
+          !isAiRecommendationPlayerAvailable(recommendation.player.name, recommendation.player.position)
+        ) {
+          caveatsBase.push('Copilot pick is no longer available on the board — opponent may have just drafted them.')
+          recommendation = null
+        }
+        alternatives = alternatives.filter((alt: { player?: { name?: string; position?: string } }) =>
+          alt?.player?.name && alt?.player?.position
+            ? isAiRecommendationPlayerAvailable(alt.player.name, alt.player.position)
+            : false,
+        )
+
         setRecommendationResult({
-          recommendation: data.recommendation ?? null,
-          alternatives: data.alternatives ?? [],
+          recommendation,
+          alternatives,
           reachWarning: data.reachWarning ?? null,
           valueWarning: data.valueWarning ?? null,
           scarcityInsight: data.scarcityInsight ?? null,
@@ -1096,7 +1390,7 @@ export function DraftRoomPageClient({
           byeNote: data.byeNote ?? null,
           explanation: data.explanation ?? '',
           evidence: Array.isArray(data.evidence) ? data.evidence : [],
-          caveats: Array.isArray(data.caveats) ? data.caveats : [],
+          caveats: caveatsBase,
           uncertainty: data.uncertainty ?? null,
           execution: data.execution ?? null,
         })
@@ -1132,15 +1426,40 @@ export function DraftRoomPageClient({
     players,
     draftedNames,
     formatType,
+    draftedPlayerIds,
+    assistantFeedBriefForRecommend,
+    leagueName,
+    resolvePlayerFromPool,
+    isAiRecommendationPlayerAvailable,
   ])
-  const recommendationRequestKeyRef = useRef('')
-  const warRoomDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const warRoomCacheRef = useRef<Map<string, DraftWarRoomSnapshot>>(new Map())
+
+  /** Off-the-clock: clear pick-specific AI so we never show another team's on-clock plan as yours. */
+  useEffect(() => {
+    if (!session || !currentUserRosterId || !session.currentPick) return
+    if (session.currentPick.rosterId === currentUserRosterId) return
+    setRecommendationResult({
+      recommendation: null,
+      alternatives: [],
+      reachWarning: null,
+      valueWarning: null,
+      scarcityInsight: null,
+      stackInsight: null,
+      correlationInsight: null,
+      formatInsight: null,
+      byeNote: null,
+      explanation: '',
+      evidence: [],
+      caveats: [],
+      uncertainty: null,
+      execution: null,
+    })
+    setRecommendationError(null)
+    recommendationRequestKeyRef.current = ''
+  }, [session?.currentPick?.rosterId, currentUserRosterId, session])
 
   useEffect(() => {
     if (!session?.currentPick || !session.teamCount || players.length === 0) return
-    const myRosterId = (session as any)?.currentUserRosterId
-    if (!myRosterId || session.currentPick.rosterId !== myRosterId) {
+    if (!currentUserRosterId || session.currentPick.rosterId !== currentUserRosterId) {
       recommendationRequestKeyRef.current = ''
       return
     }
@@ -1149,6 +1468,7 @@ export function DraftRoomPageClient({
       session.currentPick.rosterId ?? '',
       session.picks?.length ?? 0,
       players.length,
+      draftedPlayerIds.size,
       draftUISettings?.aiAdpEnabled ? 'ai' : 'deterministic',
       draftAiExplanationEnabled ? 'ai-explain-on' : 'ai-explain-off',
       leagueAiAdp?.computedAt ?? 'no-ai-adp',
@@ -1162,11 +1482,42 @@ export function DraftRoomPageClient({
     session?.picks?.length,
     session?.teamCount,
     players.length,
+    draftedPlayerIds.size,
     draftUISettings?.aiAdpEnabled,
     draftAiExplanationEnabled,
     leagueAiAdp?.computedAt,
     fetchRecommendation,
+    currentUserRosterId,
   ])
+
+  /** Drop copilot picks/alts that were taken while AI was in flight or before the next refresh. */
+  useEffect(() => {
+    setRecommendationResult((prev) => {
+      if (!prev) return prev
+      let recommendation = prev.recommendation
+      if (recommendation) {
+        const rp = recommendation.player
+        if (!isAiRecommendationPlayerAvailable(rp.name, rp.position)) {
+          recommendationRequestKeyRef.current = ''
+          recommendation = null
+        }
+      }
+      const filteredAlts = (prev.alternatives ?? []).filter((a) =>
+        isAiRecommendationPlayerAvailable(a.player.name, a.player.position),
+      )
+      const caveats =
+        recommendation !== prev.recommendation && prev.recommendation
+          ? [...(prev.caveats ?? []), 'Recommended player is off the board — sync refreshed.'].slice(0, 14)
+          : prev.caveats ?? []
+      if (
+        recommendation === prev.recommendation &&
+        filteredAlts.length === (prev.alternatives ?? []).length
+      ) {
+        return prev
+      }
+      return { ...prev, recommendation, alternatives: filteredAlts, caveats }
+    })
+  }, [isAiRecommendationPlayerAvailable])
 
   useEffect(() => {
     if (!leagueId) return
@@ -1211,12 +1562,14 @@ export function DraftRoomPageClient({
     stream.addEventListener('recap', handleStateEvent as EventListener)
     stream.onerror = () => {
       setDraftIntelLoading(false)
+      draftRoomWarn('intel-sse-disconnect', { leagueId })
+      void fetchSession()
     }
 
     return () => {
       stream.close()
     }
-  }, [leagueId, currentUserRosterId])
+  }, [leagueId, currentUserRosterId, fetchSession])
 
   const [pollInterval, setPollInterval] = useState(POLL_MS)
   const refetchOnceRef = useRef<(() => void) | null>(null)
@@ -1229,44 +1582,61 @@ export function DraftRoomPageClient({
     const run = async () => {
       if (pollInFlightRef.current) return
       pollInFlightRef.current = true
-      setReconnecting(true)
       const tick = pollTickRef.current + 1
       pollTickRef.current = tick
       try {
-        const since = (session as { updatedAt?: string } | null)?.updatedAt
-        const promises: Promise<void>[] = [fetchDraftEvents(since)]
+        const since = sessionRef.current?.updatedAt
         const onClockForCurrentUser = Boolean(
-          session?.currentPick?.rosterId &&
+          sessionRef.current?.currentPick?.rosterId &&
           currentUserRosterId &&
-          session.currentPick.rosterId === currentUserRosterId
+          sessionRef.current.currentPick.rosterId === currentUserRosterId
         )
         const shouldRefreshQueue = (tick % QUEUE_POLL_EVERY_N_TICKS) === 0 || onClockForCurrentUser
         const shouldRefreshSettings = (tick % SETTINGS_POLL_EVERY_N_TICKS) === 0 || showCommissionerModal
         const shouldRefreshChat = chatSyncActive || (tick % CHAT_POLL_EVERY_N_TICKS) === 0
 
-        if (shouldRefreshQueue) promises.push(fetchQueue())
-        if (shouldRefreshSettings) promises.push(fetchDraftSettings())
-        if (shouldRefreshSettings) promises.push(fetchDraftAssistantContext())
-        if (shouldRefreshChat) promises.push(fetchChat())
+        const sessionPollOk = await fetchLiveSync({
+          since,
+          includeQueue: shouldRefreshQueue,
+          includeChat: shouldRefreshChat,
+        })
+
+        const secondary: Promise<unknown>[] = []
+        if (shouldRefreshSettings) secondary.push(fetchDraftSettings())
+        if (shouldRefreshSettings) secondary.push(fetchDraftAssistantContext())
 
         const aiAdpComputedAt = leagueAiAdp?.computedAt ? new Date(leagueAiAdp.computedAt).getTime() : 0
         const skipAiAdp = draftUISettings?.aiAdpEnabled && aiAdpComputedAt && Date.now() - aiAdpComputedAt < AI_ADP_POLL_SKIP_MS
-        if (draftUISettings?.aiAdpEnabled && !skipAiAdp) promises.push(fetchLeagueAiAdp())
-        await Promise.all(promises)
+        if (draftUISettings?.aiAdpEnabled && !skipAiAdp) secondary.push(fetchLeagueAiAdp())
+        await Promise.all(secondary)
+
+        /** Authoritative session sync failed: streak + delay before showing badge (healthy polls stay quiet). */
+        if (!sessionPollOk) {
+          pollSessionFailStreakRef.current += 1
+          if (pollSessionFailStreakRef.current >= SESSION_POLL_FAILS_FOR_DEGRADED && connectionDegradedTimerRef.current == null) {
+            connectionDegradedTimerRef.current = window.setTimeout(() => {
+              connectionDegradedTimerRef.current = null
+              setConnectionDegraded(true)
+            }, CONNECTION_DEGRADED_SHOW_DELAY_MS)
+          }
+        } else {
+          pollSessionFailStreakRef.current = 0
+          if (connectionDegradedTimerRef.current != null) {
+            clearTimeout(connectionDegradedTimerRef.current)
+            connectionDegradedTimerRef.current = null
+          }
+          setConnectionDegraded(false)
+        }
       } finally {
-        setReconnecting(false)
         pollInFlightRef.current = false
       }
     }
     refetchOnceRef.current = () => { void run() }
   }, [
     leagueId,
-    session?.updatedAt,
-    fetchDraftEvents,
-    fetchQueue,
-      fetchDraftSettings,
-      fetchDraftAssistantContext,
-      fetchChat,
+    fetchLiveSync,
+    fetchDraftSettings,
+    fetchDraftAssistantContext,
     fetchLeagueAiAdp,
     draftUISettings?.aiAdpEnabled,
     leagueAiAdp?.computedAt,
@@ -1296,6 +1666,27 @@ export function DraftRoomPageClient({
     document.addEventListener('visibilitychange', compute)
     return () => document.removeEventListener('visibilitychange', compute)
   }, [session?.status, session?.timer?.status])
+
+  /** Full session GET when tab becomes visible — complements `/draft/live-sync` polling. */
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVisibility = () => {
+      if (document.hidden) return
+      void fetchSession().then((ok) => {
+        if (ok) {
+          pollSessionFailStreakRef.current = 0
+          if (connectionDegradedTimerRef.current != null) {
+            clearTimeout(connectionDegradedTimerRef.current)
+            connectionDegradedTimerRef.current = null
+          }
+          setConnectionDegraded(false)
+        }
+      })
+      refetchOnceRef.current?.()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [fetchSession])
 
   useEffect(() => {
     if (!leagueId) return
@@ -1352,8 +1743,27 @@ export function DraftRoomPageClient({
     return () => { void supabase.removeChannel(channel) }
   }, [leagueId])
 
+  useEffect(() => {
+    return () => {
+      if (governanceSuccessTimeoutRef.current) clearTimeout(governanceSuccessTimeoutRef.current)
+      if (connectionDegradedTimerRef.current) clearTimeout(connectionDegradedTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (governanceBanner?.variant !== 'success') return
+    if (governanceSuccessTimeoutRef.current) clearTimeout(governanceSuccessTimeoutRef.current)
+    governanceSuccessTimeoutRef.current = setTimeout(() => {
+      setGovernanceBanner(null)
+      governanceSuccessTimeoutRef.current = null
+    }, 7000)
+    return () => {
+      if (governanceSuccessTimeoutRef.current) clearTimeout(governanceSuccessTimeoutRef.current)
+    }
+  }, [governanceBanner])
+
   const handleCommissionerAction = useCallback(
-    async (action: string, payload?: Record<string, unknown>) => {
+    async (action: string, payload?: Record<string, unknown>): Promise<CommissionerControlApiResult> => {
       setCommissionerLoading(true)
       try {
         const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/controls`, {
@@ -1361,15 +1771,75 @@ export function DraftRoomPageClient({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action, ...payload }),
         })
-        const data = await res.json().catch(() => ({}))
-        if (res.ok && data.session) setSession(data.session)
-        return data
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+        const errMsg =
+          typeof data.error === 'string'
+            ? data.error
+            : typeof (data as { message?: unknown }).message === 'string'
+              ? String((data as { message: string }).message)
+              : null
+
+        if (!res.ok) {
+          const msg = errMsg || `Commissioner action failed (${res.status}).`
+          setGovernanceBanner({ variant: 'error', message: msg })
+          return { ok: false, error: msg }
+        }
+
+        if (data.session) {
+          setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+        } else {
+          await fetchSession()
+        }
+
+        void fetchQueue()
+        if (action === 'undo_pick') {
+          void fetchChat()
+          void fetchDraftPool()
+          void fetchDraftAssistantContext()
+        }
+        if (action === 'set_timer_seconds') void fetchDraftSettings()
+
+        const successMsg = commissionerActionSuccessCopy(action)
+        setGovernanceBanner({ variant: 'success', message: successMsg })
+
+        return { ok: true, ...data }
+      } catch {
+        const msg = 'Network error — try your commissioner action again.'
+        setGovernanceBanner({ variant: 'error', message: msg })
+        return { ok: false, error: msg }
       } finally {
         setCommissionerLoading(false)
       }
     },
-    [leagueId],
+    [
+      leagueId,
+      fetchSession,
+      fetchQueue,
+      fetchChat,
+      fetchDraftPool,
+      fetchDraftAssistantContext,
+      fetchDraftSettings,
+    ],
   )
+
+  const handleCommissionerUndoPick = useCallback(() => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Undo the last drafted pick for everyone in this league? Traded-pick swaps may need a manual double-check.',
+      )
+    ) {
+      return Promise.resolve({ ok: false as const, error: 'Cancelled.', cancelled: true })
+    }
+    return handleCommissionerAction('undo_pick')
+  }, [handleCommissionerAction])
+
+  const handleCommissionerResetTimer = useCallback(() => {
+    if (typeof window !== 'undefined' && !window.confirm('Reset the pick clock to full time for the current pick?')) {
+      return Promise.resolve({ ok: false as const, error: 'Cancelled.', cancelled: true })
+    }
+    return handleCommissionerAction('reset_timer')
+  }, [handleCommissionerAction])
 
   const fetchPendingTradesCount = useCallback(async () => {
     if (!leagueId || !currentUserRosterId) return
@@ -1400,7 +1870,7 @@ export function DraftRoomPageClient({
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.session) {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: true })
-        setSession(data.session)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
         setPickError(typeof data?.error === 'string' ? data.error : 'Could not start the draft. Check that the draft order is set and try again.')
@@ -1459,7 +1929,7 @@ export function DraftRoomPageClient({
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.session) {
-        setSession(data.session as DraftSessionSnapshot)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         await fetchDraftPool()
       }
       return data
@@ -1479,7 +1949,7 @@ export function DraftRoomPageClient({
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.session) {
-        setSession(data.session as DraftSessionSnapshot)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         await fetchDraftPool()
       }
       return data
@@ -1576,9 +2046,19 @@ export function DraftRoomPageClient({
       fetchQueue(),
       fetchChat(),
       fetchDraftPool(),
+      fetchDraftAssistantContext(),
+      draftUISettings?.aiAdpEnabled ? fetchLeagueAiAdp() : Promise.resolve(),
       fetchPendingTradesCount(),
       fetchClaimableRosters(),
-    ]).finally(() => setResyncLoading(false))
+    ]).finally(() => {
+      setResyncLoading(false)
+      pollSessionFailStreakRef.current = 0
+      if (connectionDegradedTimerRef.current != null) {
+        clearTimeout(connectionDegradedTimerRef.current)
+        connectionDegradedTimerRef.current = null
+      }
+      setConnectionDegraded(false)
+    })
   }, [
     fetchSession,
     fetchDraftSettings,
@@ -1586,6 +2066,9 @@ export function DraftRoomPageClient({
     fetchQueue,
     fetchChat,
     fetchDraftPool,
+    fetchDraftAssistantContext,
+    fetchLeagueAiAdp,
+    draftUISettings?.aiAdpEnabled,
     fetchPendingTradesCount,
     fetchClaimableRosters,
   ])
@@ -1599,7 +2082,8 @@ export function DraftRoomPageClient({
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.session) {
-        setSession(data.session)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+        await fetchDraftPool()
         if (data.usedFallback) {
           setPickError('AI mode used deterministic CPU fallback for this pick.')
         }
@@ -1610,7 +2094,7 @@ export function DraftRoomPageClient({
     } finally {
       setRunAiPickLoading(false)
     }
-  }, [leagueId, fetchDraftSettings])
+  }, [leagueId, fetchDraftSettings, fetchDraftPool])
 
   const handleMakePick = useCallback(
     async (player: PlayerEntry) => {
@@ -1672,12 +2156,37 @@ export function DraftRoomPageClient({
             position: player.position,
             ok: true,
           })
-          setSession(data.session)
-          setQueue((prev) => prev.filter((e) => e.playerName !== player.name))
+          setPickSuccessFlash(player.name)
+          setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
+          setQueue((prev) =>
+            prev.filter(
+              (e) => normalizeDraftedPlayerName(e.playerName) !== normalizeDraftedPlayerName(player.name),
+            ),
+          )
+          await fetchQueue()
+          await fetchDraftPool()
+          void fetchDraftAssistantContext()
+          pollSessionFailStreakRef.current = 0
+          if (connectionDegradedTimerRef.current != null) {
+            clearTimeout(connectionDegradedTimerRef.current)
+            connectionDegradedTimerRef.current = null
+          }
+          setConnectionDegraded(false)
+        } else if (res.ok) {
+          sendProductAnalyticsBeacon(DRAFT_ROOM.PICK, { leagueId, position: player.position, ok: false })
+          draftRoomWarn('pick-missing-session', { status: res.status })
+          await fetchSession()
+          await fetchQueue()
+          await fetchDraftPool()
+          setPickError('Pick response was incomplete — draft state was refreshed.')
         } else {
           sendProductAnalyticsBeacon(DRAFT_ROOM.PICK, { leagueId, position: player.position, ok: false })
           setPickError(typeof data?.error === 'string' ? data.error : 'Pick failed. Try again.')
         }
+      } catch (err) {
+        draftRoomWarn('pick-network', err)
+        setPickError('Network error while submitting your pick. Check your connection and try again.')
+        await fetchSession()
       } finally {
         pickInflightRef.current = false
         setPickSubmitting(false)
@@ -1692,6 +2201,10 @@ export function DraftRoomPageClient({
       isCommissioner,
       session?.currentPick,
       currentUserRosterId,
+      fetchQueue,
+      fetchDraftPool,
+      fetchSession,
+      fetchDraftAssistantContext,
     ],
   )
 
@@ -1743,7 +2256,7 @@ export function DraftRoomPageClient({
         const data = await res.json().catch(() => ({}))
         if (res.ok && data.session) {
           sendProductAnalyticsBeacon(DRAFT_ROOM.NOMINATE, { leagueId, ok: true })
-          setSession(data.session)
+          setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         } else {
           sendProductAnalyticsBeacon(DRAFT_ROOM.NOMINATE, { leagueId, ok: false })
           setPickError(typeof data?.error === 'string' ? data.error : 'Nominate failed.')
@@ -1766,7 +2279,8 @@ export function DraftRoomPageClient({
           body: JSON.stringify({ amount }),
         })
         const data = await res.json().catch(() => ({}))
-        if (res.ok && data.session) setSession(data.session)
+        if (res.ok && data.session)
+          setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         else setPickError(typeof data?.error === 'string' ? data.error : 'Bid failed.')
       } finally {
         setAuctionBidLoading(false)
@@ -1785,7 +2299,8 @@ export function DraftRoomPageClient({
         body: JSON.stringify({}),
       })
       const data = await res.json().catch(() => ({}))
-      if (res.ok && data.session) setSession(data.session)
+      if (res.ok && data.session)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
       else setPickError(typeof data?.error === 'string' ? data.error : 'Resolve failed.')
     } finally {
       setAuctionResolveLoading(false)
@@ -1802,37 +2317,56 @@ export function DraftRoomPageClient({
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.session) {
-        setSession(data.session)
+        setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         const name = data.submittedPlayerName ?? data.pick?.playerName
-        if (name) setQueue((prev) => prev.filter((e) => e.playerName !== name))
+        if (name)
+          setQueue((prev) =>
+            prev.filter(
+              (e) => normalizeDraftedPlayerName(e.playerName) !== normalizeDraftedPlayerName(String(name)),
+            ),
+          )
+        await fetchQueue()
+        await fetchDraftPool()
       } else {
         setPickError(typeof data?.error === 'string' ? data.error : 'Use queue failed.')
       }
+    } catch (err) {
+      draftRoomWarn('autopick-expired', err)
+      setPickError('Network error while using your queue. Try again.')
+      await fetchSession()
+      await fetchQueue()
     } finally {
       setAutopickExpiredLoading(false)
     }
-  }, [leagueId])
+  }, [leagueId, fetchQueue, fetchDraftPool, fetchSession])
 
   const handleQueueSave = useCallback(
     async (newOrder: QueueEntry[]) => {
       const limitedQueue = trimDraftQueue(newOrder, draftQueueSizeLimit)
-      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/queue`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queue: limitedQueue }),
-      })
-      if (res.ok) {
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/queue`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ queue: limitedQueue }),
+        })
         const data = await res.json().catch(() => ({}))
-        if (Array.isArray(data.queue)) setQueue(data.queue)
+        if (res.ok && Array.isArray(data.queue)) {
+          setQueue(data.queue)
+          return
+        }
+        draftRoomWarn('queue-save', { status: res.status, body: data })
+      } catch (err) {
+        draftRoomWarn('queue-save-network', err)
       }
+      await fetchQueue()
     },
-    [leagueId, draftQueueSizeLimit],
+    [leagueId, draftQueueSizeLimit, fetchQueue],
   )
 
   const handleRemoveFromQueue = useCallback(
     (index: number) => {
-      const drafted = new Set(session?.picks?.map((p) => p.playerName) ?? [])
-      const filtered = queue.filter((e) => !drafted.has(e.playerName))
+      const drafted = new Set(session?.picks?.map((p) => normalizeDraftedPlayerName(p.playerName)) ?? [])
+      const filtered = queue.filter((e) => !drafted.has(normalizeDraftedPlayerName(e.playerName)))
       const entry = filtered[index]
       if (!entry) return
       const idxInQueue = queue.findIndex((e) => e.playerName === entry.playerName && e.position === entry.position)
@@ -1846,8 +2380,8 @@ export function DraftRoomPageClient({
 
   const handleReorderQueue = useCallback(
     (fromIndex: number, toIndex: number) => {
-      const drafted = new Set(session?.picks?.map((p) => p.playerName) ?? [])
-      const filtered = queue.filter((e) => !drafted.has(e.playerName))
+      const drafted = new Set(session?.picks?.map((p) => normalizeDraftedPlayerName(p.playerName)) ?? [])
+      const filtered = queue.filter((e) => !drafted.has(normalizeDraftedPlayerName(e.playerName)))
       const next = [...filtered]
       const [item] = next.splice(fromIndex, 1)
       next.splice(toIndex, 0, item)
@@ -1859,8 +2393,8 @@ export function DraftRoomPageClient({
 
   const handleAiReorderQueue = useCallback(async () => {
     const requestAiExplanation = Boolean(draftUISettings?.aiQueueReorderEnabled && aiQueueReorderEnabled)
-    const drafted = new Set(session?.picks?.map((p) => p.playerName) ?? [])
-    const filtered = queue.filter((e) => !drafted.has(e.playerName))
+    const drafted = new Set(session?.picks?.map((p) => normalizeDraftedPlayerName(p.playerName)) ?? [])
+    const filtered = queue.filter((e) => !drafted.has(normalizeDraftedPlayerName(e.playerName)))
     if (filtered.length < 2) return
     setAiReorderLoading(true)
     setAiReorderExplanation(null)
@@ -1994,6 +2528,52 @@ export function DraftRoomPageClient({
   const aiAdpStaleWarning = Boolean(draftUISettings?.aiAdpEnabled && leagueAiAdp?.stale)
   const aiAdpLowSampleWarning = Boolean(leagueAiAdp?.entries?.some((e) => e.lowSample))
   const currentPick = session?.currentPick ?? null
+
+  const viewerDraftedPicks = useMemo(
+    () => (session?.picks ?? []).filter((p) => p.rosterId === currentUserRosterId),
+    [session?.picks, currentUserRosterId],
+  )
+
+  const redraftRibbonOnDeck = useMemo(() => {
+    if (!session?.currentPick || session.status !== 'in_progress') return []
+    const total = session.rounds * session.teamCount
+    const next = session.currentPick.overall + 1
+    if (next > total) return []
+    return getUpcomingPickOwners(
+      next,
+      4,
+      session.teamCount,
+      session.draftType,
+      session.thirdRoundReversal,
+      session.slotOrder,
+      total,
+    )
+  }, [session])
+
+  const redraftBackToBackSoon = useMemo(
+    () =>
+      session ? detectSnakeBackToBackSoon(session as DraftSessionSnapshot, currentUserRosterId ?? null) : false,
+    [session, currentUserRosterId],
+  )
+
+  const redraftStarterHints = useMemo(
+    () =>
+      presentationVariant === 'redraft_snake' && !isDynasty
+        ? computeRedraftStarterHints(
+            effectiveDraftSport,
+            viewerDraftedPicks.map((p) => ({ position: p.position })),
+            formatType,
+          )
+        : undefined,
+    [presentationVariant, isDynasty, effectiveDraftSport, viewerDraftedPicks, formatType],
+  )
+
+  useEffect(() => {
+    if (!pickSuccessFlash) return
+    const id = window.setTimeout(() => setPickSuccessFlash(null), 4200)
+    return () => window.clearTimeout(id)
+  }, [pickSuccessFlash])
+
   const orphanRosterIds = (session as any)?.orphanRosterIds as string[] | undefined
   const aiManagerEnabled = (session as any)?.aiManagerEnabled as boolean | undefined
   const isOrphanOnClock = Boolean(
@@ -2018,6 +2598,9 @@ export function DraftRoomPageClient({
       leagueName,
     }),
     session?.draftType ? `Draft type: ${session.draftType}.` : '',
+    presentationVariant === 'redraft_snake' && !isDynasty
+      ? 'Scope: live redraft for this season only — prioritize best available, roster holes, and positional scarcity for this draft room (not dynasty stash, devy, or multi-year planning unless the current round explicitly requires it).'
+      : '',
     chimmyHeadlineSummary.length ? `Recent news: ${chimmyHeadlineSummary.join(' | ')}.` : '',
     chimmyInjurySummary.length ? `Recent injuries: ${chimmyInjurySummary.join(' | ')}.` : '',
   ].filter(Boolean).join(' ')
@@ -2034,21 +2617,129 @@ export function DraftRoomPageClient({
   ].filter(Boolean).join(' • ')
   const chatMessagesWithAi = useMemo(() => {
     const base = [...chatMessages]
-    if (!isCurrentUserOnClock || !recommendationResult?.recommendation) return base
-    const rec = recommendationResult.recommendation
-    const aiMessageId = `ai-suggestion-${currentPick?.overall ?? 'na'}-${rec.player.name}`
-    if (base.some((m) => m.id === aiMessageId)) return base
-    return [
-      ...base,
-      {
-        id: aiMessageId,
-        from: 'Chimmy',
-        text: `On the clock: ${rec.player.name} (${rec.player.position}${rec.player.team ? `, ${rec.player.team}` : ''}). ${rec.reason}`,
-        at: new Date().toISOString(),
-        isAiSuggestion: true,
-      },
-    ]
-  }, [chatMessages, isCurrentUserOnClock, recommendationResult?.recommendation, currentPick?.overall])
+    const injected: typeof base = []
+    const aiCopilotWire = {
+      messageCategory: 'AI_MESSAGE' as const,
+      sourceContext: 'draft_room' as const,
+      syncToLeagueChat: false as const,
+    }
+    const rs = presentationVariant === 'redraft_snake'
+
+    const onClockId = `ai-copilot-onclock-${currentPick?.overall ?? 'na'}-${recommendationResult?.recommendation?.player.name ?? 'na'}`
+    if (isCurrentUserOnClock && recommendationResult?.recommendation) {
+      const rec = recommendationResult.recommendation
+      const extra =
+        recommendationResult.scarcityInsight?.trim()
+          ? ` ${recommendationResult.scarcityInsight.trim()}`
+          : ''
+      if (!base.some((m) => m.id === onClockId)) {
+        const poolRow = players.find(
+          (p) =>
+            p.name.trim().toLowerCase() === rec.player.name.trim().toLowerCase() &&
+            p.position.trim().toLowerCase() === rec.player.position.trim().toLowerCase(),
+        )
+        const feedSnap = getAssistantFeedForPlayer(assistantFeedByName, rec.player.name)
+        const playerContext = poolRow
+          ? buildDraftChatPlayerContextFromDisplay(poolRow, {
+              headlineSnippet: feedSnap?.headlineTitle ?? null,
+            })
+          : undefined
+        injected.push({
+          ...aiCopilotWire,
+          id: onClockId,
+          from: 'Draft copilot',
+          text: `On the clock: ${rec.player.name} (${rec.player.position}${rec.player.team ? `, ${rec.player.team}` : ''}). ${rec.reason}.${extra}`,
+          at: new Date().toISOString(),
+          isAiSuggestion: true,
+          messageType: 'copilot_on_clock',
+          ...(playerContext ? { playerContext } : {}),
+        })
+      }
+    }
+
+    const prepId = `ai-copilot-prep-${currentPick?.overall ?? 'x'}-${draftIntel?.picksUntilUser ?? 'n'}-${warRoomData?.bestPick?.name ?? 'na'}`
+    if (
+      rs &&
+      !isCurrentUserOnClock &&
+      warRoomData?.bestPick &&
+      draftIntel?.picksUntilUser != null &&
+      draftIntel.picksUntilUser > 0 &&
+      draftIntel.picksUntilUser <= 4
+    ) {
+      const w = warRoomData.bestPick
+      const tip =
+        warRoomData.strategyTip?.trim() ||
+        warRoomData.reasoning?.[0]?.trim() ||
+        'Open the helper panel for full War Room context.'
+      if (!base.some((m) => m.id === prepId) && !injected.some((m) => m.id === prepId)) {
+        const poolRow = players.find(
+          (p) =>
+            p.name.trim().toLowerCase() === w.name.trim().toLowerCase() &&
+            p.position.trim().toLowerCase() === w.position.trim().toLowerCase(),
+        )
+        const feedSnap = getAssistantFeedForPlayer(assistantFeedByName, w.name)
+        const playerContext = poolRow
+          ? buildDraftChatPlayerContextFromDisplay(poolRow, {
+              headlineSnippet: feedSnap?.headlineTitle ?? null,
+            })
+          : undefined
+        injected.push({
+          ...aiCopilotWire,
+          id: prepId,
+          from: 'Draft copilot',
+          text: `Your pick approaches in ~${draftIntel.picksUntilUser} selection(s). Prep idea: ${w.name} (${w.position}) — ${tip}`,
+          at: new Date().toISOString(),
+          isAiSuggestion: true,
+          messageType: 'copilot_prepare',
+          ...(playerContext ? { playerContext } : {}),
+        })
+      }
+    }
+
+    if (rs && queueFiltered.length > 0) {
+      const top = queueFiltered[0]
+      if (draftedNames.has(normalizeDraftedPlayerName(top.playerName))) {
+        const qid = `ai-copilot-queue-taken-${currentPick?.overall ?? 'o'}-${normalizeDraftedPlayerName(top.playerName)}`
+        if (!base.some((m) => m.id === qid) && !injected.some((m) => m.id === qid)) {
+          const poolRow =
+            players.find(
+              (p) => normalizeDraftedPlayerName(p.name) === normalizeDraftedPlayerName(top.playerName),
+            ) ?? null
+          const feedSnap = poolRow ? getAssistantFeedForPlayer(assistantFeedByName, poolRow.name) : null
+          const playerContext = poolRow
+            ? buildDraftChatPlayerContextFromDisplay(poolRow, {
+                headlineSnippet: feedSnap?.headlineTitle ?? null,
+              })
+            : undefined
+          injected.push({
+            ...aiCopilotWire,
+            id: qid,
+            from: 'Draft copilot',
+            text: `Queue alert: ${top.playerName} is already off the board. Reorder your queue or refresh the helper.`,
+            at: new Date().toISOString(),
+            isAiSuggestion: true,
+            messageType: 'queue_conflict',
+            ...(playerContext ? { playerContext } : {}),
+          })
+        }
+      }
+    }
+
+    if (injected.length === 0) return base
+    return [...base, ...injected]
+  }, [
+    chatMessages,
+    isCurrentUserOnClock,
+    recommendationResult,
+    currentPick?.overall,
+    presentationVariant,
+    warRoomData,
+    draftIntel?.picksUntilUser,
+    queueFiltered,
+    draftedNames,
+    assistantFeedByName,
+    players,
+  ])
   const currentRoster: Array<{ playerName: string; position: string; team: string | null }> = []
   const nextQueuedAvailable = queueFiltered.length > 0 && canDraft ? queueFiltered[0] : null
 
@@ -2057,16 +2748,6 @@ export function DraftRoomPageClient({
   const auctionNominator = auctionNom?.nominationOrder?.[auctionNom?.auctionState?.nominationOrderIndex ?? 0]
   const isMyTurnToNominateDraft = Boolean(
     isAuctionDraft && currentUserRosterId != null && auctionNominator?.rosterId === currentUserRosterId
-  )
-
-  const resolvePlayerFromPool = useCallback(
-    (name: string, position: string) =>
-      players.find(
-        (p) =>
-          p.name.trim().toLowerCase() === name.trim().toLowerCase() &&
-          p.position.trim().toLowerCase() === position.trim().toLowerCase(),
-      ) ?? null,
-    [players],
   )
 
   const aiRowBadges = useMemo(() => {
@@ -2082,13 +2763,96 @@ export function DraftRoomPageClient({
     return out
   }, [warRoomData])
 
+  const recommendedPlayerResolved = useMemo(() => {
+    const r = recommendationResult?.recommendation
+    if (!r) return null
+    if (!isAiRecommendationPlayerAvailable(r.player.name, r.player.position)) return null
+    return resolvePlayerFromPool(r.player.name, r.player.position)
+  }, [recommendationResult?.recommendation, resolvePlayerFromPool, isAiRecommendationPlayerAvailable])
+
+  const handleAddIntelQueueSuggestion = useCallback(
+    (entry: DraftIntelQueueEntry) => {
+      if (entry.isTaken) return
+      const pid = entry.playerId?.trim()
+      let pool: PlayerEntry | null = null
+      if (pid) {
+        pool =
+          players.find((p) => String(p.display?.playerId ?? p.id ?? '').trim() === pid) ?? null
+      }
+      pool =
+        pool ??
+        players.find(
+          (p) =>
+            normalizeDraftedPlayerName(p.name) === normalizeDraftedPlayerName(entry.playerName) &&
+            p.position.trim().toLowerCase() === entry.position.trim().toLowerCase(),
+        ) ??
+        null
+      if (!pool || draftedNames.has(normalizeDraftedPlayerName(pool.name))) return
+      handleAddToQueue(pool)
+    },
+    [players, draftedNames, handleAddToQueue],
+  )
+
+  const getDraftCopilotInsight = useCallback(
+    (p: PlayerEntry): DraftCopilotInsight | null => {
+      if (presentationVariant !== 'redraft_snake' || isDynasty) return null
+
+      const keyOf = (name: string, pos: string) =>
+        `${name.trim().toLowerCase()}|${pos.trim().toLowerCase()}`
+      const pk = keyOf(p.name, p.position)
+      const bullets: string[] = []
+
+      const rec = recommendationResult?.recommendation
+      const isTopRec = Boolean(rec && keyOf(rec.player.name, rec.player.position) === pk)
+
+      if (isTopRec && rec) {
+        bullets.push(rec.reason)
+        const rr = recommendationResult
+        if (rr?.scarcityInsight?.trim()) bullets.push(rr.scarcityInsight.trim())
+        if (rr?.reachWarning?.trim()) bullets.push(`Reach note: ${rr.reachWarning.trim()}`)
+        if (rr?.valueWarning?.trim()) bullets.push(`Value note: ${rr.valueWarning.trim()}`)
+      }
+
+      const altMatch = recommendationResult?.alternatives?.find(
+        (a) => keyOf(a.player.name, a.player.position) === pk,
+      )
+      if (altMatch) bullets.push(altMatch.reason)
+
+      const wr = warRoomData
+      if (wr?.bestPick && keyOf(wr.bestPick.name, wr.bestPick.position) === pk) {
+        bullets.push(...(wr.reasoning ?? []).slice(0, 2))
+        if (wr.teamNeedSummary?.trim()) bullets.push(wr.teamNeedSummary.trim())
+        if (wr.riskNote?.trim()) bullets.push(`Risk: ${wr.riskNote.trim()}`)
+      }
+
+      const filtered = bullets.filter(Boolean).slice(0, 8)
+      if (filtered.length === 0) return null
+
+      let stance: DraftCopilotInsight['stance'] | undefined
+      if (wr?.bestPick && keyOf(wr.bestPick.name, wr.bestPick.position) === pk) {
+        const risk = wr.risk
+        if (risk === 'high') stance = 'upside'
+        else if (risk === 'low') stance = 'safer'
+        else stance = 'balanced'
+      }
+
+      let headline = 'Draft context'
+      if (isTopRec) headline = 'Copilot recommendation'
+      else if (altMatch) headline = 'Copilot alternative'
+      else if (wr?.bestPick && keyOf(wr.bestPick.name, wr.bestPick.position) === pk) headline = 'War Room focus'
+
+      return { headline, bullets: filtered, stance }
+    },
+    [presentationVariant, isDynasty, recommendationResult, warRoomData],
+  )
+
   const fetchWarRoom = useCallback(
     async (force?: boolean) => {
       if (!session?.currentPick || !session.teamCount || players.length === 0) return
       if (session.status !== 'in_progress') return
       if (session.draftType === 'auction' && !isMyTurnToNominateDraft) return
 
-      const cacheKey = `${session.currentPick.overall}|${session.picks?.length ?? 0}|${currentUserRosterId ?? ''}`
+      const cacheKey = `${session.currentPick.overall}|${session.picks?.length ?? 0}|${draftedPlayerIds.size}|${currentUserRosterId ?? ''}`
       if (force) warRoomCacheRef.current.delete(cacheKey)
       if (!force && warRoomCacheRef.current.has(cacheKey)) {
         setWarRoomData(warRoomCacheRef.current.get(cacheKey)!)
@@ -2105,9 +2869,8 @@ export function DraftRoomPageClient({
             team: p.team ?? null,
             byeWeek: p.byeWeek ?? null,
           })) ?? []
-        const available = players
-          .filter((p) => !draftedNames.has(normalizeDraftedPlayerName(p.name)))
-          .map((p) => ({
+        const availablePool = filterPlayersAvailableForDraftAi(players, draftedNames, draftedPlayerIds)
+        const available = availablePool.map((p) => ({
             name: p.name,
             position: p.position,
             team: p.team ?? null,
@@ -2201,6 +2964,7 @@ export function DraftRoomPageClient({
       session,
       players,
       draftedNames,
+      draftedPlayerIds,
       draftUISettings?.aiAdpEnabled,
       leagueAiAdp,
       effectiveDraftSport,
@@ -2248,6 +3012,8 @@ export function DraftRoomPageClient({
       <SportAwareDraftRoom
         players={players}
         draftedNames={draftedNames}
+        draftedPlayerIds={draftedPlayerIds}
+        presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
         sport={effectiveDraftSport}
         canDraft={!isAuctionDraft && canDraft}
         onAddToQueue={handleAddToQueue}
@@ -2280,11 +3046,24 @@ export function DraftRoomPageClient({
         selectedPlayerTarget={helperSelectedPlayer}
         leagueId={leagueId}
         aiRowBadges={aiRowBadges}
+        getDraftCopilotInsight={presentationVariant === 'redraft_snake' ? getDraftCopilotInsight : undefined}
+        getAssistantRoomContext={
+          presentationVariant === 'redraft_snake' ? getAssistantRoomContext : undefined
+        }
+        isPlayerQueued={(p) =>
+          queue.some(
+            (q) =>
+              normalizeDraftedPlayerName(q.playerName) === normalizeDraftedPlayerName(p.name) &&
+              String(q.position).trim().toLowerCase() === String(p.position).trim().toLowerCase(),
+          )
+        }
       />
     ),
     [
       players,
       draftedNames,
+      draftedPlayerIds,
+      queue,
       effectiveDraftSport,
       isAuctionDraft,
       isMyTurnToNominateDraft,
@@ -2306,12 +3085,15 @@ export function DraftRoomPageClient({
       helperSelectedPlayer,
       leagueId,
       aiRowBadges,
+      presentationVariant,
+      getDraftCopilotInsight,
+      getAssistantRoomContext,
     ]
   )
 
   const queueStackNode = useMemo(
     () => (
-      <div className="space-y-4 p-2">
+      <div className={`space-y-4 p-2 ${presentationVariant === 'redraft_snake' ? 'rounded-xl bg-[linear-gradient(180deg,rgba(34,211,238,0.04),transparent)] p-3' : ''}`}>
         <DraftIntelQueuePanel
           loading={draftIntelLoading}
           headline={draftIntel?.headline ?? null}
@@ -2320,6 +3102,8 @@ export function DraftRoomPageClient({
           queue={draftIntelQueue}
           canDraft={Boolean(canDraft && draftIntel?.status === 'on_clock')}
           onDraftTopChoice={canDraft && draftIntel?.status === 'on_clock' ? handleDraftIntelPick : undefined}
+          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+          onAddIntelSuggestion={presentationVariant === 'redraft_snake' ? handleAddIntelQueueSuggestion : undefined}
         />
         <QueuePanel
           queue={queueFiltered}
@@ -2340,15 +3124,18 @@ export function DraftRoomPageClient({
           aiReorderExplanation={aiReorderExplanation}
           aiReorderExecutionMode={aiReorderExecutionMode}
           analyticsLeagueId={leagueId}
+          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
         />
       </div>
     ),
     [
+      presentationVariant,
       draftIntelLoading,
       draftIntel?.headline,
       draftIntel?.picksUntilUser,
       draftIntel?.status,
       draftIntelQueue,
+      handleAddIntelQueueSuggestion,
       canDraft,
       handleDraftIntelPick,
       queueFiltered,
@@ -2382,12 +3169,17 @@ export function DraftRoomPageClient({
         onReconnect={handleChatReconnect}
         currentUserId={viewerAppUserId}
         onReact={viewerAppUserId ? handleReactChat : undefined}
+        presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+        sendError={chatSendError}
+        onDismissSendError={() => setChatSendError(null)}
+        leagueId={leagueId}
       />
     ),
     [
       chatMessagesWithAi,
       handleSendChat,
       chatSending,
+      chatSendError,
       chatSyncActive,
       isCommissioner,
       handleBroadcastOpen,
@@ -2395,6 +3187,7 @@ export function DraftRoomPageClient({
       handleChatReconnect,
       viewerAppUserId,
       handleReactChat,
+      presentationVariant,
     ]
   )
 
@@ -2414,8 +3207,8 @@ export function DraftRoomPageClient({
 
   useEffect(() => {
     if (!session?.picks?.length || queue.length === 0) return
-    const drafted = new Set(session.picks.map((p) => p.playerName))
-    const filtered = queue.filter((e) => !drafted.has(e.playerName))
+    const drafted = new Set(session.picks.map((p) => normalizeDraftedPlayerName(p.playerName)))
+    const filtered = queue.filter((e) => !drafted.has(normalizeDraftedPlayerName(e.playerName)))
     if (filtered.length >= queue.length) return
     const key = filtered.map((e) => e.playerName).join(',')
     if (lastPrunedQueueRef.current === key) return
@@ -2458,8 +3251,20 @@ export function DraftRoomPageClient({
 
   if (loading && !session) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center" data-testid="draft-room-loading-state">
-        <p className="text-white/70">Loading draft room…</p>
+      <div
+        className={`flex min-h-[50vh] flex-col items-center justify-center px-4 ${presentationVariant === 'redraft_snake' ? 'bg-[linear-gradient(180deg,rgba(8,18,36,0.35),transparent)]' : ''}`}
+        data-testid="draft-room-loading-state"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <div
+          className={`mb-4 h-12 w-12 animate-pulse rounded-2xl border ${presentationVariant === 'redraft_snake' ? 'border-cyan-400/25 bg-cyan-500/10' : 'border-white/15 bg-white/5'}`}
+          aria-hidden
+        />
+        <p className="text-center text-white/75">Loading draft room…</p>
+        <p className="mt-1 max-w-sm text-center text-xs text-white/45">
+          Hang tight while we sync your league session and player pool.
+        </p>
       </div>
     )
   }
@@ -2532,7 +3337,7 @@ export function DraftRoomPageClient({
     )
   }
 
-  const myDraftedPicks = (session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)
+  const myDraftedPicks = viewerDraftedPicks
   const myDevyAssetCount = myDraftedPicks.filter((p) => {
     const source = String((p as { source?: string | null }).source ?? '').toLowerCase()
     if (source === 'devy' || source === 'college') return true
@@ -2556,12 +3361,24 @@ export function DraftRoomPageClient({
     NCAAF: '167, 139, 250',
     SOCCER: '56, 189, 248',
   }[(effectiveDraftSport || 'NFL').toUpperCase()] ?? '34, 211, 238'
-  const draftBoardSurfaceStyle = {
-    backgroundImage: `linear-gradient(180deg, rgba(${sportAccent},0.1), rgba(4,9,21,0.75)), url('/branding/allfantasy-ai-for-fantasy-sports-logo.png')`,
-    backgroundSize: 'cover, 340px',
-    backgroundPosition: 'center, right -36px bottom -30px',
-    backgroundRepeat: 'no-repeat, no-repeat',
-  } as const
+  const draftBoardSurfaceStyle =
+    presentationVariant === 'redraft_snake'
+      ? ({
+          backgroundImage: [
+            `radial-gradient(ellipse 80% 60% at 80% 20%, rgba(${sportAccent},0.22), transparent 55%)`,
+            `radial-gradient(ellipse 50% 40% at 10% 90%, rgba(167,139,250,0.08), transparent 50%)`,
+            `linear-gradient(175deg, rgba(4,9,21,0.55) 0%, rgba(6,15,28,0.92) 100%)`,
+          ].join(', '),
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        } as const)
+      : ({
+          backgroundImage: `linear-gradient(180deg, rgba(${sportAccent},0.1), rgba(4,9,21,0.75)), url('/branding/allfantasy-ai-for-fantasy-sports-logo.png')`,
+          backgroundSize: 'cover, 340px',
+          backgroundPosition: 'center, right -36px bottom -30px',
+          backgroundRepeat: 'no-repeat, no-repeat',
+        } as const)
   const boardOrderSourceLabel =
     (session as { draftOrderMode?: string; lotteryLastRunAt?: string } | null)?.draftOrderMode === 'weighted_lottery' &&
     (session as { lotteryLastRunAt?: string } | null)?.lotteryLastRunAt
@@ -2588,6 +3405,14 @@ export function DraftRoomPageClient({
           </span>
           <span className="text-white/80 truncate max-w-[55%]">On clock: {currentPick.displayName}</span>
         </div>
+        {presentationVariant === 'redraft_snake' &&
+        draftIntel?.picksUntilUser != null &&
+        draftIntel.picksUntilUser > 0 &&
+        !isCurrentUserOnClock ? (
+          <p className="text-[10px] text-cyan-200/75" data-testid="draft-mobile-picks-until-you">
+            ~{draftIntel.picksUntilUser} pick{draftIntel.picksUntilUser === 1 ? '' : 's'} until your turn
+          </p>
+        ) : null}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
           <button
             type="button"
@@ -2645,7 +3470,7 @@ export function DraftRoomPageClient({
   const rosterPanel = (
     <div className="space-y-2 p-2">
       <div className="md:hidden">
-        <DraftTeamPanel {...draftTeamPanelProps} />
+        <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
       </div>
       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">My roster</h3>
       {formatType === 'IDP' && (
@@ -2739,23 +3564,49 @@ export function DraftRoomPageClient({
 
   return (
     <>
+    {presentationVariant === 'redraft_snake' && !isDynasty ? (
+      <DraftRoundOneAnnouncementOverlay
+        presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+        leagueName={leagueName}
+        sportLabel={typeof sport === 'string' ? sport.toUpperCase() : ''}
+        queue={roundOneAnnouncementQueue}
+        onDismissFront={dismissRoundOneAnnouncement}
+      />
+    ) : null}
     <DraftRoomShell
       layout="premium"
-      teamPanel={<DraftTeamPanel {...draftTeamPanelProps} />}
+      surfaceVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+      teamPanel={<DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />}
       centerColumn={
-        <div className="flex h-full min-h-0 flex-col bg-[#060d1e]">
+        <div
+          className={
+            presentationVariant === 'redraft_snake'
+              ? 'flex h-full min-h-0 flex-col bg-[radial-gradient(ellipse_100%_80%_at_50%_-10%,rgba(34,211,238,0.06),transparent),linear-gradient(180deg,#071826_0%,#050c18_50%,#040a14_100%)]'
+              : 'flex h-full min-h-0 flex-col bg-[#060d1e]'
+          }
+        >
           <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
         </div>
       }
       bottomBar={
         <div className="flex h-full min-h-0 w-full flex-col" data-testid="draft-bottom-dock-tabs">
-          <div className="grid grid-cols-4 gap-1 border-b border-white/8 bg-[#0a1228] px-2 py-1.5">
+          <div
+            className={`grid grid-cols-4 gap-1 border-b px-2 py-1.5 ${
+              presentationVariant === 'redraft_snake'
+                ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(5,12,24,0.98))] shadow-[inset_0_1px_0_rgba(34,211,238,0.08)]'
+                : 'border-white/8 bg-[#0a1228]'
+            }`}
+          >
             <button
               type="button"
               onClick={() => setBottomDockTab('queue')}
               data-testid="draft-bottom-tab-queue"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                bottomDockTab === 'queue' ? 'bg-white/12 text-cyan-100' : 'text-white/55 hover:bg-white/5'
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                bottomDockTab === 'queue'
+                  ? presentationVariant === 'redraft_snake'
+                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+                    : 'bg-white/12 text-cyan-100'
+                  : 'text-white/55 hover:bg-white/5'
               }`}
             >
               Queue
@@ -2764,8 +3615,12 @@ export function DraftRoomPageClient({
               type="button"
               onClick={() => setBottomDockTab('results')}
               data-testid="draft-bottom-tab-results"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                bottomDockTab === 'results' ? 'bg-white/12 text-cyan-100' : 'text-white/55 hover:bg-white/5'
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                bottomDockTab === 'results'
+                  ? presentationVariant === 'redraft_snake'
+                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+                    : 'bg-white/12 text-cyan-100'
+                  : 'text-white/55 hover:bg-white/5'
               }`}
             >
               Results
@@ -2774,8 +3629,12 @@ export function DraftRoomPageClient({
               type="button"
               onClick={() => setBottomDockTab('chat')}
               data-testid="draft-bottom-tab-chat"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                bottomDockTab === 'chat' ? 'bg-white/12 text-cyan-100' : 'text-white/55 hover:bg-white/5'
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                bottomDockTab === 'chat'
+                  ? presentationVariant === 'redraft_snake'
+                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+                    : 'bg-white/12 text-cyan-100'
+                  : 'text-white/55 hover:bg-white/5'
               }`}
             >
               Chat
@@ -2784,8 +3643,12 @@ export function DraftRoomPageClient({
               type="button"
               onClick={() => setBottomDockTab('ai')}
               data-testid="draft-bottom-tab-ai"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-                bottomDockTab === 'ai' ? 'bg-white/12 text-cyan-100' : 'text-white/55 hover:bg-white/5'
+              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                bottomDockTab === 'ai'
+                  ? presentationVariant === 'redraft_snake'
+                    ? 'bg-gradient-to-r from-violet-500/30 to-fuchsia-500/15 text-violet-50 shadow-[0_0_22px_rgba(167,139,250,0.2)]'
+                    : 'bg-white/12 text-cyan-100'
+                  : 'text-white/55 hover:bg-white/5'
               }`}
             >
               AI
@@ -2799,7 +3662,12 @@ export function DraftRoomPageClient({
 
             {bottomDockTab === 'results' ? (
               <div className="h-full overflow-hidden">
-                <DraftPickActivityStrip picks={session.picks ?? []} slotOrder={slotOrder} limit={32} />
+                <DraftPickActivityStrip
+                  picks={session.picks ?? []}
+                  slotOrder={slotOrder}
+                  limit={32}
+                  presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+                />
               </div>
             ) : null}
 
@@ -2808,8 +3676,15 @@ export function DraftRoomPageClient({
             ) : null}
 
             {bottomDockTab === 'ai' ? (
-              <div className="h-full overflow-auto p-3 text-xs text-white/75" data-testid="draft-bottom-ai-panel">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">Draft AI</p>
+              <div
+                className={`h-full overflow-auto p-3 text-xs text-white/75 ${
+                  presentationVariant === 'redraft_snake'
+                    ? 'bg-[linear-gradient(180deg,rgba(76,29,149,0.12),transparent)]'
+                    : ''
+                }`}
+                data-testid="draft-bottom-ai-panel"
+              >
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">Draft AI</p>
                 {entitlements.loading ? (
                   <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
                     <p className="text-white/55">Checking access…</p>
@@ -2877,6 +3752,62 @@ export function DraftRoomPageClient({
               <button type="button" onClick={() => setPickError(null)} className="rounded px-2 py-1 text-red-200 hover:bg-red-500/20" aria-label="Dismiss">×</button>
             </div>
           )}
+          {pickSuccessFlash ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center justify-between gap-2 border-b border-emerald-400/35 bg-[linear-gradient(90deg,rgba(52,211,153,0.14),rgba(15,23,42,0.85))] px-4 py-2.5 text-sm text-emerald-50 shadow-[0_8px_32px_rgba(52,211,153,0.12)]"
+              data-testid="draft-pick-success-banner"
+            >
+              <span className="font-medium">
+                Pick locked in: <span className="text-white">{pickSuccessFlash}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setPickSuccessFlash(null)}
+                className="rounded px-2 py-1 text-emerald-200/90 hover:bg-emerald-500/15"
+                aria-label="Dismiss confirmation"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+          {governanceBanner ? (
+            <div
+              role={governanceBanner.variant === 'error' ? 'alert' : 'status'}
+              aria-live={governanceBanner.variant === 'error' ? 'assertive' : 'polite'}
+              data-testid="draft-governance-banner"
+              className={`flex items-center justify-between gap-2 border-b px-4 py-2.5 text-sm ${
+                governanceBanner.variant === 'success'
+                  ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-50'
+                  : governanceBanner.variant === 'error'
+                    ? 'border-rose-400/35 bg-rose-500/12 text-rose-50'
+                    : 'border-amber-400/35 bg-amber-500/12 text-amber-50'
+              }`}
+            >
+              <span className="font-medium">{governanceBanner.message}</span>
+              <button
+                type="button"
+                onClick={() => setGovernanceBanner(null)}
+                className="rounded px-2 py-1 opacity-90 hover:bg-white/10"
+                aria-label="Dismiss notice"
+              >
+                ×
+              </button>
+            </div>
+          ) : session?.status === 'paused' ? (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="draft-paused-room-banner"
+              className="flex items-center gap-2 border-b border-amber-400/35 bg-[linear-gradient(90deg,rgba(251,191,36,0.12),rgba(15,23,42,0.92))] px-4 py-2.5 text-sm text-amber-50"
+            >
+              <span className="font-semibold uppercase tracking-[0.12em] text-amber-200/95">Paused</span>
+              <span className="text-amber-50/95">
+                Pick clock is frozen until the commissioner resumes the draft.
+              </span>
+            </div>
+          ) : null}
           <DraftTopBar
             leagueName={leagueName}
             leagueLogoUrl={leagueLogoUrl ?? null}
@@ -2900,12 +3831,13 @@ export function DraftRoomPageClient({
               void handleCopyInvite(source)
             }}
             onStartDraft={isCommissioner && session.status === 'pre_draft' ? () => void handleStartDraft() : undefined}
-            onPause={() => handleCommissionerAction('pause')}
-            onResume={() => handleCommissionerAction('resume')}
-            onResetTimer={() => handleCommissionerAction('reset_timer')}
-            onUndoPick={() => handleCommissionerAction('undo_pick')}
+            onPause={() => void handleCommissionerAction('pause')}
+            onResume={() => void handleCommissionerAction('resume')}
+            onResetTimer={() => void handleCommissionerResetTimer()}
+            onUndoPick={() => void handleCommissionerUndoPick()}
+            commissionerPauseControlsEnabled={draftUISettings?.commissionerPauseControlsEnabled ?? true}
             commissionerLoading={commissionerLoading}
-            isReconnecting={reconnecting}
+            isReconnecting={connectionDegraded}
             isOrphanOnClock={isOrphanOnClock}
             orphanDrafterMode={effectiveOrphanDrafterMode}
             orphanDrafterRequestedMode={requestedOrphanDrafterMode}
@@ -2927,8 +3859,15 @@ export function DraftRoomPageClient({
             onResync={handleResync}
             resyncLoading={resyncLoading}
             backHref={`/league/${leagueId}`}
-            leagueDraftSettingsHref={`/league/${encodeURIComponent(leagueId)}?settingsPanel=draft`}
+            onOpenDraftRoomSettings={() => setDraftRoomSettingsOpen(true)}
             onlineCount={onlineCount > 0 ? onlineCount : undefined}
+            draftRoomPresentation={presentationVariant}
+            currentRound={
+              draftCore?.draftStarted === false ? 1 : draftCore?.currentRound != null ? draftCore.currentRound : null
+            }
+            pickInRound={
+              draftCore?.draftStarted === false ? 1 : draftCore?.currentPickInRound != null ? draftCore.currentPickInRound : null
+            }
           />
         </>
       }
@@ -2938,6 +3877,17 @@ export function DraftRoomPageClient({
           className="flex min-h-0 flex-col gap-1.5 p-1.5 lg:flex-row lg:gap-2.5 lg:p-2.5"
           style={draftBoardSurfaceStyle}
         >
+          {presentationVariant === 'redraft_snake' && !isDynasty && session.status === 'in_progress' ? (
+            <div className="w-full shrink-0 lg:order-none">
+              <RedraftPlanningRibbon
+                picksUntilUser={draftIntel?.picksUntilUser ?? null}
+                userOnClock={isCurrentUserOnClock}
+                onDeck={redraftRibbonOnDeck}
+                thirdRoundReversal={session.thirdRoundReversal}
+                backToBackSoon={redraftBackToBackSoon}
+              />
+            </div>
+          ) : null}
           {draftUISettings?.executionMode === 'offline' ? (
             <div
               className="w-full shrink-0 rounded-lg border border-amber-400/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 lg:w-auto"
@@ -2996,6 +3946,7 @@ export function DraftRoomPageClient({
               currentUserRosterId={currentUserRosterId ?? null}
               aiManagedRosterIds={aiManagedRosterIds}
               orderSourceLabel={boardOrderSourceLabel}
+              presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
               onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
               onOpenTradeHistory={() => {
                 setTradeHistoryFocus(null)
@@ -3098,6 +4049,30 @@ export function DraftRoomPageClient({
             onDraftPlayer: handleMakePick,
             onQueuePlayer: handleAddToQueue,
           }}
+          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+          picksUntilUser={draftIntel?.picksUntilUser ?? null}
+          userOnTheClock={isCurrentUserOnClock}
+          resolvedRecommendedPlayer={recommendedPlayerResolved}
+          canCommitRecommendedPick={
+            Boolean(
+              recommendedPlayerResolved &&
+                isCurrentUserOnClock &&
+                canDraft &&
+                presentationVariant === 'redraft_snake',
+            )
+          }
+          onDraftRecommendedPlayer={
+            recommendedPlayerResolved && canDraft && isCurrentUserOnClock
+              ? () => handleMakePick(recommendedPlayerResolved)
+              : undefined
+          }
+          onQueueRecommendedPlayer={
+            recommendedPlayerResolved ? () => handleAddToQueue(recommendedPlayerResolved) : undefined
+          }
+          onQueueAlternativePlayer={(player) => {
+            const resolved = resolvePlayerFromPool(player.name, player.position)
+            if (resolved) handleAddToQueue(resolved)
+          }}
         />
       }
       chatPanel={chatPanelNode}
@@ -3106,6 +4081,19 @@ export function DraftRoomPageClient({
       mobileStickyBar={mobileStickyBar}
       mobileTab={mobileTab}
       onMobileTabChange={setMobileTab}
+    />
+    <DraftRoomSettingsModal
+      open={draftRoomSettingsOpen}
+      onClose={() => setDraftRoomSettingsOpen(false)}
+      leagueId={leagueId}
+      leagueName={leagueName}
+      draftSessionStatus={session?.status ?? 'pre_draft'}
+      isCommissioner={isCommissioner}
+      presentationVariant={presentationVariant}
+      draftIsAuction={session?.draftType === 'auction'}
+      onSaved={() => {
+        void fetchDraftSettings()
+      }}
     />
     {showCommissionerModal && isCommissioner && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Commissioner control center" data-testid="draft-commissioner-overlay">
@@ -3143,11 +4131,27 @@ export function DraftRoomPageClient({
       </div>
     )}
     {showTradePanel && session && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-label="Draft pick trades" data-testid="draft-trade-panel-overlay">
-        <div className="w-full max-w-lg max-h-[85vh] overflow-hidden">
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-3 backdrop-blur-md sm:p-4"
+        role="dialog"
+        aria-label="Draft pick trades"
+        data-testid="draft-trade-panel-overlay"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowTradePanel(false)
+        }}
+      >
+        <div
+          className="max-h-[min(92vh,960px)] w-full max-w-6xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
           <DraftPickTradePanel
             leagueId={leagueId}
+            leagueName={leagueName}
+            draftSessionStatus={session.status}
+            pickTradeEnabled={draftUISettings?.pickTradeEnabled ?? true}
+            presentationVariant={presentationVariant}
             sessionId={session.id}
+            draftStateFingerprint={tradeDraftStateFingerprint}
             slotOrder={slotOrder}
             teamCount={session.teamCount}
             rounds={session.rounds}
@@ -3156,7 +4160,10 @@ export function DraftRoomPageClient({
             initialTradeDraft={tradeInitialDraft}
             onClose={() => setShowTradePanel(false)}
             onTradeAccepted={(updatedSession?: unknown) => {
-              if (updatedSession != null) setSession(updatedSession as DraftSessionSnapshot)
+              if (updatedSession != null)
+                setSession((prev) =>
+                  mergeDraftSessionSnapshot(prev, updatedSession as DraftSessionSnapshot),
+                )
               fetchPendingTradesCount()
             }}
           />

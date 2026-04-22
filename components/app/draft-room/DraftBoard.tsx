@@ -37,6 +37,8 @@ export type DraftBoardProps = {
   }) => void
   /** Open the read-only pick-trade history modal. */
   onOpenTradeHistory?: () => void
+  /** Premium chrome for live redraft snake route. */
+  presentationVariant?: 'default' | 'redraft_snake'
   /**
    * Open the trade-history modal with a specific row pre-focused. Parent
    * routes to PickTradeHistoryModal's `focusRound` / `focusOriginalRosterId`
@@ -128,7 +130,9 @@ function DraftBoardInner({
   onCellTrade,
   onOpenTradeHistory,
   onViewCellTradeHistory,
+  presentationVariant = 'default',
 }: DraftBoardProps) {
+  const rs = presentationVariant === 'redraft_snake'
   const [viewMode, setViewMode] = useState<'all' | 'single'>('all')
   const [selectedRound, setSelectedRound] = useState(1)
   const lastFollowedOverallRef = useRef<number | null>(null)
@@ -321,18 +325,28 @@ function DraftBoardInner({
 
   return (
     <section
-      className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_20px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)]"
+      className={
+        rs
+          ? 'relative flex flex-col overflow-hidden rounded-2xl border border-cyan-400/20 bg-[linear-gradient(165deg,rgba(15,23,42,0.92)_0%,rgba(6,13,26,0.98)_45%,rgba(4,9,17,1)_100%)] shadow-[0_24px_72px_rgba(0,0,0,0.55),0_0_0_1px_rgba(34,211,238,0.06),inset_0_1px_0_rgba(255,255,255,0.06)]'
+          : 'relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.09] bg-gradient-to-b from-[#070f22] via-[#060d1e] to-[#050a14] shadow-[0_20px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)]'
+      }
       data-testid="draft-board"
     >
       <div
-        className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/20 to-transparent"
+        className={`pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r ${rs ? 'via-cyan-300/35' : 'via-cyan-400/20'} from-transparent to-transparent`}
         aria-hidden
       />
-      <div className="border-b border-white/[0.07] bg-[#060d1e]/80 px-3 py-2.5 text-xs text-white/70 backdrop-blur-sm sm:px-4">
+      <div
+        className={`border-b px-3 py-2.5 text-xs text-white/70 backdrop-blur-sm sm:px-4 ${rs ? 'border-cyan-500/10 bg-[#070f1d]/90' : 'border-white/[0.07] bg-[#060d1e]/80'}`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-bold tracking-tight text-white drop-shadow-sm">Draft board</span>
-            <span className="rounded-full border border-white/12 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60 shadow-sm">
+            <span className={`text-sm font-bold tracking-tight drop-shadow-sm ${rs ? 'bg-gradient-to-r from-white to-cyan-100/90 bg-clip-text text-transparent' : 'text-white'}`}>
+              Draft board
+            </span>
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] shadow-sm ${rs ? 'border-white/18 bg-white/[0.08] text-cyan-100/85' : 'border-white/12 bg-white/[0.06] text-white/60'}`}
+            >
               {boardModeLabel}
             </span>
             {tradedPicks.length > 0 ? (
@@ -485,6 +499,7 @@ function DraftBoardInner({
                         key={pick.overall}
                         pick={pick}
                         isEmpty={false}
+                        presentationVariant={presentationVariant}
                         sport={sport}
                         isRecentPick={Boolean(pick.playerName?.trim() && pick.overall === lastFilledPickOverall)}
                         tradedPickColorMode={tradedPickColorMode}
@@ -522,17 +537,31 @@ function DraftBoardInner({
         <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div className="min-w-max">
             <div
-              className="sticky top-0 z-10 grid gap-1 border-b border-white/[0.08] bg-[#070f24]/90 pb-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.35)] backdrop-blur-md sm:gap-1.5"
+              className={`sticky top-0 z-10 grid gap-1 border-b pb-1.5 backdrop-blur-md sm:gap-1.5 ${
+                rs
+                  ? 'border-cyan-500/15 bg-[rgba(7,15,36,0.92)] shadow-[0_16px_40px_rgba(0,0,0,0.45)]'
+                  : 'border-white/[0.08] bg-[#070f24]/90 shadow-[0_12px_32px_rgba(0,0,0,0.35)]'
+              }`}
               style={{ gridTemplateColumns: `56px repeat(${teamCount}, minmax(104px, 1fr))` }}
               data-testid="draft-board-team-header"
             >
-              <div className="flex h-9 items-center justify-center rounded-lg border border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] text-[10px] font-bold uppercase tracking-[0.16em] text-white/50 shadow-inner">
+              <div
+                className={`flex h-9 items-center justify-center rounded-lg border text-[10px] font-bold uppercase tracking-[0.16em] shadow-inner ${
+                  rs
+                    ? 'border-cyan-500/25 bg-gradient-to-b from-[#102238] to-[#0a1528] text-cyan-100/65'
+                    : 'border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] text-white/50'
+                }`}
+              >
                 Rd
               </div>
               {orderedSlots.map((entry) => (
                 <div
                   key={entry.rosterId}
-                  className="flex h-9 min-w-0 items-center rounded-lg border border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228] px-2 shadow-sm"
+                  className={`flex h-9 min-w-0 items-center rounded-lg border px-2 shadow-sm ${
+                    rs
+                      ? 'border-white/14 bg-gradient-to-b from-[#122338] to-[#0c1828]'
+                      : 'border-white/12 bg-gradient-to-b from-[#0d1628] to-[#0a1228]'
+                  }`}
                 >
                   <span className="mr-1 shrink-0 text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200/80">
                     {entry.slot}
@@ -602,6 +631,7 @@ function DraftBoardInner({
                           pick={pick}
                           isEmpty={!pick.playerName}
                           isCurrentPick={isCurrentPick}
+                          presentationVariant={presentationVariant}
                           sport={sport}
                           isRecentPick={Boolean(pick.playerName?.trim() && overall === lastFilledPickOverall)}
                           tradedPickColorMode={tradedPickColorMode}

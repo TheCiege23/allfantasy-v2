@@ -20,6 +20,10 @@ import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISetting
 import { getOrphanRosterIdsForLeague } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { getDraftOrderModeAndLotteryConfig } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { dedupeInFlight } from '@/lib/api-performance'
+import {
+  repairDraftCompletionIfBoardFull,
+  syncPostDraftArtifactsIfCompletedThrottled,
+} from '@/lib/live-draft-engine/postDraftFinalizeArtifacts'
 import { getProviderStatus } from '@/lib/provider-config'
 import { notifyDraftStartingSoon } from '@/lib/draft-notifications'
 import {
@@ -50,6 +54,10 @@ export async function GET(
       await runKeeperAutomationTick(leagueId).catch(() => {})
       await runSlowDraftAutomationTick(leagueId).catch(() => {})
       await runAuctionAutomationTick(leagueId).catch(() => {})
+      await repairDraftCompletionIfBoardFull(leagueId).catch((e) => {
+        console.error('[draft/session GET] repairDraftCompletionIfBoardFull', leagueId, e)
+      })
+      await syncPostDraftArtifactsIfCompletedThrottled(leagueId)
       const [snapshot, uiSettings, orphanRosterIds, orderMode] = await Promise.all([
         buildSessionSnapshot(leagueId),
         getDraftUISettingsForLeague(leagueId),

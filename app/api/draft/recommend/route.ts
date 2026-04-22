@@ -111,6 +111,10 @@ export async function POST(req: NextRequest) {
         idp: isIdp,
         numTeams: totalTeams,
         leagueName: typeof body.leagueName === 'string' ? body.leagueName : undefined,
+        assistantFeedBrief:
+          typeof body.assistantFeedBrief === 'string' && body.assistantFeedBrief.trim()
+            ? body.assistantFeedBrief.trim().slice(0, 600)
+            : undefined,
       }),
       leagueId: typeof body.leagueId === 'string' ? body.leagueId : undefined,
     })

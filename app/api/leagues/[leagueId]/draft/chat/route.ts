@@ -1,6 +1,14 @@
 /**
- * Draft room chat. When liveDraftChatSyncEnabled and draft active: same as league chat.
- * When sync off: draft-only messages (source='draft'). Only league managers can access.
+ * Draft room chat.
+ *
+ * League sync rules (explicit):
+ * - When liveDraftChatSyncEnabled + draft in_progress: viewer sees the unified league chat stream
+ *   PLUS draft-only `draft_pick` system rows merged in by time (`source='draft', type='draft_pick'`).
+ * - User-authored posts use `source=null` while sync is on → they appear in league chat.
+ * - User-authored posts use `source='draft'` while sync is off → draft-room-only chat.
+ * - Draft pick notifications are always persisted as `source='draft', type='draft_pick'` → they never
+ *   appear in the standalone league chat list (which excludes `source=draft`), including when sync is on.
+ * - Commissioner broadcasts follow existing league chat / broadcast plumbing (unchanged here).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -8,73 +16,39 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft } from '@/lib/live-draft-engine/auth'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
-import { getLeagueChatMessages, createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
+import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { parseMentions } from '@/lib/league-chat'
+import {
+  createLeaguePollPayload,
+  parseLeaguePollPayload,
+  type LeaguePollPayload,
+} from '@/lib/league-chat/LeaguePollService'
+import type { PlatformChatMessage } from '@/types/platform-shared'
 import { prisma } from '@/lib/prisma'
+import { sanitizeDraftChatPlayerContext } from '@/lib/draft-room/draft-chat-player-context'
+import {
+  buildDraftChatWireMessage,
+  sanitizeDraftChatStructuredSendMeta,
+} from '@/lib/draft-room/draft-chat-contract'
+import { loadDraftChatWireMessages } from '@/lib/draft-room/draftRoomChatWireLoad'
 
 export const dynamic = 'force-dynamic'
 
-type ReactionEntry = { emoji: string; count: number; userIds: string[] }
-
-/**
- * Extract the reactions list stored on LeagueChatMessage.metadata.reactions.
- * Shape matches the shared reactions route
- * (app/api/shared/chat/threads/[threadId]/messages/[messageId]/reactions).
- */
-function normalizeReactionEntries(metadata: unknown): ReactionEntry[] {
-  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return []
-  const raw = (metadata as Record<string, unknown>).reactions
-  if (!Array.isArray(raw)) return []
-  const out: ReactionEntry[] = []
-  for (const entry of raw) {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
-    const e = entry as { emoji?: unknown; count?: unknown; userIds?: unknown }
-    const emoji = typeof e.emoji === 'string' ? e.emoji.trim() : ''
-    if (!emoji) continue
-    const userIds = Array.isArray(e.userIds)
-      ? e.userIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-      : []
-    const countRaw = e.count
-    const count =
-      typeof countRaw === 'number' && Number.isFinite(countRaw)
-        ? Math.max(0, Math.floor(countRaw))
-        : userIds.length
-    out.push({ emoji, count, userIds })
-  }
-  return out
+function toDraftMessage(m: PlatformChatMessage, syncActive: boolean, leagueId: string) {
+  return buildDraftChatWireMessage(m, {
+    syncActive,
+    leagueId,
+    sanitizePlayerContext: sanitizeDraftChatPlayerContext,
+    parsePollPayload: (input: { body?: string | null; metadata?: Record<string, unknown> | null }) =>
+      normalizedParsePoll(input),
+  })
 }
 
-function toDraftMessage(m: {
-  id: string
-  senderName: string | null
-  body: string
-  createdAt: string
-  messageType?: string
-  metadata?: {
-    imageUrl?: string
-    mediaUrl?: string
-    mentions?: string[]
-    lastActiveAt?: string
-    reactions?: unknown
-  } | null
-}) {
-  const metadata = m.metadata ?? null
-  const normalizedType = String(m.messageType ?? 'text').toLowerCase()
-  return {
-    id: m.id,
-    from: m.senderName ?? 'User',
-    text: m.body,
-    at: m.createdAt,
-    isBroadcast: normalizedType === 'broadcast',
-    messageType: normalizedType,
-    mediaUrl:
-      metadata?.mediaUrl ??
-      metadata?.imageUrl ??
-      null,
-    mentions: Array.isArray(metadata?.mentions) ? metadata?.mentions : [],
-    lastActiveAt: typeof metadata?.lastActiveAt === 'string' ? metadata.lastActiveAt : null,
-    reactions: normalizeReactionEntries(metadata),
-  }
+function normalizedParsePoll(input: {
+  body?: string | null
+  metadata?: Record<string, unknown> | null
+}): LeaguePollPayload | null {
+  return parseLeaguePollPayload(input)
 }
 
 function isActiveLiveDraftStatus(status: string | null | undefined): boolean {
@@ -126,10 +100,7 @@ function parseChatMediaPayload(text: string): {
   return { body: text, type: 'link', imageUrl: null, mediaUrl: url }
 }
 
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ leagueId: string }> }
-) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -140,30 +111,22 @@ export async function GET(
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const [draftSession, uiSettings] = await Promise.all([
-    prisma.draftSession.findUnique({ where: { leagueId }, select: { status: true } }),
-    getDraftUISettingsForLeague(leagueId),
-  ])
-  const syncOn = Boolean(uiSettings.liveDraftChatSyncEnabled) && isActiveLiveDraftStatus(draftSession?.status)
   const limit = Math.min(Number(req.nextUrl.searchParams?.get('limit') || '80'), 100)
   const before = req.nextUrl.searchParams?.get('before')
+  const beforeDate = before ? new Date(before) : undefined
 
-  const messages = await getLeagueChatMessages(leagueId, {
+  const { messages, syncActive } = await loadDraftChatWireMessages(leagueId, userId, {
     limit,
-    before: before ? new Date(before) : undefined,
-    source: syncOn ? undefined : 'draft',
-    requestingUserId: userId,
+    before: beforeDate,
   })
+
   return NextResponse.json({
-    messages: messages.map(toDraftMessage),
-    syncActive: syncOn,
+    messages,
+    syncActive,
   })
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ leagueId: string }> }
-) {
+export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: string }> }) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -175,32 +138,74 @@ export async function POST(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
-  const text = String(body?.text ?? body?.message ?? body?.body ?? '').trim()
-  if (!text) return NextResponse.json({ error: 'Message required' }, { status: 400 })
-  if (text.length > 1000) return NextResponse.json({ error: 'Message too long' }, { status: 400 })
-  const imageUrl =
-    typeof body?.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null
+
+  if (String(body?.type ?? '').toLowerCase() === 'draft_pick') {
+    return NextResponse.json({ error: 'Pick notifications are generated by the draft engine.' }, { status: 400 })
+  }
 
   const [draftSession, uiSettings] = await Promise.all([
     prisma.draftSession.findUnique({ where: { leagueId }, select: { status: true } }),
     getDraftUISettingsForLeague(leagueId),
   ])
   const syncOn = Boolean(uiSettings.liveDraftChatSyncEnabled) && isActiveLiveDraftStatus(draftSession?.status)
+
+  const pollRaw = body?.poll
+  if (pollRaw && typeof pollRaw === 'object' && !Array.isArray(pollRaw)) {
+    const question = String((pollRaw as { question?: unknown }).question ?? '').trim()
+    const rawOpts = (pollRaw as { options?: unknown }).options
+    const options = Array.isArray(rawOpts)
+      ? rawOpts.map((o) => String(o).trim()).filter(Boolean)
+      : []
+    if (question.length < 2 || options.length < 2) {
+      return NextResponse.json({ error: 'Poll requires a question and at least two options.' }, { status: 400 })
+    }
+    const payload = createLeaguePollPayload(question, options)
+    const metadata: Record<string, unknown> = {
+      question: payload.question,
+      options: payload.options,
+      votes: payload.votes ?? {},
+    }
+    const created = await createLeagueChatMessage(leagueId, userId, payload.question, {
+      type: 'poll',
+      metadata,
+      source: syncOn ? null : 'draft',
+    })
+    if (!created) return NextResponse.json({ error: 'Failed to send' }, { status: 500 })
+    return NextResponse.json({
+      message: toDraftMessage(created, syncOn, leagueId),
+      syncActive: syncOn,
+    })
+  }
+
+  const text = String(body?.text ?? body?.message ?? body?.body ?? '').trim()
+  if (!text) return NextResponse.json({ error: 'Message required' }, { status: 400 })
+  if (text.length > 1000) return NextResponse.json({ error: 'Message too long' }, { status: 400 })
+  const imageUrl =
+    typeof body?.imageUrl === 'string' && body.imageUrl.trim() ? body.imageUrl.trim() : null
+
   const mediaPayload = parseChatMediaPayload(text)
   const mentions = parseMentions(text)
+  const structuredExtra = sanitizeDraftChatStructuredSendMeta(body?.structuredMeta ?? body?.mediaMeta)
   const metadata: Record<string, unknown> = {}
   if (mentions.length > 0) metadata.mentions = mentions
   if (mediaPayload.mediaUrl) metadata.mediaUrl = mediaPayload.mediaUrl
+  const playerContext =
+    body && typeof body === 'object' && 'playerContext' in body
+      ? sanitizeDraftChatPlayerContext((body as Record<string, unknown>).playerContext)
+      : undefined
+  if (playerContext) metadata.playerContext = playerContext
+  Object.assign(metadata, structuredExtra)
 
   const created = await createLeagueChatMessage(leagueId, userId, mediaPayload.body, {
     type: imageUrl ? 'image' : mediaPayload.type,
     imageUrl: imageUrl ?? mediaPayload.imageUrl,
     metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+    /** User messages: league-visible when sync is on; draft-only channel when sync is off. */
     source: syncOn ? null : 'draft',
   })
   if (!created) return NextResponse.json({ error: 'Failed to send' }, { status: 500 })
   return NextResponse.json({
-    message: toDraftMessage(created),
+    message: toDraftMessage(created, syncOn, leagueId),
     syncActive: syncOn,
   })
 }

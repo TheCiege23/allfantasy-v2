@@ -30,6 +30,7 @@ export type QueuePanelProps = {
   autoPickEnabled?: boolean
   /** When set, queue autopick/away/AI reorder emit product analytics beacons */
   analyticsLeagueId?: string
+  presentationVariant?: 'default' | 'redraft_snake'
 }
 
 export function QueuePanel({
@@ -51,12 +52,19 @@ export function QueuePanel({
   aiReorderExecutionMode,
   autoPickEnabled = true,
   analyticsLeagueId,
+  presentationVariant = 'default',
 }: QueuePanelProps) {
+  const rs = presentationVariant === 'redraft_snake'
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]" data-testid="draft-queue-panel">
-      <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2.5">
+    <section
+      className={`flex flex-col overflow-hidden rounded-xl border bg-[#060d1e] ${
+        rs ? 'border-cyan-500/25 shadow-[0_12px_40px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.05)]' : 'border-white/10'
+      }`}
+      data-testid="draft-queue-panel"
+    >
+      <div className={`flex items-center justify-between gap-2 border-b px-3 py-2.5 ${rs ? 'border-cyan-500/15 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent)]' : 'border-white/8'}`}>
         <div className="flex items-center gap-2">
           <ListOrdered className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-semibold text-white">Queue</span>
@@ -162,9 +170,18 @@ export function QueuePanel({
       )}
       <div className="flex-1 overflow-auto overscroll-contain p-2.5">
         {queue.length === 0 ? (
-          <p className="py-4 text-center text-[10px] text-white/50">
-            Queue is empty. Add players from the player list.
-          </p>
+          <div className="space-y-2 py-6 text-center">
+            <p className={`text-[11px] font-medium ${rs ? 'text-cyan-100/85' : 'text-white/60'}`}>Queue is empty</p>
+            <p className="mx-auto max-w-[260px] text-[10px] leading-relaxed text-white/42">
+              Add players from the pool with the + button. Top of queue can draft first when it&apos;s your turn (if auto-pick is on,
+              it uses this order).
+            </p>
+            {rs ? (
+              <p className="text-[9px] text-white/35">
+                Drag rows to reorder. AI reorder is optional — your order always wins on the clock.
+              </p>
+            ) : null}
+          </div>
         ) : (
           <ul className="space-y-2">
             {queue.map((entry, index) => (

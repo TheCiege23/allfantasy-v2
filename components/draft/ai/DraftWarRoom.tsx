@@ -235,6 +235,16 @@ export function DraftWarRoom({
             </p>
           )}
 
+          {data?.bestPick && !bestEntry ? (
+            <p
+              className="rounded-lg border border-cyan-400/25 bg-cyan-500/10 px-2 py-1.5 text-[11px] text-cyan-50"
+              role="status"
+              data-testid="draft-war-room-pick-unresolved"
+            >
+              This suggestion is not in your live player pool (they may have just been drafted). Use Refresh or pick from the board.
+            </p>
+          ) : null}
+
           {data && (
             <>
               {/* Best pick */}

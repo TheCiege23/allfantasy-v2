@@ -122,6 +122,7 @@ export type DraftBoardCellProps = {
   onViewTradeHistory?: () => void
   /** Snake: reversed rounds show a left arrow on empty cells; forward rounds show right. */
   emptyCellDirection?: 'forward' | 'reverse'
+  presentationVariant?: 'default' | 'redraft_snake'
 }
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
@@ -175,7 +176,9 @@ function DraftBoardCellInner({
   emptyCellDirection = 'forward',
   onTradeFromCell,
   onViewTradeHistory,
+  presentationVariant = 'default',
 }: DraftBoardCellProps) {
+  const rs = presentationVariant === 'redraft_snake'
   const sportNorm = normalizeToSupportedSport(pick.sport ?? sport ?? DEFAULT_SPORT)
 
   const normalized = React.useMemo(() => {
@@ -227,16 +230,24 @@ function DraftBoardCellInner({
     ? `Draft pick ${compactLabel}, empty slot`
     : `${pick.playerName ?? 'Player'}, ${pick.position ?? ''}, ${pick.team ?? ''}, pick ${compactLabel}`
 
+  const hoverLift = rs && !isEmpty ? 'hover:z-[1] hover:-translate-y-1 hover:scale-[1.02]' : 'hover:z-[1] hover:-translate-y-1.5 hover:scale-[1.03]'
+
   return (
     <div
-      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] shadow-xl backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-1.5 hover:scale-[1.03] hover:border-cyan-300/60 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
+      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
-          ? 'border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
+          ? rs
+            ? 'border-cyan-300/90 bg-[radial-gradient(ellipse_at_50%_0%,rgba(34,211,238,0.35),transparent),linear-gradient(155deg,rgba(34,211,238,0.22),rgba(15,23,42,0.96))] shadow-[0_0_56px_rgba(34,211,238,0.55)] ring-2 ring-cyan-200/70'
+            : 'border-cyan-400/95 bg-gradient-to-br from-cyan-500/35 via-[#2a3d5a] to-[#1f2d47] shadow-[0_0_50px_rgba(34,211,238,0.6)] ring-2 ring-cyan-300/80'
           : isRecentPick
-            ? 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
-            : `border-cyan-400/35 bg-gradient-to-b from-[#2a3d5a] to-[#1a2844] ${highlightClass(pickHighlight)}`
+            ? rs
+              ? 'border-emerald-400/70 bg-gradient-to-br from-emerald-500/28 to-[#142032] ring-1 ring-emerald-400/50 shadow-[0_0_36px_rgba(52,211,153,0.28)]'
+              : 'border-emerald-400/80 bg-gradient-to-br from-emerald-500/25 to-[#2a3d5a] ring-1 ring-emerald-400/60 shadow-[0_0_32px_rgba(52,211,153,0.35)]'
+            : isEmpty && rs
+              ? 'border border-dashed border-white/18 bg-[linear-gradient(145deg,rgba(15,23,42,0.5),rgba(8,15,28,0.85))] shadow-inner'
+              : `border-cyan-400/35 bg-gradient-to-b from-[#2a3d5a] to-[#1a2844] ${rs ? 'shadow-lg' : 'shadow-xl'} ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -310,7 +321,7 @@ function DraftBoardCellInner({
 
       {isEmpty ? (
         <div className="mt-auto flex min-h-0 flex-1 flex-col justify-end gap-0.5">
-          <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-white/22">Open</p>
+          <p className={`text-[9px] font-medium uppercase tracking-[0.12em] ${rs ? 'text-cyan-200/35' : 'text-white/22'}`}>Open</p>
           <div className="flex items-end justify-between gap-2">
             <div className="flex items-center gap-1 text-white/28">
               {emptyCellDirection === 'reverse' ? (

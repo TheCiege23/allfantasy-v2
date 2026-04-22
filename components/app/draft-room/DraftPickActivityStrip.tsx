@@ -6,19 +6,28 @@ export type DraftPickActivityStripProps = {
   picks: DraftPickSnapshot[]
   slotOrder: Array<{ rosterId: string; displayName: string }>
   limit?: number
+  presentationVariant?: 'default' | 'redraft_snake'
 }
 
-export function DraftPickActivityStrip({ picks, slotOrder, limit = 14 }: DraftPickActivityStripProps) {
+export function DraftPickActivityStrip({
+  picks,
+  slotOrder,
+  limit = 14,
+  presentationVariant = 'default',
+}: DraftPickActivityStripProps) {
+  const rs = presentationVariant === 'redraft_snake'
   const nameByRoster = new Map(slotOrder.map((s) => [s.rosterId, s.displayName]))
   const recent = picks.slice(-limit).reverse()
 
   return (
     <div
-      className="flex h-full min-h-[72px] flex-col bg-[#050c1d]/95"
+      className={`flex h-full min-h-[72px] flex-col ${rs ? 'bg-[linear-gradient(180deg,rgba(8,18,36,0.98),rgba(4,9,17,1))] shadow-[inset_0_1px_0_rgba(34,211,238,0.06)]' : 'bg-[#050c1d]/95'}`}
       data-testid="draft-activity-strip"
     >
-      <div className="shrink-0 border-b border-white/8 px-2 py-1.5">
-        <p className="text-[9px] font-semibold uppercase tracking-wider text-white/45">Live activity</p>
+      <div className={`shrink-0 border-b px-2 py-1.5 ${rs ? 'border-cyan-500/15' : 'border-white/8'}`}>
+        <p className={`text-[9px] font-semibold uppercase tracking-wider ${rs ? 'text-cyan-200/55' : 'text-white/45'}`}>
+          Live activity
+        </p>
       </div>
       <div className="flex-1 overflow-x-auto overflow-y-auto px-2 py-1.5">
         <ul className="grid grid-cols-1 gap-1.5 md:grid-cols-2 xl:grid-cols-3">
@@ -28,7 +37,11 @@ export function DraftPickActivityStrip({ picks, slotOrder, limit = 14 }: DraftPi
             recent.map((p) => (
               <li
                 key={p.id}
-                className="shrink-0 rounded-lg border border-white/10 bg-[#0a1228] px-2 py-1.5 text-[10px] md:shrink md:px-2"
+                className={`shrink-0 rounded-lg border px-2 py-1.5 text-[10px] md:shrink md:px-2 ${
+                  rs
+                    ? 'border-white/12 bg-[linear-gradient(135deg,rgba(15,23,42,0.9),rgba(8,16,32,0.95))] shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
+                    : 'border-white/10 bg-[#0a1228]'
+                }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-white/90 truncate">{p.playerName}</span>

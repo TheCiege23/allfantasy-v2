@@ -45,6 +45,8 @@ export type PlatformChatMessage = {
   body: string
   createdAt: string
   metadata?: Record<string, unknown>
+  /** LeagueChatMessage.source: null = league-wide channel row; `draft` = draft-only overlay. */
+  channelSource?: string | null
   /** Sleeper-style passthrough / league chat API (optional) */
   author_avatar?: string | null
   author_display_name?: string | null

@@ -86,8 +86,12 @@ vi.mock('@/lib/draft-notifications', () => ({
   notifyDraftAiTradeReviewAvailable: notifyDraftAiTradeReviewAvailableMock,
 }))
 
+const openaiChatJsonMock = vi.fn()
+
 vi.mock('@/lib/openai-client', () => ({
   openaiChatText: openaiChatTextMock,
+  openaiChatJson: openaiChatJsonMock,
+  parseJsonContentFromChatCompletion: vi.fn(),
 }))
 
 vi.mock('@/lib/provider-config', () => ({
@@ -98,6 +102,14 @@ vi.mock('@/lib/draft-automation-policy', () => ({
   evaluateAIInvocationPolicy: evaluateAIInvocationPolicyMock,
   buildDraftExecutionMetadata: buildDraftExecutionMetadataMock,
   withTimeout: withTimeoutMock,
+}))
+
+vi.mock('@/lib/subscription/EntitlementResolver', () => ({
+  EntitlementResolver: class {
+    async resolveForUser(_userId: string, _feature: string) {
+      return { hasAccess: false }
+    }
+  },
 }))
 
 describe('Draft trade AI DM system contract', () => {
@@ -193,8 +205,28 @@ describe('Draft trade AI DM system contract', () => {
     getServerSessionMock.mockResolvedValueOnce({ user: { id: 'receiver-user' } })
     canAccessLeagueDraftMock.mockResolvedValueOnce(true)
     getCurrentUserRosterIdForLeagueMock.mockResolvedValueOnce('roster-2')
+    getDraftSessionByLeagueMock.mockResolvedValueOnce({
+      id: 'session-1',
+      status: 'in_progress',
+      rounds: 8,
+      teamCount: 12,
+      draftType: 'snake',
+      thirdRoundReversal: false,
+      slotOrder: [
+        { slot: 1, rosterId: 'roster-1', displayName: 'Manager One' },
+        { slot: 2, rosterId: 'roster-2', displayName: 'Manager Two' },
+      ],
+      tradedPicks: [],
+      picks: [],
+    })
+    resolvePickOwnerMock.mockImplementation((_round: number, slot: number) =>
+      slot === 1
+        ? { rosterId: 'roster-1', displayName: 'Manager One' }
+        : { rosterId: 'roster-2', displayName: 'Manager Two' }
+    )
     ;(prismaMock.draftPickTradeProposal.findFirst as any).mockResolvedValueOnce({
       id: 'tp-1',
+      proposerRosterId: 'roster-1',
       receiverRosterId: 'roster-2',
       status: 'pending',
       giveRound: 1,

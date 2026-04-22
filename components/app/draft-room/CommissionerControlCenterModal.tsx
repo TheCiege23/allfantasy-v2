@@ -48,7 +48,7 @@ export type CommissionerControlCenterModalProps = {
   devyConfig?: { enabled: boolean; devyRounds: number[] } | null
   c2cConfig?: { enabled: boolean; collegeRounds: number[] } | null
   onClose: () => void
-  onAction: (action: string, payload?: Record<string, unknown>) => Promise<{ session?: unknown } | void>
+  onAction: (action: string, payload?: Record<string, unknown>) => Promise<unknown>
   onSettingsPatch: (patch: Partial<DraftUISettings>) => Promise<void>
   onSaveDevyConfig?: (input: { enabled: boolean; devyRounds: number[] }) => Promise<{ ok?: boolean; error?: string; session?: unknown } | void>
   onSaveC2CConfig?: (input: { enabled: boolean; collegeRounds: number[] }) => Promise<{ ok?: boolean; error?: string; session?: unknown } | void>
@@ -106,6 +106,7 @@ export function CommissionerControlCenterModal({
 }: CommissionerControlCenterModalProps) {
   const [timerInput, setTimerInput] = useState(String(timerSeconds ?? 90))
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionApiError, setActionApiError] = useState<string | null>(null)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [showImportFlow, setShowImportFlow] = useState(false)
   const [devyEnabledInput, setDevyEnabledInput] = useState(Boolean(devyConfig?.enabled))
@@ -171,8 +172,13 @@ export function CommissionerControlCenterModal({
 
   const run = async (key: string, fn: () => Promise<unknown>) => {
     setActionLoading(key)
+    setActionApiError(null)
     try {
-      await fn()
+      const result = (await fn()) as { ok?: boolean; error?: string; cancelled?: boolean } | void
+      if (result && typeof result === 'object') {
+        if ('cancelled' in result && result.cancelled) return
+        if (result.ok === false && typeof result.error === 'string') setActionApiError(result.error)
+      }
     } finally {
       setActionLoading(null)
     }
@@ -294,6 +300,23 @@ export function CommissionerControlCenterModal({
       </div>
 
       <div className="flex-1 overflow-auto p-4 space-y-6">
+        {actionApiError ? (
+          <div
+            role="alert"
+            data-testid="draft-commissioner-action-error"
+            className="flex items-start justify-between gap-2 rounded-lg border border-rose-400/35 bg-rose-500/12 px-3 py-2 text-[12px] text-rose-50"
+          >
+            <span>{actionApiError}</span>
+            <button
+              type="button"
+              onClick={() => setActionApiError(null)}
+              className="shrink-0 rounded px-2 py-0.5 text-rose-200 hover:bg-rose-500/25"
+              aria-label="Dismiss error"
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
         {/* Draft flow */}
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">Draft flow</h3>

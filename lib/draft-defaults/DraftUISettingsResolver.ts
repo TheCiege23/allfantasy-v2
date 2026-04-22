@@ -49,6 +49,13 @@ export interface DraftUISettings {
   importEnabled: boolean
   /** Execution mode — drives draft-room UI (offline banner, commissioner-elevated pick source). */
   executionMode: DraftExecutionMode
+  /** Redraft snake premium on-screen banner after each Round 1 selection (commissioner toggle). */
+  roundOnePickAnnouncementEnabled: boolean
+  /**
+   * Fire-and-forget HeyGen narration clip after Round 1 picks when server has HEYGEN_API_KEY.
+   * Does not block drafting; commissioner-only UX toggle.
+   */
+  roundOneHeyGenHighlightEnabled: boolean
 }
 
 const DRAFT_UI_DEFAULTS: DraftUISettings = {
@@ -68,6 +75,8 @@ const DRAFT_UI_DEFAULTS: DraftUISettings = {
   auctionAutoNominationEnabled: false,
   importEnabled: true,
   executionMode: 'live',
+  roundOnePickAnnouncementEnabled: true,
+  roundOneHeyGenHighlightEnabled: false,
 }
 
 const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
@@ -88,6 +97,8 @@ const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
   auctionAutoNominationEnabled: 'draft_auction_auto_nomination_enabled',
   importEnabled: 'draft_import_enabled',
   executionMode: 'draft_execution_mode',
+  roundOnePickAnnouncementEnabled: 'draft_round_one_pick_announcement_enabled',
+  roundOneHeyGenHighlightEnabled: 'draft_round_one_heygen_highlight_enabled',
 }
 
 function fromStorage(settings: Record<string, unknown>): DraftUISettings {
@@ -110,6 +121,12 @@ function fromStorage(settings: Record<string, unknown>): DraftUISettings {
     auctionAutoNominationEnabled: settings[SETTINGS_KEYS.auctionAutoNominationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.auctionAutoNominationEnabled,
     importEnabled: settings[SETTINGS_KEYS.importEnabled] as boolean ?? DRAFT_UI_DEFAULTS.importEnabled,
     executionMode: resolveExecutionMode(settings),
+    roundOnePickAnnouncementEnabled:
+      settings[SETTINGS_KEYS.roundOnePickAnnouncementEnabled] as boolean ??
+      DRAFT_UI_DEFAULTS.roundOnePickAnnouncementEnabled,
+    roundOneHeyGenHighlightEnabled:
+      settings[SETTINGS_KEYS.roundOneHeyGenHighlightEnabled] as boolean ??
+      DRAFT_UI_DEFAULTS.roundOneHeyGenHighlightEnabled,
   }
 }
 
@@ -184,6 +201,12 @@ export async function updateDraftUISettings(
     next[SETTINGS_KEYS.auctionAutoNominationEnabled] = patch.auctionAutoNominationEnabled
   if (patch.importEnabled !== undefined)
     next[SETTINGS_KEYS.importEnabled] = patch.importEnabled
+  if (patch.executionMode !== undefined && (patch.executionMode === 'live' || patch.executionMode === 'auto' || patch.executionMode === 'offline'))
+    next[SETTINGS_KEYS.executionMode] = patch.executionMode
+  if (patch.roundOnePickAnnouncementEnabled !== undefined)
+    next[SETTINGS_KEYS.roundOnePickAnnouncementEnabled] = patch.roundOnePickAnnouncementEnabled
+  if (patch.roundOneHeyGenHighlightEnabled !== undefined)
+    next[SETTINGS_KEYS.roundOneHeyGenHighlightEnabled] = patch.roundOneHeyGenHighlightEnabled
 
   await prisma.league.update({
     where: { id: leagueId },

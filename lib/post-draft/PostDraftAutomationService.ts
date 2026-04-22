@@ -149,12 +149,25 @@ export async function buildPostDraftSummary(leagueId: string): Promise<PostDraft
  * Ensure rosters are finalized (idempotent). Call after draft completion.
  */
 export async function ensurePostDraftFinalized(leagueId: string): Promise<boolean> {
+  const { repairDraftCompletionIfBoardFull, runPostDraftFinalizationArtifacts } = await import(
+    '@/lib/live-draft-engine/postDraftFinalizeArtifacts'
+  )
+
+  await repairDraftCompletionIfBoardFull(leagueId).catch((e) => {
+    console.error('[ensurePostDraftFinalized] repairDraftCompletionIfBoardFull', leagueId, e)
+  })
+
   const session = await prisma.draftSession.findUnique({
     where: { leagueId },
     select: { status: true },
   })
   if (!session || session.status !== 'completed') return false
-  const { finalizeRosterAssignments } = await import('@/lib/live-draft-engine/RosterAssignmentService')
-  await finalizeRosterAssignments(leagueId)
+
+  try {
+    /** Full run (not poll-throttled): recap/summary routes must materialize rosters + grades from the saved board. */
+    await runPostDraftFinalizationArtifacts(leagueId)
+  } catch (e) {
+    console.error('[ensurePostDraftFinalized] runPostDraftFinalizationArtifacts', leagueId, e)
+  }
   return true
 }

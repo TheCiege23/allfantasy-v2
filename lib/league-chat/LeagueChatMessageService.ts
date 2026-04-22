@@ -53,10 +53,15 @@ export async function getLeagueChatMessages(
     source?: string | null /** when undefined, league channel = exclude draft-only + tribe-only */
     /** Required for private @chimmy rows — omit only for internal jobs (avoid leaking). */
     requestingUserId?: string
+    /** When set, restrict to these `LeagueChatMessage.type` values (e.g. draft_pick overlay during sync). */
+    messageTypeIn?: string[]
   }
 ): Promise<PlatformChatMessage[]> {
   const limit = Math.min(options.limit ?? 50, 100)
   const where: Record<string, unknown> = { leagueId }
+  if (Array.isArray(options.messageTypeIn) && options.messageTypeIn.length > 0) {
+    where.type = { in: options.messageTypeIn }
+  }
   if (typeof options.source === 'string' && options.source.trim()) {
     where.source = options.source.trim()
   } else if (options.source === null) {
@@ -95,9 +100,11 @@ export async function getLeagueChatMessages(
       typeof rawMeta?.discordAuthorName === 'string' ? rawMeta.discordAuthorName : null
     const discordAuthorAvatarUrl =
       typeof rawMeta?.discordAuthorAvatarUrl === 'string' ? rawMeta.discordAuthorAvatarUrl : null
+    const src = (m as { source?: string | null }).source ?? null
     const base = {
       id: m.id,
       threadId: `league:${leagueId}`,
+      channelSource: src,
       senderUserId: m.user?.id ?? null,
       senderName: discordAuthorName || m.user?.displayName || m.user?.email || 'User',
       senderUsername: m.user?.username ?? null,
@@ -201,6 +208,7 @@ export async function createLeagueChatMessage(
     id: created.id,
     threadId: `league:${leagueId}`,
     parentMessageId: created.parentMessageId ?? null,
+    channelSource: created.source ?? null,
     senderUserId: withUser.user?.id ?? created.userId,
     senderName: inboundName || withUser.user?.displayName || withUser.user?.email || 'User',
     senderUsername: withUser.user?.username ?? null,

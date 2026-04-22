@@ -23,7 +23,16 @@ export default async function SnakeDraftPage({
   if (!context) redirect('/dashboard')
 
   return (
-    <div className="min-h-screen">
+    <div
+      className={
+        context.kind === 'live' &&
+        !context.isDynasty &&
+        context.routeType === 'snake' &&
+        String(context.draftType).toLowerCase() !== 'auction'
+          ? 'min-h-screen bg-[radial-gradient(ellipse_100%_60%_at_50%_0%,rgba(34,211,238,0.08),transparent_50%)]'
+          : 'min-h-screen'
+      }
+    >
       {context.kind === 'mock' ? (
         <div className="mx-auto max-w-6xl p-4">
           <DraftBoard kind="mock" draftId={context.draftId} canManage />
@@ -38,6 +47,13 @@ export default async function SnakeDraftPage({
           isDynasty={context.isDynasty}
           isCommissioner={context.isCommissioner}
           formatType={context.formatType}
+          presentationVariant={
+            !context.isDynasty &&
+            context.routeType === 'snake' &&
+            String(context.draftType).toLowerCase() !== 'auction'
+              ? 'redraft_snake'
+              : 'default'
+          }
         />
       )}
     </div>

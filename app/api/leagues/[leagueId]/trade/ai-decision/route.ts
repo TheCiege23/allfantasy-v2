@@ -17,8 +17,7 @@ import {
 } from '@/lib/orphan-ai-manager/OrphanAIManagerService'
 import { getDraftSessionByLeague, buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendDraftPickTrades } from '@/lib/live-draft-engine/DraftPickTradeService'
-import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
-import { getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
+import { computeUpcomingOwnedPicks } from '@/lib/live-draft-engine/draftPickTradeInventory'
 import { isDraftPickTradingAllowedForLeague } from '@/lib/tournament-mode/safety'
 import { prisma } from '@/lib/prisma'
 
@@ -27,34 +26,6 @@ export const dynamic = 'force-dynamic'
 function toInt(value: unknown): number | null {
   const n = Number(value)
   return Number.isFinite(n) ? Math.trunc(n) : null
-}
-
-function computeUpcomingOwnedPicks(params: {
-  totalPicks: number
-  pickedOverall: Set<number>
-  teamCount: number
-  draftType: 'snake' | 'linear' | 'auction'
-  thirdRoundReversal: boolean
-  slotOrder: Array<{ slot: number; rosterId: string; displayName: string }>
-  tradedPicks: Array<{ round: number; originalRosterId: string; newRosterId: string; previousOwnerName: string; newOwnerName: string }>
-  ownerRosterId: string
-}) {
-  const picks: Array<{ overall: number; round: number; slot: number }> = []
-  for (let overall = 1; overall <= params.totalPicks; overall += 1) {
-    if (params.pickedOverall.has(overall)) continue
-    const round = Math.ceil(overall / params.teamCount)
-    const slot = getSlotInRoundForOverall({
-      overall,
-      teamCount: params.teamCount,
-      draftType: params.draftType,
-      thirdRoundReversal: params.thirdRoundReversal,
-    })
-    const owner = resolvePickOwner(round, slot, params.slotOrder, params.tradedPicks)
-    if (owner?.rosterId === params.ownerRosterId) {
-      picks.push({ overall, round, slot })
-    }
-  }
-  return picks
 }
 
 export async function POST(

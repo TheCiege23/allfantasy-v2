@@ -1,7 +1,7 @@
 /**
  * POST: Private AI trade review for the receiving manager.
- * Returns suggested verdict (accept | reject | counter), reasons, and optional counter/decline reasons.
- * Does not post to league chat; for private use only.
+ * Returns suggested verdict (accept | reject | counter), reasons, structured fairness bands,
+ * and optional AF Pro AI summary.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -10,7 +10,7 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { prisma } from '@/lib/prisma'
 import { buildDraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
-import { openaiChatText } from '@/lib/openai-client'
+import { openaiChatJson, parseJsonContentFromChatCompletion } from '@/lib/openai-client'
 import { getProviderStatus } from '@/lib/provider-config'
 import { sendPrivateTradeAIDM } from '@/lib/trade-ai-dm/TradeAIDMService'
 import {
@@ -18,6 +18,12 @@ import {
   evaluateAIInvocationPolicy,
   withTimeout,
 } from '@/lib/draft-automation-policy'
+import { EntitlementResolver } from '@/lib/subscription/EntitlementResolver'
+import { getDraftSessionByLeague } from '@/lib/live-draft-engine/DraftSessionService'
+import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
+import { resolveOverallForRoundSlot } from '@/lib/live-draft-engine/draftPickTradeInventory'
+import { buildDraftPickTradeStructuredAnalysis } from '@/lib/live-draft-engine/draftPickTradeStructuredAnalysis'
+import type { TradedPickRecord } from '@/lib/live-draft-engine/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +43,7 @@ export async function POST(
   const myRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   const proposal = await (prisma as any).draftPickTradeProposal.findFirst({
     where: { id: proposalId },
-    include: { session: { select: { leagueId: true, teamCount: true } } },
+    include: { session: { select: { leagueId: true, teamCount: true, id: true } } },
   })
   if (!proposal || proposal.session?.leagueId !== leagueId) {
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
@@ -53,18 +59,116 @@ export async function POST(
     body?.includeAiExplanation ?? body?.include_ai_explanation ?? false
   )
 
-  const review = buildDraftTradeAiReview({
-    giveRound: proposal.giveRound,
-    giveSlot: proposal.giveSlot,
-    receiveRound: proposal.receiveRound,
-    receiveSlot: proposal.receiveSlot,
-    teamCount: proposal.session?.teamCount ?? 12,
+  const draftSession = await getDraftSessionByLeague(leagueId)
+  if (!draftSession || draftSession.status !== 'in_progress') {
+    return NextResponse.json({ error: 'Draft is not live — this offer may be stale.' }, { status: 400 })
+  }
+
+  const rawSlotOrder = (draftSession as { slotOrder?: unknown }).slotOrder
+  const slotOrder = (Array.isArray(rawSlotOrder) ? rawSlotOrder : []) as unknown as {
+    slot: number
+    rosterId: string
+    displayName: string
+  }[]
+  const rawTradedPicks = (draftSession as { tradedPicks?: unknown }).tradedPicks
+  const tradedPicks = (Array.isArray(rawTradedPicks) ? rawTradedPicks : []) as unknown as TradedPickRecord[]
+
+  const proposerRosterId = String(proposal.proposerRosterId)
+  const receiverRosterId = String(proposal.receiverRosterId)
+
+  const giveOwner = resolvePickOwner(proposal.giveRound, proposal.giveSlot, slotOrder, tradedPicks)
+  const recvOwner = resolvePickOwner(proposal.receiveRound, proposal.receiveSlot, slotOrder, tradedPicks)
+  if (!giveOwner || giveOwner.rosterId !== proposerRosterId) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'STALE_PROPOSAL_GIVE',
+        error: 'Their offered pick is no longer owned as stored — refresh offers.',
+      },
+      { status: 409 }
+    )
+  }
+  if (!recvOwner || recvOwner.rosterId !== receiverRosterId) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'STALE_PROPOSAL_RECEIVE',
+        error: 'Your pick in this offer is no longer yours — refresh offers.',
+      },
+      { status: 409 }
+    )
+  }
+
+  const draftedOveralls = new Set((draftSession.picks ?? []).map((pick: { overall: number }) => pick.overall))
+  const giveOverallPick = resolveOverallForRoundSlot({
+    round: proposal.giveRound,
+    slot: proposal.giveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
+    thirdRoundReversal: draftSession.thirdRoundReversal,
   })
+  const receiveOverallPick = resolveOverallForRoundSlot({
+    round: proposal.receiveRound,
+    slot: proposal.receiveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
+    thirdRoundReversal: draftSession.thirdRoundReversal,
+  })
+  if (
+    (giveOverallPick != null && draftedOveralls.has(giveOverallPick)) ||
+    (receiveOverallPick != null && draftedOveralls.has(receiveOverallPick))
+  ) {
+    return NextResponse.json(
+      {
+        ok: false,
+        code: 'PICK_ALREADY_USED',
+        error: 'One or both picks were already used — this offer is invalid.',
+      },
+      { status: 409 }
+    )
+  }
+
+  const dt = draftSession.draftType as 'snake' | 'linear' | 'auction'
+  const trr = Boolean(draftSession.thirdRoundReversal)
+
+  /** Receiver POV: you give receive*, you get give*. */
+  const review = buildDraftTradeAiReview({
+    giveRound: proposal.receiveRound,
+    giveSlot: proposal.receiveSlot,
+    receiveRound: proposal.giveRound,
+    receiveSlot: proposal.giveSlot,
+    teamCount: proposal.session?.teamCount ?? draftSession.teamCount,
+    draftType: dt,
+    thirdRoundReversal: trr,
+  })
+
+  const giveOverallYou = resolveOverallForRoundSlot({
+    round: proposal.receiveRound,
+    slot: proposal.receiveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: dt,
+    thirdRoundReversal: trr,
+  })
+  const receiveOverallYou = resolveOverallForRoundSlot({
+    round: proposal.giveRound,
+    slot: proposal.giveSlot,
+    teamCount: draftSession.teamCount,
+    draftType: dt,
+    thirdRoundReversal: trr,
+  })
+
+  const structuredAnalysis = buildDraftPickTradeStructuredAnalysis({
+    giveOverall: giveOverallYou,
+    receiveOverall: receiveOverallYou,
+    teamCount: draftSession.teamCount,
+  })
+
+  const premiumTradeAi = (await new EntitlementResolver().resolveForUser(userId, 'pro_trade_ai')).hasAccess
 
   const invocation = evaluateAIInvocationPolicy({
     feature: 'private_trade_review',
     scopeId: leagueId,
-    requestAI: includeAiExplanation,
+    requestAI: includeAiExplanation && premiumTradeAi,
     aiEnabled: true,
     providerAvailable: getProviderStatus().anyAi,
   })
@@ -72,45 +176,95 @@ export async function POST(
   let summary = review.summary
   let aiUsed = false
   let reasonCode = invocation.reasonCode
+  if (!premiumTradeAi && includeAiExplanation) {
+    reasonCode = 'entitlement_deterministic_only'
+  }
+  let aiConfidence: number | null = null
+
+  const mySlotEntry = slotOrder.find((s) => s.rosterId === myRosterId)
+  const partnerSlotEntry = slotOrder.find((s) => s.rosterId === proposerRosterId)
+  const picksMade = (draftSession.picks ?? []).length
+  const currentPick = (draftSession as { currentPick?: { overall: number; round: number; slot: number; rosterId?: string } | null })
+    .currentPick
 
   if (invocation.decision === 'allow_ai') {
     const aiResult = await withTimeout(
-      openaiChatText({
+      openaiChatJson({
+        skipCache: true,
+        temperature: 0.35,
+        maxTokens: 420,
         messages: [
           {
             role: 'system',
             content:
-              'You explain draft-pick trades in concise language for a private fantasy manager review. Keep facts unchanged and do not invent context.',
+              'You analyze live fantasy draft pick trades (snake/redraft). Use only the JSON facts provided. Return strict JSON: { "summary": string (2 short sentences), "confidence": number between 0 and 1 } reflecting certainty given draft-capital logic — not player predictions.',
           },
           {
             role: 'user',
-            content: [
-              `Give pick: round ${proposal.giveRound}, slot ${proposal.giveSlot}`,
-              `Receive pick: round ${proposal.receiveRound}, slot ${proposal.receiveSlot}`,
-              `Team count: ${proposal.session?.teamCount ?? 12}`,
-              `Deterministic verdict: ${review.verdict}`,
-              `Deterministic reasons: ${review.reasons.join('; ')}`,
-              `Counter reasons: ${review.counterReasons.join('; ')}`,
-              `Decline reasons: ${review.declineReasons.join('; ')}`,
-              `Suggested counter package: ${review.suggestedCounterPackage ?? 'none'}`,
-              `Rewrite as a concise private review summary in 2-3 sentences.`,
-            ].join('\n'),
+            content: JSON.stringify({
+              leagueId,
+              perspective: 'receiver_evaluating_incoming_offer',
+              draftContext: {
+                draftType: draftSession.draftType,
+                thirdRoundReversal: draftSession.thirdRoundReversal,
+                teamCount: draftSession.teamCount,
+                rounds: draftSession.rounds,
+                picksMade,
+                approximateNextOverall: picksMade + 1,
+                currentPick: currentPick
+                  ? {
+                      overall: currentPick.overall,
+                      round: currentPick.round,
+                      slot: currentPick.slot,
+                      onClockRosterId: currentPick.rosterId ?? null,
+                    }
+                  : null,
+              },
+              trade: {
+                youGive: {
+                  round: proposal.receiveRound,
+                  slot: proposal.receiveSlot,
+                  overall: giveOverallYou,
+                  ownerLabel: mySlotEntry?.displayName ?? 'You',
+                },
+                youReceive: {
+                  round: proposal.giveRound,
+                  slot: proposal.giveSlot,
+                  overall: receiveOverallYou,
+                  ownerLabel: partnerSlotEntry?.displayName ?? 'Partner',
+                },
+                structured: structuredAnalysis,
+                deterministicVerdict: review.verdict,
+                deterministicReasons: review.reasons,
+              },
+            }),
           },
         ],
-        temperature: 0.35,
-        maxTokens: 180,
       }),
       invocation.maxLatencyMs
     )
 
-    if (aiResult.ok && aiResult.value.ok && aiResult.value.text.trim().length > 0) {
-      summary = aiResult.value.text.trim()
-      aiUsed = true
-      reasonCode = 'ai_private_trade_summary'
-    } else if (!aiResult.ok) {
+    if (!aiResult.ok) {
       reasonCode = 'ai_timeout_deterministic_fallback'
-    } else {
+    } else if (!aiResult.value.ok) {
       reasonCode = 'ai_error_deterministic_fallback'
+    } else {
+      const parsed = parseJsonContentFromChatCompletion(aiResult.value.json) as {
+        summary?: unknown
+        confidence?: unknown
+      } | null
+      const text = typeof parsed?.summary === 'string' ? parsed.summary.trim() : ''
+      if (text.length > 0) {
+        summary = text
+        aiUsed = true
+        reasonCode = 'ai_trade_preview'
+        const c = parsed?.confidence
+        if (typeof c === 'number' && Number.isFinite(c)) {
+          aiConfidence = Math.max(0, Math.min(1, c))
+        }
+      } else {
+        reasonCode = 'ai_parse_fallback'
+      }
     }
   }
 
@@ -137,6 +291,8 @@ export async function POST(
     counterReasons: review.counterReasons,
     summary,
     suggestedCounterPackage: review.suggestedCounterPackage,
+    structuredAnalysis,
+    aiConfidence,
     privateAiDmSent: privateAiDm.sent,
     privateAiDmCounterSuggestion: privateAiDm.counterSuggestion,
     private: true,

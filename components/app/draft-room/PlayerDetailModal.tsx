@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X, Star, Flame } from 'lucide-react'
+import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import type { NormalizedDraftRoomPlayer } from '@/lib/players/normalizePlayer'
 import { getPlayerImage, preloadPlayerImage } from '@/lib/players/getPlayerImage'
 
@@ -48,6 +49,13 @@ export interface LeagueContext {
   acquiredVia?: string | null
 }
 
+/** Live digest from `/draft/assistant-context` mapped to this player / league. */
+export type DraftAssistantRoomContext = {
+  headline?: string | null
+  injuryLine?: string | null
+  digestPreview?: string | null
+}
+
 export interface PlayerDetailModalProps {
   open: boolean
   onClose: () => void
@@ -61,6 +69,16 @@ export interface PlayerDetailModalProps {
   canDraft?: boolean
   isWatchlisted?: boolean
   onToggleWatchlist?: () => void
+  /** Live redraft snake: synthesized insight from draft copilot + War Room when available. */
+  draftCopilot?: DraftCopilotInsight | null
+  /** News/injury/sports digest aligned to assistant-context for this player. */
+  assistantRoomContext?: DraftAssistantRoomContext | null
+  /** Live snake redraft: denser chrome aligned with draft room surfacing */
+  presentationVariant?: 'default' | 'redraft_snake'
+  /** Header rankings row: label next to numeric ADP (matches list when using AI ADP sort). */
+  adpDisplayLabel?: 'ADP' | 'AI ADP'
+  /** When Draft is disabled, clarifies drafted vs wrong turn */
+  draftUnavailableReason?: 'already_drafted' | 'not_your_pick' | null
 }
 
 /** Matches lib/player-card-analytics/types.ts PlayerCardAnalyticsPayload */
@@ -161,7 +179,26 @@ function statusBadgeClass(status: string | null | undefined): string {
 }
 
 export function PlayerDetailModal(props: PlayerDetailModalProps) {
-  const { open, onClose, player, normalized = null, sport, leagueContext, onAddToQueue, onMakePick, canDraft, isWatchlisted, onToggleWatchlist } = props
+  const {
+    open,
+    onClose,
+    player,
+    normalized = null,
+    sport,
+    leagueContext,
+    onAddToQueue,
+    onMakePick,
+    canDraft,
+    isWatchlisted,
+    onToggleWatchlist,
+    draftCopilot = null,
+    assistantRoomContext = null,
+    presentationVariant = 'default',
+    adpDisplayLabel = 'ADP',
+    draftUnavailableReason = null,
+  } = props
+
+  const rsModal = presentationVariant === 'redraft_snake'
 
   const currentYear = new Date().getUTCFullYear()
   const availableYears = useMemo(
@@ -282,7 +319,9 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
       data-testid="player-detail-modal"
     >
       <div
-        className="relative my-4 flex max-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-[#0a1228] to-[#040915] shadow-2xl animate-in zoom-in-95 fade-in duration-200 sm:my-8 sm:max-h-[calc(100vh-4rem)]"
+        className={`relative my-4 flex max-h-[calc(100vh-2rem)] w-full overflow-hidden rounded-2xl border bg-gradient-to-b from-[#0a1228] to-[#040915] shadow-2xl animate-in zoom-in-95 fade-in duration-200 sm:my-8 sm:max-h-[calc(100vh-4rem)] ${
+          rsModal ? 'max-w-5xl border-cyan-400/25 shadow-[0_28px_80px_rgba(0,0,0,0.65),0_0_0_1px_rgba(34,211,238,0.08)]' : 'max-w-6xl border-white/10'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -297,9 +336,17 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Header */}
-          <div className="relative border-b border-white/8 bg-gradient-to-r from-[#081428] via-[#0a1530] to-[#081428] px-6 py-5">
+          <div
+            className={`relative border-b bg-gradient-to-r from-[#081428] via-[#0a1530] to-[#081428] px-6 py-5 ${
+              rsModal ? 'border-cyan-500/15 shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]' : 'border-white/8'
+            }`}
+          >
             <div className="flex items-start gap-5">
-              <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40">
+              <div
+                className={`relative shrink-0 overflow-hidden rounded-xl border bg-black/40 ${
+                  rsModal ? 'h-36 w-36 border-cyan-400/20 shadow-[0_12px_40px_rgba(0,0,0,0.45)]' : 'h-28 w-28 border-white/10'
+                }`}
+              >
                 {headerImageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -311,7 +358,11 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                     }}
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[22px] font-black text-white/30">
+                  <div
+                    className={`flex h-full w-full items-center justify-center font-black text-white/30 ${
+                      rsModal ? 'text-[28px]' : 'text-[22px]'
+                    }`}
+                  >
                     {player.name
                       .split(' ')
                       .slice(0, 2)
@@ -324,7 +375,9 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                   <img
                     src={normalized?.teamLogoUrl ?? player.teamLogoUrl ?? ''}
                     alt=""
-                    className="absolute left-1 top-1 h-7 w-7 rounded-md border border-white/10 bg-black/60 object-contain p-0.5"
+                    className={`absolute left-1 top-1 rounded-md border border-white/10 bg-black/60 object-contain p-0.5 ${
+                      rsModal ? 'h-9 w-9 shadow-md' : 'h-7 w-7'
+                    }`}
                     onError={(e) => {
                       ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                     }}
@@ -345,7 +398,9 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                     </span>
                   )}
                 </div>
-                <h2 className="mt-1 text-3xl font-black tracking-tight text-white">{player.name}</h2>
+                <h2 className={`mt-1 font-black tracking-tight text-white ${rsModal ? 'text-4xl' : 'text-3xl'}`}>
+                  {player.name}
+                </h2>
 
                 {/* Physical-stat chip bar */}
                 <div className="mt-3 grid max-w-xl grid-cols-5 gap-3 text-center">
@@ -392,10 +447,43 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                   )}
                   {typeof player.adp === 'number' && (
                     <span className="text-white/55">
-                      ADP <span className="font-black text-white">{player.adp.toFixed(1)}</span>
+                      {adpDisplayLabel}{' '}
+                      <span className="font-black text-white">{player.adp.toFixed(1)}</span>
                     </span>
                   )}
                 </div>
+
+                {assistantRoomContext &&
+                (assistantRoomContext.headline ||
+                  assistantRoomContext.injuryLine ||
+                  assistantRoomContext.digestPreview) ? (
+                  <div
+                    className="mt-4 max-w-xl space-y-2 rounded-xl border border-cyan-400/25 bg-black/25 px-3 py-2.5"
+                    data-testid="player-detail-assistant-feed"
+                  >
+                    <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-cyan-200/70">
+                      Draft room intel
+                    </p>
+                    {assistantRoomContext.headline ? (
+                      <p className="text-[11px] leading-snug text-white/88">
+                        <span className="font-semibold text-cyan-100/90">News · </span>
+                        {assistantRoomContext.headline}
+                      </p>
+                    ) : null}
+                    {assistantRoomContext.injuryLine ? (
+                      <p className="text-[11px] leading-snug text-amber-100/90">
+                        <span className="font-semibold text-amber-200/90">Injury · </span>
+                        {assistantRoomContext.injuryLine}
+                      </p>
+                    ) : null}
+                    {assistantRoomContext.digestPreview ? (
+                      <p className="line-clamp-3 text-[10px] leading-relaxed text-white/55">
+                        <span className="font-semibold text-white/65">League sports digest · </span>
+                        {assistantRoomContext.digestPreview}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex shrink-0 flex-col items-end gap-2">
@@ -413,16 +501,34 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
                     <Star className="h-4 w-4" fill={isWatchlisted ? 'currentColor' : 'none'} />
                   </button>
                 )}
-                {canDraft && onMakePick && (
-                  <button
-                    type="button"
-                    onClick={onMakePick}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500 px-4 py-1.5 text-xs font-bold text-black shadow hover:bg-cyan-400"
-                  >
-                    <Flame className="h-3.5 w-3.5" />
-                    Draft
-                  </button>
-                )}
+                {onMakePick &&
+                  (canDraft ? (
+                    <button
+                      type="button"
+                      onClick={onMakePick}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500 px-4 py-1.5 text-xs font-bold text-black shadow hover:bg-cyan-400"
+                    >
+                      <Flame className="h-3.5 w-3.5" />
+                      Draft
+                    </button>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[10px] font-semibold ${
+                        rsModal ? 'border-white/18 bg-black/35 text-white/55' : 'border-white/15 bg-white/[0.06] text-white/45'
+                      }`}
+                      title={
+                        draftUnavailableReason === 'already_drafted'
+                          ? 'This player is no longer available'
+                          : 'Wait for your turn to draft'
+                      }
+                    >
+                      {draftUnavailableReason === 'already_drafted'
+                        ? 'Already drafted'
+                        : draftUnavailableReason === 'not_your_pick'
+                          ? 'Not your pick'
+                          : 'Draft unavailable'}
+                    </span>
+                  ))}
                 {onAddToQueue && (
                   <button
                     type="button"
@@ -436,11 +542,55 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
             </div>
           </div>
 
+          {draftCopilot && draftCopilot.bullets.length > 0 ? (
+            <div
+              className="border-b border-violet-400/15 bg-[linear-gradient(92deg,rgba(167,139,250,0.1),transparent)] px-6 py-3"
+              data-testid="player-detail-draft-copilot"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-200/95">Draft copilot</span>
+                {draftCopilot.stance ? (
+                  <span className="rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/70">
+                    {draftCopilot.stance === 'safer'
+                      ? 'Safer floor'
+                      : draftCopilot.stance === 'upside'
+                        ? 'Upside swing'
+                        : 'Balanced'}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm font-semibold text-white">{draftCopilot.headline}</p>
+              <ul className="mt-2 space-y-1.5 text-[12px] text-white/84">
+                {draftCopilot.bullets.map((b, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-violet-400/85" aria-hidden />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[10px] text-white/42">
+                Redraft-room guidance from live board context — not dynasty stash or devy valuation.
+              </p>
+            </div>
+          ) : null}
+
           {normalized ? (
             <div className="border-b border-white/8 px-6 py-4 space-y-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">Stat summary</p>
-                <p className="mt-1 text-sm text-white/85">{normalized.stats?.summary ?? 'No stats available'}</p>
+                <p
+                  className={`mt-1 text-sm ${
+                    rsModal && (!normalized.stats?.summary || normalized.stats.summary === 'No stats available')
+                      ? 'rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-white/45 italic'
+                      : 'text-white/85'
+                  }`}
+                >
+                  {normalized.stats?.summary && normalized.stats.summary !== 'No stats available'
+                    ? normalized.stats.summary
+                    : rsModal
+                      ? 'Season summary not loaded yet — rankings and projection below still apply.'
+                      : 'No stats available'}
+                </p>
               </div>
               {normalized.projection != null && Number.isFinite(normalized.projection) && (
                 <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">

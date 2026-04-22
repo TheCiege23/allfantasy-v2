@@ -15,6 +15,7 @@ import { WarRoomPanel } from '@/components/war-room/WarRoomPanel'
 import ChimmyChatPanel from '@/components/chimmy/ChimmyChatPanel'
 import { DraftWarRoom, type DraftWarRoomSnapshot } from '@/components/draft/ai/DraftWarRoom'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
+import { DraftHelperRedraftLayout } from '@/components/app/draft-room/DraftHelperRedraftLayout'
 
 export type DraftRecommendation = {
   player: { name: string; position: string; team?: string | null; adp?: number | null }
@@ -102,48 +103,75 @@ export type DraftHelperPanelProps = {
     onDraftPlayer: (player: PlayerEntry) => void
     onQueuePlayer: (player: PlayerEntry) => void
   } | null
+  presentationVariant?: 'default' | 'redraft_snake'
+  /** Live redraft snake — recommendation card actions + lookahead copy */
+  picksUntilUser?: number | null
+  userOnTheClock?: boolean
+  resolvedRecommendedPlayer?: PlayerEntry | null
+  canCommitRecommendedPick?: boolean
+  onDraftRecommendedPlayer?: () => void
+  onQueueRecommendedPlayer?: () => void
+  onQueueAlternativePlayer?: (player: { name: string; position: string; team?: string | null }) => void
 }
 
-export function DraftHelperPanel({
-  loading,
-  error,
-  recommendation,
-  alternatives,
-  reachWarning,
-  valueWarning,
-  scarcityInsight,
-  stackInsight,
-  correlationInsight,
-  formatInsight,
-  byeNote,
-  explanation,
-  evidence,
-  caveats,
-  uncertainty,
-  executionMode,
-  sport,
-  round,
-  pick,
-  leagueId,
-  leagueName,
-  rosterSlots,
-  queueLength,
-  aiExplanationEnabled = false,
-  onAiExplanationToggle,
-  onRefresh,
-  onPlayerClick,
-  liveBrain,
-  warRoomBrainInput = null,
-  draftSessionId = null,
-  chimmyInitialPrompt = '',
-  chimmyToolSummary = null,
-  sportsFeed = null,
-  aiFeatureStatus = null,
-  warRoom = null,
-}: DraftHelperPanelProps) {
+export function DraftHelperPanel(props: DraftHelperPanelProps) {
+  /** Must run before any conditional return — redraft_snake delegates to DraftHelperRedraftLayout but hooks order must match every render. */
   const [warRoomOpen, setWarRoomOpen] = useState(false)
   const { t } = useLanguage()
   const { enabled: aiAssistantEnabled, loading: aiAvailabilityLoading } = useAIAssistantAvailability()
+
+  if (props.presentationVariant === 'redraft_snake') {
+    return <DraftHelperRedraftLayout {...props} />
+  }
+
+  const {
+    loading,
+    error,
+    recommendation,
+    alternatives,
+    reachWarning,
+    valueWarning,
+    scarcityInsight,
+    stackInsight,
+    correlationInsight,
+    formatInsight,
+    byeNote,
+    explanation,
+    evidence,
+    caveats,
+    uncertainty,
+    executionMode,
+    sport,
+    round,
+    pick,
+    leagueId,
+    leagueName,
+    rosterSlots,
+    queueLength,
+    aiExplanationEnabled = false,
+    onAiExplanationToggle,
+    onRefresh,
+    onPlayerClick,
+    liveBrain,
+    warRoomBrainInput = null,
+    draftSessionId = null,
+    chimmyInitialPrompt = '',
+    chimmyToolSummary = null,
+    sportsFeed = null,
+    aiFeatureStatus = null,
+    warRoom = null,
+    presentationVariant = 'default',
+    picksUntilUser = null,
+    userOnTheClock = false,
+    resolvedRecommendedPlayer = null,
+    canCommitRecommendedPick = false,
+    onDraftRecommendedPlayer,
+    onQueueRecommendedPlayer,
+    onQueueAlternativePlayer,
+  } = props
+
+  /** Always false: `redraft_snake` returns early with `DraftHelperRedraftLayout`. */
+  const rs = false
   const chimmyPrompt = buildAskChimmyAboutPickPrompt({
     sport,
     round,
@@ -162,8 +190,14 @@ export function DraftHelperPanel({
   })
 
   return (
-    <section className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-[#060d1e]">
-      <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3 py-2">
+    <section
+      className={`flex h-full min-h-0 flex-col overflow-hidden rounded-xl border bg-[#060d1e] ${
+        rs
+          ? 'border-violet-500/25 bg-[linear-gradient(180deg,rgba(20,12,40,0.4),rgba(5,10,20,0.96))] shadow-[inset_1px_0_0_rgba(167,139,250,0.12),0_16px_48px_rgba(0,0,0,0.35)]'
+          : 'border-white/10'
+      }`}
+    >
+      <div className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${rs ? 'border-violet-500/15 bg-[linear-gradient(90deg,rgba(167,139,250,0.08),transparent)]' : 'border-white/8'}`}>
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cyan-400" />
           <span className="text-sm font-semibold text-white">{t('draftRoom.helper.title')}</span>
@@ -325,20 +359,68 @@ export function DraftHelperPanel({
               onClick={() => onPlayerClick?.(recommendation.player)}
               onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(recommendation.player)}
               data-testid="draft-helper-recommendation-card"
-              className="mb-2 rounded-lg border border-cyan-300/30 bg-cyan-500/8 px-2.5 py-2 text-left"
+              className={
+                rs
+                  ? 'mb-3 rounded-xl border border-cyan-400/30 bg-[linear-gradient(155deg,rgba(34,211,238,0.14),rgba(15,23,42,0.95))] px-3 py-3 text-left shadow-[0_16px_48px_rgba(0,0,0,0.4)] ring-1 ring-cyan-400/15'
+                  : 'mb-2 rounded-lg border border-cyan-300/30 bg-cyan-500/8 px-2.5 py-2 text-left'
+              }
             >
-              <p className="font-medium text-cyan-200">
-                {recommendation.player.name}
-                <span className="ml-1 text-[10px] text-white/70">
-                  {recommendation.player.position}
-                  {recommendation.player.team ? ` · ${recommendation.player.team}` : ''}
-                  {recommendation.player.adp != null ? ` · ADP ${recommendation.player.adp}` : ''}
-                </span>
-              </p>
-              <p className="text-[10px] text-white/80">{recommendation.reason}</p>
-              <p className="mt-1 text-[10px] text-white/60">
-                {t('draftRoom.helper.confidence')} {recommendation.confidence}%
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100/90">
+                    {userOnTheClock ? 'On the clock — copilot pick' : 'Copilot pick'}
+                  </p>
+                  <p className="mt-1 font-semibold text-cyan-50">
+                    {recommendation.player.name}
+                    <span className="ml-1 text-[10px] font-normal text-white/75">
+                      {recommendation.player.position}
+                      {recommendation.player.team ? ` · ${recommendation.player.team}` : ''}
+                      {recommendation.player.adp != null ? ` · ADP ${recommendation.player.adp}` : ''}
+                    </span>
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-white/88">{recommendation.reason}</p>
+                  <p className="mt-1 text-[10px] text-white/55">
+                    {t('draftRoom.helper.confidence')} {recommendation.confidence}%
+                    {picksUntilUser != null && picksUntilUser > 0 ? ` · ~${picksUntilUser} to you` : ''}
+                  </p>
+                </div>
+                {rs ? (
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onPlayerClick?.(recommendation.player)
+                      }}
+                      className="rounded-lg border border-white/15 bg-black/25 px-2.5 py-1.5 text-[10px] font-semibold text-white/90 hover:bg-white/10"
+                    >
+                      View player
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (resolvedRecommendedPlayer && onQueueRecommendedPlayer) onQueueRecommendedPlayer()
+                      }}
+                      disabled={!resolvedRecommendedPlayer || !onQueueRecommendedPlayer}
+                      className="rounded-lg border border-violet-400/35 bg-violet-500/15 px-2.5 py-1.5 text-[10px] font-semibold text-violet-100 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Add to queue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (canCommitRecommendedPick && onDraftRecommendedPlayer) onDraftRecommendedPlayer()
+                      }}
+                      disabled={!canCommitRecommendedPick || !onDraftRecommendedPlayer}
+                      className="rounded-lg border border-cyan-400/45 bg-cyan-500/25 px-2.5 py-1.5 text-[10px] font-bold text-cyan-50 hover:bg-cyan-500/35 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Draft now
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
             {explanation && (
               <p className="mb-2 text-[10px] text-white/80">{explanation}</p>
@@ -403,17 +485,37 @@ export function DraftHelperPanel({
               <div className="mb-2">
                 <p className="text-[9px] font-medium text-white/50 uppercase tracking-wider mb-1">{t('draftRoom.helper.alternatives')}</p>
                 <ul className="space-y-1">
-                  {alternatives.slice(0, 3).map((alt, i) => (
+                  {alternatives.slice(0, rs ? 5 : 3).map((alt, i) => (
                     <li
                       key={i}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => onPlayerClick?.(alt.player)}
-                      onKeyDown={(e) => e.key === 'Enter' && onPlayerClick?.(alt.player)}
                       data-testid={`draft-helper-alternative-${i}`}
-                      className="rounded border border-white/10 bg-[#0a1228] px-2 py-1 text-[10px] text-white/80 hover:bg-white/5 cursor-pointer"
+                      className={`rounded border px-2 py-1.5 text-[10px] text-white/82 ${
+                        rs
+                          ? 'border-white/12 bg-[linear-gradient(120deg,rgba(15,23,42,0.85),rgba(8,16,32,0.92))]'
+                          : 'border-white/10 bg-[#0a1228]'
+                      }`}
                     >
-                      {alt.player.name} ({alt.player.position}) — {alt.reason}
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 cursor-pointer rounded text-left hover:text-white"
+                          onClick={() => onPlayerClick?.(alt.player)}
+                        >
+                          <span className="font-medium text-white/95">{alt.player.name}</span>{' '}
+                          <span className="text-white/55">
+                            ({alt.player.position}) — {alt.reason}
+                          </span>
+                        </button>
+                        {rs && onQueueAlternativePlayer ? (
+                          <button
+                            type="button"
+                            onClick={() => onQueueAlternativePlayer(alt.player)}
+                            className="shrink-0 rounded border border-white/14 bg-black/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-cyan-100/90 hover:bg-white/10"
+                          >
+                            Queue
+                          </button>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -444,9 +546,20 @@ export function DraftHelperPanel({
           </>
         )}
         {!loading && !error && !recommendation && (
-          <p className="py-4 text-center text-xs text-white/50">
-            Add players to the pool and click Refresh for a recommendation.
-          </p>
+          <div className="space-y-2 py-4 text-center text-xs text-white/50">
+            {rs ? (
+              <>
+                <p className="text-white/65">
+                  Your ranked copilot recommendation loads when it is your pick — it follows the live board and your roster needs.
+                </p>
+                <p className="text-[11px] text-white/42">
+                  Between picks, use War Room (below) for redraft lookahead; it tracks scarcity and positional runs as picks land.
+                </p>
+              </>
+            ) : (
+              <p>Add players to the pool and click Refresh for a recommendation.</p>
+            )}
+          </div>
         )}
         <div className="mt-3 rounded-xl border border-cyan-400/18 bg-cyan-500/6 p-2.5" data-testid="draft-helper-chimmy-panel">
           <div className="mb-2 flex items-center justify-between gap-2">

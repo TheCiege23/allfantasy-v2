@@ -1,3 +1,5 @@
+import { resolveOverallForRoundSlot } from '@/lib/live-draft-engine/draftPickTradeInventory'
+
 export type DraftTradeAiVerdict = 'accept' | 'reject' | 'counter'
 
 export type DraftTradeAiReview = {
@@ -15,6 +17,9 @@ export type DraftTradeAiReviewInput = {
   receiveRound: number
   receiveSlot: number
   teamCount: number
+  /** When set, overall pick delta uses real board order (snake / 3RR). */
+  draftType?: 'snake' | 'linear' | 'auction'
+  thirdRoundReversal?: boolean
 }
 
 function formatPickLabel(round: number, slot: number): string {
@@ -23,8 +28,33 @@ function formatPickLabel(round: number, slot: number): string {
 
 export function buildDraftTradeAiReview(input: DraftTradeAiReviewInput): DraftTradeAiReview {
   const teamCount = Math.max(2, Number(input.teamCount) || 12)
-  const giveOverall = (input.giveRound - 1) * teamCount + input.giveSlot
-  const receiveOverall = (input.receiveRound - 1) * teamCount + input.receiveSlot
+  const draftType = input.draftType ?? 'snake'
+  const thirdRoundReversal = Boolean(input.thirdRoundReversal)
+
+  let giveOverall: number
+  let receiveOverall: number
+  if (draftType === 'auction') {
+    giveOverall = (input.giveRound - 1) * teamCount + input.giveSlot
+    receiveOverall = (input.receiveRound - 1) * teamCount + input.receiveSlot
+  } else {
+    const go = resolveOverallForRoundSlot({
+      round: input.giveRound,
+      slot: input.giveSlot,
+      teamCount,
+      draftType,
+      thirdRoundReversal,
+    })
+    const ro = resolveOverallForRoundSlot({
+      round: input.receiveRound,
+      slot: input.receiveSlot,
+      teamCount,
+      draftType,
+      thirdRoundReversal,
+    })
+    giveOverall = go ?? (input.giveRound - 1) * teamCount + input.giveSlot
+    receiveOverall = ro ?? (input.receiveRound - 1) * teamCount + input.receiveSlot
+  }
+
   const overallDelta = receiveOverall - giveOverall
   const giveLabel = formatPickLabel(input.giveRound, input.giveSlot)
   const receiveLabel = formatPickLabel(input.receiveRound, input.receiveSlot)

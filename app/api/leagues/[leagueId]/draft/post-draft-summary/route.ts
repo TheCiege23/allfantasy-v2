@@ -26,7 +26,9 @@ export async function GET(
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   try {
-    await ensurePostDraftFinalized(leagueId).catch(() => {})
+    await ensurePostDraftFinalized(leagueId).catch((e) => {
+      console.error('[draft/post-draft-summary] ensurePostDraftFinalized', leagueId, e)
+    })
     const summary = await buildPostDraftSummary(leagueId)
     if (!summary) return NextResponse.json({ error: 'Draft not completed or no session' }, { status: 404 })
     return NextResponse.json(summary)

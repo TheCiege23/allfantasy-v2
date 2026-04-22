@@ -18,6 +18,8 @@ export interface LeagueMetaForAI {
   idp?: boolean
   tep?: boolean
   strategyMode?: string | null
+  /** Short digest from news/injury/sports feeds (draft assistant-context, etc.). */
+  assistantFeedBrief?: string | null
   [key: string]: unknown
 }
 
@@ -38,6 +40,9 @@ export function buildSportContextString(meta: LeagueMetaForAI): string {
   if (meta.faabBudget != null) parts.push(`FAAB $${meta.faabBudget}`)
   if (meta.currentWeek != null) parts.push(`Week ${meta.currentWeek}`)
   if (meta.strategyMode) parts.push(`Strategy: ${meta.strategyMode}`)
+  if (typeof meta.assistantFeedBrief === 'string' && meta.assistantFeedBrief.trim()) {
+    parts.push(`Intel: ${meta.assistantFeedBrief.trim()}`)
+  }
   return parts.join('. ')
 }
 

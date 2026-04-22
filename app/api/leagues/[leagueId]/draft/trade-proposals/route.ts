@@ -1,5 +1,5 @@
 /**
- * GET: List draft pick trade proposals for this session (pending for current user as receiver, or all for commissioner).
+ * GET: List draft pick trade proposals (member: pending where they are receiver OR proposer; commissioner: session-wide).
  * POST: Create a draft pick trade proposal.
  */
 
@@ -8,7 +8,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getDraftSessionByLeague } from '@/lib/live-draft-engine/DraftSessionService'
-import { getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
+import { resolveOverallForRoundSlot } from '@/lib/live-draft-engine/draftPickTradeInventory'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { isCommissioner } from '@/lib/commissioner/permissions'
 import { prisma } from '@/lib/prisma'
@@ -29,27 +29,6 @@ import { sendPrivateTradeAIDM } from '@/lib/trade-ai-dm/TradeAIDMService'
 
 export const dynamic = 'force-dynamic'
 
-function resolveOverallForRoundSlot(params: {
-  round: number
-  slot: number
-  teamCount: number
-  draftType: 'snake' | 'linear' | 'auction'
-  thirdRoundReversal: boolean
-}): number | null {
-  const startOverall = (params.round - 1) * params.teamCount + 1
-  const endOverall = params.round * params.teamCount
-  for (let overall = startOverall; overall <= endOverall; overall += 1) {
-    const derivedSlot = getSlotInRoundForOverall({
-      overall,
-      teamCount: params.teamCount,
-      draftType: params.draftType,
-      thirdRoundReversal: params.thirdRoundReversal,
-    })
-    if (derivedSlot === params.slot) return overall
-  }
-  return null
-}
-
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ leagueId: string }> }
@@ -69,13 +48,21 @@ export async function GET(
   const myRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
   const commissioner = await isCommissioner(leagueId, userId)
 
-  const where: { sessionId: string; status?: string; receiverRosterId?: string } = { sessionId: draftSession.id }
-  if (!commissioner) {
-    where.status = 'pending'
-    if (myRosterId) where.receiverRosterId = myRosterId
-    else {
-      return NextResponse.json({ proposals: [] })
+  let where: Record<string, unknown>
+  if (commissioner) {
+    where = { sessionId: draftSession.id }
+  } else if (myRosterId) {
+    where = {
+      sessionId: draftSession.id,
+      AND: [
+        { status: 'pending' },
+        {
+          OR: [{ receiverRosterId: myRosterId }, { proposerRosterId: myRosterId }],
+        },
+      ],
     }
+  } else {
+    return NextResponse.json({ proposals: [] })
   }
 
   const list = await (prisma as any).draftPickTradeProposal.findMany({
@@ -265,11 +252,13 @@ export async function POST(
   if (receiverUserId) {
     const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { name: true } })
     const aiReview = buildDraftTradeAiReview({
-      giveRound: created.giveRound,
-      giveSlot: created.giveSlot,
-      receiveRound: created.receiveRound,
-      receiveSlot: created.receiveSlot,
+      giveRound: created.receiveRound,
+      giveSlot: created.receiveSlot,
+      receiveRound: created.giveRound,
+      receiveSlot: created.giveSlot,
       teamCount: draftSession.teamCount,
+      draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
+      thirdRoundReversal: draftSession.thirdRoundReversal,
     })
     void createDraftNotification(receiverUserId, 'draft_trade_offer_received', {
       leagueId,

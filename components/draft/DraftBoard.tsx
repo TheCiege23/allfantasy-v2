@@ -10,6 +10,8 @@ type LiveDraftBoardProps = {
   isDynasty: boolean
   isCommissioner: boolean
   formatType?: string
+  /** Snake redraft live room — enables premium chrome from `/draft/[id]/snake`. */
+  presentationVariant?: 'default' | 'redraft_snake'
 }
 
 type MockDraftBoardProps = {
@@ -27,12 +29,14 @@ export function DraftBoard(props: DraftBoardProps) {
 
   return (
     <DraftRoomPageClient
+      draftId={props.draftId}
       leagueId={props.leagueId}
       leagueName={props.leagueName}
       sport={props.sport}
       isDynasty={props.isDynasty}
       isCommissioner={props.isCommissioner}
       formatType={props.formatType}
+      presentationVariant={props.presentationVariant ?? 'default'}
     />
   )
 }

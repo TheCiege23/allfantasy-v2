@@ -20,7 +20,12 @@ export type { DraftChatPanelProps, DraftChatMessage } from './DraftChatPanel'
 export { DraftHelperPanel } from './DraftHelperPanel'
 export type { DraftHelperPanelProps, DraftRecommendation } from './DraftHelperPanel'
 export { DraftPickTradePanel } from './DraftPickTradePanel'
-export type { DraftPickTradePanelProps, ProposalSummary } from './DraftPickTradePanel'
+export type {
+  DraftPickTradePanelProps,
+  DraftPickTradeSuggestion,
+  InventoryPick,
+  ProposalSummary,
+} from './DraftPickTradePanel'
 export { CommissionerControlCenterModal } from './CommissionerControlCenterModal'
 export type { CommissionerControlCenterModalProps } from './CommissionerControlCenterModal'
 export { KeeperPanel } from './KeeperPanel'
@@ -33,6 +38,8 @@ export { DraftTeamPanel } from './DraftTeamPanel'
 export type { DraftTeamPanelProps } from './DraftTeamPanel'
 export { DraftPickActivityStrip } from './DraftPickActivityStrip'
 export type { DraftPickActivityStripProps } from './DraftPickActivityStrip'
+export { DraftRoundOneAnnouncementOverlay } from './DraftRoundOneAnnouncementOverlay'
+export type { DraftRoundOneAnnouncementOverlayProps } from './DraftRoundOneAnnouncementOverlay'
 export { DraftLiveBrainPremiumBlock } from './DraftLiveBrainPremiumBlock'
 export type { DraftLiveBrainPremiumBlockProps } from './DraftLiveBrainPremiumBlock'
 export { AuctionSpotlightPanel } from './AuctionSpotlightPanel'

@@ -483,6 +483,9 @@ export function PostDraftView({
       <header className="shrink-0 border-b border-white/12 bg-black/30 px-4 py-3">
         <h1 className="text-base font-semibold md:text-lg">{leagueName}</h1>
         <p className="text-xs text-white/60">{sport} · Draft complete</p>
+        <p className="mt-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-[11px] leading-snug text-emerald-100/95">
+          Results use the authoritative saved draft board from this league. Refresh anytime — your recap and grades stay aligned with persisted picks.
+        </p>
       </header>
 
       <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-white/10 bg-black/20 px-2 py-2 scrollbar-thin">
@@ -612,7 +615,9 @@ export function PostDraftView({
               </div>
             )}
             {summaryLoading && (
-              <p className="text-xs text-white/50">Refreshing deterministic post-draft summary…</p>
+              <p className="text-xs text-white/50">
+                Syncing roster assignments and draft grades from the finalized board…
+              </p>
             )}
             {summaryError && (
               <p className="text-xs text-amber-300/90">{summaryError}</p>

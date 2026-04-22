@@ -245,6 +245,29 @@ export async function PATCH(
   const hasUI = Object.keys(uiPatch).length > 0
   const hasSessionVariant = Object.keys(sessionVariantPatch).length > 0
   const hasOrderMode = orderModePatch !== null
+
+  /** Live snake/linear drafts: never accept structural/config/order/sessionVariant mutations from settings PATCH — use league draft tab or dedicated flows. Room modal only sends UI prefs. */
+  const draftSessionRow = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: { status: true },
+  })
+  const isLiveDraftSession =
+    draftSessionRow &&
+    (draftSessionRow.status === 'in_progress' || draftSessionRow.status === 'paused')
+  if (
+    isLiveDraftSession &&
+    (hasConfig || hasSessionVariant || hasOrderMode)
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          'Structural draft settings cannot be changed while the draft is in progress. Pause the draft or finish editing from League settings if your league allows it.',
+        code: 'LIVE_DRAFT_STRUCTURAL_LOCKED',
+      },
+      { status: 409 },
+    )
+  }
+
   const orphanManagerSettingTouched =
     Object.prototype.hasOwnProperty.call(uiPatch, 'orphanTeamAiManagerEnabled') ||
     Object.prototype.hasOwnProperty.call(uiPatch, 'orphanDrafterMode')

@@ -32,6 +32,8 @@ export async function maybeAutoRespondToTradeProposal(leagueId: string, proposal
     const sessionRow = proposal.session as {
       leagueId: string
       teamCount: number
+      draftType?: string
+      thirdRoundReversal?: boolean
       slotOrder: unknown
       commissionerAiManagers?: unknown
     }
@@ -42,12 +44,15 @@ export async function maybeAutoRespondToTradeProposal(leagueId: string, proposal
     if (!assign || assign.allowInbound === false || !rules.allowInbound) return
 
     const teamCount = sessionRow.teamCount
+    const dt = (sessionRow.draftType ?? 'snake') as 'snake' | 'linear' | 'auction'
     const review = buildDraftTradeAiReview({
       giveRound: proposal.receiveRound,
       giveSlot: proposal.receiveSlot,
       receiveRound: proposal.giveRound,
       receiveSlot: proposal.giveSlot,
       teamCount,
+      draftType: dt,
+      thirdRoundReversal: Boolean(sessionRow.thirdRoundReversal),
     })
 
     const conf = syntheticConfidence(review.verdict)

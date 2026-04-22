@@ -10,6 +10,8 @@ const BOTTOM_DOCK_PREF_KEY = 'af:draft-premium-bottom-dock-expanded'
 export type MobileDraftTab = 'board' | 'players' | 'queue' | 'helper' | 'roster' | 'keepers' | 'chat'
 
 export type DraftRoomShellProps = {
+  /** Premium ambient gradient for `/draft/[id]/snake` redraft room. */
+  surfaceVariant?: 'default' | 'redraft_snake'
   topBar: ReactNode
   managerStrip: ReactNode
   auctionStrip?: ReactNode
@@ -57,6 +59,7 @@ const MOBILE_TABS = [
 ]
 
 export function DraftRoomShell({
+  surfaceVariant = 'default',
   topBar,
   managerStrip,
   draftBoard,
@@ -112,8 +115,13 @@ export function DraftRoomShell({
     </>
   )
 
+  const surfaceClass =
+    surfaceVariant === 'redraft_snake'
+      ? 'flex h-full min-h-[100dvh] flex-col bg-gradient-to-b from-[#071528] via-[#040915] to-[#02060f] text-white shadow-[inset_0_1px_0_rgba(125,211,252,0.06)]'
+      : 'flex h-full min-h-[100dvh] flex-col bg-[#040915] text-white'
+
   return (
-    <div className="flex h-full min-h-[100dvh] flex-col bg-[#040915] text-white" data-testid="draft-room-shell">
+    <div className={surfaceClass} data-testid="draft-room-shell">
       {topBar}
       {managerStrip}
 
@@ -134,20 +142,38 @@ export function DraftRoomShell({
             <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>
           )}
           <div
-            className="min-h-[160px] max-h-[min(42vh,520px)] shrink-0 overflow-auto border-b border-white/8 bg-[#050c1d]"
+            className={`min-h-[160px] max-h-[min(42vh,520px)] shrink-0 overflow-auto border-b ${
+              surfaceVariant === 'redraft_snake'
+                ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(8,18,36,0.98),rgba(4,9,17,0.99))] shadow-[inset_0_-1px_0_rgba(34,211,238,0.06)]'
+                : 'border-white/8 bg-[#050c1d]'
+            }`}
             data-testid="draft-premium-board-zone"
           >
             {draftBoard}
           </div>
           <div className="flex min-h-0 flex-1 overflow-hidden" data-testid="draft-premium-main-zones">
-            <aside className="w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r border-white/8 bg-[#050c1d]">
+            <aside
+              className={`w-[min(280px,22vw)] shrink-0 overflow-y-auto border-r bg-[#050c1d] ${
+                surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10 shadow-[inset_-1px_0_0_rgba(34,211,238,0.05)]' : 'border-white/8'
+              }`}
+            >
               {teamPanel}
             </aside>
-            <div className="flex min-w-0 flex-1 flex-col overflow-hidden border-r border-white/8 bg-[#060d1e]">
+            <div
+              className={`flex min-w-0 flex-1 flex-col overflow-hidden border-r bg-[#060d1e] ${
+                surfaceVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
+              }`}
+            >
               {centerMain}
             </div>
             {helperPanel && (
-              <aside className="w-[min(400px,34vw)] shrink-0 overflow-y-auto bg-[#060d1e] shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]">
+              <aside
+                className={`flex min-h-0 w-[min(400px,34vw)] shrink-0 flex-col overflow-hidden bg-[#060d1e] ${
+                  surfaceVariant === 'redraft_snake'
+                    ? 'shadow-[inset_1px_0_0_rgba(167,139,250,0.12)]'
+                    : 'shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]'
+                }`}
+              >
                 {helperPanel}
               </aside>
             )}

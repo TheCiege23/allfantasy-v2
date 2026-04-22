@@ -15,8 +15,10 @@ import {
   Menu,
   Monitor,
   Moon,
+  Pause,
   RefreshCw,
   Settings2,
+  Shield,
   Smile,
   Sparkles,
   User,
@@ -57,6 +59,8 @@ export type DraftTopBarProps = {
   onResetTimer?: () => void
   onUndoPick?: () => void
   commissionerLoading?: boolean
+  /** When false, pause/resume commissioner actions are disabled per league automation settings (server-enforced too). */
+  commissionerPauseControlsEnabled?: boolean
   /** For reconnect/refresh state */
   isReconnecting?: boolean
   /** Orphan roster on clock: show CPU/AI Manager badge and allow Run pick */
@@ -81,8 +85,16 @@ export type DraftTopBarProps = {
   backHref?: string
   /** When set, the settings gear opens league settings on the Draft panel (members + commissioners). */
   leagueDraftSettingsHref?: string | null
+  /** When set, the gear opens in-room draft settings (modal) instead of navigating away. Takes precedence over `leagueDraftSettingsHref`. */
+  onOpenDraftRoomSettings?: () => void
   /** Number of browsers currently viewing the draft room (from Supabase presence). */
   onlineCount?: number
+  /** `redraft_snake` — show format chips and slightly stronger header chrome (snake redraft live URL). */
+  draftRoomPresentation?: 'default' | 'redraft_snake'
+  /** Current round number (snake command deck). */
+  currentRound?: number | null
+  /** Pick index within round (1…teamCount). */
+  pickInRound?: number | null
 }
 
 const TIMER_COLORS = {
@@ -190,6 +202,7 @@ export function DraftTopBar({
   onResetTimer,
   onUndoPick,
   commissionerLoading = false,
+  commissionerPauseControlsEnabled = true,
   isReconnecting = false,
   isOrphanOnClock = false,
   orphanDrafterMode = 'cpu',
@@ -206,7 +219,11 @@ export function DraftTopBar({
   resyncLoading = false,
   backHref,
   leagueDraftSettingsHref = null,
+  onOpenDraftRoomSettings,
   onlineCount,
+  draftRoomPresentation = 'default',
+  currentRound = null,
+  pickInRound = null,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const liveRemaining = useDraftCountdownSeconds(timerStatus, timerEndAtIso ?? undefined, timerRemainingSeconds)
@@ -274,7 +291,7 @@ export function DraftTopBar({
     timerEndAtIso != null &&
     timerEndAtIso !== '' &&
     liveRemaining != null &&
-    liveRemaining <= 15
+    liveRemaining <= 10
   const statusLabel = translateDraftStatus(draftStatus, t)
   const draftTypeLabel = translateDraftType(draftType, t)
   const timerModeLabel = translateTimerMode(timerMode, t)
@@ -336,9 +353,22 @@ export function DraftTopBar({
         ? t('draftRoom.topBar.aiManager')
         : t('draftRoom.topBar.cpuManager')
 
+  const rs = draftRoomPresentation === 'redraft_snake'
+  const showCommandDeck =
+    rs &&
+    draftStatus === 'in_progress' &&
+    currentRound != null &&
+    currentRound > 0 &&
+    pickInRound != null &&
+    pickInRound > 0
+
   return (
     <header
-      className={`relative border-b border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814] px-3 backdrop-blur-xl sm:px-4 ${prefs.compact ? 'pb-2 pt-2' : 'pb-3 pt-2.5'} ${prefs.focus ? 'shadow-[inset_0_-1px_0_rgba(125,140,255,0.22)]' : ''}`}
+      className={`relative border-b px-3 backdrop-blur-xl sm:px-4 ${prefs.compact ? 'pb-2 pt-2' : 'pb-3 pt-2.5'} ${prefs.focus ? 'shadow-[inset_0_-1px_0_rgba(125,140,255,0.22)]' : ''} ${
+        rs
+          ? 'border-cyan-400/25 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(34,211,238,0.14),transparent),linear-gradient(180deg,#0b1829_0%,#060f1e_45%,#050814_100%)] shadow-[0_16px_56px_rgba(8,145,178,0.14)]'
+          : 'border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814]'
+      }`}
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/25 to-transparent"
@@ -393,6 +423,19 @@ export function DraftTopBar({
                   </span>
                 )}
               </div>
+              {rs ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center rounded-full border border-emerald-400/40 bg-gradient-to-r from-emerald-500/18 to-emerald-600/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-50 shadow-[0_0_20px_rgba(16,185,129,0.18)]">
+                    Redraft
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-cyan-400/45 bg-gradient-to-r from-cyan-500/22 to-sky-600/12 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.2)]">
+                    Snake
+                  </span>
+                  <span className="inline-flex items-center rounded-full border border-violet-400/40 bg-gradient-to-r from-violet-500/18 to-fuchsia-600/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-violet-50">
+                    {sport}
+                  </span>
+                </div>
+              ) : null}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#97a8d7]">
                 <span>{timerSummary}</span>
                 <span className="text-white/24">·</span>
@@ -420,9 +463,86 @@ export function DraftTopBar({
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5">
+          {showCommandDeck ? (
+            <div className="mt-3 grid w-full max-w-xl grid-cols-3 gap-2 sm:max-w-2xl">
+              <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/45">Round</p>
+                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-white">{currentRound}</p>
+              </div>
+              <div className="rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/15 to-transparent px-3 py-2 shadow-[0_8px_28px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/20">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">Pick in round</p>
+                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-cyan-50">{pickInRound}</p>
+              </div>
+              <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/45">Overall</p>
+                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-white">
+                  {overallPickNumber != null ? `#${overallPickNumber}` : '—'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {rs && isCommissioner && (draftStatus === 'in_progress' || draftStatus === 'paused') && (onPause || onResume) ? (
+            <div
+              className="mt-3 flex max-w-xl flex-wrap items-center gap-2 sm:max-w-2xl"
+              data-testid="draft-topbar-commissioner-governance"
+            >
+              {draftStatus === 'in_progress' && onPause ? (
+                <button
+                  type="button"
+                  onClick={onPause}
+                  disabled={commissionerLoading || !commissionerPauseControlsEnabled}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/12 px-3.5 py-2 text-xs font-semibold text-amber-100 shadow-sm transition duration-150 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 disabled:cursor-not-allowed disabled:opacity-45"
+                  title={
+                    commissionerPauseControlsEnabled
+                      ? 'Pause the draft for everyone'
+                      : 'Pause controls are off in league draft / automation settings'
+                  }
+                >
+                  <Pause className="h-3.5 w-3.5" />
+                  Pause
+                </button>
+              ) : null}
+              {draftStatus === 'paused' && onResume ? (
+                <button
+                  type="button"
+                  onClick={onResume}
+                  disabled={commissionerLoading || !commissionerPauseControlsEnabled}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-3.5 py-2 text-xs font-semibold text-emerald-50 shadow-sm transition duration-150 hover:bg-emerald-500/22 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/45 disabled:cursor-not-allowed disabled:opacity-45"
+                  title={
+                    commissionerPauseControlsEnabled
+                      ? 'Resume the draft for everyone'
+                      : 'Pause controls are off in league draft / automation settings'
+                  }
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Resume
+                </button>
+              ) : null}
+              {draftStatus === 'in_progress' && onResetTimer ? (
+                <button
+                  type="button"
+                  onClick={onResetTimer}
+                  disabled={commissionerLoading}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3.5 py-2 text-xs font-semibold text-cyan-50 transition duration-150 hover:bg-cyan-500/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 disabled:opacity-45"
+                  title="Reset pick clock for the current pick"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Reset timer
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className={`mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5 ${showCommandDeck ? 'lg:mt-3' : ''}`}>
             {pickLabel ? (
-              <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.12] to-[#0a1528]/90 px-3.5 py-2 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15">
+              <div
+                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
+                  rs
+                    ? 'border-cyan-400/35 bg-gradient-to-br from-cyan-500/18 via-[#0c1828]/95 to-[#081018]/98 shadow-[0_8px_36px_rgba(34,211,238,0.18)]'
+                    : 'border-cyan-400/25 bg-gradient-to-br from-cyan-500/[0.12] to-[#0a1528]/90'
+                }`}
+              >
                 <Hash className="h-4 w-4 shrink-0 text-cyan-300" />
                 <span className="text-base font-bold tracking-tight text-white sm:text-lg">{pickLabel}</span>
                 {overallPickNumber != null ? (
@@ -434,7 +554,13 @@ export function DraftTopBar({
             ) : null}
 
             {currentManagerOnClock ? (
-              <div className="inline-flex max-w-full items-center gap-2 rounded-xl border border-violet-400/25 bg-gradient-to-br from-violet-500/[0.14] to-[#0a1228]/95 px-3.5 py-2 shadow-[0_6px_28px_rgba(139,92,246,0.15)] ring-1 ring-violet-400/10">
+              <div
+                className={`inline-flex max-w-full items-center gap-2 rounded-xl border px-3.5 py-2 ring-1 ${
+                  rs
+                    ? 'border-violet-400/40 bg-[radial-gradient(ellipse_at_30%_0%,rgba(139,92,246,0.28),transparent),linear-gradient(145deg,rgba(109,40,217,0.22),rgba(8,15,28,0.96))] shadow-[0_12px_40px_rgba(139,92,246,0.22)] ring-violet-400/25'
+                    : 'border-violet-400/25 bg-gradient-to-br from-violet-500/[0.14] to-[#0a1228]/95 shadow-[0_6px_28px_rgba(139,92,246,0.15)] ring-violet-400/10'
+                }`}
+              >
                 <User className="h-4 w-4 shrink-0 text-violet-300" />
                 <span
                   className="min-w-0 truncate text-base font-bold text-white sm:text-lg"
@@ -449,10 +575,12 @@ export function DraftTopBar({
             ) : null}
 
             <div
-              className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl border px-4 py-2 transition-all duration-200 ${TIMER_COLORS[timerStatus]} ${
+              className={`inline-flex min-h-[44px] min-w-[7.25rem] items-center gap-2 rounded-2xl border px-4 py-2 transition-all duration-200 sm:min-h-[52px] sm:min-w-[8rem] sm:justify-center ${TIMER_COLORS[timerStatus]} ${
                 urgentLowTimer
-                  ? 'relative z-0 scale-105 shadow-[0_0_40px_rgba(251,191,36,0.45)] ring-2 ring-amber-400/60 animate-pulse sm:min-w-[7.5rem] sm:justify-center'
-                  : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  ? 'relative z-0 shadow-[0_0_48px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/70 animate-pulse sm:scale-105'
+                  : rs
+                    ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_32px_rgba(0,0,0,0.35)]'
+                    : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
               }`}
               title={`${timerModeLabel} · Auto-pick ${autoPickEnabled ? 'on' : 'off'}`}
             >
@@ -558,16 +686,61 @@ export function DraftTopBar({
             </button>
           ) : null}
 
-          {leagueDraftSettingsHref ? (
-            <Link
-              href={leagueDraftSettingsHref}
-              data-testid="draft-topbar-league-draft-settings"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
-              aria-label={t('draftRoom.topBar.aria.leagueDraftSettings')}
-              title={t('draftRoom.topBar.leagueDraftSettings')}
-            >
-              <Settings2 className="h-4 w-4" />
-            </Link>
+          {onOpenDraftRoomSettings ? (
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onOpenDraftRoomSettings}
+                data-testid="draft-topbar-league-draft-settings"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
+                aria-label={
+                  isCommissioner
+                    ? t('draftRoom.topBar.aria.editDraftSettings')
+                    : t('draftRoom.topBar.aria.viewDraftSettings')
+                }
+                title={isCommissioner ? t('draftRoom.topBar.editDraftSettings') : t('draftRoom.topBar.viewDraftSettings')}
+              >
+                <Settings2 className="h-4 w-4" />
+              </button>
+              {isCommissioner && onCommissionerOpen ? (
+                <button
+                  type="button"
+                  onClick={onCommissionerOpen}
+                  data-testid="draft-topbar-commissioner-shield"
+                  disabled={commissionerLoading}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-500/14 text-violet-100 transition duration-150 hover:bg-violet-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45 disabled:opacity-55 active:scale-95"
+                  aria-label="Commissioner controls"
+                  title="Pause, timer, undo, and league draft tools"
+                >
+                  <Shield className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          ) : leagueDraftSettingsHref ? (
+            <div className="inline-flex items-center gap-1">
+              <Link
+                href={leagueDraftSettingsHref}
+                data-testid="draft-topbar-league-draft-settings"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/12 bg-[#7180a8]/20 text-white/85 transition duration-150 hover:bg-[#7b89af]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-95"
+                aria-label={t('draftRoom.topBar.aria.leagueDraftSettings')}
+                title={t('draftRoom.topBar.leagueDraftSettings')}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Link>
+              {isCommissioner && onCommissionerOpen ? (
+                <button
+                  type="button"
+                  onClick={onCommissionerOpen}
+                  data-testid="draft-topbar-commissioner-shield"
+                  disabled={commissionerLoading}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-violet-400/30 bg-violet-500/14 text-violet-100 transition duration-150 hover:bg-violet-500/24 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/45 disabled:opacity-55 active:scale-95"
+                  aria-label="Commissioner controls"
+                  title="Pause, timer, undo, and league draft tools"
+                >
+                  <Shield className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
           ) : isCommissioner ? (
             <button
               type="button"
@@ -672,18 +845,26 @@ export function DraftTopBar({
                   </button>
                 ) : null}
 
-                {(draftStatus === 'in_progress' || draftStatus === 'paused') && isCommissioner && onPause ? (
+                {(draftStatus === 'in_progress' || draftStatus === 'paused') &&
+                isCommissioner &&
+                ((draftStatus === 'in_progress' && onPause) || (draftStatus === 'paused' && onResume)) ? (
                   <button
                     type="button"
                     onClick={() => {
                       if (draftStatus === 'paused') {
                         onResume?.()
                       } else {
-                        onPause()
+                        onPause?.()
                       }
                       setMenuOpen(false)
                     }}
-                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
+                    disabled={commissionerLoading || !commissionerPauseControlsEnabled}
+                    title={
+                      commissionerPauseControlsEnabled
+                        ? undefined
+                        : 'Pause controls are disabled in league draft / automation settings'
+                    }
+                    className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8 disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     <Clock className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
                     <span>
@@ -728,7 +909,8 @@ export function DraftTopBar({
                           onResetTimer()
                           setMenuOpen(false)
                         }}
-                        className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/82 transition duration-150 hover:bg-white/12"
+                        disabled={commissionerLoading}
+                        className="rounded-xl border border-white/12 bg-white/5 px-3 py-2 text-xs text-white/82 transition duration-150 hover:bg-white/12 disabled:opacity-45"
                       >
                         Reset Timer
                       </button>
@@ -740,7 +922,8 @@ export function DraftTopBar({
                           onUndoPick()
                           setMenuOpen(false)
                         }}
-                        className="rounded-xl border border-red-400/25 bg-red-500/12 px-3 py-2 text-xs text-red-100 transition duration-150 hover:bg-red-500/20"
+                        disabled={commissionerLoading}
+                        className="rounded-xl border border-red-400/25 bg-red-500/12 px-3 py-2 text-xs text-red-100 transition duration-150 hover:bg-red-500/20 disabled:opacity-45"
                       >
                         Undo Pick
                       </button>
@@ -752,8 +935,15 @@ export function DraftTopBar({
           </div>
 
           {isReconnecting ? (
-            <span className="self-center text-[10px] uppercase tracking-[0.14em] text-amber-300">
-              Reconnecting
+            <span
+              className={`self-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                rs
+                  ? 'border-amber-400/35 bg-amber-500/15 text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.25)]'
+                  : 'text-amber-300'
+              }`}
+              title="Draft session poll failed several times in a row. The room keeps your last good snapshot; polls retry automatically."
+            >
+              Sync issue
             </span>
           ) : null}
         </div>

@@ -121,6 +121,48 @@ export async function POST(
   return NextResponse.json({ error: 'Invalid action; use accept, reject, or counter' }, { status: 400 })
 }
 
+/** Only the proposer can cancel while pending (withdraw sent offer). */
+export async function DELETE(
+  _req: NextRequest,
+  ctx: { params: Promise<{ leagueId: string; proposalId: string }> }
+) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { leagueId, proposalId } = await ctx.params
+  if (!leagueId || !proposalId) return NextResponse.json({ error: 'Missing leagueId or proposalId' }, { status: 400 })
+  const allowed = await canAccessLeagueDraft(leagueId, userId)
+  if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const myRosterId = await getCurrentUserRosterIdForLeague(leagueId, userId)
+  const proposal = await (prisma as any).draftPickTradeProposal.findFirst({
+    where: { id: proposalId },
+    include: { session: { select: { leagueId: true } } },
+  })
+  if (!proposal || !proposal.session || proposal.session.leagueId !== leagueId) {
+    return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
+  }
+  if (proposal.status !== 'pending') {
+    return NextResponse.json({ error: 'Proposal already settled' }, { status: 400 })
+  }
+  if (proposal.proposerRosterId !== myRosterId) {
+    return NextResponse.json({ error: 'Only the proposing manager can withdraw this offer' }, { status: 403 })
+  }
+
+  await (prisma as any).draftPickTradeProposal.update({
+    where: { id: proposalId },
+    data: {
+      status: 'cancelled',
+      respondedAt: new Date(),
+      responsePayload: { cancelledBy: 'proposer' },
+      updatedAt: new Date(),
+    },
+  })
+
+  return NextResponse.json({ ok: true, action: 'cancelled' })
+}
+
 async function emitAcceptedTradeCommentary(input: {
   leagueId: string
   proposerName?: string | null
