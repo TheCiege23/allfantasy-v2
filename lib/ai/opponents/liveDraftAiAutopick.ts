@@ -158,7 +158,7 @@ export async function tryAiOpponentAutopickForExpiredTimer(
     botProfileId: assign.profile.botId,
     actionType: "draft_pick_autopick",
     payload: decisionCtx as object,
-    result: { playerId: decision.playerId, ...decision } as object,
+    result: { ...decision } as object,
     durationMs: Date.now() - t0,
   })
 
