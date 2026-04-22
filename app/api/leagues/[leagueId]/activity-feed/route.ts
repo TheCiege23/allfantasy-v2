@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveLeagueAccess } from '@/lib/league-access'
 import { isElevatedCommissioner } from '@/server/services/permissionService'
+import { formatLeagueEventRow } from '@/lib/league-feed/leagueFeedFormatter'
+import { getLeagueFeedSettings } from '@/lib/league-feed/leagueFeedSettings'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +15,13 @@ type FeedItem = {
   type: string
   message: string
   title?: string | null
+  flavorLine?: string | null
+  actorType?: string | null
+  actorName?: string | null
+  teamName?: string | null
+  category?: string | null
+  importance?: string | null
+  botArchetypeLabel?: string | null
   visibility?: string | null
   createdAt: string
   metadata?: unknown
@@ -36,6 +45,13 @@ export async function GET(
   if (!access?.isMember) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const elevated = await isElevatedCommissioner(leagueId, userId)
+
+  const leagueRow = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { settings: true },
+  })
+  const feedPrefs = getLeagueFeedSettings(leagueRow?.settings)
+  const showAiArchetypes = elevated || feedPrefs.showArchetypesPublic !== false
 
   const [leagueRows, legacyRows] = await Promise.all([
     prisma.leagueEvent.findMany({
@@ -69,16 +85,33 @@ export async function GET(
     }),
   ])
 
-  const fromLeague: FeedItem[] = leagueRows.map((r) => ({
-    id: `le:${r.id}`,
-    source: 'league_event',
-    type: r.eventType,
-    title: r.title,
-    message: r.description ?? r.title,
-    visibility: r.visibility,
-    metadata: r.payload,
-    createdAt: r.createdAt.toISOString(),
-  }))
+  const fromLeague: FeedItem[] = leagueRows.map((r) => {
+    const f = formatLeagueEventRow({
+      id: r.id,
+      eventType: r.eventType,
+      title: r.title,
+      description: r.description,
+      payload: r.payload,
+      createdAt: r.createdAt,
+    })
+    return {
+      id: f.id,
+      source: 'league_event' as const,
+      type: f.type,
+      title: f.title,
+      message: f.message,
+      flavorLine: feedPrefs.aiFlavorEnabled ? f.flavorLine : null,
+      actorType: f.actorType,
+      actorName: f.actorName,
+      teamName: f.teamName,
+      category: f.category ?? null,
+      importance: f.importance ?? null,
+      botArchetypeLabel: showAiArchetypes ? f.botArchetypeLabel : null,
+      visibility: r.visibility,
+      metadata: f.metadata,
+      createdAt: f.createdAt,
+    }
+  })
 
   const fromLegacy: FeedItem[] = legacyRows.map((r) => ({
     id: `ae:${r.id}`,

@@ -4556,6 +4556,9 @@ model League {
   leagueDuesRecords                     LeagueDues[]
   payoutRequests                        PayoutRequest[]
   financeAuditEvents                    FinanceAuditEvent[]
+  aiOpponentTeamAssignments           AiOpponentTeamAssignment[]
+  aiOpponentActionLogs                AiOpponentActionLog[]
+  aiBotMessageHistory                 AiBotMessageHistory[]
 
   @@unique([userId, platform, platformLeagueId, season])
   @@index([userId])
@@ -6114,7 +6117,8 @@ model LeagueTeam {
   division            LeagueDivision?   @relation(fields: [divisionId], references: [id])
   league              League            @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   legacyRoster        LegacyRoster?     @relation(fields: [legacyRosterId], references: [id])
-  performances        TeamPerformance[]
+  performances             TeamPerformance[]
+  aiOpponentAssignment       AiOpponentTeamAssignment?
 
   @@unique([leagueId, externalId])
   @@index([leagueId, pointsFor])
@@ -12709,6 +12713,108 @@ model RedraftLeagueMember {
   @@unique([leagueId, userId])
   @@index([userId])
   @@map("redraft_league_members")
+}
+
+/// Reusable bot profile (archetype + display metadata). Catalog rows; assignments reference these.
+model AiOpponentProfile {
+  id           String                     @id @default(cuid())
+  botId        String                     @unique @db.VarChar(128)
+  displayName  String                     @db.VarChar(160)
+  avatarUrl    String?                    @db.VarChar(512)
+  archetypeId  String                     @db.VarChar(64)
+  tendencies   Json                       @default("{}")
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+  assignments  AiOpponentTeamAssignment[]
+
+  @@index([archetypeId])
+  @@map("ai_opponent_profiles")
+}
+
+/// One AI manager bound to a league team slot.
+model AiOpponentTeamAssignment {
+  id               String                 @id @default(cuid())
+  leagueId         String
+  leagueTeamId     String                 @unique
+  botProfileId     String
+  mode             String                 @default("active") @db.VarChar(32)
+  thinkSpeed       String                 @default("normal") @db.VarChar(24)
+  tradeAggression  String                 @default("medium") @db.VarChar(16)
+  waiverAggression String                 @default("medium") @db.VarChar(16)
+  personalityMode  String                 @default("from_profile") @db.VarChar(32)
+  isTakeover       Boolean                @default(false)
+  takeoverUntil    DateTime?
+  replacedByUserId String?
+  paused           Boolean                @default(false)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  league           League                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team             LeagueTeam             @relation(fields: [leagueTeamId], references: [id], onDelete: Cascade)
+  profile          AiOpponentProfile      @relation(fields: [botProfileId], references: [id], onDelete: Restrict)
+  memory           AiOpponentLeagueMemory?
+
+  @@index([leagueId])
+  @@index([botProfileId])
+  @@map("ai_opponent_team_assignments")
+}
+
+model AiOpponentLeagueMemory {
+  id           String                   @id @default(cuid())
+  assignmentId String                   @unique
+  stateJson    Json                     @default("{}")
+  updatedAt    DateTime                 @updatedAt
+  assignment   AiOpponentTeamAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+  @@map("ai_opponent_league_memory")
+}
+
+model AiOpponentActionLog {
+  id            String   @id @default(cuid())
+  leagueId      String
+  leagueTeamId  String?   @db.VarChar(64)
+  botProfileId  String?   @db.VarChar(64)
+  actionType    String    @db.VarChar(64)
+  payload       Json?
+  result        Json?
+  durationMs    Int?
+  errorMessage  String?   @db.VarChar(2000)
+  createdAt     DateTime  @default(now())
+  league        League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, createdAt])
+  @@index([actionType])
+  @@map("ai_opponent_action_logs")
+}
+
+model AiOpponentTradeCooldown {
+  id              String    @id @default(cuid())
+  leagueId        String
+  leagueTeamId    String    @db.VarChar(64)
+  lastProposalAt  DateTime?
+  proposalCount   Int       @default(0)
+  windowStart     DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([leagueId, leagueTeamId])
+  @@index([leagueId])
+  @@map("ai_opponent_trade_cooldowns")
+}
+
+/// Recent bot voice lines — anti-repeat / rate limiting for league feed flavor text.
+model AiBotMessageHistory {
+  id          String   @id @default(cuid())
+  leagueId    String
+  botId       String   @db.VarChar(128)
+  eventType   String   @db.VarChar(64)
+  contentHash String   @db.VarChar(64)
+  templateKey String   @db.VarChar(96)
+  createdAt   DateTime @default(now())
+  league      League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, botId, createdAt])
+  @@index([contentHash])
+  @@map("ai_bot_message_history")
 }
 
 /// Soccer data region for redraft creation + integration rows (maps API `mls` / `euro`).

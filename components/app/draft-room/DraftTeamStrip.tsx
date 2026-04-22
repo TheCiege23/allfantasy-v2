@@ -15,6 +15,7 @@
 import React, { useMemo } from 'react'
 import { getManagerColorBySlot } from '@/lib/draft-room'
 import type { SlotOrderEntry } from '@/lib/live-draft-engine/types'
+import { BotPersonalityBadge } from '@/components/league-feed/BotPersonalityBadge'
 
 export interface DraftTeamStripTeamMeta {
   rosterId: string
@@ -25,6 +26,8 @@ export interface DraftTeamStripTeamMeta {
   isOrphan?: boolean
   /** Highlights the cell border when this slot is on the clock. */
   isOnClock?: boolean
+  /** AI opponent archetype label from `/api/league/ai-opponents/summary`. */
+  aiArchetypeLabel?: string | null
 }
 
 export interface DraftTeamStripProps {
@@ -70,12 +73,12 @@ export function DraftTeamStrip({
 
   return (
     <section
-      className="border-b border-white/8 bg-[#060d1e] px-2 py-2"
+      className="border-b border-white/12 bg-[#0f1728] px-2 py-2.5"
       data-testid="draft-team-strip"
       aria-label="Draft managers"
     >
       <div
-        className="grid gap-1 sm:gap-1.5"
+        className="grid gap-1.5 sm:gap-2"
         style={{ gridTemplateColumns: `repeat(${teamCount}, minmax(80px, 1fr))` }}
       >
         {columns.map((slot) => {
@@ -96,23 +99,23 @@ export function DraftTeamStrip({
             return (
               <div
                 key={`empty-${slot}`}
-                className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-white/10 bg-white/[0.02] p-1.5"
+                className="flex flex-col items-center gap-1 rounded-lg border border-dashed border-white/15 bg-white/[0.04] p-2"
                 data-testid={`draft-team-strip-empty-${slot}`}
               >
                 {canInvite && onClaimSlot ? (
                   <button
                     type="button"
                     onClick={() => onClaimSlot(slot)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/40 bg-cyan-500/10 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200 hover:bg-cyan-500/20"
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/50 bg-cyan-500/20 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200 hover:bg-cyan-500/30 shadow-md transition-colors"
                   >
                     CLAIM
                   </button>
                 ) : (
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/30 text-[10px] font-semibold text-white/35">
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-white/[0.08] text-[10px] font-semibold text-white/50">
                     {slot}
                   </span>
                 )}
-                <span className="truncate text-[10px] text-white/40">Team {slot}</span>
+                <span className="truncate text-[9px] text-white/50">Team {slot}</span>
               </div>
             )
           }
@@ -124,17 +127,19 @@ export function DraftTeamStrip({
               onClick={onSelectSlot ? () => onSelectSlot(slot) : undefined}
               disabled={!onSelectSlot}
               data-testid={`draft-team-strip-slot-${slot}`}
-              className={`flex flex-col items-center gap-1 rounded-lg p-1.5 transition ${
-                onSelectSlot ? 'hover:bg-white/[0.04]' : ''
-              } ${isUser ? 'ring-1 ring-cyan-300/60' : ''}`}
+              className={`flex flex-col items-center gap-1 rounded-lg p-2 transition ${
+                onSelectSlot ? 'hover:bg-white/[0.06]' : ''
+              } ${isUser ? 'ring-1 ring-cyan-300/70' : ''}`}
             >
               <div
-                className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 ${
+                className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 shadow-md ${
                   isOnClock
-                    ? 'border-amber-300 shadow-[0_0_0_3px_rgba(252,211,77,0.25)]'
-                    : 'border-white/12'
+                    ? 'border-amber-300/80 shadow-[0_0_0_4px_rgba(252,211,77,0.3)]'
+                    : isUser
+                      ? 'border-cyan-400/40'
+                      : 'border-white/18'
                 }`}
-                style={{ backgroundColor: color.tintHex + '33' }}
+                style={{ backgroundColor: color.tintHex + '40' }}
               >
                 {meta?.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -161,15 +166,18 @@ export function DraftTeamStrip({
                 )}
               </div>
               <span
-                className={`w-full truncate text-[10px] ${
-                  isUser ? 'font-bold text-cyan-200' : 'text-white/75'
+                className={`w-full truncate text-[9px] ${
+                  isUser ? 'font-bold text-cyan-200' : 'text-white/80'
                 }`}
                 title={displayName}
               >
                 {displayName}
               </span>
+              {meta?.aiArchetypeLabel ? (
+                <BotPersonalityBadge archetypeLabel={meta.aiArchetypeLabel} compact className="max-w-full" />
+              ) : null}
               {isOnClock && (
-                <span className="rounded-full bg-amber-400/90 px-1.5 py-[1px] text-[8px] font-black uppercase tracking-[0.14em] text-black">
+                <span className="rounded-full bg-amber-400/95 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-black">
                   On clock
                 </span>
               )}

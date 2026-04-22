@@ -126,8 +126,8 @@ export type DraftBoardCellProps = {
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
   if (tone === 'user')
-    return 'ring-1 ring-amber-400/50 border-amber-400/40 shadow-[0_4px_20px_rgba(251,191,36,0.18)]'
-  if (tone === 'ai') return 'ring-1 ring-sky-400/45 border-sky-400/35 shadow-[0_4px_22px_rgba(56,189,248,0.2)]'
+    return 'ring-1 ring-amber-400/60 border-amber-400/50 shadow-[0_4px_24px_rgba(251,191,36,0.24)]'
+  if (tone === 'ai') return 'ring-1 ring-sky-400/55 border-sky-400/45 shadow-[0_4px_26px_rgba(56,189,248,0.26)]'
   return ''
 }
 
@@ -153,7 +153,7 @@ function PositionBadge({ pos }: { pos: string | null }) {
   const p = (pos ?? '—').trim().slice(0, 4).toUpperCase()
   return (
     <span
-      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-400/25 bg-cyan-500/15 px-1 py-0.5 text-[8px] font-bold text-cyan-100 shadow-sm"
+      className="inline-flex min-w-[1.5rem] shrink-0 items-center justify-center rounded-md border border-cyan-400/40 bg-cyan-500/25 px-1 py-0.5 text-[8px] font-bold text-cyan-200 shadow-md"
       title={pos ?? undefined}
     >
       {p}
@@ -229,14 +229,14 @@ function DraftBoardCellInner({
 
   return (
     <div
-      className={`relative flex h-[64px] min-h-[64px] flex-col overflow-hidden rounded-lg border px-1.5 pb-1 pt-1 text-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.25)] transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-0.5 hover:border-white/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.35)] sm:h-[68px] sm:min-h-[68px] sm:px-2 sm:pb-1.5 sm:pt-1.5 ${
+      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-lg border px-2.5 pb-2 pt-2 text-[10px] shadow-xl transition-[border-color,box-shadow,transform] duration-200 hover:z-[1] hover:-translate-y-1 hover:scale-[1.02] hover:border-white/35 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
-          ? 'border-cyan-300/80 bg-gradient-to-br from-cyan-500/20 via-[#1a2a44] to-[#1e3a52] shadow-[0_0_36px_rgba(34,211,238,0.48)] ring-2 ring-cyan-400/60'
+          ? 'border-cyan-300/90 bg-gradient-to-br from-cyan-500/25 via-[#1f2d47] to-[#1a2844] shadow-[0_0_40px_rgba(0,217,255,0.5)] ring-2 ring-cyan-400/70'
           : isRecentPick
-            ? 'border-amber-400/45 bg-gradient-to-br from-amber-500/[0.14] to-[#232c40] ring-1 ring-amber-400/40 shadow-[0_0_22px_rgba(251,191,36,0.22)]'
-            : `border-white/[0.11] bg-gradient-to-b from-[#2a354c] to-[#232c40] ${highlightClass(pickHighlight)}`
+            ? 'border-amber-400/60 bg-gradient-to-br from-amber-500/18 to-[#1f2d47] ring-1 ring-amber-400/50 shadow-[0_0_24px_rgba(251,191,36,0.28)]'
+            : `border-white/18 bg-gradient-to-b from-[#1f2d47] to-[#141e35] ${highlightClass(pickHighlight)}`
       }`}
       style={tint ?? managerTint}
       data-overall={pick.overall}
@@ -286,15 +286,15 @@ function DraftBoardCellInner({
 
       <div className="flex items-start justify-between gap-1">
         <div className="flex min-w-0 flex-wrap items-center gap-0.5">
-          {pick.isKeeper ? <StatusBadge label="K" className="bg-emerald-500/18 text-emerald-100" /> : null}
-          {pick.isDevyPick ? <StatusBadge label="D" className="bg-violet-500/18 text-violet-100" /> : null}
-          {pick.isCollegePick ? <StatusBadge label="C" className="bg-violet-500/18 text-violet-100" /> : null}
-          {pick.isProPick ? <StatusBadge label="P" className="bg-cyan-500/18 text-cyan-100" /> : null}
-          {pick.isPromotedFromDevy ? <StatusBadge label="Promoted" className="bg-amber-500/18 text-amber-100" /> : null}
+          {pick.isKeeper ? <StatusBadge label="K" className="bg-emerald-500/25 text-emerald-200" /> : null}
+          {pick.isDevyPick ? <StatusBadge label="D" className="bg-violet-500/25 text-violet-200" /> : null}
+          {pick.isCollegePick ? <StatusBadge label="C" className="bg-violet-500/25 text-violet-200" /> : null}
+          {pick.isProPick ? <StatusBadge label="P" className="bg-cyan-500/25 text-cyan-200" /> : null}
+          {pick.isPromotedFromDevy ? <StatusBadge label="Promoted" className="bg-amber-500/25 text-amber-200" /> : null}
           {showTradeChip ? (
             <span
               className={`max-w-[70px] truncate rounded px-1 py-0.5 text-[8px] font-semibold ${
-                showNewOwnerInRed ? 'bg-red-500/16 text-red-100' : 'bg-white/16 text-white/86'
+                showNewOwnerInRed ? 'bg-red-500/20 text-red-200' : 'bg-white/20 text-white/95'
               }`}
               title={ownerLabel ?? undefined}
             >
@@ -303,7 +303,7 @@ function DraftBoardCellInner({
           ) : null}
         </div>
 
-        <span className="tabular-nums text-[9px] font-semibold text-white/48" aria-hidden>
+        <span className="tabular-nums text-[11px] font-bold text-white/65" aria-hidden>
           {compactLabel}
         </span>
       </div>
@@ -319,9 +319,9 @@ function DraftBoardCellInner({
                 <ArrowRight className="h-3 w-3" aria-hidden />
               )}
               {isCollegeRound ? (
-                <StatusBadge label="College" className="bg-violet-500/18 text-violet-100" />
+                <StatusBadge label="College" className="bg-violet-500/25 text-violet-200" />
               ) : isDevyRound ? (
-                <StatusBadge label="Devy" className="bg-violet-500/18 text-violet-100" />
+                <StatusBadge label="Devy" className="bg-violet-500/25 text-violet-200" />
               ) : null}
             </div>
 
@@ -336,7 +336,7 @@ function DraftBoardCellInner({
           </div>
         </div>
       ) : (
-        <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-0.5 overflow-hidden">
+        <div className="mt-0.5 flex min-h-0 flex-1 flex-col justify-between gap-1 overflow-hidden">
           <div className="flex min-w-0 items-start gap-1.5">
             <div className="relative shrink-0">
               <TinyHeadshot name={pick.playerName} src={headshotSrc} />
@@ -346,12 +346,12 @@ function DraftBoardCellInner({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1">
-                <span className="truncate font-semibold leading-tight text-white" title={pick.playerName ?? undefined}>
+                <span className="truncate font-bold leading-tight text-white/98 text-[11px]" title={pick.playerName ?? undefined}>
                   {pick.playerName}
                 </span>
                 <PositionBadge pos={pick.position} />
               </div>
-              <p className="truncate text-[9px] text-white/55">
+              <p className="truncate text-[9px] text-white/60">
                 {(pick.team ?? '—').toString()}
                 {pick.byeWeek != null && pick.byeWeek > 0 ? ` · Bye ${pick.byeWeek}` : ''}
               </p>

@@ -137,7 +137,7 @@ function TeamLogoOrFallback({
   return (
     <span
       data-testid={`${testIdBase}-fallback`}
-      className={`inline-flex items-center justify-center rounded border border-white/10 bg-[#0a1228] text-[9px] font-bold text-white/85 flex-shrink-0 shadow-sm ${className}`}
+      className={`inline-flex items-center justify-center rounded border border-white/15 bg-[#141e35] text-[9px] font-bold text-white/90 flex-shrink-0 shadow-sm ${className}`}
       style={{ width: size, height: size }}
     >
       {teamAbbr ? teamAbbr.slice(0, 3).toUpperCase() : '—'}
@@ -231,7 +231,7 @@ function DraftPlayerCardInner({
   if (loading) {
     return (
       <div
-        className="flex animate-pulse items-center gap-2 rounded-xl border border-white/10 bg-[#0a1228]/90 px-2 py-2"
+        className="flex animate-pulse items-center gap-2 rounded-xl border border-white/15 bg-[#1f2d47]/90 px-2 py-2"
         aria-busy="true"
       >
         <div className="h-10 w-10 shrink-0 rounded-full bg-white/10" />
@@ -265,7 +265,7 @@ function DraftPlayerCardInner({
         }}
         role={onSelect ? 'button' : undefined}
         tabIndex={onSelect ? 0 : undefined}
-        className={`rounded-xl border bg-gradient-to-b from-[#0e1528] to-[#0a1228] p-3 shadow-[0_8px_24px_rgba(0,0,0,0.25)] transition duration-200 hover:border-white/20 hover:shadow-[0_12px_32px_rgba(0,0,0,0.35)] ${
+        className={`rounded-xl border bg-gradient-to-b from-[#1f2d47] to-[#141e35] p-3 shadow-lg transition duration-200 hover:border-white/28 hover:shadow-xl ${
           isDrafted ? 'border-white/5 opacity-75' : 'border-white/12'
         } ${isDevy ? 'ring-1 ring-inset ring-violet-500/35' : ''}`}
       >
@@ -277,13 +277,13 @@ function DraftPlayerCardInner({
               size={44}
               testIdBase={headshotTestBase}
             />
-            <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/12 bg-[#0a1228] p-px shadow-sm">
+            <div className="absolute -bottom-0.5 -right-0.5 rounded border border-white/15 bg-[#141e35] p-px shadow-sm">
               <TeamLogoOrFallback logoUrl={teamLogoUrl} teamAbbr={teamAbbr} size={18} testIdBase={teamLogoTestBase} />
             </div>
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <p className="font-semibold text-white truncate">{displayName}</p>
+              <p className="font-bold text-white/98 truncate">{displayName}</p>
               {devyLabel && (
                 <span className="rounded bg-violet-500/25 px-1.5 py-0.5 text-[10px] font-medium text-violet-200" title="Devy / college">
                   {devyLabel}
@@ -295,7 +295,7 @@ function DraftPlayerCardInner({
                 </span>
               )}
             </div>
-            <p className="mt-0.5 text-[11px] text-white/55">
+            <p className="mt-0.5 text-[11px] text-white/65">
               {[teamAbbr ?? '—', position].filter(Boolean).join(' · ')}
             </p>
             <p className="mt-0.5 text-[10px] text-white/45 line-clamp-2">{statLine}</p>
@@ -328,7 +328,7 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] shadow-[0_2px_12px_rgba(0,0,0,0.2)] transition duration-150 hover:-translate-y-px hover:border-white/22 hover:bg-[#0d1530] hover:shadow-[0_8px_28px_rgba(0,0,0,0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/40 active:scale-[0.995] ${
+      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] shadow-md transition duration-200 hover:-translate-y-1 hover:scale-[1.01] hover:border-white/32 hover:bg-[#1a2844] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 active:scale-[0.995] ${
         isDrafted ? 'border-white/[0.07] bg-[#0a1228]/65 opacity-65' : 'border-white/[0.1] bg-gradient-to-r from-[#0c1424] to-[#0a1228]'
       } ${isDevy ? 'border-l-[3px] border-l-violet-500/55' : ''}`}
     >

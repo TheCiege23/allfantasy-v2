@@ -7,14 +7,20 @@ import { PremiumGate } from '@/components/subscription/PremiumGate'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { useSubscriptionGateOptional } from '@/hooks/useSubscriptionGate'
+import { AiOpponentsCommissionerSection } from '@/components/league-settings/AiOpponentsCommissionerSection'
+import { LeagueFeedCommissionerSection } from '@/components/league-settings/LeagueFeedCommissionerSection'
 
 export function AiLeagueSettingsPanel({
+  leagueId,
+  settingsSnapshot,
   initialData,
   canEdit,
   debouncedSave,
   save,
   hasAfCommissionerSub,
 }: {
+  leagueId: string
+  settingsSnapshot: Record<string, unknown>
   initialData: CommissionerSettingsFormData
   canEdit: boolean
   debouncedSave: (partial: Record<string, unknown>) => void
@@ -66,6 +72,10 @@ export function AiLeagueSettingsPanel({
           </div>
         </PremiumGate>
       ) : null}
+
+      <AiOpponentsCommissionerSection leagueId={leagueId} canEdit={canEdit} />
+
+      <LeagueFeedCommissionerSection settingsSnapshot={settingsSnapshot} canEdit={canEdit} debouncedSave={debouncedSave} />
 
       <div>
         <SettingsSectionLabel>Core</SettingsSectionLabel>

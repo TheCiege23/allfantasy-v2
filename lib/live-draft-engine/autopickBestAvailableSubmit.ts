@@ -16,6 +16,47 @@ import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheCl
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getAllowedPositionsAndRosterSize } from '@/lib/live-draft-engine/RosterFitValidation'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
+import type { CurrentOnTheClock } from '@/lib/live-draft-engine/types'
+
+export type AutopickFallbackPoolEntry = {
+  playerName: string
+  position: string
+  team: string | null
+  playerId: string | null
+  byeWeek: number | null
+  adp: number | null
+}
+
+export type AutopickDraftContext = {
+  draftSession: {
+    id: string
+    status: string
+    draftType: string
+    rounds: number
+    teamCount: number
+    thirdRoundReversal: boolean
+    sportType: string | null
+    /** `live` | `mock` — from DraftSession.sessionKind */
+    sessionKind: string
+    picks: Array<{
+      rosterId: string
+      playerName: string
+      position: string
+    }>
+    slotOrder: unknown
+    tradedPicks: unknown
+  }
+  current: CurrentOnTheClock
+  onClockRosterId: string
+  fallbackPool: AutopickFallbackPoolEntry[]
+  league: { sport: string; isDynasty: boolean; settings: Record<string, unknown> } | null
+  sport: string
+  isDynasty: boolean
+  isSuperflex: boolean
+  aiAdpByKey?: Record<string, number>
+  autopickBehavior: string
+  overallPick: number
+}
 
 export type BestAvailableAutopickResolved = {
   playerName: string
@@ -82,13 +123,12 @@ async function loadFallbackCandidates(
 }
 
 /**
- * Best ranked / need-based player for the current on-clock pick (not queue).
- * Call only when queue-first did not yield a pick and autopick_behavior is not `skip`.
+ * Shared draft + pool context for autopick and AI opponent pick (same validation as legacy BPA).
  */
-export async function resolveBestAvailableAutopickCandidate(
+export async function loadAutopickDraftContextForOnClock(
   leagueId: string,
   onClockRosterId: string
-): Promise<BestAvailableAutopickResolved | null> {
+): Promise<AutopickDraftContext | null> {
   const draftSession = await prisma.draftSession.findUnique({
     where: { leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },
@@ -161,6 +201,50 @@ export async function resolveBestAvailableAutopickCandidate(
     }
   }
 
+  return {
+    draftSession: {
+      id: draftSession.id,
+      status: draftSession.status,
+      draftType: draftSession.draftType,
+      rounds: draftSession.rounds,
+      teamCount: draftSession.teamCount,
+      thirdRoundReversal: draftSession.thirdRoundReversal,
+      sportType: draftSession.sportType,
+      sessionKind: String(draftSession.sessionKind ?? 'live'),
+      picks: draftSession.picks.map((p) => ({
+        rosterId: p.rosterId,
+        playerName: p.playerName,
+        position: p.position,
+      })),
+      slotOrder: draftSession.slotOrder,
+      tradedPicks: draftSession.tradedPicks,
+    },
+    current,
+    onClockRosterId,
+    fallbackPool,
+    league: league ? { sport: String(league.sport), isDynasty: Boolean(league.isDynasty), settings } : null,
+    sport,
+    isDynasty,
+    isSuperflex,
+    aiAdpByKey,
+    autopickBehavior,
+    overallPick: picksCount + 1,
+  }
+}
+
+/**
+ * Best ranked / need-based player for the current on-clock pick (not queue).
+ * Call only when queue-first did not yield a pick and autopick_behavior is not `skip`.
+ */
+export async function resolveBestAvailableAutopickCandidate(
+  leagueId: string,
+  onClockRosterId: string
+): Promise<BestAvailableAutopickResolved | null> {
+  const ctx = await loadAutopickDraftContextForOnClock(leagueId, onClockRosterId)
+  if (!ctx) return null
+
+  const { draftSession, current, onClockRosterId: rid, fallbackPool, sport, isDynasty, isSuperflex, aiAdpByKey, autopickBehavior } = ctx
+
   let selected: BestAvailableAutopickResolved | null = null
 
   if (autopickBehavior === 'need-based') {
@@ -173,7 +257,7 @@ export async function resolveBestAvailableAutopickCandidate(
         byeWeek: entry.byeWeek,
       })),
       teamRoster: draftSession.picks
-        .filter((pick) => pick.rosterId === onClockRosterId)
+        .filter((pick) => pick.rosterId === rid)
         .map((pick) => ({ position: pick.position })),
       rosterSlots: getDefaultRosterSlotsForSport(sport),
       round: current.round,
@@ -243,6 +327,10 @@ export async function submitBestAvailableAutopickForExpiredTimer(
   leagueId: string,
   onClockRosterId: string
 ): Promise<{ ok: true; pick: BestAvailableAutopickResolved } | { ok: false; error: 'no_pool' | 'submit_failed' }> {
+  const { tryAiOpponentAutopickForExpiredTimer } = await import('@/lib/ai/opponents/liveDraftAiAutopick')
+  const aiTry = await tryAiOpponentAutopickForExpiredTimer(leagueId, onClockRosterId)
+  if (aiTry.ok) return aiTry
+
   const selected = await resolveBestAvailableAutopickCandidate(leagueId, onClockRosterId)
   if (!selected) return { ok: false, error: 'no_pool' }
 

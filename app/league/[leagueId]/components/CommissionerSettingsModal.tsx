@@ -404,6 +404,8 @@ export function CommissionerSettingsModal({
             />
           ) : activeTab === 'ai' ? (
             <AiLeagueSettingsPanel
+              leagueId={leagueId}
+              settingsSnapshot={payload?.settingsSnapshot ?? {}}
               initialData={initialData}
               canEdit={canEdit}
               debouncedSave={debouncedSave}

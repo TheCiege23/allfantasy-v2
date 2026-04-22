@@ -182,6 +182,10 @@ export function DraftRoomPageClient({
       acceptConfidenceMin: number
     }
   } | null>(null)
+  /** Prisma AI opponent assignments — draft roster ids (see `/api/league/ai-opponents/summary`). */
+  const [aiOpponentRosterIds, setAiOpponentRosterIds] = useState<string[]>([])
+  /** Draft roster id → AI archetype label for manager strip badges. */
+  const [aiArchetypeByRoster, setAiArchetypeByRoster] = useState<Record<string, string>>({})
   const [orphanAiProviderAvailableState, setOrphanAiProviderAvailableState] = useState<boolean>(true)
   const [draftQueueSizeLimit, setDraftQueueSizeLimit] = useState<number>(normalizeDraftQueueSizeLimit(null))
   const [leagueAiAdp, setLeagueAiAdp] = useState<{
@@ -514,6 +518,30 @@ export function DraftRoomPageClient({
         } else {
           setCommissionerAiDraft(null)
         }
+        try {
+          const aiSum = await fetch(`/api/league/ai-opponents/summary?leagueId=${encodeURIComponent(leagueId)}`, {
+            cache: 'no-store',
+            credentials: 'include',
+          })
+          const sumJson = await aiSum.json().catch(() => ({}))
+          if (aiSum.ok && Array.isArray(sumJson.aiManagedDraftRosterIds)) {
+            setAiOpponentRosterIds(sumJson.aiManagedDraftRosterIds.filter((x: unknown) => typeof x === 'string'))
+          } else {
+            setAiOpponentRosterIds([])
+          }
+          const arch: Record<string, string> = {}
+          if (aiSum.ok && Array.isArray(sumJson.assignments)) {
+            for (const a of sumJson.assignments as { draftRosterId?: string | null; archetypeLabel?: string | null }[]) {
+              if (a.draftRosterId && typeof a.archetypeLabel === 'string' && a.archetypeLabel.trim()) {
+                arch[a.draftRosterId] = a.archetypeLabel.trim()
+              }
+            }
+          }
+          setAiArchetypeByRoster(arch)
+        } catch {
+          setAiOpponentRosterIds([])
+          setAiArchetypeByRoster({})
+        }
         setDraftQueueSizeLimit(normalizeDraftQueueSizeLimit(data?.config?.queue_size_limit))
         setIdpRosterSummary(data.idpRosterSummary ?? null)
       }
@@ -522,6 +550,8 @@ export function DraftRoomPageClient({
       setSkipPickAllowed(false)
       setOrphanAiStatus(null)
       setCommissionerAiDraft(null)
+      setAiOpponentRosterIds([])
+      setAiArchetypeByRoster({})
       setDraftQueueSizeLimit(normalizeDraftQueueSizeLimit(null))
       setIdpRosterSummary(null)
     }
@@ -1909,10 +1939,10 @@ export function DraftRoomPageClient({
     [draftIntel?.queue, draftedNames]
   )
   const slotOrder = session?.slotOrder ?? []
-  const aiManagedRosterIds = useMemo(
-    () => commissionerAiDraft?.assignedAiTeams?.filter((t) => t.active).map((t) => t.teamId) ?? [],
-    [commissionerAiDraft?.assignedAiTeams]
-  )
+  const aiManagedRosterIds = useMemo(() => {
+    const fromComm = commissionerAiDraft?.assignedAiTeams?.filter((t) => t.active).map((t) => t.teamId) ?? []
+    return [...new Set([...fromComm, ...aiOpponentRosterIds])]
+  }, [commissionerAiDraft?.assignedAiTeams, aiOpponentRosterIds])
   const draftTeamPanelProps = useMemo(() => {
     const devyRoundsSet = new Set<number>(
       ((session as DraftSessionSnapshot | null)?.c2c?.enabled
@@ -2420,10 +2450,11 @@ export function DraftRoomPageClient({
         ownerName: team?.ownerName ?? entry.displayName ?? null,
         avatarUrl: team?.avatarUrl ?? null,
         isOrphan: Array.isArray(orphanRosterIds) && orphanRosterIds.includes(entry.rosterId),
+        aiArchetypeLabel: aiArchetypeByRoster[entry.rosterId] ?? null,
       }
     }
     return map
-  }, [slotOrder, leagueTeams, orphanRosterIds])
+  }, [slotOrder, leagueTeams, orphanRosterIds, aiArchetypeByRoster])
 
   if (loading && !session) {
     return (
