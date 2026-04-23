@@ -163,7 +163,7 @@ export function calculateAdherenceScore(log: StrategyExecutionLog): number {
     if (focus === 'Elite RB' || focus === 'Hero RB') return (positionCounts['RB'] ?? 0) >= 2
     if (focus === 'Zero-RB' || focus === 'WR Stack') return (positionCounts['WR'] ?? 0) >= 3
     if (focus === 'TE Priority') return (positionCounts['TE'] ?? 0) >= 1
-    if (focus === 'Proven Veterans') return log.picks.filter((p) => parseInt(p.overall) < 100).length >= 4
+    if (focus === 'Proven Veterans') return log.picks.filter((p) => p.overall < 100).length >= 4
     if (focus === 'Youth') return (positionCounts['QB'] ?? 0) + (positionCounts['WR'] ?? 0) > 4
     return false
   }).length
