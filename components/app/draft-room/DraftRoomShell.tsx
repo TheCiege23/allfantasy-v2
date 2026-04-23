@@ -220,7 +220,9 @@ export function DraftRoomShell({
             <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">{playerPanel}</div>
             <div className="min-w-0 flex-[2] overflow-hidden">{queuePanel}</div>
           </div>
-          <div className="min-h-[150px] flex-[1.5] overflow-hidden">{chatPanel}</div>
+          <div className="min-h-0 w-full min-h-[min(28vh,360px)] flex-[1.5] overflow-hidden border-t border-white/8">
+            {chatPanel}
+          </div>
         </div>
       )}
 

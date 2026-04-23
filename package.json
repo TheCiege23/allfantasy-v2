@@ -113,6 +113,7 @@
     "react": "^18.3.1",
     "react-day-picker": "^9.13.2",
     "react-dom": "^18.3.1",
+    "react-draggable": "^4.5.0",
     "react-hook-form": "^7.71.1",
     "react-simple-maps": "^3.0.0",
     "recharts": "^3.7.0",

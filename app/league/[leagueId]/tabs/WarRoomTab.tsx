@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useLeagueWarRoomCompanion } from '@/hooks/useLeagueWarRoomCompanion'
 import {
   ArrowRight,
   BookOpen,
@@ -81,6 +82,14 @@ export function WarRoomTab({ league, sport }: WarRoomTabProps) {
   const resolved = normalizeToSupportedSport(sport ?? league.sport) ?? 'NFL'
   const sportU = resolved.toUpperCase()
   const [metaFrame, setMetaFrame] = useState<'24h' | '7d' | '30d'>('7d')
+  const liveDraftCompanion = league.status === 'drafting'
+  const leagueDraftCompanion = useLeagueWarRoomCompanion({
+    leagueId: league.id,
+    sport: resolved,
+    leagueName: league.name,
+    isDynasty: Boolean(league.isDynasty),
+    enabled: liveDraftCompanion,
+  })
 
   const sportQs = useMemo(() => encodeURIComponent(resolved), [resolved])
 
@@ -230,7 +239,29 @@ export function WarRoomTab({ league, sport }: WarRoomTabProps) {
 
       <AFWarRoomPlanSpotlight className="border-white/[0.06]" />
 
-      <WarRoomPanel leagueId={league.id} sport={resolved} />
+      {liveDraftCompanion && leagueDraftCompanion.error ? (
+        <p
+          className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100/90"
+          data-testid="war-room-companion-error"
+        >
+          {leagueDraftCompanion.error}
+        </p>
+      ) : null}
+
+      <WarRoomPanel
+        leagueId={league.id}
+        sport={resolved}
+        companionDraft={
+          liveDraftCompanion
+            ? { active: true, draftRoomHref: `/league/${league.id}/draft` }
+            : { active: false }
+        }
+        draftCompanionCopilot={liveDraftCompanion ? leagueDraftCompanion.copilot : null}
+        draftCompanionIntelligence={liveDraftCompanion ? leagueDraftCompanion.intelligence : null}
+        draftCopilotEmptyMessage={liveDraftCompanion ? leagueDraftCompanion.copilotEmptyMessage : null}
+        draftCompanionDataLoading={liveDraftCompanion ? leagueDraftCompanion.loading : false}
+        onDraftCompanionRefresh={liveDraftCompanion ? () => void leagueDraftCompanion.refresh() : undefined}
+      />
 
       <section className="space-y-2">
         <div className="flex flex-wrap items-end justify-between gap-2">

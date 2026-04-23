@@ -5,7 +5,7 @@
 
 export interface DraftHelperBadgeCountInput {
   recommendation: { player?: { name?: string } } | null | undefined
-  warRoom: { snapshot?: { bestPick?: { player?: { name?: string } } } } | null | undefined
+  warRoom: { snapshot?: unknown } | null | undefined
   aiFeatureStatus?: {
     chimmyReady?: boolean
     liveBrainReady?: boolean
@@ -30,6 +30,26 @@ export interface DraftHelperBadgeCountInput {
   } | null
 }
 
+/** War Room payload may be `{ bestPick: { name } }` (DraftWarRoomSnapshot) or nested `bestPick.player`. */
+function warRoomPickName(warRoom: DraftHelperBadgeCountInput['warRoom']): string | undefined {
+  const snap = warRoom?.snapshot as
+    | {
+        bestPick?:
+          | { player?: { name?: string }; name?: string }
+          | null
+      }
+    | null
+    | undefined
+  const bp = snap?.bestPick
+  if (!bp || typeof bp !== 'object') return undefined
+  if ('player' in bp && bp.player && typeof bp.player === 'object') {
+    const n = (bp.player as { name?: string }).name
+    if (typeof n === 'string' && n.trim()) return n
+  }
+  const direct = (bp as { name?: string }).name
+  return typeof direct === 'string' && direct.trim() ? direct : undefined
+}
+
 export function calculateDraftHelperBadgeCount(input: DraftHelperBadgeCountInput): number {
   let count = 0
 
@@ -38,8 +58,8 @@ export function calculateDraftHelperBadgeCount(input: DraftHelperBadgeCountInput
     count++
   }
 
-  // War Room: +1 if has active snapshot with best pick
-  if (input.warRoom?.snapshot?.bestPick?.player?.name) {
+  // War Room: +1 if has active snapshot with best pick (flat or nested player)
+  if (warRoomPickName(input.warRoom)) {
     count++
   }
 

@@ -1,22 +1,12 @@
 'use client'
 
 import { AlertCircle, Zap, Bot, TrendingUp } from 'lucide-react'
+import type { DraftHelperPanelProps } from '@/components/app/draft-room/DraftHelperPanel'
 
+/** Mirrors draft-room helper feed shapes so callers can pass `DraftHelperPanelProps['sportsFeed']` unchanged. */
 interface DraftHelperIntelligenceProps {
-  aiFeatureStatus?: {
-    chimmyReady?: boolean
-    liveBrainReady?: boolean
-    aiAdpEnabled?: boolean
-    queueReorderEnabled?: boolean
-    draftExplanationEnabled?: boolean
-    orphanAiEnabled?: boolean
-    commissionerAiManagersCount?: number
-  } | null
-  sportsFeed?: {
-    available?: boolean
-    headlines?: Array<{ id?: string; title?: string; playerName?: string }>
-    injuries?: Array<{ playerName?: string; status?: string; note?: string }>
-  } | null
+  aiFeatureStatus?: DraftHelperPanelProps['aiFeatureStatus']
+  sportsFeed?: DraftHelperPanelProps['sportsFeed']
 }
 
 export function DraftHelperIntelligence({ aiFeatureStatus, sportsFeed }: DraftHelperIntelligenceProps) {

@@ -288,6 +288,7 @@ export function DraftRoomPageClient({
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
   const [draftAiExplanationEnabled, setDraftAiExplanationEnabled] = useState(false)
   const [mobileTab, setMobileTabState] = useState<MobileDraftTab>('board')
+  const [bottomDockTab, setBottomDockTab] = useState<'queue' | 'results' | 'chat' | 'ai'>('queue')
   const floatingHelperState = useDraftHelperFloatingState()
   const setMobileTab = useCallback((tab: MobileDraftTab) => {
     sendProductAnalyticsBeacon(DRAFT_ROOM.MOBILE_TAB, { tab, leagueId })
@@ -393,6 +394,10 @@ export function DraftRoomPageClient({
    * EITHER a qualifying subscription is active OR balance > 0.
    */
   const hasAiAccess = hasAiSubscription || tokenBalance.balance > 0
+  const resolvedOrphanAiProviderAvailable =
+    (session as { orphanAiProviderAvailable?: boolean } | null)?.orphanAiProviderAvailable ??
+    orphanAiProviderAvailableState ??
+    true
   const [claimSlotLoadingRosterId, setClaimSlotLoadingRosterId] = useState<string | null>(null)
   const [auctionNominateLoading, setAuctionNominateLoading] = useState(false)
   const [auctionBidLoading, setAuctionBidLoading] = useState(false)
@@ -3756,10 +3761,6 @@ export function DraftRoomPageClient({
     draftUISettings?.orphanDrafterMode
     ?? (session as { orphanDrafterMode?: 'cpu' | 'ai' }).orphanDrafterMode
     ?? 'cpu'
-  const resolvedOrphanAiProviderAvailable =
-    (session as { orphanAiProviderAvailable?: boolean }).orphanAiProviderAvailable
-    ?? orphanAiProviderAvailableState
-    ?? true
   const sessionRequestedOrphanMode =
     (session as { orphanDrafterMode?: 'cpu' | 'ai' }).orphanDrafterMode ?? requestedOrphanDrafterMode
   const effectiveOrphanDrafterMode =

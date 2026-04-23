@@ -264,9 +264,11 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       where: { id: input.leagueId },
       select: { lifecycleState: true, userId: true },
     })
-    const currentState = getLeagueLifecycleState(league)
-    if (currentState === 'pre_draft') {
-      await transitionLeagueState(input.leagueId, 'drafting', league?.userId ?? 'system')
+    if (league) {
+      const currentState = getLeagueLifecycleState(league)
+      if (currentState === 'pre_draft') {
+        await transitionLeagueState(input.leagueId, 'drafting', league.userId ?? 'system')
+      }
     }
   } catch (e) {
     // Lifecycle transition is best-effort; don't fail the pick if it fails

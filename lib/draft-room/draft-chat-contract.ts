@@ -85,6 +85,11 @@ export type DraftChatWireMessage = {
   senderAvatarUrl?: string | null
   leagueId?: string | null
   aiMetadata?: DraftChatAiMetadataWire | null
+  /**
+   * Client-only overlay (optional): row counts as unread for collapsed-chat badge when draft chat
+   * merges local read state — not persisted on the wire/API contract.
+   */
+  unread?: boolean
 }
 
 const COPILOT_TYPES = new Set(['copilot_on_clock', 'copilot_prepare', 'queue_conflict'])

@@ -1,4 +1,5 @@
 export { WarRoomPanel } from './WarRoomPanel'
+export type { WarRoomPanelProps, DraftCompanionCopilotProps } from './WarRoomPanel'
 export { WarRoomTierBoard } from './WarRoomTierBoard'
 export { WarRoomQueue } from './WarRoomQueue'
 export { WarRoomCompareModal } from './WarRoomCompareModal'
