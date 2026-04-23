@@ -49,6 +49,7 @@ export type DraftTopBarProps = {
   draftStatus: string
   timerMode?: TimerMode
   autoPickEnabled?: boolean
+  onToggleAutoPick?: () => void
   inviteLink?: string | null
   /** Called after copy succeeds (parent handles clipboard). `source` distinguishes inline vs overflow menu. */
   onCopyInvite?: (source: 'inline' | 'menu') => void
@@ -224,6 +225,7 @@ export function DraftTopBar({
   draftRoomPresentation = 'default',
   currentRound = null,
   pickInRound = null,
+  onToggleAutoPick,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
   const liveRemaining = useDraftCountdownSeconds(timerStatus, timerEndAtIso ?? undefined, timerRemainingSeconds)
@@ -615,21 +617,24 @@ export function DraftTopBar({
         <div className="flex items-start justify-start lg:justify-center">{centerCta}</div>
 
         <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
-          <div
-            className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] transition duration-150 ${
+          <button
+            type="button"
+            onClick={onToggleAutoPick}
+            disabled={!onToggleAutoPick}
+            className={`inline-flex h-9 items-center gap-2 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] transition duration-150 cursor-pointer ${
               autoPickEnabled
-                ? 'border-emerald-400/40 bg-emerald-500/14 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.12)]'
-                : 'border-white/14 bg-white/6 text-white/62'
-            }`}
+                ? 'border-emerald-400/40 bg-emerald-500/14 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.12)] hover:bg-emerald-500/20'
+                : 'border-white/14 bg-white/6 text-white/62 hover:border-white/25 hover:bg-white/10'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
             data-testid="draft-topbar-autopick-pill"
-            title="Autopick state"
+            title="Toggle autopick: when enabled, will auto-pick when timer expires"
           >
             <span
               className={`h-2 w-2 rounded-full ${autoPickEnabled ? 'bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-white/35'}`}
               aria-hidden
             />
             Auto-pick {autoPickEnabled ? 'On' : 'Off'}
-          </div>
+          </button>
 
           <TopIconToggle
             active={prefs.notifications}

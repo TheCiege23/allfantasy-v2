@@ -1951,6 +1951,10 @@ export function DraftRoomPageClient({
     [leagueId]
   )
 
+  const handleToggleAutoPick = useCallback(() => {
+    handleSettingsPatch({ autoPickEnabled: !(draftUISettings?.autoPickEnabled ?? false) })
+  }, [draftUISettings?.autoPickEnabled, handleSettingsPatch])
+
   const handleSaveCommissionerAiDraft = useCallback(
     async (payload: {
       assignedAiTeams: Array<{ teamId: string; aiStyle: string; tradeAggression: string; active: boolean }>
@@ -4045,6 +4049,7 @@ export function DraftRoomPageClient({
             pickInRound={
               draftCore?.draftStarted === false ? 1 : draftCore?.currentPickInRound != null ? draftCore.currentPickInRound : null
             }
+            onToggleAutoPick={handleToggleAutoPick}
           />
         </>
       }
