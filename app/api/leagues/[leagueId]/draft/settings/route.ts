@@ -244,12 +244,13 @@ export async function PATCH(
 
   // Handle randomize: assign rosters to draft slots randomly
   let randomizedSlotOrder: SlotOrderEntry[] | null = null
+  let draftOrderSlotsForSave: Array<{ slot: number; ownerId: string; ownerName: string; avatarUrl: string | null }> | null = null
   if (body.randomize === true) {
     try {
       const [teams, draftSession] = await Promise.all([
         prisma.leagueTeam.findMany({
           where: { leagueId },
-          select: { externalId: true, teamName: true, ownerName: true, platformUserId: true },
+          select: { externalId: true, teamName: true, ownerName: true, platformUserId: true, id: true, avatarUrl: true },
         }),
         prisma.draftSession.findUnique({
           where: { leagueId },
@@ -261,12 +262,20 @@ export async function PATCH(
         // Shuffle teams randomly
         const shuffled = [...teams].sort(() => Math.random() - 0.5)
 
-        // Create slotOrder entries
+        // Create slotOrder entries for draftSession
         randomizedSlotOrder = shuffled.map((team, index) => ({
           slot: index + 1,
           rosterId: team.externalId,
           displayName: team.ownerName || team.teamName || `Team ${index + 1}`,
           platformUserId: team.platformUserId || undefined,
+        }))
+
+        // Create draftOrderSlots for league settings
+        draftOrderSlotsForSave = shuffled.map((team, index) => ({
+          slot: index + 1,
+          ownerId: team.id,
+          ownerName: team.ownerName || team.teamName || `Team ${index + 1}`,
+          avatarUrl: team.avatarUrl || null,
         }))
       }
     } catch (e) {
@@ -353,10 +362,25 @@ export async function PATCH(
 
     // Update draft session with randomized slot order if needed
     if (randomizedSlotOrder && randomizedSlotOrder.length > 0) {
-      await prisma.draftSession.update({
-        where: { leagueId },
-        data: { slotOrder: randomizedSlotOrder as unknown as Prisma.InputJsonValue },
-      })
+      await Promise.all([
+        prisma.draftSession.update({
+          where: { leagueId },
+          data: { slotOrder: randomizedSlotOrder as unknown as Prisma.InputJsonValue },
+        }),
+        // Also save to league settings so it persists in the UI
+        draftOrderSlotsForSave
+          ? prisma.leagueSettings.upsert({
+              where: { leagueId },
+              create: {
+                leagueId,
+                draftOrderSlots: draftOrderSlotsForSave as unknown as Prisma.InputJsonValue,
+              },
+              update: {
+                draftOrderSlots: draftOrderSlotsForSave as unknown as Prisma.InputJsonValue,
+              },
+            })
+          : Promise.resolve(),
+      ])
     }
 
     const updated = await updateDraftVariantSettings(leagueId, {
