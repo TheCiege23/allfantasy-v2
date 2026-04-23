@@ -168,7 +168,7 @@ export async function tryAiOpponentAutopickForExpiredTimer(
         if (strategy) {
           // Build bot profile from strategy
           const leagueTeam = await prisma.leagueTeam.findUnique({
-            where: { externalId: onClockRosterId },
+            where: { leagueId_externalId: { leagueId, externalId: onClockRosterId } },
             select: { ownerName: true, teamName: true },
           })
           const teamName = leagueTeam?.ownerName || leagueTeam?.teamName || 'AI Team'
