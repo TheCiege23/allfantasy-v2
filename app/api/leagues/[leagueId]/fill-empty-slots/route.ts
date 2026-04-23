@@ -80,6 +80,12 @@ export async function POST(
           leagueId,
           platformUserId: orphanId,
           playerData: { draftPicks: [] },
+          settings: {
+            draftStrategy: strategy.id,
+            strategyName: strategy.name,
+            strategicArchetype: strategy.archetypeId,
+            strategyAssignedAt: new Date().toISOString(),
+          } as unknown as Prisma.InputJsonValue,
         },
       })
 
@@ -93,12 +99,6 @@ export async function POST(
           platformUserId: orphanId,
           isCommissioner: false,
           role: 'member',
-          metadata: {
-            draftStrategy: strategy.id,
-            strategyName: strategy.name,
-            strategicArchetype: strategy.archetypeId,
-            strategyAssignedAt: new Date().toISOString(),
-          } as unknown as Prisma.InputJsonValue,
         },
       })
 

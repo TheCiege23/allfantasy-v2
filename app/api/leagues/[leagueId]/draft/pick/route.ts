@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, canSubmitPickForRoster, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
+import { isCommissioner } from '@/lib/commissioner/permissions'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
@@ -50,8 +51,13 @@ export async function POST(
     return NextResponse.json({ error: 'Draft is complete or not started' }, { status: 400 })
   }
   const expectedRosterId = preSubmitSnapshot.currentPick.rosterId
-  const effectiveRosterId = rosterId ?? expectedRosterId
-  if (effectiveRosterId !== expectedRosterId) {
+
+  // Determine the effective roster ID
+  let effectiveRosterId = rosterId ?? expectedRosterId
+
+  // Check if user is commissioner - if so, allow drafting for any roster
+  const isComm = await isCommissioner(leagueId, userId)
+  if (!isComm && effectiveRosterId !== expectedRosterId) {
     return NextResponse.json({ error: 'Invalid roster for current pick' }, { status: 400 })
   }
   const canSubmit = await canSubmitPickForRoster(leagueId, userId, effectiveRosterId)

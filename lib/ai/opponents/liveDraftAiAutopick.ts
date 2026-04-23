@@ -154,20 +154,24 @@ export async function tryAiOpponentAutopickForExpiredTimer(
 
   // Fallback: Check if this is an orphaned team with a draft strategy
   if (!bot) {
-    const leagueTeam = await prisma.leagueTeam.findUnique({
-      where: { id: leagueTeamId },
-      select: { metadata: true, ownerName: true, teamName: true },
+    const roster = await prisma.roster.findUnique({
+      where: { id: onClockRosterId },
+      select: { settings: true },
     })
 
-    if (leagueTeam?.metadata && typeof leagueTeam.metadata === 'object') {
-      const metadata = leagueTeam.metadata as Record<string, any>
-      strategyId = metadata.draftStrategy
+    if (roster?.settings && typeof roster.settings === 'object') {
+      const settings = roster.settings as Record<string, any>
+      strategyId = settings.draftStrategy
 
       if (strategyId) {
         const strategy = getStrategy(strategyId)
         if (strategy) {
           // Build bot profile from strategy
-          const teamName = leagueTeam.ownerName || leagueTeam.teamName || 'AI Team'
+          const leagueTeam = await prisma.leagueTeam.findUnique({
+            where: { externalId: onClockRosterId },
+            select: { ownerName: true, teamName: true },
+          })
+          const teamName = leagueTeam?.ownerName || leagueTeam?.teamName || 'AI Team'
 
           bot = createBotProfileFromStrategy(
             leagueTeamId,
