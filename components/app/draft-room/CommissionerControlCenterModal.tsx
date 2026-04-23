@@ -15,6 +15,7 @@ import {
   CheckSquare,
   Upload,
   Shield,
+  Zap,
 } from 'lucide-react'
 import type { DraftUISettings, TimerMode } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { DEFAULT_TRADE_RULES } from '@/lib/commissioner-ai-draft-manager/types'
@@ -123,6 +124,8 @@ export function CommissionerControlCenterModal({
   const [aiRowState, setAiRowState] = useState<
     Record<string, { aiStyle: string; tradeAggression: string; active: boolean }>
   >({})
+  const [transitionLoading, setTransitionLoading] = useState(false)
+  const [transitionMessage, setTransitionMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (commissionerAiDraft?.tradeRules) {
@@ -188,6 +191,28 @@ export function CommissionerControlCenterModal({
     const sec = Math.max(0, Math.min(86400, parseInt(timerInput, 10) || 90))
     setTimerInput(String(sec))
     run('set_timer', () => onAction('set_timer_seconds', { seconds: sec, resetCurrentTimer: true }))
+  }
+
+  const handleTransitionToDrafting = async () => {
+    setTransitionLoading(true)
+    setTransitionMessage(null)
+    try {
+      const response = await fetch(`/api/leagues/${leagueId}/draft/transition-to-drafting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const result = await response.json()
+      if (response.ok) {
+        setTransitionMessage('✓ League transitioned to drafting state. Refresh to see changes.')
+        setTimeout(() => onResync(), 2000)
+      } else {
+        setActionApiError(result.error || 'Failed to transition league')
+      }
+    } catch (err) {
+      setActionApiError((err as Error).message || 'Failed to transition league')
+    } finally {
+      setTransitionLoading(false)
+    }
   }
 
   const handleToggle = async (key: keyof DraftUISettings, value: boolean) => {
@@ -320,6 +345,19 @@ export function CommissionerControlCenterModal({
         {/* Draft flow */}
         <section>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">Draft flow</h3>
+          {transitionMessage && (
+            <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-emerald-400/35 bg-emerald-500/12 px-3 py-2 text-[12px] text-emerald-50">
+              <span>{transitionMessage}</span>
+              <button
+                type="button"
+                onClick={() => setTransitionMessage(null)}
+                className="shrink-0 rounded px-2 py-0.5 text-emerald-200 hover:bg-emerald-500/25"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {isPreDraft && onStartDraft && (
               <button
@@ -333,6 +371,16 @@ export function CommissionerControlCenterModal({
                 Start draft
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleTransitionToDrafting}
+              disabled={transitionLoading || loading || actionLoading !== null}
+              title="Manually transition league to drafting state (fixes stuck setup state)"
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-400/35 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 hover:bg-blue-500/20 disabled:opacity-50"
+            >
+              <Zap className="h-4 w-4" />
+              {transitionLoading ? 'Transitioning...' : 'Transition to drafting'}
+            </button>
             {isInProgress && (
               <button
                 type="button"

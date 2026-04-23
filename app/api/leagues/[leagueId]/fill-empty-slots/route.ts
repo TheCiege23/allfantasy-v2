@@ -149,6 +149,9 @@ export async function POST(
       displayName: team.ownerName || team.teamName || `Team ${index + 1}`,
     }))
 
+    // Create draft session if it doesn't exist
+    await getOrCreateDraftSession(leagueId)
+
     // Update draft session
     await prisma.draftSession.update({
       where: { leagueId },
