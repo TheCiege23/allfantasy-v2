@@ -115,19 +115,22 @@ export async function POST(
       data: {
         slotOrder: slotOrder as unknown as Prisma.InputJsonValue,
         cpuAutoPick: true,
+        timerSeconds: 30,
       },
     })
 
-    // Update league settings with draft order AND enable CPU auto-pick
+    // Update league settings with draft order AND enable CPU auto-pick with shorter timer
     await prisma.leagueSettings.upsert({
       where: { leagueId },
       create: {
         leagueId,
         cpuAutoPick: true,
+        pickTimerPreset: '30s',
         draftOrderSlots: draftOrderSlots as unknown as Prisma.InputJsonValue,
       },
       update: {
         cpuAutoPick: true,
+        pickTimerPreset: '30s',
         draftOrderSlots: draftOrderSlots as unknown as Prisma.InputJsonValue,
       },
     })
