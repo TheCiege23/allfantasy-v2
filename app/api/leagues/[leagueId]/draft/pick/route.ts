@@ -76,6 +76,7 @@ export async function POST(
 
   const gate = await assertLeagueActionGate(leagueId, userId, 'draft_pick', {
     treatAsElevated: source === 'commissioner',
+    lifecycle: { commissionerOverride: source === 'commissioner' },
   })
   if (!gate.ok) {
     return NextResponse.json({ error: gate.err.error, code: gate.err.code }, { status: gate.err.status })
