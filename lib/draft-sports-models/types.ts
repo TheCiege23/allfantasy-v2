@@ -44,6 +44,15 @@ export interface PlayerStatSnapshotModel {
   /** Raw for tooltips/sort */
   adp?: number | null
   byeWeek?: number | null
+  /** Prior-season or blended PPG from analytics when attached to pool rows */
+  fantasyPointsPerGame?: number | null
+  lifetimeValue?: number | null
+  /** Rolling Insights numbers when RI did not replace snapshot PPG (supplemental only). */
+  rollingInsightsSupplemental?: {
+    fantasyPointsPerGame?: number | null
+    gamesPlayed?: number | null
+    season?: string | null
+  } | null
 }
 
 /** Draft-specific metadata (eligibility, injury, devy/C2C). */

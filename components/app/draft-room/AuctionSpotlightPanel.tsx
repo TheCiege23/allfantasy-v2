@@ -17,6 +17,8 @@ export type AuctionSpotlightPanelProps = {
   nominateLoading?: boolean
   bidLoading?: boolean
   resolveLoading?: boolean
+  /** When true (incomplete roster schema), hide bid controls even if a nomination is live. */
+  rosterGateBlocksAuctionActions?: boolean
 }
 
 const PRESET_BIDS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 50]
@@ -33,6 +35,7 @@ export function AuctionSpotlightPanel({
   nominateLoading = false,
   bidLoading = false,
   resolveLoading = false,
+  rosterGateBlocksAuctionActions = false,
 }: AuctionSpotlightPanelProps) {
   const [bidAmount, setBidAmount] = useState('')
   const state: AuctionState = auction.auctionState
@@ -41,7 +44,11 @@ export function AuctionSpotlightPanel({
   const isMyTurnToNominate = currentUserRosterId != null && currentNominator?.rosterId === currentUserRosterId
   const minNextBid = state.minNextBid ?? 1
   const myBudget = currentUserRosterId != null ? (auction.budgets[currentUserRosterId] ?? 0) : 0
-  const canBid = state.currentNomination != null && currentUserRosterId != null && myBudget >= minNextBid
+  const canBid =
+    !rosterGateBlocksAuctionActions &&
+    state.currentNomination != null &&
+    currentUserRosterId != null &&
+    myBudget >= minNextBid
 
   useEffect(() => {
     setBidAmount(String(minNextBid))

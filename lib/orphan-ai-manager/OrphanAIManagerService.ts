@@ -12,7 +12,7 @@ import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterA
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { computeCPUPick } from '@/lib/automated-drafter/CPUDrafterService'
 import { computeAIDrafterPick, isAIDrafterProviderAvailable } from '@/lib/automated-drafter/AIDrafterService'
-import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
 import { buildDraftTradeAiReview, type DraftTradeAiReview } from '@/lib/live-draft-engine/DraftTradeAiReviewService'
 import type { LeagueSport } from '@prisma/client'
 import { getAssignmentForRoster, parseCommissionerAiManagers } from '@/lib/commissioner-ai-draft-manager'
@@ -227,24 +227,7 @@ export async function executeDraftPickForOrphan(
 
   const myPicks = snapshot.picks.filter((p) => p.rosterId === currentRosterId)
   const teamRoster = myPicks.map((p) => ({ position: p.position }))
-  let rosterSlots = getDefaultRosterSlotsForSport(String(sport))
-
-  if (sport === 'NFL') {
-    const { isIdpLeague, getRosterDefaultsForIdpLeague } = await import('@/lib/idp')
-    if (await isIdpLeague(leagueId)) {
-      const defaults = await getRosterDefaultsForIdpLeague(leagueId)
-      if (defaults) {
-        const expandedSlots: string[] = []
-        for (const [slotName, count] of Object.entries(defaults.starter_slots ?? {})) {
-          for (let i = 0; i < count; i += 1) expandedSlots.push(slotName)
-        }
-        for (let i = 0; i < (defaults.bench_slots ?? 0); i += 1) {
-          expandedSlots.push('BENCH')
-        }
-        if (expandedSlots.length > 0) rosterSlots = expandedSlots
-      }
-    }
-  }
+  const rosterSlots = await getRosterSlotLabelsForLeagueDraft(leagueId, String(sport))
 
   const isSuperflex = (() => {
     const normalizedSlots = rosterSlots.map((slot) => String(slot || '').toUpperCase())

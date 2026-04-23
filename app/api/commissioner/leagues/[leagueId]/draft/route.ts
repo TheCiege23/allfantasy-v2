@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getLeagueDrafts, getDraftPicks } from '@/lib/sleeper-client'
 
@@ -136,7 +137,19 @@ export async function POST(
           rosterId: body.rosterId ?? undefined,
           source: 'commissioner',
         })
-        if (!result.success) return NextResponse.json({ error: result.error, platformSupported: true }, { status: 400 })
+        if (!result.success) {
+          const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+          if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+            return NextResponse.json(
+              {
+                ...rosterConfigurationIncompleteBody({ leagueId: params.leagueId, message: result.error }),
+                platformSupported: true,
+              },
+              { status },
+            )
+          }
+          return NextResponse.json({ error: result.error, platformSupported: true }, { status })
+        }
         const session = await buildSessionSnapshot(params.leagueId)
         return NextResponse.json({ status: 'acknowledged', action: 'assign_pick', platformSupported: true, session })
       }

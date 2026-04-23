@@ -13,6 +13,7 @@ import { ResetToDefaultButton } from './roster/ResetToDefaultButton'
 import { RosterSettingsModalShell } from './roster/RosterSettingsModalShell'
 import { RosterValidationBanner } from './roster/RosterValidationBanner'
 import type { RosterConfig, SlotDef, UnifiedRosterSection } from './roster/types'
+import { emitLeagueDraftRoomRevalidate } from '@/lib/draft-room/emitLeagueDraftRoomRevalidate'
 
 interface RosterTemplateOption {
   key: string
@@ -132,6 +133,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
       setWarnings(data.unifiedConfig?.rosterWarnings ?? [])
       setMatchesTemplate(data.unifiedConfig?.rosterMatchesTemplate ?? true)
       setSuccess(true)
+      emitLeagueDraftRoomRevalidate(leagueId)
     } catch { setError('Request failed') }
     finally { setSaving(false) }
   }, [leagueId, pendingSlots, selectedTemplateKey])
@@ -246,6 +248,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
       setMatchesTemplate(Boolean(unified?.rosterMatchesTemplate))
       setImportPreview(null)
       setSuccess(true)
+      emitLeagueDraftRoomRevalidate(leagueId)
     } catch {
       setError('Import apply request failed')
     } finally {
@@ -271,6 +274,7 @@ export function RosterSettingsEditor({ leagueId }: { leagueId: string }) {
       const fromUnified = flattenSections(data.unifiedConfig?.rosterConfig?.sections)
       setPendingSlots(Object.keys(fromUnified).length > 0 ? fromUnified : (data.config?.slots ?? {}))
       setSuccess(true)
+      emitLeagueDraftRoomRevalidate(leagueId)
     } catch {
       setError('Reset request failed')
     } finally {

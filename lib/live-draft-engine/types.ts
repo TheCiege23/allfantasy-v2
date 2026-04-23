@@ -94,6 +94,10 @@ export interface DraftSessionSnapshot {
   /** Weighted lottery / order metadata from league draft config. */
   draftOrderMode?: string
   lotteryLastRunAt?: string
+  /** True when league has no persisted roster slots — room can load but picks/timer must be blocked. */
+  rosterConfigurationIncomplete?: boolean
+  /** User-facing banner copy when roster configuration blocks drafting (paired with rosterConfigurationIncomplete). Cleared as null when configuration is valid. */
+  rosterConfigurationMessage?: string | null
 }
 
 export interface C2CSessionSnapshot {

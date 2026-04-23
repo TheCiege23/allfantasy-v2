@@ -25,6 +25,7 @@ import { appendPickToRosterDraftSnapshot, finalizeRosterAssignments } from '@/li
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getAllowedPositionsAndRosterSize } from '@/lib/live-draft-engine/RosterFitValidation'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
@@ -341,7 +342,17 @@ export async function POST(
       }
 
       if (!result?.success || !selectedCandidate) {
-        return NextResponse.json({ error: result?.error ?? 'Unable to auto-pick a valid player.' }, { status: 400 })
+        const status = result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        if (result?.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+          return NextResponse.json(
+            rosterConfigurationIncompleteBody({
+              leagueId,
+              message: result?.error ?? 'Unable to auto-pick a valid player.',
+            }),
+            { status },
+          )
+        }
+        return NextResponse.json({ error: result?.error ?? 'Unable to auto-pick a valid player.' }, { status })
       }
       if (result.snapshot?.rosterId) {
         void appendPickToRosterDraftSnapshot(leagueId, result.snapshot.rosterId, {
@@ -452,7 +463,15 @@ export async function POST(
         byeWeek: null,
         source: 'commissioner',
       })
-      if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 })
+      if (!result.success) {
+        const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+        if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+          return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId, message: result.error }), {
+            status,
+          })
+        }
+        return NextResponse.json({ error: result.error }, { status })
+      }
       const snapshot = await buildSessionSnapshot(leagueId)
       void (async () => {
         const states = await publishDraftIntelForUpcomingManagers({

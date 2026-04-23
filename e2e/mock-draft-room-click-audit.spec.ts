@@ -1,6 +1,16 @@
 import { expect, test, type Page } from '@playwright/test'
+import { MOCK_DRAFT_ROSTER_HINT_DELAY_MS } from '@/lib/draft-room/mock-draft-ui-constants'
 
 test.describe.configure({ mode: 'serial', timeout: 180_000 })
+
+/** Mock roster-config latency; must be > `MOCK_DRAFT_ROSTER_HINT_DELAY_MS` so the delayed hint becomes visible before the response resolves. */
+const ROSTER_CONFIG_SLOW_MS = 550
+
+if (ROSTER_CONFIG_SLOW_MS <= MOCK_DRAFT_ROSTER_HINT_DELAY_MS) {
+  throw new Error(
+    'ROSTER_CONFIG_SLOW_MS must be greater than MOCK_DRAFT_ROSTER_HINT_DELAY_MS so the delayed hint can appear before the response resolves.',
+  )
+}
 
 async function mockMockDraftApis(page: Page) {
   const sentMessages: string[] = []
@@ -245,5 +255,38 @@ test.describe('@mock-draft-room click audit', () => {
     if (!setupVisible) {
       await expect(page.getByTestId('mock-draft-wrapper-active')).toBeVisible()
     }
+  })
+
+  test('league roster loading hint: delayed until ~400ms, then clears after slow roster-config', async ({ page }) => {
+    await mockMockDraftApis(page)
+    await page.route('**/api/leagues/*/roster-config', async (route) => {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, ROSTER_CONFIG_SLOW_MS)
+      })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          orderedSlotLabels: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX'],
+        }),
+      })
+    })
+
+    await page.goto('/e2e/mock-draft-room?mode=active')
+    await expect(page.getByTestId('mock-draft-wrapper-active')).toBeVisible()
+    await expect(page.getByTestId('mock-draft-session-start')).toBeVisible()
+    await page.getByTestId('mock-draft-session-start').click()
+
+    const hint = page.getByTestId('mock-draft-league-roster-loading-hint')
+    await page.getByTestId('mock-draft-league-select').click()
+    await page.getByRole('option', { name: /E2E NFL League/i }).click()
+
+    await expect(hint).toHaveCount(0)
+    await page.waitForTimeout(MOCK_DRAFT_ROSTER_HINT_DELAY_MS - 100)
+    await expect(hint).toHaveCount(0)
+
+    await expect(hint).toBeVisible({ timeout: 4000 })
+
+    await expect(hint).toHaveCount(0, { timeout: 10_000 })
   })
 })

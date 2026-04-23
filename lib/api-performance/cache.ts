@@ -87,6 +87,18 @@ export function setApiCached(
   })
 }
 
+/** Delete all cached API entries whose keys start with `prefix` (e.g. `draft_pool:${leagueId}:`). */
+export function deleteApiCachedKeysWithPrefix(prefix: string): number {
+  let removed = 0
+  for (const k of [...memoryStore.keys()]) {
+    if (k.startsWith(prefix)) {
+      memoryStore.delete(k)
+      removed++
+    }
+  }
+  return removed
+}
+
 /**
  * TTL presets for common use cases.
  */

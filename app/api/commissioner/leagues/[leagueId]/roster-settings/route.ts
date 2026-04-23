@@ -12,6 +12,7 @@ import {
   updateLeagueRosterConfig,
 } from '@/lib/roster-engine'
 import { notifyCommissionerChange } from '@/lib/commissioner/CommissionerChangeNotifier'
+import { invalidateLeagueDraftCaches } from '@/lib/league/invalidateLeagueDraftCaches'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ leag
 
   const oldConfig = await getLeagueRosterConfig(leagueId)
   await updateLeagueRosterConfig(leagueId, { templateKey, slots }, session.user.id)
+  invalidateLeagueDraftCaches(leagueId)
   const config = await registry.getService(league.sport).getConfig(leagueId)
   const unifiedConfig = await getLeagueRosterConfig(leagueId)
 

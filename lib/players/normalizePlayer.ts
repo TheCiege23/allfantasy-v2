@@ -68,15 +68,23 @@ function seasonRecordFromDisplay(display: PlayerDisplayModel): Record<string, nu
   if (sl && s.secondaryStatValue != null) out[sl] = s.secondaryStatValue
   if (s.adp != null) out.ADP = s.adp
   if (s.byeWeek != null) out.Bye = s.byeWeek
+  if (s.fantasyPointsPerGame != null) out.PPG = s.fantasyPointsPerGame
+  if (s.lifetimeValue != null) out.Val = s.lifetimeValue
   return Object.keys(out).length ? out : undefined
 }
 
 function statSummaryFromDisplay(display: PlayerDisplayModel): string {
   const s = display.stats
+  const parts: string[] = []
   if (s.primaryStatLabel && s.primaryStatValue != null) {
-    return `${s.primaryStatLabel} ${s.primaryStatValue}`
+    parts.push(`${s.primaryStatLabel} ${s.primaryStatValue}`)
   }
+  if (s.secondaryStatLabel && s.secondaryStatValue != null) {
+    parts.push(`${s.secondaryStatLabel} ${s.secondaryStatValue}`)
+  }
+  if (parts.length) return parts.join(' · ')
   if (s.adp != null) return `ADP ${s.adp}`
+  if (s.fantasyPointsPerGame != null) return `PPG ${s.fantasyPointsPerGame}`
   if (s.primaryStatValue != null) return `ADP ${s.primaryStatValue}`
   return 'No stats available'
 }

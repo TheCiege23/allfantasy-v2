@@ -8,6 +8,7 @@ import {
   resetLeagueRosterToDefault,
 } from '@/lib/roster-engine'
 import { prisma } from '@/lib/prisma'
+import { invalidateLeagueDraftCaches } from '@/lib/league/invalidateLeagueDraftCaches'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +29,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ le
   }
 
   await resetLeagueRosterToDefault(leagueId, session.user.id)
+  invalidateLeagueDraftCaches(leagueId)
   const config = await registry.getService(league.sport).getConfig(leagueId)
   const unifiedConfig = await getLeagueRosterConfig(leagueId)
 

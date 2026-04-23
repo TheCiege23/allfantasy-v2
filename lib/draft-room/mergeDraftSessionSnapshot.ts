@@ -217,6 +217,7 @@ export function draftSessionLiveSurfaceKey(s: DraftSessionSnapshot | null | unde
     s.version,
     s.updatedAt ?? '',
     s.status,
+    s.rosterConfigurationIncomplete === true ? '1' : s.rosterConfigurationIncomplete === false ? '0' : '',
     s.picks?.length ?? 0,
     s.slotOrder?.length ?? 0,
     cp?.overall ?? '',
@@ -282,6 +283,8 @@ const VIEWER_SESSION_KEYS = [
   'orphanDrafterEffectiveMode',
   'draftOrderMode',
   'lotteryLastRunAt',
+  'rosterConfigurationIncomplete',
+  'rosterConfigurationMessage',
 ] as const
 
 function snapshotRecord(s: DraftSessionSnapshot): Record<string, unknown> {

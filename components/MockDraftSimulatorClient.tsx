@@ -14,7 +14,8 @@ import { AIDraftAssistantPanel } from '@/components/mock-draft'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
-import { getManagerColorBySeed, withAlpha } from '@/lib/draft-room'
+import { getManagerColorBySeed, withAlpha } from '@/lib/draft-room/ManagerColorResolver'
+import { MOCK_DRAFT_ROSTER_HINT_DELAY_MS } from '@/lib/draft-room/mock-draft-ui-constants'
 
 interface ADPPlayer {
   name: string
@@ -520,6 +521,11 @@ export default function MockDraftSimulatorClient({
   const [livePredictions, setLivePredictions] = useState<Array<{ manager: string; predictedPlayer: string; position: string; probability: number; reason: string }>>([])
   const [liveSuggestion, setLiveSuggestion] = useState<any>(null)
   const [liveIntelLoading, setLiveIntelLoading] = useState(false)
+  /** When a real league is selected and `/roster-config` returns labels — keeps mock aligned with draft room; sandbox uses sport defaults only. */
+  const [leagueBackedRosterSlots, setLeagueBackedRosterSlots] = useState<string[] | null>(null)
+  /** True while `/roster-config` fetch is in flight for the current league (success/fail clears this). */
+  const [rosterConfigPending, setRosterConfigPending] = useState(false)
+  const [showDelayedLeagueRosterHint, setShowDelayedLeagueRosterHint] = useState(false)
   const selectedLeague = leagues.find(l => l.id === selectedLeagueId)
   const selectedSport = useMemo(() => normalizeMockSport(selectedLeague?.sport), [selectedLeague?.sport])
   const selectedSportAccent = useMemo(() => {
@@ -538,10 +544,20 @@ export default function MockDraftSimulatorClient({
     (player: ADPPlayer): number => (useAiBoardAdp ? getMockAiAdp(player) : player.adp),
     [useAiBoardAdp],
   )
-  const defaultRosterSlots = useMemo(
+  const sportFallbackRosterSlots = useMemo(
     () => getDefaultRosterSlotsForSport(selectedLeague?.sport, selectedLeague?.isDynasty),
     [selectedLeague?.sport, selectedLeague?.isDynasty],
   )
+  const defaultRosterSlots = useMemo(() => {
+    if (
+      selectedLeagueId &&
+      leagueBackedRosterSlots &&
+      leagueBackedRosterSlots.length > 0
+    ) {
+      return leagueBackedRosterSlots
+    }
+    return sportFallbackRosterSlots
+  }, [selectedLeagueId, leagueBackedRosterSlots, sportFallbackRosterSlots])
   const analyticsPositions = useMemo(
     () => buildAnalyticsPositions({
       sport: selectedSport,
@@ -573,6 +589,56 @@ export default function MockDraftSimulatorClient({
   useEffect(() => {
     if (initialLeagueId && selectedLeagueId !== initialLeagueId) setSelectedLeagueId(initialLeagueId)
   }, [initialLeagueId])
+
+  useEffect(() => {
+    if (!selectedLeagueId?.trim()) {
+      setLeagueBackedRosterSlots(null)
+      setRosterConfigPending(false)
+      return
+    }
+    const ac = new AbortController()
+    setLeagueBackedRosterSlots(null)
+    setRosterConfigPending(true)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/leagues/${encodeURIComponent(selectedLeagueId)}/roster-config`, {
+          cache: 'no-store',
+          signal: ac.signal,
+        })
+        const json = (await res.json().catch(() => null)) as { orderedSlotLabels?: unknown } | null
+        if (ac.signal.aborted) return
+        if (
+          res.ok &&
+          json &&
+          typeof json === 'object' &&
+          Array.isArray(json.orderedSlotLabels) &&
+          json.orderedSlotLabels.length > 0 &&
+          json.orderedSlotLabels.every((x) => typeof x === 'string')
+        ) {
+          setLeagueBackedRosterSlots(json.orderedSlotLabels as string[])
+        } else {
+          setLeagueBackedRosterSlots(null)
+        }
+      } catch {
+        if (!ac.signal.aborted) setLeagueBackedRosterSlots(null)
+      } finally {
+        if (!ac.signal.aborted) setRosterConfigPending(false)
+      }
+    })()
+    return () => ac.abort()
+  }, [selectedLeagueId])
+
+  useEffect(() => {
+    if (!selectedLeagueId?.trim() || !rosterConfigPending) {
+      setShowDelayedLeagueRosterHint(false)
+      return
+    }
+    const t = window.setTimeout(() => setShowDelayedLeagueRosterHint(true), MOCK_DRAFT_ROSTER_HINT_DELAY_MS)
+    return () => {
+      window.clearTimeout(t)
+      setShowDelayedLeagueRosterHint(false)
+    }
+  }, [selectedLeagueId, rosterConfigPending])
   useEffect(() => {
     if (initialConfig?.rounds != null) setCustomRounds(initialConfig.rounds)
     if (initialConfig?.scoring != null) setCustomScoring(initialConfig.scoring)
@@ -1537,9 +1603,20 @@ export default function MockDraftSimulatorClient({
             Back to mock lobby
           </NextLink>
         )}
-        <span className="text-xs text-white/50">
-          Sport: {selectedSport}
-        </span>
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {showDelayedLeagueRosterHint && (
+            <span
+              className="text-[11px] text-white/45"
+              aria-live="polite"
+              data-testid="mock-draft-league-roster-loading-hint"
+            >
+              Loading league roster…
+            </span>
+          )}
+          <span className="text-xs text-white/50">
+            Sport: {selectedSport}
+          </span>
+        </div>
       </div>
       <div className="bg-black/60 border border-purple-900/50 rounded-2xl p-6">
         <h3 className="text-lg font-medium mb-4">Customize Simulation</h3>

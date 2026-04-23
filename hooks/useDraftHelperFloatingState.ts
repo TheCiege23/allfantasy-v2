@@ -18,7 +18,12 @@ const STORAGE_KEY_PREFIX = 'af:draft-helper-floating'
 
 const DEFAULT_STATE: DraftHelperFloatingWindowState = {
   visible: false,
-  position: { x: window?.innerWidth ? window.innerWidth - 450 : 0, y: window?.innerHeight ? window.innerHeight - 600 : 0 },
+  position: {
+    x:
+      typeof window !== 'undefined' && window.innerWidth ? window.innerWidth - 450 : 0,
+    y:
+      typeof window !== 'undefined' && window.innerHeight ? window.innerHeight - 600 : 0,
+  },
   size: { width: 400, height: 550 },
   expandedSections: {
     copilot: false,

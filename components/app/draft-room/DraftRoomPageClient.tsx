@@ -80,6 +80,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import { computePicksUntilViewerTurn } from '@/lib/draft-room/computePicksUntilViewer'
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
+import { deriveDraftRoomGateState } from '@/lib/draft-room/draftRoomGateState'
+import { LEAGUE_DRAFT_ROOM_REVALIDATE } from '@/lib/draft-room/emitLeagueDraftRoomRevalidate'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import { detectSnakeBackToBackSoon, computeRedraftStarterHints } from '@/lib/draft-room/redraftPlanningHints'
@@ -375,6 +377,7 @@ export function DraftRoomPageClient({
     benchSlots: number
     taxiSlots: number
     devySlots: number
+    orderedSlotLabels?: string[]
   } | null>(null)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [claimableRosterIds, setClaimableRosterIds] = useState<string[]>([])
@@ -661,6 +664,7 @@ export function DraftRoomPageClient({
   )
 
   const currentUserRosterId = (session as any)?.currentUserRosterId as string | undefined
+  const rosterConfigBlocked = Boolean(session?.rosterConfigurationIncomplete)
 
   const commissionerOfflinePick = Boolean(draftUISettings?.executionMode === 'offline' && isCommissioner)
   const isCurrentUserOnClock = Boolean(
@@ -669,7 +673,7 @@ export function DraftRoomPageClient({
       draftCore.currentOverall > 0 &&
       draftCore.currentTeamId === currentUserRosterId,
   )
-  const canDraft = useMemo(
+  const snakeCanDraftRaw = useMemo(
     () =>
       session != null &&
       session.status === 'in_progress' &&
@@ -679,6 +683,40 @@ export function DraftRoomPageClient({
       (commissionerOfflinePick || isCurrentUserOnClock),
     [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock],
   )
+
+  const isAuctionDraft = session?.draftType === 'auction'
+  const auctionNom = session?.auction
+  const auctionNominator = auctionNom?.nominationOrder?.[auctionNom?.auctionState?.nominationOrderIndex ?? 0]
+  const isMyTurnToNominateDraft = Boolean(
+    isAuctionDraft && currentUserRosterId != null && auctionNominator?.rosterId === currentUserRosterId,
+  )
+  const auctionCanBidRaw = Boolean(
+    isAuctionDraft &&
+      session?.status === 'in_progress' &&
+      Boolean(currentUserRosterId) &&
+      auctionNom?.auctionState?.currentNomination != null,
+  )
+
+  const draftGate = useMemo(
+    () =>
+      deriveDraftRoomGateState({
+        session,
+        rosterConfigurationIncomplete: rosterConfigBlocked,
+        rosterConfigurationMessage: session?.rosterConfigurationMessage ?? null,
+        snakeCanDraft: snakeCanDraftRaw,
+        auctionCanNominate: isMyTurnToNominateDraft,
+        auctionCanBid: auctionCanBidRaw,
+      }),
+    [
+      session,
+      rosterConfigBlocked,
+      snakeCanDraftRaw,
+      isMyTurnToNominateDraft,
+      auctionCanBidRaw,
+    ],
+  )
+
+  const canDraft = draftGate.canDraft
 
   useEffect(() => {
     if (!session) return
@@ -697,6 +735,7 @@ export function DraftRoomPageClient({
       isCurrentUserOnClock,
       canDraft,
       pickSubmitting,
+      timerMode: draftGate.timerMode,
       timerStatus: session.timer?.status,
       timerEndAt: session.timer?.timerEndAt ?? session.timerEndAt ?? null,
       sessionVersion: session.version,
@@ -711,6 +750,7 @@ export function DraftRoomPageClient({
     currentUserRosterId,
     isCurrentUserOnClock,
     canDraft,
+    draftGate.timerMode,
     pickSubmitting,
   ])
 
@@ -735,6 +775,40 @@ export function DraftRoomPageClient({
     }
   }, [leagueId, sport])
 
+  const fetchRosterConfig = useCallback(async () => {
+    if (!leagueId) return
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster-config`, {
+        cache: 'no-store',
+      })
+      if (!res.ok) return
+      const data = await res.json().catch(() => null)
+      if (!data || typeof data !== 'object') return
+      const starterSlots =
+        data.starterSlots && typeof data.starterSlots === 'object'
+          ? (data.starterSlots as Record<string, number>)
+          : {}
+      const ordered =
+        Array.isArray(data.orderedSlotLabels) &&
+        data.orderedSlotLabels.every((x: unknown) => typeof x === 'string')
+          ? (data.orderedSlotLabels as string[])
+          : undefined
+      setRosterConfig({
+        starterSlots,
+        benchSlots: typeof data.benchSlots === 'number' ? data.benchSlots : 0,
+        taxiSlots: typeof data.taxiSlots === 'number' ? data.taxiSlots : 0,
+        devySlots: typeof data.devySlots === 'number' ? data.devySlots : 0,
+        ...(ordered && ordered.length > 0 ? { orderedSlotLabels: ordered } : {}),
+      })
+    } catch {
+      /* keep null → strip falls back */
+    }
+  }, [leagueId])
+
+  useEffect(() => {
+    void fetchRosterConfig()
+  }, [fetchRosterConfig])
+
   const [idpRosterSummary, setIdpRosterSummary] = useState<{ starterSlots: Record<string, number>; benchSlots: number } | null>(null)
   const [idpScoringPreset, setIdpScoringPreset] = useState<string>('balanced')
   const [idpPositionMode, setIdpPositionMode] = useState<string>('standard')
@@ -750,8 +824,12 @@ export function DraftRoomPageClient({
       return slots
     }
 
+    const labels = rosterConfig?.orderedSlotLabels
+    if (Array.isArray(labels) && labels.length > 0) return labels
+
+    /** Last resort when `/roster-config` failed — matches `getRosterSlotLabelsForLeagueDraft` server fallback (sport defaults). */
     return getDefaultRosterSlotsForSport(effectiveDraftSport)
-  }, [effectiveDraftSport, formatType, idpRosterSummary])
+  }, [effectiveDraftSport, formatType, idpRosterSummary, rosterConfig?.orderedSlotLabels])
   const isSuperflexFormat = useMemo(() => {
     const normalizedSlots = effectiveRosterSlots.map((slot) => String(slot || '').toUpperCase())
     return (
@@ -948,42 +1026,6 @@ export function DraftRoomPageClient({
     void fetchClaimableRosters()
   }, [session?.id, currentUserRosterId, fetchClaimableRosters])
 
-  /**
-   * Fetch the resolved roster template once per league so DraftRosterStrip can
-   * display real slot counts (sport-aware) instead of falling back to the NFL
-   * default (QB/RB/WR/TE/FLEX/K/DEF + bench=6). Failure falls through null →
-   * strip uses the built-in defaults.
-   */
-  useEffect(() => {
-    if (!leagueId) return
-    let cancelled = false
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster-config`, {
-          cache: 'no-store',
-        })
-        if (!res.ok) return
-        const data = await res.json().catch(() => null)
-        if (cancelled || !data || typeof data !== 'object') return
-        const starterSlots =
-          data.starterSlots && typeof data.starterSlots === 'object'
-            ? (data.starterSlots as Record<string, number>)
-            : {}
-        setRosterConfig({
-          starterSlots,
-          benchSlots: typeof data.benchSlots === 'number' ? data.benchSlots : 0,
-          taxiSlots: typeof data.taxiSlots === 'number' ? data.taxiSlots : 0,
-          devySlots: typeof data.devySlots === 'number' ? data.devySlots : 0,
-        })
-      } catch {
-        /* keep null → strip falls back to NFL defaults */
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [leagueId])
-
   useEffect(() => {
     if (typeof window === 'undefined' || !leagueId) return
     try {
@@ -1079,6 +1121,19 @@ export function DraftRoomPageClient({
       return false
     }
   }, [leagueId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !leagueId) return
+    const handler = (ev: Event) => {
+      const d = (ev as CustomEvent<{ leagueId?: string }>).detail
+      if (d?.leagueId !== leagueId) return
+      void fetchRosterConfig()
+      void fetchSession()
+      void fetchDraftPool()
+    }
+    window.addEventListener(LEAGUE_DRAFT_ROOM_REVALIDATE, handler as EventListener)
+    return () => window.removeEventListener(LEAGUE_DRAFT_ROOM_REVALIDATE, handler as EventListener)
+  }, [leagueId, fetchDraftPool, fetchRosterConfig, fetchSession])
 
   /**
    * Combined poll: authoritative session when changed (`since` vs row `updatedAt`) + optional queue + chat.
@@ -1941,7 +1996,13 @@ export function DraftRoomPageClient({
         await fetchSession()
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
-        setPickError(typeof data?.error === 'string' ? data.error : 'Could not start the draft. Check that the draft order is set and try again.')
+        const startErr =
+          typeof data?.message === 'string'
+            ? data.message
+            : typeof data?.error === 'string'
+              ? data.error
+              : 'Could not start the draft. Check that the draft order is set and try again.'
+        setPickError(startErr)
       }
     } catch (_) {
       sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false, error: true })
@@ -2854,13 +2915,6 @@ export function DraftRoomPageClient({
   const currentRoster: Array<{ playerName: string; position: string; team: string | null }> = []
   const nextQueuedAvailable = queueFiltered.length > 0 && canDraft ? queueFiltered[0] : null
 
-  const isAuctionDraft = session?.draftType === 'auction'
-  const auctionNom = (session as { auction?: { nominationOrder?: Array<{ rosterId?: string }>; auctionState?: { nominationOrderIndex?: number } } } | null)?.auction
-  const auctionNominator = auctionNom?.nominationOrder?.[auctionNom?.auctionState?.nominationOrderIndex ?? 0]
-  const isMyTurnToNominateDraft = Boolean(
-    isAuctionDraft && currentUserRosterId != null && auctionNominator?.rosterId === currentUserRosterId
-  )
-
   const aiRowBadges = useMemo(() => {
     if (!warRoomData?.bestPick) return undefined
     const out: Record<string, 'ai_pick' | 'value' | 'risky'> = {}
@@ -3137,7 +3191,7 @@ export function DraftRoomPageClient({
         aiAdpUnavailableMessage={leagueAiAdp?.message ?? null}
         aiAdpStaleWarning={aiAdpStaleWarning}
         aiAdpLowSampleWarning={aiAdpLowSampleWarning}
-        canNominate={isAuctionDraft ? isMyTurnToNominateDraft : false}
+        canNominate={isAuctionDraft ? draftGate.canNominate : false}
         onNominate={isAuctionDraft ? handleAuctionNominate : undefined}
         devyConfig={
           draftPool?.devyConfig
@@ -3178,7 +3232,7 @@ export function DraftRoomPageClient({
       queue,
       effectiveDraftSport,
       isAuctionDraft,
-      isMyTurnToNominateDraft,
+      draftGate.canNominate,
       canDraft,
       handleAddToQueue,
       handleMakePick,
@@ -3994,7 +4048,20 @@ export function DraftRoomPageClient({
               </button>
             </div>
           ) : null}
-          {governanceBanner ? (
+          {session?.rosterConfigurationIncomplete ? (
+            <div
+              role="alert"
+              aria-live="assertive"
+              data-testid="draft-roster-config-incomplete-banner"
+              className="flex flex-wrap items-center gap-2 border-b border-rose-400/35 bg-rose-950/45 px-4 py-2.5 text-sm text-rose-50"
+            >
+              <span className="font-semibold text-rose-100">Roster configuration incomplete.</span>
+              <span className="text-rose-100/90">
+                {draftGate.rosterConfigurationMessage ??
+                  'The commissioner must save roster slots in league settings before drafting. The pick clock and player picks stay disabled until this is fixed.'}
+              </span>
+            </div>
+          ) : governanceBanner ? (
             <div
               role={governanceBanner.variant === 'error' ? 'alert' : 'status'}
               aria-live={governanceBanner.variant === 'error' ? 'assertive' : 'polite'}
@@ -4068,9 +4135,15 @@ export function DraftRoomPageClient({
             currentManagerOnClock={currentPick?.displayName ?? null}
             pickLabel={currentPick?.pickLabel ?? null}
             overallPickNumber={currentPick?.overall ?? null}
-            timerStatus={session.timer?.status ?? 'none'}
-            timerRemainingSeconds={session.timer?.remainingSeconds ?? null}
-            timerEndAtIso={draftCore?.timerEndAt ? draftCore.timerEndAt : (session.timer?.timerEndAt ?? null)}
+            timerStatus={draftGate.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
+            timerRemainingSeconds={draftGate.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)}
+            timerEndAtIso={
+              draftGate.timerMode === 'blocked'
+                ? null
+                : draftCore?.timerEndAt
+                  ? draftCore.timerEndAt
+                  : (session.timer?.timerEndAt ?? null)
+            }
             timerSeconds={session.timerSeconds ?? null}
             timerMode={draftUISettings?.timerMode ?? 'per_pick'}
             autoPickEnabled={autoPickEnabled}
@@ -4184,7 +4257,7 @@ export function DraftRoomPageClient({
               in the header if this message persists.
             </div>
           ) : null}
-          <div className="flex min-h-0 flex-1 flex-col gap-1.5 lg:flex-row lg:gap-2.5">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1.5 lg:flex-row lg:gap-2.5 lg:items-stretch">
             <LiveDraftStatusColumn
               session={session as DraftSessionSnapshot}
               queueEntries={queueFiltered}
@@ -4201,47 +4274,51 @@ export function DraftRoomPageClient({
               viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
               onClockSpotlight={onClockSpotlight}
             />
-            <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-auto">
-              <DraftTeamStrip
-                teamCount={safeBoardTeamCount}
-                slotOrder={slotOrder}
-                teamMetaByRoster={teamMetaByRoster}
-                currentUserRosterId={currentUserRosterId ?? null}
-                onClockRosterId={currentPick?.rosterId ?? null}
-                canInvite={isCommissioner}
-              />
-              <DraftBoard
-                picks={session.picks ?? []}
-                slotOrder={slotOrder}
-                tradedPicks={(session as any).tradedPicks ?? []}
-                teamCount={safeBoardTeamCount}
-                rounds={safeBoardRounds}
-                draftType={session.draftType}
-                thirdRoundReversal={session.thirdRoundReversal}
-                tradedPickColorMode={tradedPickColorMode}
-                showNewOwnerInRed={showNewOwnerInRed}
-                keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
-                devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
-                c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
-                currentOverallPick={currentPick?.overall ?? null}
-                sport={effectiveDraftSport}
-                currentUserRosterId={currentUserRosterId ?? null}
-                aiManagedRosterIds={aiManagedRosterIds}
-                orderSourceLabel={boardOrderSourceLabel}
-                presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-                onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
-                onOpenTradeHistory={() => {
-                  setTradeHistoryFocus(null)
-                  setTradeHistoryOpen(true)
-                }}
-                onViewCellTradeHistory={(ctx) => {
-                  setTradeHistoryFocus({
-                    round: ctx.round,
-                    originalRosterId: ctx.originalRosterId,
-                  })
-                  setTradeHistoryOpen(true)
-                }}
-              />
+            <div className="flex min-h-[120px] min-w-0 flex-1 flex-col overflow-hidden lg:min-h-0">
+              <div className="shrink-0">
+                <DraftTeamStrip
+                  teamCount={safeBoardTeamCount}
+                  slotOrder={slotOrder}
+                  teamMetaByRoster={teamMetaByRoster}
+                  currentUserRosterId={currentUserRosterId ?? null}
+                  onClockRosterId={currentPick?.rosterId ?? null}
+                  canInvite={isCommissioner}
+                />
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto overscroll-contain [overflow-anchor:none]">
+                <DraftBoard
+                  picks={session.picks ?? []}
+                  slotOrder={slotOrder}
+                  tradedPicks={(session as any).tradedPicks ?? []}
+                  teamCount={safeBoardTeamCount}
+                  rounds={safeBoardRounds}
+                  draftType={session.draftType}
+                  thirdRoundReversal={session.thirdRoundReversal}
+                  tradedPickColorMode={tradedPickColorMode}
+                  showNewOwnerInRed={showNewOwnerInRed}
+                  keeperLocks={(session as DraftSessionSnapshot).keeper?.locks}
+                  devyRounds={(session as DraftSessionSnapshot).c2c?.enabled ? [] : ((session as DraftSessionSnapshot).devy?.devyRounds ?? [])}
+                  c2cCollegeRounds={(session as DraftSessionSnapshot).c2c?.collegeRounds ?? []}
+                  currentOverallPick={currentPick?.overall ?? null}
+                  sport={effectiveDraftSport}
+                  currentUserRosterId={currentUserRosterId ?? null}
+                  aiManagedRosterIds={aiManagedRosterIds}
+                  orderSourceLabel={boardOrderSourceLabel}
+                  presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
+                  onCellTrade={currentUserRosterId ? openPickTradeFromBoard : undefined}
+                  onOpenTradeHistory={() => {
+                    setTradeHistoryFocus(null)
+                    setTradeHistoryOpen(true)
+                  }}
+                  onViewCellTradeHistory={(ctx) => {
+                    setTradeHistoryFocus({
+                      round: ctx.round,
+                      originalRosterId: ctx.originalRosterId,
+                    })
+                    setTradeHistoryOpen(true)
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -4255,11 +4332,14 @@ export function DraftRoomPageClient({
             onNominate={(player) => handleAuctionNominate({ name: player.playerName, position: player.position, team: player.team ?? null })}
             onBid={handleAuctionBid}
             onResolve={handleAuctionResolve}
-            timerRemainingSeconds={session.timer?.remainingSeconds ?? null}
-            timerStatus={session.timer?.status ?? 'none'}
+            timerRemainingSeconds={
+              draftGate.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)
+            }
+            timerStatus={draftGate.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
             nominateLoading={auctionNominateLoading}
             bidLoading={auctionBidLoading}
             resolveLoading={auctionResolveLoading}
+            rosterGateBlocksAuctionActions={draftGate.rosterConfigurationIncomplete}
           />
         ) : undefined
       }

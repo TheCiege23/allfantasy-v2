@@ -194,7 +194,7 @@ export function useLeagueWarRoomCompanion({
     setLoading(true)
     setError(null)
     try {
-      const [sessionRes, poolRes, settingsRes, ctxRes] = await Promise.all([
+      const [sessionRes, poolRes, settingsRes, ctxRes, rosterCfgRes] = await Promise.all([
         fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/session`, {
           cache: 'no-store',
           signal: ac.signal,
@@ -211,12 +211,19 @@ export function useLeagueWarRoomCompanion({
           cache: 'no-store',
           signal: ac.signal,
         }),
+        fetch(`/api/leagues/${encodeURIComponent(leagueId)}/roster-config`, {
+          cache: 'no-store',
+          signal: ac.signal,
+        }),
       ])
 
       const sessionJson = await sessionRes.json().catch(() => ({}))
       const poolJson = await poolRes.json().catch(() => ({}))
       const settingsJson = (await settingsRes.json().catch(() => ({}))) as DraftSettingsJson
       const ctxJson = (await ctxRes.json().catch(() => ({}))) as AssistantContextJson
+      const rosterCfgJson = (await rosterCfgRes.json().catch(() => null)) as {
+        orderedSlotLabels?: unknown
+      } | null
 
       if (ac.signal.aborted) return
 
@@ -338,7 +345,17 @@ export function useLeagueWarRoomCompanion({
         if (p.playerId) draftedPlayerIds.add(String(p.playerId).trim())
       }
 
-      const rosterSlots = effectiveRosterSlotsFromSettings(settingsJson, poolSport)
+      const fromConfig =
+        rosterCfgRes.ok &&
+        rosterCfgJson &&
+        typeof rosterCfgJson === 'object' &&
+        Array.isArray(rosterCfgJson.orderedSlotLabels) &&
+        rosterCfgJson.orderedSlotLabels.length > 0 &&
+        rosterCfgJson.orderedSlotLabels.every((x) => typeof x === 'string')
+          ? (rosterCfgJson.orderedSlotLabels as string[])
+          : []
+      const rosterSlots =
+        fromConfig.length > 0 ? fromConfig : effectiveRosterSlotsFromSettings(settingsJson, poolSport)
       const isSF = isSuperflexSlots(rosterSlots)
 
       const onClock = Boolean(

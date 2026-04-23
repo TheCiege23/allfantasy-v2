@@ -108,7 +108,16 @@ export async function nominatePlayer(
   leagueId: string,
   nomination: AuctionNomination,
   nominatorRosterId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; code?: 'ROSTER_CONFIGURATION_INCOMPLETE' }> {
+  const { isLeagueRosterDraftReady } = await import('@/lib/league/league-roster-draft-gate')
+  if (!(await isLeagueRosterDraftReady(leagueId))) {
+    return {
+      success: false,
+      error: 'Roster configuration is incomplete.',
+      code: 'ROSTER_CONFIGURATION_INCOMPLETE',
+    }
+  }
+
   const session = await prisma.draftSession.findUnique({
     where: { leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },
@@ -183,7 +192,16 @@ export async function placeBid(
   leagueId: string,
   rosterId: string,
   amount: number
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; code?: 'ROSTER_CONFIGURATION_INCOMPLETE' }> {
+  const { isLeagueRosterDraftReady } = await import('@/lib/league/league-roster-draft-gate')
+  if (!(await isLeagueRosterDraftReady(leagueId))) {
+    return {
+      success: false,
+      error: 'Roster configuration is incomplete.',
+      code: 'ROSTER_CONFIGURATION_INCOMPLETE',
+    }
+  }
+
   const session = await prisma.draftSession.findUnique({
     where: { leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },

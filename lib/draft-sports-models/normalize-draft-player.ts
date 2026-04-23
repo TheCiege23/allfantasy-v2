@@ -12,7 +12,7 @@ import type {
   TeamDisplayModel,
   NormalizedDraftEntry,
 } from './types'
-import { resolvePlayerAssets, buildTeamDisplayModel } from './player-asset-resolver'
+import { resolvePlayerAssets, buildTeamDisplayModel, looksLikeSleeperExternalId } from './player-asset-resolver'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 export type RawDraftPlayerLike = {
@@ -48,6 +48,13 @@ export type RawDraftPlayerLike = {
   poolType?: 'college' | 'pro'
   /** Pre-resolved image URL from TheSportsDB/DB ingestion (used for NCAAF, Soccer, etc.) */
   imageUrl?: string | null
+  fantasyPointsPerGame?: number | null
+  lifetimeValue?: number | null
+  rollingInsightsSupplemental?: {
+    fantasyPointsPerGame?: number | null
+    gamesPlayed?: number | null
+    season?: string | null
+  } | null
   [key: string]: unknown
 }
 
@@ -90,12 +97,19 @@ export function normalizeDraftPlayer(
     )
   )
 
-  const assets = resolvePlayerAssets(playerId || null, teamStr, sportNorm)
-  // For sports without Sleeper CDN (NCAAF, Soccer), use DB-stored image URL if available
-  if (assets.headshotFallbackUsed && raw.imageUrl) {
-    assets.headshotUrl = String(raw.imageUrl)
-    assets.headshotFallbackUsed = false
-  }
+  const sleeperForCdn =
+    raw.sleeperId != null && String(raw.sleeperId).trim() !== ''
+      ? String(raw.sleeperId).trim()
+      : looksLikeSleeperExternalId(raw.playerId ?? null)
+        ? String(raw.playerId).trim()
+        : looksLikeSleeperExternalId(raw.id ?? null)
+          ? String(raw.id).trim()
+          : null
+
+  const assets = resolvePlayerAssets(playerId || null, teamStr, sportNorm, {
+    dbImageUrl: raw.imageUrl ?? null,
+    sleeperExternalId: sleeperForCdn,
+  })
   const team = buildTeamDisplayModel(teamStr, sportNorm)
 
   const ageMeta = raw.age != null && Number.isFinite(Number(raw.age)) ? Number(raw.age) : null
@@ -116,13 +130,41 @@ export function normalizeDraftPlayer(
     sport: sportNorm,
   }
 
+  const fppg =
+    raw.fantasyPointsPerGame != null && Number.isFinite(Number(raw.fantasyPointsPerGame))
+      ? Number(raw.fantasyPointsPerGame)
+      : null
+  const ltv =
+    raw.lifetimeValue != null && Number.isFinite(Number(raw.lifetimeValue)) ? Number(raw.lifetimeValue) : null
+
   const stats: PlayerStatSnapshotModel = {
-    primaryStatLabel: adp != null ? 'ADP' : null,
-    primaryStatValue: adp ?? null,
-    secondaryStatLabel: bye != null && bye > 0 ? 'Bye' : null,
-    secondaryStatValue: bye ?? null,
+    rollingInsightsSupplemental: raw.rollingInsightsSupplemental ?? undefined,
+    primaryStatLabel: adp != null ? 'ADP' : fppg != null ? 'PPG' : ltv != null ? 'Val' : null,
+    primaryStatValue: adp ?? fppg ?? ltv ?? null,
+    secondaryStatLabel:
+      adp != null && fppg != null
+        ? 'PPG'
+        : adp != null && bye != null && bye > 0
+          ? 'Bye'
+          : adp != null && ltv != null && fppg == null
+            ? 'Val'
+            : fppg != null && bye != null && bye > 0
+              ? 'Bye'
+              : null,
+    secondaryStatValue:
+      adp != null && fppg != null
+        ? fppg
+        : adp != null && bye != null && bye > 0
+          ? bye
+          : adp != null && ltv != null && fppg == null
+            ? ltv
+            : fppg != null && bye != null && bye > 0
+              ? bye
+              : null,
     adp: adp ?? null,
     byeWeek: bye ?? null,
+    fantasyPointsPerGame: fppg,
+    lifetimeValue: ltv,
   }
 
   const display: PlayerDisplayModel = {

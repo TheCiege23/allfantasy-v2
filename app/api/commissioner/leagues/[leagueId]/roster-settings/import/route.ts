@@ -6,6 +6,7 @@ import {
   mapImportedRosterToLeagueConfig,
   previewImportedRosterForLeague,
 } from '@/lib/roster-engine'
+import { invalidateLeagueDraftCaches } from '@/lib/league/invalidateLeagueDraftCaches'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
   try {
     if (action === 'apply') {
       const config = await mapImportedRosterToLeagueConfig(leagueId, sourcePlatform, importedConfig)
+      invalidateLeagueDraftCaches(leagueId)
       return NextResponse.json({ ok: true, action: 'apply', unifiedConfig: config })
     }
 

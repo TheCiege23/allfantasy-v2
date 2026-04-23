@@ -10,6 +10,7 @@ import { placeBid } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { prisma } from '@/lib/prisma'
 import { notifyAuctionOutbid } from '@/lib/draft-notifications'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +53,11 @@ export async function POST(
 
   const result = await placeBid(leagueId, rosterId, amount)
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+    if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+      return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId, message: result.error }), { status })
+    }
+    return NextResponse.json({ error: result.error }, { status })
   }
 
   if (previousBidderRosterId && previousBidderRosterId !== rosterId && (previousBidAmount ?? 0) > 0) {

@@ -5,6 +5,7 @@
 
 import { prisma } from "@/lib/prisma"
 import type { LeagueSettingsPatch, LeagueConfigurationView } from "./types"
+import { invalidateLeagueDraftCaches } from "@/lib/league/invalidateLeagueDraftCaches"
 import { SUPPORTED_SPORTS } from "@/lib/sport-scope"
 import type { LeagueSport } from "@prisma/client"
 
@@ -87,9 +88,23 @@ export async function updateLeagueSettings(
     updates.settings = { ...current, ...settingsUpdates }
   }
   if (Object.keys(updates).length === 0) return getLeagueConfiguration(leagueId)
+
+  const rosterOrTemplateTouched =
+    patch.starters !== undefined ||
+    patch.rosterSize !== undefined ||
+    patch.leagueSize !== undefined ||
+    patch.rosterPositions !== undefined ||
+    patch.benchSize !== undefined ||
+    patch.sport !== undefined ||
+    settingsUpdates.rosterPositions !== undefined ||
+    settingsUpdates.benchSize !== undefined
+
   await prisma.league.update({
     where: { id: leagueId },
     data: updates,
   })
+  if (rosterOrTemplateTouched) {
+    invalidateLeagueDraftCaches(leagueId)
+  }
   return getLeagueConfiguration(leagueId)
 }

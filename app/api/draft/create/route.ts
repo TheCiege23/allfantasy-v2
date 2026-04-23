@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { requireDraftRouteUser } from '@/lib/draft/api-route-helpers'
 import { getOrCreateDraftSession, startDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,13 @@ export async function POST(req: NextRequest) {
     await assertCommissioner(leagueId, userId)
     const { session, created } = await getOrCreateDraftSession(leagueId)
     if (start) {
-      await startDraftSession(leagueId)
+      const started = await startDraftSession(leagueId)
+      if (!started.ok) {
+        if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+          return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId }), { status: 409 })
+        }
+        return NextResponse.json({ error: 'Could not start draft' }, { status: 400 })
+      }
     }
 
     return NextResponse.json({

@@ -33,6 +33,8 @@ import { ENGAGEMENT } from '@/lib/analytics/eventNames'
 import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 import { resolveWeightedLotterySlotOrderForLeague } from '@/lib/draft/resolve-draft-context'
 import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraftPoolValidation'
+import { DRAFT_ROSTER_CONFIGURATION_CLIENT_MESSAGE } from '@/lib/league/roster-configuration-gate-error'
+import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 
 /** Same rules as session creation: LeagueSettings pick timer wins when present; else draft config + UI slow-draft mode. */
 function computeEffectivePickTimerSeconds(
@@ -247,8 +249,12 @@ export async function buildSessionSnapshot(
   now: Date = new Date()
 ): Promise<DraftSessionSnapshot | null> {
   await repairDraftSessionSlotOrderIfNeeded(leagueId)
+
   const session = await getDraftSessionByLeague(leagueId)
   if (!session) return null
+
+  const effectiveRoster = await getEffectiveLeagueRosterTemplate(leagueId).catch(() => null)
+  const rosterConfigurationIncomplete = effectiveRoster ? !effectiveRoster.hasPersistedRosterSchema : false
 
   const slotOrder = (session.slotOrder as unknown as SlotOrderEntry[]) ?? []
   const teamCount = session.teamCount
@@ -451,13 +457,24 @@ export async function buildSessionSnapshot(
     c2c,
     draftModeLabel: (session as { draftModeLabel?: string | null }).draftModeLabel ?? null,
     dispersalPool,
+    rosterConfigurationIncomplete,
+    rosterConfigurationMessage: rosterConfigurationIncomplete ? DRAFT_ROSTER_CONFIGURATION_CLIENT_MESSAGE : null,
   }
 }
 
-export async function startDraftSession(leagueId: string): Promise<boolean> {
+export type StartDraftSessionResult =
+  | { ok: true }
+  | { ok: false; reason: 'session_not_ready' | 'ROSTER_CONFIGURATION_INCOMPLETE' }
+
+export async function startDraftSession(leagueId: string): Promise<StartDraftSessionResult> {
   await repairDraftSessionSlotOrderIfNeeded(leagueId)
+  const { isLeagueRosterDraftReady } = await import('@/lib/league/league-roster-draft-gate')
+  if (!(await isLeagueRosterDraftReady(leagueId))) {
+    return { ok: false, reason: 'ROSTER_CONFIGURATION_INCOMPLETE' }
+  }
+
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
-  if (!session || session.status !== 'pre_draft') return false
+  if (!session || session.status !== 'pre_draft') return { ok: false, reason: 'session_not_ready' }
 
   const startedAtNow = new Date()
 
@@ -503,7 +520,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
       },
     })
     await ensureDraftingLifecycleForActiveSession(leagueId)
-    return true
+    return { ok: true }
   }
 
   const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
@@ -520,7 +537,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
     },
   })
   await ensureDraftingLifecycleForActiveSession(leagueId)
-  return true
+  return { ok: true }
 }
 
 export async function pauseDraftSession(leagueId: string, pausedByUserId?: string | null): Promise<boolean> {

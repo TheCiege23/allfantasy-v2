@@ -6,6 +6,7 @@ export {
   buildApiCacheKey,
   getApiCached,
   setApiCached,
+  deleteApiCachedKeysWithPrefix,
   API_CACHE_TTL,
   type ApiCacheEntry,
 } from './cache'

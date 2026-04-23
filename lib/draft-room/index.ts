@@ -3,6 +3,9 @@
  * war room resolver, AI bridge, sport draft UI.
  */
 
+/** No deps — listed first so barrel consumers don’t hit heavier modules before this resolves. */
+export { MOCK_DRAFT_ROSTER_HINT_DELAY_MS } from './mock-draft-ui-constants'
+
 export {
   getDraftViewState,
   getCurrentPickDisplay,
@@ -62,6 +65,8 @@ export {
   type PositionFilterOption,
   type DraftSportOption,
 } from './SportDraftUIResolver'
+
+export { getRosterSlotLabelsForLeagueDraft } from './getRosterSlotLabelsForLeagueDraft'
 
 export {
   getManagerColorByIndex,

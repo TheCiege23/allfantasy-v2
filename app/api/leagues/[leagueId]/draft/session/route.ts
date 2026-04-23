@@ -30,6 +30,7 @@ import {
   notifyDraftIntelOnClockUrgent,
   notifyDraftIntelQueueReady,
 } from '@/lib/draft-notifications'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
 
 export const dynamic = 'force-dynamic'
@@ -131,7 +132,12 @@ export async function POST(
     }
     if (action === 'start') {
       const started = await startDraftSession(leagueId)
-      if (!started) return NextResponse.json({ error: 'Cannot start draft' }, { status: 400 })
+      if (!started.ok) {
+        if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+          return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId }), { status: 409 })
+        }
+        return NextResponse.json({ error: 'Cannot start draft' }, { status: 400 })
+      }
       void notifyDraftStartingSoon(leagueId)
       await runKeeperAutomationTick(leagueId).catch(() => {})
       await runSlowDraftAutomationTick(leagueId).catch(() => {})

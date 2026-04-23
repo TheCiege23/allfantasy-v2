@@ -1,7 +1,17 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { MessageCircle, Send, Megaphone, Link2, ImageIcon, Film, Smile, BarChart3 } from 'lucide-react'
+import {
+  MessageCircle,
+  Send,
+  Megaphone,
+  Link2,
+  ImageIcon,
+  Smile,
+  BarChart3,
+  Plus,
+  Video,
+} from 'lucide-react'
 import type { DraftChatWireMessage } from '@/lib/draft-room/draft-chat-contract'
 
 export type DraftChatReaction = {
@@ -74,6 +84,10 @@ export function DraftChatPanel({
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickBottomRef = useRef(true)
+  const attachMenuRef = useRef<HTMLDivElement>(null)
+  const composerEmojiWrapRef = useRef<HTMLDivElement>(null)
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false)
+  const [composerEmojiPickerOpen, setComposerEmojiPickerOpen] = useState(false)
   const participantHandles = useMemo(() => {
     const names = Array.from(new Set(messages.map((m) => String(m.from || '').trim()).filter(Boolean)))
     return names.slice(0, 8)
@@ -100,6 +114,28 @@ export function DraftChatPanel({
     bottomRef.current?.scrollIntoView({ behavior: rs ? 'auto' : 'smooth' })
   }, [messages, rs])
 
+  useEffect(() => {
+    if (!attachMenuOpen) return
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (attachMenuRef.current?.contains(t)) return
+      setAttachMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [attachMenuOpen])
+
+  useEffect(() => {
+    if (!composerEmojiPickerOpen) return
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (composerEmojiWrapRef.current?.contains(t)) return
+      setComposerEmojiPickerOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [composerEmojiPickerOpen])
+
   const handleScrollLog = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
@@ -110,6 +146,7 @@ export function DraftChatPanel({
   const insertEmoji = (emoji: string) => {
     if (disabled) return
     setInput((prev) => `${prev}${emoji}`)
+    setComposerEmojiPickerOpen(false)
   }
 
   const submitPoll = async () => {
@@ -185,14 +222,24 @@ export function DraftChatPanel({
       data-testid="draft-chat-panel"
     >
       <div className={`flex items-center justify-between gap-2 border-b px-3 py-2.5 ${rs ? 'border-cyan-500/12 bg-[linear-gradient(90deg,rgba(34,211,238,0.06),transparent)]' : 'border-white/8'}`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <MessageCircle className="h-4 w-4 shrink-0 text-cyan-400" />
-          <span className="text-sm font-semibold text-white truncate">Draft chat</span>
-          {leagueChatSync && (
-            <span className="rounded border border-cyan-300/30 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] text-cyan-100 shrink-0" data-testid="draft-chat-sync-badge">
-              League sync
-            </span>
-          )}
+        <div className="min-w-0 flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4 shrink-0 text-cyan-400" />
+            <span className="truncate text-sm font-semibold text-white">Draft chat</span>
+            {leagueChatSync && (
+              <span
+                className="shrink-0 rounded border border-cyan-300/30 bg-cyan-500/10 px-1.5 py-0.5 text-[9px] text-cyan-100"
+                data-testid="draft-chat-sync-badge"
+              >
+                League sync
+              </span>
+            )}
+          </div>
+          <p className={`text-[10px] leading-snug ${rs ? 'text-cyan-200/55' : 'text-white/45'}`}>
+            {leagueChatSync
+              ? 'Connected to league chat — messages here post to the same thread as the league page.'
+              : 'Enable live draft chat sync in draft settings to post to your league chat thread.'}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {onAiSuggestionClick && (
@@ -249,111 +296,6 @@ export function DraftChatPanel({
           ) : null}
         </div>
       ) : null}
-      <div
-        className={`flex flex-wrap items-center gap-2 border-b px-3 py-2 ${
-          rs ? 'border-cyan-500/15 bg-black/25' : 'border-white/8'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => insertMedia('GIF')}
-          disabled={disabled}
-          data-testid="draft-chat-media-gif"
-          className={`min-h-[36px] inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] disabled:opacity-50 ${
-            rs
-              ? 'border-cyan-400/25 bg-cyan-950/40 text-cyan-100 hover:bg-cyan-950/60'
-              : 'border-white/12 bg-black/20 text-white/75 hover:bg-white/10'
-          }`}
-        >
-          <Film className="h-3.5 w-3.5" />
-          GIF
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMedia('IMAGE')}
-          disabled={disabled}
-          data-testid="draft-chat-media-image"
-          className={`min-h-[36px] inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] disabled:opacity-50 ${
-            rs
-              ? 'border-white/14 bg-black/35 text-white/85 hover:bg-black/50'
-              : 'border-white/12 bg-black/20 text-white/75 hover:bg-white/10'
-          }`}
-        >
-          <ImageIcon className="h-3.5 w-3.5" />
-          Image
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMedia('VIDEO')}
-          disabled={disabled}
-          data-testid="draft-chat-media-video"
-          className={`min-h-[36px] inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] disabled:opacity-50 ${
-            rs
-              ? 'border-white/14 bg-black/35 text-white/85 hover:bg-black/50'
-              : 'border-white/12 bg-black/20 text-white/75 hover:bg-white/10'
-          }`}
-        >
-          <Film className="h-3.5 w-3.5" />
-          Video
-        </button>
-        <button
-          type="button"
-          onClick={() => insertMedia('LINK')}
-          disabled={disabled}
-          data-testid="draft-chat-media-link"
-          className={`min-h-[36px] inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] disabled:opacity-50 ${
-            rs
-              ? 'border-white/14 bg-black/35 text-white/85 hover:bg-black/50'
-              : 'border-white/12 bg-black/20 text-white/75 hover:bg-white/10'
-          }`}
-        >
-          <Link2 className="h-3.5 w-3.5" />
-          Link
-        </button>
-        {leagueId ? (
-          <button
-            type="button"
-            onClick={() => setPollOpen((v) => !v)}
-            disabled={disabled}
-            data-testid="draft-chat-poll-toggle"
-            className={`min-h-[36px] inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] disabled:opacity-50 ${
-              pollOpen
-                ? 'border-violet-400/45 bg-violet-500/20 text-violet-100'
-                : rs
-                  ? 'border-violet-400/30 bg-violet-950/35 text-violet-100 hover:bg-violet-950/55'
-                  : 'border-violet-400/25 bg-violet-500/10 text-violet-100 hover:bg-violet-500/20'
-            }`}
-          >
-            <BarChart3 className="h-3.5 w-3.5" />
-            Poll
-          </button>
-        ) : null}
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {isCommissioner && (
-            <button
-              type="button"
-              onClick={() => insertToken('@everyone')}
-              disabled={disabled}
-              data-testid="draft-chat-mention-everyone"
-              className="min-h-[36px] rounded-lg border border-amber-400/35 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
-            >
-              @everyone
-            </button>
-          )}
-          {participantHandles.map((name) => (
-            <button
-              key={name}
-              type="button"
-              onClick={() => insertToken(`@${name.replace(/\s+/g, '')}`)}
-              disabled={disabled}
-              data-testid={`draft-chat-mention-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-              className="min-h-[36px] rounded-lg border border-cyan-300/25 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              @{name}
-            </button>
-          ))}
-        </div>
-      </div>
       {pollOpen && leagueId ? (
         <div
           className={`space-y-2 border-b px-3 py-2 ${rs ? 'border-cyan-500/15 bg-violet-950/20' : 'border-white/8 bg-violet-500/5'}`}
@@ -772,57 +714,221 @@ export function DraftChatPanel({
         <div ref={bottomRef} />
       </div>
       <div
-        className={`flex flex-col gap-2 border-t p-3 sm:p-2.5 ${
+        className={`border-t p-2.5 sm:p-3 ${
           rs ? 'border-cyan-500/15 bg-[#050a14]' : 'border-white/8'
         }`}
       >
-        <div className="flex flex-wrap items-center gap-1">
-          <span className={`mr-1 text-[9px] font-medium uppercase tracking-wide ${rs ? 'text-white/45' : 'text-white/35'}`}>
-            Emoji
-          </span>
-          {COMPOSER_EMOJI_QUICK.map((emo) => (
+        <div className="flex min-w-0 items-end gap-1.5 sm:gap-2">
+          <div className="relative shrink-0" ref={attachMenuRef}>
             <button
-              key={emo}
               type="button"
-              onClick={() => insertEmoji(emo)}
+              onClick={() => setAttachMenuOpen((o) => !o)}
               disabled={disabled}
-              data-testid={`draft-chat-emoji-quick-${emo}`}
-              className="rounded-md border border-white/10 bg-black/30 px-1.5 py-1 text-[14px] leading-none hover:bg-white/10 disabled:opacity-50"
-              aria-label={`Insert ${emo}`}
+              data-testid="draft-chat-attach-menu"
+              aria-expanded={attachMenuOpen}
+              aria-haspopup="menu"
+              aria-label="Attach or more options"
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-full border transition disabled:opacity-50 ${
+                attachMenuOpen
+                  ? rs
+                    ? 'border-cyan-400/50 bg-cyan-500/25 text-white'
+                    : 'border-white/35 bg-white/15 text-white'
+                  : rs
+                    ? 'border-white/14 bg-black/35 text-white/85 hover:bg-black/55'
+                    : 'border-white/18 bg-black/40 text-white/85 hover:bg-white/10'
+              }`}
             >
-              {emo}
+              <Plus className="h-5 w-5" strokeWidth={2.25} />
             </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder={
-              rs
-                ? 'Chat with the room… emojis, GIFs, polls, @mentions'
-                : 'Message… (@mention supported)'
-            }
+            {attachMenuOpen ? (
+              <div
+                className={`absolute bottom-full left-0 z-[60] mb-1 max-h-[min(320px,55vh)] min-w-[200px] overflow-y-auto overscroll-contain rounded-xl border py-1 shadow-xl backdrop-blur-md ${
+                  rs
+                    ? 'border-cyan-500/25 bg-[#0a1428]/98 ring-1 ring-cyan-500/15'
+                    : 'border-white/12 bg-[#0d1629]/98'
+                }`}
+                role="menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-white/90 hover:bg-white/10"
+                  onClick={() => {
+                    insertMedia('IMAGE')
+                    setAttachMenuOpen(false)
+                  }}
+                  disabled={disabled}
+                  data-testid="draft-chat-media-image"
+                >
+                  <ImageIcon className="h-4 w-4 shrink-0 opacity-80" />
+                  Image
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-white/90 hover:bg-white/10"
+                  onClick={() => {
+                    insertMedia('VIDEO')
+                    setAttachMenuOpen(false)
+                  }}
+                  disabled={disabled}
+                  data-testid="draft-chat-media-video"
+                >
+                  <Video className="h-4 w-4 shrink-0 opacity-80" />
+                  Video
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-white/90 hover:bg-white/10"
+                  onClick={() => {
+                    insertMedia('LINK')
+                    setAttachMenuOpen(false)
+                  }}
+                  disabled={disabled}
+                  data-testid="draft-chat-media-link"
+                >
+                  <Link2 className="h-4 w-4 shrink-0 opacity-80" />
+                  Link
+                </button>
+                {leagueId ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-white/90 hover:bg-white/10"
+                    onClick={() => {
+                      setPollOpen(true)
+                      setAttachMenuOpen(false)
+                    }}
+                    disabled={disabled}
+                    data-testid="draft-chat-poll-toggle"
+                  >
+                    <BarChart3 className="h-4 w-4 shrink-0 opacity-80" />
+                    Poll
+                  </button>
+                ) : null}
+                {(isCommissioner || participantHandles.length > 0) && (
+                  <div className={`my-1 border-t ${rs ? 'border-white/10' : 'border-white/8'}`} role="presentation" />
+                )}
+                {isCommissioner && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-amber-100/95 hover:bg-amber-500/15"
+                    onClick={() => {
+                      insertToken('@everyone')
+                      setAttachMenuOpen(false)
+                    }}
+                    disabled={disabled}
+                    data-testid="draft-chat-mention-everyone"
+                  >
+                    @everyone
+                  </button>
+                )}
+                {participantHandles.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-cyan-100/90 hover:bg-cyan-500/15"
+                    onClick={() => {
+                      insertToken(`@${name.replace(/\s+/g, '')}`)
+                      setAttachMenuOpen(false)
+                    }}
+                    disabled={disabled}
+                    data-testid={`draft-chat-mention-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                  >
+                    @{name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => insertMedia('GIF')}
             disabled={disabled}
-            className={`flex-1 min-h-[48px] rounded-xl border px-3 py-3 text-base text-white placeholder:text-white/40 disabled:opacity-50 touch-manipulation ${
+            data-testid="draft-chat-media-gif"
+            className={`shrink-0 rounded-full border px-3 py-2 text-[11px] font-bold uppercase tracking-wide disabled:opacity-50 ${
               rs
-                ? 'border-cyan-400/25 bg-[#0a1428] shadow-[inset_0_1px_0_rgba(34,211,238,0.06)]'
-                : 'border-white/12 bg-[#0a1228]'
+                ? 'border-cyan-400/35 bg-cyan-950/50 text-cyan-100 hover:bg-cyan-950/70'
+                : 'border-white/14 bg-black/35 text-white/85 hover:bg-black/50'
             }`}
-            aria-label="Chat message"
-            data-testid="draft-chat-input"
-          />
+          >
+            GIF
+          </button>
+
+          <div className="relative min-w-0 flex-1" ref={composerEmojiWrapRef}>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+              }}
+              placeholder="Enter Message"
+              disabled={disabled}
+              className={`h-10 w-full rounded-full border py-2 pl-4 pr-11 text-[15px] text-white placeholder:text-white/38 disabled:opacity-50 sm:h-11 sm:text-base ${
+                rs
+                  ? 'border-white/12 bg-[#0f182c] shadow-[inset_0_1px_0_rgba(34,211,238,0.05)] focus:border-cyan-400/45 focus:outline-none focus:ring-1 focus:ring-cyan-400/35'
+                  : 'border-white/12 bg-[#0a1228] focus:border-white/25 focus:outline-none focus:ring-1 focus:ring-white/15'
+              }`}
+              aria-label="Chat message"
+              data-testid="draft-chat-input"
+            />
+            <div className="absolute bottom-1 right-1 top-1 flex items-center">
+              <button
+                type="button"
+                onClick={() => setComposerEmojiPickerOpen((o) => !o)}
+                disabled={disabled}
+                data-testid="draft-chat-composer-emoji-toggle"
+                aria-expanded={composerEmojiPickerOpen}
+                aria-label="Insert emoji"
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full transition disabled:opacity-50 ${
+                  composerEmojiPickerOpen ? 'bg-white/15 text-white' : 'text-white/55 hover:bg-white/10 hover:text-white/90'
+                }`}
+              >
+                <Smile className="h-5 w-5" />
+              </button>
+            </div>
+            {composerEmojiPickerOpen ? (
+              <div
+                className={`absolute bottom-full right-0 z-[60] mb-1 max-w-[min(280px,85vw)] rounded-xl border p-2 shadow-xl ${
+                  rs ? 'border-cyan-500/25 bg-[#0a1428]/98 ring-1 ring-cyan-500/15' : 'border-white/12 bg-[#0d1629]/98'
+                }`}
+              >
+                <div className="grid grid-cols-4 gap-1">
+                  {COMPOSER_EMOJI_QUICK.map((emo) => (
+                    <button
+                      key={emo}
+                      type="button"
+                      onClick={() => insertEmoji(emo)}
+                      disabled={disabled}
+                      data-testid={`draft-chat-emoji-quick-${emo}`}
+                      className="rounded-lg py-2 text-lg leading-none hover:bg-white/10 disabled:opacity-50"
+                      aria-label={`Insert ${emo}`}
+                    >
+                      {emo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <button
             type="button"
             onClick={handleSubmit}
             disabled={sending || disabled || !input.trim()}
             data-testid="draft-chat-send"
-            className={`min-h-[48px] min-w-[52px] inline-flex items-center justify-center rounded-xl border text-cyan-100 disabled:opacity-50 touch-manipulation ${
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border disabled:opacity-50 sm:h-11 sm:w-11 ${
               rs
-                ? 'border-cyan-400/45 bg-cyan-500/18 shadow-[0_8px_28px_rgba(34,211,238,0.12)] hover:bg-cyan-500/28'
-                : 'border-cyan-300/35 bg-cyan-500/12 hover:bg-cyan-500/20'
+                ? 'border-cyan-400/45 bg-cyan-500/22 text-cyan-50 shadow-[0_4px_20px_rgba(34,211,238,0.18)] hover:bg-cyan-500/32'
+                : 'border-cyan-300/35 bg-cyan-500/14 text-cyan-100 hover:bg-cyan-500/24'
             }`}
             aria-label="Send message"
           >

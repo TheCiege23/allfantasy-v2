@@ -1,9 +1,7 @@
 /**
  * Returns the resolved roster template for a league, aggregated into the flat
- * shape consumed by the draft-room team panel (DraftRosterStrip). Reuses the
- * same `getRosterTemplateForLeague` helper the post-draft lineup finalizer
- * uses (lib/live-draft-engine/RosterAssignmentService), so the strip reflects
- * whatever slots will actually be assigned when the draft completes.
+ * shape consumed by the draft-room team panel (DraftRosterStrip). Uses the same
+ * effective template as pool eligibility and pick validation (`getLeagueDraftTemplatePayload`).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -11,19 +9,23 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertLeagueMember } from '@/lib/league/league-access'
-import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
+import {
+  getLeagueDraftTemplatePayload,
+  orderedSlotLabelsFromTemplate,
+} from '@/lib/league/league-draft-template-payload'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { leagueId: string } },
+  { params }: { params: Promise<{ leagueId: string }> },
 ) {
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const leagueId = params.leagueId?.trim()
+  const { leagueId: rawId } = await params
+  const leagueId = rawId?.trim()
   if (!leagueId) return NextResponse.json({ error: 'leagueId required' }, { status: 400 })
 
   const gate = await assertLeagueMember(leagueId, userId)
@@ -34,23 +36,18 @@ export async function GET(
     )
   }
 
-  const league = await prisma.league.findUnique({
+  const leagueExists = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { sport: true, settings: true },
+    select: { id: true },
   })
-  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+  if (!leagueExists) return NextResponse.json({ error: 'League not found' }, { status: 404 })
 
-  const formatType =
-    (league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
-      ? ((league.settings as Record<string, unknown>).formatType as string | undefined)
-      : undefined) ?? 'standard'
-
-  const template = await getRosterTemplateForLeague(league.sport, formatType, leagueId).catch(
-    () => null,
-  )
-  if (!template) {
+  const payload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
+  if (!payload) {
     return NextResponse.json({ error: 'Template unavailable' }, { status: 500 })
   }
+
+  const template = payload.template
 
   // Aggregate template slots into the flat shape DraftRosterStrip consumes.
   const starterSlots: Record<string, number> = {}
@@ -67,6 +64,8 @@ export async function GET(
     devySlots += slot.devyCount ?? 0
   }
 
+  const orderedSlotLabels = orderedSlotLabelsFromTemplate(template)
+
   return NextResponse.json({
     templateId: template.templateId,
     sportType: template.sportType,
@@ -76,5 +75,7 @@ export async function GET(
     taxiSlots,
     devySlots,
     slots: template.slots,
+    orderedSlotLabels,
+    hasPersistedRosterSchema: payload.hasPersistedRosterSchema,
   })
 }

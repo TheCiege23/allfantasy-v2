@@ -22,6 +22,7 @@ import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/dr
 import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
 import { ensureDraftingLifecycleForActiveSession } from '@/server/services/leagueLifecycleService'
 import { logAction } from '@/server/services/auditService'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,7 +106,17 @@ export async function POST(
   })
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+    if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+      return NextResponse.json(
+        rosterConfigurationIncompleteBody({ leagueId, message: result.error }),
+        { status },
+      )
+    }
+    return NextResponse.json(
+      { error: result.error, ...(result.code ? { code: result.code } : {}) },
+      { status },
+    )
   }
 
   void logAction({

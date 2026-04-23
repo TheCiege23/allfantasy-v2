@@ -44,6 +44,7 @@ export interface SubmitPickInput {
 export interface SubmitPickResult {
   success: boolean
   error?: string
+  code?: 'ROSTER_CONFIGURATION_INCOMPLETE'
   snapshot?: { sessionId: string; overall: number; pickLabel: string; rosterId: string }
 }
 
@@ -51,6 +52,15 @@ export interface SubmitPickResult {
  * Submit a pick. Validates slot, duplicate, then writes in a transaction.
  */
 export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResult> {
+  const { isLeagueRosterDraftReady } = await import('@/lib/league/league-roster-draft-gate')
+  if (!(await isLeagueRosterDraftReady(input.leagueId))) {
+    return {
+      success: false,
+      error: 'Roster configuration is incomplete.',
+      code: 'ROSTER_CONFIGURATION_INCOMPLETE',
+    }
+  }
+
   const session = await prisma.draftSession.findUnique({
     where: { leagueId: input.leagueId },
     include: { picks: { orderBy: { overall: 'asc' } } },

@@ -17,7 +17,7 @@ import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { publishDraftIntelState } from '@/lib/draft-intelligence'
 import { buildDeterministicPostDraftRecap } from '@/lib/post-draft'
-import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
 import { runDraftAIAssist } from '@/lib/draft-ai-engine'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { getDevyConfig } from '@/lib/devy/DevyLeagueConfig'
@@ -538,7 +538,10 @@ export class DraftWorker {
   async startDraft(draftId: string): Promise<void> {
     const context = await this.getContext(draftId)
     const started = await startDraftSession(context.leagueId)
-    if (!started) {
+    if (!started.ok) {
+      if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+        throw new Error('ROSTER_CONFIGURATION_INCOMPLETE')
+      }
       throw new Error('Unable to start draft')
     }
     await this.broadcastDraftState(draftId)
@@ -888,7 +891,7 @@ export class DraftWorker {
         team: pick.team,
         byeWeek: null,
       }))
-    const rosterSlots = getDefaultRosterSlotsForSport(context.sport)
+    const rosterSlots = await getRosterSlotLabelsForLeagueDraft(context.leagueId, context.sport)
     const available = state.availablePlayers.slice(0, 200).map((player) => ({
       name: player.name,
       position: player.position,

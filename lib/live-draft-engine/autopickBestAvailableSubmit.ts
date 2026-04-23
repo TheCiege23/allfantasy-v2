@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEngine'
-import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
 import { getAiAdpForLeague } from '@/lib/ai-adp-engine'
@@ -247,6 +247,8 @@ export async function resolveBestAvailableAutopickCandidate(
 
   let selected: BestAvailableAutopickResolved | null = null
 
+  const rosterSlots = await getRosterSlotLabelsForLeagueDraft(leagueId, sport)
+
   if (autopickBehavior === 'need-based') {
     const rec = computeDraftRecommendation({
       available: fallbackPool.map((entry) => ({
@@ -259,7 +261,7 @@ export async function resolveBestAvailableAutopickCandidate(
       teamRoster: draftSession.picks
         .filter((pick) => pick.rosterId === rid)
         .map((pick) => ({ position: pick.position })),
-      rosterSlots: getDefaultRosterSlotsForSport(sport),
+      rosterSlots,
       round: current.round,
       pick: current.slot,
       totalTeams: draftSession.teamCount,

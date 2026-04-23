@@ -9,6 +9,7 @@ import { authOptions } from '@/lib/auth'
 import { canAccessLeagueDraft, getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { nominatePlayer } from '@/lib/live-draft-engine/auction/AuctionEngine'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,11 @@ export async function POST(
   }, rosterId)
 
   if (!result.success) {
-    return NextResponse.json({ error: result.error }, { status: 400 })
+    const status = result.code === 'ROSTER_CONFIGURATION_INCOMPLETE' ? 409 : 400
+    if (result.code === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+      return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId, message: result.error }), { status })
+    }
+    return NextResponse.json({ error: result.error }, { status })
   }
 
   const updated = await buildSessionSnapshot(leagueId)

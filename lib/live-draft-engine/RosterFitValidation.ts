@@ -3,10 +3,7 @@
  * Ensures picked position is allowed by league template and roster does not exceed slot count.
  */
 
-import { prisma } from '@/lib/prisma'
-import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
-import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
-import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
+import { getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
 
 export interface RosterFitValidationInput {
   leagueId: string
@@ -21,44 +18,14 @@ export interface RosterFitValidationResult {
 }
 
 /**
- * Allowed positions are the union of all slot allowedPositions from the league's roster template.
- */
-function getAllowedPositionsFromTemplate(slots: { allowedPositions: string[] }[]): Set<string> {
-  const set = new Set<string>()
-  for (const slot of slots) {
-    for (const p of slot.allowedPositions || []) {
-      const u = (p || '').trim().toUpperCase()
-      if (u) set.add(u)
-    }
-  }
-  return set
-}
-
-/**
- * Total roster size = sum over slots of (starterCount + benchCount + reserveCount + taxiCount + devyCount).
- */
-function getTotalRosterSize(slots: { starterCount: number; benchCount: number; reserveCount: number; taxiCount: number; devyCount: number }[]): number {
-  let n = 0
-  for (const s of slots) {
-    n += (s.starterCount ?? 0) + (s.benchCount ?? 0) + (s.reserveCount ?? 0) + (s.taxiCount ?? 0) + (s.devyCount ?? 0)
-  }
-  return n
-}
-
-/**
  * Validate that the new pick has an allowed position and the roster won't exceed template size.
+ * Uses the same effective template as the draft pool and roster gate.
  */
 export async function validateRosterFitForDraftPick(input: RosterFitValidationInput): Promise<RosterFitValidationResult> {
-  const league = await (prisma as any).league.findFirst({
-    where: { id: input.leagueId },
-    select: { sport: true, leagueVariant: true },
-  })
-  if (!league) return { valid: true }
+  const payload = await getLeagueDraftTemplatePayload(input.leagueId).catch(() => null)
+  if (!payload) return { valid: true }
 
-  const sportType = leagueSportToSportType(league.sport)
-  const formatType = getFormatTypeForVariant(sportType, (league.leagueVariant as string) ?? '')
-  const template = await getRosterTemplateForLeague(league.sport, formatType, input.leagueId)
-  const allowed = getAllowedPositionsFromTemplate(template.slots)
+  const allowed = payload.allowedPositions
   const posUpper = (input.newPickPosition || '').trim().toUpperCase()
   if (!posUpper) return { valid: false, error: 'Position is required' }
   if (!allowed.has(posUpper)) {
@@ -68,7 +35,7 @@ export async function validateRosterFitForDraftPick(input: RosterFitValidationIn
     }
   }
 
-  const totalSlots = getTotalRosterSize(template.slots)
+  const totalSlots = payload.totalRosterSlots
   const thisRosterPickCount = input.existingPicks.filter((p) => p.rosterId === input.rosterId).length
   if (thisRosterPickCount + 1 > totalSlots) {
     return {
@@ -82,17 +49,13 @@ export async function validateRosterFitForDraftPick(input: RosterFitValidationIn
 /**
  * Get allowed positions and total roster size for a league (for queue/autopick filtering).
  */
-export async function getAllowedPositionsAndRosterSize(leagueId: string): Promise<{ allowedPositions: Set<string>; totalRosterSize: number } | null> {
-  const league = await (prisma as any).league.findFirst({
-    where: { id: leagueId },
-    select: { sport: true, leagueVariant: true },
-  })
-  if (!league) return null
-  const sportType = leagueSportToSportType(league.sport)
-  const formatType = getFormatTypeForVariant(sportType, (league.leagueVariant as string) ?? '')
-  const template = await getRosterTemplateForLeague(league.sport, formatType, leagueId)
+export async function getAllowedPositionsAndRosterSize(
+  leagueId: string,
+): Promise<{ allowedPositions: Set<string>; totalRosterSize: number } | null> {
+  const payload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
+  if (!payload) return null
   return {
-    allowedPositions: getAllowedPositionsFromTemplate(template.slots),
-    totalRosterSize: getTotalRosterSize(template.slots),
+    allowedPositions: new Set(payload.allowedPositions),
+    totalRosterSize: payload.totalRosterSlots,
   }
 }

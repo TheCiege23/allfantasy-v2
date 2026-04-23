@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getOrCreateDraftSession, startDraftSession, buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { transitionLeagueState } from '@/server/services/leagueLifecycleService'
+import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +40,10 @@ export async function POST(
 
     // Start the draft session
     const started = await startDraftSession(leagueId)
-    if (!started) {
+    if (!started.ok) {
+      if (started.reason === 'ROSTER_CONFIGURATION_INCOMPLETE') {
+        return NextResponse.json(rosterConfigurationIncompleteBody({ leagueId }), { status: 409 })
+      }
       return NextResponse.json({ error: 'Failed to start draft session' }, { status: 500 })
     }
 

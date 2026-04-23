@@ -9,7 +9,7 @@ import {
   computeDraftRecommendation,
   type RecommendationPlayer,
 } from '@/lib/draft-helper/RecommendationEngine'
-import { getDefaultRosterSlotsForSport } from '@/lib/draft-room'
+import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
 import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
 import { formatPickLabel, getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
@@ -119,28 +119,7 @@ async function resolveLookaheadContext(leagueId: string): Promise<LookaheadConte
   if (!league?.id) return null
 
   const sport = normalizeToSupportedSport((league.sport as LeagueSport | null) ?? 'NFL')
-  let rosterSlots = getDefaultRosterSlotsForSport(sport)
-
-  if (sport === 'NFL') {
-    const { isIdpLeague, getRosterDefaultsForIdpLeague } = await import('@/lib/idp')
-    if (await isIdpLeague(leagueId)) {
-      const defaults = await getRosterDefaultsForIdpLeague(leagueId)
-      if (defaults) {
-        const expandedSlots: string[] = []
-        for (const [slotName, count] of Object.entries(defaults.starter_slots ?? {})) {
-          for (let index = 0; index < count; index += 1) {
-            expandedSlots.push(slotName)
-          }
-        }
-        for (let index = 0; index < (defaults.bench_slots ?? 0); index += 1) {
-          expandedSlots.push('BENCH')
-        }
-        if (expandedSlots.length > 0) {
-          rosterSlots = expandedSlots
-        }
-      }
-    }
-  }
+  const rosterSlots = await getRosterSlotLabelsForLeagueDraft(leagueId, sport)
 
   return {
     leagueId,

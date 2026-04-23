@@ -7,7 +7,7 @@
 import { prisma } from '@/lib/prisma'
 import { buildLineupSectionsFromPicks } from '@/lib/post-draft/buildStartersFromPicks'
 import { buildPlayerDataFromSections } from '@/lib/roster/LineupTemplateValidation'
-import { getRosterTemplateForLeague } from '@/lib/multi-sport/MultiSportRosterService'
+import { getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
 
 export interface AssignedPlayer {
   playerName: string
@@ -72,18 +72,8 @@ export async function finalizeRosterAssignments(leagueId: string): Promise<void>
   })
   if (!session || session.status !== 'completed') return
 
-  const league = await prisma.league.findUnique({
-    where: { id: leagueId },
-    select: { sport: true, settings: true },
-  })
-  const formatType =
-    (league?.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
-      ? ((league.settings as Record<string, unknown>).formatType as string | undefined)
-      : undefined) ?? 'standard'
-
-  const rosterTemplate = league
-    ? await getRosterTemplateForLeague(league.sport, formatType, leagueId).catch(() => null)
-    : null
+  const rosterPayload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
+  const rosterTemplate = rosterPayload?.template ?? null
 
   const byRoster = new Map<string, AssignedPlayer[]>()
   for (const p of session.picks) {

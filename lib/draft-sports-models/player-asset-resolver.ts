@@ -32,6 +32,23 @@ function sportToPlayerMediaSport(sport: string): string {
   return 'nfl'
 }
 
+export type ResolvePlayerAssetsOpts = {
+  /** DB / ingestion URL — highest precedence for headshot. */
+  dbImageUrl?: string | null
+  /** Only when set do we use Sleeper CDN / template headshot URLs (see `looksLikeSleeperExternalId`). */
+  sleeperExternalId?: string | null
+}
+
+/**
+ * Sleeper-style numeric external IDs — excludes UUIDs and synthetic `name:` keys.
+ */
+export function looksLikeSleeperExternalId(id: string | null | undefined): boolean {
+  const t = String(id ?? '').trim()
+  if (!t || t.includes(':')) return false
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(t)) return false
+  return /^\d{3,}$/.test(t)
+}
+
 /**
  * Build team logo URL with static registry fallback (sync).
  */
@@ -57,26 +74,31 @@ export function resolveHeadshotUrl(playerId: string | null, sport: string): stri
 
 /**
  * Resolve player assets (headshot + team logo) with fallbacks. Uses in-memory cache.
- * Uses template + registry (no DB) for low latency in draft lists.
+ * Headshot: DB `dbImageUrl` first, then Sleeper/template URLs only when `sleeperExternalId` is present.
  */
 export function resolvePlayerAssets(
   playerId: string | null,
   teamAbbreviation: string | null,
-  sport: DraftSport | string
+  sport: DraftSport | string,
+  opts?: ResolvePlayerAssetsOpts
 ): PlayerAssetModel {
-  const key = cacheKey(playerId ?? '', teamAbbreviation, sport)
+  const dbUrl = opts?.dbImageUrl?.trim() || null
+  const sleeperForCdn = opts?.sleeperExternalId?.trim() || null
+  const key = cacheKey(`${playerId ?? ''}|${dbUrl ?? ''}|${sleeperForCdn ?? ''}`, teamAbbreviation, sport)
   const cached = memoryCache.get(key)
   if (cached && cached.expiresAt > Date.now()) return cached.data
 
-  let headshotUrl: string | null = null
-  let teamLogoUrl: string | null = null
+  let headshotUrl: string | null = dbUrl
 
-  if (playerId) {
-    const media = buildPlayerMedia(playerId, teamAbbreviation, sportToPlayerMediaSport(sport))
-    headshotUrl = media.headshotUrl || resolveHeadshotUrl(playerId, sport)
-    teamLogoUrl = media.teamLogoUrl || resolveTeamLogoUrlSync(teamAbbreviation, sport)
-  } else {
-    teamLogoUrl = resolveTeamLogoUrlSync(teamAbbreviation, sport)
+  if (!headshotUrl && sleeperForCdn) {
+    const media = buildPlayerMedia(sleeperForCdn, teamAbbreviation, sportToPlayerMediaSport(sport))
+    headshotUrl = media.headshotUrl || resolveHeadshotUrl(sleeperForCdn, sport)
+  }
+
+  let teamLogoUrl: string | null = resolveTeamLogoUrlSync(teamAbbreviation, sport)
+  if (sleeperForCdn) {
+    const media = buildPlayerMedia(sleeperForCdn, teamAbbreviation, sportToPlayerMediaSport(sport))
+    if (media.teamLogoUrl) teamLogoUrl = media.teamLogoUrl
   }
 
   const data: PlayerAssetModel = {
@@ -95,13 +117,17 @@ export function resolvePlayerAssets(
  * Resolve assets for multiple players (batch; sync, cache per key).
  */
 export function resolvePlayerAssetsBatch(
-  items: Array<{ playerId: string | null; teamAbbreviation: string | null; sport: string }>
+  items: Array<{ playerId: string | null; teamAbbreviation: string | null; sport: string; opts?: ResolvePlayerAssetsOpts }>
 ): Map<string, PlayerAssetModel> {
   const results = new Map<string, PlayerAssetModel>()
   for (const item of items) {
-    const key = cacheKey(item.playerId ?? '', item.teamAbbreviation, item.sport)
+    const key = cacheKey(
+      `${item.playerId ?? ''}|${item.opts?.dbImageUrl ?? ''}|${item.opts?.sleeperExternalId ?? ''}`,
+      item.teamAbbreviation,
+      item.sport
+    )
     if (!results.has(key)) {
-      const data = resolvePlayerAssets(item.playerId, item.teamAbbreviation, item.sport)
+      const data = resolvePlayerAssets(item.playerId, item.teamAbbreviation, item.sport, item.opts)
       results.set(key, data)
     }
   }

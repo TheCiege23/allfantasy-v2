@@ -15,8 +15,8 @@ import { normalizePlayerList } from '@/lib/draft-asset-pipeline'
 import { isDevyLeague } from '@/lib/devy'
 import { getPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/devy'
 import { isC2CLeague, getC2CPromotedProPlayerIdsExcludedFromRookiePool } from '@/lib/merged-devy-c2c'
-import { isIdpLeague } from '@/lib/idp'
 import type { LeagueSport } from '@prisma/client'
+import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 import { DEFAULT_SPORT } from '@/lib/sport-scope'
 import { apiChain } from '@/lib/workers/api-chain'
 import { legacySupportedSportToApiChain } from '@/lib/workers/api-config'
@@ -27,6 +27,16 @@ import {
   getApiCached,
   setApiCached,
 } from '@/lib/api-performance'
+import {
+  draftPoolRowMatchesEligiblePositions,
+  rosterFingerprintFromEligible,
+} from '@/lib/draft-room/draft-pool-eligible-positions'
+import {
+  defaultNflPlayerStatsSeason,
+  loadRollingInsightsSeasonByDraftPoolKey,
+  resolveNflDraftPoolAnalytics,
+  type RollingInsightsSeasonSlice,
+} from '@/lib/draft/analytics/nfl-rolling-insights-draft-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,6 +103,8 @@ export type DraftPoolRawRow = {
   poolType?: 'college' | 'pro'
   imageUrl?: string | null
   age?: number | null
+  fantasyPointsPerGame?: number | null
+  lifetimeValue?: number | null
 }
 
 /**
@@ -142,7 +154,17 @@ export async function GET(
   const allowed = await canAccessLeagueDraft(leagueId, userId)
   if (!allowed) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const cacheKey = `draft_pool:${leagueId}:${buildApiCacheKey('GET', req.url)}`
+  let effectiveLeagueTemplate: Awaited<ReturnType<typeof getEffectiveLeagueRosterTemplate>>
+  try {
+    effectiveLeagueTemplate = await getEffectiveLeagueRosterTemplate(leagueId)
+  } catch {
+    return NextResponse.json({ error: 'League not found' }, { status: 404 })
+  }
+
+  const rosterFp = `${effectiveLeagueTemplate.hasPersistedRosterSchema ? 'cfg' : 'nocfg'}:${rosterFingerprintFromEligible(
+    new Set(effectiveLeagueTemplate.allowedPositions),
+  )}`
+  const cacheKey = `draft_pool:${leagueId}:${rosterFp}:${buildApiCacheKey('GET', req.url)}`
   const cached = getApiCached(cacheKey)
   if (cached) {
     const response = NextResponse.json(cached.body, { status: cached.status })
@@ -160,12 +182,35 @@ export async function GET(
       const hotCached = getApiCached(cacheKey)
       if (hotCached) return hotCached.body
 
+      if (!effectiveLeagueTemplate.hasPersistedRosterSchema) {
+        const responsePayload = {
+          entries: [],
+          sport: effectiveLeagueTemplate.sport,
+          count: 0,
+          rosterConfigurationIncomplete: true as const,
+          isIdp: effectiveLeagueTemplate.idpEnabled || undefined,
+        }
+        setApiCached(cacheKey, responsePayload, {
+          ttlMs: API_CACHE_TTL.SHORT,
+          status: 200,
+          headers: { 'Cache-Control': DRAFT_POOL_CACHE_CONTROL },
+        })
+        return responsePayload
+      }
+
+      const eligiblePositions =
+        effectiveLeagueTemplate.allowedPositions.size > 0
+          ? new Set<string>(effectiveLeagueTemplate.allowedPositions)
+          : null
+
       const [league, draftSession] = await Promise.all([
         prisma.league.findUnique({
           where: { id: leagueId },
           select: {
             sport: true,
             leagueVariant: true,
+            settings: true,
+            starters: true,
             leagueSettings: { select: { draftType: true } },
           },
         }),
@@ -179,7 +224,6 @@ export async function GET(
       const sessionDraftType = draftSession?.draftType ? String(draftSession.draftType).toLowerCase() : ''
       const isAuction =
         sessionDraftType === 'auction' || (!sessionDraftType && settingsDraftType === 'auction')
-      const isIdp = await isIdpLeague(leagueId)
       const limit = Math.min(
         parseInt(req.nextUrl.searchParams?.get('limit') ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT,
         500
@@ -265,7 +309,7 @@ export async function GET(
         bye: e.bye,
         ...(useMixedPoolTypeMarkers ? { poolType: 'pro' as const } : {}),
       }))
-      if (isIdp) {
+      if (effectiveLeagueTemplate.idpEnabled) {
         const idpFiltered = poolRows
           .filter((p) => IDP_POSITIONS.includes(p.position?.trim()?.toUpperCase() ?? ''))
           .slice(0, IDP_POOL_LIMIT)
@@ -378,6 +422,78 @@ export async function GET(
         }
       }
 
+      if (eligiblePositions?.size) {
+        rawListFiltered = rawListFiltered.filter((r: RawRow) =>
+          draftPoolRowMatchesEligiblePositions(r.position ?? r.pos ?? '', eligiblePositions),
+        )
+      }
+
+      const analyticsByKey = new Map<
+        string,
+        { fantasyPointsPerGame: number | null; lifetimeValue: number | null; updatedAt: Date | null }
+      >()
+      let identityByPoolKey = new Map<
+        string,
+        { rollingInsightsPlayerId: string; confidence: 'high' }
+      >()
+      let riSeasonByPlayerId = new Map<string, RollingInsightsSeasonSlice>()
+
+      if (sport === 'NFL' && rawListFiltered.length > 0) {
+        const nameKeys = [
+          ...new Set(
+            rawListFiltered
+              .map((r) => normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? ''))
+              .filter(Boolean),
+          ),
+        ].slice(0, 1200)
+        if (nameKeys.length > 0) {
+          const analyticsRows = await prisma.playerAnalyticsSnapshot
+            .findMany({
+              where: { normalizedName: { in: nameKeys } },
+              select: {
+                normalizedName: true,
+                position: true,
+                fantasyPointsPerGame: true,
+                lifetimeValue: true,
+                updatedAt: true,
+              },
+            })
+            .catch(
+              () =>
+                [] as Array<{
+                  normalizedName: string
+                  position: string | null
+                  fantasyPointsPerGame: number | null
+                  lifetimeValue: number | null
+                  updatedAt: Date
+                }>,
+            )
+          for (const row of analyticsRows) {
+            const nk = normalizeNameForDedupe(row.normalizedName ?? '')
+            const pk = normalizeKeyPart(row.position ?? '')
+            if (!nk || !pk) continue
+            analyticsByKey.set(`${nk}|${pk}`, {
+              fantasyPointsPerGame: row.fantasyPointsPerGame ?? null,
+              lifetimeValue: row.lifetimeValue ?? null,
+              updatedAt: row.updatedAt ?? null,
+            })
+          }
+        }
+
+        const riRows = rawListFiltered.map((r: RawRow) => {
+          const nk = normalizeNameForDedupe(r.name ?? r.playerName ?? r.full_name ?? '')
+          const pk = normalizeKeyPart(r.position ?? r.pos ?? '')
+          const sid = r.playerId ?? r.sleeperId ?? r.id ?? null
+          const sleeperCandidate = sid != null && String(sid).trim() !== '' ? String(sid).trim() : null
+          return { nk, pk, sleeperCandidate }
+        })
+        const loaded = await loadRollingInsightsSeasonByDraftPoolKey({ rows: riRows })
+        identityByPoolKey = loaded.identityByPoolKey
+        riSeasonByPlayerId = loaded.riSeasonByPlayerId
+      }
+
+      const nflStatsSeason = sport === 'NFL' ? defaultNflPlayerStatsSeason() : ''
+
       const promotedMap = new Map<string, { school: string | null }>()
       if (devyEnabled || c2cEnabled || isDevyDynasty || isC2C) {
         const promotedRows = await (prisma as any).devyPlayer.findMany({
@@ -401,6 +517,25 @@ export async function GET(
         const loose = `${normalizeKeyPart(name)}|${normalizeKeyPart(position)}`
         const poolMatch = poolByStrictKey.get(strict) ?? poolByLooseKey.get(loose)
         const promoted = promotedMap.get(`${normalizeNameForDedupe(name)}|${normalizeKeyPart(position)}`)
+        const poolAnalyticsKey = `${normalizeNameForDedupe(name)}|${normalizeKeyPart(position)}`
+        const analytics = analyticsByKey.get(poolAnalyticsKey)
+        const idn = identityByPoolKey.get(poolAnalyticsKey)
+        const riSlice = idn ? riSeasonByPlayerId.get(idn.rollingInsightsPlayerId) ?? null : null
+        const resolvedAnalytics =
+          sport === 'NFL'
+            ? resolveNflDraftPoolAnalytics({
+                snapshot: analytics
+                  ? {
+                      fantasyPointsPerGame: analytics.fantasyPointsPerGame,
+                      lifetimeValue: analytics.lifetimeValue,
+                      updatedAt: analytics.updatedAt,
+                    }
+                  : null,
+                rollingInsights: riSlice,
+                identityMatchConfidence: idn ? 'high' : 'none',
+                currentStatsSeason: nflStatsSeason,
+              })
+            : null
         const base = poolMatch
           ? {
               ...row,
@@ -421,6 +556,17 @@ export async function GET(
           graduatedToNFL: row.graduatedToNFL ?? (promoted ? true : undefined),
           school: row.school ?? promoted?.school ?? null,
           college: row.college ?? promoted?.school ?? null,
+          fantasyPointsPerGame:
+            resolvedAnalytics?.fantasyPointsPerGame ??
+            analytics?.fantasyPointsPerGame ??
+            (row as RawRow).fantasyPointsPerGame ??
+            undefined,
+          lifetimeValue:
+            resolvedAnalytics?.lifetimeValue ??
+            analytics?.lifetimeValue ??
+            (row as RawRow).lifetimeValue ??
+            undefined,
+          rollingInsightsSupplemental: resolvedAnalytics?.rollingInsightsSupplemental ?? undefined,
         } as RawRow
       })
 
@@ -429,10 +575,11 @@ export async function GET(
         entries,
         sport,
         count: entries.length,
+        rosterConfigurationIncomplete: false as const,
         poolType: strictPoolSeparation ? poolType ?? undefined : undefined,
         devyConfig: devyEnabled ? { enabled: true, devyRounds: rawDevyConfig?.devyRounds ?? [] } : undefined,
         c2cConfig: c2cEnabled ? { enabled: true, collegeRounds: rawC2cConfig?.collegeRounds ?? [] } : undefined,
-        isIdp: isIdp || undefined,
+        isIdp: effectiveLeagueTemplate.idpEnabled || undefined,
       }
       setApiCached(cacheKey, responsePayload, {
         ttlMs: API_CACHE_TTL.SHORT,
