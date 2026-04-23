@@ -166,17 +166,6 @@ export function DraftRoomShell({
             >
               {centerMain}
             </div>
-            {helperPanel && (
-              <aside
-                className={`flex min-h-0 w-[min(400px,34vw)] shrink-0 flex-col overflow-hidden bg-[#060d1e] ${
-                  surfaceVariant === 'redraft_snake'
-                    ? 'shadow-[inset_1px_0_0_rgba(167,139,250,0.12)]'
-                    : 'shadow-[inset_1px_0_0_rgba(255,255,255,0.06)]'
-                }`}
-              >
-                {helperPanel}
-              </aside>
-            )}
           </div>
           <div className="relative shrink-0 border-t border-white/10 bg-[#040915]" data-testid="draft-premium-bottom-dock-wrap">
             <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
@@ -227,11 +216,11 @@ export function DraftRoomShell({
         <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout">
           {auctionStrip && <div className="shrink-0 border-b border-white/8 bg-[#060d1f]">{auctionStrip}</div>}
           <div className="min-h-[200px] flex-[2] overflow-auto border-b border-white/8 bg-[#050c1d]">{draftBoard}</div>
-          <div className="flex min-h-[280px] flex-1 overflow-hidden">
+          <div className="flex min-h-0 flex-1 overflow-hidden border-b border-white/8">
             <div className="min-w-0 flex-[3] overflow-hidden border-r border-white/8">{playerPanel}</div>
-            <div className="min-w-0 flex-[2] overflow-hidden border-r border-white/8">{queuePanel}</div>
-            <div className="min-w-0 flex-[3] overflow-hidden">{chatPanel}</div>
+            <div className="min-w-0 flex-[2] overflow-hidden">{queuePanel}</div>
           </div>
+          <div className="min-h-[150px] flex-[1.5] overflow-hidden">{chatPanel}</div>
         </div>
       )}
 
