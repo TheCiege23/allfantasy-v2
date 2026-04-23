@@ -7,6 +7,8 @@ import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
 import { getRandomStrategy } from '@/lib/draft-strategies/strategyDefinitions'
 import { createStrategyLog, initializeDraftStrategyTracking } from '@/lib/draft-strategies/strategyTracker'
+import { getOrCreateDraftSession, startDraftSession, buildSessionSnapshot } from '@/lib/live-draft-engine/DraftSessionService'
+import { transitionLeagueState } from '@/server/services/leagueLifecycleService'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,6 +174,19 @@ export async function POST(
         draftOrderSlots: draftOrderSlots as unknown as Prisma.InputJsonValue,
       },
     })
+
+    // Transition league to pre_draft state, then start the draft
+    try {
+      await transitionLeagueState(leagueId, 'pre_draft', userId)
+      const started = await startDraftSession(leagueId)
+      if (started) {
+        // Transition league to drafting state now that draft has started
+        await transitionLeagueState(leagueId, 'drafting', userId)
+      }
+    } catch (e) {
+      console.error('[fill-empty-slots] Failed to start draft:', e)
+      // Continue anyway - the draft may still be usable
+    }
 
     return NextResponse.json({
       ok: true,
