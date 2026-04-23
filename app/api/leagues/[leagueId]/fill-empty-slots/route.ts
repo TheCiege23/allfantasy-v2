@@ -5,6 +5,8 @@ import type { Prisma } from '@prisma/client'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { assertCommissioner } from '@/lib/commissioner/permissions'
+import { getRandomStrategy } from '@/lib/draft-strategies/strategyDefinitions'
+import { createStrategyLog, initializeDraftStrategyTracking } from '@/lib/draft-strategies/strategyTracker'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,12 +57,22 @@ export async function POST(
       })
     }
 
-    // Create rosters and teams for empty slots
-    const teamsCreated: string[] = []
+    // Create rosters and teams for empty slots with assigned strategies
+    const teamsCreated: Array<{ rosterId: string; strategy: ReturnType<typeof getRandomStrategy> }> = []
+    const strategyAssignments: Array<{
+      teamId: string
+      rosterId: string
+      displayName: string
+      strategy: ReturnType<typeof getRandomStrategy>
+    }> = []
+
     for (let i = 0; i < emptySlotCount; i++) {
       const slotNum = existingTeams.length + i + 1
       const aiName = `AI Team ${slotNum}`
       const orphanId = `orphan-ai-${randomUUID()}`
+
+      // Assign a random strategy to this AI team
+      const strategy = getRandomStrategy()
 
       // Create roster
       const roster = await prisma.roster.create({
@@ -71,8 +83,8 @@ export async function POST(
         },
       })
 
-      // Create league team linked to roster
-      await prisma.leagueTeam.create({
+      // Create league team linked to roster with strategy metadata
+      const leagueTeam = await prisma.leagueTeam.create({
         data: {
           leagueId,
           externalId: roster.id,
@@ -81,10 +93,36 @@ export async function POST(
           platformUserId: orphanId,
           isCommissioner: false,
           role: 'member',
+          metadata: {
+            draftStrategy: strategy.id,
+            strategyName: strategy.name,
+            strategicArchetype: strategy.archetypeId,
+            strategyAssignedAt: new Date().toISOString(),
+          } as unknown as Prisma.InputJsonValue,
         },
       })
 
-      teamsCreated.push(roster.id)
+      teamsCreated.push({ rosterId: roster.id, strategy })
+      strategyAssignments.push({
+        teamId: leagueTeam.id,
+        rosterId: roster.id,
+        displayName: aiName,
+        strategy,
+      })
+    }
+
+    // Initialize strategy tracking for this draft
+    initializeDraftStrategyTracking(leagueId)
+
+    // Create strategy logs for each AI team (hidden from UI, used for post-draft analysis)
+    for (const assignment of strategyAssignments) {
+      createStrategyLog(
+        leagueId,
+        assignment.teamId,
+        assignment.rosterId,
+        assignment.displayName,
+        assignment.strategy
+      )
     }
 
     // Get all teams for randomization
@@ -141,6 +179,11 @@ export async function POST(
       totalTeams: allTeams.length + teamsCreated.length,
       message: `Created ${teamsCreated.length} AI teams and populated draft order`,
       draftOrderSlots,
+      strategiesAssigned: strategyAssignments.map((a) => ({
+        teamId: a.teamId,
+        displayName: a.displayName,
+        strategy: { id: a.strategy.id, name: a.strategy.name },
+      })),
     })
   } catch (e) {
     console.error('[fill-empty-slots]', e)
