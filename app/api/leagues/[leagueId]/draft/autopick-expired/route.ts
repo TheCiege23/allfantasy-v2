@@ -130,18 +130,40 @@ export async function POST(
       )
     }
 
-    const resolved = await resolveBestAvailableAutopickCandidate(leagueId, rosterId)
-    if (!resolved) {
-      return NextResponse.json(
-        {
-          error: allowedPositions
-            ? 'No eligible fallback players available for auto-pick. Add queue players or make a manual pick.'
-            : 'No fallback players available for auto-pick. Add queue players or make a manual pick.',
-        },
-        { status: 400 }
-      )
+    // Try AI-powered pick if user has AI subscription
+    try {
+      const { tryAiOpponentAutopickForExpiredTimer } = await import('@/lib/ai/opponents/liveDraftAiAutopick')
+      const aiResult = await tryAiOpponentAutopickForExpiredTimer(leagueId, rosterId)
+      if (aiResult.ok) {
+        selected = {
+          playerName: aiResult.pick.playerName,
+          position: aiResult.pick.position,
+          team: aiResult.pick.team ?? null,
+          playerId: aiResult.pick.playerId ?? null,
+          byeWeek: aiResult.pick.byeWeek ?? null,
+          reason: aiResult.pick.reason || 'AI-powered pick (subscription)',
+          strategy: 'ai-powered',
+        }
+      }
+    } catch (err) {
+      // AI pick failed, fall through to BPA
     }
-    selected = resolved
+
+    // Fall back to BPA if AI pick wasn't used
+    if (!selected) {
+      const resolved = await resolveBestAvailableAutopickCandidate(leagueId, rosterId)
+      if (!resolved) {
+        return NextResponse.json(
+          {
+            error: allowedPositions
+              ? 'No eligible fallback players available for auto-pick. Add queue players or make a manual pick.'
+              : 'No fallback players available for auto-pick. Add queue players or make a manual pick.',
+          },
+          { status: 400 }
+        )
+      }
+      selected = resolved
+    }
   }
 
   if (!selected?.playerName || !selected.position) {
