@@ -16,7 +16,14 @@ import { SportAwareDraftRoom } from '@/components/app/draft-room/SportAwareDraft
 import { QueuePanel } from '@/components/app/draft-room/QueuePanel'
 import { DraftIntelQueuePanel } from '@/components/app/draft-room/DraftIntelQueuePanel'
 import { DraftChatPanel, type DraftChatMessage } from '@/components/app/draft-room/DraftChatPanel'
+import { DraftChatDock } from '@/components/app/draft-room/DraftChatDock'
 import { DraftHelperPanel } from '@/components/app/draft-room/DraftHelperPanel'
+import { DraftHelperFloatingBubble } from '@/components/app/draft-room/DraftHelperFloatingBubble'
+import { DraftHelperFloatingWindow } from '@/components/app/draft-room/DraftHelperFloatingWindow'
+import { DraftHelperCopilot } from '@/components/app/draft-room/DraftHelperCopilot'
+import { DraftHelperIntelligence } from '@/components/app/draft-room/DraftHelperIntelligence'
+import { calculateDraftHelperBadgeCount, hasDraftHelperContent } from '@/lib/draft-helper/calculateBadgeCount'
+import { useDraftHelperFloatingState } from '@/hooks/useDraftHelperFloatingState'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
 import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
 import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
@@ -281,7 +288,7 @@ export function DraftRoomPageClient({
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
   const [draftAiExplanationEnabled, setDraftAiExplanationEnabled] = useState(false)
   const [mobileTab, setMobileTabState] = useState<MobileDraftTab>('board')
-  const [bottomDockTab, setBottomDockTab] = useState<BottomDockTab>('results')
+  const floatingHelperState = useDraftHelperFloatingState()
   const setMobileTab = useCallback((tab: MobileDraftTab) => {
     sendProductAnalyticsBeacon(DRAFT_ROOM.MOBILE_TAB, { tab, leagueId })
     setMobileTabState(tab)
@@ -3262,7 +3269,7 @@ export function DraftRoomPageClient({
 
   const chatPanelNode = useMemo(
     () => (
-      <DraftChatPanel
+      <DraftChatDock
         messages={chatMessagesWithAi}
         onSend={handleSendChat}
         sending={chatSending}
@@ -3277,6 +3284,7 @@ export function DraftRoomPageClient({
         sendError={chatSendError}
         onDismissSendError={() => setChatSendError(null)}
         leagueId={leagueId}
+        unreadCount={chatMessagesWithAi.filter((m) => m.unread).length}
       />
     ),
     [
@@ -3292,6 +3300,83 @@ export function DraftRoomPageClient({
       viewerAppUserId,
       handleReactChat,
       presentationVariant,
+    ]
+  )
+
+  // Calculate badge count for Draft Helper floating bubble
+  const draftHelperBadgeCount = useMemo(
+    () =>
+      calculateDraftHelperBadgeCount({
+        recommendation: recommendationResult?.recommendation ?? null,
+        warRoom: warRoomData ? { snapshot: warRoomData } : null,
+        aiFeatureStatus: {
+          chimmyReady: hasAiAccess && resolvedOrphanAiProviderAvailable,
+          liveBrainReady: Boolean(liveBrainEnvelope),
+          aiAdpEnabled: Boolean(draftUISettings?.aiAdpEnabled),
+          queueReorderEnabled: Boolean(draftUISettings?.aiQueueReorderEnabled),
+          draftExplanationEnabled: draftAiExplanationEnabled,
+          orphanAiEnabled: Boolean(draftUISettings?.orphanTeamAiManagerEnabled),
+          commissionerAiManagersCount: (commissionerAiDraft?.assignedAiTeams ?? []).filter((team) => team.active)
+            .length,
+        },
+        sportsFeed: draftAssistantContext
+          ? {
+              available: Boolean(draftAssistantContext.sportsFeed?.available),
+              headlines: draftAssistantContext.headlines,
+              injuries: draftAssistantContext.injuries,
+            }
+          : null,
+      }),
+    [
+      recommendationResult?.recommendation,
+      warRoomData,
+      hasAiAccess,
+      resolvedOrphanAiProviderAvailable,
+      liveBrainEnvelope,
+      draftUISettings?.aiAdpEnabled,
+      draftUISettings?.aiQueueReorderEnabled,
+      draftAiExplanationEnabled,
+      draftUISettings?.orphanTeamAiManagerEnabled,
+      commissionerAiDraft?.assignedAiTeams,
+      draftAssistantContext,
+    ]
+  )
+
+  const hasDraftHelperData = useMemo(
+    () =>
+      hasDraftHelperContent({
+        recommendation: recommendationResult?.recommendation ?? null,
+        warRoom: warRoomData ? { snapshot: warRoomData } : null,
+        aiFeatureStatus: {
+          chimmyReady: hasAiAccess && resolvedOrphanAiProviderAvailable,
+          liveBrainReady: Boolean(liveBrainEnvelope),
+          aiAdpEnabled: Boolean(draftUISettings?.aiAdpEnabled),
+          queueReorderEnabled: Boolean(draftUISettings?.aiQueueReorderEnabled),
+          draftExplanationEnabled: draftAiExplanationEnabled,
+          orphanAiEnabled: Boolean(draftUISettings?.orphanTeamAiManagerEnabled),
+          commissionerAiManagersCount: (commissionerAiDraft?.assignedAiTeams ?? []).filter((team) => team.active)
+            .length,
+        },
+        sportsFeed: draftAssistantContext
+          ? {
+              available: Boolean(draftAssistantContext.sportsFeed?.available),
+              headlines: draftAssistantContext.headlines,
+              injuries: draftAssistantContext.injuries,
+            }
+          : null,
+      }),
+    [
+      recommendationResult?.recommendation,
+      warRoomData,
+      hasAiAccess,
+      resolvedOrphanAiProviderAvailable,
+      liveBrainEnvelope,
+      draftUISettings?.aiAdpEnabled,
+      draftUISettings?.aiQueueReorderEnabled,
+      draftAiExplanationEnabled,
+      draftUISettings?.orphanTeamAiManagerEnabled,
+      commissionerAiDraft?.assignedAiTeams,
+      draftAssistantContext,
     ]
   )
 
@@ -4202,99 +4287,7 @@ export function DraftRoomPageClient({
       }
       playerPanel={playerPoolNode}
       queuePanel={queueStackNode}
-      helperPanel={
-        <DraftHelperPanel
-          loading={recommendationLoading}
-          error={recommendationError}
-          recommendation={recommendationResult?.recommendation ?? null}
-          alternatives={recommendationResult?.alternatives ?? []}
-          reachWarning={recommendationResult?.reachWarning ?? null}
-          valueWarning={recommendationResult?.valueWarning ?? null}
-          scarcityInsight={recommendationResult?.scarcityInsight ?? null}
-          stackInsight={recommendationResult?.stackInsight ?? null}
-          correlationInsight={recommendationResult?.correlationInsight ?? null}
-          formatInsight={recommendationResult?.formatInsight ?? null}
-          byeNote={recommendationResult?.byeNote ?? null}
-          explanation={recommendationResult?.explanation ?? ''}
-          evidence={recommendationResult?.evidence ?? []}
-          caveats={recommendationResult?.caveats ?? []}
-          uncertainty={recommendationResult?.uncertainty ?? null}
-          executionMode={recommendationResult?.execution?.mode ?? null}
-          sport={effectiveDraftSport}
-          round={currentPick?.round ?? 1}
-          pick={currentPick?.slot ?? 1}
-          leagueId={leagueId}
-          leagueName={leagueName}
-          rosterSlots={effectiveRosterSlots}
-          queueLength={queueFiltered.length}
-          aiExplanationEnabled={draftAiExplanationEnabled}
-          onAiExplanationToggle={setDraftAiExplanationEnabled}
-          onRefresh={fetchRecommendation}
-          onPlayerClick={(player) => {
-            setHelperSelectedPlayer(player)
-            setMobileTab('players')
-          }}
-          liveBrain={liveBrainEnvelope}
-          warRoomBrainInput={warRoomBrainInput}
-          draftSessionId={session?.id ?? null}
-          chimmyInitialPrompt={chimmyDraftPrompt}
-          chimmyToolSummary={chimmyToolSummary}
-          sportsFeed={
-            draftAssistantContext
-              ? {
-                  available: Boolean(draftAssistantContext.sportsFeed?.available),
-                  updatedAt: draftAssistantContext.sportsFeed?.updatedAt ?? null,
-                  sourceKeys: draftAssistantContext.sportsFeed?.sourceKeys ?? [],
-                  headlines: draftAssistantContext.headlines,
-                  injuries: draftAssistantContext.injuries,
-                }
-              : null
-          }
-          aiFeatureStatus={{
-            chimmyReady: hasAiAccess && resolvedOrphanAiProviderAvailable,
-            liveBrainReady: Boolean(liveBrainEnvelope),
-            aiAdpEnabled: Boolean(draftUISettings?.aiAdpEnabled),
-            queueReorderEnabled: Boolean(draftUISettings?.aiQueueReorderEnabled),
-            draftExplanationEnabled: draftAiExplanationEnabled,
-            orphanAiEnabled: Boolean(draftUISettings?.orphanTeamAiManagerEnabled),
-            commissionerAiManagersCount: (commissionerAiDraft?.assignedAiTeams ?? []).filter((team) => team.active).length,
-          }}
-          warRoom={{
-            snapshot: warRoomData,
-            loading: warRoomLoading,
-            error: warRoomError,
-            canDraft,
-            onRefresh: scheduleWarRoomFetch,
-            resolvePlayer: resolvePlayerFromPool,
-            onDraftPlayer: handleMakePick,
-            onQueuePlayer: handleAddToQueue,
-          }}
-          presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-          picksUntilUser={ribbonPicksUntilUser}
-          userOnTheClock={isCurrentUserOnClock}
-          resolvedRecommendedPlayer={recommendedPlayerResolved}
-          canCommitRecommendedPick={
-            Boolean(
-              recommendedPlayerResolved &&
-                isCurrentUserOnClock &&
-                canDraft &&
-                presentationVariant === 'redraft_snake',
-            )
-          }
-          onDraftRecommendedPlayer={
-            recommendedPlayerResolved && canDraft && isCurrentUserOnClock
-              ? () => handleMakePick(recommendedPlayerResolved)
-              : undefined
-          }
-          onQueueRecommendedPlayer={
-            recommendedPlayerResolved ? () => handleAddToQueue(recommendedPlayerResolved) : undefined
-          }
-          onQueueAlternativePlayer={(player) => {
-            const resolved = resolvePlayerFromPool(player.name, player.position)
-            if (resolved) handleAddToQueue(resolved)
-          }}
-        />
-      }
+      helperPanel={undefined}
       chatPanel={chatPanelNode}
       rosterPanel={rosterPanel}
       keeperPanel={keeperPanel}
@@ -4453,6 +4446,61 @@ export function DraftRoomPageClient({
       focusRound={tradeHistoryFocus?.round ?? null}
       focusOriginalRosterId={tradeHistoryFocus?.originalRosterId ?? null}
     />
+
+    {/* Draft Helper Floating Bubble */}
+    {hasDraftHelperData && (
+      <DraftHelperFloatingBubble
+        badgeCount={draftHelperBadgeCount}
+        hasContent={hasDraftHelperData}
+        onClick={() => floatingHelperState.setVisible(true)}
+      />
+    )}
+
+    {/* Draft Helper Floating Window */}
+    {hasDraftHelperData && (
+      <DraftHelperFloatingWindow
+        visible={floatingHelperState.state.visible}
+        onClose={() => floatingHelperState.setVisible(false)}
+        state={floatingHelperState.state}
+        onPositionChange={floatingHelperState.setPosition}
+        onSizeChange={floatingHelperState.setSize}
+        onToggleSection={floatingHelperState.toggleSection}
+        badgeCount={draftHelperBadgeCount}
+        copilotProps={{
+          loading: recommendationLoading,
+          recommendation: recommendationResult?.recommendation ?? null,
+          alternatives: recommendationResult?.alternatives ?? [],
+          onRefresh: fetchRecommendation,
+          explanation: recommendationResult?.explanation ?? '',
+          evidence: recommendationResult?.evidence ?? [],
+          caveats: recommendationResult?.caveats ?? [],
+          round: currentPick?.round ?? 1,
+          pick: currentPick?.slot ?? 1,
+          sport: effectiveDraftSport,
+        }}
+        intelligenceProps={{
+          aiFeatureStatus: {
+            chimmyReady: hasAiAccess && resolvedOrphanAiProviderAvailable,
+            liveBrainReady: Boolean(liveBrainEnvelope),
+            aiAdpEnabled: Boolean(draftUISettings?.aiAdpEnabled),
+            queueReorderEnabled: Boolean(draftUISettings?.aiQueueReorderEnabled),
+            draftExplanationEnabled: draftAiExplanationEnabled,
+            orphanAiEnabled: Boolean(draftUISettings?.orphanTeamAiManagerEnabled),
+            commissionerAiManagersCount: (commissionerAiDraft?.assignedAiTeams ?? []).filter((team) => team.active)
+              .length,
+          },
+          sportsFeed: draftAssistantContext
+            ? {
+                available: Boolean(draftAssistantContext.sportsFeed?.available),
+                updatedAt: draftAssistantContext.sportsFeed?.updatedAt ?? null,
+                sourceKeys: draftAssistantContext.sportsFeed?.sourceKeys ?? [],
+                headlines: draftAssistantContext.headlines,
+                injuries: draftAssistantContext.injuries,
+              }
+            : null,
+        }}
+      />
+    )}
   </>
   )
 }

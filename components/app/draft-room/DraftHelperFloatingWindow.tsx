@@ -5,6 +5,9 @@ import { X, ChevronDown, ChevronRight, Sparkles, Zap, AlertCircle, Layers } from
 import Draggable from 'react-draggable'
 import { cn } from '@/lib/utils'
 import type { DraftHelperFloatingWindowState } from '@/hooks/useDraftHelperFloatingState'
+import { DraftHelperCopilot } from '@/components/app/draft-room/DraftHelperCopilot'
+import { DraftHelperIntelligence } from '@/components/app/draft-room/DraftHelperIntelligence'
+import type { DraftHelperPanelProps } from '@/components/app/draft-room/DraftHelperPanel'
 
 interface DraftHelperFloatingWindowProps {
   visible: boolean
@@ -13,8 +16,13 @@ interface DraftHelperFloatingWindowProps {
   onPositionChange: (pos: { x: number; y: number }) => void
   onSizeChange: (size: { width: number; height: number }) => void
   onToggleSection: (section: keyof DraftHelperFloatingWindowState['expandedSections']) => void
-  children?: React.ReactNode
   badgeCount: number
+  // Props that can be passed through to child components
+  copilotProps?: Partial<DraftHelperPanelProps>
+  intelligenceProps?: {
+    aiFeatureStatus?: DraftHelperPanelProps['aiFeatureStatus']
+    sportsFeed?: DraftHelperPanelProps['sportsFeed']
+  }
 }
 
 interface Section {
@@ -31,8 +39,9 @@ export function DraftHelperFloatingWindow({
   onPositionChange,
   onSizeChange,
   onToggleSection,
-  children,
   badgeCount,
+  copilotProps,
+  intelligenceProps,
 }: DraftHelperFloatingWindowProps) {
   const nodeRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
@@ -48,25 +57,45 @@ export function DraftHelperFloatingWindow({
       id: 'copilot',
       title: 'DRAFT COPILOT',
       icon: <Sparkles className="w-4 h-4" />,
-      content: <div className="text-sm text-gray-300">Recommendation coming soon...</div>,
+      content: copilotProps ? (
+        <DraftHelperCopilot
+          loading={copilotProps.loading ?? false}
+          recommendation={copilotProps.recommendation ?? null}
+          alternatives={copilotProps.alternatives ?? []}
+          onRefresh={copilotProps.onRefresh ?? (() => {})}
+          explanation={copilotProps.explanation ?? ''}
+          evidence={copilotProps.evidence ?? []}
+          caveats={copilotProps.caveats ?? []}
+          round={copilotProps.round ?? 1}
+          pick={copilotProps.pick ?? 1}
+          sport={copilotProps.sport ?? 'NFL'}
+        />
+      ) : (
+        <div className="text-sm text-gray-300 p-2">Copilot data loading...</div>
+      ),
     },
     {
       id: 'warRoom',
       title: 'WAR ROOM (LIVE BOARD)',
       icon: <Zap className="w-4 h-4" />,
-      content: <div className="text-sm text-gray-300">War room data coming soon...</div>,
+      content: <div className="text-sm text-gray-300 p-2">War room data coming soon...</div>,
     },
     {
       id: 'intelligence',
       title: 'DRAFT INTELLIGENCE',
       icon: <AlertCircle className="w-4 h-4" />,
-      content: <div className="text-sm text-gray-300">Intelligence data coming soon...</div>,
+      content: (
+        <DraftHelperIntelligence
+          aiFeatureStatus={intelligenceProps?.aiFeatureStatus}
+          sportsFeed={intelligenceProps?.sportsFeed}
+        />
+      ),
     },
     {
       id: 'fullWarRoom',
       title: 'FULL WAR ROOM (BUILD)',
       icon: <Layers className="w-4 h-4" />,
-      content: <div className="text-sm text-gray-300">Full war room content coming soon...</div>,
+      content: <div className="text-sm text-gray-300 p-2">Full war room content coming soon...</div>,
     },
   ]
 

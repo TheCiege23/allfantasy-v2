@@ -257,6 +257,22 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     throw error
   }
 
+  // Transition league lifecycle to drafting if this is the first pick and league is in pre_draft
+  try {
+    const { transitionLeagueState, getLeagueLifecycleState } = await import('@/server/services/leagueLifecycleService')
+    const league = await prisma.league.findUnique({
+      where: { id: input.leagueId },
+      select: { lifecycleState: true, userId: true },
+    })
+    const currentState = getLeagueLifecycleState(league)
+    if (currentState === 'pre_draft') {
+      await transitionLeagueState(input.leagueId, 'drafting', league?.userId ?? 'system')
+    }
+  } catch (e) {
+    // Lifecycle transition is best-effort; don't fail the pick if it fails
+    console.error('[submitPick] Failed to transition league lifecycle:', e)
+  }
+
   const pickLabel = `${round}.${slot.toString().padStart(2, '0')}`
 
   // Trend detection signals are best-effort and should never block draft picks.
