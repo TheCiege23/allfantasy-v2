@@ -241,6 +241,38 @@ export async function PATCH(
     orderModePatch.lotteryConfig = body.lotteryConfig as Record<string, unknown>
   }
 
+  // Handle randomize: assign rosters to draft slots randomly
+  let randomizedSlotOrder: SlotOrderEntry[] | null = null
+  if (body.randomize === true) {
+    try {
+      const [teams, draftSession] = await Promise.all([
+        prisma.leagueTeam.findMany({
+          where: { leagueId },
+          select: { externalId: true, teamName: true, ownerName: true, platformUserId: true },
+        }),
+        prisma.draftSession.findUnique({
+          where: { leagueId },
+          select: { teamCount: true },
+        }),
+      ])
+
+      if (teams.length > 0 && draftSession) {
+        // Shuffle teams randomly
+        const shuffled = [...teams].sort(() => Math.random() - 0.5)
+
+        // Create slotOrder entries
+        randomizedSlotOrder = shuffled.map((team, index) => ({
+          slot: index + 1,
+          rosterId: team.externalId,
+          displayName: team.ownerName || team.teamName || `Team ${index + 1}`,
+          platformUserId: team.platformUserId || undefined,
+        }))
+      }
+    } catch (e) {
+      console.error('[draft/settings] randomize failed:', e)
+    }
+  }
+
   const hasConfig = Object.keys(configPatch).length > 0
   const hasUI = Object.keys(uiPatch).length > 0
   const hasSessionVariant = Object.keys(sessionVariantPatch).length > 0
@@ -317,6 +349,15 @@ export async function PATCH(
         ...(orderModePatch.lotteryConfig && { lotteryConfig: orderModePatch.lotteryConfig as any }),
       })
     }
+
+    // Update draft session with randomized slot order if needed
+    if (randomizedSlotOrder && randomizedSlotOrder.length > 0) {
+      await prisma.draftSession.update({
+        where: { leagueId },
+        data: { slotOrder: randomizedSlotOrder as unknown as Prisma.InputJsonValue },
+      })
+    }
+
     const updated = await updateDraftVariantSettings(leagueId, {
       ...(hasConfig ? { config: configPatch as any } : {}),
       ...(hasUI ? { draftUISettings: uiPatch as any } : {}),
@@ -331,6 +372,32 @@ export async function PATCH(
       }
     }
     const orderModeAndLottery = await getDraftOrderModeAndLotteryConfig(leagueId)
+
+    // Fetch team details for response if randomized
+    let teamsForResponse: Array<{
+      position: number
+      teamName: string | null
+      ownerName: string | null
+      avatarUrl: string | null
+      isEmpty: boolean
+    }> = []
+    if (randomizedSlotOrder && randomizedSlotOrder.length > 0) {
+      const teamDetails = await prisma.leagueTeam.findMany({
+        where: { leagueId },
+        select: { externalId: true, teamName: true, ownerName: true },
+      })
+      teamsForResponse = randomizedSlotOrder.map((entry) => {
+        const team = teamDetails.find((t) => t.externalId === entry.rosterId)
+        return {
+          position: entry.slot,
+          teamName: team?.teamName ?? null,
+          ownerName: team?.ownerName ?? entry.displayName ?? null,
+          avatarUrl: null,
+          isEmpty: !team,
+        }
+      })
+    }
+
     return NextResponse.json({
       ok: true,
       config: updated.config ? { ...updated.config, leagueSize: updated.leagueSize } : null,
@@ -340,6 +407,7 @@ export async function PATCH(
       lotteryConfig: orderModeAndLottery.lotteryConfig,
       lotteryLastSeed: orderModeAndLottery.lotteryLastSeed,
       lotteryLastRunAt: orderModeAndLottery.lotteryLastRunAt,
+      teams: teamsForResponse,
     })
   } catch (e) {
     console.error('[draft/settings PATCH]', e)

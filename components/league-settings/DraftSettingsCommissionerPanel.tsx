@@ -261,17 +261,28 @@ export function DraftSettingsCommissionerPanel({ leagueId }: Props) {
   // Randomize draft order
   const randomizeOrder = useCallback(async () => {
     setSaving(true)
+    setError(null)
     try {
       const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ draft_order_mode: 'randomize', randomize: true }),
       })
-      if (res.ok) {
-        const d = await res.json()
-        if (d.teams) setTeams(d.teams)
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error ?? 'Failed to randomize draft order')
+        return
       }
-    } catch {}
+      if (d.teams) {
+        setTeams(d.teams)
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 2000)
+      } else {
+        setError('No teams found to randomize')
+      }
+    } catch (e) {
+      setError('Request failed')
+    }
     finally { setSaving(false) }
   }, [leagueId])
 
