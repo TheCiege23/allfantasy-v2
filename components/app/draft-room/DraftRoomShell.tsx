@@ -26,15 +26,15 @@ export type DraftRoomShellProps = {
   mobileTab: MobileDraftTab
   onMobileTabChange: (tab: MobileDraftTab) => void
   /**
-   * Premium layout: top board, left team, center pool+queue, right AI, bottom chat+activity.
-   * When set, desktop uses 4-zone + bottom dock; mobile tabs unchanged.
+   * Premium layout: top board, left team, center column (often pool + auxiliary tabs).
+   * Optional bottom dock when `bottomBar` is provided.
    */
   layout?: 'classic' | 'premium'
   /** Left column — your team / AI badges (desktop premium) */
   teamPanel?: ReactNode
   /** Center column — usually player pool + queue stacked */
   centerColumn?: ReactNode
-  /** Bottom dock — chat + live pick feed side-by-side */
+  /** Bottom dock — optional secondary strip below the main zones (desktop premium). */
   bottomBar?: ReactNode
 }
 
@@ -106,8 +106,7 @@ export function DraftRoomShell({
       (tab.id !== 'keepers' || keeperPanel)
   )
 
-  const premiumDesktop =
-    layout === 'premium' && teamPanel && centerColumn && bottomBar
+  const premiumDesktop = layout === 'premium' && teamPanel && centerColumn
   const centerMain = centerColumn ?? (
     <>
       <div className="min-h-0 flex-[3] overflow-hidden">{playerPanel}</div>
@@ -133,9 +132,8 @@ export function DraftRoomShell({
             testid so e2e tests (draft-room, auction, c2c, devy, cpu-ai-drafter,
             draft-asset-pipeline, draft-import) can scope `.getByTestId('draft-board')`
             inside it regardless of which variant the parent picks. The premium
-            variant is picked when layout="premium" plus teamPanel/centerColumn/
-            bottomBar are all provided — otherwise we fall through to the legacy
-            2-row layout below.
+            variant is picked when layout="premium" plus teamPanel and centerColumn
+            are provided — otherwise we fall through to the legacy 2-row layout below.
           */}
           <div className="hidden min-h-0 flex-1 flex-col overflow-hidden md:flex" data-testid="draft-desktop-layout">
           {auctionStrip && (
@@ -167,49 +165,51 @@ export function DraftRoomShell({
               {centerMain}
             </div>
           </div>
-          <div className="relative shrink-0 border-t border-white/10 bg-[#040915]" data-testid="draft-premium-bottom-dock-wrap">
-            <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
-              <button
-                type="button"
-                onClick={() => persistBottomDock(!bottomDockExpanded)}
-                className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/80 shadow-lg shadow-black/40 transition hover:bg-white/10 hover:text-white"
-                aria-expanded={bottomDockExpanded}
-                aria-controls="draft-premium-bottom-dock"
-                data-testid="draft-bottom-dock-toggle"
-                title={bottomDockExpanded ? t('draftRoom.shell.hideBottomDock') : t('draftRoom.shell.showBottomDock')}
-              >
-                {bottomDockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-              </button>
-            </div>
-            <div
-              id="draft-premium-bottom-dock"
-              className={cn(
-                'flex w-full overflow-hidden transition-[max-height] duration-200 ease-out',
-                bottomDockExpanded ? 'max-h-[min(220px,30vh)]' : 'max-h-0',
-              )}
-              data-testid="draft-premium-bottom-dock"
-            >
-              <div
-                className={cn(
-                  'flex w-full min-h-0 overflow-hidden',
-                  bottomDockExpanded ? 'h-[min(220px,30vh)] min-h-[140px]' : 'h-0 min-h-0',
-                )}
-              >
-                {bottomBar}
+          {bottomBar ? (
+            <div className="relative shrink-0 border-t border-white/10 bg-[#040915]" data-testid="draft-premium-bottom-dock-wrap">
+              <div className="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-1/2">
+                <button
+                  type="button"
+                  onClick={() => persistBottomDock(!bottomDockExpanded)}
+                  className="pointer-events-auto inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[#0a1228] text-white/80 shadow-lg shadow-black/40 transition hover:bg-white/10 hover:text-white"
+                  aria-expanded={bottomDockExpanded}
+                  aria-controls="draft-premium-bottom-dock"
+                  data-testid="draft-bottom-dock-toggle"
+                  title={bottomDockExpanded ? t('draftRoom.shell.hideBottomDock') : t('draftRoom.shell.showBottomDock')}
+                >
+                  {bottomDockExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </button>
               </div>
-            </div>
-            {!bottomDockExpanded ? (
-              <button
-                type="button"
-                onClick={() => persistBottomDock(true)}
-                className="flex w-full items-center justify-center gap-2 border-t border-white/8 bg-[#050c1d] py-2 text-[11px] font-medium text-cyan-100/90 hover:bg-white/5"
-                data-testid="draft-bottom-dock-restore"
+              <div
+                id="draft-premium-bottom-dock"
+                className={cn(
+                  'flex w-full overflow-hidden transition-[max-height] duration-200 ease-out',
+                  bottomDockExpanded ? 'max-h-[min(220px,30vh)]' : 'max-h-0',
+                )}
+                data-testid="draft-premium-bottom-dock"
               >
-                <ChevronUp className="h-3.5 w-3.5" />
-                {t('draftRoom.shell.restoreBottomDock')}
-              </button>
-            ) : null}
-          </div>
+                <div
+                  className={cn(
+                    'flex w-full min-h-0 overflow-hidden',
+                    bottomDockExpanded ? 'h-[min(220px,30vh)] min-h-[140px]' : 'h-0 min-h-0',
+                  )}
+                >
+                  {bottomBar}
+                </div>
+              </div>
+              {!bottomDockExpanded ? (
+                <button
+                  type="button"
+                  onClick={() => persistBottomDock(true)}
+                  className="flex w-full items-center justify-center gap-2 border-t border-white/8 bg-[#050c1d] py-2 text-[11px] font-medium text-cyan-100/90 hover:bg-white/5"
+                  data-testid="draft-bottom-dock-restore"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                  {t('draftRoom.shell.restoreBottomDock')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         </>
       ) : (

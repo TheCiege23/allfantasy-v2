@@ -6,23 +6,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowLeftRight,
-  Bell,
   Clock,
   Copy,
   Grid2x2,
   Hash,
   LayoutGrid,
   Menu,
-  Monitor,
-  Moon,
   Pause,
   RefreshCw,
   Settings2,
   Shield,
-  Smile,
   Sparkles,
   User,
-  Volume2,
 } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { formatTimerRemaining } from '@/lib/live-draft-engine/DraftTimerService'
@@ -92,10 +87,6 @@ export type DraftTopBarProps = {
   onlineCount?: number
   /** `redraft_snake` — show format chips and slightly stronger header chrome (snake redraft live URL). */
   draftRoomPresentation?: 'default' | 'redraft_snake'
-  /** Current round number (snake command deck). */
-  currentRound?: number | null
-  /** Pick index within round (1…teamCount). */
-  pickInRound?: number | null
 }
 
 const TIMER_COLORS = {
@@ -104,8 +95,6 @@ const TIMER_COLORS = {
   expired: 'text-red-200 border-red-400/25 bg-red-500/10',
   none: 'text-white/70 border-white/12 bg-white/5',
 }
-
-const PREFS_STORAGE_KEY = 'af:draft-room-topbar-prefs'
 
 function translateDraftStatus(draftStatus: string, t: (key: string) => string): string {
   const key = `draftRoom.status.${draftStatus}`
@@ -142,38 +131,6 @@ function formatTimerSummary(timerSeconds: number | null | undefined): string {
   }
   const days = Math.round(timerSeconds / 86400)
   return `${days} Day${days === 1 ? '' : 's'} Per Pick`
-}
-
-function TopIconToggle({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-  dataTestId,
-}: {
-  active: boolean
-  icon: typeof Bell
-  label: string
-  onClick: () => void
-  dataTestId?: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-testid={dataTestId}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/45 active:scale-[0.96] ${
-        active
-          ? 'border-[#7d8cff] bg-[#8f9cff]/16 text-[#dbe1ff] shadow-[0_0_16px_rgba(143,156,255,0.2)]'
-          : 'border-white/10 bg-[#7180a8]/18 text-white/78 hover:bg-[#7b89af]/26'
-      }`}
-      aria-pressed={active}
-      aria-label={label}
-      title={label}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  )
 }
 
 export function DraftTopBar({
@@ -223,8 +180,6 @@ export function DraftTopBar({
   onOpenDraftRoomSettings,
   onlineCount,
   draftRoomPresentation = 'default',
-  currentRound = null,
-  pickInRound = null,
   onToggleAutoPick,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
@@ -232,35 +187,6 @@ export function DraftTopBar({
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<'idle' | 'copied'>('idle')
-  const [prefs, setPrefs] = useState({
-    notifications: true,
-    sound: true,
-    focus: false,
-    reactions: true,
-    compact: false,
-    boardView: true,
-  })
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const raw = window.localStorage.getItem(PREFS_STORAGE_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as Partial<typeof prefs>
-      setPrefs((prev) => ({ ...prev, ...parsed }))
-    } catch {
-      // Ignore malformed topbar preferences.
-    }
-  }, [])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs))
-    } catch {
-      // Ignore storage failures.
-    }
-  }, [prefs])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -356,17 +282,10 @@ export function DraftTopBar({
         : t('draftRoom.topBar.cpuManager')
 
   const rs = draftRoomPresentation === 'redraft_snake'
-  const showCommandDeck =
-    rs &&
-    draftStatus === 'in_progress' &&
-    currentRound != null &&
-    currentRound > 0 &&
-    pickInRound != null &&
-    pickInRound > 0
 
   return (
     <header
-      className={`relative border-b px-3 backdrop-blur-xl sm:px-4 ${prefs.compact ? 'pb-2 pt-2' : 'pb-3 pt-2.5'} ${prefs.focus ? 'shadow-[inset_0_-1px_0_rgba(125,140,255,0.22)]' : ''} ${
+      className={`relative border-b px-3 pb-3 pt-2.5 backdrop-blur-xl sm:px-4 ${
         rs
           ? 'border-cyan-400/25 bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(34,211,238,0.14),transparent),linear-gradient(180deg,#0b1829_0%,#060f1e_45%,#050814_100%)] shadow-[0_16px_56px_rgba(8,145,178,0.14)]'
           : 'border-white/[0.07] bg-gradient-to-b from-[#070d1c]/95 via-[#060b19]/98 to-[#050814]'
@@ -476,25 +395,6 @@ export function DraftTopBar({
               ) : null}
             </div>
           </div>
-
-          {showCommandDeck ? (
-            <div className="mt-3 grid w-full max-w-xl grid-cols-3 gap-2 sm:max-w-2xl">
-              <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/45">Round</p>
-                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-white">{currentRound}</p>
-              </div>
-              <div className="rounded-xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/15 to-transparent px-3 py-2 shadow-[0_8px_28px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/20">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">Pick in round</p>
-                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-cyan-50">{pickInRound}</p>
-              </div>
-              <div className="rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/45">Overall</p>
-                <p className="mt-0.5 text-lg font-black tabular-nums tracking-tight text-white">
-                  {overallPickNumber != null ? `#${overallPickNumber}` : '—'}
-                </p>
-              </div>
-            </div>
-          ) : null}
 
           {rs && isCommissioner && (draftStatus === 'in_progress' || draftStatus === 'paused') && (onPause || onResume) ? (
             <div
@@ -635,43 +535,6 @@ export function DraftTopBar({
             />
             Auto-pick {autoPickEnabled ? 'On' : 'Off'}
           </button>
-
-          <TopIconToggle
-            active={prefs.notifications}
-            icon={Bell}
-            label="Draft notifications"
-            onClick={() => setPrefs((prev) => ({ ...prev, notifications: !prev.notifications }))}
-          />
-          <TopIconToggle
-            active={prefs.sound}
-            icon={Volume2}
-            label="Draft sound"
-            onClick={() => setPrefs((prev) => ({ ...prev, sound: !prev.sound }))}
-          />
-          <TopIconToggle
-            active={prefs.focus}
-            icon={Moon}
-            label="Focus mode"
-            onClick={() => setPrefs((prev) => ({ ...prev, focus: !prev.focus }))}
-          />
-          <TopIconToggle
-            active={prefs.reactions}
-            icon={Smile}
-            label="Emoji reactions"
-            onClick={() => setPrefs((prev) => ({ ...prev, reactions: !prev.reactions }))}
-          />
-          <TopIconToggle
-            active={prefs.compact}
-            icon={Monitor}
-            label="Compact chrome"
-            onClick={() => setPrefs((prev) => ({ ...prev, compact: !prev.compact }))}
-          />
-          <TopIconToggle
-            active={prefs.boardView}
-            icon={LayoutGrid}
-            label="Board chrome"
-            onClick={() => setPrefs((prev) => ({ ...prev, boardView: !prev.boardView }))}
-          />
 
           {onTradesClick ? (
             <button

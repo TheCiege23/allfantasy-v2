@@ -26,7 +26,6 @@ import { calculateDraftHelperBadgeCount, hasDraftHelperContent } from '@/lib/dra
 import { useDraftHelperFloatingState } from '@/hooks/useDraftHelperFloatingState'
 import { DraftTeamPanel } from '@/components/app/draft-room/DraftTeamPanel'
 import { DraftRosterStrip } from '@/components/app/draft-room/DraftRosterStrip'
-import { DraftPickActivityStrip } from '@/components/app/draft-room/DraftPickActivityStrip'
 import { DraftRoundOneAnnouncementOverlay } from '@/components/app/draft-room/DraftRoundOneAnnouncementOverlay'
 import type { PlayerEntry } from '@/components/app/draft-room/PlayerPanel'
 import type { RoundOneAnnouncementQueueItem } from '@/lib/draft-room/resolvePickAnnouncementAssets'
@@ -219,7 +218,7 @@ export function DraftRoomPageClient({
   formatType,
   presentationVariant = 'default',
 }: DraftRoomPageClientProps) {
-  type BottomDockTab = 'queue' | 'results' | 'chat' | 'ai'
+  type CenterDockTab = 'queue' | 'chat' | 'ai'
   const { data: authSession } = useSession()
   const viewerAppUserId = (authSession?.user as { id?: string } | undefined)?.id ?? null
   const [session, setSession] = useState<DraftSessionSnapshot | null>(null)
@@ -288,7 +287,7 @@ export function DraftRoomPageClient({
   const [aiQueueReorderEnabled, setAiQueueReorderEnabled] = useState(true)
   const [draftAiExplanationEnabled, setDraftAiExplanationEnabled] = useState(false)
   const [mobileTab, setMobileTabState] = useState<MobileDraftTab>('board')
-  const [bottomDockTab, setBottomDockTab] = useState<'queue' | 'results' | 'chat' | 'ai'>('queue')
+  const [centerDockTab, setCenterDockTab] = useState<CenterDockTab>('queue')
   const floatingHelperState = useDraftHelperFloatingState()
   const setMobileTab = useCallback((tab: MobileDraftTab) => {
     sendProductAnalyticsBeacon(DRAFT_ROOM.MOBILE_TAB, { tab, leagueId })
@@ -3806,180 +3805,164 @@ export function DraftRoomPageClient({
               : 'flex h-full min-h-0 flex-col bg-[#060d1e]'
           }
         >
-          {!isDraftCompleted ? (
-            <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
-          ) : (
-            <>
-              <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-950/25 px-4 py-3 text-center text-sm text-emerald-100/90">
-                Draft is complete — browse the recap below. The live board stays visible above.
-              </div>
-              <div className="min-h-0 flex-1 overflow-auto">
-                <PostDraftView
-                  leagueId={leagueId}
-                  leagueName={leagueName}
-                  sport={effectiveDraftSport}
-                  session={session}
-                  currentUserRosterId={currentUserRosterId ?? null}
-                  slotOrder={slotOrder}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      }
-      bottomBar={
-        <div className="flex h-full min-h-0 w-full flex-col" data-testid="draft-bottom-dock-tabs">
-          <div
-            className={`grid grid-cols-4 gap-1 border-b px-2 py-1.5 ${
-              presentationVariant === 'redraft_snake'
-                ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(5,12,24,0.98))] shadow-[inset_0_1px_0_rgba(34,211,238,0.08)]'
-                : 'border-white/8 bg-[#0a1228]'
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => setBottomDockTab('queue')}
-              data-testid="draft-bottom-tab-queue"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-                bottomDockTab === 'queue'
-                  ? presentationVariant === 'redraft_snake'
-                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
-                    : 'bg-white/12 text-cyan-100'
-                  : 'text-white/55 hover:bg-white/5'
+          <div className="flex min-h-0 flex-1 flex-row overflow-hidden">
+            <div
+              className={`flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border-r ${
+                presentationVariant === 'redraft_snake' ? 'border-cyan-500/10' : 'border-white/8'
               }`}
             >
-              Queue
-            </button>
-            <button
-              type="button"
-              onClick={() => setBottomDockTab('results')}
-              data-testid="draft-bottom-tab-results"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-                bottomDockTab === 'results'
-                  ? presentationVariant === 'redraft_snake'
-                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
-                    : 'bg-white/12 text-cyan-100'
-                  : 'text-white/55 hover:bg-white/5'
-              }`}
-            >
-              Results
-            </button>
-            <button
-              type="button"
-              onClick={() => setBottomDockTab('chat')}
-              data-testid="draft-bottom-tab-chat"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-                bottomDockTab === 'chat'
-                  ? presentationVariant === 'redraft_snake'
-                    ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
-                    : 'bg-white/12 text-cyan-100'
-                  : 'text-white/55 hover:bg-white/5'
-              }`}
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              onClick={() => setBottomDockTab('ai')}
-              data-testid="draft-bottom-tab-ai"
-              className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
-                bottomDockTab === 'ai'
-                  ? presentationVariant === 'redraft_snake'
-                    ? 'bg-gradient-to-r from-violet-500/30 to-fuchsia-500/15 text-violet-50 shadow-[0_0_22px_rgba(167,139,250,0.2)]'
-                    : 'bg-white/12 text-cyan-100'
-                  : 'text-white/55 hover:bg-white/5'
-              }`}
-            >
-              AI
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-hidden">
-            {bottomDockTab === 'queue' ? (
-              <div className="h-full overflow-auto px-1.5 py-1">{queueStackNode}</div>
-            ) : null}
-
-            {bottomDockTab === 'results' ? (
-              <div className="h-full overflow-hidden">
-                <DraftPickActivityStrip
-                  picks={session.picks ?? []}
-                  slotOrder={slotOrder}
-                  limit={32}
-                  presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
-                />
-              </div>
-            ) : null}
-
-            {bottomDockTab === 'chat' ? (
-              <div className="h-full overflow-hidden">{chatPanelNode}</div>
-            ) : null}
-
-            {bottomDockTab === 'ai' ? (
-              <div
-                className={`h-full overflow-auto p-3 text-xs text-white/75 ${
-                  presentationVariant === 'redraft_snake'
-                    ? 'bg-[linear-gradient(180deg,rgba(76,29,149,0.12),transparent)]'
-                    : ''
-                }`}
-                data-testid="draft-bottom-ai-panel"
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">Draft AI</p>
-                {entitlements.loading ? (
-                  <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
-                    <p className="text-white/55">Checking access…</p>
+              {!isDraftCompleted ? (
+                <div className="min-h-0 flex-1 overflow-hidden">{playerPoolNode}</div>
+              ) : (
+                <>
+                  <div className="shrink-0 border-b border-emerald-500/20 bg-emerald-950/25 px-4 py-3 text-center text-sm text-emerald-100/90">
+                    Draft is complete — browse the recap below. The live board stays visible above.
                   </div>
-                ) : !hasAiAccess ? (
-                  <div
-                    className="mt-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-3"
-                    data-testid="draft-bottom-ai-locked"
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <PostDraftView
+                      leagueId={leagueId}
+                      leagueName={leagueName}
+                      sport={effectiveDraftSport}
+                      session={session}
+                      currentUserRosterId={currentUserRosterId ?? null}
+                      slotOrder={slotOrder}
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
+              <div className="flex h-full min-h-0 w-full flex-col" data-testid="draft-bottom-dock-tabs">
+                <div
+                  className={`grid grid-cols-3 gap-1 border-b px-2 py-1.5 ${
+                    presentationVariant === 'redraft_snake'
+                      ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(5,12,24,0.98))] shadow-[inset_0_1px_0_rgba(34,211,238,0.08)]'
+                      : 'border-white/8 bg-[#0a1228]'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setCenterDockTab('queue')}
+                    data-testid="draft-bottom-tab-queue"
+                    className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                      centerDockTab === 'queue'
+                        ? presentationVariant === 'redraft_snake'
+                          ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+                          : 'bg-white/12 text-cyan-100'
+                        : 'text-white/55 hover:bg-white/5'
+                    }`}
                   >
-                    <p className="text-sm font-semibold text-amber-100">AI recommendations locked</p>
-                    <p className="mt-1 text-[11px] text-white/65">
-                      Subscribe (Pro, Commissioner, All-Access, or Supreme) for unlimited AI picks — or top up tokens to pay per-use.
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <a
-                        href="/pricing"
-                        className="inline-flex items-center rounded border border-amber-300/45 bg-amber-500/20 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-100 hover:bg-amber-500/30"
-                        data-testid="draft-bottom-ai-upgrade-cta"
-                      >
-                        Upgrade
-                      </a>
-                      <a
-                        href="/tokens"
-                        className="inline-flex items-center rounded border border-cyan-300/45 bg-cyan-500/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/25"
-                        data-testid="draft-bottom-ai-tokens-cta"
-                      >
-                        Buy tokens
-                      </a>
-                    </div>
-                  </div>
-                ) : recommendationResult?.recommendation ? (
-                  <div className="mt-2 space-y-2 rounded-lg border border-cyan-400/20 bg-cyan-500/10 p-3">
-                    <p className="text-sm font-semibold text-white">
-                      {recommendationResult.recommendation.player.name}
-                      <span className="ml-1 text-cyan-100/80">
-                        {recommendationResult.recommendation.player.position}
-                        {recommendationResult.recommendation.player.team ? ` - ${recommendationResult.recommendation.player.team}` : ''}
-                      </span>
-                    </p>
-                    <p className="text-[11px] text-white/70">{recommendationResult.recommendation.reason}</p>
-                    <button
-                      type="button"
-                      onClick={() => setMobileTab('helper')}
-                      className="rounded border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/20"
-                      data-testid="draft-bottom-ai-open-helper"
+                    Queue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCenterDockTab('chat')}
+                    data-testid="draft-bottom-tab-chat"
+                    className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                      centerDockTab === 'chat'
+                        ? presentationVariant === 'redraft_snake'
+                          ? 'bg-gradient-to-r from-cyan-500/25 to-violet-500/15 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]'
+                          : 'bg-white/12 text-cyan-100'
+                        : 'text-white/55 hover:bg-white/5'
+                    }`}
+                  >
+                    Chat
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCenterDockTab('ai')}
+                    data-testid="draft-bottom-tab-ai"
+                    className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                      centerDockTab === 'ai'
+                        ? presentationVariant === 'redraft_snake'
+                          ? 'bg-gradient-to-r from-violet-500/30 to-fuchsia-500/15 text-violet-50 shadow-[0_0_22px_rgba(167,139,250,0.2)]'
+                          : 'bg-white/12 text-cyan-100'
+                        : 'text-white/55 hover:bg-white/5'
+                    }`}
+                  >
+                    AI
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  {centerDockTab === 'queue' ? (
+                    <div className="h-full overflow-auto px-1.5 py-1">{queueStackNode}</div>
+                  ) : null}
+
+                  {centerDockTab === 'chat' ? (
+                    <div className="h-full overflow-hidden">{chatPanelNode}</div>
+                  ) : null}
+
+                  {centerDockTab === 'ai' ? (
+                    <div
+                      className={`h-full overflow-auto p-3 text-xs text-white/75 ${
+                        presentationVariant === 'redraft_snake'
+                          ? 'bg-[linear-gradient(180deg,rgba(76,29,149,0.12),transparent)]'
+                          : ''
+                      }`}
+                      data-testid="draft-bottom-ai-panel"
                     >
-                      Open Full AI Panel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
-                    <p className="text-white/65">No recommendation yet. AI updates when draft context changes.</p>
-                  </div>
-                )}
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">Draft AI</p>
+                      {entitlements.loading ? (
+                        <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
+                          <p className="text-white/55">Checking access…</p>
+                        </div>
+                      ) : !hasAiAccess ? (
+                        <div
+                          className="mt-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-3"
+                          data-testid="draft-bottom-ai-locked"
+                        >
+                          <p className="text-sm font-semibold text-amber-100">AI recommendations locked</p>
+                          <p className="mt-1 text-[11px] text-white/65">
+                            Subscribe (Pro, Commissioner, All-Access, or Supreme) for unlimited AI picks — or top up tokens to pay per-use.
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <a
+                              href="/pricing"
+                              className="inline-flex items-center rounded border border-amber-300/45 bg-amber-500/20 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-100 hover:bg-amber-500/30"
+                              data-testid="draft-bottom-ai-upgrade-cta"
+                            >
+                              Upgrade
+                            </a>
+                            <a
+                              href="/tokens"
+                              className="inline-flex items-center rounded border border-cyan-300/45 bg-cyan-500/15 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/25"
+                              data-testid="draft-bottom-ai-tokens-cta"
+                            >
+                              Buy tokens
+                            </a>
+                          </div>
+                        </div>
+                      ) : recommendationResult?.recommendation ? (
+                        <div className="mt-2 space-y-2 rounded-lg border border-cyan-400/20 bg-cyan-500/10 p-3">
+                          <p className="text-sm font-semibold text-white">
+                            {recommendationResult.recommendation.player.name}
+                            <span className="ml-1 text-cyan-100/80">
+                              {recommendationResult.recommendation.player.position}
+                              {recommendationResult.recommendation.player.team ? ` - ${recommendationResult.recommendation.player.team}` : ''}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-white/70">{recommendationResult.recommendation.reason}</p>
+                          <button
+                            type="button"
+                            onClick={() => setMobileTab('helper')}
+                            className="rounded border border-cyan-300/35 bg-cyan-500/12 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100 hover:bg-cyan-500/20"
+                            data-testid="draft-bottom-ai-open-helper"
+                          >
+                            Open Full AI Panel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
+                          <p className="text-white/65">No recommendation yet. AI updates when draft context changes.</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
       }
@@ -4129,12 +4112,6 @@ export function DraftRoomPageClient({
             onOpenDraftRoomSettings={() => setDraftRoomSettingsOpen(true)}
             onlineCount={onlineCount > 0 ? onlineCount : undefined}
             draftRoomPresentation={presentationVariant}
-            currentRound={
-              draftCore?.draftStarted === false ? 1 : draftCore?.currentRound != null ? draftCore.currentRound : null
-            }
-            pickInRound={
-              draftCore?.draftStarted === false ? 1 : draftCore?.currentPickInRound != null ? draftCore.currentPickInRound : null
-            }
             onToggleAutoPick={handleToggleAutoPick}
           />
         </>

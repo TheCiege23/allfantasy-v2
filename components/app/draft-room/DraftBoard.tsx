@@ -141,7 +141,7 @@ function DraftBoardInner({
     setSelectedRound((prev) => Math.min(Math.max(1, prev), Math.max(1, rounds)))
   }, [rounds])
 
-  /** After each new pick, focus the board on the current round (single-round view) for readability. */
+  /** After each new pick, focus the board on the current round (single-round view) unless the user chose “All rounds”. */
   useEffect(() => {
     if (draftType === 'auction' || currentOverallPick == null) return
     const prev = lastFollowedOverallRef.current
@@ -150,7 +150,7 @@ function DraftBoardInner({
     if (currentOverallPick <= prev) return
     const round = Math.ceil(currentOverallPick / teamCount)
     setSelectedRound((r) => Math.min(rounds, Math.max(1, round)))
-    setViewMode('single')
+    setViewMode((mode) => (mode === 'all' ? 'all' : 'single'))
   }, [currentOverallPick, teamCount, rounds, draftType])
 
   const slotOrderBySlot = useMemo(() => new Map(slotOrder.map((entry) => [entry.slot, entry])), [slotOrder])
