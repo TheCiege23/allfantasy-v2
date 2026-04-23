@@ -195,10 +195,10 @@ export function calculateStrategicConsistency(log: StrategyExecutionLog): number
 
   if (strategy.riskLevel === 'conservative') {
     // Should pick proven players (early ADP)
-    riskMatches = picks.filter((p) => parseInt(p.overall) <= 150).length
+    riskMatches = picks.filter((p) => p.overall <= 150).length
   } else if (strategy.riskLevel === 'moderate') {
     // Mixed approach
-    riskMatches = picks.filter((p) => parseInt(p.overall) <= 250).length
+    riskMatches = picks.filter((p) => p.overall <= 250).length
   } else {
     // Aggressive - can be anywhere
     riskMatches = picks.length // All picks are "consistent"
