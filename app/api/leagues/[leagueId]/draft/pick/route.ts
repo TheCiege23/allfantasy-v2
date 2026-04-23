@@ -20,6 +20,7 @@ import {
 } from '@/lib/draft-notifications'
 import { publishDraftIntelForUpcomingManagers, sendDraftIntelDm } from '@/lib/draft-intelligence'
 import { assertLeagueActionGate } from '@/server/services/leagueActionGate'
+import { ensureDraftingLifecycleForActiveSession } from '@/server/services/leagueLifecycleService'
 import { logAction } from '@/server/services/auditService'
 
 export const dynamic = 'force-dynamic'
@@ -73,6 +74,8 @@ export async function POST(
     rawSource === 'promoted_devy'
       ? rawSource
       : 'user'
+
+  await ensureDraftingLifecycleForActiveSession(leagueId, userId)
 
   const gate = await assertLeagueActionGate(leagueId, userId, 'draft_pick', {
     treatAsElevated: source === 'commissioner',

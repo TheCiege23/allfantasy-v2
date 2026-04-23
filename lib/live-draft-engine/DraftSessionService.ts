@@ -9,6 +9,7 @@ import {
   type ApplyPostDraftLifecycleResult,
   applyDraftingLifecycleOnDraftResetInTransaction,
   applyPostDraftLifecycleInTransaction,
+  ensureDraftingLifecycleForActiveSession,
 } from '@/server/services/leagueLifecycleService'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
@@ -501,6 +502,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
         version: { increment: 1 },
       },
     })
+    await ensureDraftingLifecycleForActiveSession(leagueId)
     return true
   }
 
@@ -517,6 +519,7 @@ export async function startDraftSession(leagueId: string): Promise<boolean> {
       version: { increment: 1 },
     },
   })
+  await ensureDraftingLifecycleForActiveSession(leagueId)
   return true
 }
 

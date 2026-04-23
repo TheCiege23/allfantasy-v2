@@ -267,6 +267,59 @@ export async function transitionLeagueState(
   return { ok: true, league: updated }
 }
 
+/**
+ * When the draft session is live (in progress or paused) but the league row is still
+ * `pre_draft` or `setup`, lifecycle gates block `draft_pick`. Sync league lifecycle so
+ * picks and automation match an active draft (e.g. after `startDraftSession` without a
+ * separate transition route).
+ */
+export async function ensureDraftingLifecycleForActiveSession(
+  leagueId: string,
+  actorUserId?: string | null,
+): Promise<void> {
+  try {
+    const [league, draftSession] = await Promise.all([
+      prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { lifecycleState: true, userId: true },
+      }),
+      prisma.draftSession.findUnique({
+        where: { leagueId },
+        select: { status: true },
+      }),
+    ])
+    if (!league || !draftSession) return
+
+    const draftLive =
+      draftSession.status === 'in_progress' || draftSession.status === 'paused'
+    if (!draftLive) return
+
+    const actor = (actorUserId && String(actorUserId).trim()) || league.userId || 'system'
+    const state = getLeagueLifecycleState(league)
+
+    if (state === 'drafting') return
+
+    if (state === 'pre_draft') {
+      const r = await transitionLeagueState(leagueId, 'drafting', actor)
+      if (!r.ok) console.warn('[ensureDraftingLifecycleForActiveSession] pre_draft→drafting', r.error)
+      return
+    }
+
+    if (state === 'setup') {
+      const toPre = await transitionLeagueState(leagueId, 'pre_draft', actor)
+      if (toPre.ok) {
+        const toDraft = await transitionLeagueState(leagueId, 'drafting', actor)
+        if (!toDraft.ok) console.warn('[ensureDraftingLifecycleForActiveSession] pre_draft→drafting', toDraft.error)
+      } else {
+        const forced = await transitionLeagueState(leagueId, 'drafting', actor, { force: true })
+        if (!forced.ok) console.warn('[ensureDraftingLifecycleForActiveSession] setup fallback', forced.error)
+      }
+    }
+  } catch (e) {
+    console.warn('[ensureDraftingLifecycleForActiveSession] non-fatal', e)
+  }
+}
+
 export async function loadLeagueForLifecycle(leagueId: string) {
   return prisma.league.findUnique({
     where: { id: leagueId },
