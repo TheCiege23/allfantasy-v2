@@ -258,6 +258,34 @@ export function DraftSettingsCommissionerPanel({ leagueId }: Props) {
     finally { setSaving(false) }
   }, [leagueId, draftType, rounds, timerSeconds, cpuAutoPickEnabled, autostartEnabled, slowDraftPauseEnabled, slowDraftPauseFrom, slowDraftPauseTo])
 
+  // Randomize draft order
+  const randomizeOrder = useCallback(async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/draft/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft_order_mode: 'randomize', randomize: true }),
+      })
+      const d = await res.json()
+      if (!res.ok) {
+        setError(d.error ?? 'Failed to randomize draft order')
+        return
+      }
+      if (d.teams) {
+        setTeams(d.teams)
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 2000)
+      } else {
+        setError('No teams found to randomize')
+      }
+    } catch (e) {
+      setError('Request failed')
+    }
+    finally { setSaving(false) }
+  }, [leagueId])
+
   // Fill empty slots with AI
   const fillEmptySlotsWithAI = useCallback(async () => {
     setSaving(true)
