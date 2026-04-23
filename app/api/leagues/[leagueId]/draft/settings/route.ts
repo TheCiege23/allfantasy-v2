@@ -288,16 +288,16 @@ export async function PATCH(
   const hasSessionVariant = Object.keys(sessionVariantPatch).length > 0
   const hasOrderMode = orderModePatch !== null
 
-  /** Live snake/linear drafts: never accept structural/config/order/sessionVariant mutations from settings PATCH — use league draft tab or dedicated flows. Room modal only sends UI prefs. */
+  /** Live snake/linear drafts: never accept structural/config/order/sessionVariant mutations from settings PATCH while actively drafting (in_progress). Allow changes when paused. Room modal only sends UI prefs. */
   const draftSessionRow = await prisma.draftSession.findUnique({
     where: { leagueId },
     select: { status: true },
   })
-  const isLiveDraftSession =
+  const isActiveDraft =
     draftSessionRow &&
-    (draftSessionRow.status === 'in_progress' || draftSessionRow.status === 'paused')
+    draftSessionRow.status === 'in_progress'
   if (
-    isLiveDraftSession &&
+    isActiveDraft &&
     (hasConfig || hasSessionVariant || hasOrderMode)
   ) {
     return NextResponse.json(
