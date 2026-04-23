@@ -448,7 +448,7 @@ export function DraftTopBar({
             </div>
           ) : null}
 
-          <div className={`mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5 ${showCommandDeck ? 'lg:mt-3' : ''}`}>
+          <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-2.5">
             {pickLabel ? (
               <div
                 className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 shadow-[0_4px_24px_rgba(34,211,238,0.12)] ring-1 ring-cyan-400/15 ${
