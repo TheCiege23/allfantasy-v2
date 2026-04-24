@@ -139,6 +139,24 @@ function isMiddlewareAdmin(userId: string | null | undefined): boolean {
   return parseMiddlewareAdminIds(process.env.DEV_ADMIN_USER_IDS).has(id)
 }
 
+/** Replaces next.config `headers` for `/api/:path*` — that pattern explodes to one Vercel rule per API route (>2048 cap). */
+const API_EDGE_SECURITY_HEADERS: Record<string, string> = {
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+  "X-Content-Type-Options": "nosniff",
+}
+
+function isApiPath(pathname: string): boolean {
+  return pathname === "/api" || pathname.startsWith("/api/")
+}
+
+function applyApiSecurityHeaders(pathname: string, response: NextResponse): NextResponse {
+  if (!isApiPath(pathname)) return response
+  for (const [key, value] of Object.entries(API_EDGE_SECURITY_HEADERS)) {
+    response.headers.set(key, value)
+  }
+  return response
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -153,7 +171,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isExemptPath(pathname)) {
-    return NextResponse.next()
+    return applyApiSecurityHeaders(pathname, NextResponse.next())
   }
 
   const authSecret = resolveAuthSecret()
@@ -162,7 +180,7 @@ export async function middleware(request: NextRequest) {
     const token = await getToken({ req: request, secret: authSecret })
     if (!token) {
       if (pathname.startsWith("/api/")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        return applyApiSecurityHeaders(pathname, NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
       }
       const login = request.nextUrl.clone()
       login.pathname = "/login"
@@ -187,7 +205,7 @@ export async function middleware(request: NextRequest) {
             message: "AllFantasy.ai is not available in your state.",
             stateCode,
           }),
-          { status: 403, headers: { "Content-Type": "application/json" } }
+          { status: 403, headers: { "Content-Type": "application/json", ...API_EDGE_SECURITY_HEADERS } },
         )
       }
       const url = request.nextUrl.clone()
@@ -210,7 +228,7 @@ export async function middleware(request: NextRequest) {
             allowFree: true,
             redirectTo: "/paid-restricted",
           }),
-          { status: 451, headers: { "Content-Type": "application/json" } }
+          { status: 451, headers: { "Content-Type": "application/json", ...API_EDGE_SECURITY_HEADERS } },
         )
       }
 
@@ -230,7 +248,7 @@ export async function middleware(request: NextRequest) {
   if (ip) {
     response.headers.set("x-client-ip", ip)
   }
-  return response
+  return applyApiSecurityHeaders(pathname, response)
 }
 
 /**

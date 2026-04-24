@@ -61,19 +61,9 @@ const nextConfig = {
           },
         ],
       },
-      {
-        source: "/api/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "no-cache, no-store, must-revalidate",
-          },
-          {
-            key: "X-Content-Type-Options",
-            value: "nosniff",
-          },
-        ],
-      },
+      // Do not add `/api/:path*` here: Next/Vercel expands it to one header rule per API route
+      // (~1600+) and exceeds the 2048 rewrite/redirect/header route cap. API routes get the same
+      // headers from `middleware.ts` (`applyApiSecurityHeaders`).
       {
         source: "/_next/static/:path*",
         headers: [
