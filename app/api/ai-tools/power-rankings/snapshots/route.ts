@@ -10,6 +10,9 @@ import type { RankingModeId } from '@/lib/power-rankings-dashboard/types'
 import { RANKING_MODE_IDS } from '@/lib/power-rankings-dashboard/types'
 import { buildRankTrailForExternalId } from '@/lib/power-rankings-dashboard/snapshotTeamRow'
 
+/** Uses session, rate-limit IP from headers, and DB — must not be statically analyzed at build time. */
+export const dynamic = 'force-dynamic'
+
 export const GET = withApiUsage({ endpoint: '/api/ai-tools/power-rankings/snapshots', tool: 'PowerRankings' })(
   async (req: NextRequest) => {
     try {

@@ -44,6 +44,8 @@ const bodySchema = z.object({
   }),
 })
 
+export const dynamic = 'force-dynamic'
+
 export const POST = withApiUsage({ endpoint: '/api/ai-tools/power-rankings/dashboard', tool: 'PowerRankings' })(
   async (req: Request) => {
     try {
