@@ -3,7 +3,8 @@
  * Ensures picked position is allowed by league template and roster does not exceed slot count.
  */
 
-import { getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
+import { draftPoolRowMatchesEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
+import { getDraftEligiblePositionsFromPayload, getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
 
 export interface RosterFitValidationInput {
   leagueId: string
@@ -25,13 +26,13 @@ export async function validateRosterFitForDraftPick(input: RosterFitValidationIn
   const payload = await getLeagueDraftTemplatePayload(input.leagueId).catch(() => null)
   if (!payload) return { valid: true }
 
-  const allowed = payload.allowedPositions
+  const draftEligible = getDraftEligiblePositionsFromPayload(payload)
   const posUpper = (input.newPickPosition || '').trim().toUpperCase()
   if (!posUpper) return { valid: false, error: 'Position is required' }
-  if (!allowed.has(posUpper)) {
+  if (!draftPoolRowMatchesEligiblePositions(input.newPickPosition, draftEligible)) {
     return {
       valid: false,
-      error: `Position "${input.newPickPosition}" is not allowed in this league. Allowed: ${[...allowed].sort().join(', ')}.`,
+      error: `Position "${input.newPickPosition}" is not starter-eligible in this league draft. Allowed: ${[...draftEligible].sort().join(', ')}.`,
     }
   }
 
@@ -47,15 +48,18 @@ export async function validateRosterFitForDraftPick(input: RosterFitValidationIn
 }
 
 /**
- * Get allowed positions and total roster size for a league (for queue/autopick filtering).
+ * Draft-targeting positions (starter-eligible, with empty-starter fallback) plus full roster union for callers that still need it.
  */
-export async function getAllowedPositionsAndRosterSize(
-  leagueId: string,
-): Promise<{ allowedPositions: Set<string>; totalRosterSize: number } | null> {
+export async function getAllowedPositionsAndRosterSize(leagueId: string): Promise<{
+  draftEligiblePositions: Set<string>
+  rosterUnionAllowedPositions: Set<string>
+  totalRosterSize: number
+} | null> {
   const payload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
   if (!payload) return null
   return {
-    allowedPositions: new Set(payload.allowedPositions),
+    draftEligiblePositions: getDraftEligiblePositionsFromPayload(payload),
+    rosterUnionAllowedPositions: new Set(payload.allowedPositions),
     totalRosterSize: payload.totalRosterSlots,
   }
 }

@@ -130,6 +130,10 @@ export interface DraftPickSnapshot {
   team: string | null
   byeWeek: number | null
   playerId: string | null
+  /** Resolved at pick time (e.g. DB headshot URL) — keeps board/history working without re-resolving assets. */
+  playerImageUrl?: string | null
+  /** Commissioner pick editor cleared this cell; no player is assigned until reassigned. */
+  pickEditorEmpty?: boolean
   tradedPickMeta: TradedPickMeta | null
   source: string
   pickLabel: string

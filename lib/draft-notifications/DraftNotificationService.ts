@@ -251,9 +251,15 @@ export async function notifyOnTheClockAfterPick(leagueId: string): Promise<void>
     const { resolveCurrentOnTheClock } = await import('@/lib/live-draft-engine/CurrentOnTheClockResolver')
     const slotOrder = (session.slotOrder as { slot: number; rosterId: string; displayName: string }[]) ?? []
     const totalPicks = session.teamCount * session.rounds
+    const progressPicks = session.picks.map((p) => ({
+      overall: p.overall,
+      playerName: p.playerName,
+      position: p.position,
+      pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+    }))
     const current = resolveCurrentOnTheClock({
       totalPicks,
-      picksCount: session.picks.length,
+      picks: progressPicks,
       teamCount: session.teamCount,
       draftType: session.draftType as 'snake' | 'linear' | 'auction',
       thirdRoundReversal: session.thirdRoundReversal,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { DraftRoomPageClient } from '@/components/app/draft-room/DraftRoomPageClient'
 
 type DraftRoomHarnessClientProps = {
@@ -8,6 +8,8 @@ type DraftRoomHarnessClientProps = {
   sport: string
   formatType?: string
   isCommissioner?: boolean
+  /** When true, render the draft room immediately (used with `?e2eRoom=1` for stable Playwright). */
+  initialRoomOpen?: boolean
 }
 
 export function DraftRoomHarnessClient({
@@ -15,8 +17,17 @@ export function DraftRoomHarnessClient({
   sport,
   formatType,
   isCommissioner = true,
+  initialRoomOpen = false,
 }: DraftRoomHarnessClientProps) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initialRoomOpen)
+  /** Prefer `?leagueId=` when it disagrees with the RSC prop (avoids mismatched mocks / hung initial load in E2E). */
+  const [resolvedLeagueId, setResolvedLeagueId] = useState(leagueId)
+
+  useLayoutEffect(() => {
+    const p = String(leagueId ?? '').trim()
+    const q = new URLSearchParams(window.location.search).get('leagueId')?.trim() ?? ''
+    setResolvedLeagueId(q || p || 'e2e-league')
+  }, [leagueId])
 
   if (!open) {
     return (
@@ -48,7 +59,8 @@ export function DraftRoomHarnessClient({
         </button>
       </div>
       <DraftRoomPageClient
-        leagueId={leagueId}
+        key={resolvedLeagueId}
+        leagueId={resolvedLeagueId}
         leagueName="E2E Draft Room"
         sport={sport}
         isDynasty={false}

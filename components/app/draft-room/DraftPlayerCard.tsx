@@ -2,6 +2,9 @@
 
 import React, { useMemo, useState } from 'react'
 import type { PlayerDisplayModel, PlayerAssetModel } from '@/lib/draft-sports-models/types'
+import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { formatNflStatCell } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { NflDraftPoolStatsRow } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
 import { LazyDraftImage } from './LazyDraftImage'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { getPlayerImage } from '@/lib/players/getPlayerImage'
@@ -56,6 +59,8 @@ export type DraftPlayerCardProps = {
   isQueued?: boolean
   /** Label for the ADP column (e.g. AI ADP when sorting by AI ADP). */
   adpMetricLabel?: string
+  /** NFL redraft pool: projection + split stats (from `/draft/pool`). */
+  nflDraftProjectionSplits?: NflDraftProjectionSplits | null
 }
 
 function formatAdpDisplay(v: number | null | undefined): string {
@@ -181,8 +186,15 @@ function DraftPlayerCardInner({
   isSelected = false,
   isQueued = false,
   adpMetricLabel = 'ADP',
+  nflDraftProjectionSplits = null,
 }: DraftPlayerCardProps) {
   const rs = presentationVariant === 'redraft_snake'
+  const posU = position.trim().toUpperCase()
+  const isNfl = String(draftSport).toUpperCase() === 'NFL'
+  const showNflSplitGrid =
+    rs && isNfl && nflDraftProjectionSplits != null && posU !== 'K'
+  const showNflKickerSplits =
+    rs && isNfl && nflDraftProjectionSplits != null && posU === 'K' && nflDraftProjectionSplits.kicking
   const assets: PlayerAssetModel | null = display?.assets ?? null
   const teamAbbr = display?.metadata?.teamAbbreviation ?? team ?? null
   const displayName = display?.displayName ?? name
@@ -234,7 +246,7 @@ function DraftPlayerCardInner({
     ],
   )
 
-  const headshotUrl = getPlayerImage(normalized) ?? assets?.headshotUrl ?? null
+  const headshotUrl = getPlayerImage(normalized, draftSport) ?? assets?.headshotUrl ?? null
   const teamLogoUrl = normalized.teamLogoUrl ?? assets?.teamLogoUrl ?? null
   const rowHeadshotSize = rs ? 44 : 40
   const rowLogoSize = rs ? 18 : 16
@@ -342,7 +354,7 @@ function DraftPlayerCardInner({
       }}
       role={onSelect ? 'button' : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border px-2.5 py-2 text-[11px] backdrop-blur-sm transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
+      className={`group flex min-w-0 flex-col gap-1 rounded-xl border px-2.5 py-2 text-[11px] backdrop-blur-sm transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 active:scale-[0.98] ${
         rs
           ? `shadow-[0_8px_28px_rgba(0,0,0,0.35)] ${
               isDrafted
@@ -356,6 +368,7 @@ function DraftPlayerCardInner({
             }`
       } ${isDevy ? 'border-l-[3px] border-l-violet-500/70' : ''}`}
     >
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
       <div className={`relative shrink-0 ${rs ? 'h-11 w-11' : 'h-10 w-10'}`}>
         <HeadshotOrFallback
           headshotUrl={headshotUrl}
@@ -468,6 +481,22 @@ function DraftPlayerCardInner({
         </div>
         <div className="flex items-center gap-1">{compareAction}{secondaryAction}{primaryAction}</div>
       </div>
+      </div>
+      {showNflKickerSplits && nflDraftProjectionSplits?.kicking ? (
+        <div className="max-sm:hidden border-t border-white/[0.06] pt-1.5 sm:block sm:pl-[52px]">
+          <p className="text-[10px] tabular-nums text-emerald-100/75">
+            FG {formatNflStatCell(nflDraftProjectionSplits.kicking.fg)} · XP{' '}
+            {formatNflStatCell(nflDraftProjectionSplits.kicking.xpt)}
+          </p>
+        </div>
+      ) : null}
+      {showNflSplitGrid && nflDraftProjectionSplits ? (
+        <div className="max-sm:hidden border-t border-white/[0.06] pt-1.5 sm:block sm:pl-[52px]">
+          <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 [scrollbar-color:rgba(56,189,248,0.35)_rgba(15,23,42,0.5)]">
+            <NflDraftPoolStatsRow splits={nflDraftProjectionSplits} />
+          </div>
+        </div>
+      ) : null}
     </li>
   )
 }

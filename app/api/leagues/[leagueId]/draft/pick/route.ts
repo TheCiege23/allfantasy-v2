@@ -90,6 +90,11 @@ export async function POST(
   const pickMetadata =
     rawMeta && typeof rawMeta === 'object' && !Array.isArray(rawMeta) ? (rawMeta as Record<string, unknown>) : null
 
+  const rawImg =
+    body.playerImageUrl ?? body.player_image_url ?? body.imageUrl ?? body.image_url ?? null
+  const playerImageUrl =
+    typeof rawImg === 'string' && rawImg.trim() ? rawImg.trim().slice(0, 2048) : null
+
   const result = await submitPick({
     leagueId,
     playerName: String(playerName).trim(),
@@ -97,6 +102,7 @@ export async function POST(
     team: body.team ?? null,
     byeWeek: body.byeWeek ?? body.bye_week ?? null,
     playerId: body.playerId ?? body.player_id ?? null,
+    playerImageUrl,
     rosterId: effectiveRosterId,
     source,
     tradedPicks: body.tradedPicks ?? body.traded_picks ?? undefined,

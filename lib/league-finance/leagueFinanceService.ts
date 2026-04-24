@@ -10,18 +10,17 @@ import {
   payoutLifecycleMessage,
 } from '@/lib/league-finance/payoutLifecycle'
 
-type Db = Prisma.TransactionClient | typeof prisma
-
-function dbClient(tx?: Prisma.TransactionClient): Db {
-  return tx ?? prisma
+/** Prisma `TransactionClient` is structurally compatible for these calls; avoid a TS union that blows the checker stack. */
+function dbClient(tx?: Prisma.TransactionClient): typeof prisma {
+  return (tx ?? prisma) as typeof prisma
 }
 
 export async function getOrCreateLeagueFinance(leagueId: string, tx?: Prisma.TransactionClient) {
   const db = dbClient(tx)
-  const existing = await (db as typeof prisma).leagueFinance.findUnique({ where: { leagueId } })
+  const existing = await db.leagueFinance.findUnique({ where: { leagueId } })
   if (existing) return existing
 
-  const league = await (db as typeof prisma).league.findUnique({
+  const league = await db.league.findUnique({
     where: { id: leagueId },
     select: { id: true, settings: true },
   })
@@ -30,7 +29,7 @@ export async function getOrCreateLeagueFinance(leagueId: string, tx?: Prisma.Tra
   const entryFeeUsd = extractEntryFeeUsdFromSettings(league.settings)
   const entryFeeCents = entryFeeUsd != null ? Math.round(entryFeeUsd * 100) : 0
 
-  return (db as typeof prisma).leagueFinance.create({
+  return db.leagueFinance.create({
     data: {
       leagueId,
       isPaidLeague: entryFeeCents > 0,
@@ -41,7 +40,7 @@ export async function getOrCreateLeagueFinance(leagueId: string, tx?: Prisma.Tra
 
 export async function resolveSeasonForLeague(leagueId: string, tx?: Prisma.TransactionClient): Promise<number> {
   const db = dbClient(tx)
-  const league = await (db as typeof prisma).league.findUnique({
+  const league = await db.league.findUnique({
     where: { id: leagueId },
     select: { season: true },
   })

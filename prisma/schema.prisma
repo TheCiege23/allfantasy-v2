@@ -4451,6 +4451,7 @@ model League {
   devyLifecycleEvents                   DevyLifecycleEvent[]
   devyRights                            DevyRights[]
   discordLeagueChannels                 DiscordLeagueChannel[]
+  draftPickAuditLogs                    DraftPickAuditLog[]
   draftRecaps                           DraftRecap[]
   draftSessions                         DraftSession?
   dynastyConfig                         DynastyLeagueConfig?
@@ -10062,6 +10063,7 @@ model DraftSession {
   picks                  DraftPick[]
   queueEntries           DraftQueueEntry[]
   queues                 DraftQueue[]
+  draftPickAuditLogs     DraftPickAuditLog[]
   draftRecaps            DraftRecap[]
   league                 League                   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   warRoomSnapshots       WarRoomSnapshot[]
@@ -10071,6 +10073,35 @@ model DraftSession {
   @@index([leagueId, sportType])
   @@index([sportType, status])
   @@map("draft_sessions")
+}
+
+/// Commissioner pick editor audit trail (Neon/Postgres).
+model DraftPickAuditLog {
+  id                  String       @id @default(cuid())
+  leagueId            String       @map("league_id")
+  draftSessionId      String       @map("draft_session_id")
+  overallPickNumber   Int          @map("overall_pick_number")
+  round               Int
+  action              String       @db.VarChar(64)
+  actorUserId         String       @map("actor_user_id")
+  oldRosterId         String?      @map("old_roster_id")
+  newRosterId         String?      @map("new_roster_id")
+  oldPlayerId         String?      @map("old_player_id")
+  oldPlayerName       String?      @map("old_player_name")
+  newPlayerId         String?      @map("new_player_id")
+  newPlayerName       String?      @map("new_player_name")
+  reason              String?
+  metadata            Json         @default("{}")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  draftSession        DraftSession @relation(fields: [draftSessionId], references: [id], onDelete: Cascade)
+  league              League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId])
+  @@index([draftSessionId])
+  @@index([overallPickNumber])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("draft_pick_audit_log")
 }
 
 /// Single pick in a live draft.

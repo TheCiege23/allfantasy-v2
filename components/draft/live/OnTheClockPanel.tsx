@@ -28,8 +28,31 @@ export function OnTheClockPanel({
   }
   if (status === 'pre_draft') {
     return (
-      <div className="rounded-2xl border border-white/12 bg-[#0a1228]/85 px-4 py-4 text-center text-sm text-white/60 shadow-inner backdrop-blur-sm">
-        Waiting for draft to start…
+      <div
+        data-testid="draft-on-the-clock"
+        className="relative overflow-hidden rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-[#0c1528] via-[#0a1228] to-[#070d18] px-4 py-5 text-center shadow-[0_12px_40px_rgba(0,0,0,0.35)] ring-1 ring-cyan-400/15 sm:px-5 sm:py-6"
+      >
+        <div
+          className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-400/10 blur-2xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-col items-center gap-4">
+          <div className="flex h-[104px] w-[104px] shrink-0 items-center justify-center rounded-2xl border-2 border-cyan-400/30 bg-black/35 p-1 shadow-inner ring-2 ring-cyan-300/10 sm:h-[120px] sm:w-[120px]">
+            <span className="text-3xl font-black tabular-nums text-cyan-100/80 drop-shadow-md sm:text-4xl">—</span>
+          </div>
+          <div className="w-full space-y-1">
+            <p className="flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-[0.28em] text-cyan-200/80">
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-300/70" />
+              </span>
+              Pre-draft
+            </p>
+            <p className="mt-1 text-base font-semibold leading-snug text-white/90 sm:text-lg">
+              Board is ready — same layout when the draft starts.
+            </p>
+            <p className="mt-1 text-[11px] font-medium text-white/50">Waiting for the commissioner to start…</p>
+          </div>
+        </div>
       </div>
     )
   }

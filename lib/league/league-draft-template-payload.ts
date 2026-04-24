@@ -25,9 +25,23 @@ export type LeagueDraftTemplatePayload = {
   sport: LeagueSport
   formatType: string
   hasPersistedRosterSchema: boolean
+  /** Full roster union — bench/IR/taxi rows included. Use for capacity only, not draft targeting. */
   allowedPositions: ReadonlySet<string>
+  /** Starter/flex starter paths only — same basis as draft pool filtering. */
+  starterEligiblePositions: ReadonlySet<string>
   totalRosterSlots: number
   template: RosterTemplateDto
+}
+
+/**
+ * Positions allowed for draft decisions (autopick, queue, pool, pick validation): starter-eligible union,
+ * or full {@link LeagueDraftTemplatePayload.allowedPositions} when the starter set is empty (degenerate template).
+ */
+export function getDraftEligiblePositionsFromPayload(payload: LeagueDraftTemplatePayload): Set<string> {
+  if (payload.starterEligiblePositions.size > 0) {
+    return new Set(payload.starterEligiblePositions)
+  }
+  return new Set(payload.allowedPositions)
 }
 
 /**
@@ -41,6 +55,7 @@ export async function getLeagueDraftTemplatePayload(leagueId: string): Promise<L
     formatType: e.formatType,
     hasPersistedRosterSchema: e.hasPersistedRosterSchema,
     allowedPositions: e.allowedPositions,
+    starterEligiblePositions: e.starterEligiblePositions,
     totalRosterSlots: totalRosterSlotsFromTemplate(e.template),
     template: e.template,
   }

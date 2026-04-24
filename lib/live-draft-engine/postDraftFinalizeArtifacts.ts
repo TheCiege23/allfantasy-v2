@@ -77,8 +77,12 @@ export async function repairDraftCompletionIfBoardFull(leagueId: string): Promis
   })
   if (!session || session.status === 'completed') return false
   const totalPicks = session.rounds * session.teamCount
-  const count = await prisma.draftPick.count({ where: { sessionId: session.id } })
-  if (count < totalPicks) return false
+  const rows = await prisma.draftPick.findMany({
+    where: { sessionId: session.id },
+    select: { overall: true, playerName: true, position: true, pickMetadata: true },
+  })
+  const { isDraftBoardFull } = await import('@/lib/live-draft-engine/draftPickEmpty')
+  if (!isDraftBoardFull(rows as any, totalPicks)) return false
 
   const { completeDraftSession } = await import('@/lib/live-draft-engine/DraftSessionService')
   return completeDraftSession(leagueId)

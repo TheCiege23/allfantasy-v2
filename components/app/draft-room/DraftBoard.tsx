@@ -6,6 +6,7 @@ import { DraftBoardCell, type DraftBoardCellPick, type PickHighlightTone } from 
 import type { DraftPickSnapshot, SlotOrderEntry, TradedPickRecord } from '@/lib/live-draft-engine/types'
 import type { KeeperSessionSnapshot } from '@/lib/live-draft-engine/types'
 import { getSlotInRoundForOverall } from '@/lib/live-draft-engine/DraftOrderService'
+import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPickEmpty'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getRoundNavigationState } from '@/lib/draft-room/DraftBoardRenderer'
 import { getManagerColorBySlot, withAlpha } from '@/lib/draft-room'
@@ -45,6 +46,10 @@ export type DraftBoardProps = {
    * props so the matching traded-pick row highlights and scrolls into view.
    */
   onViewCellTradeHistory?: (ctx: { round: number; originalRosterId: string }) => void
+  /** When true, board cells render a commissioner-only edit affordance. Caller still gates by paused/non-auction state. */
+  canCommissionerEditPicks?: boolean
+  /** Click handler for the commissioner edit affordance on a cell. */
+  onCommissionerEditPick?: (overall: number) => void
 }
 
 type SequentialBoardEntry = {
@@ -97,6 +102,7 @@ function buildAuctionCellPick(
     position: pick.position,
     team: pick.team ?? null,
     playerId: pick.playerId ?? null,
+    playerImageUrl: pick.playerImageUrl ?? null,
     sport: sport ?? null,
     injuryStatus: null,
     byeWeek: pick.byeWeek ?? null,
@@ -130,6 +136,8 @@ function DraftBoardInner({
   onCellTrade,
   onOpenTradeHistory,
   onViewCellTradeHistory,
+  canCommissionerEditPicks = false,
+  onCommissionerEditPick,
   presentationVariant = 'default',
 }: DraftBoardProps) {
   const rs = presentationVariant === 'redraft_snake'
@@ -165,7 +173,15 @@ function DraftBoardInner({
   }
 
   const lastFilledPickOverall = useMemo(() => {
-    const filled = picks.filter((p) => p.playerName?.trim())
+    const filled = picks.filter(
+      (p) =>
+        !isDraftPickRowEmptyFromSnapshot({
+          playerName: p.playerName,
+          position: p.position,
+          pickMetadata: (p as { pickMetadata?: unknown }).pickMetadata,
+          pickEditorEmpty: p.pickEditorEmpty,
+        }),
+    )
     if (filled.length === 0) return null
     return filled[filled.length - 1].overall
   }, [picks])
@@ -242,6 +258,7 @@ function DraftBoardInner({
           position: existing?.position ?? lock?.position ?? null,
           team: existing?.team ?? lock?.team ?? null,
           playerId: existing?.playerId ?? lock?.playerId ?? null,
+          playerImageUrl: existing?.playerImageUrl ?? null,
           sport: sport ?? null,
           injuryStatus: (existing as { injuryStatus?: string | null } | undefined)?.injuryStatus ?? null,
           byeWeek: existing?.byeWeek ?? null,
@@ -451,6 +468,7 @@ function DraftBoardInner({
         <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
           <div
             className="grid min-w-min gap-3"
+            data-testid="draft-board-grid"
             style={{ gridTemplateColumns: `repeat(${Math.max(1, auctionColumns.length)}, minmax(136px, 1fr))` }}
           >
             {auctionColumns.map((column) => (
@@ -525,6 +543,11 @@ function DraftBoardInner({
                                 })
                             : undefined
                         }
+                        onCommissionerEditPick={
+                          canCommissionerEditPicks && onCommissionerEditPick
+                            ? () => onCommissionerEditPick(pick.overall)
+                            : undefined
+                        }
                       />
                     )
                   })}
@@ -535,7 +558,7 @@ function DraftBoardInner({
         </div>
       ) : (
         <div className="snap-x snap-mandatory overflow-x-auto overflow-y-visible px-2 py-3 pb-4 [-webkit-overflow-scrolling:touch]">
-          <div className="min-w-max">
+          <div className="min-w-max" data-testid="draft-board-grid">
             <div
               className={`sticky top-0 z-10 grid gap-1 border-b pb-1.5 backdrop-blur-md sm:gap-1.5 ${
                 rs
@@ -619,6 +642,17 @@ function DraftBoardInner({
                       }
                       const { pick, overall } = cell
                       const existing = picks.find((entry) => entry.overall === overall)
+                      const isPickDisplayEmpty =
+                        pick.isKeeper
+                          ? false
+                          : existing
+                            ? isDraftPickRowEmptyFromSnapshot({
+                                playerName: existing.playerName,
+                                position: existing.position,
+                                pickMetadata: (existing as { pickMetadata?: unknown }).pickMetadata,
+                                pickEditorEmpty: existing.pickEditorEmpty,
+                              })
+                            : !String(pick.playerName ?? '').trim()
                       const isCurrentPick = currentOverallPick != null && overall === currentOverallPick
                       const emptyCellDirection =
                         draftType === 'snake' && isSnakeRoundReversed(round, draftType, thirdRoundReversal)
@@ -629,15 +663,15 @@ function DraftBoardInner({
                         <DraftBoardCell
                           key={`${round}-${slotEntry.slot}`}
                           pick={pick}
-                          isEmpty={!pick.playerName}
+                          isEmpty={isPickDisplayEmpty}
                           isCurrentPick={isCurrentPick}
                           presentationVariant={presentationVariant}
                           sport={sport}
-                          isRecentPick={Boolean(pick.playerName?.trim() && overall === lastFilledPickOverall)}
+                          isRecentPick={Boolean(!isPickDisplayEmpty && overall === lastFilledPickOverall)}
                           tradedPickColorMode={tradedPickColorMode}
                           showNewOwnerInRed={showNewOwnerInRed}
-                          isDevyRound={devyRounds.includes(round) && !pick.playerName}
-                          isCollegeRound={c2cCollegeRounds.includes(round) && !pick.playerName}
+                          isDevyRound={devyRounds.includes(round) && isPickDisplayEmpty}
+                          isCollegeRound={c2cCollegeRounds.includes(round) && isPickDisplayEmpty}
                           pickHighlight={isCurrentPick ? 'none' : pickHighlight(existing)}
                           emptyCellDirection={emptyCellDirection}
                           onTradeFromCell={
@@ -658,6 +692,11 @@ function DraftBoardInner({
                                     round: pick.round,
                                     originalRosterId: pick.tradedPickMeta!.originalRosterId!,
                                   })
+                              : undefined
+                          }
+                          onCommissionerEditPick={
+                            canCommissionerEditPicks && onCommissionerEditPick
+                              ? () => onCommissionerEditPick(pick.overall)
                               : undefined
                           }
                         />

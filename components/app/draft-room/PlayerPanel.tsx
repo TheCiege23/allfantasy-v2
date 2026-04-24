@@ -7,12 +7,14 @@ import { usePlayerComparisonUIOptional } from '@/components/player-comparison-ui
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { applyDraftFilters, DRAFT_ROOM_I18N_KEYS, getPickConfirmationLabel, getPositionFilterOptionsForSport } from '@/lib/draft-room'
 import { DraftPlayerCard } from './DraftPlayerCard'
+import { NflDraftPoolStatsGroupHeader } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
 import { PlayerDetailModal, type DraftAssistantRoomContext } from './PlayerDetailModal'
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 import { normalizePlayer } from '@/lib/players/normalizePlayer'
 import { DRAFT_ROOM } from '@/lib/analytics/eventNames'
 import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
+import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 
 const PLAYER_ROW_ESTIMATE_HEIGHT = 76
 /** Redraft rows use slightly taller estimate (chips + stats). */
@@ -42,6 +44,8 @@ function isPlayerDraftedEntry(
 
 export type PlayerEntry = {
   id?: string
+  /** Stable sport / provider id when the pool row carries it (may mirror `display.playerId`). */
+  playerId?: string | null
   name: string
   position: string
   team: string | null
@@ -63,6 +67,7 @@ export type PlayerEntry = {
   graduatedToNFL?: boolean
   /** C2C: 'college' | 'pro' for Campus-to-Canton */
   poolType?: 'college' | 'pro'
+  nflDraftProjectionSplits?: NflDraftProjectionSplits | null
 }
 
 export type PlayerPanelProps = {
@@ -215,6 +220,7 @@ function PlayerListVirtualized({
               projectedLandingSpot={p.projectedLandingSpot}
               graduatedToNFL={p.graduatedToNFL}
               poolType={p.poolType}
+              nflDraftProjectionSplits={p.nflDraftProjectionSplits ?? null}
               testId={`draft-player-card-${virtualRow.index}`}
               onSelect={() => onPlayerSelect(p)}
               compareAction={
@@ -882,6 +888,9 @@ function PlayerPanelInner({
                 ? 'not_your_pick'
                 : null
           }
+          nflDraftProjectionSplits={
+            sport === 'NFL' ? (selectedPlayer.nflDraftProjectionSplits ?? null) : null
+          }
         />
       )}
       <div
@@ -945,26 +954,35 @@ function PlayerPanelInner({
             </button>
           </div>
         ) : (
-          <PlayerListVirtualized
-            filtered={filtered}
-            draftedNames={draftedNames}
-            draftedPlayerIds={draftedIdsForRows}
-            presentationVariant={presentationVariant}
-            selectedPlayer={selectedPlayer}
-            isPlayerQueued={isPlayerQueued}
-            canDraft={canDraft}
-            canNominate={canNominate}
-            useAiAdp={useAiAdp}
-            draftSport={sport}
-            onDraftRequest={onMakePick}
-            onAddToQueue={onAddToQueue}
-            onNominateRequest={(player) => setPendingNomination(player)}
-            onPlayerSelect={setSelectedPlayer}
-            scrollRef={scrollRef}
-            compareAnchor={compareAnchor}
-            onCompareTap={onCompareTap}
-            aiRowBadges={aiRowBadges}
-          />
+          <>
+            {rs && sport === 'NFL' ? (
+              <div className="sticky top-0 z-[6] mb-1.5 max-sm:hidden border-b border-cyan-500/25 bg-[#030912]/96 px-2 py-2 backdrop-blur-md sm:block sm:px-3">
+                <div className="overflow-x-auto overscroll-x-contain pl-[52px] [scrollbar-color:rgba(56,189,248,0.35)_rgba(15,23,42,0.5)]">
+                  <NflDraftPoolStatsGroupHeader />
+                </div>
+              </div>
+            ) : null}
+            <PlayerListVirtualized
+              filtered={filtered}
+              draftedNames={draftedNames}
+              draftedPlayerIds={draftedIdsForRows}
+              presentationVariant={presentationVariant}
+              selectedPlayer={selectedPlayer}
+              isPlayerQueued={isPlayerQueued}
+              canDraft={canDraft}
+              canNominate={canNominate}
+              useAiAdp={useAiAdp}
+              draftSport={sport}
+              onDraftRequest={onMakePick}
+              onAddToQueue={onAddToQueue}
+              onNominateRequest={(player) => setPendingNomination(player)}
+              onPlayerSelect={setSelectedPlayer}
+              scrollRef={scrollRef}
+              compareAnchor={compareAnchor}
+              onCompareTap={onCompareTap}
+              aiRowBadges={aiRowBadges}
+            />
+          </>
         )}
       </div>
       {pendingNomination && (

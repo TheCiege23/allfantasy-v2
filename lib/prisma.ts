@@ -80,7 +80,11 @@ function applyNonProdConnectionGuardrails(rawUrl: string): string {
     const parsed = new URL(rawUrl);
     if (!parsed.searchParams.has("connection_limit")) {
       // Keep local/dev and e2e runs from exhausting pooled DB sessions.
-      parsed.searchParams.set("connection_limit", "1");
+      // Note: 1 causes deadlocks when a service starts a $transaction and any
+      // inner helper (e.g. resolveDraftPickPresentation) uses the global
+      // `prisma` client for reads — it waits for a 2nd connection the pool
+      // will never give it. 5 is safe for Neon free-tier + a few retries.
+      parsed.searchParams.set("connection_limit", "5");
     }
     if (!parsed.searchParams.has("pool_timeout")) {
       parsed.searchParams.set("pool_timeout", "30");

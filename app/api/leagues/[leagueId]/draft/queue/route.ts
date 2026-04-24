@@ -83,18 +83,19 @@ export async function PUT(
     normalizeQueueEntries(queue, queueSizeLimit)
   )
 
+  const { draftPoolRowMatchesEligiblePositions } = await import('@/lib/draft-room/draft-pool-eligible-positions')
   const { getAllowedPositionsAndRosterSize } = await import('@/lib/live-draft-engine/RosterFitValidation')
   const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
-  if (rosterRules?.allowedPositions) {
+  if (rosterRules?.draftEligiblePositions?.size) {
     const invalid = normalized.filter((e: { position: string }) => {
-      const pos = (e.position ?? '').trim().toUpperCase()
-      return pos && !rosterRules!.allowedPositions.has(pos)
+      const pos = (e.position ?? '').trim()
+      return pos && !draftPoolRowMatchesEligiblePositions(pos, rosterRules!.draftEligiblePositions)
     })
     if (invalid.length > 0) {
       const positions = [...new Set(invalid.map((e: { position: string }) => (e.position || '').trim() || '?'))]
       return NextResponse.json(
         {
-          error: `Queue contains players with positions not allowed in this league: ${positions.join(', ')}. Allowed positions: ${[...rosterRules.allowedPositions].sort().join(', ')}.`,
+          error: `Queue contains players with positions not starter-eligible for this draft: ${positions.join(', ')}. Allowed positions: ${[...rosterRules.draftEligiblePositions].sort().join(', ')}.`,
         },
         { status: 400 }
       )

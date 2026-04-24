@@ -245,3 +245,47 @@ export async function loadRollingInsightsSeasonByDraftPoolKey(options: {
 
   return { identityByPoolKey, riSeasonByPlayerId }
 }
+
+export type RollingInsightsStatsDetailRow = {
+  stats: unknown
+  fantasyPoints: number | null
+  fantasyPointsPerGame: number | null
+}
+
+/**
+ * Full RI season row (including `stats` JSON splits) keyed by Rolling Insights player id.
+ * Latest row per playerId wins (same ordering rules as season slice loader).
+ */
+export async function loadRollingInsightsStatsDetailByPlayerIds(
+  playerIds: string[],
+): Promise<Map<string, RollingInsightsStatsDetailRow>> {
+  const out = new Map<string, RollingInsightsStatsDetailRow>()
+  if (playerIds.length === 0) return out
+
+  const statsRows = await prisma.playerSeasonStats.findMany({
+    where: {
+      sport: 'NFL',
+      source: 'rolling_insights',
+      seasonType: 'regular',
+      playerId: { in: playerIds },
+    },
+    select: {
+      playerId: true,
+      stats: true,
+      fantasyPoints: true,
+      fantasyPointsPerGame: true,
+      updatedAt: true,
+    },
+  })
+
+  const sorted = [...statsRows].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+  for (const row of sorted) {
+    if (out.has(row.playerId)) continue
+    out.set(row.playerId, {
+      stats: row.stats,
+      fantasyPoints: row.fantasyPoints ?? null,
+      fantasyPointsPerGame: row.fantasyPointsPerGame ?? null,
+    })
+  }
+  return out
+}

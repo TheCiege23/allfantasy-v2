@@ -1,6 +1,6 @@
 /**
- * Helpers for filtering draft pool rows against a resolved set of allowed positions
- * (see `getEffectiveLeagueRosterTemplate` → `allowedPositions`).
+ * Helpers for filtering draft pool rows against starter-eligible positions
+ * (`getDraftEligiblePositionsFromPayload` / `starterEligiblePlayerPositionsFromTemplate`), not the full bench/IR union.
  */
 
 import { normalizePositionToken } from '@/lib/auto-sub-lineup-engine/normalize-position'
@@ -27,4 +27,16 @@ export function draftPoolRowMatchesEligiblePositions(
   if (eligible.has(norm)) return true
   if (norm === 'DST' && eligible.has('DEF')) return true
   return false
+}
+
+/**
+ * Draft queue / autopick: preserve order; drop entries whose position is not starter-eligible.
+ * When `draftEligiblePositions` is null, undefined, or empty, returns a copy of `entries` (no gate).
+ */
+export function filterEntriesByDraftEligiblePositions<T extends { position?: string | null }>(
+  entries: readonly T[],
+  draftEligiblePositions: Set<string> | null | undefined,
+): T[] {
+  if (!draftEligiblePositions?.size) return [...entries]
+  return entries.filter((e) => draftPoolRowMatchesEligiblePositions(e.position, draftEligiblePositions))
 }

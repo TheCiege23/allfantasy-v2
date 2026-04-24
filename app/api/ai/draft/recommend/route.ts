@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { runDraftWarRoomRecommendation, type DraftWarRoomInput, type WarRoomPlayer } from '@/lib/ai/aiDraftHelper'
 import { assertLeagueAccess } from '@/lib/ai/league-settings-ai/access'
+import { getDraftEligiblePositionsFromPayload, getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,11 +21,14 @@ export async function POST(req: Request) {
   }
 
   const leagueId = typeof body.leagueId === 'string' ? body.leagueId.trim() : ''
+  let draftEligibleFromLeague: Set<string> | undefined
   if (leagueId) {
     const league = await assertLeagueAccess(leagueId, session.user.id)
     if (!league) {
       return NextResponse.json({ ok: false, error: 'League not found or forbidden' }, { status: 403 })
     }
+    const payload = await getLeagueDraftTemplatePayload(leagueId).catch(() => null)
+    if (payload) draftEligibleFromLeague = getDraftEligiblePositionsFromPayload(payload)
   }
 
   const available = Array.isArray(body.availablePlayers) ? body.availablePlayers : body.available
@@ -65,6 +69,7 @@ export async function POST(req: Request) {
     rosterSlots: rosterSlots.map(String),
     aiAdpByKey: body.aiAdpByKey && typeof body.aiAdpByKey === 'object' ? (body.aiAdpByKey as Record<string, number>) : undefined,
     mode: body.mode === 'bpa' ? 'bpa' : 'needs',
+    ...(draftEligibleFromLeague ? { draftEligiblePositions: draftEligibleFromLeague } : {}),
   }
 
   try {

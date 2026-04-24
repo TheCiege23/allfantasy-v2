@@ -120,7 +120,7 @@ export function DraftWarRoom({
         sport,
         display: entry?.display ?? undefined,
       })
-      return getPlayerImage(n)
+      return getPlayerImage(n, sport)
     },
     [resolvePlayerEntry, sport],
   )

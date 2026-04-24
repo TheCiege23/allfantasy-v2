@@ -25,6 +25,8 @@ export function resolvePickAnnouncementAssets(
   pick: DraftPickSnapshot,
   players: PlayerEntry[],
 ): PickAnnouncementAssets {
+  const persistedHeadshot = pick.playerImageUrl?.trim() || null
+
   const pid = normalizeId(pick.playerId)
   const match =
     (pid
@@ -41,6 +43,7 @@ export function resolvePickAnnouncementAssets(
     )
 
   const headshotUrl =
+    persistedHeadshot ??
     match?.display?.assets?.headshotUrl ??
     match?.display?.assets?.headshotFallbackUrl ??
     null

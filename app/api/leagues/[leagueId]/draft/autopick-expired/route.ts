@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { resolveBestAvailableAutopickCandidate } from '@/lib/live-draft-engine/autopickBestAvailableSubmit'
+import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
 import {
   notifyDraftIntelOnClockUrgent,
   notifyDraftIntelPickConfirmation,
@@ -71,10 +72,15 @@ export async function POST(
   const tradedPicks = Array.isArray(draftSession.tradedPicks) ? (draftSession.tradedPicks as { round: number; originalRosterId: string; previousOwnerName: string; newRosterId: string; newOwnerName: string }[]) : []
   const teamCount = draftSession.teamCount
   const totalPicks = draftSession.rounds * teamCount
-  const picksCount = draftSession.picks.length
+  const progressPicks = draftSession.picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+  }))
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picksCount,
+    picks: progressPicks,
     teamCount,
     draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: draftSession.thirdRoundReversal,
@@ -89,18 +95,22 @@ export async function POST(
 
   const queueRow = draftSession.queues.find((q) => q.userId === userId)
   const order = (queueRow?.order as Array<{ playerName: string; position: string; team?: string | null; playerId?: string | null }>) ?? []
-  const draftedNames = new Set(draftSession.picks.map((p) => p.playerName.trim().toLowerCase()))
+  const draftedNames = new Set(
+    draftSession.picks
+      .filter((p) => !isDraftPickRowEmpty(p))
+      .map((p) => p.playerName.trim().toLowerCase()),
+  )
   const availableInQueue = order.filter(
     (e) => e.playerName && !draftedNames.has(e.playerName.trim().toLowerCase())
   )
   const queueHadUnavailableEntries = order.length > 0 && availableInQueue.length < order.length
 
+  const { filterEntriesByDraftEligiblePositions } = await import('@/lib/draft-room/draft-pool-eligible-positions')
   const { getAllowedPositionsAndRosterSize } = await import('@/lib/live-draft-engine/RosterFitValidation')
   const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
-  const allowedPositions = rosterRules?.allowedPositions
-  const firstAvailable = allowedPositions
-    ? availableInQueue.find((e) => e.position && allowedPositions.has((e.position || '').trim().toUpperCase()))
-    : availableInQueue[0]
+  const draftEligiblePositions = rosterRules?.draftEligiblePositions
+  const eligibleInQueue = filterEntriesByDraftEligiblePositions(availableInQueue, draftEligiblePositions)
+  const firstAvailable = eligibleInQueue[0]
 
   const draftConfig = await getDraftConfigForLeague(leagueId)
   const autopickBehavior = String(draftConfig?.autopick_behavior ?? 'queue-first').toLowerCase()
@@ -155,7 +165,7 @@ export async function POST(
       if (!resolved) {
         return NextResponse.json(
           {
-            error: allowedPositions
+            error: draftEligiblePositions?.size
               ? 'No eligible fallback players available for auto-pick. Add queue players or make a manual pick.'
               : 'No fallback players available for auto-pick. Add queue players or make a manual pick.',
           },

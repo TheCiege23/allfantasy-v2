@@ -13,6 +13,7 @@ import {
 } from '@/server/services/leagueLifecycleService'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
+import { isDraftPickRowEmpty, resolveNextOpenPickOverall } from './draftPickEmpty'
 import { resolvePickOwner } from './PickOwnershipResolver'
 import { computeTimerState, computeTimerStateWithPauseWindow } from './DraftTimerService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
@@ -260,12 +261,18 @@ export async function buildSessionSnapshot(
   const teamCount = session.teamCount
   const totalPicks = session.rounds * teamCount
   const picksCount = session.picks.length
+  const progressPicks = session.picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+  }))
   const tradedPicks: TradedPickRecord[] = Array.isArray(session.tradedPicks)
     ? (session.tradedPicks as unknown as TradedPickRecord[])
     : []
   let currentPick = resolveCurrentOnTheClock({
     totalPicks,
-    picksCount,
+    picks: progressPicks,
     teamCount,
     draftType: session.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: session.thirdRoundReversal,
@@ -315,6 +322,11 @@ export async function buildSessionSnapshot(
       }
       tradedMeta = resolved as DraftPickSnapshot['tradedPickMeta']
     }
+    const pickEditorEmpty = isDraftPickRowEmpty({
+      playerName: p.playerName,
+      position: p.position,
+      pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+    })
     return {
     id: p.id,
     overall: p.overall,
@@ -327,6 +339,8 @@ export async function buildSessionSnapshot(
     team: p.team,
     byeWeek: p.byeWeek,
     playerId: p.playerId,
+    playerImageUrl: (p as { playerImageUrl?: string | null }).playerImageUrl ?? null,
+    ...(pickEditorEmpty ? { pickEditorEmpty: true as const } : {}),
     tradedPickMeta: tradedMeta,
     source: p.source ?? 'user',
     pickLabel: formatPickLabel(p.overall, teamCount),
@@ -357,7 +371,7 @@ export async function buildSessionSnapshot(
     const auctionNominator =
       slotOrder[((Math.max(0, auctionState.nominationOrderIndex) % Math.max(1, slotOrder.length)) + Math.max(1, slotOrder.length)) % Math.max(1, slotOrder.length)]
     if (auctionNominator) {
-      const overall = picksCount + 1
+      const overall = resolveNextOpenPickOverall(progressPicks, totalPicks) ?? picksCount + 1
       const round = Math.ceil(overall / teamCount)
       currentPick = {
         overall,
@@ -718,8 +732,14 @@ export async function completeDraftSession(leagueId: string): Promise<boolean> {
     }
 
     const totalPicks = session.rounds * session.teamCount
-    const count = await tx.draftPick.count({ where: { sessionId: session.id } })
-    if (count < totalPicks) return { ok: false as const, transitioned: false as const, lifecycle: null }
+    const pickRows = await tx.draftPick.findMany({
+      where: { sessionId: session.id },
+      select: { overall: true, playerName: true, position: true, pickMetadata: true },
+    })
+    const { isDraftBoardFull } = await import('./draftPickEmpty')
+    if (!isDraftBoardFull(pickRows as any, totalPicks)) {
+      return { ok: false as const, transitioned: false as const, lifecycle: null }
+    }
 
     const completedAt = session.completedAt ?? new Date()
     await tx.draftSession.update({

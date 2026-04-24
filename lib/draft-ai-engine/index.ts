@@ -25,6 +25,8 @@ export interface DraftAIAssistInput {
   isDynasty: boolean
   isSF: boolean
   mode: 'bpa' | 'needs'
+  /** Same starter-eligible set as draft pool / autopick (omit bench-only union). */
+  draftEligiblePositions?: ReadonlySet<string>
   aiAdpByKey?: Record<string, number>
   byeByKey?: Record<string, number>
 }
@@ -111,6 +113,7 @@ export async function runDraftAIAssist(
     isDynasty: input.isDynasty,
     isSF: input.isSF,
     mode: input.mode,
+    draftEligiblePositions: input.draftEligiblePositions,
     aiAdpByKey: input.aiAdpByKey,
     byeByKey: input.byeByKey,
   })

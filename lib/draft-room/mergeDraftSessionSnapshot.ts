@@ -1,12 +1,20 @@
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
-import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
+import { isDraftBoardFull } from '@/lib/live-draft-engine/draftPickEmpty'
+import type { DraftPickSnapshot, DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
+
+function snapshotPicksToProgress(picks: DraftPickSnapshot[]) {
+  return picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: p.pickEditorEmpty ? { pickEditorEmpty: true } : null,
+  }))
+}
 
 function draftNeedsClock(s: DraftSessionSnapshot): boolean {
   const total = Math.max(0, s.rounds * s.teamCount)
-  return (
-    (s.status === 'in_progress' || s.status === 'paused') &&
-    (s.picks?.length ?? 0) < total
-  )
+  const picks = snapshotPicksToProgress(s.picks ?? [])
+  return (s.status === 'in_progress' || s.status === 'paused') && !isDraftBoardFull(picks, total)
 }
 
 function slotOrderLooksComplete(slotOrder: DraftSessionSnapshot['slotOrder'] | undefined, teamCount: number): boolean {
@@ -19,7 +27,7 @@ function inferCurrentPickFromSnapshot(s: DraftSessionSnapshot) {
   const total = Math.max(0, rounds * tc)
   return resolveCurrentOnTheClock({
     totalPicks: total,
-    picksCount: s.picks?.length ?? 0,
+    picks: snapshotPicksToProgress(s.picks ?? []),
     teamCount: tc,
     draftType: s.draftType,
     thirdRoundReversal: s.thirdRoundReversal,

@@ -23,7 +23,9 @@ import { runSlowDraftAutomationTick } from '@/lib/live-draft-engine/slow-draft/S
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { appendPickToRosterDraftSnapshot, finalizeRosterAssignments } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
+import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
+import { draftPoolRowMatchesEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
 import { getAllowedPositionsAndRosterSize } from '@/lib/live-draft-engine/RosterFitValidation'
 import { rosterConfigurationIncompleteBody } from '@/lib/league/roster-configuration-gate-error'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
@@ -218,10 +220,15 @@ export async function POST(
         : []
       const teamCount = draftSession.teamCount
       const totalPicks = draftSession.rounds * teamCount
-      const picksCount = draftSession.picks.length
+      const progressPicks = draftSession.picks.map((p) => ({
+        overall: p.overall,
+        playerName: p.playerName,
+        position: p.position,
+        pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+      }))
       const current = resolveCurrentOnTheClock({
         totalPicks,
-        picksCount,
+        picks: progressPicks,
         teamCount,
         draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
         thirdRoundReversal: draftSession.thirdRoundReversal,
@@ -236,8 +243,12 @@ export async function POST(
       }
 
       const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
-      const allowedPositions = rosterRules?.allowedPositions
-      const draftedNames = new Set(draftSession.picks.map((pick) => normalizeName(pick.playerName)))
+      const draftEligiblePositions = rosterRules?.draftEligiblePositions
+      const draftedNames = new Set(
+        draftSession.picks
+          .filter((pick) => !isDraftPickRowEmpty(pick))
+          .map((pick) => normalizeName(pick.playerName)),
+      )
       const uniqueKey = (candidate: AutoPickCandidate) =>
         `${normalizeName(candidate.playerName)}|${String(candidate.position ?? '').trim().toUpperCase()}`
       const seenKeys = new Set<string>()
@@ -246,7 +257,12 @@ export async function POST(
       const pushCandidate = (candidate: AutoPickCandidate | null | undefined) => {
         if (!candidate?.playerName || !candidate.position) return
         if (draftedNames.has(normalizeName(candidate.playerName))) return
-        if (allowedPositions && !allowedPositions.has(candidate.position.trim().toUpperCase())) return
+        if (
+          draftEligiblePositions?.size &&
+          !draftPoolRowMatchesEligiblePositions(candidate.position, draftEligiblePositions)
+        ) {
+          return
+        }
         const key = uniqueKey(candidate)
         if (seenKeys.has(key)) return
         seenKeys.add(key)

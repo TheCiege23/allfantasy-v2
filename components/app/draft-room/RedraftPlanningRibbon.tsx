@@ -11,6 +11,8 @@ export type RedraftPlanningRibbonProps = {
   backToBackSoon: boolean
   /** Session has no viewer roster mapping — prompts claim flow instead of generic “waiting”. */
   viewerRosterMissing?: boolean
+  /** Mounts ribbon before Start so board stack height matches live draft (layout parity). */
+  preDraft?: boolean
 }
 
 export function RedraftPlanningRibbon({
@@ -20,6 +22,7 @@ export function RedraftPlanningRibbon({
   thirdRoundReversal,
   backToBackSoon,
   viewerRosterMissing = false,
+  preDraft = false,
 }: RedraftPlanningRibbonProps) {
   const untilLabel =
     picksUntilUser == null
@@ -39,7 +42,11 @@ export function RedraftPlanningRibbon({
     >
       <div className="flex flex-wrap items-center gap-2">
         <Clock className="h-3.5 w-3.5 shrink-0 text-cyan-300/90" aria-hidden />
-        {userOnClock ? (
+        {preDraft ? (
+          <span className="font-medium text-white/90">
+            Pre-draft — same board below; only status and timers change when the commissioner starts.
+          </span>
+        ) : userOnClock ? (
           <span className="font-semibold text-cyan-100">You are on the clock</span>
         ) : untilLabel ? (
           <span className="font-medium text-white/90">{untilLabel}</span>
@@ -52,7 +59,7 @@ export function RedraftPlanningRibbon({
         )}
       </div>
 
-      {backToBackSoon && !userOnClock ? (
+      {backToBackSoon && !userOnClock && !preDraft ? (
         <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-100">
           <ArrowRightLeft className="h-3 w-3" aria-hidden />
           Back-to-back picks coming — plan both slots

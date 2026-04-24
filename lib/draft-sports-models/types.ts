@@ -5,6 +5,7 @@
  */
 
 import type { LeagueSport } from '@prisma/client'
+import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 
 export type DraftSport = LeagueSport
 
@@ -119,4 +120,6 @@ export interface NormalizedDraftEntry {
   graduatedToNFL?: boolean
   /** C2C: explicit pool for Campus-to-Canton (college vs pro) */
   poolType?: 'college' | 'pro'
+  /** NFL: season projections + splits for draft grid (optional). */
+  nflDraftProjectionSplits?: NflDraftProjectionSplits | null
 }

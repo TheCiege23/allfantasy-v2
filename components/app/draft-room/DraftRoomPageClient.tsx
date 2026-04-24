@@ -79,8 +79,11 @@ import { sendProductAnalyticsBeacon } from '@/lib/analytics/client'
 import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import { computePicksUntilViewerTurn } from '@/lib/draft-room/computePicksUntilViewer'
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
+import { CommissionerPickEditorPanel, type CommissionerPickEditorPlayerOption } from '@/components/app/draft-room/CommissionerPickEditorPanel'
+import { CommissionerAuditLogList } from '@/components/app/draft-room/CommissionerAuditLogList'
+import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPickEmpty'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
-import { deriveDraftRoomGateState } from '@/lib/draft-room/draftRoomGateState'
+import { buildDraftRoomPageDerivedState } from '@/lib/draft-room/buildDraftRoomPageDerivedState'
 import { LEAGUE_DRAFT_ROOM_REVALIDATE } from '@/lib/draft-room/emitLeagueDraftRoomRevalidate'
 import { filterPlayersAvailableForDraftAi } from '@/lib/draft-room/availableForDraftAi'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
@@ -220,7 +223,7 @@ export function DraftRoomPageClient({
   formatType,
   presentationVariant = 'default',
 }: DraftRoomPageClientProps) {
-  type CenterDockTab = 'queue' | 'chat' | 'ai'
+  type CenterDockTab = 'queue' | 'chat' | 'ai' | 'commish'
   const { data: authSession } = useSession()
   const viewerAppUserId = (authSession?.user as { id?: string } | undefined)?.id ?? null
   const [session, setSession] = useState<DraftSessionSnapshot | null>(null)
@@ -290,6 +293,12 @@ export function DraftRoomPageClient({
   const [draftAiExplanationEnabled, setDraftAiExplanationEnabled] = useState(false)
   const [mobileTab, setMobileTabState] = useState<MobileDraftTab>('board')
   const [centerDockTab, setCenterDockTab] = useState<CenterDockTab>('queue')
+  const [commissionerEditOverall, setCommissionerEditOverall] = useState<number | null>(null)
+  const openCommissionerPickEditor = useCallback((overall: number) => {
+    if (!Number.isFinite(overall) || overall < 1) return
+    setCommissionerEditOverall(Math.floor(overall))
+    setCenterDockTab('commish')
+  }, [])
   const floatingHelperState = useDraftHelperFloatingState()
   const setMobileTab = useCallback((tab: MobileDraftTab) => {
     sendProductAnalyticsBeacon(DRAFT_ROOM.MOBILE_TAB, { tab, leagueId })
@@ -490,6 +499,7 @@ export function DraftRoomPageClient({
             projectedLandingSpot: e.projectedLandingSpot ?? e.display?.metadata?.projectedLandingSpot ?? null,
             graduatedToNFL: e.graduatedToNFL,
             poolType: e.poolType,
+            nflDraftProjectionSplits: e.nflDraftProjectionSplits ?? null,
           }
         })
       : rawEntries.map((e: any) => {
@@ -512,6 +522,38 @@ export function DraftRoomPageClient({
           }
         })
   }, [draftPool, draftData, aiAdpLookupMaps, draftUISettings?.aiAdpEnabled])
+
+  const commissionerPickEditorPlayers: CommissionerPickEditorPlayerOption[] = useMemo(() => {
+    const filledPicks = (session?.picks ?? []).filter(
+      (p) =>
+        !isDraftPickRowEmptyFromSnapshot({
+          playerName: p.playerName,
+          position: p.position,
+          pickMetadata: (p as { pickMetadata?: unknown }).pickMetadata,
+          pickEditorEmpty: p.pickEditorEmpty,
+        }),
+    )
+    const draftedNameSet = new Set(filledPicks.map((p) => p.playerName.trim().toLowerCase()).filter(Boolean))
+    const draftedIdSet = new Set(
+      filledPicks.map((p) => String(p.playerId ?? '').trim()).filter(Boolean),
+    )
+    return players
+      .filter((p) => {
+        if (!p.name || !p.position) return false
+        const pid = String(p.playerId ?? p.id ?? '').trim()
+        if (pid && draftedIdSet.has(pid)) return false
+        return !draftedNameSet.has(p.name.trim().toLowerCase())
+      })
+      .slice(0, 500)
+      .map((p) => ({
+        id: p.playerId ?? p.id ?? p.name,
+        name: p.name,
+        position: p.position,
+        team: p.team ?? null,
+        byeWeek: p.byeWeek ?? null,
+        imageUrl: p.display?.assets?.headshotUrl ?? null,
+      }))
+  }, [players, session?.picks])
 
   useEffect(() => {
     roundOneSeenPickIdsRef.current.clear()
@@ -697,10 +739,16 @@ export function DraftRoomPageClient({
       auctionNom?.auctionState?.currentNomination != null,
   )
 
-  const draftGate = useMemo(
+  const draftRoomState = useMemo(
     () =>
-      deriveDraftRoomGateState({
+      buildDraftRoomPageDerivedState({
         session,
+        draftCore,
+        currentPick,
+        players,
+        draftedNames,
+        draftedPlayerIds,
+        isCommissioner,
         rosterConfigurationIncomplete: rosterConfigBlocked,
         rosterConfigurationMessage: session?.rosterConfigurationMessage ?? null,
         snakeCanDraft: snakeCanDraftRaw,
@@ -709,14 +757,21 @@ export function DraftRoomPageClient({
       }),
     [
       session,
+      draftCore,
+      currentPick,
+      players,
+      draftedNames,
+      draftedPlayerIds,
+      isCommissioner,
       rosterConfigBlocked,
+      session?.rosterConfigurationMessage,
       snakeCanDraftRaw,
       isMyTurnToNominateDraft,
       auctionCanBidRaw,
     ],
   )
 
-  const canDraft = draftGate.canDraft
+  const canDraft = draftRoomState.canDraft
 
   useEffect(() => {
     if (!session) return
@@ -735,7 +790,7 @@ export function DraftRoomPageClient({
       isCurrentUserOnClock,
       canDraft,
       pickSubmitting,
-      timerMode: draftGate.timerMode,
+      timerMode: draftRoomState.timerMode,
       timerStatus: session.timer?.status,
       timerEndAt: session.timer?.timerEndAt ?? session.timerEndAt ?? null,
       sessionVersion: session.version,
@@ -750,7 +805,7 @@ export function DraftRoomPageClient({
     currentUserRosterId,
     isCurrentUserOnClock,
     canDraft,
-    draftGate.timerMode,
+    draftRoomState.timerMode,
     pickSubmitting,
   ])
 
@@ -2261,7 +2316,15 @@ export function DraftRoomPageClient({
           return
         }
       }
-      const stablePlayerId = player.display?.playerId ?? player.id ?? null
+      const rawDisplayPid = player.display?.playerId?.trim()
+      const rawEntryPid = player.playerId?.trim()
+      const stablePlayerId =
+        rawDisplayPid && !rawDisplayPid.includes(':')
+          ? rawDisplayPid
+          : rawEntryPid && !rawEntryPid.includes(':')
+            ? rawEntryPid
+            : rawDisplayPid ?? rawEntryPid ?? null
+      const playerImageUrl = player.display?.assets?.headshotUrl?.trim() || null
       if (!isPickCommitAllowedByName({ canDraft: true, playerName: player.name, draftedNames })) {
         setPickError('That player is already drafted.')
         return
@@ -2292,6 +2355,7 @@ export function DraftRoomPageClient({
             team: player.team ?? null,
             byeWeek: player.byeWeek ?? null,
             playerId: stablePlayerId,
+            playerImageUrl,
             pickMetadata: {
               isRookie: note.includes('rookie') ? true : undefined,
             },
@@ -2707,7 +2771,15 @@ export function DraftRoomPageClient({
   )
 
   const redraftRibbonOnDeck = useMemo(() => {
-    if (!session || !currentPick || (session.status !== 'in_progress' && session.status !== 'paused')) return []
+    if (!session) return []
+    if (session.status === 'pre_draft') {
+      const order = session.slotOrder ?? []
+      return order.slice(0, 4).map((s) => ({
+        slot: s.slot,
+        displayName: s.displayName?.trim() ? s.displayName : `Team ${s.slot}`,
+      }))
+    }
+    if (!currentPick || (session.status !== 'in_progress' && session.status !== 'paused')) return []
     const total = session.rounds * session.teamCount
     const next = currentPick.overall + 1
     if (next > total) return []
@@ -3181,7 +3253,7 @@ export function DraftRoomPageClient({
         draftedPlayerIds={draftedPlayerIds}
         presentationVariant={presentationVariant === 'redraft_snake' ? 'redraft_snake' : 'default'}
         sport={effectiveDraftSport}
-        canDraft={!isAuctionDraft && canDraft}
+        canDraft={!draftRoomState.isAuction && canDraft}
         onAddToQueue={handleAddToQueue}
         onMakePick={handleMakePick}
         currentRoster={currentRoster}
@@ -3191,8 +3263,8 @@ export function DraftRoomPageClient({
         aiAdpUnavailableMessage={leagueAiAdp?.message ?? null}
         aiAdpStaleWarning={aiAdpStaleWarning}
         aiAdpLowSampleWarning={aiAdpLowSampleWarning}
-        canNominate={isAuctionDraft ? draftGate.canNominate : false}
-        onNominate={isAuctionDraft ? handleAuctionNominate : undefined}
+        canNominate={draftRoomState.isAuction ? draftRoomState.canNominate : false}
+        onNominate={draftRoomState.isAuction ? handleAuctionNominate : undefined}
         devyConfig={
           draftPool?.devyConfig
             ? draftPool.devyConfig
@@ -3231,8 +3303,8 @@ export function DraftRoomPageClient({
       draftedPlayerIds,
       queue,
       effectiveDraftSport,
-      isAuctionDraft,
-      draftGate.canNominate,
+      draftRoomState.isAuction,
+      draftRoomState.canNominate,
       canDraft,
       handleAddToQueue,
       handleMakePick,
@@ -3247,6 +3319,7 @@ export function DraftRoomPageClient({
       draftPool?.devyConfig,
       draftPool?.c2cConfig,
       session,
+      draftRoomState.isAuction,
       formatType,
       helperSelectedPlayer,
       leagueId,
@@ -3576,11 +3649,8 @@ export function DraftRoomPageClient({
     )
   }
 
-  const isAuction = session.draftType === 'auction'
   const auctionSnapshot = (session as any).auction
-  const currentAuctionNominator = auctionSnapshot?.nominationOrder?.[auctionSnapshot?.auctionState?.nominationOrderIndex ?? 0]
-  const isMyTurnToNominate = isAuction && currentUserRosterId != null && currentAuctionNominator?.rosterId === currentUserRosterId
-  const isDraftCompleted = session.status === 'completed'
+  const isDraftCompleted = draftRoomState.isDraftCompleted
   /** Prevent blank board loop when corrupted API rows have rounds/teamCount = 0 */
   const safeBoardRounds = Math.max(1, session.rounds ?? 1)
   const safeBoardTeamCount = Math.max(1, session.teamCount ?? 1)
@@ -3889,7 +3959,7 @@ export function DraftRoomPageClient({
             <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
               <div className="flex h-full min-h-0 w-full flex-col" data-testid="draft-bottom-dock-tabs">
                 <div
-                  className={`grid grid-cols-3 gap-1 border-b px-2 py-1.5 ${
+                  className={`grid ${isCommissioner ? 'grid-cols-4' : 'grid-cols-3'} gap-1 border-b px-2 py-1.5 ${
                     presentationVariant === 'redraft_snake'
                       ? 'border-cyan-500/15 bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(5,12,24,0.98))] shadow-[inset_0_1px_0_rgba(34,211,238,0.08)]'
                       : 'border-white/8 bg-[#0a1228]'
@@ -3937,6 +4007,20 @@ export function DraftRoomPageClient({
                   >
                     AI
                   </button>
+                  {isCommissioner ? (
+                    <button
+                      type="button"
+                      onClick={() => setCenterDockTab('commish')}
+                      data-testid="draft-bottom-tab-commish"
+                      className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${
+                        centerDockTab === 'commish'
+                          ? 'bg-white/12 text-amber-100'
+                          : 'text-white/55 hover:bg-white/5'
+                      }`}
+                    >
+                      Commish Edit
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-hidden">
@@ -4014,6 +4098,27 @@ export function DraftRoomPageClient({
                       )}
                     </div>
                   ) : null}
+
+                  {centerDockTab === 'commish' && isCommissioner ? (
+                    <div className="flex h-full flex-col gap-2 overflow-auto px-1.5 py-1" data-testid="draft-bottom-commish-panel">
+                      <CommissionerPickEditorPanel
+                        leagueId={leagueId}
+                        session={session}
+                        players={commissionerPickEditorPlayers}
+                        selectedOverall={commissionerEditOverall}
+                        onSelectedOverallConsumed={() => setCommissionerEditOverall(null)}
+                        onSnapshotUpdated={(next) => {
+                          setSession((prev) => mergeDraftSessionSnapshot(prev, next))
+                          setGovernanceBanner({ variant: 'success', message: 'Pick updated. Draft remains paused.' })
+                        }}
+                      />
+                      <CommissionerAuditLogList
+                        leagueId={leagueId}
+                        slotOrder={session?.slotOrder}
+                        refreshKey={session?.version}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -4048,7 +4153,7 @@ export function DraftRoomPageClient({
               </button>
             </div>
           ) : null}
-          {session?.rosterConfigurationIncomplete ? (
+          {draftRoomState.rosterConfigurationIncomplete ? (
             <div
               role="alert"
               aria-live="assertive"
@@ -4057,7 +4162,7 @@ export function DraftRoomPageClient({
             >
               <span className="font-semibold text-rose-100">Roster configuration incomplete.</span>
               <span className="text-rose-100/90">
-                {draftGate.rosterConfigurationMessage ??
+                {draftRoomState.rosterConfigurationMessage ??
                   'The commissioner must save roster slots in league settings before drafting. The pick clock and player picks stay disabled until this is fixed.'}
               </span>
             </div>
@@ -4135,15 +4240,9 @@ export function DraftRoomPageClient({
             currentManagerOnClock={currentPick?.displayName ?? null}
             pickLabel={currentPick?.pickLabel ?? null}
             overallPickNumber={currentPick?.overall ?? null}
-            timerStatus={draftGate.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
-            timerRemainingSeconds={draftGate.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)}
-            timerEndAtIso={
-              draftGate.timerMode === 'blocked'
-                ? null
-                : draftCore?.timerEndAt
-                  ? draftCore.timerEndAt
-                  : (session.timer?.timerEndAt ?? null)
-            }
+            timerStatus={draftRoomState.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
+            timerRemainingSeconds={draftRoomState.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)}
+            timerEndAtIso={draftRoomState.timerEndAt}
             timerSeconds={session.timerSeconds ?? null}
             timerMode={draftUISettings?.timerMode ?? 'per_pick'}
             autoPickEnabled={autoPickEnabled}
@@ -4153,7 +4252,7 @@ export function DraftRoomPageClient({
             onCopyInvite={(source) => {
               void handleCopyInvite(source)
             }}
-            onStartDraft={isCommissioner && session.status === 'pre_draft' ? () => void handleStartDraft() : undefined}
+            onStartDraft={draftRoomState.canStart ? () => void handleStartDraft() : undefined}
             onPause={() => void handleCommissionerAction('pause')}
             onResume={() => void handleCommissionerAction('resume')}
             onResetTimer={() => void handleCommissionerResetTimer()}
@@ -4171,7 +4270,7 @@ export function DraftRoomPageClient({
             onTradesClick={openPickTradePanel}
             pendingTradesCount={pendingTradesCount}
             showUseQueue={
-              !isAuction &&
+              !draftRoomState.isAuction &&
               autoPickEnabled &&
               session.timer?.status === 'expired' &&
               isCurrentUserOnClock &&
@@ -4196,17 +4295,13 @@ export function DraftRoomPageClient({
           style={draftBoardSurfaceStyle}
         >
           {/*
-            Full-width chrome lives in the outer column only. Do not place these inside the same
-            lg:flex-row as LiveDraftStatusColumn + board: a first child with w-full in a row flex
-            consumes 100% width and collapses the board to zero — only visible once the redraft ribbon
-            mounts at in_progress (paused had no ribbon and avoided the bug).
+            Full-width chrome stays above the lg:flex-row (LiveDraftStatusColumn + board).
+            Mount for pre_draft too on redraft_snake so Start does not jump the board stack height.
           */}
-          {presentationVariant === 'redraft_snake' &&
-          !isDynasty &&
-          (session.status === 'in_progress' || session.status === 'paused') &&
-          !isDraftCompleted ? (
+          {presentationVariant === 'redraft_snake' && !isDynasty && !isDraftCompleted ? (
             <div className="w-full shrink-0">
               <RedraftPlanningRibbon
+                preDraft={session.status === 'pre_draft'}
                 picksUntilUser={ribbonPicksUntilUser}
                 userOnClock={isCurrentUserOnClock}
                 onDeck={redraftRibbonOnDeck}
@@ -4268,7 +4363,7 @@ export function DraftRoomPageClient({
               poolPreview={draftPool?.entries ?? null}
               onPoolPreviewSelect={handlePoolPreviewSelect}
               poolSelectDisabled={pickSubmitting || !isCurrentUserOnClock}
-              showTimer={!isAuction && !isDraftCompleted}
+              showTimer={draftRoomState.sidebarTimerVisible}
               hideFullDraftOrderList={session.draftType === 'snake'}
               viewerRosterId={currentUserRosterId ?? null}
               viewerRosterPicks={(session.picks ?? []).filter((p) => p.rosterId === currentUserRosterId)}
@@ -4317,6 +4412,10 @@ export function DraftRoomPageClient({
                     })
                     setTradeHistoryOpen(true)
                   }}
+                  canCommissionerEditPicks={
+                    isCommissioner && session?.status === 'paused' && session?.draftType !== 'auction'
+                  }
+                  onCommissionerEditPick={isCommissioner ? openCommissionerPickEditor : undefined}
                 />
               </div>
             </div>
@@ -4324,7 +4423,7 @@ export function DraftRoomPageClient({
         </div>
       }
       auctionStrip={
-        isAuction && auctionSnapshot ? (
+        draftRoomState.isAuction && auctionSnapshot ? (
           <AuctionSpotlightPanel
             auction={auctionSnapshot}
             currentUserRosterId={currentUserRosterId ?? null}
@@ -4333,13 +4432,13 @@ export function DraftRoomPageClient({
             onBid={handleAuctionBid}
             onResolve={handleAuctionResolve}
             timerRemainingSeconds={
-              draftGate.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)
+              draftRoomState.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)
             }
-            timerStatus={draftGate.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
+            timerStatus={draftRoomState.timerMode === 'blocked' ? 'none' : (session.timer?.status ?? 'none')}
             nominateLoading={auctionNominateLoading}
             bidLoading={auctionBidLoading}
             resolveLoading={auctionResolveLoading}
-            rosterGateBlocksAuctionActions={draftGate.rosterConfigurationIncomplete}
+            rosterGateBlocksAuctionActions={draftRoomState.rosterConfigurationIncomplete}
           />
         ) : undefined
       }
@@ -4389,7 +4488,7 @@ export function DraftRoomPageClient({
             onSettingsPatch={handleSettingsPatch}
             onSaveDevyConfig={handleSaveDevyConfig}
             onSaveC2CConfig={handleSaveC2CConfig}
-            onStartDraft={handleStartDraft}
+            onStartDraft={draftRoomState.canStart ? handleStartDraft : undefined}
             onRunAiPick={isCommissioner && isOrphanOnClock ? handleRunAiPick : undefined}
             runAiPickLoading={runAiPickLoading}
             onBroadcast={() => { setShowCommissionerModal(false); setShowBroadcastModal(true) }}

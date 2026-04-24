@@ -404,6 +404,7 @@ export function DraftTopBar({
               {draftStatus === 'in_progress' && onPause ? (
                 <button
                   type="button"
+                  data-testid="draft-topbar-pause-draft"
                   onClick={onPause}
                   disabled={commissionerLoading || !commissionerPauseControlsEnabled}
                   className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-500/12 px-3.5 py-2 text-xs font-semibold text-amber-100 shadow-sm transition duration-150 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 disabled:cursor-not-allowed disabled:opacity-45"
@@ -514,7 +515,12 @@ export function DraftTopBar({
           </div>
         </div>
 
-        <div className="flex items-start justify-start lg:justify-center">{centerCta}</div>
+        <div
+          className="flex min-h-[52px] w-full items-center justify-center lg:w-auto lg:min-w-[13.5rem]"
+          data-testid="draft-topbar-center-slot"
+        >
+          {centerCta}
+        </div>
 
         <div className="flex flex-wrap items-start justify-start gap-2 lg:justify-end">
           <button
@@ -669,6 +675,7 @@ export function DraftTopBar({
                       setMenuOpen(false)
                     }}
                     data-testid="draft-topbar-open-settings"
+                    title="Commissioner control center"
                     className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition duration-150 hover:bg-white/8"
                   >
                     <Settings2 className="mt-0.5 h-4 w-4 text-[#dbe1ff]" />
@@ -704,6 +711,9 @@ export function DraftTopBar({
                 ((draftStatus === 'in_progress' && onPause) || (draftStatus === 'paused' && onResume)) ? (
                   <button
                     type="button"
+                    data-testid={
+                      draftStatus === 'paused' ? 'draft-topbar-menu-resume' : 'draft-topbar-menu-pause'
+                    }
                     onClick={() => {
                       if (draftStatus === 'paused') {
                         onResume?.()

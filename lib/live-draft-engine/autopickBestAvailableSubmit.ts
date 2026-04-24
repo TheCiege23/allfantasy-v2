@@ -10,9 +10,12 @@ import { computeDraftRecommendation } from '@/lib/draft-helper/RecommendationEng
 import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
 import { getLiveADP } from '@/lib/adp-data'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
+import { getResolvedDraftPoolForLeague } from '@/lib/draft-room/getResolvedDraftPoolForLeague'
 import { getAiAdpForLeague } from '@/lib/ai-adp-engine'
 import { resolveAiAdpFormatKeyFromSettings } from '@/lib/ai-adp-engine/segment-resolver'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
+import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
+import { draftPoolRowMatchesEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { getAllowedPositionsAndRosterSize } from '@/lib/live-draft-engine/RosterFitValidation'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
@@ -56,6 +59,8 @@ export type AutopickDraftContext = {
   aiAdpByKey?: Record<string, number>
   autopickBehavior: string
   overallPick: number
+  /** Starter-eligible positions for need-based autopick / recommendation weighting */
+  draftEligiblePositions: Set<string> | null
 }
 
 export type BestAvailableAutopickResolved = {
@@ -82,9 +87,9 @@ function getIsSuperflexFromSettings(settings: Record<string, unknown>): boolean 
   )
 }
 
-async function loadFallbackCandidates(
+async function loadFallbackCandidatesLegacy(
   leagueId: string,
-  sport: string
+  sport: string,
 ): Promise<
   Array<{
     playerName: string
@@ -122,6 +127,41 @@ async function loadFallbackCandidates(
   }))
 }
 
+async function loadFallbackCandidates(
+  leagueId: string,
+  sport: string,
+  draftedNames: Set<string>,
+): Promise<
+  Array<{
+    playerName: string
+    position: string
+    team: string | null
+    playerId: string | null
+    byeWeek: number | null
+    adp: number | null
+  }>
+> {
+  try {
+    const resolved = await getResolvedDraftPoolForLeague(leagueId, {
+      limit: 400,
+      excludeDraftedNames: draftedNames,
+    })
+    if (!resolved.rosterConfigurationIncomplete && resolved.entries.length > 0) {
+      return resolved.entries.map((e) => ({
+        playerName: e.name.trim(),
+        position: e.position.trim(),
+        team: e.team,
+        playerId: String(e.display?.playerId ?? e.playerId ?? '').trim() || null,
+        byeWeek: e.byeWeek ?? e.display?.metadata?.byeWeek ?? null,
+        adp: e.adp ?? null,
+      }))
+    }
+  } catch (err) {
+    console.warn('[autopick] getResolvedDraftPoolForLeague failed; using legacy fallback pool', err)
+  }
+  return loadFallbackCandidatesLegacy(leagueId, sport)
+}
+
 /**
  * Shared draft + pool context for autopick and AI opponent pick (same validation as legacy BPA).
  */
@@ -147,10 +187,15 @@ export async function loadAutopickDraftContextForOnClock(
     : []
   const teamCount = draftSession.teamCount
   const totalPicks = draftSession.rounds * teamCount
-  const picksCount = draftSession.picks.length
+  const progressPicks = draftSession.picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+  }))
   const current = resolveCurrentOnTheClock({
     totalPicks,
-    picksCount,
+    picks: progressPicks,
     teamCount,
     draftType: draftSession.draftType as 'snake' | 'linear' | 'auction',
     thirdRoundReversal: draftSession.thirdRoundReversal,
@@ -165,7 +210,7 @@ export async function loadAutopickDraftContextForOnClock(
   const autopickBehavior = String(draftConfig?.autopick_behavior ?? 'queue-first').toLowerCase()
 
   const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
-  const allowedPositions = rosterRules?.allowedPositions
+  const draftEligiblePositions = rosterRules?.draftEligiblePositions
   const draftedNames = new Set(draftSession.picks.map((p) => p.playerName.trim().toLowerCase()))
 
   const league = await prisma.league.findUnique({
@@ -177,11 +222,13 @@ export async function loadAutopickDraftContextForOnClock(
   const settings = (league?.settings as Record<string, unknown>) ?? {}
   const isSuperflex = getIsSuperflexFromSettings(settings)
 
-  const fallbackPoolRaw = await loadFallbackCandidates(leagueId, sport)
+  const fallbackPoolRaw = await loadFallbackCandidates(leagueId, sport, draftedNames)
   const fallbackPool = fallbackPoolRaw.filter((entry) => {
     if (!entry.playerName || !entry.position) return false
     if (draftedNames.has(normalizeName(entry.playerName))) return false
-    if (allowedPositions && !allowedPositions.has(entry.position.trim().toUpperCase())) return false
+    if (draftEligiblePositions && !draftPoolRowMatchesEligiblePositions(entry.position, draftEligiblePositions)) {
+      return false
+    }
     return true
   })
 
@@ -228,7 +275,8 @@ export async function loadAutopickDraftContextForOnClock(
     isSuperflex,
     aiAdpByKey,
     autopickBehavior,
-    overallPick: picksCount + 1,
+    overallPick: current.overall,
+    draftEligiblePositions: draftEligiblePositions ?? null,
   }
 }
 
@@ -243,7 +291,18 @@ export async function resolveBestAvailableAutopickCandidate(
   const ctx = await loadAutopickDraftContextForOnClock(leagueId, onClockRosterId)
   if (!ctx) return null
 
-  const { draftSession, current, onClockRosterId: rid, fallbackPool, sport, isDynasty, isSuperflex, aiAdpByKey, autopickBehavior } = ctx
+  const {
+    draftSession,
+    current,
+    onClockRosterId: rid,
+    fallbackPool,
+    sport,
+    isDynasty,
+    isSuperflex,
+    aiAdpByKey,
+    autopickBehavior,
+    draftEligiblePositions,
+  } = ctx
 
   let selected: BestAvailableAutopickResolved | null = null
 
@@ -270,6 +329,7 @@ export async function resolveBestAvailableAutopickCandidate(
       isSF: isSuperflex,
       mode: 'needs',
       aiAdpByKey,
+      draftEligiblePositions: draftEligiblePositions ?? undefined,
     })
     const candidate = rec.recommendation?.player
     if (candidate) {

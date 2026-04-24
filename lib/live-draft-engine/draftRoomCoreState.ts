@@ -3,7 +3,8 @@
  */
 
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
-import type { CurrentOnTheClock, DraftRoomCoreState, DraftSessionSnapshot } from './types'
+import { isDraftBoardFull } from './draftPickEmpty'
+import type { CurrentOnTheClock, DraftPickSnapshot, DraftRoomCoreState, DraftSessionSnapshot } from './types'
 
 function pickIndexInRound(overall: number, teamCount: number): number {
   if (teamCount < 1) return 1
@@ -14,10 +15,19 @@ function effectiveRounds(session: DraftSessionSnapshot): number {
   return Math.max(1, session.rounds ?? 1)
 }
 
+function snapshotPicksToProgress(picks: DraftPickSnapshot[]) {
+  return picks.map((p) => ({
+    overall: p.overall,
+    playerName: p.playerName,
+    position: p.position,
+    pickMetadata: p.pickEditorEmpty ? { pickEditorEmpty: true } : null,
+  }))
+}
+
 function isDraftBoardComplete(session: DraftSessionSnapshot): boolean {
   const tc = Math.max(1, session.teamCount)
   const total = Math.max(0, effectiveRounds(session) * tc)
-  return (session.picks?.length ?? 0) >= total
+  return isDraftBoardFull(snapshotPicksToProgress(session.picks ?? []), total)
 }
 
 /**
@@ -35,7 +45,7 @@ export function resolveEffectiveCurrentPick(session: DraftSessionSnapshot): Curr
   return (
     resolveCurrentOnTheClock({
       totalPicks: rounds * tc,
-      picksCount: picks.length,
+      picks: snapshotPicksToProgress(picks),
       teamCount: tc,
       draftType: session.draftType,
       thirdRoundReversal: session.thirdRoundReversal,

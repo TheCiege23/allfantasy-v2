@@ -15,13 +15,18 @@ import {
 import { submitPick, type SubmitPickInput } from '@/lib/live-draft-engine/PickSubmissionService'
 import { getCurrentUserRosterIdForLeague } from '@/lib/live-draft-engine/auth'
 import { getPlayerPoolForLeague } from '@/lib/sport-teams/SportPlayerPoolResolver'
+import {
+  getResolvedDraftPoolForLeague,
+  normalizeDraftPoolNameForDedupe,
+} from '@/lib/draft-room/getResolvedDraftPoolForLeague'
+import type { NormalizedDraftEntry } from '@/lib/draft-asset-pipeline'
 import { publishDraftIntelState } from '@/lib/draft-intelligence'
 import { buildDeterministicPostDraftRecap } from '@/lib/post-draft'
 import { getRosterSlotLabelsForLeagueDraft } from '@/lib/draft-room'
+import { draftPoolRowMatchesEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
+import { getDraftEligiblePositionsFromPayload, getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
 import { runDraftAIAssist } from '@/lib/draft-ai-engine'
 import type { DraftSessionSnapshot } from '@/lib/live-draft-engine/types'
-import { getDevyConfig } from '@/lib/devy/DevyLeagueConfig'
-import { getC2CConfig } from '@/lib/merged-devy-c2c/C2CLeagueConfig'
 import {
   type ADPSource,
   type ADPRanking,
@@ -55,6 +60,7 @@ export type Pick = {
   playerName: string
   position: string
   team: string | null
+  playerImageUrl?: string | null
   amount?: number | null
   source: string
   createdAt: string
@@ -102,6 +108,8 @@ export type DraftPlayerPoolEntry = {
   weeklyPoints?: number | null
   rosteredPercent?: number | null
   headshotUrl?: string | null
+  /** Same as headshotUrl when resolved from normalized draft pool. */
+  playerImageUrl?: string | null
 }
 
 export type AIPickRecommendation = {
@@ -174,22 +182,6 @@ type ResolvedDraftPlayer = {
   team: string | null
   byeWeek: number | null
   pickSource: DraftPickSource | null
-}
-
-type CollegeDraftPlayerQueryRow = {
-  id: string
-  name: string
-  position: string
-  school?: string | null
-  conference?: string | null
-  classYearLabel?: string | null
-  draftGrade?: string | null
-  nflTeam?: string | null
-  nextGameLabel?: string | null
-  devyAdp?: number | null
-  projectedC2CPoints?: number | null
-  c2cPointsWeek?: number | null
-  headshotUrl?: string | null
 }
 
 function normalizeAdpSource(raw: unknown): ADPSource {
@@ -296,126 +288,59 @@ async function resolvePlayerById(
   return null
 }
 
-async function buildAvailablePlayers(
+function normalizedEntryToWorkerPoolEntry(entry: NormalizedDraftEntry, sport: string): DraftPlayerPoolEntry {
+  const headshot = entry.display?.assets?.headshotUrl?.trim() || null
+  const pid = String(entry.display?.playerId ?? entry.playerId ?? '').trim()
+  return {
+    playerId: pid || `${entry.name}-${entry.position}`,
+    name: entry.name,
+    position: entry.position,
+    team: entry.team,
+    sport,
+    venueLat: null,
+    venueLng: null,
+    gameTime: null,
+    isIndoorVenue: false,
+    isDome: false,
+    adp: entry.adp ?? null,
+    projectedPoints: entry.display?.stats?.fantasyPointsPerGame ?? null,
+    source: entry.poolType === 'college' ? 'college' : 'pro',
+    poolType: entry.poolType,
+    school: entry.school ?? null,
+    conference: null,
+    classYearLabel: entry.classYearLabel ?? null,
+    draftGrade: entry.draftGrade ?? null,
+    projectedLandingSpot: entry.projectedLandingSpot ?? null,
+    nextGameLabel: null,
+    isDevy: entry.isDevy,
+    weeklyPoints: null,
+    rosteredPercent: null,
+    headshotUrl: headshot,
+    playerImageUrl: headshot,
+  }
+}
+
+async function buildAvailablePlayersFromResolvedPool(
   leagueId: string,
   sport: string,
-  draftedNames: Set<string>,
-  settings?: Record<string, unknown> | null
+  snapshotPicks: Array<{ playerName: string; playerId: string | null }>,
 ): Promise<DraftPlayerPoolEntry[]> {
-  const pool = await getPlayerPoolForLeague(leagueId, sport as any, { limit: 500 }).catch(() => [])
-  const [devyConfig, c2cConfig] = await Promise.all([
-    getDevyConfig(leagueId).catch(() => null),
-    getC2CConfig(leagueId).catch(() => null),
-  ])
-  const requestedDraftType = String(settings?.requested_draft_type ?? settings?.draft_type ?? '').toLowerCase()
-  const isDevyDraft = requestedDraftType.startsWith('devy_')
-  const isC2CDraft = requestedDraftType.startsWith('c2c_')
-  const includeCollege = isDevyDraft || isC2CDraft || Boolean(devyConfig) || Boolean(c2cConfig)
-  const collegeOnly = isDevyDraft || (isC2CDraft && c2cConfig?.mixProPlayers === false)
-
-  const proEntries = pool
-    .filter((entry: any) => !draftedNames.has(String(entry.full_name ?? '').trim()))
-    .map((entry: any, index: number) => ({
-      playerId: String(
-        entry.player_id ??
-        entry.external_source_id ??
-        `${entry.full_name}-${entry.position}-${entry.team_abbreviation ?? entry.team ?? 'FA'}`
-      ),
-      name: String(entry.full_name ?? ''),
-      position: String(entry.position ?? ''),
-      team: entry.team_abbreviation ?? entry.team ?? null,
-      sport,
-      venueLat: null,
-      venueLng: null,
-      gameTime: null,
-      isIndoorVenue: false,
-      isDome: false,
-      adp:
-        entry.adp != null
-          ? Number(entry.adp)
-          : entry.rank != null
-            ? Number(entry.rank)
-            : index + 1,
-      projectedPoints:
-        entry.metadata?.projected_points != null
-          ? Number(entry.metadata.projected_points)
-          : null,
-      source: 'pro' as const,
-      poolType: 'pro' as const,
-      rosteredPercent:
-        entry.metadata?.rostered_percent != null
-          ? Number(entry.metadata.rostered_percent)
-          : null,
-      headshotUrl: null,
-    }))
-
-  if (!includeCollege) {
-    return proEntries
-  }
-
-  const collegeSports = Array.from(
-    new Set(
-      [
-        ...(devyConfig?.collegeSports ?? []),
-        ...(c2cConfig?.collegeSports ?? []),
-      ].filter(Boolean)
-    )
+  const draftedNames = new Set(snapshotPicks.map((p) => normalizeDraftPoolNameForDedupe(p.playerName)))
+  const draftedPlayerIds = new Set(
+    snapshotPicks.flatMap((p) => {
+      const id = p.playerId
+      return id && String(id).trim() ? [String(id).trim()] : []
+    }),
   )
-  const collegeEntries = (await (prisma as any).devyPlayer.findMany({
-    where: {
-      graduatedToNFL: false,
-      ...(collegeSports.length > 0 ? { sport: { in: collegeSports } } : {}),
-    },
-    orderBy: [{ devyAdp: 'asc' }, { draftProjectionScore: 'desc' }],
-    take: 300,
-    select: {
-      id: true,
-      name: true,
-      position: true,
-      school: true,
-      conference: true,
-      classYearLabel: true,
-      draftGrade: true,
-      nflTeam: true,
-      nextGameLabel: true,
-      devyAdp: true,
-      projectedC2CPoints: true,
-      c2cPointsWeek: true,
-      headshotUrl: true,
-    },
-  }).catch(() => [])) as CollegeDraftPlayerQueryRow[]
-
-  const normalizedDrafted = new Set(Array.from(draftedNames).map((name) => name.trim().toLowerCase()))
-  const collegeMapped = collegeEntries
-    .filter((entry) => !normalizedDrafted.has(entry.name.trim().toLowerCase()))
-    .map((entry, index) => ({
-      playerId: entry.id,
-      name: entry.name,
-      position: entry.position,
-      team: entry.school ?? null,
-      sport: sport ?? null,
-      venueLat: null,
-      venueLng: null,
-      gameTime: null,
-      isIndoorVenue: false,
-      isDome: false,
-      adp: entry.devyAdp != null ? Number(entry.devyAdp) : index + 1,
-      source: 'college' as const,
-      poolType: 'college' as const,
-      school: entry.school ?? null,
-      conference: entry.conference ?? null,
-      classYearLabel: entry.classYearLabel ?? null,
-      draftGrade: entry.draftGrade ?? null,
-      projectedLandingSpot: entry.nflTeam ?? null,
-      nextGameLabel: entry.nextGameLabel ?? null,
-      isDevy: true,
-      projectedPoints: entry.projectedC2CPoints ?? null,
-      weeklyPoints: entry.c2cPointsWeek ?? null,
-      headshotUrl: entry.headshotUrl ?? null,
-      rosteredPercent: null,
-    }))
-
-  return collegeOnly ? collegeMapped : [...proEntries, ...collegeMapped]
+  const resolved = await getResolvedDraftPoolForLeague(leagueId, {
+    limit: 500,
+    excludeDraftedNames: draftedNames,
+    excludeDraftedPlayerIds: draftedPlayerIds,
+  })
+  if (resolved.rosterConfigurationIncomplete) {
+    return []
+  }
+  return resolved.entries.map((e) => normalizedEntryToWorkerPoolEntry(e, sport))
 }
 
 export class DraftWorker {
@@ -447,9 +372,12 @@ export class DraftWorker {
       }).catch(() => []),
     ])
 
-    const draftedNames = new Set(snapshot.picks.map((pick) => pick.playerName))
     const leagueSettings = (league?.settings as Record<string, unknown> | null | undefined) ?? null
-    const availablePlayers = await buildAvailablePlayers(context.leagueId, context.sport, draftedNames, leagueSettings)
+    const availablePlayers = await buildAvailablePlayersFromResolvedPool(
+      context.leagueId,
+      context.sport,
+      snapshot.picks,
+    )
 
     const draftIntel =
       this.options.viewerUserId
@@ -504,6 +432,7 @@ export class DraftWorker {
         playerName: pick.playerName,
         position: pick.position,
         team: pick.team,
+        playerImageUrl: pick.playerImageUrl ?? null,
         amount: pick.amount ?? null,
         source: pick.source,
         createdAt: pick.createdAt,
@@ -671,6 +600,7 @@ export class DraftWorker {
       })
     })
 
+    await resetTimer(context.leagueId)
     await this.broadcastDraftState(draftId)
   }
 
@@ -684,74 +614,28 @@ export class DraftWorker {
   }
 
   async autopick(draftId: string, teamId: string): Promise<Pick> {
-    const state = await this.buildState(draftId)
-    if (!state.availablePlayers.length) {
-      throw new Error('No available players left to auto-pick')
-    }
-
-    const rankings = await this.getADP(draftId, state.adpSource)
-    const availableById = new Map(state.availablePlayers.map((player) => [player.playerId, player]))
-
-    // IDP-aware autopick: check if league has IDP and balance offense/defense needs
-    let fallback: typeof state.availablePlayers[0] | undefined
     const context = await this.getContext(draftId)
-    const idpConfig = await prisma.idpLeagueConfig.findUnique({
-      where: { leagueId: context.leagueId },
-      select: { positionMode: true, rosterPreset: true, slotOverrides: true },
-    }).catch(() => null)
-
-    if (idpConfig) {
-      // Count how many IDP players this team already has
-      const teamPicks = state.picks.filter((p: { rosterId?: string }) => p.rosterId === teamId)
-      const idpPositionSet = new Set(['DE', 'DT', 'DL', 'LB', 'CB', 'S', 'DB', 'ILB', 'OLB', 'SS', 'FS'])
-      const idpPicked = teamPicks.filter((p: { position?: string }) => idpPositionSet.has((p.position ?? '').toUpperCase())).length
-      const offensePicked = teamPicks.length - idpPicked
-
-      // Estimate IDP starter needs (rough: beginner~6, standard~8, advanced~12)
-      const presetSlots: Record<string, number> = { beginner: 6, standard: 8, advanced: 12, custom: 8 }
-      const idpSlotsNeeded = presetSlots[idpConfig.rosterPreset ?? 'standard'] ?? 8
-      const offenseSlotsNeeded = 9 // standard NFL offense (QB, 2RB, 2WR, TE, FLEX, K, DEF)
-      const idpDeficit = Math.max(0, idpSlotsNeeded - idpPicked)
-      const offenseDeficit = Math.max(0, offenseSlotsNeeded - offensePicked)
-
-      // Prioritize whichever side has a larger deficit relative to need
-      const idpPriority = idpDeficit > 0 && (offenseDeficit === 0 || idpDeficit / idpSlotsNeeded > offenseDeficit / offenseSlotsNeeded)
-
-      if (idpPriority) {
-        // Find highest-ranked IDP player
-        const idpCandidate = rankings.find((entry) => {
-          const player = availableById.get(entry.playerId)
-          return player && idpPositionSet.has((player.position ?? '').toUpperCase())
-        })
-        if (idpCandidate) fallback = availableById.get(idpCandidate.playerId)
-      }
-
-      if (!fallback) {
-        // Find highest-ranked offensive player
-        const offCandidate = rankings.find((entry) => {
-          const player = availableById.get(entry.playerId)
-          return player && !idpPositionSet.has((player.position ?? '').toUpperCase())
-        })
-        if (offCandidate) fallback = availableById.get(offCandidate.playerId)
-      }
+    const snapshot = await buildSessionSnapshot(context.leagueId)
+    if (!snapshot?.currentPick) {
+      throw new Error('Draft is not on the clock')
+    }
+    if (snapshot.currentPick.rosterId !== teamId) {
+      throw new Error('Auto-pick roster does not match current pick')
     }
 
-    // Non-IDP fallback: pure BPA
-    if (!fallback) {
-      const top = rankings.find((entry) => availableById.has(entry.playerId))
-      fallback = top ? availableById.get(top.playerId) : state.availablePlayers[0]
-    }
-
-    if (!fallback) {
-      throw new Error('Auto-pick candidate unavailable')
+    const { resolveBestAvailableAutopickCandidate } = await import('@/lib/live-draft-engine/autopickBestAvailableSubmit')
+    const resolved = await resolveBestAvailableAutopickCandidate(context.leagueId, teamId)
+    if (!resolved) {
+      throw new Error('No eligible auto-pick candidate available for this roster.')
     }
 
     const result = await submitPick({
       leagueId: context.leagueId,
-      playerName: fallback.name,
-      position: fallback.position,
-      team: fallback.team,
-      playerId: fallback.playerId,
+      playerName: resolved.playerName.trim(),
+      position: resolved.position.trim(),
+      team: resolved.team ?? null,
+      playerId: resolved.playerId ?? null,
+      byeWeek: resolved.byeWeek ?? null,
       rosterId: teamId,
       madeByUserId: null,
       source: 'auto',
@@ -892,13 +776,29 @@ export class DraftWorker {
         byeWeek: null,
       }))
     const rosterSlots = await getRosterSlotLabelsForLeagueDraft(context.leagueId, context.sport)
-    const available = state.availablePlayers.slice(0, 200).map((player) => ({
-      name: player.name,
-      position: player.position,
-      team: player.team,
-      adp: player.adp,
-      byeWeek: null,
-    }))
+    const normalizedSlots = rosterSlots.map((s) => String(s || '').toUpperCase())
+    const isSF =
+      normalizedSlots.includes('SUPER_FLEX') ||
+      normalizedSlots.includes('SUPERFLEX') ||
+      normalizedSlots.includes('OP') ||
+      normalizedSlots.filter((slot) => slot === 'QB').length >= 2
+
+    const templatePayload = await getLeagueDraftTemplatePayload(context.leagueId).catch(() => null)
+    const draftEligiblePositions = templatePayload ? getDraftEligiblePositionsFromPayload(templatePayload) : null
+
+    const mapAvailable = () =>
+      state.availablePlayers.slice(0, 200).map((player) => ({
+        name: player.name,
+        position: player.position,
+        team: player.team,
+        adp: player.adp,
+        byeWeek: null,
+      }))
+    let available = mapAvailable()
+    if (draftEligiblePositions?.size) {
+      const filtered = available.filter((p) => draftPoolRowMatchesEligiblePositions(p.position, draftEligiblePositions))
+      if (filtered.length > 0) available = filtered
+    }
 
     const result = await runDraftAIAssist({
       available,
@@ -909,8 +809,9 @@ export class DraftWorker {
       totalTeams: state.teamCount,
       sport: context.sport,
       isDynasty: context.isDynasty,
-      isSF: false,
+      isSF,
       mode: 'needs',
+      draftEligiblePositions: draftEligiblePositions ?? undefined,
     }, {
       explanation: true,
       sport: context.sport,

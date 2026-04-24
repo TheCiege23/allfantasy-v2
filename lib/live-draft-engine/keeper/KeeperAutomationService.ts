@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
+import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
 import { buildKeeperLocks } from './KeeperDraftOrder'
 import { validateRosterKeeperSelections } from './KeeperRuleEngine'
 import type { KeeperConfig, KeeperSelection } from './types'
@@ -59,11 +60,19 @@ export async function runKeeperAutomationTick(leagueId: string): Promise<KeeperA
     if (!locks.length) break
 
     const picksByRoundSlot = new Map(session.picks.map((p) => [`${p.round}-${p.slot}`, p]))
-    const picksByName = new Set(session.picks.map((p) => normalizeName(p.playerName)))
+    const picksByName = new Set(
+      session.picks.filter((p) => !isDraftPickRowEmpty(p)).map((p) => normalizeName(p.playerName)),
+    )
 
+    const progressPicks = session.picks.map((p) => ({
+      overall: p.overall,
+      playerName: p.playerName,
+      position: p.position,
+      pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+    }))
     const current = resolveCurrentOnTheClock({
       totalPicks: session.rounds * session.teamCount,
-      picksCount: session.picks.length,
+      picks: progressPicks,
       teamCount: session.teamCount,
       draftType: session.draftType as 'snake' | 'linear' | 'auction',
       thirdRoundReversal: session.thirdRoundReversal,
@@ -75,7 +84,7 @@ export async function runKeeperAutomationTick(leagueId: string): Promise<KeeperA
     if (!lock) break
 
     const existingForSlot = picksByRoundSlot.get(`${current.round}-${current.slot}`)
-    if (existingForSlot) break
+    if (existingForSlot && !isDraftPickRowEmpty(existingForSlot)) break
     if (picksByName.has(normalizeName(lock.playerName))) break
 
     const pick = await submitPick({

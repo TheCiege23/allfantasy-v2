@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { submitBestAvailableAutopickForExpiredTimer } from '@/lib/live-draft-engine/autopickBestAvailableSubmit'
+import { getAllowedPositionsAndRosterSize } from '@/lib/live-draft-engine/RosterFitValidation'
+import { filterEntriesByDraftEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
 import { computeTimerStateWithPauseWindow, isInsidePauseWindow } from '@/lib/live-draft-engine/DraftTimerService'
 import { pauseDraftSession, resumeDraftSession } from '@/lib/live-draft-engine/DraftSessionService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
@@ -92,7 +94,8 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase()
 }
 
-async function tryQueueAutoPick(
+/** Exported for integration tests (`tryQueueAutoPick` slow-draft path). */
+export async function tryQueueAutoPick(
   leagueId: string,
   rosterId: string
 ): Promise<{ success: boolean; playerName?: string; queuePlayerUnavailable?: boolean }> {
@@ -127,7 +130,11 @@ async function tryQueueAutoPick(
     return !draftedNames.has(normalizeName(playerName))
   })
 
-  for (const entry of queueCandidates.slice(0, 30)) {
+  const rosterRules = await getAllowedPositionsAndRosterSize(leagueId)
+  const draftEligiblePositions = rosterRules?.draftEligiblePositions
+  const eligibleQueueCandidates = filterEntriesByDraftEligiblePositions(queueCandidates, draftEligiblePositions)
+
+  for (const entry of eligibleQueueCandidates.slice(0, 30)) {
     const attempt = await submitPick({
       leagueId,
       playerName: String(entry.playerName ?? '').trim(),
@@ -233,9 +240,15 @@ export async function runSlowDraftAutomationTick(
       ? (session.tradedPicks as unknown as TradedPickRecord[])
       : []
     const totalPicks = session.rounds * session.teamCount
+    const progressPicks = session.picks.map((p) => ({
+      overall: p.overall,
+      playerName: p.playerName,
+      position: p.position,
+      pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+    }))
     const current = resolveCurrentOnTheClock({
       totalPicks,
-      picksCount: session.picks.length,
+      picks: progressPicks,
       teamCount: session.teamCount,
       draftType: session.draftType as 'snake' | 'linear' | 'auction',
       thirdRoundReversal: session.thirdRoundReversal,

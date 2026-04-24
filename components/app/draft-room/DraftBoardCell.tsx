@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ArrowLeft, ArrowLeftRight, ArrowRight, Gavel, History } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, ArrowRight, Gavel, History, Pencil } from 'lucide-react'
 import { withAlpha } from '@/lib/draft-room'
 import { LazyDraftImage } from './LazyDraftImage'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
@@ -18,6 +18,8 @@ export type DraftBoardCellPick = {
   position: string | null
   team: string | null
   playerId?: string | null
+  /** Persisted at pick commit — avoids missing headshots when playerId is synthetic or unresolved offline. */
+  playerImageUrl?: string | null
   sport?: string | null
   injuryStatus?: string | null
   byeWeek: number | null
@@ -123,6 +125,8 @@ export type DraftBoardCellProps = {
   /** Snake: reversed rounds show a left arrow on empty cells; forward rounds show right. */
   emptyCellDirection?: 'forward' | 'reverse'
   presentationVariant?: 'default' | 'redraft_snake'
+  /** Commissioner-only: opens the Pick Editor panel prefilled with this overall. Caller gates by viewer + draft state. */
+  onCommissionerEditPick?: () => void
 }
 
 function highlightClass(tone: PickHighlightTone | undefined): string {
@@ -176,6 +180,7 @@ function DraftBoardCellInner({
   emptyCellDirection = 'forward',
   onTradeFromCell,
   onViewTradeHistory,
+  onCommissionerEditPick,
   presentationVariant = 'default',
 }: DraftBoardCellProps) {
   const rs = presentationVariant === 'redraft_snake'
@@ -204,7 +209,9 @@ function DraftBoardCellInner({
     sportNorm,
   ])
 
-  const headshotSrc = normalized ? getPlayerImage(normalized) : null
+  const headshotSrc =
+    pick.playerImageUrl?.trim() ||
+    (normalized ? getPlayerImage(normalized, sportNorm) : null)
   const teamLogoSrc = normalized?.teamLogoUrl ?? null
 
   const tint =
@@ -234,7 +241,7 @@ function DraftBoardCellInner({
 
   return (
     <div
-      className={`relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
+      className={`group relative flex h-[70px] min-h-[70px] flex-col overflow-hidden rounded-xl border px-2.5 pb-2 pt-2 text-[10px] backdrop-blur-sm transition-[border-color,box-shadow,transform] duration-200 ${hoverLift} hover:border-cyan-300/55 hover:shadow-2xl sm:h-[74px] sm:min-h-[74px] sm:px-2.5 sm:pb-2 sm:pt-2 ${
         onTradeFromCell ? 'pr-7 sm:pr-8' : ''
       } ${
         isCurrentPick
@@ -259,6 +266,21 @@ function DraftBoardCellInner({
       role="group"
       aria-label={ariaLabel}
     >
+      {onCommissionerEditPick ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onCommissionerEditPick()
+          }}
+          data-testid={`draft-board-cell-commish-edit-${pick.overall}`}
+          title={`Edit pick ${pick.overall}`}
+          aria-label={`Edit pick ${pick.overall}`}
+          className="absolute left-0.5 top-0.5 z-[2] inline-flex h-6 w-6 items-center justify-center rounded-md border border-amber-400/40 bg-amber-500/15 text-amber-100 opacity-0 shadow-sm backdrop-blur-sm transition duration-150 group-hover:opacity-100 hover:border-amber-300/60 hover:bg-amber-500/30 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/50 active:scale-90"
+        >
+          <Pencil className="h-3 w-3" />
+        </button>
+      ) : null}
       {onTradeFromCell ? (
         <button
           type="button"

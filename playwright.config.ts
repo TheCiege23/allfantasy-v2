@@ -15,6 +15,20 @@ const PLAYWRIGHT_PORT = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
 const PLAYWRIGHT_BASE_URL =
   process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PLAYWRIGHT_PORT}`;
 
+/** Same origin/port Playwright uses in `use.baseURL` — must match `next dev -p PLAYWRIGHT_PORT`. */
+const PLAYWRIGHT_ORIGIN = PLAYWRIGHT_BASE_URL.replace(/\/$/, '');
+
+/**
+ * Do not probe `/` alone: Next can accept connections while core client chunks
+ * still 404 until compilation settles. `webServer.url` must be a string (not
+ * an array — Playwright joins arrays into one invalid URL).
+ *
+ * `webpack.js` is a small, stable dev entry chunk; once it returns 200, the
+ * static chunk pipeline is live. Deeper failures (e.g. `main-app.js`) are
+ * caught by `attachDraftHarnessDiagnostics` in draft harness tests.
+ */
+const WEB_SERVER_READY_URL = `${PLAYWRIGHT_ORIGIN}/_next/static/chunks/webpack.js`;
+
 export default defineConfig({
   testDir: './e2e',
   /* Run tests in files in parallel */
@@ -77,7 +91,7 @@ export default defineConfig({
   /* Run local dev server before tests (or reuse if already running). */
   webServer: {
     command: `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
-    url: PLAYWRIGHT_BASE_URL,
+    url: WEB_SERVER_READY_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 240_000,
     env: {

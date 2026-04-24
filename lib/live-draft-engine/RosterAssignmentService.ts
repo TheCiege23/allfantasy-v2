@@ -5,6 +5,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { isDraftPickRowEmpty } from '@/lib/live-draft-engine/draftPickEmpty'
 import { buildLineupSectionsFromPicks } from '@/lib/post-draft/buildStartersFromPicks'
 import { buildPlayerDataFromSections } from '@/lib/roster/LineupTemplateValidation'
 import { getLeagueDraftTemplatePayload } from '@/lib/league/league-draft-template-payload'
@@ -77,6 +78,15 @@ export async function finalizeRosterAssignments(leagueId: string): Promise<void>
 
   const byRoster = new Map<string, AssignedPlayer[]>()
   for (const p of session.picks) {
+    if (
+      isDraftPickRowEmpty({
+        playerName: p.playerName,
+        position: p.position,
+        pickMetadata: (p as { pickMetadata?: unknown | null }).pickMetadata ?? null,
+      })
+    ) {
+      continue
+    }
     const list = byRoster.get(p.rosterId) ?? []
     list.push({
       playerName: p.playerName,

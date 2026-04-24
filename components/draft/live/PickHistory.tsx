@@ -24,9 +24,9 @@ function PickRow({
         byeWeek: pick.byeWeek,
         sport,
       }),
-    [pick.playerName, pick.position, pick.team, pick.playerId, pick.byeWeek, sport],
+    [pick.playerName, pick.position, pick.team, pick.playerId, pick.playerImageUrl, pick.byeWeek, sport],
   )
-  const img = getPlayerImage(normalized)
+  const img = pick.playerImageUrl?.trim() || getPlayerImage(normalized, sport)
   const [imgErr, setImgErr] = useState(false)
 
   return (

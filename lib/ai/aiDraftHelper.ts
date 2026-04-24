@@ -31,6 +31,8 @@ export type DraftWarRoomInput = {
   isDynasty?: boolean
   isSuperflex?: boolean
   rosterSlots?: string[]
+  /** Starter-eligible positions for this league — same basis as draft pool (optional when no league template). */
+  draftEligiblePositions?: ReadonlySet<string>
   aiAdpByKey?: Record<string, number>
   mode?: 'needs' | 'bpa'
 }
@@ -225,6 +227,7 @@ export async function runDraftWarRoomRecommendation(input: DraftWarRoomInput): P
     isSF: Boolean(input.isSuperflex),
     mode: input.mode === 'bpa' ? 'bpa' : 'needs',
     aiAdpByKey: input.aiAdpByKey,
+    draftEligiblePositions: input.draftEligiblePositions,
   })
 
   const base = mapDeterministicToWarRoom(det, available)

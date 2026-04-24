@@ -4,9 +4,24 @@ import { DraftRoomHarnessClient } from '@/app/e2e/draft-room/DraftRoomHarnessCli
 export default async function E2eDraftRoomHarnessPage({
   searchParams,
 }: {
-  searchParams: Promise<{ leagueId?: string; sport?: string; commissioner?: string; formatType?: string }>
+  searchParams: Promise<{
+    leagueId?: string | string[]
+    sport?: string
+    commissioner?: string
+    formatType?: string
+    /** When `1`, skip the harness gate and mount {@link DraftRoomPageClient} immediately (Playwright / narrow E2E). */
+    e2eRoom?: string
+  }>
 }) {
   const sp = await searchParams
+  const rawLeagueId = sp.leagueId
+  const leagueId =
+    typeof rawLeagueId === 'string' && rawLeagueId.trim().length > 0
+      ? rawLeagueId.trim()
+      : Array.isArray(rawLeagueId)
+        ? String(rawLeagueId.find((x) => typeof x === 'string' && x.trim().length > 0) ?? '').trim() ||
+          'e2e-league'
+        : 'e2e-league'
   return (
     <Suspense
       fallback={
@@ -14,10 +29,11 @@ export default async function E2eDraftRoomHarnessPage({
       }
     >
       <DraftRoomHarnessClient
-        leagueId={sp.leagueId ?? 'e2e-league'}
+        leagueId={leagueId}
         sport={sp.sport ?? 'NFL'}
         formatType={sp.formatType}
         isCommissioner={sp.commissioner !== '0'}
+        initialRoomOpen={sp.e2eRoom === '1'}
       />
     </Suspense>
   )

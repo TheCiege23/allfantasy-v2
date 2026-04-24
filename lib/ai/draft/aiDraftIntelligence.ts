@@ -42,6 +42,7 @@ export async function buildDraftIntelligenceSnapshot(input: {
   isSuperflex?: boolean
   platformAdp?: number | null
   leagueEarlyWrRate?: number | null
+  draftEligiblePositions?: ReadonlySet<string>
 }): Promise<DraftIntelligenceSnapshot> {
   const sport = normalizeToSupportedSport(input.sport)
   const det = computeDraftRecommendation({
@@ -55,6 +56,7 @@ export async function buildDraftIntelligenceSnapshot(input: {
     isDynasty: Boolean(input.isDynasty),
     isSF: Boolean(input.isSuperflex),
     mode: 'needs',
+    draftEligiblePositions: input.draftEligiblePositions,
   })
 
   const best = det.recommendation?.player ?? null

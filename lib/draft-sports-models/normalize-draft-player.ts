@@ -12,6 +12,7 @@ import type {
   TeamDisplayModel,
   NormalizedDraftEntry,
 } from './types'
+import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
 import { resolvePlayerAssets, buildTeamDisplayModel, looksLikeSleeperExternalId } from './player-asset-resolver'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
@@ -55,6 +56,8 @@ export type RawDraftPlayerLike = {
     gamesPlayed?: number | null
     season?: string | null
   } | null
+  /** NFL draft pool: projection + split stats for grid UI (from `/draft/pool`). */
+  nflDraftProjectionSplits?: NflDraftProjectionSplits | null
   [key: string]: unknown
 }
 
@@ -195,6 +198,7 @@ export function normalizeDraftPlayer(
     draftEligibleYear: draftEligibleYear ?? undefined,
     graduatedToNFL: graduatedToNFL || undefined,
     poolType: raw.poolType ?? (isDevy ? 'college' : undefined),
+    nflDraftProjectionSplits: raw.nflDraftProjectionSplits ?? undefined,
   }
 }
 

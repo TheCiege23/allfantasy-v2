@@ -15,7 +15,8 @@ function getSlotForOverall(overall: number, teamCount: number): { round: number;
 }
 
 async function openCommissionerControls(page: Page) {
-  const openButton = page.getByTestId('draft-open-commissioner-controls')
+  const dedicatedGear = page.getByTestId('draft-open-commissioner-controls')
+  const primaryCta = page.getByTestId('draft-topbar-commissioner-primary')
   const modal = page.getByTestId('draft-commissioner-modal')
   const overlay = page.getByTestId('draft-commissioner-overlay')
   const dialogFallback = page.getByRole('dialog', { name: /Commissioner control center/i })
@@ -39,6 +40,25 @@ async function openCommissionerControls(page: Page) {
     await expect(dialogFallback).toBeVisible({ timeout: 15_000 })
   }
 
+  /** When `onOpenDraftRoomSettings` is set, the header gear is draft settings — use primary CTA or overflow instead. */
+  const clickCommissionerEntry = async () => {
+    if ((await dedicatedGear.count()) > 0) {
+      await dedicatedGear.click()
+      return
+    }
+    if ((await primaryCta.count()) > 0) {
+      await primaryCta.click()
+      return
+    }
+    await page.keyboard.press('Escape').catch(() => {})
+    const menu = page.getByTestId('draft-topbar-menu')
+    if (!(await menu.isVisible().catch(() => false))) {
+      await page.getByTestId('draft-topbar-menu-toggle').click()
+    }
+    await expect(menu).toBeVisible({ timeout: 10_000 })
+    await page.getByTestId('draft-topbar-open-settings').click()
+  }
+
   if (await isControlsVisible()) {
     await assertControlsVisible()
     return
@@ -49,12 +69,8 @@ async function openCommissionerControls(page: Page) {
       await assertControlsVisible()
       return
     }
-    await openButton.click()
-    await expect
-      .poll(async () => (await isControlsVisible()) || (await openButton.isVisible().catch(() => false)), {
-        timeout: 10_000,
-      })
-      .toBe(true)
+    await clickCommissionerEntry()
+    await expect.poll(async () => await isControlsVisible(), { timeout: 10_000 }).toBe(true)
     if (await isControlsVisible()) {
       await assertControlsVisible()
       return
@@ -102,12 +118,72 @@ async function mockDraftRoomApis(
     })
   })
 
+  await page.route('**/api/subscription/entitlements**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({}),
+    })
+  })
+
+  await page.route('**/api/tokens/balance**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ balance: 0, updatedAt: new Date().toISOString() }),
+    })
+  })
+
   const slotOrder = [
     { slot: 1, rosterId: 'roster-1', displayName: 'Alpha' },
     { slot: 2, rosterId: 'roster-2', displayName: 'Beta' },
     { slot: 3, rosterId: 'roster-3', displayName: 'Gamma' },
     { slot: 4, rosterId: 'roster-4', displayName: 'Delta' },
   ]
+
+  await page.route('**/api/league/settings**', async (route) => {
+    const url = route.request().url()
+    const id = new URL(url).searchParams.get('leagueId')
+    if (id && id !== leagueId) {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        league: {
+          teams: slotOrder.map((s) => ({
+            id: s.rosterId,
+            rosterId: s.rosterId,
+            teamName: `Team ${s.slot}`,
+            ownerName: s.displayName,
+            displayName: s.displayName,
+          })),
+        },
+      }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/privacy**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ inviteLink: null, inviteCode: null }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/claim-roster**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ alreadyClaimed: true, rosters: [] }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/draft/round-one-highlight**`, async (route) => {
+    await route.fulfill({ status: 204, body: '' })
+  })
 
   const settings = {
     draftOrderRandomizationEnabled: true,
@@ -123,6 +199,7 @@ async function mockDraftRoomApis(
     timerMode: 'per_pick',
     slowDraftPauseWindow: null,
     commissionerForceAutoPickEnabled: false,
+    commissionerPauseControlsEnabled: true,
   }
 
   const poolEntries = [
@@ -182,25 +259,28 @@ async function mockDraftRoomApis(
     ],
     version: 1,
     sessionStatus: options?.initialStatus ?? 'in_progress',
-    picks: [
-      {
-        id: 'pick-1',
-        overall: 1,
-        round: 1,
-        slot: 1,
-        rosterId: 'roster-1',
-        displayName: 'Alpha',
-        playerName: 'Keeper One',
-        position: 'QB',
-        team: 'BUF',
-        byeWeek: 8,
-        playerId: 'k-1',
-        tradedPickMeta: null,
-        source: 'user',
-        pickLabel: '1.01',
-        createdAt: new Date().toISOString(),
-      },
-    ] as Array<Record<string, unknown>>,
+    picks:
+      options?.initialStatus === 'pre_draft'
+        ? []
+        : ([
+            {
+              id: 'pick-1',
+              overall: 1,
+              round: 1,
+              slot: 1,
+              rosterId: 'roster-1',
+              displayName: 'Alpha',
+              playerName: 'Keeper One',
+              position: 'QB',
+              team: 'BUF',
+              byeWeek: 8,
+              playerId: 'k-1',
+              tradedPickMeta: null,
+              source: 'user',
+              pickLabel: '1.01',
+              createdAt: new Date().toISOString(),
+            },
+          ] as Array<Record<string, unknown>>),
     tradedPicks: [],
     proposals: [
       {
@@ -311,7 +391,7 @@ async function mockDraftRoomApis(
     const current = getSlotForOverall(overall, slotOrder.length)
     const roster = slotOrder[current.slot - 1]
     const currentPick =
-      state.sessionStatus === 'completed'
+      state.sessionStatus === 'completed' || state.sessionStatus === 'pre_draft'
         ? null
         : {
             overall,
@@ -355,7 +435,7 @@ async function mockDraftRoomApis(
     }
   }
 
-  await page.route(`**/api/leagues/${leagueId}/draft/session`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/session`, async (route) => {
     if (route.request().method() === 'GET') {
       resyncHits.push('session')
       await route.fulfill({
@@ -379,7 +459,7 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/events**`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/events**`, async (route) => {
     resyncHits.push('events')
     await route.fulfill({
       status: 200,
@@ -393,7 +473,41 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/settings`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/live-sync**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        leagueId,
+        updated: false,
+        updatedAt: buildSession().updatedAt,
+        session: buildSession(),
+      }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/draft/assistant-context`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sport: 'NFL',
+        headlines: [],
+        injuries: [],
+        sportsFeed: { available: false, updatedAt: null, sourceKeys: [], digest: null },
+      }),
+    })
+  })
+
+  await page.route(`**/api/draft/intel/stream**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      body: 'retry: 60000\nevent: ping\ndata: {}\n\n',
+    })
+  })
+
+  await page.route(`**/api/leagues/*/draft/settings`, async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
       await route.fulfill({
@@ -433,7 +547,29 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/pool`, async (route) => {
+  await page.route(`**/api/league/ai-opponents/summary**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ aiManagedDraftRosterIds: [], assignments: [] }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/roster-config`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        starterSlots: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
+        benchSlots: 6,
+        taxiSlots: 0,
+        devySlots: 0,
+        orderedSlotLabels: ['QB', 'RB', 'RB', 'WR', 'WR', 'TE', 'FLEX', 'K', 'DST', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN', 'BN'],
+      }),
+    })
+  })
+
+  await page.route(`**/api/leagues/*/draft/pool`, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -445,7 +581,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/queue`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/queue`, async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
       await route.fulfill({
@@ -469,7 +605,7 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/queue/ai-reorder`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/queue/ai-reorder`, async (route) => {
     const body = route.request().postDataJSON() as { queue?: Array<{ playerName: string; position: string; team?: string | null }> }
     const reordered = [...(body.queue ?? state.queue)].reverse()
     state.queue = reordered
@@ -483,7 +619,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/pick`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/pick`, async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>
     pickRequests.push(body)
 
@@ -532,7 +668,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/ai-pick`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/ai-pick`, async (route) => {
     const payload = route.request().postDataJSON() as Record<string, unknown>
     aiPickRequests.push(payload)
     const current = buildSession().currentPick
@@ -590,7 +726,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/chat`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/chat`, async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
       await route.fulfill({
@@ -625,7 +761,7 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/trade-proposals`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/trade-proposals`, async (route) => {
     const method = route.request().method()
     if (method === 'GET') {
       await route.fulfill({
@@ -675,7 +811,7 @@ async function mockDraftRoomApis(
     await route.fallback()
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/trade-proposals/*/review`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/trade-proposals/*/review`, async (route) => {
     const url = route.request().url()
     const match = url.match(/trade-proposals\/([^/?]+)\/review/)
     const proposalId = match?.[1] ?? 'unknown'
@@ -696,7 +832,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/trade-proposals/*/respond`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/trade-proposals/*/respond`, async (route) => {
     const url = route.request().url()
     const match = url.match(/trade-proposals\/([^/?]+)\/respond/)
     const proposalId = match?.[1] ?? ''
@@ -758,7 +894,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/post-draft-summary`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/post-draft-summary`, async (route) => {
     const pickLog = state.picks.map((pick) => ({
       id: String(pick.id),
       overall: Number(pick.overall),
@@ -807,7 +943,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/replay`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/replay`, async (route) => {
     const pickLog = state.picks.map((pick) => ({
       id: String(pick.id),
       overall: Number(pick.overall),
@@ -837,7 +973,7 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/recap`, async (route) => {
+  await page.route(`**/api/leagues/*/draft/recap`, async (route) => {
     const includeAiExplanation = Boolean((route.request().postDataJSON() as { includeAiExplanation?: boolean } | null)?.includeAiExplanation)
     const sections = {
       leagueNarrativeRecap:
@@ -915,8 +1051,20 @@ async function mockDraftRoomApis(
     })
   })
 
-  await page.route(`**/api/leagues/${leagueId}/draft/controls`, async (route) => {
-    const body = route.request().postDataJSON() as Record<string, unknown>
+  await page.route(`**/api/leagues/*/draft/controls`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue()
+      return
+    }
+    const raw = route.request().postData()
+    let body: Record<string, unknown> = {}
+    if (raw) {
+      try {
+        body = JSON.parse(raw) as Record<string, unknown>
+      } catch {
+        body = {}
+      }
+    }
     controlsRequests.push(body)
     const action = String(body.action ?? '')
     if (action === 'pause') {
@@ -1023,7 +1171,69 @@ async function mockDraftRoomApis(
   }
 }
 
-async function openDraftRoomHarness(page: Page) {
+/** Console / network hooks for debugging harness boot (chunk load, hydration, API mocks). */
+function attachDraftHarnessDiagnostics(page: Page) {
+  const staticChunkFailures: string[] = []
+
+  const recordStaticChunkFailure = (line: string) => {
+    if (!staticChunkFailures.includes(line)) staticChunkFailures.push(line)
+  }
+
+  page.on('console', (msg) => {
+    // eslint-disable-next-line no-console
+    console.log('[draft-harness e2e][browser]', msg.type(), msg.text())
+  })
+  page.on('pageerror', (err) => {
+    // eslint-disable-next-line no-console
+    console.log('[draft-harness e2e][pageerror]', err.message)
+  })
+  page.on('requestfailed', (req) => {
+    const url = req.url()
+    const failure = req.failure()?.errorText ?? 'unknown failure'
+    if (url.includes('/_next/static/')) {
+      recordStaticChunkFailure(`${url} :: ${failure}`)
+    }
+    // eslint-disable-next-line no-console
+    console.log('[draft-harness e2e][requestfailed]', url, failure)
+  })
+  page.on('response', (res) => {
+    const u = res.url()
+    if (u.includes('/_next/static/')) {
+      const status = res.status()
+      if (status >= 400) {
+        recordStaticChunkFailure(`${status} ${u}`)
+      }
+    }
+    if (!u.includes('/api/')) return
+    // eslint-disable-next-line no-console
+    console.log('[draft-harness e2e][api]', res.status(), u)
+  })
+
+  return {
+    assertNoStaticChunkFailures() {
+      expect(
+        staticChunkFailures,
+        staticChunkFailures.length
+          ? `Next.js static assets failed to load (hydration cannot proceed):\n${staticChunkFailures.join('\n')}`
+          : '',
+      ).toEqual([])
+    },
+  }
+}
+
+type OpenDraftRoomHarnessOptions = {
+  /** Room is already open; only wait for `draft-room-shell`. */
+  roomAlreadyOpen?: boolean
+  /** Same as `roomAlreadyOpen` — prefer in harness health / `?e2eRoom=1` flows. */
+  e2eRoom?: boolean
+}
+
+async function openDraftRoomHarness(page: Page, options?: OpenDraftRoomHarnessOptions) {
+  const roomOpen = Boolean(options?.roomAlreadyOpen || options?.e2eRoom)
+  if (roomOpen) {
+    await expect(page.getByTestId('draft-room-shell')).toBeVisible({ timeout: 45_000 })
+    return
+  }
   const button = page.getByTestId('draft-enter-room-button')
   for (let attempt = 0; attempt < 6; attempt += 1) {
     const visible = await button.isVisible().catch(() => false)
@@ -1032,7 +1242,7 @@ async function openDraftRoomHarness(page: Page) {
       continue
     }
     try {
-      await button.click({ timeout: 1500 })
+      await button.click({ timeout: 1500, force: true })
       break
     } catch {
       await page.evaluate(() => {
@@ -1042,8 +1252,59 @@ async function openDraftRoomHarness(page: Page) {
     }
     await page.waitForTimeout(150)
   }
-  await expect(page.getByTestId('draft-room-shell')).toBeVisible()
+  await expect(page.getByTestId('draft-room-shell')).toBeVisible({ timeout: 30_000 })
 }
+
+function draftRoomUrlPathKey(url: string): string {
+  try {
+    const u = new URL(url)
+    return `${u.pathname}${u.search}`
+  } catch {
+    return url
+  }
+}
+
+async function assertSingleDraftBoard(page: Page) {
+  const desktop = page.getByTestId('draft-desktop-layout')
+  await expect(desktop.getByTestId('draft-board')).toHaveCount(1)
+  await expect(desktop.getByTestId('draft-board-grid')).toHaveCount(1)
+}
+
+/** Stable board + status chrome counts (layout parity before vs after Start). */
+async function readDraftBoardChromeSnapshot(page: Page) {
+  const shell = page.getByTestId('draft-room-shell')
+  const desktop = shell.getByTestId('draft-desktop-layout')
+  return {
+    boards: await desktop.getByTestId('draft-board').count(),
+    grids: await desktop.getByTestId('draft-board-grid').count(),
+    teamHeaders: await desktop.getByTestId('draft-board-team-header').count(),
+    cell1: await desktop.getByTestId('draft-board-cell-1').count(),
+    statusColumns: await desktop.getByTestId('draft-live-status-column').count(),
+    onClockPanels: await desktop.getByTestId('draft-on-the-clock').count(),
+    liveTimers: await desktop.getByTestId('draft-live-timer').count(),
+    currentPickMeta: await desktop.getByTestId('draft-live-current-pick-meta').count(),
+    upcomingOnDeck: await desktop.getByTestId('draft-upcoming-on-deck').count(),
+    topbarCenterSlot: await shell.getByTestId('draft-topbar-center-slot').count(),
+  }
+}
+
+/** After Start: grid + on-clock column + real timers (regression: shell mounts but board grid / live column never hydrates). */
+async function assertLiveInProgressBoardSurface(page: Page) {
+  const shell = page.getByTestId('draft-room-shell')
+  const desktop = shell.getByTestId('draft-desktop-layout')
+  await expect(desktop.getByTestId('draft-board-grid')).toBeVisible()
+  await expect(desktop.getByTestId('draft-board-cell-1')).toBeVisible()
+  await expect(desktop.getByTestId('draft-live-status-column')).toBeVisible()
+  await expect(desktop.getByTestId('draft-on-the-clock')).toBeVisible()
+  await expect(desktop.getByTestId('draft-live-timer')).toBeVisible()
+  await expect(desktop.getByTestId('draft-live-timer')).toContainText(/\d+:\d{2}/)
+  await expect(shell.getByTestId('draft-topbar-on-clock-manager')).toContainText(/Alpha/i)
+  const topTimer = shell.getByTestId('draft-topbar-timer-value')
+  await expect(topTimer).toBeVisible()
+  await expect(topTimer).toHaveText(/\d+:\d{2}/)
+  await expect(desktop.getByText('Draft board', { exact: true })).toHaveCount(1)
+}
+
 
 test.describe('@draft-room click audit', () => {
   test('full draft room interaction flow is wired end-to-end', async ({ page }) => {
@@ -1276,7 +1537,7 @@ test.describe('@draft-room click audit', () => {
   test('draft intel queue panel renders and top-choice CTA is wired', async ({ page }) => {
     const leagueId = `e2e-draft-room-intel-${Date.now()}`
     const mocks = await mockDraftRoomApis(page, leagueId)
-    await page.route(`**/api/draft/intel/stream?leagueId=${leagueId}`, async (route) => {
+    await page.route('**/api/draft/intel/stream**', async (route) => {
       const payload = {
         leagueId,
         userId: 'user-2',
@@ -1458,5 +1719,88 @@ test.describe('@draft-room click audit', () => {
     await page.getByTestId('draft-commissioner-close').click()
     await page.getByTestId('draft-mobile-tab-board').click()
     await expect(mobile.getByTestId('draft-board')).toBeVisible()
+  })
+})
+
+test.describe('@draft-room single-board regression', () => {
+  /** Serial so harness health runs before the longer regression in the same worker. */
+  test.describe.configure({ mode: 'serial', timeout: 120_000 })
+
+  test('draft room harness loads shell', async ({ page }) => {
+    const diag = attachDraftHarnessDiagnostics(page)
+    const leagueId = `e2e-harness-health-${Date.now()}`
+    await mockDraftRoomApis(page, leagueId)
+    await page.goto(
+      `/e2e/draft-room?leagueId=${encodeURIComponent(leagueId)}&sport=NFL&e2eRoom=1`,
+    )
+    await page.waitForTimeout(1_000)
+    diag.assertNoStaticChunkFailures()
+    await openDraftRoomHarness(page, { e2eRoom: true })
+    diag.assertNoStaticChunkFailures()
+    await expect(page.getByTestId('draft-room-shell')).toBeVisible({ timeout: 30_000 })
+  })
+
+  test('start pause resume keeps one board and does not navigate', async ({ page }) => {
+    const diag = attachDraftHarnessDiagnostics(page)
+    page.on('dialog', async (dialog) => {
+      await dialog.dismiss()
+    })
+    const leagueId = `e2e-single-board-${Date.now()}`
+    const mocks = await mockDraftRoomApis(page, leagueId, { initialStatus: 'pre_draft' })
+
+    await page.goto(
+      `/e2e/draft-room?leagueId=${encodeURIComponent(leagueId)}&sport=NFL&e2eRoom=1`,
+    )
+    await page.waitForTimeout(1_000)
+    diag.assertNoStaticChunkFailures()
+    await openDraftRoomHarness(page, { e2eRoom: true })
+    diag.assertNoStaticChunkFailures()
+    const pathKey = draftRoomUrlPathKey(page.url())
+    await assertSingleDraftBoard(page)
+    const boardChromeBeforeStart = await readDraftBoardChromeSnapshot(page)
+
+    await expect(page.getByTestId('draft-topbar-start-draft')).toBeVisible()
+    await page.getByTestId('draft-topbar-start-draft').click()
+    await expect
+      .poll(async () => page.getByTestId('draft-topbar-start-draft').count(), { timeout: 25_000 })
+      .toBe(0)
+    expect(draftRoomUrlPathKey(page.url())).toBe(pathKey)
+    await assertSingleDraftBoard(page)
+    await assertLiveInProgressBoardSurface(page)
+    expect(await readDraftBoardChromeSnapshot(page)).toEqual(boardChromeBeforeStart)
+
+    // Pause/resume via commissioner center (same `/draft/controls` as topbar). Overflow menu pause
+    // did not reliably receive clicks in this harness (stacking / pointer routing); modal is stable.
+    await openCommissionerControls(page)
+    await page.getByTestId('draft-commissioner-pause').click()
+    await expect
+      .poll(() => mocks.getControlsRequests().some((r) => String((r as { action?: unknown }).action) === 'pause'), {
+        timeout: 20_000,
+      })
+      .toBe(true)
+    await page.getByTestId('draft-commissioner-close').click()
+
+    await page.getByTestId('draft-topbar-menu-toggle').click()
+    await expect(page.getByTestId('draft-topbar-menu')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('draft-topbar-menu-resume')).toBeVisible({ timeout: 15_000 })
+    await page.keyboard.press('Escape')
+    expect(draftRoomUrlPathKey(page.url())).toBe(pathKey)
+    await assertSingleDraftBoard(page)
+
+    await openCommissionerControls(page)
+    await page.getByTestId('draft-commissioner-resume').click()
+    await expect
+      .poll(() => mocks.getControlsRequests().some((r) => String((r as { action?: unknown }).action) === 'resume'), {
+        timeout: 20_000,
+      })
+      .toBe(true)
+    await page.getByTestId('draft-commissioner-close').click()
+
+    await page.getByTestId('draft-topbar-menu-toggle').click()
+    await expect(page.getByTestId('draft-topbar-menu')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('draft-topbar-menu-pause')).toBeVisible({ timeout: 15_000 })
+    await page.keyboard.press('Escape')
+    expect(draftRoomUrlPathKey(page.url())).toBe(pathKey)
+    await assertSingleDraftBoard(page)
   })
 })

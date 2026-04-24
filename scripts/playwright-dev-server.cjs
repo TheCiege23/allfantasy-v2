@@ -82,6 +82,11 @@ const childEnv = {
   ...(normalizedDb ? { DATABASE_URL: normalizedDb } : {}),
 }
 
+/**
+ * Playwright `webServer.url` (see playwright.config.ts) waits on a real
+ * `/_next/static/chunks/*.js` URL — not only `/` — before tests run.
+ */
+
 const child = spawn("npm", ["run", "dev", "--", "-p", port], {
   stdio: "inherit",
   env: childEnv,

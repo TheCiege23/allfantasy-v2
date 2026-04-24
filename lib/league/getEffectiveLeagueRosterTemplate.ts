@@ -17,6 +17,7 @@ import {
 } from '@/lib/multi-sport/RosterTemplateService'
 import { getFormatTypeForVariant } from '@/lib/sport-defaults/LeagueVariantRegistry'
 import { supportsIdpLeagueSport } from '@/lib/sport-scope'
+import { normalizePositionToken } from '@/lib/auto-sub-lineup-engine/normalize-position'
 
 const SUPERFLEX_SLOT_RE = /^SUPER[_\s]?FLEX$|^SUPERFLEX$|^SFLEX$/i
 
@@ -34,6 +35,23 @@ export function allowedPlayerPositionsFromTemplate(template: RosterTemplateDto):
   for (const slot of template.slots) {
     for (const p of slot.allowedPositions ?? []) {
       const u = normalizePositionTokenForSet(p)
+      if (u) set.add(u)
+    }
+  }
+  return set
+}
+
+/**
+ * Positions that can fill a **starting** lineup slot (starters + flex rows with starterCount &gt; 0).
+ * Excludes pure bench / IR / taxi rows whose allowed lists are often “any rostered position”, so e.g. kickers
+ * do not appear in the draft pool when the league has no K starter (only BN could hold a K otherwise).
+ */
+export function starterEligiblePlayerPositionsFromTemplate(template: RosterTemplateDto): Set<string> {
+  const set = new Set<string>()
+  for (const slot of template.slots) {
+    if ((slot.starterCount ?? 0) <= 0) continue
+    for (const p of slot.allowedPositions ?? []) {
+      const u = normalizePositionToken(String(p ?? '').trim()).toUpperCase()
       if (u) set.add(u)
     }
   }
@@ -92,7 +110,13 @@ export type EffectiveLeagueRosterTemplate = {
   /** True when league uses IDP template path (variant or `isIdpLeague`) */
   idpEnabled: boolean
   template: RosterTemplateDto
+  /** Full roster union (starters + bench/IR/taxi allowed lists) — capacity / post-draft eligibility, not draft targeting. */
   allowedPositions: ReadonlySet<string>
+  /**
+   * Positions that can fill a starting slot (`starterCount` &gt; 0). Draft pool / autopick / queue validation
+   * should use this (with empty fallback to {@link allowedPositions}), not the full union.
+   */
+  starterEligiblePositions: ReadonlySet<string>
   flexSlotNames: string[]
   superflexSlotNames: string[]
   /**
@@ -163,6 +187,7 @@ export async function getEffectiveLeagueRosterTemplate(leagueId: string): Promis
 
   const template = await getRosterTemplate(sportType, formatType, leagueId)
   const allowedPositions = allowedPlayerPositionsFromTemplate(template)
+  const starterEligiblePositions = starterEligiblePlayerPositionsFromTemplate(template)
   const { flexSlotNames, superflexSlotNames } = classifyFlexSlots(template.slots)
 
   const idpEnabled =
@@ -179,6 +204,7 @@ export async function getEffectiveLeagueRosterTemplate(leagueId: string): Promis
     idpEnabled,
     template,
     allowedPositions,
+    starterEligiblePositions,
     flexSlotNames,
     superflexSlotNames,
     hasPersistedRosterSchema,

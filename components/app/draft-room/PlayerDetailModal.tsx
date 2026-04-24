@@ -21,6 +21,9 @@ import { X, Star, Flame } from 'lucide-react'
 import type { DraftCopilotInsight } from '@/lib/draft-room/draft-copilot-types'
 import type { NormalizedDraftRoomPlayer } from '@/lib/players/normalizePlayer'
 import { getPlayerImage, preloadPlayerImage } from '@/lib/players/getPlayerImage'
+import type { NflDraftProjectionSplits } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { formatNflStatCell } from '@/lib/draft/analytics/nfl-draft-pool-projection-splits'
+import { NflDraftPoolStatsGroupHeader, NflDraftPoolStatsRow } from '@/components/app/draft-room/NflDraftPoolStatsStrip'
 
 export interface PlayerDetailPlayer {
   id?: string | null
@@ -79,6 +82,8 @@ export interface PlayerDetailModalProps {
   adpDisplayLabel?: 'ADP' | 'AI ADP'
   /** When Draft is disabled, clarifies drafted vs wrong turn */
   draftUnavailableReason?: 'already_drafted' | 'not_your_pick' | null
+  /** NFL: season projection + splits from `/draft/pool` (mobile detail access without list grid). */
+  nflDraftProjectionSplits?: NflDraftProjectionSplits | null
 }
 
 /** Matches lib/player-card-analytics/types.ts PlayerCardAnalyticsPayload */
@@ -196,6 +201,7 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
     presentationVariant = 'default',
     adpDisplayLabel = 'ADP',
     draftUnavailableReason = null,
+    nflDraftProjectionSplits = null,
   } = props
 
   const rsModal = presentationVariant === 'redraft_snake'
@@ -297,7 +303,7 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
   }, [open, handleKey])
 
   const headerImageUrl = useMemo(() => {
-    const fromNorm = normalized ? getPlayerImage(normalized) : null
+    const fromNorm = normalized ? getPlayerImage(normalized, sport) : null
     return fromNorm ?? player.headshotUrl ?? null
   }, [normalized, player.headshotUrl])
 
@@ -542,6 +548,14 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
             </div>
           </div>
 
+          {String(sport).toUpperCase() === 'NFL' && nflDraftProjectionSplits ? (
+            <DraftPoolNflProjectionSplitsSection
+              splits={nflDraftProjectionSplits}
+              position={player.position}
+              rsModal={rsModal}
+            />
+          ) : null}
+
           {draftCopilot && draftCopilot.bullets.length > 0 ? (
             <div
               className="border-b border-violet-400/15 bg-[linear-gradient(92deg,rgba(167,139,250,0.1),transparent)] px-6 py-3"
@@ -778,6 +792,68 @@ export function PlayerDetailModal(props: PlayerDetailModalProps) {
           </div>
         </aside>
       </div>
+    </div>
+  )
+}
+
+function DraftPoolNflProjectionSplitsSection({
+  splits,
+  position,
+  rsModal,
+}: {
+  splits: NflDraftProjectionSplits
+  position: string | null | undefined
+  rsModal: boolean
+}) {
+  const posU = String(position ?? '').trim().toUpperCase()
+  const isK = posU === 'K'
+
+  return (
+    <div
+      className={`border-b px-6 py-4 ${
+        rsModal
+          ? 'border-cyan-500/20 bg-[linear-gradient(92deg,rgba(34,211,238,0.07),transparent)]'
+          : 'border-white/8 bg-white/[0.02]'
+      }`}
+      data-testid="player-detail-nfl-pool-projections"
+    >
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">Draft pool projections</p>
+      <p className="mt-1 max-w-2xl text-[10px] leading-snug text-white/45">
+        Season outlook from your league player pool (analytics snapshot and Rolling Insights when matched). Em dash means
+        no data yet — not zero.
+      </p>
+
+      {isK ? (
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-[12px] tabular-nums text-white/88">
+          <span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/45">PTS</span>{' '}
+            {formatNflStatCell(splits.projectedPoints, 1)}
+          </span>
+          <span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white/45">PPG</span>{' '}
+            {formatNflStatCell(splits.projectedPointsPerGame, 1)}
+          </span>
+          {splits.kicking ? (
+            <>
+              <span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-white/45">FG</span>{' '}
+                {formatNflStatCell(splits.kicking.fg)}
+              </span>
+              <span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-white/45">XP</span>{' '}
+                {formatNflStatCell(splits.kicking.xpt)}
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-3 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(56,189,248,0.35)_rgba(15,23,42,0.5)]">
+          <div className="min-w-[min(720px,100%)] space-y-2">
+            <NflDraftPoolStatsGroupHeader />
+            <NflDraftPoolStatsRow splits={splits} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

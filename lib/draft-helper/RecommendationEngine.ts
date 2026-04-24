@@ -3,6 +3,7 @@
  * Uses only provided player pool and draft state; no invented players or stats.
  */
 
+import { draftPoolRowMatchesEligiblePositions } from '@/lib/draft-room/draft-pool-eligible-positions'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 
 function clamp(n: number, min: number, max: number): number {
@@ -35,6 +36,8 @@ export interface RecommendationInput {
   isDynasty?: boolean
   isSF?: boolean
   mode?: 'needs' | 'bpa'
+  /** When set, need weights ignore positions outside this starter-eligible set (same as draft pool). */
+  draftEligiblePositions?: ReadonlySet<string>
   /** Optional AI-adjusted ADP by player key (e.g. "name|position|team") */
   aiAdpByKey?: Record<string, number>
   /** Optional bye weeks by player key (NFL) */
@@ -301,6 +304,7 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
     isSF = false,
     mode = 'needs',
     aiAdpByKey,
+    draftEligiblePositions,
   } = input
   if (available.length === 0) return null
 
@@ -321,9 +325,19 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
     caveats.push('Limited ADP coverage in this pool; confidence is reduced.')
   }
 
+  const draftEligibleAsSet =
+    draftEligiblePositions && draftEligiblePositions.size > 0
+      ? draftEligiblePositions instanceof Set
+        ? draftEligiblePositions
+        : new Set(draftEligiblePositions)
+      : null
+
   const scored: DraftPlayerRankingRow[] = available.slice(0, 80).map((p) => {
     const pos = normalizeSlot(p.position, normalizedSport)
-    const needScore = needs[pos] ?? 20
+    let needScore = needs[pos] ?? 20
+    if (draftEligibleAsSet && !draftPoolRowMatchesEligiblePositions(p.position, draftEligibleAsSet)) {
+      needScore = 8
+    }
     const key = playerKey(p)
     const adp = getAdp(p, overall, aiAdpByKey, key)
     const adpEdge = clamp((overall - adp) * 1.4, -20, 25)
