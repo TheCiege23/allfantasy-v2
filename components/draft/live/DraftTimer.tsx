@@ -19,7 +19,10 @@ export function DraftTimer({
   timer: TimerState
   className?: string
 }) {
-  const liveSec = useDraftCountdownSeconds(timer.status, timer.timerEndAt, timer.remainingSeconds)
+  const liveSec = useDraftCountdownSeconds(timer.status, timer.timerEndAt, timer.remainingSeconds, {
+    pauseReason: timer.pauseReason,
+    overnightResumeAtIso: timer.overnightResumeAt ?? null,
+  })
   const sec = liveSec ?? timer.remainingSeconds
   const urgent = useMemo(() => {
     if (timer.status !== 'running') return false

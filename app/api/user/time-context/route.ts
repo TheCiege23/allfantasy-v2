@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { getUserTimeContext, buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
 import { persistDeviceTimeContext } from '@/lib/time-engine/persistDeviceTime'
+import { ensureUserProfileForUserId } from '@/lib/user-profile/ensureUserProfileForUserId'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   try {
+    await ensureUserProfileForUserId(userId)
     const [context, aiPayload] = await Promise.all([
       getUserTimeContext(userId),
       buildAiTimeContextPayload(userId),
@@ -47,6 +49,8 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  await ensureUserProfileForUserId(userId)
 
   const json = await req.json().catch(() => null)
   const parsed = postSchema.safeParse(json)

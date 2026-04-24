@@ -217,6 +217,8 @@ export async function PATCH(
   if (['per_pick', 'soft_pause', 'overnight_pause', 'none'].includes(body.timerMode)) uiPatch.timerMode = body.timerMode
   if (typeof body.commissionerForceAutoPickEnabled === 'boolean') uiPatch.commissionerForceAutoPickEnabled = body.commissionerForceAutoPickEnabled
   if (typeof body.commissionerPauseControlsEnabled === 'boolean') uiPatch.commissionerPauseControlsEnabled = body.commissionerPauseControlsEnabled
+  if (typeof body.allowPicksDuringOvernightPause === 'boolean')
+    uiPatch.allowPicksDuringOvernightPause = body.allowPicksDuringOvernightPause
   if (body.slowDraftPauseWindow !== undefined) {
     const w = body.slowDraftPauseWindow
     if (w == null || (typeof w === 'object' && typeof w.start === 'string' && typeof w.end === 'string' && typeof w.timezone === 'string')) {

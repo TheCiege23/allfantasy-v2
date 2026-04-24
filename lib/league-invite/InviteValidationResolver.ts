@@ -194,8 +194,15 @@ export async function validateFantasyInviteCode(
     inviteExpiresAt && !Number.isNaN(inviteExpiresAt.getTime()) && inviteExpiresAt.getTime() < Date.now()
   )
 
+  // Slice 7/7.1: auto-materialization fills empty slots with orphan AI rosters
+  // (platformUserId prefix "orphan-"). Those must NOT count toward invite
+  // capacity — they're placeholder seats that will be evicted when a real
+  // human joins via evictOrphanForNewHumanRoster.
   const memberCount = await prisma.roster.count({
-    where: { leagueId: league.id },
+    where: {
+      leagueId: league.id,
+      NOT: { platformUserId: { startsWith: 'orphan-' } },
+    },
   })
   const leagueSize = league.leagueSize ?? null
   const isFull = leagueSize != null && memberCount >= leagueSize

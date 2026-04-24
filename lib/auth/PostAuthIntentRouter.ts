@@ -1,4 +1,10 @@
 import { loginUrlWithIntent, safeRedirectPath, signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
+import {
+  isAllowedSignupPostAuthDestination,
+  isAuthEntrySurfacePathname,
+  pathnameFromPathAndQuery,
+} from "@/lib/auth/postSignupRedirectPolicy"
+import { canonicalizeProductRoute } from "@/lib/routing/canonicalizeProductRoute"
 
 export const DEFAULT_POST_AUTH_ROUTE = "/dashboard"
 export const AUTH_INTENT_STORAGE_KEY = "af_auth_intent"
@@ -16,6 +22,8 @@ export interface PostAuthIntentInput {
   rememberedIntent?: string | null
   isAdmin?: boolean
   fallback?: string
+  /** When true, skip auth shells and unknown internal paths so new signups default to the app hub. */
+  forSignup?: boolean
 }
 
 function isSafeInternalPath(value: string | null | undefined): value is string {
@@ -45,6 +53,10 @@ function remapDeprecatedAppRoutes(safe: string): string {
   return safe
 }
 
+function finalizePostAuthPath(path: string): string {
+  return canonicalizeProductRoute(path)
+}
+
 function normalizeCandidate(
   value: string | null | undefined,
   isAdmin: boolean | undefined
@@ -69,11 +81,26 @@ export function resolvePostAuthIntentDestination(input: PostAuthIntentInput): st
 
   for (const candidate of candidates) {
     const normalized = normalizeCandidate(candidate, isAdmin)
-    if (normalized) return normalized
+    if (!normalized) continue
+    if (
+      input.forSignup &&
+      !isAllowedSignupPostAuthDestination(normalized, isAdmin)
+    ) {
+      continue
+    }
+    return finalizePostAuthPath(normalized)
   }
 
-  if (isAdmin === true) return "/admin"
-  return normalizeCandidate(input.fallback, isAdmin) ?? DEFAULT_POST_AUTH_ROUTE
+  if (isAdmin === true) return finalizePostAuthPath("/admin")
+  const fb = normalizeCandidate(input.fallback, isAdmin)
+  if (
+    fb &&
+    input.forSignup &&
+    !isAllowedSignupPostAuthDestination(fb, isAdmin)
+  ) {
+    return finalizePostAuthPath(DEFAULT_POST_AUTH_ROUTE)
+  }
+  return finalizePostAuthPath(fb ?? DEFAULT_POST_AUTH_ROUTE)
 }
 
 export function buildLoginHrefWithIntent(redirectPath: string): string {
@@ -88,8 +115,12 @@ export function rememberAuthIntent(path: string | null | undefined): void {
   if (typeof window === "undefined") return
   const normalized = normalizeCandidate(path, undefined)
   if (!normalized) return
+  if (isAuthEntrySurfacePathname(pathnameFromPathAndQuery(normalized))) return
   try {
-    window.localStorage.setItem(AUTH_INTENT_STORAGE_KEY, normalized)
+    window.localStorage.setItem(
+      AUTH_INTENT_STORAGE_KEY,
+      finalizePostAuthPath(normalized)
+    )
   } catch {}
 }
 
@@ -97,7 +128,8 @@ export function readRememberedAuthIntent(): string | null {
   if (typeof window === "undefined") return null
   try {
     const raw = window.localStorage.getItem(AUTH_INTENT_STORAGE_KEY)
-    return normalizeCandidate(raw, undefined)
+    const normalized = normalizeCandidate(raw, undefined)
+    return normalized ? finalizePostAuthPath(normalized) : null
   } catch {
     return null
   }

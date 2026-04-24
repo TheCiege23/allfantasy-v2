@@ -1,5 +1,10 @@
 'use client'
 
+/**
+ * Legacy league join by opaque token (`/join/[token]`).
+ * Prefer unified `/invite/accept?code=...` for new invite links; this page remains for existing URLs.
+ */
+
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -157,7 +162,9 @@ export default function JoinLeagueInvitePage() {
         teamExternalId: selectedTeam.externalId,
       })
 
-      router.push('/dashboard')
+      router.push(
+        claimedLeagueId ? `/league/${claimedLeagueId}` : '/dashboard'
+      )
       router.refresh()
     } catch {
       setClaimError('Unable to claim this team right now.')

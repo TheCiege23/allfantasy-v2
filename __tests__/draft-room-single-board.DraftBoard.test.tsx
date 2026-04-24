@@ -37,9 +37,28 @@ const samplePick: DraftPickSnapshot = {
  * prop transitions (same pattern as DraftRoomPageClient: one board, no second mount branch).
  */
 function SingleBoardPhaseHarness() {
-  const [phase, setPhase] = useState<'pre_draft' | 'in_progress' | 'paused'>('pre_draft')
-  const picks = phase === 'pre_draft' ? [] : [samplePick]
-  const currentOverall = phase === 'pre_draft' ? null : 2
+  const [phase, setPhase] = useState<'pre_draft' | 'in_progress' | 'paused' | 'completed'>('pre_draft')
+  const picks =
+    phase === 'pre_draft'
+      ? []
+      : phase === 'completed'
+        ? [
+            samplePick,
+            {
+              ...samplePick,
+              id: 'pick-2',
+              overall: 2,
+              round: 1,
+              slot: 2,
+              rosterId: 'roster-2',
+              displayName: 'Beta',
+              playerName: 'Beta Runner',
+              pickLabel: '1.02',
+            },
+          ]
+        : [samplePick]
+  const currentOverall =
+    phase === 'pre_draft' ? null : phase === 'completed' ? null : 2
   return (
     <div>
       <p data-testid="phase">{phase}</p>
@@ -51,6 +70,9 @@ function SingleBoardPhaseHarness() {
       </button>
       <button type="button" data-testid="sim-resume" onClick={() => setPhase('in_progress')}>
         resume
+      </button>
+      <button type="button" data-testid="sim-complete" onClick={() => setPhase('completed')}>
+        complete
       </button>
       <DraftBoard
         picks={picks}
@@ -88,6 +110,11 @@ describe('single draft board (selectors + single mount)', () => {
 
     fireEvent.click(screen.getByTestId('sim-resume'))
     expect(screen.getByTestId('phase')).toHaveTextContent('in_progress')
+    expect(countBoards()).toBe(1)
+    expect(countGrids()).toBe(1)
+
+    fireEvent.click(screen.getByTestId('sim-complete'))
+    expect(screen.getByTestId('phase')).toHaveTextContent('completed')
     expect(countBoards()).toBe(1)
     expect(countGrids()).toBe(1)
   })

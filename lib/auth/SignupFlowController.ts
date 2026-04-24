@@ -1,4 +1,5 @@
-import { resolveAuthRedirect } from "@/lib/auth/AuthRedirectResolver"
+import { resolvePostAuthIntentDestination } from "@/lib/auth/PostAuthIntentRouter"
+import { canonicalizeProductRoute } from "@/lib/routing/canonicalizeProductRoute"
 
 export interface SignupQueryShape {
   next?: string | null
@@ -8,11 +9,12 @@ export interface SignupQueryShape {
 }
 
 export function resolveSignupRedirectPath(input: SignupQueryShape): string {
-  return resolveAuthRedirect({
+  return resolvePostAuthIntentDestination({
     callbackUrl: input.callbackUrl,
     next: input.next,
     returnTo: input.returnTo,
     intent: input.intent,
+    forSignup: true,
   })
 }
 
@@ -21,7 +23,8 @@ export function resolvePostSignupCallbackUrl(input: {
   verificationMethod?: 'EMAIL' | 'PHONE' | string | null
 }): string {
   if (input.verificationMethod === 'PHONE') {
-    return `/verify?method=phone&error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(input.redirectAfterSignup)}`
+    const returnTo = canonicalizeProductRoute(input.redirectAfterSignup)
+    return `/verify?method=phone&error=VERIFICATION_REQUIRED&returnTo=${encodeURIComponent(returnTo)}`
   }
   return input.redirectAfterSignup
 }

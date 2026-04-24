@@ -11,6 +11,7 @@ import {
 } from "@/lib/auth/ProviderFallbackFlowService"
 import { type SocialProvider } from "@/lib/auth/SocialProviderResolver"
 import { resolveFallbackRoute } from "@/lib/ui-state"
+import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 
 const SUPPORTED_PROVIDER_IDS: SocialProvider[] = [
   "google",
@@ -74,7 +75,7 @@ export default function ProviderPendingPage() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href={`/signup?next=${encodeURIComponent(callbackUrl)}`}
+              href={signupUrlWithIntent(callbackUrl)}
               className="flex flex-1 items-center justify-center rounded-[11px] border border-violet-400/30 bg-[#1c1535] px-4 py-3 text-sm font-medium text-white/75 transition hover:border-violet-300/45 hover:bg-[#211a3e] hover:text-white"
             >
               Go to Sign Up

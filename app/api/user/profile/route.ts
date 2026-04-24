@@ -6,6 +6,7 @@ import {
   getSettingsSnapshot,
   saveSettingsOrchestrated,
 } from "@/lib/user-settings"
+import { ensureUserProfileForUserId } from "@/lib/user-profile/ensureUserProfileForUserId"
 import type { PreferredLanguage, ThemePreference } from "@/lib/user-settings"
 import type { ProfileUpdatePayload } from "@/lib/user-settings/types"
 
@@ -33,6 +34,7 @@ export async function GET() {
   }
 
   try {
+    await ensureUserProfileForUserId(session.user.id)
     const snapshot = await getSettingsSnapshot(session.user.id)
     const profile = snapshot?.profile ?? null
     if (!snapshot || !profile) {
@@ -52,6 +54,22 @@ export async function GET() {
     })
   } catch (err) {
     logProfileError("[api/user/profile] GET", err)
+    try {
+      await ensureUserProfileForUserId(session.user.id)
+      const snapshot = await getSettingsSnapshot(session.user.id)
+      const profile = snapshot?.profile ?? null
+      if (profile) {
+        return NextResponse.json({
+          ...profile,
+          settings: snapshot?.settings ?? null,
+          preferredLanguage: profile.preferredLanguage,
+          timezone: profile.timezone,
+          themePreference: profile.themePreference,
+        })
+      }
+    } catch {
+      /* fall through */
+    }
     return NextResponse.json(
       { error: "Failed to load profile" },
       { status: 500 }
@@ -84,6 +102,7 @@ type ProfileBody = {
 
 async function handleProfileWrite(req: Request, userId: string) {
   try {
+  await ensureUserProfileForUserId(userId)
   const body = (await req.json().catch(() => ({}))) as ProfileBody
   const {
     displayName,

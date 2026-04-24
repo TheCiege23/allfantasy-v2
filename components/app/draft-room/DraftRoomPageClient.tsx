@@ -81,6 +81,7 @@ import { computePicksUntilViewerTurn } from '@/lib/draft-room/computePicksUntilV
 import { mergeDraftSessionSnapshot } from '@/lib/draft-room/mergeDraftSessionSnapshot'
 import { CommissionerPickEditorPanel, type CommissionerPickEditorPlayerOption } from '@/components/app/draft-room/CommissionerPickEditorPanel'
 import { CommissionerAuditLogList } from '@/components/app/draft-room/CommissionerAuditLogList'
+import { PreDraftSlotSetupCard } from '@/components/app/draft-room/PreDraftSlotSetupCard'
 import { isDraftPickRowEmptyFromSnapshot } from '@/lib/live-draft-engine/draftPickEmpty'
 import { draftRoomPickTrace, draftRoomWarn } from '@/lib/draft-room/draftRoomDevLog'
 import { buildDraftRoomPageDerivedState } from '@/lib/draft-room/buildDraftRoomPageDerivedState'
@@ -715,15 +716,21 @@ export function DraftRoomPageClient({
       draftCore.currentOverall > 0 &&
       draftCore.currentTeamId === currentUserRosterId,
   )
+  const overnightBlocksUserPicks = Boolean(
+    session?.status === 'in_progress' &&
+      session.timer?.pauseReason === 'overnight_window' &&
+      draftUISettings?.allowPicksDuringOvernightPause !== true,
+  )
   const snakeCanDraftRaw = useMemo(
     () =>
       session != null &&
       session.status === 'in_progress' &&
+      !overnightBlocksUserPicks &&
       draftCore?.draftStarted === true &&
       draftCore.currentOverall > 0 &&
       pickSubmitting === false &&
       (commissionerOfflinePick || isCurrentUserOnClock),
-    [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock],
+    [session, draftCore, pickSubmitting, commissionerOfflinePick, isCurrentUserOnClock, overnightBlocksUserPicks],
   )
 
   const isAuctionDraft = session?.draftType === 'auction'
@@ -2035,6 +2042,7 @@ export function DraftRoomPageClient({
     if (session?.status === 'in_progress' && currentUserRosterId) fetchPendingTradesCount()
   }, [session?.status, currentUserRosterId, fetchPendingTradesCount])
 
+  /** Slice A — lifecycle: start updates `session` in place (no router navigation; same `DraftBoard` mount). */
   const handleStartDraft = useCallback(async () => {
     try {
       setPickError(null)
@@ -2048,7 +2056,7 @@ export function DraftRoomPageClient({
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: true })
         setSession((prev) => mergeDraftSessionSnapshot(prev, data.session as DraftSessionSnapshot))
         await fetchDraftPool()
-        await fetchSession()
+        // Authoritative snapshot already returned on POST — avoid an immediate GET race that can flicker UI.
       } else {
         sendProductAnalyticsBeacon(DRAFT_ROOM.START_DRAFT, { leagueId, ok: false })
         const startErr =
@@ -4101,6 +4109,17 @@ export function DraftRoomPageClient({
 
                   {centerDockTab === 'commish' && isCommissioner ? (
                     <div className="flex h-full flex-col gap-2 overflow-auto px-1.5 py-1" data-testid="draft-bottom-commish-panel">
+                      <PreDraftSlotSetupCard
+                        leagueId={leagueId}
+                        session={session}
+                        onSlotOrderUpdated={(nextSlotOrder) => {
+                          setSession((prev) => (prev ? { ...prev, slotOrder: nextSlotOrder } : prev))
+                          setGovernanceBanner({
+                            variant: 'success',
+                            message: 'Placeholder slots replaced with real rosters.',
+                          })
+                        }}
+                      />
                       <CommissionerPickEditorPanel
                         leagueId={leagueId}
                         session={session}
@@ -4201,6 +4220,21 @@ export function DraftRoomPageClient({
                 Pick clock is frozen until the commissioner resumes the draft.
               </span>
             </div>
+          ) : session?.status === 'in_progress' && session.timer?.pauseReason === 'overnight_window' ? (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="draft-overnight-pause-banner"
+              className="flex flex-wrap items-center gap-2 border-b border-slate-400/35 bg-slate-900/80 px-4 py-2.5 text-sm text-slate-100"
+            >
+              <span className="font-semibold uppercase tracking-[0.12em] text-slate-200/95">Overnight pause</span>
+              <span className="text-slate-100/90">
+                Pick clock is frozen for the quiet window.
+                {draftUISettings?.allowPicksDuringOvernightPause
+                  ? ' Picks are still allowed if your league permits them.'
+                  : ' Picks are disabled until the window ends.'}
+              </span>
+            </div>
           ) : showPickClockAnchorWarning ? (
             <div
               role="status"
@@ -4244,6 +4278,8 @@ export function DraftRoomPageClient({
             timerRemainingSeconds={draftRoomState.timerMode === 'blocked' ? null : (session.timer?.remainingSeconds ?? null)}
             timerEndAtIso={draftRoomState.timerEndAt}
             timerSeconds={session.timerSeconds ?? null}
+            timerPauseReason={session.timer?.pauseReason ?? null}
+            overnightResumeAtIso={session.timer?.overnightResumeAt ?? null}
             timerMode={draftUISettings?.timerMode ?? 'per_pick'}
             autoPickEnabled={autoPickEnabled}
             isCommissioner={isCommissioner}

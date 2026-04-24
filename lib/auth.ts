@@ -11,6 +11,8 @@ import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapSer
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret";
+import { isPostOAuthRedirectPreservedPath } from "@/lib/auth/postOAuthRedirectPolicy";
+import { canonicalizeProductRoute } from "@/lib/routing/canonicalizeProductRoute";
 
 /** Only used while `next build` evaluates API routes; never used at runtime on Vercel if env is set. */
 const BUILD_TIME_AUTH_SECRET_PLACEHOLDER =
@@ -240,6 +242,11 @@ const providers: NextAuthOptions["providers"] = [
         }
       }
 
+      await ensureSharedAccountProfile({
+        userId: user.id,
+        displayName: user.displayName ?? displayName ?? user.username ?? null,
+      });
+
       return {
         id: user.id,
         email: user.email,
@@ -406,8 +413,13 @@ export const authOptions: NextAuthOptions = {
         pathAndQuery = url.startsWith("/") ? url : `/${url}`;
       }
 
+      pathAndQuery = canonicalizeProductRoute(pathAndQuery);
+
       // After OAuth, NextAuth may resolve `callbackUrl` to `/login` or `/`; send users into the app.
       const pathname = pathAndQuery.split("?")[0] || "/";
+      if (isPostOAuthRedirectPreservedPath(pathname)) {
+        return `${base}${pathAndQuery}`;
+      }
       if (pathname === "/login" || pathname === "/") {
         return `${base}/dashboard`;
       }

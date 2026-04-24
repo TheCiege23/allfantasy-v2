@@ -45,17 +45,18 @@ export function buildInviteDestinationHref(inviteType: InviteType, targetId?: st
 
   switch (inviteType) {
     case 'league':
-      return targetId ? `/leagues/${targetId}` : null
+      return targetId ? `/league/${targetId}` : null
     case 'bracket':
-      return targetId ? `/brackets/leagues/${targetId}` : null
+      // Bracket pool IDs are treated like in-app league IDs for navigation; old /brackets/... is not used.
+      return targetId ? `/league/${targetId}` : null
     case 'creator_league':
-      return targetId ? `/creator/leagues/${targetId}` : null
+      return '/dashboard'
     case 'referral':
-      return '/referrals'
+      return '/dashboard'
     case 'reactivation':
       return '/dashboard'
     case 'waitlist':
-      return '/signup'
+      return '/dashboard'
     default:
       return null
   }

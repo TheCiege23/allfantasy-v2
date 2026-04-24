@@ -83,6 +83,10 @@ export type DraftTopBarProps = {
   leagueDraftSettingsHref?: string | null
   /** When set, the gear opens in-room draft settings (modal) instead of navigating away. Takes precedence over `leagueDraftSettingsHref`. */
   onOpenDraftRoomSettings?: () => void
+  /** From session.timer.pauseReason — distinguishes commissioner vs overnight virtual pause. */
+  timerPauseReason?: 'commissioner' | 'overnight_window' | null
+  /** ISO UTC when overnight quiet window ends (session.timer.overnightResumeAt). */
+  overnightResumeAtIso?: string | null
   /** Number of browsers currently viewing the draft room (from Supabase presence). */
   onlineCount?: number
   /** `redraft_snake` — show format chips and slightly stronger header chrome (snake redraft live URL). */
@@ -181,9 +185,16 @@ export function DraftTopBar({
   onlineCount,
   draftRoomPresentation = 'default',
   onToggleAutoPick,
+  timerPauseReason = null,
+  overnightResumeAtIso = null,
 }: DraftTopBarProps) {
   const { t } = useLanguage()
-  const liveRemaining = useDraftCountdownSeconds(timerStatus, timerEndAtIso ?? undefined, timerRemainingSeconds)
+  const liveRemaining = useDraftCountdownSeconds(
+    timerStatus,
+    timerEndAtIso ?? undefined,
+    timerRemainingSeconds,
+    { pauseReason: timerPauseReason, overnightResumeAtIso },
+  )
   const menuRef = useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [copyFeedback, setCopyFeedback] = useState<'idle' | 'copied'>('idle')
@@ -203,6 +214,14 @@ export function DraftTopBar({
     timerStatus === 'running' && timerEndAtIso != null && timerEndAtIso !== ''
       ? liveRemaining
       : timerRemainingSeconds
+
+  const resumeInSeconds =
+    timerPauseReason === 'overnight_window' && overnightResumeAtIso
+      ? Math.max(
+          0,
+          Math.ceil((new Date(overnightResumeAtIso).getTime() - Date.now()) / 1000),
+        )
+      : null
 
   const timerDisplay =
     timerStatus === 'none' || (effectiveRemaining == null && timerStatus !== 'paused' && timerStatus !== 'expired')
@@ -489,28 +508,45 @@ export function DraftTopBar({
               </div>
             ) : null}
 
-            <div
-              className={`inline-flex min-h-[44px] min-w-[7.25rem] items-center gap-2 rounded-2xl border px-4 py-2 transition-all duration-200 sm:min-h-[52px] sm:min-w-[8rem] sm:justify-center ${TIMER_COLORS[timerStatus]} ${
-                urgentLowTimer
-                  ? 'relative z-0 shadow-[0_0_48px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/70 animate-pulse sm:scale-105'
-                  : rs
-                    ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_32px_rgba(0,0,0,0.35)]'
-                    : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-              }`}
-              title={`${timerModeLabel} · Auto-pick ${autoPickEnabled ? 'on' : 'off'}`}
-            >
-              <Clock
-                className={`h-4 w-4 shrink-0 ${urgentLowTimer ? 'text-amber-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]' : ''}`}
-                aria-hidden
-              />
-              <span
-                className={`font-bold tabular-nums tracking-tight transition-all duration-200 ${
-                  urgentLowTimer ? 'text-2xl text-amber-50 sm:text-3xl' : 'text-sm font-semibold'
+            <div className="flex min-w-[7.25rem] flex-col items-stretch gap-0.5 sm:min-w-[8rem]">
+              <div
+                className={`inline-flex min-h-[44px] min-w-full items-center gap-2 rounded-2xl border px-4 py-2 transition-all duration-200 sm:min-h-[52px] sm:justify-center ${TIMER_COLORS[timerStatus]} ${
+                  urgentLowTimer
+                    ? 'relative z-0 shadow-[0_0_48px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/70 animate-pulse sm:scale-105'
+                    : rs
+                      ? 'shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_32px_rgba(0,0,0,0.35)]'
+                      : 'shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                 }`}
-                data-testid="draft-topbar-timer-value"
+                title={`${timerModeLabel} · Auto-pick ${autoPickEnabled ? 'on' : 'off'}`}
               >
-                {timerDisplay}
-              </span>
+                <Clock
+                  className={`h-4 w-4 shrink-0 ${urgentLowTimer ? 'text-amber-100 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]' : ''}`}
+                  aria-hidden
+                />
+                <span
+                  className={`font-bold tabular-nums tracking-tight transition-all duration-200 ${
+                    urgentLowTimer ? 'text-2xl text-amber-50 sm:text-3xl' : 'text-sm font-semibold'
+                  }`}
+                  data-testid="draft-topbar-timer-value"
+                >
+                  {timerDisplay}
+                </span>
+              </div>
+              {timerPauseReason === 'overnight_window' && resumeInSeconds != null && overnightResumeAtIso ? (
+                <p
+                  className="text-center text-[10px] font-medium leading-tight text-amber-100/80"
+                  data-testid="draft-topbar-overnight-resume"
+                >
+                  Quiet window · resumes in {formatTimerRemaining(resumeInSeconds)} (
+                  {new Date(overnightResumeAtIso).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                  )
+                </p>
+              ) : null}
             </div>
           </div>
         </div>

@@ -7,7 +7,9 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { assertDraftSessionBelongsToLeague } from '@/lib/engine-testing/hardening/engineInvariants'
 import { logEngineInvariantOptional } from '@/lib/engine-testing/runtime/invariantRuntime'
-import { computeTimerEndAt } from './DraftTimerService'
+import { computeTimerEndAt, isInsidePauseWindow } from './DraftTimerService'
+import { computeEffectivePickTimerSeconds } from './DraftSessionService'
+import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigResolver'
 import { validatePickSubmission, validateDevyEligibilityAsync, validateC2CEligibilityAsync } from './PickValidation'
 import { validateSpecialtyDraftPools } from './SpecialtyDraftPoolValidation'
 import { validateRosterFitForDraftPick } from './RosterFitValidation'
@@ -123,6 +125,23 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
   })
   if (!validation.valid) return { success: false, error: validation.error }
 
+  const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
+  const overnightWindow =
+    uiSettings.timerMode === 'overnight_pause' && uiSettings.slowDraftPauseWindow
+      ? uiSettings.slowDraftPauseWindow
+      : null
+  if (
+    session.status === 'in_progress' &&
+    overnightWindow &&
+    isInsidePauseWindow(new Date(), overnightWindow) &&
+    !uiSettings.allowPicksDuringOvernightPause
+  ) {
+    const src = input.source ?? 'user'
+    if (src === 'user' || src === 'auto') {
+      return { success: false, error: 'Picks are paused during the overnight window.' }
+    }
+  }
+
   const keeperConfig = (session.keeperConfig ?? (session as any).keeperConfig) as KeeperConfig | null
   const keeperSelections = (session.keeperSelections ?? (session as any).keeperSelections) as KeeperSelection[] | null
   if (keeperConfig?.maxKeepers && Array.isArray(keeperSelections) && keeperSelections.length > 0) {
@@ -227,7 +246,6 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     playerImageUrl: input.playerImageUrl,
   })
 
-  const uiSettings = await getDraftUISettingsForLeague(input.leagueId)
   let tradedPickMeta = owner?.tradedPickMeta ? { ...owner.tradedPickMeta } : null
   if (tradedPickMeta) {
     tradedPickMeta.showNewOwnerInRed = Boolean(uiSettings.tradedPickOwnerNameRedEnabled)
@@ -239,8 +257,15 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
     }
   }
 
-  const timerSeconds = session.timerSeconds ?? 90
-  const nextTimerEndAt = computeTimerEndAt(timerSeconds)
+  const [leagueSettingsRow, configRow] = await Promise.all([
+    prisma.leagueSettings.findUnique({ where: { leagueId: input.leagueId } }),
+    getDraftConfigForLeague(input.leagueId),
+  ])
+  const effectiveTimerSeconds = computeEffectivePickTimerSeconds(leagueSettingsRow, configRow, uiSettings)
+  const nextTimerEndAt =
+    effectiveTimerSeconds != null && effectiveTimerSeconds > 0
+      ? computeTimerEndAt(effectiveTimerSeconds)
+      : null
 
   const expectedNextOverall = resolveNextOpenPickOverall(progressPicks, totalPicks)
   if (expectedNextOverall !== overall) {
@@ -338,7 +363,9 @@ export async function submitPick(input: SubmitPickInput): Promise<SubmitPickResu
       await (tx as any).draftSession.update({
         where: { id: session.id },
         data: {
+          timerSeconds: effectiveTimerSeconds,
           timerEndAt: nextTimerEndAt,
+          overnightFrozenPickSeconds: null,
           pausedRemainingSeconds: null,
           status: 'in_progress',
           version: { increment: 1 },

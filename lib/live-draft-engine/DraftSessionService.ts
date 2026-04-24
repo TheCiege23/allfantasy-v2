@@ -15,7 +15,11 @@ import { getDraftConfigForLeague } from '@/lib/draft-defaults/DraftRoomConfigRes
 import { resolveCurrentOnTheClock } from './CurrentOnTheClockResolver'
 import { isDraftPickRowEmpty, resolveNextOpenPickOverall } from './draftPickEmpty'
 import { resolvePickOwner } from './PickOwnershipResolver'
-import { computeTimerState, computeTimerStateWithPauseWindow } from './DraftTimerService'
+import {
+  computeTimerState,
+  computeTimerStateWithPauseWindow,
+  isInsidePauseWindow,
+} from './DraftTimerService'
 import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISettingsResolver'
 import { buildApiResponse, parseCommissionerAiManagers } from '@/lib/commissioner-ai-draft-manager'
 import { formatPickLabel } from './DraftOrderService'
@@ -37,26 +41,118 @@ import { parseDispersalPoolConfig } from '@/lib/live-draft-engine/SpecialtyDraft
 import { DRAFT_ROSTER_CONFIGURATION_CLIENT_MESSAGE } from '@/lib/league/roster-configuration-gate-error'
 import { getEffectiveLeagueRosterTemplate } from '@/lib/league/getEffectiveLeagueRosterTemplate'
 
-/** Same rules as session creation: LeagueSettings pick timer wins when present; else draft config + UI slow-draft mode. */
-function computeEffectivePickTimerSeconds(
+/**
+ * Same rules as session creation: LeagueSettings pick timer wins when present; else draft config + UI slow-draft mode.
+ * Returns null for untimed drafts (`timerMode === 'none'`) or when no positive timer can be resolved.
+ */
+export function computeEffectivePickTimerSeconds(
   leagueSettings: { pickTimerPreset: string; pickTimerCustomValue: number | null } | null | undefined,
   config: Awaited<ReturnType<typeof getDraftConfigForLeague>>,
   uiSettings: Awaited<ReturnType<typeof getDraftUISettingsForLeague>>,
-): number {
-  const baseTimerSeconds = config?.timer_seconds ?? 90
-  const slowTimerSeconds = config?.slow_timer_seconds ?? Math.max(3600, baseTimerSeconds)
-  let timerSeconds =
+): number | null {
+  if (uiSettings.timerMode === 'none') {
+    return null
+  }
+
+  const configuredBase =
+    config?.timer_seconds != null && Number.isFinite(Number(config.timer_seconds))
+      ? Math.round(Number(config.timer_seconds))
+      : null
+  const configuredSlow =
+    config?.slow_timer_seconds != null && Number.isFinite(Number(config.slow_timer_seconds))
+      ? Math.round(Number(config.slow_timer_seconds))
+      : null
+
+  const slowTimerSeconds =
+    configuredSlow ??
+    (configuredBase != null ? Math.max(3600, configuredBase) : null)
+
+  let timerSeconds: number | null =
     uiSettings.timerMode === 'soft_pause' || uiSettings.timerMode === 'overnight_pause'
       ? slowTimerSeconds
-      : baseTimerSeconds
+      : configuredBase
+
   if (leagueSettings) {
     timerSeconds = pickTimerSecondsFromLeagueSettings(
       leagueSettings.pickTimerPreset,
       leagueSettings.pickTimerCustomValue,
     )
   }
+
+  if (timerSeconds == null || !Number.isFinite(timerSeconds)) return null
   const rounded = Math.round(Number(timerSeconds))
-  return Number.isFinite(rounded) && rounded > 0 ? rounded : 90
+  if (!Number.isFinite(rounded) || rounded <= 0) return null
+  return rounded
+}
+
+/**
+ * Reconcile overnight freeze: persist frozen pick seconds while inside the window; restore timerEndAt after exit.
+ */
+export async function reconcileOvernightDraftTimerForLeague(leagueId: string, now: Date = new Date()): Promise<void> {
+  const session = await prisma.draftSession.findUnique({
+    where: { leagueId },
+    select: {
+      id: true,
+      status: true,
+      draftType: true,
+      timerEndAt: true,
+      overnightFrozenPickSeconds: true,
+      version: true,
+    },
+  })
+  if (!session || session.status !== 'in_progress' || session.draftType === 'auction') return
+
+  const ui = await getDraftUISettingsForLeague(leagueId)
+  const window =
+    ui.timerMode === 'overnight_pause' && ui.slowDraftPauseWindow?.start && ui.slowDraftPauseWindow?.end
+      ? ui.slowDraftPauseWindow
+      : null
+
+  const frozen = session.overnightFrozenPickSeconds
+
+  if (!window) {
+    if (frozen != null) {
+      const sec = Math.max(0, frozen)
+      await prisma.draftSession.update({
+        where: { id: session.id },
+        data: {
+          overnightFrozenPickSeconds: null,
+          timerEndAt: sec > 0 ? new Date(now.getTime() + sec * 1000) : null,
+          version: { increment: 1 },
+        },
+      })
+    }
+    return
+  }
+
+  const inside = isInsidePauseWindow(now, window)
+
+  if (!inside) {
+    if (frozen != null) {
+      const sec = Math.max(0, frozen)
+      await prisma.draftSession.update({
+        where: { id: session.id },
+        data: {
+          overnightFrozenPickSeconds: null,
+          timerEndAt: sec > 0 ? new Date(now.getTime() + sec * 1000) : null,
+          version: { increment: 1 },
+        },
+      })
+    }
+    return
+  }
+
+  if (frozen == null && session.timerEndAt) {
+    const rem = Math.max(0, Math.ceil((session.timerEndAt.getTime() - now.getTime()) / 1000))
+    await prisma.draftSession.update({
+      where: { id: session.id },
+      data: {
+        overnightFrozenPickSeconds: rem,
+        timerEndAt: null,
+        version: { increment: 1 },
+      },
+    })
+  }
 }
 
 function isCompleteSlotOrder(order: unknown, teamCount: number): boolean {
@@ -91,29 +187,41 @@ export async function buildSlotOrderForLeague(leagueId: string): Promise<SlotOrd
   const teams = league.teams ?? []
   const rosters = league.rosters ?? []
 
-  let slotOrder: SlotOrderEntry[] = (rosters.length >= teamCount
-    ? rosters.slice(0, teamCount).map((r, i) => ({
+  // Slice 5: at league creation we typically have 1 real roster (the commissioner)
+  // but teamCount of 12. Old behavior fell straight through to all-placeholder,
+  // which discarded the commissioner's real rosterId. Now we prefer real rosters
+  // for the first N slots, then pad the remainder with `placeholder-N` so the
+  // Slice 4.5 materializer can fill the rest later without overwriting slot 1.
+  let slotOrder: SlotOrderEntry[] = []
+  if (rosters.length >= teamCount) {
+    slotOrder = rosters.slice(0, teamCount).map((r, i) => ({
+      slot: i + 1,
+      rosterId: r.id,
+      displayName: teams[i]?.ownerName || teams[i]?.teamName || `Team ${i + 1}`,
+    }))
+  } else if (teams.length >= teamCount) {
+    slotOrder = teams.slice(0, teamCount).map((t, i) => ({
+      slot: i + 1,
+      rosterId: t.id,
+      displayName: t.ownerName || t.teamName || `Team ${i + 1}`,
+    }))
+  } else {
+    // Partial: seat every real roster first (index-aligned to teams when
+    // available), then pad empty slots with placeholders.
+    for (let i = 0; i < rosters.length && i < teamCount; i++) {
+      slotOrder.push({
         slot: i + 1,
-        rosterId: r.id,
+        rosterId: rosters[i].id,
         displayName: teams[i]?.ownerName || teams[i]?.teamName || `Team ${i + 1}`,
-      }))
-    : teams.length >= teamCount
-      ? teams.slice(0, teamCount).map((t, i) => ({
-          slot: i + 1,
-          rosterId: t.id,
-          displayName: t.ownerName || t.teamName || `Team ${i + 1}`,
-        }))
-      : []
-  ).map((e) => ({ slot: e.slot, rosterId: e.rosterId, displayName: e.displayName }))
-
-  if (slotOrder.length === 0) {
-    slotOrder.push(
-      ...Array.from({ length: teamCount }, (_, i) => ({
+      })
+    }
+    for (let i = slotOrder.length; i < teamCount; i++) {
+      slotOrder.push({
         slot: i + 1,
         rosterId: `placeholder-${i + 1}`,
         displayName: `Team ${i + 1}`,
-      }))
-    )
+      })
+    }
   }
 
   if (ls) {
@@ -250,6 +358,7 @@ export async function buildSessionSnapshot(
   now: Date = new Date()
 ): Promise<DraftSessionSnapshot | null> {
   await repairDraftSessionSlotOrderIfNeeded(leagueId)
+  await reconcileOvernightDraftTimerForLeague(leagueId, now)
 
   const session = await getDraftSessionByLeague(leagueId)
   if (!session) return null
@@ -295,6 +404,7 @@ export async function buildSessionSnapshot(
       timerSeconds: session.timerSeconds,
       timerEndAt: session.timerEndAt,
       pausedRemainingSeconds: session.pausedRemainingSeconds,
+      overnightFrozenPickSeconds: session.overnightFrozenPickSeconds ?? null,
     },
     now,
     pauseWindow
@@ -529,6 +639,7 @@ export async function startDraftSession(leagueId: string): Promise<StartDraftSes
       data: {
         status: 'in_progress',
         pausedRemainingSeconds: null,
+        overnightFrozenPickSeconds: null,
         startedAt: session.startedAt ?? startedAtNow,
         version: { increment: 1 },
       },
@@ -538,7 +649,8 @@ export async function startDraftSession(leagueId: string): Promise<StartDraftSes
   }
 
   const timerSeconds = computeEffectivePickTimerSeconds(ls, config, uiSettings)
-  const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
+  const timerEndAt =
+    timerSeconds != null && timerSeconds > 0 ? new Date(Date.now() + timerSeconds * 1000) : null
   await prisma.draftSession.update({
     where: { id: session.id },
     data: {
@@ -546,6 +658,7 @@ export async function startDraftSession(leagueId: string): Promise<StartDraftSes
       timerSeconds,
       timerEndAt,
       pausedRemainingSeconds: null,
+      overnightFrozenPickSeconds: null,
       startedAt: session.startedAt ?? startedAtNow,
       version: { increment: 1 },
     },
@@ -558,14 +671,19 @@ export async function pauseDraftSession(leagueId: string, pausedByUserId?: strin
   const session = await prisma.draftSession.findUnique({ where: { leagueId } })
   if (!session || session.status !== 'in_progress') return false
   const now = new Date()
-  const remaining = session.timerEndAt
-    ? Math.max(0, Math.ceil((session.timerEndAt.getTime() - now.getTime()) / 1000))
-    : session.timerSeconds ?? 0
+  const frozen = session.overnightFrozenPickSeconds
+  const remaining =
+    frozen != null
+      ? frozen
+      : session.timerEndAt
+        ? Math.max(0, Math.ceil((session.timerEndAt.getTime() - now.getTime()) / 1000))
+        : session.timerSeconds ?? 0
   await prisma.draftSession.update({
     where: { id: session.id },
     data: {
       status: 'paused',
       timerEndAt: null,
+      overnightFrozenPickSeconds: null,
       pausedRemainingSeconds: remaining,
       pausedByUserId: pausedByUserId ?? null,
       version: { increment: 1 },
@@ -583,8 +701,11 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
     getDraftUISettingsForLeague(leagueId),
   ])
   const effectiveStored = computeEffectivePickTimerSeconds(ls, config, uiSettings)
-  const sec = session.pausedRemainingSeconds ?? effectiveStored
-  const timerEndAt = new Date(Date.now() + Math.max(1, sec) * 1000)
+  const sec = session.pausedRemainingSeconds ?? effectiveStored ?? 0
+  const timerEndAt =
+    effectiveStored != null && effectiveStored > 0
+      ? new Date(Date.now() + Math.max(1, sec) * 1000)
+      : null
   const auctionState =
     session.draftType === 'auction' &&
     session.auctionState &&
@@ -599,12 +720,13 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
       timerSeconds: effectiveStored,
       timerEndAt,
       pausedRemainingSeconds: null,
+      overnightFrozenPickSeconds: null,
       pausedByUserId: null,
       ...(auctionState
         ? {
             auctionState: {
               ...auctionState,
-              bidTimerEndAt: timerEndAt.toISOString(),
+              ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
             } as any,
           }
         : {}),
@@ -630,14 +752,16 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
       where: { id: session.id },
       data: {
         timerSeconds,
-        pausedRemainingSeconds: timerSeconds,
+        overnightFrozenPickSeconds: null,
+        pausedRemainingSeconds: timerSeconds ?? session.pausedRemainingSeconds,
         version: { increment: 1 },
       },
     })
     return true
   }
 
-  const timerEndAt = new Date(Date.now() + timerSeconds * 1000)
+  const timerEndAt =
+    timerSeconds != null && timerSeconds > 0 ? new Date(Date.now() + timerSeconds * 1000) : null
   const auctionState =
     session.draftType === 'auction' &&
     session.auctionState &&
@@ -652,12 +776,13 @@ export async function resetTimer(leagueId: string): Promise<boolean> {
       timerSeconds,
       timerEndAt,
       pausedRemainingSeconds: null,
+      overnightFrozenPickSeconds: null,
       pausedByUserId: null,
       ...(auctionState
         ? {
             auctionState: {
               ...auctionState,
-              bidTimerEndAt: timerEndAt.toISOString(),
+              ...(timerEndAt ? { bidTimerEndAt: timerEndAt.toISOString() } : { bidTimerEndAt: null }),
             } as any,
           }
         : {}),

@@ -13,8 +13,9 @@ describe('invite engine helpers', () => {
       'https://allfantasy.test/invite/accept?code=TOKEN142'
     )
     expect(buildInviteDeepLink('TOKEN142')).toBe('allfantasy://invite/accept?code=TOKEN142')
-    expect(buildInviteDestinationHref('league', 'league-1')).toBe('/leagues/league-1')
-    expect(buildInviteDestinationHref('creator_league', 'creator-1')).toBe('/creator/leagues/creator-1')
+    expect(buildInviteDestinationHref('league', 'league-1')).toBe('/league/league-1')
+    expect(buildInviteDestinationHref('bracket', 'pool-9')).toBe('/league/pool-9')
+    expect(buildInviteDestinationHref('creator_league', 'creator-1')).toBe('/dashboard')
     expect(buildInviteDestinationLabel('referral')).toBe('Open referrals')
   })
 

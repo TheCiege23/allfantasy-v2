@@ -85,9 +85,11 @@ export function buildDraftRoomPageDerivedState(input: {
   const timerEndAt =
     gate.timerMode === 'blocked'
       ? null
-      : draftCore?.timerEndAt
-        ? draftCore.timerEndAt
-        : (session?.timer?.timerEndAt ?? session?.timerEndAt ?? null)
+      : session?.timer?.status === 'paused'
+        ? session.timer.timerEndAt
+        : session?.timer?.status === 'running' && session.timer.timerEndAt
+          ? session.timer.timerEndAt
+          : draftCore?.timerEndAt ?? session?.timer?.timerEndAt ?? session?.timerEndAt ?? null
 
   const pausedRemainingSeconds =
     gate.timerMode === 'paused'

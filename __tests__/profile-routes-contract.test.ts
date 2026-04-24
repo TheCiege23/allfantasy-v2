@@ -23,6 +23,10 @@ vi.mock("@/lib/user-settings", () => ({
   saveSettingsOrchestrated: saveSettingsOrchestratedMock,
 }))
 
+vi.mock("@/lib/user-profile/ensureUserProfileForUserId", () => ({
+  ensureUserProfileForUserId: vi.fn().mockResolvedValue(undefined),
+}))
+
 describe("Profile route contracts", () => {
   beforeEach(() => {
     vi.clearAllMocks()

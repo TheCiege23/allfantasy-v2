@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { InvitePreviewCard } from '@/components/invite'
+import { signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
+import { canonicalizeProductRoute } from '@/lib/routing/canonicalizeProductRoute'
 
 interface Preview {
   inviteType: string
@@ -95,7 +97,7 @@ export default function AcceptInvitePage() {
             destinationHref: data.destinationHref,
           })
           if (data.destinationHref) {
-            window.location.href = data.destinationHref
+            window.location.href = canonicalizeProductRoute(data.destinationHref)
             return
           }
         } else {
@@ -210,9 +212,21 @@ export default function AcceptInvitePage() {
         )}
 
         {!session?.user && preview.status === 'valid' && (
-          <p className="mt-4 text-center text-sm" style={{ color: 'var(--muted)' }}>
-            Sign in first so AllFantasy can apply the invite to your account.
-          </p>
+          <div className="mt-4 space-y-2 text-center text-sm" style={{ color: 'var(--muted)' }}>
+            <p>Sign in first so AllFantasy can apply the invite to your account.</p>
+            <p>
+              New here?{' '}
+              <Link
+                href={signupUrlWithIntent(callbackUrl)}
+                className="font-medium underline-offset-2 hover:underline"
+                style={{ color: 'var(--accent)' }}
+                data-testid="invite-accept-signup-link"
+              >
+                Create an account
+              </Link>{' '}
+              — you will return to this invite after signup.
+            </p>
+          </div>
         )}
 
         <p className="mt-6 text-center">

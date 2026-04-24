@@ -11,6 +11,7 @@ import { getDraftUISettingsForLeague } from '@/lib/draft-defaults/DraftUISetting
 import { submitPick } from '@/lib/live-draft-engine/PickSubmissionService'
 import { appendPickToRosterDraftSnapshot } from '@/lib/live-draft-engine/RosterAssignmentService'
 import { computeTimerStateWithPauseWindow } from '@/lib/live-draft-engine/DraftTimerService'
+import { reconcileOvernightDraftTimerForLeague } from '@/lib/live-draft-engine/DraftSessionService'
 import { resolveCurrentOnTheClock } from '@/lib/live-draft-engine/CurrentOnTheClockResolver'
 import { resolvePickOwner } from '@/lib/live-draft-engine/PickOwnershipResolver'
 import { tryQueueAutoPick } from '@/lib/live-draft-engine/slow-draft/SlowDraftRuntimeService'
@@ -106,6 +107,8 @@ export async function processExpiredDraftPickForLeague(
       return { leagueId, outcome: 'skipped', reason: 'auto_pick_disabled' }
     }
 
+    await reconcileOvernightDraftTimerForLeague(leagueId, now)
+
     const session = await prisma.draftSession.findUnique({
       where: { leagueId },
       include: { picks: { orderBy: { overall: 'asc' } }, queues: true },
@@ -136,6 +139,7 @@ export async function processExpiredDraftPickForLeague(
         timerSeconds: session.timerSeconds,
         timerEndAt: session.timerEndAt,
         pausedRemainingSeconds: session.pausedRemainingSeconds,
+        overnightFrozenPickSeconds: session.overnightFrozenPickSeconds ?? null,
       },
       now,
       pauseWindow,

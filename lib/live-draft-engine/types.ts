@@ -196,6 +196,10 @@ export interface TimerState {
   status: 'running' | 'paused' | 'expired' | 'none'
   remainingSeconds: number | null
   timerEndAt: string | null
+  /** Commissioner pause vs overnight slow-draft window (virtual pause while session may stay in_progress). */
+  pauseReason?: 'commissioner' | 'overnight_window' | null
+  /** When pauseReason is overnight_window: next instant the pause window ends (ISO UTC). */
+  overnightResumeAt?: string | null
 }
 
 export interface QueueEntry {

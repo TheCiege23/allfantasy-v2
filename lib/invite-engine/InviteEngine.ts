@@ -199,8 +199,10 @@ async function createFantasyLeagueRoster(leagueId: string, userId: string) {
           leagueVariant: true,
         },
       }),
+      // Slice 7/7.1: exclude orphan AI rosters from "is full" capacity check.
+      // Orphans get evicted for new humans via evictOrphanForNewHumanRoster.
       tx.roster.count({
-        where: { leagueId },
+        where: { leagueId, NOT: { platformUserId: { startsWith: 'orphan-' } } },
       }),
       tx.draftSession.findUnique({
         where: { leagueId },
@@ -349,7 +351,7 @@ async function buildInvitePreviewFromLink(
   const maxUsed = lifecycle === 'max_used'
 
   if (link.type === 'league' && link.targetId) {
-    const [league, existingRoster] = await Promise.all([
+    const [league, existingRoster, humanRosterCount] = await Promise.all([
       prisma.league.findUnique({
         where: { id: link.targetId },
         select: {
@@ -358,7 +360,6 @@ async function buildInvitePreviewFromLink(
           sport: true,
           leagueSize: true,
           avatarUrl: true,
-          _count: { select: { rosters: true } },
         },
       }),
       options?.userId
@@ -372,6 +373,16 @@ async function buildInvitePreviewFromLink(
             select: { id: true },
           })
         : Promise.resolve(null),
+      // Slice 7/7.1: auto-materialization fills empty slots with orphan AI
+      // rosters. Orphans are placeholder seats that get evicted when a human
+      // joins (evictOrphanForNewHumanRoster), so they must NOT count toward
+      // capacity for the "is this league full?" check.
+      prisma.roster.count({
+        where: {
+          leagueId: link.targetId,
+          NOT: { platformUserId: { startsWith: 'orphan-' } },
+        },
+      }),
     ])
 
     if (!league) {
@@ -384,7 +395,7 @@ async function buildInvitePreviewFromLink(
       })
     }
 
-    const memberCount = league._count.rosters
+    const memberCount = humanRosterCount
     const maxMembers = league.leagueSize ?? null
     const isFull = maxMembers != null && memberCount >= maxMembers
     const status: InvitePreviewStatus = expired
@@ -918,6 +929,53 @@ export async function acceptInvite(
       if (!result.alreadyMember) {
         await incrementInviteUseCount(link.id, link.useCount, link.maxUses)
       }
+
+      // Slice 7.1: rebalance the draft so the new human takes the lowest
+      // available orphan slot. Best-effort — never breaks invite acceptance.
+      try {
+        const joinedRoster = await prisma.roster.findUnique({
+          where: { leagueId_platformUserId: { leagueId: link.targetId, platformUserId: userId } },
+          select: { id: true },
+        })
+        if (joinedRoster) {
+          const { evictOrphanForNewHumanRoster } = await import('@/lib/league-setup/evictOrphanForNewHumanRoster')
+          const profile = await prisma.userProfile.findFirst({
+            where: { userId },
+            select: { displayName: true, sleeperUsername: true },
+          })
+          const humanDisplayName =
+            profile?.displayName?.trim() || profile?.sleeperUsername?.trim() || null
+          const rebalance = await evictOrphanForNewHumanRoster({
+            leagueId: link.targetId,
+            humanRosterId: joinedRoster.id,
+            humanDisplayName,
+          })
+          if (rebalance.ok && rebalance.rebalanced) {
+            console.info('[invite-engine] slot_rebalanced', {
+              leagueId: link.targetId,
+              humanRosterId: joinedRoster.id,
+              slotIndex: rebalance.slotIndex,
+              evictedRosterId: rebalance.evictedRosterId,
+              picksRemapped: rebalance.picksRemapped,
+              orphanDeleted: rebalance.orphanDeleted,
+            })
+          } else if (rebalance.ok) {
+            console.info('[invite-engine] slot_rebalance_skipped', {
+              leagueId: link.targetId,
+              humanRosterId: joinedRoster.id,
+              reason: rebalance.reason,
+            })
+          } else {
+            console.warn('[invite-engine] slot_rebalance_error', {
+              leagueId: link.targetId,
+              error: rebalance.error,
+            })
+          }
+        }
+      } catch (e) {
+        console.warn('[invite-engine] slot_rebalance_non_fatal', e)
+      }
+
       await recordInviteEvent(link.id, 'accepted', undefined, {
         userId,
         alreadyMember: result.alreadyMember,

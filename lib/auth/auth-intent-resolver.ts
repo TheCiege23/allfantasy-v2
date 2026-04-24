@@ -44,5 +44,6 @@ export function loginUrlWithIntent(redirectPath: string): string {
 /** Build signup URL with intent preserved for after signup. */
 export function signupUrlWithIntent(redirectPath: string): string {
   const safe = safeRedirectPath(redirectPath)
-  return `/signup?next=${encodeURIComponent(safe)}`
+  const enc = encodeURIComponent(safe)
+  return `/signup?next=${enc}&callbackUrl=${enc}`
 }

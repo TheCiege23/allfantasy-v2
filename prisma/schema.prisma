@@ -10006,6 +10006,8 @@ model DraftSession {
   timerSeconds           Int?
   /// When status=in_progress, server time when current pick expires (UTC).
   timerEndAt             DateTime?
+  /// While inside overnight pause window: frozen per-pick seconds remaining (timerEndAt cleared until window ends).
+  overnightFrozenPickSeconds Int?
   /// When status=paused, remaining seconds for current pick.
   pausedRemainingSeconds Int?
   /// Draft order: JSON array of { slot: number, rosterId: string, displayName: string }

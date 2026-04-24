@@ -80,6 +80,7 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
         payload.slowDraftPauseWindow = ui.slowDraftPauseWindow
         payload.commissionerForceAutoPickEnabled = ui.commissionerForceAutoPickEnabled
         payload.commissionerPauseControlsEnabled = ui.commissionerPauseControlsEnabled
+        payload.allowPicksDuringOvernightPause = ui.allowPicksDuringOvernightPause
         payload.orphanTeamAiManagerEnabled = cpuManagersEnabled
         payload.orphanDrafterMode = 'cpu'
         payload.auctionAutoNominationEnabled = ui.auctionAutoNominationEnabled
@@ -267,6 +268,17 @@ export default function AutomationSettingsPanel({ leagueId }: { leagueId: string
                   data-testid="commissioner-automation-overnight-timezone-input"
                   className="w-40 rounded border border-white/20 bg-black/40 px-2 py-1 text-white"
                 />
+              </label>
+              <label className="mt-2 flex w-full items-center gap-2 text-white/85">
+                <input
+                  type="checkbox"
+                  checked={Boolean(effectiveUI.allowPicksDuringOvernightPause)}
+                  onChange={(e) => setUIField('allowPicksDuringOvernightPause', e.target.checked)}
+                  disabled={!isCommissioner}
+                  data-testid="commissioner-automation-overnight-allow-picks-toggle"
+                  className="rounded border-white/20"
+                />
+                Allow picks during overnight quiet window
               </label>
             </div>
           )}

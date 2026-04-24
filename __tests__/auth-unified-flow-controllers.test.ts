@@ -19,7 +19,7 @@ describe('Unified auth flow controllers', () => {
         callbackUrl: '/brackets',
         next: '/dashboard',
       })
-    ).toBe('/brackets')
+    ).toBe('/dashboard')
 
     expect(
       resolveLoginCallbackUrl({
@@ -40,16 +40,31 @@ describe('Unified auth flow controllers', () => {
       resolveSignupRedirectPath({
         callbackUrl: '/brackets',
       })
-    ).toBe('/brackets')
+    ).toBe('/dashboard')
+  })
+
+  it('signup redirect skips /login and prefers a safe next', () => {
+    expect(
+      resolveSignupRedirectPath({
+        callbackUrl: '/login?callbackUrl=%2Fdashboard',
+        next: '/invite/accept?code=ABC',
+      })
+    ).toBe('/invite/accept?code=ABC')
+
+    expect(
+      resolveSignupRedirectPath({
+        callbackUrl: '/login',
+      })
+    ).toBe('/dashboard')
   })
 
   it('routes post-signup to phone verify when method is phone', () => {
-    expect(
-      resolvePostSignupCallbackUrl({
-        redirectAfterSignup: '/brackets',
-        verificationMethod: 'PHONE',
-      })
-    ).toContain('/verify?method=phone')
+    const phoneHref = resolvePostSignupCallbackUrl({
+      redirectAfterSignup: '/brackets',
+      verificationMethod: 'PHONE',
+    })
+    expect(phoneHref).toContain('/verify?method=phone')
+    expect(phoneHref).toContain(encodeURIComponent('/dashboard'))
 
     expect(
       resolvePostSignupCallbackUrl({

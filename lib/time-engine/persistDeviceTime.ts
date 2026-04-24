@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
+import { ensureUserProfileForUserId } from '@/lib/user-profile/ensureUserProfileForUserId'
 import { getServerNowUTC } from '@/lib/time-engine/serverClock'
 import { detectTimeMismatch } from '@/lib/time-engine/mismatch'
 import { normalizeToUTC } from '@/lib/time-engine/normalize'
@@ -28,6 +29,8 @@ export async function persistDeviceTimeContext(input: PersistDeviceTimeInput): P
   if (Number.isNaN(dev.getTime())) {
     return { ok: false, timeMismatchFlag: false }
   }
+
+  await ensureUserProfileForUserId(input.userId)
 
   const profile = await prisma.userProfile.findUnique({
     where: { userId: input.userId },

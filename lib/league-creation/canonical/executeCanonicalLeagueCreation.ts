@@ -150,6 +150,26 @@ export async function executeCanonicalLeagueCreation(args: {
     console.warn(`${LOG_PREFIX} constitution_non_fatal`, e)
   }
 
+  // Slice 7: auto-materialize the draft so every joined human is seated and
+  // remaining slots are AI-managed orphans. Best-effort — commissioner can
+  // always click "Fill empty slots" in the Pre-Draft Setup card if this fails.
+  try {
+    const { autoMaterializeDraftForLeague } = await import('@/lib/league-setup/autoMaterializeDraftForLeague')
+    const result = await autoMaterializeDraftForLeague(createdLeagueId)
+    if (result.ok) {
+      log('auto_materialize_success', {
+        leagueId: createdLeagueId,
+        slotOrderSeeded: result.slotOrderSeeded,
+        materializedCreated: result.materializedCreated,
+        materializedAlready: result.materializedAlready,
+      })
+    } else {
+      console.warn(`${LOG_PREFIX} auto_materialize_non_fatal`, result.reason)
+    }
+  } catch (e) {
+    console.warn(`${LOG_PREFIX} auto_materialize_non_fatal`, e)
+  }
+
   const resBody: CreateLeagueSuccessResponse = {
     success: true,
     league: {

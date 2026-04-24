@@ -21,7 +21,15 @@ describe("Unified auth integration services", () => {
       resolvePostAuthIntentDestination({
         intent: "bracket-challenge",
       })
-    ).toBe("/brackets")
+    ).toBe("/dashboard")
+  })
+
+  it("canonicalizes plural league URLs after login intent resolution", () => {
+    expect(
+      resolvePostAuthIntentDestination({
+        next: "/leagues/season-42",
+      })
+    ).toBe("/league/season-42")
   })
 
   it("restores remembered intent when query params are missing", () => {
@@ -29,7 +37,7 @@ describe("Unified auth integration services", () => {
       resolvePostAuthIntentDestination({
         rememberedIntent: "/af-legacy",
       })
-    ).toBe("/af-legacy")
+    ).toBe("/dashboard")
   })
 
   it("downgrades admin destination when user is non-admin", () => {

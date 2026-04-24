@@ -15,8 +15,9 @@ import {
 import {
   clearUnifiedAuthDestination,
   rememberUnifiedAuthDestination,
-  resolveUnifiedAuthDestination,
+  resolveUnifiedAuthDestinationForSignup,
 } from "@/lib/auth/UnifiedAuthOrchestrator"
+import { pickPostCredentialSignupNavigation } from "@/lib/auth/postSignupRedirectPolicy"
 import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/LegalRouteResolver"
 import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezones"
 import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
@@ -92,7 +93,7 @@ function SignupContent() {
   const callbackParam = searchParams?.get("callbackUrl") ?? undefined
   const returnToParam = searchParams?.get("returnTo") ?? undefined
   const intentParam = searchParams?.get("intent") ?? undefined
-  const redirectAfterSignup = resolveUnifiedAuthDestination({
+  const redirectAfterSignup = resolveUnifiedAuthDestinationForSignup({
     next: nextParam,
     callbackUrl: callbackParam,
     returnTo: returnToParam,
@@ -566,7 +567,9 @@ function SignupContent() {
           window.localStorage.setItem("af_mode", mode)
         }
         clearUnifiedAuthDestination()
-        router.push(signInResult?.url || callbackTarget)
+        router.push(
+          pickPostCredentialSignupNavigation(signInResult?.url, callbackTarget)
+        )
         return
       }
 

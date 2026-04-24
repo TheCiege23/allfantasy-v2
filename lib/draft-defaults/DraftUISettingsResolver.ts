@@ -39,6 +39,8 @@ export interface DraftUISettings {
   commissionerPauseControlsEnabled?: boolean
   /** Slow draft: pause window when timerMode is overnight_pause. */
   slowDraftPauseWindow?: SlowDraftPauseWindow | null
+  /** When overnight_pause: allow managers to submit picks during the quiet window (server-enforced). */
+  allowPicksDuringOvernightPause?: boolean
   /** Allow randomizing draft order (e.g. at start of draft). */
   draftOrderRandomizationEnabled: boolean
   /** Allow trading picks (during/after draft). */
@@ -70,6 +72,7 @@ const DRAFT_UI_DEFAULTS: DraftUISettings = {
   timerMode: 'per_pick',
   commissionerForceAutoPickEnabled: false,
   commissionerPauseControlsEnabled: true,
+  allowPicksDuringOvernightPause: false,
   draftOrderRandomizationEnabled: false,
   pickTradeEnabled: true,
   auctionAutoNominationEnabled: false,
@@ -92,6 +95,7 @@ const SETTINGS_KEYS: Record<keyof DraftUISettings, string> = {
   commissionerForceAutoPickEnabled: 'draft_commissioner_force_autopick_enabled',
   commissionerPauseControlsEnabled: 'draft_commissioner_pause_controls_enabled',
   slowDraftPauseWindow: 'draft_slow_pause_window',
+  allowPicksDuringOvernightPause: 'draft_allow_picks_during_overnight_pause',
   draftOrderRandomizationEnabled: 'draft_order_randomization_enabled',
   pickTradeEnabled: 'draft_pick_trade_enabled',
   auctionAutoNominationEnabled: 'draft_auction_auto_nomination_enabled',
@@ -116,6 +120,9 @@ function fromStorage(settings: Record<string, unknown>): DraftUISettings {
     commissionerForceAutoPickEnabled: settings[SETTINGS_KEYS.commissionerForceAutoPickEnabled] as boolean ?? DRAFT_UI_DEFAULTS.commissionerForceAutoPickEnabled,
     commissionerPauseControlsEnabled: settings[SETTINGS_KEYS.commissionerPauseControlsEnabled] as boolean ?? DRAFT_UI_DEFAULTS.commissionerPauseControlsEnabled,
     slowDraftPauseWindow: (settings[SETTINGS_KEYS.slowDraftPauseWindow] as SlowDraftPauseWindow | null | undefined) ?? undefined,
+    allowPicksDuringOvernightPause:
+      (settings[SETTINGS_KEYS.allowPicksDuringOvernightPause] as boolean | undefined) ??
+      DRAFT_UI_DEFAULTS.allowPicksDuringOvernightPause,
     draftOrderRandomizationEnabled: settings[SETTINGS_KEYS.draftOrderRandomizationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.draftOrderRandomizationEnabled,
     pickTradeEnabled: settings[SETTINGS_KEYS.pickTradeEnabled] as boolean ?? DRAFT_UI_DEFAULTS.pickTradeEnabled,
     auctionAutoNominationEnabled: settings[SETTINGS_KEYS.auctionAutoNominationEnabled] as boolean ?? DRAFT_UI_DEFAULTS.auctionAutoNominationEnabled,
@@ -193,6 +200,8 @@ export async function updateDraftUISettings(
     next[SETTINGS_KEYS.commissionerPauseControlsEnabled] = patch.commissionerPauseControlsEnabled
   if (patch.slowDraftPauseWindow !== undefined)
     next[SETTINGS_KEYS.slowDraftPauseWindow] = patch.slowDraftPauseWindow
+  if (patch.allowPicksDuringOvernightPause !== undefined)
+    next[SETTINGS_KEYS.allowPicksDuringOvernightPause] = patch.allowPicksDuringOvernightPause
   if (patch.draftOrderRandomizationEnabled !== undefined)
     next[SETTINGS_KEYS.draftOrderRandomizationEnabled] = patch.draftOrderRandomizationEnabled
   if (patch.pickTradeEnabled !== undefined)
