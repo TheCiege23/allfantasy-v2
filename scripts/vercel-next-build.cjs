@@ -21,8 +21,10 @@ const routeDirsToDisable = [
   path.join('app', 'tools', 'public-league-discovery-harness'),
   // Keep non-core diagnostic/dev surfaces out of production route budget.
   path.join('app', 'admin'),
+  path.join('app', 'api', 'admin'),
   path.join('app', 'ai-lab'),
   path.join('app', 'lab'),
+  path.join('app', 'bracket-review'),
   path.join('app', 'createor'),
   path.join('app', 'manifest.experimental.webmanifest'),
 ]
